@@ -1701,7 +1701,9 @@ function presentHeroActionResult(summary: CombatTurnSummary, action: string): st
     return `${action} спрацьовує без прямої шкоди.`;
   }
 
-  return `${action} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+  const hitAction = action === "Атака" ? action : `${action} і`;
+
+  return `${hitAction} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
 }
 
 function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {

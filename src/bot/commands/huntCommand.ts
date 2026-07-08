@@ -9,7 +9,12 @@ import {
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
-import { buildYegerCornerKeyboard, buildYegerHuntKeyboard, buildYegerKeyboard } from "../keyboards/yegerKeyboard";
+import {
+  buildYegerCornerKeyboard,
+  buildYegerHuntKeyboard,
+  buildYegerKeyboard,
+  type YegerNavigationOptions
+} from "../keyboards/yegerKeyboard";
 import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentYegerCorner,
@@ -27,6 +32,7 @@ export interface HuntCommandOptions {
   tavernRaid?: TavernRaidService;
   questMarkers?: QuestMarkerInput | null;
   resolveQuestMarkers?: (telegramUserId: bigint) => Promise<QuestMarkerInput | null>;
+  resolveFieldKitHelp?: (telegramUserId: bigint) => Promise<boolean>;
 }
 
 export function registerHuntCommand(
@@ -89,7 +95,7 @@ export async function sendHuntBoard(
     await sendText(ctx, mode, presentYegerCorner(result), {
       kind: "corner",
       result,
-      questMarkers: await resolveYegerQuestMarkers(telegramUserId, options)
+      ...(await resolveYegerNavigationOptions(telegramUserId, options))
     });
     return;
   }
@@ -147,7 +153,7 @@ export async function sendYegerCorner(
   await sendText(ctx, mode, presentYegerCorner(result), {
     kind: "corner",
     result,
-    questMarkers: await resolveYegerQuestMarkers(telegramUserId, options)
+    ...(await resolveYegerNavigationOptions(telegramUserId, options))
   });
 }
 
@@ -193,7 +199,7 @@ async function sendText(
   text: string,
   keyboard:
     | Parameters<typeof buildYegerKeyboard>[0]
-    | { kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0]; questMarkers?: QuestMarkerInput | null }
+    | ({ kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0] } & YegerNavigationOptions)
     | { kind: "hunt"; result: Parameters<typeof buildYegerHuntKeyboard>[0] }
     | "enter-korchma"
     | false = false
@@ -216,7 +222,7 @@ async function sendText(
 function buildReplyMarkup(
   keyboard:
     | Parameters<typeof buildYegerKeyboard>[0]
-    | { kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0]; questMarkers?: QuestMarkerInput | null }
+    | ({ kind: "corner"; result: Parameters<typeof buildYegerCornerKeyboard>[0] } & YegerNavigationOptions)
     | { kind: "hunt"; result: Parameters<typeof buildYegerHuntKeyboard>[0] }
     | "enter-korchma"
 ) {
@@ -231,7 +237,10 @@ function buildReplyMarkup(
 
     return buildYegerCornerKeyboard(
       keyboard.result,
-      keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }
+      {
+        ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
+        ...(keyboard.showFieldKitHelp ? { showFieldKitHelp: true } : {})
+      }
     );
   }
 
@@ -247,4 +256,19 @@ async function resolveYegerQuestMarkers(
   }
 
   return options?.resolveQuestMarkers?.(telegramUserId) ?? null;
+}
+
+async function resolveYegerNavigationOptions(
+  telegramUserId: bigint,
+  options: HuntCommandOptions | undefined
+): Promise<YegerNavigationOptions> {
+  const [questMarkers, showFieldKitHelp] = await Promise.all([
+    resolveYegerQuestMarkers(telegramUserId, options),
+    options?.resolveFieldKitHelp?.(telegramUserId) ?? Promise.resolve(false)
+  ]);
+
+  return {
+    ...(questMarkers ? { questMarkers } : {}),
+    ...(showFieldKitHelp ? { showFieldKitHelp: true } : {})
+  };
 }

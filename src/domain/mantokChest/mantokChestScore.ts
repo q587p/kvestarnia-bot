@@ -8,7 +8,8 @@ export const mantokChestRarityRank: Record<MantokChestRarity, number> = {
   common: 1,
   uncommon: 2,
   rare: 3,
-  epic: 4
+  epic: 4,
+  legendary: 5
 };
 
 export const protectedMantokChestItemIds = new Set<string>([

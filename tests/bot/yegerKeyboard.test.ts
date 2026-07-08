@@ -6,6 +6,7 @@ import {
   buildYegerBandagesKeyboard,
   buildYegerBandagePurchaseKeyboard,
   buildYegerCornerKeyboard,
+  buildYegerHelpKeyboard,
   buildYegerHuntKeyboard,
   buildYegerKeyboard,
   buildYegerNotchExchangeKeyboard,
@@ -15,6 +16,7 @@ import {
   makeYegerBandagesCallbackData,
   makeYegerBuyBandageCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerNotchExchangeCallbackData,
   makeYegerNotchExchangeOpenCallbackData,
@@ -124,6 +126,39 @@ describe("Yeger keyboard", () => {
       callback_data: makePlaceCallbackData("barrel")
     });
     expect(flatButtons(keyboard).map((button) => button.text)).not.toContain("🛢️ До Бочки ⚠️");
+  });
+
+  it("offers field-kit help only when the Charkokovalnia route needs it", () => {
+    const withoutHelp = buildYegerCornerKeyboard({
+      state: "offered",
+      character,
+      progress: { wins: 0, target: 5 }
+    });
+    const withHelp = buildYegerCornerKeyboard(
+      {
+        state: "offered",
+        character,
+        progress: { wins: 0, target: 5 }
+      },
+      { showFieldKitHelp: true }
+    );
+
+    expect(flatButtons(withoutHelp).map((button) => button.callback_data)).not.toContain(
+      makeYegerFieldKitHelpCallbackData()
+    );
+    expect(flatButtons(withHelp)).toContainEqual({
+      text: "🧰 Аптечка?",
+      callback_data: makeYegerFieldKitHelpCallbackData()
+    });
+  });
+
+  it("can point field-kit help back to the Korchma yard", () => {
+    const keyboard = buildYegerHelpKeyboard({ showYardShortcut: true });
+
+    expect(flatButtons(keyboard)[0]).toEqual({
+      text: "Перейти в задвірок",
+      callback_data: makePlaceCallbackData("yard")
+    });
   });
 
   it("opens Yeger notch exchange from the closed second board when notches can be spent", () => {

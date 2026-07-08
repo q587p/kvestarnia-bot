@@ -3,6 +3,7 @@ import {
   presentYegerBandages,
   presentYegerBandageBuy,
   presentYegerCorner,
+  presentYegerFieldKitHelp,
   presentYegerHelp,
   presentYegerHuntOutside,
   presentYegerNotchExchange,
@@ -84,8 +85,8 @@ describe("Yeger presenter", () => {
       }
     });
 
-    expect(text).toContain("Нагорода:");
-    expect(text).toContain("<b>+35 XP\n+120 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("+35 XP\n+120 золота");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
     expect(text).toContain(
       "Здобуто: <i>Єгерська риска на дощечці</i>\n\nВідкрито: Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
@@ -112,7 +113,8 @@ describe("Yeger presenter", () => {
 
     expect(text).toContain("Неспокійні справи 2.0 закрито");
     expect(text).toContain("Єгер ставить дві риски на дощечці.");
-    expect(text).toContain("<b>+56 XP\n+170 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("+56 XP\n+170 золота");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці ×2</i>");
   });
 
@@ -269,6 +271,26 @@ describe("Yeger presenter", () => {
       })
     ).toContain("дозвіл на прогрес");
     expect(presentYegerHelp()).toContain("Втеча, поразка й протермінований бій");
+  });
+
+  it("explains that field-kit access comes from both Yeger boards", () => {
+    const text = presentYegerFieldKitHelp();
+
+    expect(text).toContain("🧰 Аптечка?");
+    expect(text).toContain("Єгер:\n<blockquote>");
+    expect(text).toContain("«Неспокійні справи»");
+    expect(text).toContain("«Неспокійні справи 2.0»");
+    expect(text).toContain("Після другої дощечки");
+  });
+
+  it("points back to the mage when the field kit is already in inventory", () => {
+    const text = presentYegerFieldKitHelp({ state: "has-field-kit" });
+
+    expect(text).toContain("🧰 Аптечка?");
+    expect(text).toContain("Молодець. Польова аптечка вже у вас.");
+    expect(text).toContain("ідіть");
+    expect(text).toContain("до мага в задвірок");
+    expect(text).not.toContain("«Неспокійні справи 2.0»");
   });
 
   it("uses biography-aware ranger corner reactions", () => {

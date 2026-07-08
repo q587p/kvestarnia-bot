@@ -54,15 +54,16 @@ export function buildItemGiftEligibleStacks(input: {
     const quantity = Math.max(0, Math.floor(stack.quantity));
     const content = contentById.get(stack.itemId);
     const unitGoldValue = Math.max(0, Math.floor(content?.goldValue ?? 0));
+    const isExplicitlyTradeable = content?.tags?.includes("tradeable") === true;
 
     if (
       !content ||
       quantity < ITEM_GIFT_QUANTITY ||
-      unitGoldValue <= 0 ||
+      (!isExplicitlyTradeable && unitGoldValue <= 0) ||
       equippedItemIds.has(stack.itemId) ||
       reservedItemIds.has(stack.itemId) ||
       isItemTransferBlockedByTags(content) ||
-      isProtectedMantokChestItem(content)
+      (!isExplicitlyTradeable && isProtectedMantokChestItem(content))
     ) {
       return [];
     }

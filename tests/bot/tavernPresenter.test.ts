@@ -87,6 +87,14 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("сліди просить перевіряти надворі");
   });
 
+  it("shows Charkokovalnia as the yard focus without Korchmar round prose", () => {
+    const text = presentKorchmaYard(character);
+
+    expect(text).toContain("ельф-маг облаштував <i>Чароковальню</i>");
+    expect(text).toContain("іскри не гладити");
+    expect(text).not.toContain("Корчмарського обходу");
+  });
+
   it("shows the front-door Munchkin paragraph from level 3", () => {
     const text = presentKorchmaFront({ ...character, level: 3 });
 

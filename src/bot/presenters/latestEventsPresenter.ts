@@ -32,6 +32,8 @@ export function presentLatestEventsPage(input: {
   return [
     "📜 Хроніки Квестарні",
     "",
+    ...presentLatestEventsFilterLine(input.filter ?? "all"),
+    ...(input.filter && input.filter !== "all" ? [""] : []),
     ...renderGroupedRows(input.page.events, input.now ?? new Date())
   ].join("\n");
 }
@@ -50,35 +52,53 @@ export function presentLatestEventsEmpty(filter: LatestEventFilter = "all"): str
 }
 
 function presentLatestEventsFilteredEmpty(filter: LatestEventFilter): string | null {
+  const intro = [
+    "📜 Хроніки Квестарні",
+    "",
+    ...presentLatestEventsFilterLine(filter),
+    ""
+  ];
+
   switch (filter) {
     case "imp":
       return [
-        "⭐ Важливе",
-        "",
+        ...intro,
         "Поки що без великих пригод. Це не тиша — це пауза перед чиїмось дуже поганим планом."
       ].join("\n");
     case "adv":
       return [
-        "👥 Пригодники",
-        "",
+        ...intro,
         "Поки що без нових пригодників і гучних рівнів. Літописець тримає перо напоготові."
       ].join("\n");
     case "cmb":
       return [
-        "⚔️ Бої",
-        "",
+        ...intro,
         "Поки що без гучних перемог. Мечі мовчать, протокол підслуховує."
       ].join("\n");
     case "itm":
       return [
-        "🎒 Манатки",
-        "",
+        ...intro,
         "Поки що без рідкісних манаток. Торба робить вигляд, що так і треба."
       ].join("\n");
     case "all":
     default:
       return null;
   }
+}
+
+function presentLatestEventsFilterLine(filter: LatestEventFilter): string[] {
+  if (filter === "all") {
+    return [];
+  }
+
+  const labels: Record<Exclude<LatestEventFilter, "all">, string> = {
+    imp: "⭐ Важливе",
+    adv: "👥 Пригодники",
+    cmb: "⚔️ Бої",
+    itm: "🎒 Манатки"
+  };
+
+  return [`Фільтр: <b>${labels[filter]}</b>`];
 }
 
 export function presentLatestEventsError(): string {
@@ -137,10 +157,17 @@ function renderEventRow(event: ActivityEventRecord): string {
     }
     case "item.rare_received": {
       const rarity = readPayloadString(event.payload, "rarity");
+      if (rarity === "legendary") {
+        return `💎 ${time} | ${actor}: легендарна манатка — «${subject}». Корчмар дістає підставку, серветку й окрему підставку для серветки.`;
+      }
       if (rarity === "epic") {
         return `💎 ${time} | ${actor}: епічна манатка — «${subject}». Корчмар просить не ставити її на стіл без підставки.`;
       }
       return `🎒 ${time} | ${actor}: рідкісна манатка — «${subject}».`;
+    }
+    case "item.upgraded": {
+      const targetLevel = readPayloadNumber(event.payload, "targetLevel");
+      return `🛠️ ${time} | ${actor}: манатка підсилена до +${targetLevel ?? "?"} — «${subject}».`;
     }
     case "combat.underdog_won": {
       const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;

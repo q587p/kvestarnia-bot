@@ -9,14 +9,18 @@ import {
   presentInventorySortPromptLabel,
   type InventorySort
 } from "./inventorySort";
+import {
+  getPageNumberPromptPlaceholder,
+  parsePageNumber,
+  parsePageNumberPrompt,
+  presentPageNumberPrompt
+} from "./pageNumberPrompt";
 
 export interface InventoryPagePrompt {
   filter: InventoryFilter;
   sort: InventorySort;
   totalPages: number;
 }
-
-const PROMPT_PATTERN = /^Введіть номер сторінки для «(.+)» \(1-(\d{1,3})\):$/u;
 
 export function presentInventoryPagePrompt(
   filter: InventoryFilter,
@@ -28,30 +32,27 @@ export function presentInventoryPagePrompt(
     ? `${getInventoryPagePromptLabel(filter)} · ${sortLabel}`
     : getInventoryPagePromptLabel(filter);
 
-  return `Введіть номер сторінки для «${label}» (1-${normalizeTotalPages(totalPages)}):`;
+  return presentPageNumberPrompt(label, totalPages);
 }
 
 export function parseInventoryPagePrompt(text: string | undefined): InventoryPagePrompt | null {
-  const match = text?.match(PROMPT_PATTERN);
-
-  if (!match) {
+  const prompt = parsePageNumberPrompt(text);
+  if (!prompt) {
     return null;
   }
 
-  const label = match[1];
-  const totalPages = Number(match[2]);
-  const [filterLabel, sortLabel] = (label ?? "").split(" · ");
+  const [filterLabel, sortLabel] = prompt.label.split(" · ");
   const filter = labelToFilter(filterLabel);
   const sort = labelToSort(sortLabel);
 
-  if (filter === undefined || sort === null || !Number.isInteger(totalPages) || totalPages < 1) {
+  if (filter === undefined || sort === null) {
     return null;
   }
 
   return {
     filter,
     sort,
-    totalPages
+    totalPages: prompt.totalPages
   };
 }
 
@@ -59,19 +60,11 @@ export function parseInventoryPageNumber(
   text: string | undefined,
   totalPages: number
 ): number | null {
-  const value = text?.trim();
-
-  if (!value || !/^\d{1,3}$/.test(value)) {
-    return null;
-  }
-
-  const page = Number(value);
-
-  return page >= 1 && page <= normalizeTotalPages(totalPages) ? page : null;
+  return parsePageNumber(text, totalPages);
 }
 
 export function getInventoryPagePromptPlaceholder(totalPages: number): string {
-  return `1-${normalizeTotalPages(totalPages)}`;
+  return getPageNumberPromptPlaceholder(totalPages);
 }
 
 function getInventoryPagePromptLabel(filter: InventoryFilter): string {
@@ -117,10 +110,6 @@ function labelToSort(label: string | undefined): InventorySort | null {
   };
 
   return labels[label] ?? null;
-}
-
-function normalizeTotalPages(totalPages: number): number {
-  return Math.max(1, Math.floor(Number.isFinite(totalPages) ? totalPages : 1));
 }
 
 const slotLabels = {

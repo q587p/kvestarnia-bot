@@ -11,6 +11,7 @@ import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../service
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import { getCombatRaceAbilityProfile, getCombatSkillProfile } from "../../domain/combat";
 import {
   buildBigBarrelLossXp,
   getPartyBossRetaliationPlan,
@@ -54,7 +55,7 @@ export function presentPartyCreate(
   }
 
   if (result.state === "ineligible") {
-    return presentPartyCreateIneligible(result.reason);
+    return presentPartyCreateIneligible(result);
   }
 
   const notice = result.state === "created"
@@ -89,7 +90,7 @@ export function presentPartyJoin(
   }
 
   if (result.state === "ineligible") {
-    return presentPartyJoinIneligible(result.reason);
+    return presentPartyJoinIneligible(result);
   }
 
   if (result.state === "full") {
@@ -120,18 +121,23 @@ export function presentPartyJoin(
 }
 
 function presentPartyCreateIneligible(
-  reason: Extract<PartyCreateResult, { state: "ineligible" }>["reason"]
+  result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
-  if (reason === "loss-cooldown") {
-    return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+  if (result.reason === "loss-cooldown") {
+    return [
+      "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
+      `Спробуйте ще раз за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+    ].join("\n");
   }
 
   return "Рейдова канцелярія притримала новий збір. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
 }
 
 function presentPartyJoinIneligible(
-  reason: Extract<PartyJoinResult, { state: "ineligible" }>["reason"]
+  result: Extract<PartyJoinResult, { state: "ineligible" }>
 ): string {
+  const reason = result.reason;
+
   if (reason === "level-gate") {
     return "Рейдова канцелярія відсіяла запис: Старший Брат Бочки пускає в цю бійку пригодників від 8 рівня, або ремортованих від 3 рівня.";
   }
@@ -145,10 +151,37 @@ function presentPartyJoinIneligible(
   }
 
   if (reason === "loss-cooldown") {
-    return "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+    return [
+      "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
+      `Спробуйте ще раз за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+    ].join("\n");
   }
 
   return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+}
+
+function formatRemainingWait(availableAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
+  return `${minutes} ${formatUkrainianMinutes(minutes)}`;
+}
+
+function formatUkrainianMinutes(value: number): string {
+  const lastTwo = value % 100;
+  const last = value % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "хвилин";
+  }
+
+  if (last === 1) {
+    return "хвилину";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "хвилини";
+  }
+
+  return "хвилин";
 }
 
 export function presentPartyLeave(
@@ -483,7 +516,7 @@ export function presentPartyBoss(
   if (viewer && session.status === "active") {
     lines.push("");
     lines.push(viewerCanAct
-      ? `<b>${escapeHtml(viewer.name)}</b>, що робимо?\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`
+      ? presentPartyBossViewerTurnPrompt(session, viewer)
       : big
         ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
         : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
@@ -502,6 +535,56 @@ export function presentPartyBoss(
   }
 
   return lines.join("\n");
+}
+
+function presentPartyBossViewerTurnPrompt(
+  session: PartyBossSessionRecord,
+  viewer: PartyBossSessionRecord["state"]["participants"][number]
+): string {
+  const queuedAction = findPartyBossQueuedAction(session, viewer.characterId);
+  const prompt = queuedAction
+    ? `<b>${escapeHtml(viewer.name)}</b>, ви плануєте ${presentPartyBossQueuedActionPlan(queuedAction, viewer)}.`
+    : `<b>${escapeHtml(viewer.name)}</b>, що робимо?`;
+
+  return `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
+}
+
+function findPartyBossQueuedAction(
+  session: PartyBossSessionRecord,
+  characterId: string
+): NonNullable<PartyBossSessionRecord["queuedActions"]>[number] | null {
+  return session.queuedActions?.find((action) =>
+    action.turn === session.turn && action.characterId === characterId
+  ) ?? null;
+}
+
+function presentPartyBossQueuedActionPlan(
+  action: NonNullable<PartyBossSessionRecord["queuedActions"]>[number],
+  viewer: PartyBossSessionRecord["state"]["participants"][number]
+): string {
+  switch (action.action) {
+    case "attack":
+      return "вдарити";
+    case "defend":
+      return "захищатися";
+    case "skill":
+      return presentCombatSkillHtml(getCombatSkillProfile(viewer.combatStats.classId).id);
+    case "race": {
+      const ability = getCombatRaceAbilityProfile(viewer.combatStats.raceId);
+
+      return ability ? presentCombatSkillHtml(ability.id) : "расову дію";
+    }
+    case "gear":
+      return action.gearAbility
+        ? `дію спорядження ${presentCombatSkillHtml(action.gearAbility.profile.id)}`
+        : "дію спорядження";
+    case "item":
+      return action.item
+        ? `одноразову манатку <i>${escapeHtml(action.item.name)}</i>`
+        : "одноразову манатку";
+    default:
+      return "дію";
+  }
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {
@@ -1089,6 +1172,7 @@ function presentPartyBossActionLine(
   }
 
   const subject = presentPartyBossActionSubject(action, name, isViewer);
+  const hitSubject = presentPartyBossActionHitSubject(action, subject);
   const support = presentPartyBossActionSupport(action);
 
   switch (action.outcome) {
@@ -1102,21 +1186,30 @@ function presentPartyBossActionLine(
       return `${subject} зривається критично.`;
     case "critical-hit":
       return action.damage > 0
-        ? `${subject} критично влучає на ${action.damage} шкоди.${support}`
+        ? `${hitSubject} критично влучає на ${action.damage} шкоди.${support}`
         : `${subject} критично спрацьовує без прямої шкоди.${support}`;
     case "won":
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди й добиває боса.${support}`
+        ? `${hitSubject} влучає на ${action.damage} шкоди й добиває боса.${support}`
         : `${subject} ставить фінальну крапку без прямої шкоди.${support}`;
     case "hit":
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди.${support}`
+        ? `${hitSubject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
     default:
       return action.damage > 0
-        ? `${subject} влучає на ${action.damage} шкоди.${support}`
+        ? `${hitSubject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
   }
+}
+
+function presentPartyBossActionHitSubject(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
+  subject: string
+): string {
+  return action.action === "skill" || action.action === "race" || action.action === "gear"
+    ? `${subject} і`
+    : subject;
 }
 
 function presentPartyBossActionSupport(

@@ -27,6 +27,7 @@ export type ItemCallbackKeyMaps = {
   itemCallbackKeyById: ReadonlyMap<string, string>;
   itemIdByCallbackKey: ReadonlyMap<string, string>;
 };
+export type ItemDetailSource = "inventory" | "item-upgrade";
 
 export function buildItemCallbackKeyMaps(
   itemIds: readonly string[],
@@ -60,22 +61,40 @@ export function makeStableItemCallbackKey(itemId: string): string {
 }
 
 export type ItemCallback =
-  | { type: "detail"; itemId: string; page: number; filter: InventoryFilter; sort: InventorySort }
+  | {
+      type: "detail";
+      itemId: string;
+      page: number;
+      filter: InventoryFilter;
+      sort: InventorySort;
+      source: ItemDetailSource;
+    }
   | { type: "inventory"; page: number; filter: InventoryFilter; sort: InventorySort }
   | { type: "page-prompt"; totalPages: number; filter: InventoryFilter; sort: InventorySort };
 export type EquipmentCallback =
   | { type: "view" }
-  | { type: "equip-item"; itemId: string; targetSlot: EquipmentSlot | null; confirmTwohand: boolean }
+  | {
+      type: "equip-item";
+      itemId: string;
+      targetSlot: EquipmentSlot | null;
+      confirmTwohand: boolean;
+      confirmAttunement: boolean;
+      confirmAttunementInterrupt: boolean;
+    }
   | { type: "clear-slot"; slot: EquipmentSlot };
 
 export function makeItemDetailCallbackData(
   itemId: string,
   page = 0,
   filter: InventoryFilter = null,
-  sort: InventorySort = DEFAULT_INVENTORY_SORT
+  sort: InventorySort = DEFAULT_INVENTORY_SORT,
+  options: { source?: ItemDetailSource | undefined } = {}
 ): string {
   const suffix = formatInventoryNavigationSuffix(page, filter, sort);
-  const legacyData = `${ITEM_PREFIX}:detail:${itemId}${suffix}`;
+  const source = options.source ?? "inventory";
+  const legacyAction = source === "item-upgrade" ? "upgrade" : "detail";
+  const compactAction = source === "item-upgrade" ? "u" : "d";
+  const legacyData = `${ITEM_PREFIX}:${legacyAction}:${itemId}${suffix}`;
 
   if (!isTooLong(legacyData)) {
     return legacyData;
@@ -84,7 +103,7 @@ export function makeItemDetailCallbackData(
   const compactItemKey = itemCallbackKeyById.get(itemId);
 
   if (compactItemKey) {
-    return assertCallbackData(`${ITEM_PREFIX}:d:${compactItemKey}${suffix}`);
+    return assertCallbackData(`${ITEM_PREFIX}:${compactAction}:${compactItemKey}${suffix}`);
   }
 
   return assertCallbackData(legacyData);
@@ -173,7 +192,7 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     };
   }
 
-  if (action === "d") {
+  if (action === "d" || action === "u") {
     if (rest.length < 1 || rest.length > 6) {
       return { ok: false };
     }
@@ -193,12 +212,13 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
         itemId,
         page: parsed.page,
         filter: parsed.filter,
-        sort: parsed.sort
+        sort: parsed.sort,
+        source: action === "u" ? "item-upgrade" : "inventory"
       }
     };
   }
 
-  if (action !== "detail" || rest.length < 1 || rest.length > 6) {
+  if ((action !== "detail" && action !== "upgrade") || rest.length < 1 || rest.length > 6) {
     return { ok: false };
   }
 
@@ -220,7 +240,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       itemId,
       page: parsed.page,
       filter: parsed.filter,
-      sort: parsed.sort
+      sort: parsed.sort,
+      source: action === "upgrade" ? "item-upgrade" : "inventory"
     }
   };
 }
@@ -232,10 +253,14 @@ export function makeEquipmentCallbackData(): string {
 export function makeEquipItemCallbackData(
   itemId: string,
   targetSlot: EquipmentSlot | null = null,
-  options: { confirmTwohand?: boolean } = {}
+  options: {
+    confirmTwohand?: boolean;
+    confirmAttunement?: boolean;
+    confirmAttunementInterrupt?: boolean;
+  } = {}
 ): string {
   const targetSuffix = targetSlot ? `:s:${slotToCode(targetSlot)}` : "";
-  const confirmSuffix = options.confirmTwohand === true ? ":c:2h" : "";
+  const confirmSuffix = formatEquipmentConfirmSuffix(options);
   const legacyData = `${EQUIPMENT_PREFIX}:item:${itemId}${targetSuffix}${confirmSuffix}`;
 
   if (!isTooLong(legacyData)) {
@@ -286,9 +311,9 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
     const targetSlot = hasSlot && rest[1] === "s"
       ? codeToSlot(rest[2])
       : null;
-    const confirmTwohand = rest.length === 5 && rest[3] === "c" && rest[4] === "2h";
+    const confirm = parseEquipmentConfirm(rest.length === 5 && rest[3] === "c" ? rest[4] : undefined);
 
-    if (!itemId || (hasSlot && !targetSlot) || (rest.length === 5 && !confirmTwohand)) {
+    if (!itemId || (hasSlot && !targetSlot) || (rest.length === 5 && !confirm)) {
       return { ok: false };
     }
 
@@ -298,7 +323,9 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
         type: "equip-item",
         itemId,
         targetSlot,
-        confirmTwohand
+        confirmTwohand: confirm?.confirmTwohand ?? false,
+        confirmAttunement: confirm?.confirmAttunement ?? false,
+        confirmAttunementInterrupt: confirm?.confirmAttunementInterrupt ?? false
       }
     };
   }
@@ -309,13 +336,13 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
     const targetSlot = hasSlot && rest[1] === "s"
       ? codeToSlot(rest[2])
       : null;
-    const confirmTwohand = rest.length === 5 && rest[3] === "c" && rest[4] === "2h";
+    const confirm = parseEquipmentConfirm(rest.length === 5 && rest[3] === "c" ? rest[4] : undefined);
 
     if (
       !itemId ||
       !contentIdSchema.safeParse(itemId).success ||
       (hasSlot && !targetSlot) ||
-      (rest.length === 5 && !confirmTwohand)
+      (rest.length === 5 && !confirm)
     ) {
       return { ok: false };
     }
@@ -326,7 +353,9 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
         type: "equip-item",
         itemId,
         targetSlot,
-        confirmTwohand
+        confirmTwohand: confirm?.confirmTwohand ?? false,
+        confirmAttunement: confirm?.confirmAttunement ?? false,
+        confirmAttunementInterrupt: confirm?.confirmAttunementInterrupt ?? false
       }
     };
   }
@@ -503,6 +532,47 @@ function codeToSlot(code: string | undefined): EquipmentSlot | null {
   };
 
   return code ? (slotsByCode[code] ?? null) : null;
+}
+
+function formatEquipmentConfirmSuffix(options: {
+  confirmTwohand?: boolean;
+  confirmAttunement?: boolean;
+  confirmAttunementInterrupt?: boolean;
+}): string {
+  const parts = [
+    options.confirmTwohand === true ? "2h" : null,
+    options.confirmAttunement === true ? "t" : null,
+    options.confirmAttunementInterrupt === true ? "i" : null
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? `:c:${parts.join("-")}` : "";
+}
+
+function parseEquipmentConfirm(code: string | undefined): {
+  confirmTwohand: boolean;
+  confirmAttunement: boolean;
+  confirmAttunementInterrupt: boolean;
+} | null {
+  if (!code) {
+    return {
+      confirmTwohand: false,
+      confirmAttunement: false,
+      confirmAttunementInterrupt: false
+    };
+  }
+
+  const parts = code.split("-");
+  const allowed = new Set(["2h", "t", "i"]);
+
+  if (parts.length === 0 || parts.some((part) => !allowed.has(part)) || new Set(parts).size !== parts.length) {
+    return null;
+  }
+
+  return {
+    confirmTwohand: parts.includes("2h"),
+    confirmAttunement: parts.includes("t"),
+    confirmAttunementInterrupt: parts.includes("i")
+  };
 }
 
 function assertCallbackData(data: string): string {

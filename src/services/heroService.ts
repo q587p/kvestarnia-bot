@@ -132,6 +132,21 @@ export class HeroService {
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+    const equipmentAttunements = equipmentSnapshot
+      ? equipmentSnapshot.equipment.flatMap((row) => {
+          if (row.attunement?.state !== "tuning") {
+            return [];
+          }
+
+          const item = items.find((candidate) => candidate.id === row.itemId);
+
+          return [{
+            itemName: item?.name ?? row.itemId,
+            readyAt: row.attunement.readyAt,
+            strength: row.attunement.strength
+          }];
+        })
+      : [];
     const activeCosmeticTitle = await this.achievements?.getActiveCosmeticTitleForCharacter(
       character.id,
       character.activeCosmeticTitleGrantId
@@ -142,6 +157,7 @@ export class HeroService {
       telegramUserId,
       character,
       equippedItems,
+      equipmentAttunements,
       remortCount,
       now,
       ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})

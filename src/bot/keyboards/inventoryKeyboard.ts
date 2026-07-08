@@ -5,7 +5,8 @@ import {
   makeInventoryCallbackData,
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData,
-  makeUnequipSlotCallbackData
+  makeUnequipSlotCallbackData,
+  type ItemDetailSource
 } from "../callbacks/itemCallbackData";
 import {
   makeItemCraftConfirmCallbackData,
@@ -20,6 +21,7 @@ import {
 import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
+import { makeItemUpgradeListCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type {
   EquipmentResult,
@@ -51,6 +53,7 @@ import {
   getInventoryTotalPages,
   type InventoryPresenterOptions
 } from "../presenters/inventoryPresenter";
+import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 
 export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
 
@@ -160,12 +163,17 @@ export function buildItemDetailKeyboard(
         };
     craftOptions?: ItemCraftOption[];
     equipPreview?: ItemEquipPreviewResult | null;
+    source?: ItemDetailSource | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "no-character") {
     return keyboard;
+  }
+
+  if (options.source === "item-upgrade") {
+    return keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
   }
 
   if (result.state === "found" && isEquippableItem(result.item.content)) {
@@ -211,6 +219,10 @@ export function buildItemDetailKeyboard(
     } else {
       keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
     }
+  }
+
+  if (result.state === "found" && result.item.itemId === ISKROKAMIN_ITEM_ID) {
+    keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData()).row();
   }
 
   return keyboard
@@ -316,6 +328,26 @@ export function buildEquipItemResultKeyboard(result?: EquipItemResult): InlineKe
         "✅ Так, звільнити руку",
         makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmTwohand: true })
       )
+      .row();
+  }
+
+  if (result?.state === "attunement-confirm-required") {
+    keyboard
+      .text(
+        "✅ Так, чекати",
+        makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmAttunement: true })
+      )
+      .text("✖️ Ні", makeItemDetailCallbackData(result.item.itemId))
+      .row();
+  }
+
+  if (result?.state === "attunement-interrupt-confirm-required") {
+    keyboard
+      .text(
+        "✅ Так, збити процес",
+        makeEquipItemCallbackData(result.item.itemId, result.slot, { confirmAttunementInterrupt: true })
+      )
+      .text("✖️ Ні", makeEquipmentCallbackData())
       .row();
   }
 

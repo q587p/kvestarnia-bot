@@ -61,7 +61,7 @@ Manual selection у `0.0.27` використовує індекс у відсо
 У `0.0.24` item level ще не існує, тому runtime формула спирається на наявні content fields:
 
 ```text
-rarityRank: common=1, uncommon=2, rare=3, epic=4
+rarityRank: common=1, uncommon=2, rare=3, epic=4, legendary=5
 itemScore = (goldValue ?? 0) + rarityRank * 25
 averageScore = mean(input itemScore)
 minimumOutputScore = floor(averageScore) + 1

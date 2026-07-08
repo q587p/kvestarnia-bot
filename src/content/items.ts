@@ -5,8 +5,9 @@ import { mantokEquipmentCoverageItems } from "./mantokEquipmentCoverage";
 import { mantokSetItemContents } from "./mantokSetItems";
 import { monsterLootItemAdditions } from "./monsterLootItems";
 import { monsterTrophyItemAdditions } from "./monsterTrophyCoverage";
+import { buildItemUpgradeVariantContents } from "../domain/itemUpgrades";
 
-export const items = [
+const authoredItemContents = [
   {
     id: "item.pan-of-persuasion",
     name: "Пательня переконання",
@@ -277,6 +278,15 @@ export const items = [
     goldValue: 113
   },
   {
+    id: "item.iskrokamin",
+    name: "Іскрокамінь",
+    description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
+    rarity: "uncommon",
+    slot: "resource",
+    priceless: true,
+    tags: ["tradeable"]
+  },
+  {
     id: "item.yeger.first-notch",
     name: "Єгерська риска на дощечці",
     description: "Маленька риска, яка доводить: Єгер бачив вашу роботу й не повністю заперечує її існування.",
@@ -284,10 +294,19 @@ export const items = [
     slot: "cosmetic",
     priceless: true
   },
+] satisfies ItemContent[];
+
+const upgradeBaseItemContents = [
+  ...authoredItemContents,
   ...mantokEquipmentCoverageItems,
   ...mantokSetItemContents,
   ...mantokAbilityGrantItemContents,
   ...monsterLootItemAdditions,
-  ...monsterTrophyItemAdditions,
+  ...monsterTrophyItemAdditions
+] satisfies ItemContent[];
+
+export const items = [
+  ...upgradeBaseItemContents,
+  ...buildItemUpgradeVariantContents(upgradeBaseItemContents),
   ...lootExpansionV1ItemContents
 ] satisfies ItemContent[];

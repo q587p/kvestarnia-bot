@@ -11,6 +11,7 @@ describe("latest events presenter", () => {
     expect(presentLatestEventsEmpty()).toContain("📜 Хроніки Квестарні");
     expect(presentLatestEventsEmpty()).toContain("Літописець гріє чорнило");
     expect(presentLatestEventsEmpty("imp")).toContain("⭐ Важливе");
+    expect(presentLatestEventsEmpty("imp")).toContain("Фільтр: <b>⭐ Важливе</b>");
     expect(presentLatestEventsEmpty("adv")).toContain("👥 Пригодники");
     expect(presentLatestEventsEmpty("cmb")).toContain("⚔️ Бої");
     expect(presentLatestEventsEmpty("itm")).toContain("🎒 Манатки");
@@ -47,6 +48,11 @@ describe("latest events presenter", () => {
             subjectName: "Пляшка Пінного Міражу",
             payload: { rarity: "rare" }
           }),
+          makeEvent("item.rare_received", "2026-07-01T19:30:00.000Z", {
+            actorDisplayName: "Майстриня",
+            subjectName: "Ложка, яку не кладуть у шухляду",
+            payload: { rarity: "legendary" }
+          }),
           makeEvent("combat.underdog_won", "2026-07-01T19:00:00.000Z", {
             actorDisplayName: "Пандочка",
             subjectName: "Огрище",
@@ -68,6 +74,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
     expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
+    expect(text).toContain("Майстриня: легендарна манатка — «Ложка, яку не кладуть у шухляду».");
     expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
   });
 
@@ -94,6 +101,28 @@ describe("latest events presenter", () => {
     expect(text).toContain("&lt;b&gt;дуже дуже дуже дуже довге ...");
     expect(text).toContain("«&lt;манатка&gt;»");
     expect(text).toContain("Пригодник без таблички");
+  });
+
+  it("renders successful item upgrade activity rows", () => {
+    const text = presentLatestEventsPage({
+      filter: "itm",
+      now: new Date("2026-07-08T12:00:00.000Z"),
+      page: {
+        events: [
+          makeEvent("item.upgraded", "2026-07-08T09:00:00.000Z", {
+            actorDisplayName: "Майстер",
+            subjectName: "Пательня переконання +5",
+            payload: { targetLevel: 5 }
+          })
+        ],
+        page: 0,
+        pageSize: 15,
+        hasNextPage: false
+      }
+    });
+
+    expect(text).toContain("Фільтр: <b>🎒 Манатки</b>");
+    expect(text).toContain("Майстер: манатка підсилена до +5 — «Пательня переконання +5».");
   });
 });
 

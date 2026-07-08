@@ -12,7 +12,7 @@ import {
 } from "../../content/lootExpansionV1";
 import type { RandomSource } from "../../shared/random";
 
-export type LootRarity = "common" | "uncommon" | "rare" | "epic";
+export type LootRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export interface LootCandidate {
   item: ItemContent;
@@ -55,7 +55,8 @@ export const LOOT_RARITY_WEIGHTS: Record<LootRarity, number> = {
   common: 0.7,
   uncommon: 0.22,
   rare: 0.07,
-  epic: 0.01
+  epic: 0.01,
+  legendary: 0
 };
 
 export const BASE_ITEM_DROP_CHANCE = 0.35;
@@ -69,7 +70,10 @@ export const BANDAGE_DROP_QUANTITY_WEIGHTS: ReadonlyArray<{ quantity: number; we
   { quantity: 5, weight: 0.01 }
 ];
 
-const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic"];
+export const ISKROKAMIN_REPLACEMENT_BASE_CHANCE = 0.04;
+export const ISKROKAMIN_REPLACEMENT_MAX_CHANCE = 0.06;
+
+const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
 export function rollMonsterLoot(input: LootRollInput): LootRollResult {
   const candidates = [
@@ -240,6 +244,38 @@ export function rollBandageDropQuantity(input: {
   }
 
   return input.rng.nextFloat() < upgradeChance ? quantity + 1 : quantity;
+}
+
+export function getIskrokaminReplacementChance(luck: number): number {
+  return clamp(
+    ISKROKAMIN_REPLACEMENT_BASE_CHANCE + getBoundedLuckBonus(luck) * 0.2,
+    ISKROKAMIN_REPLACEMENT_BASE_CHANCE,
+    ISKROKAMIN_REPLACEMENT_MAX_CHANCE
+  );
+}
+
+export function rollPostFightBandageSlotReward(input: {
+  bandageQuantity: number;
+  luck: number;
+  rng: RandomSource;
+}): { kind: "bandage" | "iskrokamin"; quantity: number } | null {
+  const bandageQuantity = Math.max(0, Math.floor(input.bandageQuantity));
+
+  if (bandageQuantity <= 0) {
+    return null;
+  }
+
+  if (input.rng.nextFloat() < getIskrokaminReplacementChance(input.luck)) {
+    return {
+      kind: "iskrokamin",
+      quantity: Math.max(1, Math.ceil(bandageQuantity / 2))
+    };
+  }
+
+  return {
+    kind: "bandage",
+    quantity: bandageQuantity
+  };
 }
 
 function rollBaseBandageDropQuantity(roll: number): number {

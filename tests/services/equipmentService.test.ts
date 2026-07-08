@@ -16,11 +16,14 @@ import type {
   InventoryRepository
 } from "../../src/db/repositories/inventoryRepository";
 import { items } from "../../src/content";
+import { getCombatMantokAbilityGrantsForEquippedItems } from "../../src/content/mantokAbilityGrants";
 import { normalizeEquipmentSlot } from "../../src/content/equipmentSlots";
 import type { ItemContent } from "../../src/content/schema";
+import { summarizeMantokSetBonusEffects } from "../../src/domain/equipment/mantokSetBonuses";
 import type { AchievementService } from "../../src/services/achievementService";
 import {
   EquipmentService,
+  getEquippedItemContents,
   isItemCompatibleWithEquipmentSlot
 } from "../../src/services/equipmentService";
 
@@ -794,6 +797,321 @@ describe("EquipmentService", () => {
     expect(track).toHaveBeenCalledTimes(1);
   });
 
+  it("requires attunement confirmation for upgraded magical equipment and hides its bonuses while tuning", async () => {
+    const now = new Date("2026-07-08T08:00:00.000Z");
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.pan-of-persuasion.plus-1" })]),
+      undefined,
+      undefined,
+      () => now
+    );
+
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, "item.pan-of-persuasion.plus-1")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required",
+      strength: "weak",
+      durationMinutes: 13
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.pan-of-persuasion.plus-1")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required"
+    });
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.pan-of-persuasion.plus-1",
+      undefined,
+      { confirmAttunement: true }
+    );
+
+    expect(result.state).toBe("equipped");
+    if (result.state !== "equipped") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({
+      attunement: {
+        state: "tuning",
+        strength: "weak",
+        startedAt: now,
+        readyAt: new Date("2026-07-08T08:13:00.000Z")
+      }
+    });
+    expect(getEquippedItemContents(equipment.rows)).toEqual([]);
+  });
+
+  it("uses faster weak and strong attunement timers for mage-class characters", async () => {
+    const now = new Date("2026-07-08T08:00:00.000Z");
+    const weakEquipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const weakService = new EquipmentService(
+      weakEquipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.pan-of-persuasion.plus-1" })]),
+      new FakeCharacterRepository(buildCharacter({ classId: "class.mage", level: 14 })),
+      undefined,
+      () => now
+    );
+
+    await expect(
+      weakService.previewItemEquipForTelegramUser(telegramUserId, "item.pan-of-persuasion.plus-1")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required",
+      strength: "weak",
+      durationMinutes: 5
+    });
+
+    const weakResult = await weakService.equipItemForTelegramUser(
+      telegramUserId,
+      "item.pan-of-persuasion.plus-1",
+      undefined,
+      { confirmAttunement: true }
+    );
+
+    expect(weakResult.state).toBe("equipped");
+    if (weakResult.state !== "equipped") {
+      return;
+    }
+    expect(weakResult.slots.find((slot) => slot.slot === "weapon")?.attunement).toMatchObject({
+      state: "tuning",
+      strength: "weak",
+      readyAt: new Date("2026-07-08T08:05:00.000Z")
+    });
+
+    const strongEquipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: []
+    });
+    const strongService = new EquipmentService(
+      strongEquipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.set.red-line.left-dagger" })]),
+      new FakeCharacterRepository(buildCharacter({ classId: "class.mage", level: 14 })),
+      undefined,
+      () => now
+    );
+
+    await expect(
+      strongService.previewItemEquipForTelegramUser(telegramUserId, "item.set.red-line.left-dagger")
+    ).resolves.toMatchObject({
+      state: "attunement-confirm-required",
+      strength: "strong",
+      durationMinutes: 23
+    });
+
+    const strongResult = await strongService.equipItemForTelegramUser(
+      telegramUserId,
+      "item.set.red-line.left-dagger",
+      undefined,
+      { confirmAttunement: true }
+    );
+
+    expect(strongResult.state).toBe("equipped");
+    if (strongResult.state !== "equipped") {
+      return;
+    }
+    expect(strongResult.slots.find((slot) => slot.slot === "weapon")?.attunement).toMatchObject({
+      state: "tuning",
+      strength: "strong",
+      readyAt: new Date("2026-07-08T08:23:00.000Z")
+    });
+  });
+
+  it("preserves an existing tuning row on same-item equip replay", async () => {
+    const tuning = {
+      state: "tuning" as const,
+      strength: "weak" as const,
+      startedAt: new Date("2026-07-08T08:00:00.000Z"),
+      readyAt: new Date("2026-07-08T08:13:00.000Z")
+    };
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: tuning
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([buildItem({ itemId: "item.pan-of-persuasion.plus-1" })])
+    );
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.pan-of-persuasion.plus-1"
+    );
+
+    expect(result).toMatchObject({
+      state: "equipped",
+      replacedItem: null
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: tuning
+    });
+    expect(result.state === "equipped"
+      ? result.slots.find((slot) => slot.slot === "weapon")?.attunement
+      : null
+    ).toEqual(tuning);
+  });
+
+  it("prompts before replacing a slot that is still tuning", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: {
+            state: "tuning",
+            strength: "weak",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:13:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.pan-of-persuasion.plus-1" }),
+        buildItem({ id: "character-item-2", itemId: "item.stamp-of-minor-authority" })
+      ])
+    );
+
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, "item.stamp-of-minor-authority")
+    ).resolves.toMatchObject({
+      state: "attunement-interrupt-confirm-required",
+      slot: "weapon",
+      currentItem: {
+        itemId: "item.pan-of-persuasion.plus-1"
+      }
+    });
+
+    await expect(
+      service.equipItemForTelegramUser(
+        telegramUserId,
+        "item.stamp-of-minor-authority",
+        undefined,
+        { confirmAttunementInterrupt: true }
+      )
+    ).resolves.toMatchObject({
+      state: "equipped",
+      item: {
+        itemId: "item.stamp-of-minor-authority"
+      },
+      replacedItem: {
+        itemId: "item.pan-of-persuasion.plus-1"
+      }
+    });
+    expect(equipment.rows[0]?.attunement).toBeUndefined();
+  });
+
+  it("clears cross-slot tuning when a twohand equip replaces the occupied hand", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "offhand",
+          itemId: "item.set.red-line.margin-dagger",
+          attunement: {
+            state: "tuning",
+            strength: "strong",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:42:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository([
+        buildItem({ itemId: "item.mantok.coverage.class.ranger.twohand-bow" })
+      ]),
+      new FakeCharacterRepository(buildCharacter({ classId: "class.ranger", level: 13 }))
+    );
+
+    const result = await service.equipItemForTelegramUser(
+      telegramUserId,
+      "item.mantok.coverage.class.ranger.twohand-bow",
+      "weapon",
+      { confirmTwohand: true, confirmAttunement: true }
+    );
+
+    expect(result).toMatchObject({
+      state: "equipped",
+      slot: "weapon",
+      clearedHandItem: {
+        itemId: "item.set.red-line.margin-dagger"
+      }
+    });
+    expect(equipment.rows).toHaveLength(1);
+    expect(equipment.rows[0]).toMatchObject({
+      slot: "weapon",
+      itemId: "item.mantok.coverage.class.ranger.twohand-bow"
+    });
+    expect(equipment.rows.some((row) => normalizeEquipmentSlot(row.slot) === "offhand")).toBe(false);
+  });
+
+  it("keeps bonuses, set bonuses and Mantok gear actions inactive while tuning", () => {
+    const rows = [
+      buildEquipment({
+        id: "equipment-left",
+        slot: "weapon",
+        itemId: "item.set.red-line.left-dagger",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      }),
+      buildEquipment({
+        id: "equipment-margin",
+        slot: "offhand",
+        itemId: "item.set.red-line.margin-dagger.plus-1",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      }),
+      buildEquipment({
+        id: "equipment-rapier",
+        slot: "tool",
+        itemId: "item.ability.last-page-rapier",
+        attunement: {
+          state: "tuning",
+          strength: "strong",
+          startedAt: new Date("2026-07-08T08:00:00.000Z"),
+          readyAt: new Date("2026-07-08T08:42:00.000Z")
+        }
+      })
+    ];
+    const activeContents = getEquippedItemContents(rows);
+    const activeItemIds = activeContents.map((item) => item.id);
+
+    expect(activeItemIds).toEqual([]);
+    expect(summarizeMantokSetBonusEffects(activeItemIds)).toEqual({});
+    expect(getCombatMantokAbilityGrantsForEquippedItems({
+      itemIds: activeItemIds,
+      characterLevel: 13
+    })).toEqual([]);
+  });
+
   it("tracks one achievement event for concurrent duplicate same-item equip callbacks", async () => {
     const inventoryRows = [buildItem({ itemId: "item.pan-of-persuasion", quantity: 1 })];
     const equipment = new FakeEquipmentRepository({
@@ -888,6 +1206,36 @@ describe("EquipmentService", () => {
       state: "empty-slot",
       slot: "weapon"
     });
+  });
+
+  it("directly unequips a tuning item and removes it from the immediate slot view", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: {
+            state: "tuning",
+            strength: "weak",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:13:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(equipment, new FakeInventoryRepository([]));
+
+    const result = await service.unequipSlotForTelegramUser(telegramUserId, "weapon");
+
+    expect(result.state).toBe("unequipped");
+    if (result.state !== "unequipped") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({
+      item: null
+    });
+    expect(equipment.rows).toEqual([]);
   });
 
   it("returns no-character when repositories cannot find a character", async () => {
@@ -1029,6 +1377,12 @@ class FakeEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot;
     itemId: string;
     clearSlot?: EquipmentSlot;
+    attunement?: {
+      strength: "weak" | "strong";
+      itemName: string;
+      startedAt: Date;
+      readyAt: Date;
+    };
   }): Promise<EquipForCharacterResult> {
     if (input.clearSlot) {
       this.rows = this.rows.filter((row) => normalizeEquipmentSlot(row.slot) !== input.clearSlot);
@@ -1036,11 +1390,28 @@ class FakeEquipmentRepository implements EquipmentRepository {
 
     const existing = this.rows.find((row) => normalizeEquipmentSlot(row.slot) === input.slot);
     const changed = existing?.itemId !== input.itemId;
+    const baseWithoutAttunement = {
+      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot }))
+    };
+    delete baseWithoutAttunement.attunement;
+    const preservedAttunement = !changed && !input.attunement ? existing?.attunement : undefined;
     const row = {
-      ...(existing ?? buildEquipment({ id: `equipment-${this.rows.length + 1}`, slot: input.slot })),
+      ...baseWithoutAttunement,
       characterId: input.characterId,
       slot: input.slot,
-      itemId: input.itemId
+      itemId: input.itemId,
+      ...(input.attunement
+        ? {
+            attunement: {
+              state: "tuning" as const,
+              strength: input.attunement.strength,
+              startedAt: input.attunement.startedAt,
+              readyAt: input.attunement.readyAt
+            }
+          }
+        : preservedAttunement
+          ? { attunement: preservedAttunement }
+        : {})
     };
 
     this.rows = [

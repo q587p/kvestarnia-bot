@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getActiveMantokSets,
+  getMantokSetForItem,
   summarizeMantokSetBonusEffects
 } from "../../../src/domain/equipment/mantokSetBonuses";
 
@@ -22,6 +23,31 @@ describe("mantok set bonuses", () => {
     expect(summary?.activeBonuses[0]?.pieces).toBe(2);
     expect(summary?.activeBonuses[0]?.effect.dexterity).toBe(1);
     expect(summary?.nextBonus).toBeNull();
+  });
+
+  it("counts upgraded concrete item ids as their base Mantok set pieces", () => {
+    const summaries = getActiveMantokSets([
+      "item.set.red-line.left-dagger.plus-1",
+      "item.set.red-line.margin-dagger"
+    ]);
+    const summary = summaries[0];
+
+    expect(summaries).toHaveLength(1);
+    expect(summary?.set.id).toBe("mantok-set.red-line-duel");
+    expect(summary?.equippedPieces.map((piece) => piece.itemId)).toEqual([
+      "item.set.red-line.left-dagger",
+      "item.set.red-line.margin-dagger"
+    ]);
+    expect(summary?.activeBonuses[0]?.pieces).toBe(2);
+  });
+
+  it("resolves upgraded set-piece ids to the same Mantok set family", () => {
+    expect(getMantokSetForItem("item.set.barrel-brother.helm")?.id).toBe(
+      "mantok-set.barrel-brother-bulwark"
+    );
+    expect(getMantokSetForItem("item.set.barrel-brother.helm.plus-5")?.id).toBe(
+      "mantok-set.barrel-brother-bulwark"
+    );
   });
 
   it("activates partial and full armor thresholds", () => {

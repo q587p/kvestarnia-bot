@@ -60,7 +60,11 @@ export function presentHero(
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
   const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
-  const activeStatusLines = [activeDrinkLine, activePriestBlessingLine]
+  const activeStatusLines = [
+    activeDrinkLine,
+    activePriestBlessingLine,
+    ...presentEquipmentAttunementLines(summary)
+  ]
     .filter((line): line is string => Boolean(line));
 
   return [
@@ -156,6 +160,12 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
 
   return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще ${formatRemainingMinutes(drink.expiresAt)}${effectText}.`;
+}
+
+function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
+  return (summary.equipmentAttunements ?? []).map((attunement) =>
+    `✨ Стан: <b>Налаштування на ${escapeHtml(attunement.itemName)}</b> ще <b>${formatRemainingMinutes(attunement.readyAt)}</b>.`
+  );
 }
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {

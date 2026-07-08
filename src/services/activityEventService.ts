@@ -14,6 +14,7 @@ export const LATEST_EVENTS_RETENTION_DAYS = 93;
 
 export const latestEventFilters = ["all", "imp", "adv", "cmb", "itm"] as const;
 export type LatestEventFilter = (typeof latestEventFilters)[number];
+export const DEFAULT_LATEST_EVENTS_UI_FILTER = "imp" satisfies LatestEventFilter;
 
 export class ActivityEventService {
   constructor(private readonly events: ActivityEventRepository) {}

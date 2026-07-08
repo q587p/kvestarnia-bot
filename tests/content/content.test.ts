@@ -179,9 +179,9 @@ describe("content tables", () => {
     });
   });
 
-  it("keeps junk, cosmetics, and the thirteen-problems badge free of power effects", () => {
+  it("keeps junk, cosmetics, resources, and the thirteen-problems badge free of power effects", () => {
     for (const item of items.filter((candidate) =>
-      ["junk", "cosmetic", "consumable"].includes(candidate.slot)
+      ["junk", "cosmetic", "consumable", "resource"].includes(candidate.slot)
     )) {
       expect(item).not.toHaveProperty("effect");
       expect(item).not.toHaveProperty("stats");
@@ -253,6 +253,41 @@ describe("content tables", () => {
         }
       })
     ).toThrow();
+  });
+
+  it("accepts legendary item rarity without requiring broad legendary drops", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-legendary-proof",
+        name: "Тестова легендарна манатка",
+        description: "Стоїть у тесті й не падає з монстрів.",
+        rarity: "legendary",
+        slot: "weapon",
+        equipmentSlot: "weapon",
+        goldValue: 587,
+        effect: {
+          weaponDamage: 1
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it("accepts resource items without treating Iskrokamin as a trophy slot", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-resource",
+        name: "Тестовий ресурс",
+        description: "Лежить у тесті й не проситься на манекен.",
+        rarity: "uncommon",
+        slot: "resource",
+        goldValue: 23
+      })
+    ).not.toThrow();
+    expect(items.find((item) => item.id === "item.iskrokamin")).toMatchObject({
+      slot: "resource",
+      priceless: true,
+      tags: ["tradeable"]
+    });
   });
 
   it("rejects equipment slot metadata on unsupported item slots", () => {

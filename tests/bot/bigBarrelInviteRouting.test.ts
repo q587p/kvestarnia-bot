@@ -84,7 +84,12 @@ describe("Big Barrel Brother invite routing", () => {
   it("shows a Big loss cooldown wait message from /raid without creating invite controls", async () => {
     const { services, createForTelegramUser } = servicesForBigBarrelRoute({
       character: { level: 8, remortCount: 0 },
-      createResult: { state: "ineligible", reason: "loss-cooldown" }
+      createResult: {
+        state: "ineligible",
+        reason: "loss-cooldown",
+        availableAt: new Date("2026-07-01T10:02:00.000Z"),
+        now: new Date("2026-07-01T10:00:00.000Z")
+      }
     });
     const calls = await captureMessageApiCalls("/raid", services, {
       botUsername: BOT_USERNAME
@@ -92,6 +97,7 @@ describe("Big Barrel Brother invite routing", () => {
 
     expect(createForTelegramUser).toHaveBeenCalledOnce();
     expect(calls.some((call) => String(call.payload.text).includes("короткий перепочинок"))).toBe(true);
+    expect(calls.some((call) => String(call.payload.text).includes("2 хвилини"))).toBe(true);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(false);
   });
@@ -300,7 +306,12 @@ function servicesForBigBarrelRoute(options: {
   character?: Partial<CharacterSummary>;
   partyCharacter?: Partial<PartySessionRecord["leader"]>;
   bigEnabled?: boolean;
-  createResult?: { state: "ineligible"; reason?: "loss-cooldown" | undefined };
+  createResult?: {
+    state: "ineligible";
+    reason?: "loss-cooldown" | undefined;
+    availableAt?: Date | undefined;
+    now?: Date | undefined;
+  };
   currentLocationId?: string;
 } = {}): {
   services: BotServices;

@@ -26,7 +26,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 0,
         filter: null,
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
 
@@ -37,7 +38,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 2,
         filter: null,
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
     expect(
@@ -49,7 +51,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 2,
         filter: "weapon",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
     expect(
@@ -61,7 +64,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.responsible-panic-bandage",
         page: 1,
         filter: "one-use",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
   });
@@ -82,7 +86,26 @@ describe("item and equipment callback data", () => {
         itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
         page: 12,
         filter: "tool",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
+      }
+    });
+  });
+
+  it("marks item detail callbacks opened from Charkokovalnia", () => {
+    const data = makeItemDetailCallbackData("item.wet-hero-ticket", 0, null, "default", {
+      source: "item-upgrade"
+    });
+
+    expect(parseItemCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.wet-hero-ticket",
+        page: 0,
+        filter: null,
+        sort: "default",
+        source: "item-upgrade"
       }
     });
   });
@@ -125,7 +148,8 @@ describe("item and equipment callback data", () => {
           itemId: item.id,
           page: 999,
           filter: "offhand",
-          sort: "default"
+          sort: "default",
+          source: "inventory"
         }
       });
     }
@@ -222,7 +246,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 1,
         filter: null,
-        sort: "date-asc"
+        sort: "date-asc",
+        source: "inventory"
       }
     });
     expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(4, "offhand", "name-desc"))).toEqual({
@@ -258,7 +283,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.pan-of-persuasion",
         targetSlot: null,
-        confirmTwohand: false
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
     expect(parseEquipmentCallbackData(clear)).toEqual({
@@ -292,7 +319,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
         targetSlot: "tool",
-        confirmTwohand: true
+        confirmTwohand: true,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
   });
@@ -308,7 +337,9 @@ describe("item and equipment callback data", () => {
           type: "equip-item",
           itemId: item.id,
           targetSlot: "offhand",
-          confirmTwohand: true
+          confirmTwohand: true,
+          confirmAttunement: false,
+          confirmAttunementInterrupt: false
         }
       });
     }
@@ -325,7 +356,9 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.pan-of-persuasion",
         targetSlot: "offhand",
-        confirmTwohand: false
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
       }
     });
   });
@@ -342,7 +375,60 @@ describe("item and equipment callback data", () => {
         type: "equip-item",
         itemId: "item.test-twohand-broom",
         targetSlot: "weapon",
-        confirmTwohand: true
+        confirmTwohand: true,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
+      }
+    });
+  });
+
+  it("parses attunement confirmation equip callbacks", () => {
+    const confirmAttunement = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmAttunement: true
+    });
+    const confirmInterrupt = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmAttunementInterrupt: true
+    });
+    const confirmAll = makeEquipItemCallbackData("item.test-twohand-broom", "weapon", {
+      confirmTwohand: true,
+      confirmAttunement: true,
+      confirmAttunementInterrupt: true
+    });
+
+    expect(confirmAttunement).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:t");
+    expect(confirmInterrupt).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:i");
+    expect(confirmAll).toBe("v1:equip:item:item.test-twohand-broom:s:w:c:2h-t-i");
+    expect(parseEquipmentCallbackData(confirmAttunement)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: false,
+        confirmAttunement: true,
+        confirmAttunementInterrupt: false
+      }
+    });
+    expect(parseEquipmentCallbackData(confirmInterrupt)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: true
+      }
+    });
+    expect(parseEquipmentCallbackData(confirmAll)).toEqual({
+      ok: true,
+      value: {
+        type: "equip-item",
+        itemId: "item.test-twohand-broom",
+        targetSlot: "weapon",
+        confirmTwohand: true,
+        confirmAttunement: true,
+        confirmAttunementInterrupt: true
       }
     });
   });

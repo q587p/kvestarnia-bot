@@ -1,5 +1,9 @@
 import type { Bot, Context } from "grammy";
-import type { ActivityEventService, LatestEventFilter } from "../../services/activityEventService";
+import {
+  DEFAULT_LATEST_EVENTS_UI_FILTER,
+  type ActivityEventService,
+  type LatestEventFilter
+} from "../../services/activityEventService";
 import type { AchievementUnlock } from "../../services/achievementService";
 import { buildLatestEventsKeyboard } from "../keyboards/latestEventsKeyboard";
 import { playerFromContext } from "../context";
@@ -40,7 +44,7 @@ export async function sendLatestEvents(
     achievementTracker?: LatestEventsAchievementTracker;
   } = {}
 ): Promise<void> {
-  const filter = options.filter ?? "all";
+  const filter = options.filter ?? DEFAULT_LATEST_EVENTS_UI_FILTER;
   const page = Math.max(0, Math.floor(options.page ?? 0));
 
   try {

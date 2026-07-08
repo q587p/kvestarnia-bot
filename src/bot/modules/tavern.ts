@@ -40,6 +40,7 @@ import {
 sendHuntBoard,
 sendYegerCorner
 } from "../commands/huntCommand";
+import { shouldShowYegerFieldKitHelp } from "../commands/yegerFieldKitHelp";
 import { sendNewsList } from "../commands/newsCommand";
 import {
 sendQuestHub
@@ -1486,6 +1487,7 @@ async function handleTavernCallback(
       presence: presenceService,
       tavernRaid: tavernRaidService,
       requireKorchmaInterior: false,
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services),
       ...(questMarkers ? { questMarkers } : {})
     });
     return;

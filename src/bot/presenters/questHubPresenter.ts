@@ -8,6 +8,7 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import {
   YEGER_UNQUIET_TRIAL_REWARD,
   YEGER_UNQUIET_TRIAL_TARGET,
@@ -35,6 +36,7 @@ export interface QuestHubSnapshot {
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
+  itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
 }
 
 export type QuestHubMode = "active" | "archive";
@@ -447,6 +449,16 @@ function presentBarrelBeerTutorialRow(
   return `${title} — піна ще тримається. Повертайся до столу, доки ефект пива не вивітрився.`;
 }
 
+function presentCharkokovalniaUnlockRow(
+  itemUpgrades: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (itemUpgrades?.state !== "unlock-required") {
+    return null;
+  }
+
+  return "✨ <i>Доступ до Чароковальні</i> — ельф-маг у задвірку кличе до справи й обіцяє, що манатки сваритимуться офіційно.";
+}
+
 function hasGrownupBottle(
   cellarGrownup:
     | Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>
@@ -495,6 +507,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
     presentActiveYegerRow(snapshot.yeger),
     presentActiveCellarRow(snapshot.cellar, snapshot.cellarGrownup),
     presentBarrelBeerTutorialRow(snapshot.barrelBeerTutorial),
+    presentCharkokovalniaUnlockRow(snapshot.itemUpgrades),
     snapshot.dailyKorchmaRound?.state === "completed"
       ? null
       : presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
@@ -584,6 +597,7 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.barrelBeerTutorial?.state === "available" ||
     snapshot.barrelBeerTutorial?.state === "in-progress" ||
     snapshot.barrelBeerTutorial?.state === "turn-in-ready" ||
+    snapshot.itemUpgrades?.state === "unlock-required" ||
     snapshot.dailyKorchmaRound?.state === "ready" ||
     snapshot.dailyKorchmaRound?.state === "turn-in-ready"
   );

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { BotServices } from "../../src/bot/botServices";
-import { buildEnterKorchmaKeyboard, buildKorchmaHallKeyboard } from "../../src/bot/keyboards/tavernKeyboard";
+import {
+  buildEnterKorchmaKeyboard,
+  buildKorchmaHallKeyboard,
+  buildKorchmaYardKeyboard
+} from "../../src/bot/keyboards/tavernKeyboard";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
 
 describe("quest marker snapshot", () => {
@@ -80,6 +84,50 @@ describe("quest marker snapshot", () => {
     expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard({ questMarkers: snapshot }))).toEqual([
       "🚪 Зайти в корчму"
     ]);
+  });
+
+  it("marks Charkokovalnia access from the quest marker snapshot", async () => {
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, {
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      yeger: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      itemUpgrades: {
+        getUnlockQuestForTelegramUser: () =>
+          Promise.resolve({
+            state: "unlock-required",
+            character,
+            fieldKitQuantity: 1,
+            rewardXp: 13
+          })
+      }
+    } as unknown as Pick<
+      BotServices,
+      "adventure" | "cellarErrand" | "cellarGrownup" | "dailyKorchmaRound" | "fight" | "yeger"
+    > & Partial<Pick<BotServices, "itemUpgrades">>);
+
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
+      "📋 Стіл зі справами ⚠️"
+    );
+    expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard({ questMarkers: snapshot }))).toEqual([
+      "🚪 Зайти в корчму ⚠️"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaYardKeyboard({ questMarkers: snapshot }))).toContain(
+      "✨ Чароковальня ⚠️"
+    );
   });
 });
 

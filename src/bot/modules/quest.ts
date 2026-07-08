@@ -44,6 +44,10 @@ sendHuntBoard,
 sendYegerCorner
 } from "../commands/huntCommand";
 import {
+getYegerFieldKitHelpStateForTelegramUser,
+shouldShowYegerFieldKitHelp
+} from "../commands/yegerFieldKitHelp";
+import {
 registerQuestHubCommand,
 sendQuestHub
 } from "../commands/questHubCommand";
@@ -133,6 +137,7 @@ import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import {
 presentYegerBandages,
 presentYegerBandageBuy,
+presentYegerFieldKitHelp,
 presentYegerHelp,
 presentYegerNotchExchange,
 presentYegerNotchExchangeResult,
@@ -183,7 +188,8 @@ export function registerQuestBotModule(
   registerHuntCommand(bot, services.yeger, {
     presence: services.presence,
     tavernRaid: services.tavern,
-    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+    resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
   });
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
 
@@ -553,7 +559,8 @@ async function handleQuestCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1082,7 +1089,26 @@ async function handleYegerCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
+    });
+    return;
+  }
+
+  if (callback.type === "field-kit-help") {
+    const fieldKitHelp = await getYegerFieldKitHelpStateForTelegramUser(telegramUserId, services);
+    const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    const hasFieldKit = fieldKitHelp.state === "has-field-kit";
+    await safeAnswerCallbackQuery(ctx);
+    await markYegerCornerPresence(ctx, services.presence);
+    await safeEditMessageText(ctx, presentYegerFieldKitHelp({
+      state: hasFieldKit ? "has-field-kit" : "needs-yeger-boards"
+    }), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildYegerHelpKeyboard({
+        ...yegerNavigationOptions,
+        ...(hasFieldKit ? { showYardShortcut: true } : {})
+      })
     });
     return;
   }
@@ -1169,7 +1195,8 @@ async function handleYegerCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
     });
     return;
   }
@@ -1485,8 +1512,14 @@ async function getYegerBandageCraftOptions(
 async function buildYegerNavigationOptions(
   telegramUserId: bigint,
   services: BotServices
-): Promise<{ questMarkers?: QuestMarkerInput }> {
-  const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
+): Promise<{ questMarkers?: QuestMarkerInput; showFieldKitHelp?: boolean }> {
+  const [questMarkers, showFieldKitHelp] = await Promise.all([
+    buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    shouldShowYegerFieldKitHelp(telegramUserId, services)
+  ]);
 
-  return questMarkers ? { questMarkers } : {};
+  return {
+    ...(questMarkers ? { questMarkers } : {}),
+    ...(showFieldKitHelp ? { showFieldKitHelp: true } : {})
+  };
 }

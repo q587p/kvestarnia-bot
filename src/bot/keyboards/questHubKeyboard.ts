@@ -8,6 +8,7 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
@@ -47,6 +48,7 @@ export interface QuestHubKeyboardInput {
   cellar: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
+  itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
@@ -145,6 +147,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   }
 
   addBarrelBeerTutorialButton(keyboard, input);
+  addCharkokovalniaUnlockButton(keyboard, input);
 
   if (
     input.dailyKorchmaRound?.state === "not-issued" ||
@@ -246,6 +249,20 @@ function addBarrelBeerTutorialButton(
   keyboard.text(
     decorateButtonLabel(target.label, resolveQuestMarkerForTarget(input, target.markerTarget)),
     target.callbackData
+  ).row();
+}
+
+function addCharkokovalniaUnlockButton(
+  keyboard: InlineKeyboard,
+  input: QuestHubKeyboardInput
+): void {
+  if (input.itemUpgrades?.state !== "unlock-required") {
+    return;
+  }
+
+  keyboard.text(
+    decorateButtonLabel("✨ Доступ до Чароковальні", resolveQuestMarkerForTarget(input, "quest.charkokovalnia")),
+    makePlaceCallbackData("yard")
   ).row();
 }
 
@@ -354,6 +371,7 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.barrelBeerTutorial?.state === "available" ||
     input.barrelBeerTutorial?.state === "in-progress" ||
     input.barrelBeerTutorial?.state === "turn-in-ready" ||
+    input.itemUpgrades?.state === "unlock-required" ||
     input.dailyKorchmaRound?.state === "not-issued" ||
     input.dailyKorchmaRound?.state === "ready" ||
     input.dailyKorchmaRound?.state === "turn-in-ready"

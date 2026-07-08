@@ -11,7 +11,7 @@ import type {
   YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentYegerQuestTitle } from "./yegerQuestTitle";
@@ -515,6 +515,34 @@ export function presentYegerHelp(): string {
   ].join("\n");
 }
 
+export function presentYegerFieldKitHelp(
+  input: { state?: "needs-yeger-boards" | "has-field-kit" } = {}
+): string {
+  if (input.state === "has-field-kit") {
+    return [
+      "🧰 Аптечка?",
+      "",
+      "Єгер дивиться на вашу торбу й киває так, ніби це він усе спланував.",
+      "",
+      npcQuote(
+        "Єгер",
+        "Молодець. Польова аптечка вже у вас. Тепер ідіть до мага в задвірок: хай він офіційно нервує біля іскор."
+      )
+    ].join("\n");
+  }
+
+  return [
+    "🧰 Аптечка?",
+    "",
+    "Єгер дивиться на ваші руки так, ніби вони вже тримають неправильний бинт.",
+    "",
+    npcQuote(
+      "Єгер",
+      "Польова аптечка любить порядок. Спершу закрийте «Неспокійні справи», потім «Неспокійні справи 2.0». Після другої дощечки бинти починають слухати інструкції, а не лише паніку."
+    )
+  ].join("\n");
+}
+
 export function presentYegerTrackingStart(input?: {
   yegerProgress?: { wins: number; target: number };
   thirteenProgress?: ThirteenSmallProblemsProgress | null;
@@ -658,8 +686,7 @@ function presentYegerCompleted(input: {
 
   lines.push(
     "",
-    "Нагорода:",
-    presentRewardAmount({ xp: input.reward.xp, gold: input.reward.gold }),
+    presentQuestRewardAmount({ xp: input.reward.xp, gold: input.reward.gold }),
     ...input.reward.itemGrants.map((grant) =>
       presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
     )

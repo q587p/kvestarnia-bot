@@ -4,6 +4,7 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerNotchExchangeCallbackData,
@@ -51,6 +52,10 @@ describe("Yeger callback data", () => {
     expect(parseYegerCallbackData(makeYegerBandagesCallbackData())).toEqual({
       ok: true,
       value: { type: "bandages" }
+    });
+    expect(parseYegerCallbackData(makeYegerFieldKitHelpCallbackData())).toEqual({
+      ok: true,
+      value: { type: "field-kit-help" }
     });
     expect(parseYegerCallbackData(makeYegerBuyBandageCallbackData())).toEqual({
       ok: true,
@@ -113,6 +118,7 @@ describe("Yeger callback data", () => {
       makeYegerTurnInCallbackData(),
       makeYegerHelpCallbackData(),
       makeYegerBandagesCallbackData(),
+      makeYegerFieldKitHelpCallbackData(),
       makeYegerBuyBandageCallbackData(),
       makeYegerBuyBandageCallbackData(5),
       makeYegerBuyBandageCallbackData(17),

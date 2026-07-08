@@ -16,6 +16,10 @@ parseItemCraftCallbackData,
 type ItemCraftCallback
 } from "../callbacks/itemCraftCallbackData";
 import {
+parseItemUpgradeCallbackData,
+type ItemUpgradeCallback
+} from "../callbacks/itemUpgradeCallbackData";
+import {
 parseItemUseCallbackData,
 type ItemUseCallback
 } from "../callbacks/itemUseCallbackData";
@@ -29,6 +33,7 @@ type MantokChestCallback
 } from "../callbacks/mantokChestCallbackData";
 import { registerEquipmentCommand,sendEquipment } from "../commands/equipmentCommand";
 import { registerInventoryCommand,sendInventory } from "../commands/inventoryCommand";
+import { sendItemUpgradeList } from "../commands/itemUpgradeCommand";
 import { playerFromContext } from "../context";
 import {
 getInventoryPagePromptPlaceholder,
@@ -36,6 +41,12 @@ parseInventoryPageNumber,
 parseInventoryPagePrompt,
 presentInventoryPagePrompt
 } from "../inventoryPagePrompt";
+import {
+getItemUpgradePagePromptPlaceholder,
+parseItemUpgradePageNumber,
+parseItemUpgradePagePrompt,
+presentItemUpgradePagePrompt
+} from "../itemUpgradePagePrompt";
 import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
@@ -45,6 +56,11 @@ buildItemDetailKeyboard,
 buildItemUsePreviewKeyboard,
 buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
+import {
+buildItemUpgradePreviewKeyboard,
+buildItemUpgradeResultKeyboard,
+buildItemUpgradeUnlockResultKeyboard
+} from "../keyboards/itemUpgradeKeyboard";
 import {
 buildLevelBarterOfferKeyboard,
 buildLevelBarterPreviewKeyboard,
@@ -70,6 +86,11 @@ import {
 presentItemCraftPreview,
 presentItemCraftResult
 } from "../presenters/itemCraftPresenter";
+import {
+presentItemUpgradeAttempt,
+presentItemUpgradePreview,
+presentItemUpgradeUnlock
+} from "../presenters/itemUpgradePresenter";
 import {
 presentItemUseCancel,
 presentItemUseConfirm,
@@ -137,6 +158,10 @@ export function registerInventoryBotModule(
 
   registerParsedCallbackRoute(bot, /^v1:craft:/, parseItemCraftCallbackData, async (ctx, action) => {
     await handleItemCraftCallback(ctx, action, services);
+  });
+
+  registerParsedCallbackRoute(bot, /^v1:up:/, parseItemUpgradeCallbackData, async (ctx, action) => {
+    await handleItemUpgradeCallback(ctx, action, services);
   });
 
   registerParsedCallbackRoute(bot, /^v1:chest:/, parseMantokChestCallbackData, async (ctx, action) => {
@@ -228,7 +253,8 @@ async function handleItemCallback(
         ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
         craftOptions,
         equipPreview,
-        sort: action.sort
+        sort: action.sort,
+        source: action.source
       })
     }
   );
@@ -238,20 +264,34 @@ async function handleInventoryPageReply(
   ctx: Context,
   services: BotServices
 ): Promise<boolean> {
-  const prompt = parseInventoryPagePrompt(ctx.message?.reply_to_message?.text);
+  const replyText = ctx.message?.reply_to_message?.text;
+  const prompt = parseInventoryPagePrompt(replyText);
 
-  if (!prompt) {
-    return false;
-  }
+  if (prompt) {
+    const pageNumber = parseInventoryPageNumber(ctx.message?.text, prompt.totalPages);
 
-  const pageNumber = parseInventoryPageNumber(ctx.message?.text, prompt.totalPages);
+    if (pageNumber === null) {
+      await ctx.reply(`Введіть число від 1 до ${prompt.totalPages}.`);
+      return true;
+    }
 
-  if (pageNumber === null) {
-    await ctx.reply(`Введіть число від 1 до ${prompt.totalPages}.`);
+    await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment, prompt.sort);
     return true;
   }
 
-  await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment, prompt.sort);
+  const itemUpgradePrompt = parseItemUpgradePagePrompt(replyText);
+  if (!itemUpgradePrompt) {
+    return false;
+  }
+
+  const pageNumber = parseItemUpgradePageNumber(ctx.message?.text, itemUpgradePrompt.totalPages);
+
+  if (pageNumber === null) {
+    await ctx.reply(`Введіть число від 1 до ${itemUpgradePrompt.totalPages}.`);
+    return true;
+  }
+
+  await sendItemUpgradeList(ctx, services.itemUpgrades, "reply", pageNumber - 1, itemUpgradePrompt.sort);
   return true;
 }
 
@@ -494,6 +534,128 @@ async function handleItemCraftCallback(
   }
 }
 
+async function handleItemUpgradeCallback(
+  ctx: Context,
+  action: ItemUpgradeCallback,
+  services: BotServices
+): Promise<void> {
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
+    return;
+  }
+
+  if (action.type === "list") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit", action.page, action.sort);
+    return;
+  }
+
+  if (action.type === "page-prompt") {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Напишіть номер сторінки у відповідь на підказку.",
+      show_alert: false
+    });
+    await ctx.reply(presentItemUpgradePagePrompt(action.totalPages, action.sort), {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: getItemUpgradePagePromptPlaceholder(action.totalPages)
+      }
+    });
+    return;
+  }
+
+  if (action.type === "unlock") {
+    const result = await services.itemUpgrades.unlockForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "unlocked"
+        ? { text: "Чароковальню відкрито." }
+        : result.state === "already-unlocked"
+          ? { text: "Уже відкрито." }
+          : {
+              show_alert:
+                result.state === "wrong-place" ||
+                result.state === "level-locked" ||
+                result.state === "missing-field-kit"
+            }
+    );
+    await safeEditMessageText(ctx, presentItemUpgradeUnlock(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeUnlockResultKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "preview") {
+    const result = await services.itemUpgrades.previewForTelegramUser(
+      telegramUserId,
+      action.itemId,
+      action.method,
+      action.donorItemId
+    );
+
+    await safeAnswerCallbackQuery(ctx, {
+      show_alert:
+        result.state === "not-owned" ||
+        result.state === "not-upgradeable" ||
+        result.state === "cap-reached" ||
+        result.state === "wrong-place" ||
+        result.state === "level-locked" ||
+        result.state === "unlock-required"
+    });
+    await safeEditMessageText(ctx, presentItemUpgradePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradePreviewKeyboard(result)
+    });
+    return;
+  }
+
+  const result = await services.itemUpgrades.attemptForTelegramUser(telegramUserId, {
+    itemId: action.itemId,
+    method: action.method,
+    donorItemId: action.donorItemId,
+    attemptGuard: action.attemptGuard,
+    expectedFromLevel: action.expectedFromLevel,
+    expectedQuantity: action.expectedQuantity,
+    expectedPityFailures: action.expectedPityFailures
+  });
+
+  await safeAnswerCallbackQuery(
+    ctx,
+    result.state === "attempted"
+      ? { text: result.success ? "Підсилено." : "Спроба записана." }
+      : {
+          show_alert:
+            result.state === "stale-snapshot" ||
+            result.state === "invalid-donor" ||
+            result.state === "not-enough-gold" ||
+            result.state === "not-enough-iskrokamin" ||
+            result.state === "not-enough-mana" ||
+            result.state === "class-not-allowed" ||
+            result.state === "wrong-place" ||
+            result.state === "level-locked" ||
+            result.state === "unlock-required"
+        }
+  );
+  await safeEditMessageText(ctx, presentItemUpgradeAttempt(result), {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: buildItemUpgradeResultKeyboard(result.state === "attempted" ? result.item.itemId : action.itemId)
+  });
+  const achievementText = presentAchievementUnlockNotification(
+    result.state === "attempted" ? result.achievementUnlocks ?? [] : []
+  );
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
+}
+
 async function hasCombatUseActionForItemId(
   services: BotServices,
   telegramUserId: bigint,
@@ -574,7 +736,11 @@ async function handleEquipmentCallback(
       telegramUserId,
       action.itemId,
       action.targetSlot,
-      { confirmTwohand: action.confirmTwohand }
+      {
+        confirmTwohand: action.confirmTwohand,
+        confirmAttunement: action.confirmAttunement,
+        confirmAttunementInterrupt: action.confirmAttunementInterrupt
+      }
     );
 
     await safeAnswerCallbackQuery(ctx);

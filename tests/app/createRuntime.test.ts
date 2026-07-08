@@ -199,6 +199,10 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
     devReset: { isEnabled: vi.fn(() => false) },
     ...(options.duel === false ? {} : { duel: {} }),
     fight: {},
+    equipment: {
+      listDueAttunementNotifications: vi.fn(() => Promise.resolve([])),
+      markAttunementNotified: vi.fn(() => Promise.resolve(false))
+    },
     mantokChest: { cleanupExpiredPendingRuns },
     ...(options.passageSearch ? { passageSearch: {} } : {}),
     presence: {},

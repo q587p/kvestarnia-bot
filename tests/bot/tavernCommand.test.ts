@@ -451,7 +451,7 @@ describe("tavern command screens", () => {
       reply_markup: {
         inline_keyboard: [
           [{ text: "📰 Вісти", callback_data: "v1:news:list:0" }],
-          [{ text: "📣 Останні події", callback_data: "v1:ev:l:all:0" }],
+          [{ text: "📣 Останні події", callback_data: "v1:ev:l:imp:0" }],
           [{ text: "📖 Перекази", callback_data: "v1:lore:m" }],
           [{ text: "🎁 Подарувати манатку", callback_data: "v1:gift:open" }],
           [{ text: "📮 Пошта Квестарні", callback_data: "v1:post:open" }],

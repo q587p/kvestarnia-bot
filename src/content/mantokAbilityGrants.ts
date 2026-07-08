@@ -4,6 +4,7 @@ import type {
   CombatSkillProfile,
   CombatTargetScope
 } from "../domain/combat";
+import { getBaseItemIdForUpgradeVariant } from "../domain/itemUpgrades";
 import type { ItemContent } from "./schema";
 
 type WeightedMonsterLootEntry = string | { itemId: string; weight?: number };
@@ -384,7 +385,9 @@ export function findMantokAbilityGrantByKey(key: string): MantokAbilityGrantDefi
 }
 
 export function findMantokAbilityGrantByItemId(itemId: string): MantokAbilityGrantDefinition | null {
-  return mantokAbilityGrantDefinitions.find((grant) => grant.itemId === itemId) ?? null;
+  const baseItemId = getBaseItemIdForUpgradeVariant(itemId);
+
+  return mantokAbilityGrantDefinitions.find((grant) => grant.itemId === baseItemId) ?? null;
 }
 
 export function getCombatMantokAbilityGrantsForEquippedItems(input: {
@@ -392,7 +395,7 @@ export function getCombatMantokAbilityGrantsForEquippedItems(input: {
   characterLevel: number;
   frozenGrantIds?: readonly string[];
 }): MantokAbilityGrantDefinition[] {
-  const equipped = new Set(input.itemIds);
+  const equipped = new Set(input.itemIds.map(getBaseItemIdForUpgradeVariant));
   const frozen = input.frozenGrantIds ? new Set(input.frozenGrantIds) : null;
   const level = Math.max(1, Math.floor(input.characterLevel));
 

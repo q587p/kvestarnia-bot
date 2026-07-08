@@ -12,6 +12,7 @@ describe("dev grant commands", () => {
     const defaultLevelCalls = await captureMessageCalls("/dev_add_level", devGrant);
     const explicitLevelCalls = await captureMessageCalls("/dev_add_level 3", devGrant);
     const xpCalls = await captureMessageCalls("/dev_add_xp 7", devGrant);
+    const largeGoldCalls = await captureMessageCalls("/dev_add_gold 9999", devGrant);
     const itemCalls = await captureMessageCalls("/dev_add_random_item", devGrant);
     const toolItemCalls = await captureMessageCalls("/dev_add_random_item slot=tool", devGrant);
     const taggedItemCalls = await captureMessageCalls("/dev_add_random_item 3 tag=twohand", devGrant);
@@ -26,6 +27,8 @@ describe("dev grant commands", () => {
     const explicitDenseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
     const defaultFieldKitCalls = await captureMessageCalls("/dev_add_field_kit", devGrant);
     const explicitFieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
+    const defaultIskrokaminCalls = await captureMessageCalls("/dev_add_iskrokamin", devGrant);
+    const explicitIskrokaminCalls = await captureMessageCalls("/dev_add_iskrokamin 5", devGrant);
     const fullHealCalls = await captureMessageCalls("/dev_heal", devGrant);
     const partialHealCalls = await captureMessageCalls("/dev_heal 7", devGrant);
     const fullManaCalls = await captureMessageCalls("/dev_restore_mana", devGrant);
@@ -38,6 +41,13 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const equipment = fakeEquipmentService({ count: 2 });
+    const finishAttunementsCalls = await captureMessageCalls(
+      "/dev_finish_attunements",
+      devGrant,
+      undefined,
+      equipment
+    );
     const tavernGames = fakeTavernGamesService();
     const tavernGameResetCalls = await captureMessageCalls(
       "/dev_reset_tavern_games",
@@ -48,6 +58,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addLevel).toHaveBeenCalledWith(42n, 3);
     expect(devGrant.addXp).toHaveBeenCalledWith(42n, 7);
+    expect(devGrant.addGold).toHaveBeenCalledWith(42n, 9999);
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, {});
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 1, { equipmentSlot: "tool" });
     expect(devGrant.addRandomItems).toHaveBeenCalledWith(42n, 3, { tag: "twohand" });
@@ -62,6 +73,8 @@ describe("dev grant commands", () => {
     expect(devGrant.addDenseBandages).toHaveBeenCalledWith(42n, 2);
     expect(devGrant.addFieldKits).toHaveBeenCalledWith(42n, 1);
     expect(devGrant.addFieldKits).toHaveBeenCalledWith(42n, 3);
+    expect(devGrant.addIskrokamin).toHaveBeenCalledWith(42n, 1);
+    expect(devGrant.addIskrokamin).toHaveBeenCalledWith(42n, 5);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, undefined);
     expect(devGrant.heal).toHaveBeenCalledWith(42n, 7);
     expect(devGrant.restoreMana).toHaveBeenCalledWith(42n, undefined);
@@ -74,10 +87,12 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).toHaveBeenCalledWith(42n);
     expect(devGrant.completeFirstYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(devGrant.completeSecondYegerQuestProgress).toHaveBeenCalledWith(42n);
+    expect(equipment.finishPendingAttunementsForDev).toHaveBeenCalledWith(42n);
     expect(tavernGames.resetCreateCooldownForDev).toHaveBeenCalledWith(42n);
     expect(String(defaultLevelCalls.at(-1)?.payload.text)).toContain("додано 1 рівень");
     expect(String(explicitLevelCalls.at(-1)?.payload.text)).toContain("додано 3 рівні");
     expect(String(xpCalls.at(-1)?.payload.text)).toContain("додано 7 XP");
+    expect(String(largeGoldCalls.at(-1)?.payload.text)).toContain("9999");
     expect(String(itemCalls.at(-1)?.payload.text)).toContain("додано 1 манатку");
     expect(String(toolItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання");
     expect(String(taggedItemCalls.at(-1)?.payload.text)).toContain("Пательня переконання ×3");
@@ -89,6 +104,8 @@ describe("dev grant commands", () => {
     expect(String(explicitDenseBandageCalls.at(-1)?.payload.text)).toContain("Щільний бинт ×2");
     expect(String(defaultFieldKitCalls.at(-1)?.payload.text)).toContain("Польова аптечка");
     expect(String(explicitFieldKitCalls.at(-1)?.payload.text)).toContain("Польова аптечка ×3");
+    expect(String(defaultIskrokaminCalls.at(-1)?.payload.text)).toContain("Іскрокамінь");
+    expect(String(explicitIskrokaminCalls.at(-1)?.payload.text)).toContain("Іскрокамінь ×5");
     expect(String(fullHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
     expect(String(partialHealCalls.at(-1)?.payload.text)).toContain("HP: 20/20");
     expect(String(fullManaCalls.at(-1)?.payload.text)).toContain("Мана: 10/10");
@@ -101,6 +118,7 @@ describe("dev grant commands", () => {
     expect(String(rogueResetCalls.at(-1)?.payload.text)).toContain("злодійський QA reset");
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
+    expect(String(finishAttunementsCalls.at(-1)?.payload.text)).toContain("налаштувань пришвидшено: 2");
     expect(String(tavernGameResetCalls.at(-1)?.payload.text)).toContain(
       "🎲 Столи вже без паузи"
     );
@@ -124,6 +142,7 @@ describe("dev grant commands", () => {
     const bandageCalls = await captureMessageCalls("/dev_add_bandage 0", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 0", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 0", devGrant);
+    const iskrokaminCalls = await captureMessageCalls("/dev_add_iskrokamin 0", devGrant);
     const invalidRandomSlotCalls = await captureMessageCalls("/dev_add_random_item slot=helmet", devGrant);
     const invalidRandomTagCalls = await captureMessageCalls("/dev_add_random_item tag=helmet", devGrant);
     const invalidRandomStoryTagCalls = await captureMessageCalls("/dev_add_random_item tag=story", devGrant);
@@ -138,6 +157,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addBandages).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
+    expect(devGrant.addIskrokamin).not.toHaveBeenCalled();
     expect(devGrant.addRandomItems).not.toHaveBeenCalled();
     expect(devGrant.addItemById).not.toHaveBeenCalled();
     expect(devGrant.heal).not.toHaveBeenCalled();
@@ -156,6 +176,9 @@ describe("dev grant commands", () => {
     );
     expect(String(fieldKitCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_field_kit [додатне ціле число]."
+    );
+    expect(String(iskrokaminCalls.at(-1)?.payload.text)).toContain(
+      "Формат: /dev_add_iskrokamin [додатне ціле число]."
     );
     expect(String(invalidRandomSlotCalls.at(-1)?.payload.text)).toContain(
       "Формат: /dev_add_random_item [додатне ціле число]"
@@ -219,6 +242,7 @@ describe("dev grant commands", () => {
     const exactItemCalls = await captureMessageCalls("/dev_add_item itemId=item.ability.last-page-rapier", devGrant);
     const denseBandageCalls = await captureMessageCalls("/dev_add_dense_bandage 2", devGrant);
     const fieldKitCalls = await captureMessageCalls("/dev_add_field_kit 3", devGrant);
+    const iskrokaminCalls = await captureMessageCalls("/dev_add_iskrokamin 5", devGrant);
     const yegerLineCalls = await captureMessageCalls("/dev_add_yeger_line 4", devGrant);
     const manaCalls = await captureMessageCalls("/dev_restore_mana 4", devGrant);
     const yegerCalls = await captureMessageCalls("/dev_reset_yeger_bandage", devGrant);
@@ -229,6 +253,13 @@ describe("dev grant commands", () => {
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
+    const equipment = fakeEquipmentService({ count: 2 });
+    const finishAttunementsCalls = await captureMessageCalls(
+      "/dev_finish_attunements",
+      devGrant,
+      undefined,
+      equipment
+    );
     const tavernGames = fakeTavernGamesService();
     const tavernGameResetCalls = await captureMessageCalls(
       "/dev_reset_tavern_games",
@@ -243,6 +274,7 @@ describe("dev grant commands", () => {
     expect(devGrant.addItemById).not.toHaveBeenCalled();
     expect(devGrant.addDenseBandages).not.toHaveBeenCalled();
     expect(devGrant.addFieldKits).not.toHaveBeenCalled();
+    expect(devGrant.addIskrokamin).not.toHaveBeenCalled();
     expect(devGrant.addYegerLines).not.toHaveBeenCalled();
     expect(devGrant.restoreMana).not.toHaveBeenCalled();
     expect(devGrant.resetYegerBandageCooldown).not.toHaveBeenCalled();
@@ -253,6 +285,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetRogue).not.toHaveBeenCalled();
     expect(devGrant.completeFirstYegerQuestProgress).not.toHaveBeenCalled();
     expect(devGrant.completeSecondYegerQuestProgress).not.toHaveBeenCalled();
+    expect(equipment.finishPendingAttunementsForDev).not.toHaveBeenCalled();
     expect(tavernGames.resetCreateCooldownForDev).not.toHaveBeenCalled();
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(healCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -261,6 +294,7 @@ describe("dev grant commands", () => {
     expect(exactItemCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(denseBandageCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(fieldKitCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(iskrokaminCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerLineCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(manaCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -271,6 +305,7 @@ describe("dev grant commands", () => {
     expect(rogueResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerFirstDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerSecondDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(finishAttunementsCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(tavernGameResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 });
@@ -283,9 +318,10 @@ interface ApiCall {
 async function captureMessageCalls(
   text: string,
   devGrant: ReturnType<typeof fakeDevGrantService>,
-  tavernGames?: ReturnType<typeof fakeTavernGamesService>
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>,
+  equipment?: ReturnType<typeof fakeEquipmentService>
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", servicesWith(devGrant, tavernGames));
+  const bot = createBot("123456:test-token", servicesWith(devGrant, tavernGames, equipment));
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {
@@ -341,6 +377,19 @@ async function captureMessageCalls(
   return calls;
 }
 
+function fakeEquipmentService(input: { count?: number } = {}): {
+  finishPendingAttunementsForDev: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<{ state: "finished"; count: number }>>
+  >;
+} {
+  return {
+    finishPendingAttunementsForDev: vi.fn(() => Promise.resolve({
+      state: "finished",
+      count: input.count ?? 0
+    }))
+  };
+}
+
 function fakeTavernGamesService(): {
   resetCreateCooldownForDev: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<{ state: "reset"; updated: number }>>
@@ -387,6 +436,9 @@ function fakeDevGrantService(input: {
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
   addFieldKits: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
+  >;
+  addIskrokamin: ReturnType<
     typeof vi.fn<(telegramUserId: bigint, amount: number) => Promise<DevGrantItemsResult>>
   >;
   addYegerLines: ReturnType<
@@ -547,6 +599,19 @@ function fakeDevGrantService(input: {
         }
       ]
     })),
+    addIskrokamin: vi.fn((_telegramUserId, amount) => Promise.resolve({
+      state: "updated",
+      kind: "items",
+      amount,
+      character,
+      itemGrants: [
+        {
+          itemId: "item.iskrokamin",
+          name: "Іскрокамінь",
+          quantity: amount
+        }
+      ]
+    })),
     addYegerLines: vi.fn((_telegramUserId, amount) => Promise.resolve({
       state: "updated",
       kind: "items",
@@ -622,7 +687,8 @@ function fakeDevGrantService(input: {
 
 function servicesWith(
   devGrant: ReturnType<typeof fakeDevGrantService>,
-  tavernGames?: ReturnType<typeof fakeTavernGamesService>
+  tavernGames?: ReturnType<typeof fakeTavernGamesService>,
+  equipment?: ReturnType<typeof fakeEquipmentService>
 ): BotServices {
   return {
     adventure: {},
@@ -632,7 +698,7 @@ function servicesWith(
     yeger: {},
     onboarding: {},
     hero: {},
-    equipment: {},
+    equipment: equipment ?? {},
     inventory: {},
     levelBarter: {},
     mantokChest: {},

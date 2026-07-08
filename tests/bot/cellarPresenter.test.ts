@@ -116,8 +116,8 @@ describe("cellar presenter", () => {
     expect(text).toContain("🧀");
     expect(text).toContain("Миша оцінила командний підхід");
     expect(text).toContain("<i>Метод:</i> cheese-trap");
-    expect(text).toContain("Винагорода за справу:");
-    expect(text).toContain("<b>+2 XP\n+1 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("+2 XP\n+1 золота");
     expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");

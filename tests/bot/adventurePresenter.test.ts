@@ -292,8 +292,8 @@ describe("adventure presenter", () => {
     const text = presentAdventureResult(completed(false));
 
     expect(text).toContain("✅ Справу закрито");
-    expect(text).toContain("Винагорода за справу:");
-    expect(text).toContain("\n\nВинагорода за справу:\n<b>+7 XP\n+4 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("\n\n<i>Отримано:</i>\n+7 XP\n+4 золота");
     expect(text.indexOf("Казанок &lt;репетирує&gt;")).toBeLessThan(text.indexOf("<i>Метод:</i> 🧠 Хитро"));
     expect(text.indexOf("<i>Метод:</i> 🧠 Хитро")).toBeLessThan(text.indexOf("без заперечень."));
     expect(text).not.toContain("Підпис методу");
@@ -330,7 +330,7 @@ describe("adventure presenter", () => {
     };
 
     expect(presentMimicShawarmaResult(result)).toContain(
-      "Винагорода за пригоду:\n<b>+8 XP\n+4 золота</b>\n\nЗдобуто: <i>Підозрілий лавашний доказ</i>"
+      "<i>Отримано:</i>\n+8 XP\n+4 золота\n\nЗдобуто: <i>Підозрілий лавашний доказ</i>"
     );
   });
 

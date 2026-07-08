@@ -124,6 +124,7 @@ describe("dev adventure reset command", () => {
             periodId: "2026-06-12T13:23",
             clearedPending: true,
             clearedCompletion: true,
+            clearedLossCooldown: true,
             character: {}
           });
         }
@@ -134,7 +135,7 @@ describe("dev adventure reset command", () => {
 
     expect(seenUserIds).toEqual([42n]);
     expect(replies).toEqual([
-      "Рейдовий таймер Бочки скинуто для локального тесту.\nОчищено: таймер очікування, зарахований відтинок.\nКулдаун після програшу Старшому Брату Бочки не чіпався."
+      "Рейдовий таймер Бочки скинуто для локального тесту.\nОчищено: таймер очікування, зарахований відтинок, перепочинок після поразки Старшому Брату Бочки."
     ]);
   });
 

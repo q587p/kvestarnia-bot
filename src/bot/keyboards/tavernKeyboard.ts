@@ -3,6 +3,7 @@ import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
+import { makeItemUpgradeListCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
 import { makeLatestEventsListCallbackData } from "../callbacks/latestEventsCallbackData";
@@ -129,10 +130,10 @@ export function buildKorchmaYardKeyboard(options: { questMarkers?: QuestMarkerIn
   return new InlineKeyboard()
     .text(
       decorateButtonLabel(
-        "🧾 До обходу",
-        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.quest-table")
+        "✨ Чароковальня",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "quest.charkokovalnia")
       ),
-      makePlaceCallbackData("quest-table")
+      makeItemUpgradeListCallbackData()
     )
     .row()
     .text("⬅️ До дверей", makePlaceCallbackData("front"));
@@ -514,7 +515,8 @@ function resolveHallQuestTableMarker(questMarkers: QuestMarkerInput | null | und
     resolveQuestMarkerForTarget(input, "quest.adventure"),
     resolveQuestMarkerForTarget(input, "quest.fight"),
     getTableOnlyBarrelBeerTutorialMarker(input),
-    resolveQuestMarkerForTarget(input, "quest.daily-korchma-round")
+    resolveQuestMarkerForTarget(input, "quest.daily-korchma-round"),
+    resolveQuestMarkerForTarget(input, "quest.charkokovalnia")
   ]);
 }
 
@@ -536,5 +538,6 @@ const HALL_CHILD_MARKER_TARGETS: readonly QuestMarkerTarget[] = [
   "location.korchma.bar",
   "location.korchma.barrel",
   "location.korchma.cellar",
-  "location.korchma.ranger-corner"
+  "location.korchma.ranger-corner",
+  "location.korchma.yard"
 ];

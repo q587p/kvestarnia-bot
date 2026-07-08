@@ -3,6 +3,7 @@ import { getComboTitle, getPronounLabel, isPronoun } from "../../content/charact
 import { findMantokAbilityGrantByItemId } from "../../content/mantokAbilityGrants";
 import { races } from "../../content/races";
 import type { ItemContent, Pronoun } from "../../content/schema";
+import type { EquipmentAttunementRecord } from "../equipment/equipmentAttunement";
 import {
   buildEffectiveCharacterStats,
   type EquipmentEffectSummary,
@@ -39,6 +40,7 @@ export interface CharacterSummary {
   levelBonus: LevelBonus;
   equipmentEffects?: EquipmentEffectSummary;
   equipmentAbilityActions?: CharacterEquipmentAbilityActionSummary[];
+  equipmentAttunements?: CharacterEquipmentAttunementSummary[];
   remortCount?: number;
   remortMemoryRank?: number;
 }
@@ -46,6 +48,12 @@ export interface CharacterSummary {
 export interface CharacterEquipmentAbilityActionSummary {
   id: string;
   label: string;
+}
+
+export interface CharacterEquipmentAttunementSummary {
+  itemName: string;
+  readyAt: Date;
+  strength: EquipmentAttunementRecord["strength"];
 }
 
 export interface CharacterSummaryInput {
@@ -68,6 +76,7 @@ export interface CharacterSummaryInput {
 
 export interface CharacterSummaryOptions {
   equippedItems?: ItemContent[];
+  equipmentAttunements?: CharacterEquipmentAttunementSummary[];
   resourceRecovery?: ResourceRecoveryEstimate;
   remortCount?: number;
 }
@@ -128,6 +137,9 @@ export function summarizeCharacter(
     levelBonus: effectiveStats.levelBonus,
     equipmentEffects: effectiveStats.equipmentEffects,
     ...(equipmentAbilityActions.length > 0 ? { equipmentAbilityActions } : {}),
+    ...((options.equipmentAttunements?.length ?? 0) > 0
+      ? { equipmentAttunements: options.equipmentAttunements }
+      : {}),
     ...(remortCount > 0
       ? {
           remortCount,

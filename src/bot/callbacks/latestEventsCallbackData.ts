@@ -1,5 +1,9 @@
 import { err, ok, type Result } from "../../shared/result";
-import { latestEventFilters, type LatestEventFilter } from "../../services/activityEventService";
+import {
+  DEFAULT_LATEST_EVENTS_UI_FILTER,
+  latestEventFilters,
+  type LatestEventFilter
+} from "../../services/activityEventService";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type LatestEventsCallback =
@@ -15,7 +19,7 @@ export type LatestEventsCallbackError =
 
 const PREFIX = "v1:ev";
 
-export function makeLatestEventsListCallbackData(filter: LatestEventFilter = "all", page = 0): string {
+export function makeLatestEventsListCallbackData(filter: LatestEventFilter = DEFAULT_LATEST_EVENTS_UI_FILTER, page = 0): string {
   return `${PREFIX}:l:${filter}:${normalizePage(page)}`;
 }
 

@@ -44,7 +44,7 @@ export const monsterSchema = z.object({
   tags: z.array(z.string().min(1)).default([])
 });
 
-export const itemRaritySchema = z.enum(["common", "uncommon", "rare", "epic"]);
+export const itemRaritySchema = z.enum(["common", "uncommon", "rare", "epic", "legendary"]);
 
 export const equipmentSlotSchema = z.enum(equipmentSlots);
 
@@ -113,7 +113,7 @@ export const itemSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   rarity: itemRaritySchema,
-  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
+  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk", "resource"]),
   equipmentSlot: equipmentSlotSchema.optional(),
   equipmentRequirements: itemEquipmentRequirementsSchema.optional(),
   goldValue: z.number().int().min(0).optional(),

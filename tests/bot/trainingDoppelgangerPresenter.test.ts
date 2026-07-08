@@ -144,7 +144,7 @@ describe("training doppelganger presenter", () => {
 
     expect(text).toContain("<i>");
     expect(text).toContain("</i>");
-    expect(text).toContain("Вміння 📄 <i>Форма 13-Б</i> влучає на 4 шкоди.");
+    expect(text).toContain("Вміння 📄 <i>Форма 13-Б</i> і влучає на 4 шкоди.");
     expect(text).not.toContain("undefined");
     expect(text).not.toContain("Останній хід");
   });

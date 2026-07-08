@@ -7,6 +7,7 @@ import type { ItemContent, ItemTagContent } from "../content/schema";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 import {
   BANDAGE_ITEM_ID,
+  ISKROKAMIN_ITEM_ID,
   YEGER_FIRST_NOTCH_ITEM_ID,
   enrichRewardItemGrants,
   type RewardItemGrant
@@ -215,7 +216,12 @@ export class DevGrantService {
           state: "updated",
           kind: "gold",
           amount,
-          character: result.character
+          character: result.character,
+          achievementUnlocks: await this.trackGrantAchievements({
+            characterId: result.character.id,
+            sourceKind: "dev.add_gold",
+            goldBalance: result.character.gold
+          })
         }
       : { state: "no-character" };
   }
@@ -339,6 +345,14 @@ export class DevGrantService {
       amount,
       itemId: YEGER_FIRST_NOTCH_ITEM_ID,
       sourceKind: "dev.add_yeger_line"
+    });
+  }
+
+  async addIskrokamin(telegramUserId: bigint, amount = 1): Promise<DevGrantItemsResult> {
+    return this.addSpecificItems(telegramUserId, {
+      amount,
+      itemId: ISKROKAMIN_ITEM_ID,
+      sourceKind: "dev.add_iskrokamin"
     });
   }
 
@@ -584,6 +598,7 @@ export class DevGrantService {
     characterId: string;
     sourceKind: string;
     levelChange?: RewardLevelChange;
+    goldBalance?: number;
     itemGrants?: readonly ItemGrant[];
   }): Promise<AchievementUnlock[]> {
     if (!this.achievements) {
@@ -613,6 +628,18 @@ export class DevGrantService {
           itemIds: input.itemGrants.map((grant) => grant.itemId),
           occurredAt,
           sourceId: `${input.sourceKind}:${input.characterId}`
+        }))
+      );
+    }
+
+    if (input.goldBalance !== undefined) {
+      unlocks.push(
+        ...(await this.achievements.trackEventSafely({
+          type: "gold.balance",
+          characterId: input.characterId,
+          gold: input.goldBalance,
+          occurredAt,
+          sourceId: `${input.sourceKind}:${input.characterId}:${input.goldBalance}`
         }))
       );
     }

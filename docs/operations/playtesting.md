@@ -74,7 +74,7 @@ Manual Telegram QA status for the implementation pass: not run.
 Manual Telegram QA status for the implementation pass: not run.
 
 1. Open `/equipment`, `/gear` or `/equip`; verify tuned generated weapon, chest, accessory and tool manatky still show their canonical slots and visible effects.
-2. Open `🎒 Манатки`, then each equipment slot filter. Compare several common/uncommon/rare/epic items in the same slot and verify the names, rarity, values and effects feel coherent rather than obviously inverted.
+2. Open `🎒 Манатки`, then each equipment slot filter. Compare several common/uncommon/rare/epic items in the same slot and, when test data exists, a legendary item; verify the names, rarity, values and effects feel coherent rather than obviously inverted.
 3. Open a generated `+1` or higher Loot Expansion item if local data can seed one; verify the item detail shows a visible improvement over the simpler version in the same family.
 4. Equip a tuned item into an occupied slot and verify the result card still says the previous manatka stayed in the bag.
 5. On a warrior, equip two different ordinary weapons into `Основна рука` and `Друга рука`; on a non-warrior, verify ordinary weapons do not appear as second-hand options unless the manatka is explicitly offhand-capable.
@@ -132,7 +132,7 @@ Manual Telegram QA status for the implementation pass: not run.
 3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
 4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
 5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
-6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not, and only epic manatky appear under `⭐ Важливе`.
+6. Grant or win a rare/epic/legendary manatka if convenient; verify it appears, while common manatky do not, and only epic/legendary manatky appear under `⭐ Важливе`.
 7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
 8. Try every feed filter and pagination button; verify old refresh/stale callbacks answer safely and callback payloads do not leak ids.
 9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.
@@ -182,11 +182,12 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 1. On a non-remorted level 7 account and a remorted level 2 account, open `🛢️ Бочка`; verify the legacy Barrel route still appears.
 2. On an eligible account with the Big Barrel Brother flag disabled, open `🛢️ Бочка`; verify it still uses the legacy route.
 3. Enable the Big Barrel Brother flag, reopen `🛢️ Бочка` on non-remorted level 8+ and remorted level 3+ accounts, and verify the familiar Barrel card appears first with `🍺 У рейд на бочку`; it must not auto-create recruiting.
-4. Tap `🍺 У рейд на бочку`; verify the Big Barrel Brother recruiting card appears without exact reward amounts or odds, includes `📣 Запрошення на рейд` / share controls when `BOT_USERNAME` is configured, and starts with the Старший Брат Бочки intervention message.
-4a. Press `📣 Запрошення на рейд`; verify the bot sends the separate forwardable invite card only after this explicit press, not automatically on recruiting open or join.
+4. Tap `🍺 У рейд на бочку`; verify the Big Barrel Brother recruiting card appears without exact reward amounts or odds, includes `📣 Картка запрошення` / `🔗 Запросити на рейд` controls on one row when `BOT_USERNAME` is configured, and starts with the Старший Брат Бочки intervention message.
+4a. Press `📣 Картка запрошення`; verify the bot sends the separate forwardable invite card only after this explicit press, not automatically on recruiting open or join.
 5. Join the same party from a deep link and from `👀 Хто поруч`; verify duplicate joins replay the same membership, the invite link remains visible on recruiting refresh/join/leave cards, the leader's original recruiting card updates to include the new participant, and no separate invite-card message is sent by the join itself.
 5a. Try the same deep-link and `👀 Хто поруч` join as a non-remorted level 7, remorted level 2, already-completed-period or active-combat character; verify the bot shows only generic raid-office rejection copy, does not add the character to the roster and does not reveal the exact private reason.
 6. With two recruiting groups open at the Barrel, open `👀 Хто поруч`; verify each group lists participant names and the join buttons identify the leader.
+6a. With one participant, verify `🚪 Вийти` and `🧹 Скасувати збір` share one row. With at least two participants in one recruiting group, verify the leader no longer sees `🧹 Скасувати збір`; `🔎 Оновити` sits beside `Готовий` / `Готова` / `Готові` or `Зачекайте`; and `🛢️ Почати рейд` remains the final button.
 7. Let recruiting time expire without pressing leader start; verify the fight starts automatically even if the roster is not full.
 8. Start another raid manually as leader; verify the shared boss card names `Старший Брат Бочки`, while private cards follow ordinary fight shape: turn heading, viewer HP/mana, boss HP, visible target marker on participants, concrete action controls and the `23 с` turn hint.
 9. Verify private action buttons use concrete class/race ability names, matching ordinary combat availability when mana/cooldowns make an action unavailable.
@@ -200,9 +201,9 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
 17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, names terminal participant rows by character rather than `Ви`, and does not show active-only cooldown rows. Then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
 17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
-18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; verify it does not clear the Big Barrel Brother loss retry cooldown.
+18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; after a Big loss, verify it clears the Big Barrel Brother loss retry cooldown for QA.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.
-19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked until roughly 3 minutes pass, then verify they work again after cooldown expiry.
+19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked with a remaining-wait line, then verify they work again after cooldown expiry.
 20. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
 21. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
@@ -890,7 +891,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
-- `/dev_raid_reset` — у локальному режимі скидає pending-таймер і зарахований поточний відтинок Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді; навмисно не скидає 3-хвилинний кулдаун після програшу Старшому Брату Бочки.
+- `/dev_raid_reset` — у локальному режимі скидає pending-таймер, зарахований поточний відтинок Бочки й 3-хвилинний кулдаун після програшу Старшому Брату Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.

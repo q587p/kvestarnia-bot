@@ -99,13 +99,13 @@ export function presentDevRaidResetResult(result: TavernDevRaidResetResult): str
   if (result.state === "reset") {
     const cleared = [
       result.clearedPending ? "таймер очікування" : null,
-      result.clearedCompletion ? "зарахований відтинок" : null
+      result.clearedCompletion ? "зарахований відтинок" : null,
+      result.clearedLossCooldown ? "перепочинок після поразки Старшому Брату Бочки" : null
     ].filter(Boolean);
 
     return [
       "Рейдовий таймер Бочки скинуто для локального тесту.",
-      `Очищено: ${cleared.join(", ")}.`,
-      "Кулдаун після програшу Старшому Брату Бочки не чіпався."
+      `Очищено: ${cleared.join(", ")}.`
     ].join("\n");
   }
 

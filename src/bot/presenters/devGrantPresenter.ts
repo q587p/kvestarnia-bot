@@ -77,11 +77,11 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
   }
 
   if (result.kind === "gold") {
-    return [
+    return appendAchievementUnlocks([
       `🧪 Dev: додано ${result.amount} ${formatUnit(result.amount, ["золото", "золота", "золота"])}.`,
       "",
       `Золото: ${result.character.gold}`
-    ].join("\n");
+    ], result);
   }
 
   if (result.kind === "heal") {

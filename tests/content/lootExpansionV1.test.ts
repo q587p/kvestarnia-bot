@@ -168,6 +168,19 @@ describe("loot expansion v1 content adapter", () => {
     expect(getEnhancementWeight(18, 5)).toBeGreaterThan(0);
   });
 
+  it("keeps enhancement drop weights as a very rare tail of generated loot", () => {
+    const weights = ([0, 1, 2, 3, 4, 5] as const).map((enhancement) =>
+      getEnhancementWeight(18, enhancement)
+    );
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const plusTotal = total - weights[0]!;
+
+    expect(weights[0]).toBe(100);
+    expect(plusTotal / total).toBeLessThan(0.07);
+    expect(getEnhancementWeight(18, 5)).toBeGreaterThan(0);
+    expect(getEnhancementWeight(18, 5)).toBeLessThan(getEnhancementWeight(18, 1));
+  });
+
   it("resolves all effect and affinity ids against the package dictionaries", () => {
     expect(getLootExpansionValidationReport()).toEqual({
       effectIdsResolve: true,
@@ -337,16 +350,48 @@ describe("loot expansion v1 content adapter", () => {
   });
 
   it("materializes plus variants with level gates and display names", () => {
+    const panPlusOne = findLootExpansionVariantByItemId("item.loot-v1-w001-plus-1");
+    const panPlusThree = findLootExpansionVariantByItemId("item.loot-v1-w001-plus-3");
+    const panPlusFour = findLootExpansionVariantByItemId("item.loot-v1-w001-plus-4");
     const panPlusFive = findLootExpansionVariantByItemId("item.loot-v1-w001-plus-5");
 
+    expect(panPlusOne).toMatchObject({
+      enhancement: 1,
+      minLevel: 3,
+      item: {
+        name: "Пательня Перемовин +1",
+        rarity: "uncommon"
+      }
+    });
+    expect(panPlusOne?.item.description).toContain("Посилення +1: слабка магія, мінімальний рівень 3.");
+    expect(panPlusThree).toMatchObject({
+      enhancement: 3,
+      minLevel: 10,
+      item: {
+        name: "Пательня Перемовин +3",
+        rarity: "rare"
+      }
+    });
+    expect(panPlusThree?.item.description).toContain("Посилення +3: слабка магія, мінімальний рівень 10.");
+    expect(panPlusFour).toMatchObject({
+      enhancement: 4,
+      minLevel: 14,
+      item: {
+        name: "Пательня Перемовин +4",
+        rarity: "rare"
+      }
+    });
+    expect(panPlusFour?.item.description).toContain("Посилення +4: сильна магія, мінімальний рівень 14.");
     expect(panPlusFive).toMatchObject({
       baseId: "w001",
       enhancement: 5,
       minLevel: 18,
       item: {
-        name: "Пательня Перемовин +5"
+        name: "Пательня Перемовин +5",
+        rarity: "epic"
       }
     });
+    expect(panPlusFive?.item.description).toContain("Посилення +5: сильна магія, мінімальний рівень 18.");
   });
 
   it("keeps high-enhancement generated prices inside the Kvestarnia economy envelope", () => {

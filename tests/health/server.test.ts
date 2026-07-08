@@ -78,11 +78,10 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Корчма зібрала розкидані правки");
-    expect(text).toContain("кілька дрібних папірців");
-    expect(text).toContain("наступні спроби стають дедалі переконливішими");
-    expect(text).toContain("єгерські монстри для дуже досвідчених ремортних пригодників");
-    expect(text).toContain("Це не нова система бою й не нова Бочка");
+    expect(text).toContain("Ельф-маг заїхав у задвірок із Чароковальнею");
+    expect(text).toContain("тепер живе <code>Чароковальня</code>: маг");
+    expect(text).toContain("конкретною одиницею зі стосу");
+    expect(text).toContain("задвірок перестав пустувати");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

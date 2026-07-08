@@ -95,6 +95,35 @@ describe("quest button markers", () => {
       )
     ).toBe(QuestMarker.NONE);
   });
+
+  it("marks Charkokovalnia unlock across the table and yard paths only while unlock is pending", () => {
+    const pendingInput = {
+      characterLevel: 5,
+      itemUpgrades: {
+        state: "unlock-required" as const,
+        character: character(),
+        fieldKitQuantity: 1,
+        rewardXp: 13
+      }
+    };
+
+    expect(resolveQuestMarkerForTarget(pendingInput, "quest.charkokovalnia")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.yard")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.hall")).toBe(QuestMarker.CAN_ACCEPT);
+
+    const unlockedInput = {
+      ...pendingInput,
+      itemUpgrades: {
+        state: "ready" as const,
+        character: character()
+      }
+    };
+
+    expect(resolveQuestMarkerForTarget(unlockedInput, "quest.charkokovalnia")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(unlockedInput, "location.korchma.yard")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(unlockedInput, "location.korchma.quest-table")).toBe(QuestMarker.NONE);
+  });
 });
 
 function character() {

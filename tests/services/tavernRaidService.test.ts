@@ -25,6 +25,7 @@ import type {
 } from "../../src/db/repositories/korchmaRoundPurchaseRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
@@ -582,6 +583,37 @@ describe("TavernRaidService", () => {
       xp: 0,
       gold: 0
     });
+  });
+
+  it("resets Big Barrel Brother loss retry cooldown for dev testing", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const pendingRaids = new FakeCooldownRepository(characters);
+    pendingRaids.seed(telegramUserId, {
+      key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
+      availableAt: new Date("2026-06-12T10:03:00.000Z")
+    });
+    const service = createTavernRaidService(
+      characters,
+      dailyActions,
+      new FakeKorchmaRoundPurchaseRepository(characters),
+      pendingRaids,
+      new FakeRandomSource([0])
+    );
+
+    const reset = await service.resetFridayBarrelRaidForDev(telegramUserId);
+
+    expect(reset).toMatchObject({
+      state: "reset",
+      clearedCompletion: false,
+      clearedPending: false,
+      clearedLossCooldown: true,
+      periodId: "2026-06-12T13:23"
+    });
+    expect(pendingRaids.records.map((record) => record.key)).not.toContain(
+      BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+    );
   });
 
   it("raises the possible barrel raid wait ceiling for higher-level heroes", async () => {

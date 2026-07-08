@@ -17,7 +17,7 @@ import { items } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
 import { DevGrantService } from "../../src/services/devGrantService";
-import { BANDAGE_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
+import { BANDAGE_ITEM_ID, ISKROKAMIN_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -121,6 +121,58 @@ describe("DevGrantService", () => {
       type: "level.reached",
       level: 3,
       sourceId: "dev.add_level:character-42:1->3"
+    });
+    expect(event?.occurredAt).toBeInstanceOf(Date);
+    expect(recalculateForCharacter).toHaveBeenCalledTimes(1);
+    const [characterId, occurredAt] = recalculateForCharacter.mock.calls[0] ?? [];
+    expect(characterId).toBe("character-42");
+    expect(occurredAt).toBeInstanceOf(Date);
+  });
+
+  it("routes gold dev grants through achievement tracking", async () => {
+    const repository = new FakeDevGrantRepository();
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([
+      {
+        id: "achievement.gold.over-nine-thousand",
+        title: "Понад девʼять тисяч",
+        cosmeticTitleGrantId: null,
+        unlockedAt: new Date("2026-06-17T10:00:00.000Z")
+      }
+    ]);
+    const recalculateForCharacter = vi
+      .fn<AchievementService["recalculateForCharacter"]>()
+      .mockResolvedValue({ unlocks: [] });
+    const achievements = {
+      trackEventSafely,
+      recalculateForCharacter
+    } as unknown as AchievementService;
+    const service = new DevGrantService(
+      repository,
+      "development",
+      true,
+      new FakeRandomSource([0]),
+      achievements
+    );
+
+    const result = await service.addGold(42n, 9001);
+
+    expect(result).toMatchObject({
+      state: "updated",
+      kind: "gold",
+      amount: 9001,
+      achievementUnlocks: [
+        {
+          id: "achievement.gold.over-nine-thousand"
+        }
+      ]
+    });
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = trackEventSafely.mock.calls[0] ?? [];
+    expect(event).toMatchObject({
+      characterId: "character-42",
+      type: "gold.balance",
+      gold: 9001,
+      sourceId: "dev.add_gold:character-42:9001"
     });
     expect(event?.occurredAt).toBeInstanceOf(Date);
     expect(recalculateForCharacter).toHaveBeenCalledTimes(1);
@@ -378,6 +430,25 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`items:42:${YEGER_FIRST_NOTCH_ITEM_ID}:4`);
   });
 
+  it("adds Iskrokamin directly for Charkokovalnia local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.addIskrokamin(42n, 5)).resolves.toMatchObject({
+      state: "updated",
+      kind: "items",
+      amount: 5,
+      itemGrants: [
+        {
+          itemId: ISKROKAMIN_ITEM_ID,
+          name: "Іскрокамінь",
+          quantity: 5
+        }
+      ]
+    });
+    expect(repository.calls).toContain(`items:42:${ISKROKAMIN_ITEM_ID}:5`);
+  });
+
   it("resets the Yeger free bandage cooldown for the current character", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -516,6 +587,7 @@ describe("DevGrantService", () => {
     const service = new DevGrantService(repository, "development", false, new FakeRandomSource([0]));
 
     await expect(service.addItemById(42n, "item.ability.last-page-rapier", 1)).resolves.toEqual({ state: "disabled" });
+    await expect(service.addIskrokamin(42n, 1)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetPriestBlessingCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetQuietPocketCooldown(42n)).resolves.toEqual({ state: "disabled" });

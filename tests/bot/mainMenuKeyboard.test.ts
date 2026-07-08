@@ -83,6 +83,7 @@ import {
   buildKorchmaHallKeyboard,
   buildKorchmaMemorialBoardKeyboard,
   buildKorchmaNewsCornerKeyboard,
+  buildKorchmaYardKeyboard,
   buildKorchmaRoundOfferKeyboard,
   buildKorchmaRoundResultKeyboard,
   buildTavernParticipantsKeyboard,
@@ -94,6 +95,7 @@ import {
   buildTrainingDoppelgangerStartKeyboard
 } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 
 describe("main menu and scene keyboards", () => {
   it("builds the universal menu as a persistent reply keyboard", () => {
@@ -297,6 +299,25 @@ describe("main menu and scene keyboards", () => {
       ["🪣 У задвірок"],
       ["🎒 Манчкін-скупник"]
     ]);
+    expect(inlineButtonRows(buildKorchmaYardKeyboard())).toEqual([
+      ["✨ Чароковальня"],
+      ["⬅️ До дверей"]
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaYardKeyboard())).toEqual([
+      "v1:up:l",
+      "v1:place:front"
+    ]);
+    expect(inlineButtonRows(buildKorchmaYardKeyboard({
+      questMarkers: {
+        characterLevel: 5,
+        itemUpgrades: {
+          state: "unlock-required",
+          character,
+          fieldKitQuantity: 1,
+          rewardXp: 13
+        }
+      }
+    }))).toContainEqual(["✨ Чароковальня ⚠️"]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",
@@ -553,7 +574,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
       "v1:news:list:0",
-      "v1:ev:l:all:0",
+      "v1:ev:l:imp:0",
       "v1:lore:m",
       "v1:gift:open",
       "v1:post:open",
@@ -1698,7 +1719,12 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["🛡️ Спорядження", "1️⃣ Разові", "♻️ До Дружньої Скрині", "🔎 Квиток мокрого пригодника (2)"]);
+    ).toEqual([
+      "🛡️ Спорядження",
+      "1️⃣ Разові",
+      "♻️ До Дружньої Скрині",
+      "🔎 Квиток мокрого пригодника (2)"
+    ]);
     expect(
       flatInlineButtonCallbacks(
         buildInventoryKeyboard({
@@ -1721,7 +1747,12 @@ describe("main menu and scene keyboards", () => {
           ]
         })
       )
-    ).toEqual(["v1:equip:view", "v1:item:inventory:f:u", "v1:chest:open", "v1:item:detail:item.wet-hero-ticket"]);
+    ).toEqual([
+      "v1:equip:view",
+      "v1:item:inventory:f:u",
+      "v1:chest:open",
+      "v1:item:detail:item.wet-hero-ticket"
+    ]);
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard(
@@ -2061,6 +2092,32 @@ describe("main menu and scene keyboards", () => {
               }
             }
           },
+          null,
+          0,
+          null,
+          { source: "item-upgrade" }
+        )
+      )
+    ).toEqual(["✨ До Чароковальні"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
           "weapon"
         )
       )
@@ -2114,7 +2171,11 @@ describe("main menu and scene keyboards", () => {
           "weapon"
         )
       )
-    ).toEqual(["v1:equip:item:item.pan-of-persuasion:s:w", "v1:item:inventory:s:w", "v1:equip:view"]);
+    ).toEqual([
+      "v1:equip:item:item.pan-of-persuasion:s:w",
+      "v1:item:inventory:s:w",
+      "v1:equip:view"
+    ]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(
@@ -2732,6 +2793,37 @@ describe("main menu and scene keyboards", () => {
       "v1:chest:inventory"
     ]);
     expect(callbacks.every((callback) => Buffer.byteLength(callback, "utf8") <= 64)).toBe(true);
+  });
+
+  it("links Iskrokamin item details to Charkokovalnia", () => {
+    const keyboard = buildItemDetailKeyboard({
+      state: "found",
+      item: {
+        id: "character-item-iskrokamin",
+        itemId: "item.iskrokamin",
+        quantity: 1000,
+        content: {
+          id: "item.iskrokamin",
+          name: "Іскрокамінь",
+          description: "Малий камінець.",
+          rarity: "uncommon",
+          slot: "resource",
+          priceless: true,
+          tags: ["tradeable"]
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "✨ До Чароковальні",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      makeItemUpgradeListCallbackData(),
+      "v1:item:inventory",
+      "v1:equip:view"
+    ]);
   });
 
   it("links Mantok Chest output directly to item details", () => {

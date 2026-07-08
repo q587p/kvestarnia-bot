@@ -32,7 +32,7 @@ MVP event types:
 | `character.created` | `adventurer` | `normal` | New players make the tavern feel alive. |
 | `character.level_reached` | `progression` | `normal` / `high` at milestones | Level-ups are the simplest shared progress signal. |
 | `party.raid_won` | `raid` | `high` / `legendary` | Group victory is the strongest social proof. |
-| `item.rare_received` | `manatky` | `normal` for `rare`, `legendary` for `epic` | Rare items belong in the manatky feed; epic items also belong in the important filter. |
+| `item.rare_received` | `manatky` | `normal` for `rare`, `legendary` for `epic` / `legendary` | Rare items belong in the manatky feed; epic and legendary items also belong in the important filter. |
 | `combat.underdog_won` | `combat` | `normal` from `+5`, `high` from `+8` | A win over a monster at least 5 levels stronger is public combat color; only bigger gaps belong in important for now. |
 
 Deferred event types:
@@ -210,8 +210,8 @@ latestEvents:
     underdogLevelDelta: 5
     importantUnderdogLevelDelta: 8
   manatky:
-    publicRarities: [rare, epic]
-    legendaryRarities: [epic]
+    publicRarities: [rare, epic, legendary]
+    legendaryRarities: [epic, legendary]
   raids:
     firstServerWinSeverity: legendary
     ordinaryWinSeverity: high

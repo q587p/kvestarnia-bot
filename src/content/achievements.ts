@@ -17,6 +17,7 @@ export const achievementTriggerTypes = [
   "latest-events.opened",
   "cosmetic-title.selected",
   "character.created",
+  "gold.balance",
   "level.reached",
   "remort.completed",
   "combat.finished",
@@ -31,6 +32,9 @@ export const achievementTriggerTypes = [
   "item.crafted",
   "item.used",
   "equipment.item_equipped",
+  "item-upgrade.succeeded",
+  "item-upgrade.failed",
+  "item-upgrade.level-5",
   "mantok.gear-action.used",
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
@@ -796,6 +800,17 @@ export const achievements = [
     cosmeticTitleGrantId: "cosmetic-title.ninety-three-responsible-bandages"
   },
   {
+    id: "achievement.iskrokamin.first-owned",
+    category: "gear",
+    title: "Іскра попросила кишеню",
+    description: "уперше отримати Іскрокамінь і не пояснювати торбі, чому вона тепер трохи світиться.",
+    hidden: false,
+    lockedDescription: "уперше отримати Іскрокамінь.",
+    sortOrder: 78.1,
+    status: "enabled",
+    trigger: { type: "item.received", itemId: "item.iskrokamin", threshold: 1 }
+  },
+  {
     id: "achievement.bandage.first-used",
     category: "gear",
     title: "Паніка спрацювала за призначенням",
@@ -950,6 +965,39 @@ export const achievements = [
     sortOrder: 83.6,
     status: "enabled",
     trigger: { type: "mantok.gear-action.used", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.first-success",
+    category: "gear",
+    title: "Молот сказав «дзень»",
+    description: "уперше успішно підсилити манатку в Чароковальні.",
+    hidden: false,
+    lockedDescription: "уперше успішно підсилити манатку.",
+    sortOrder: 83.7,
+    status: "enabled",
+    trigger: { type: "item-upgrade.succeeded", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.first-failure",
+    category: "gear",
+    title: "Іскра має власну думку",
+    description: "уперше пережити невдалу спробу підсилення без втрати гідности в журналі.",
+    hidden: false,
+    lockedDescription: "уперше отримати невдалу спробу підсилення.",
+    sortOrder: 83.8,
+    status: "enabled",
+    trigger: { type: "item-upgrade.failed", threshold: 1 }
+  },
+  {
+    id: "achievement.item-upgrade.level-five",
+    category: "gear",
+    title: "Пʼять плюсів і жодної скромности",
+    description: "довести манатку до +5 і дати молоту маленьку відпустку.",
+    hidden: false,
+    lockedDescription: "підсилити манатку до +5.",
+    sortOrder: 83.9,
+    status: "enabled",
+    trigger: { type: "item-upgrade.level-5", threshold: 1 }
   },
   {
     id: "achievement.item.twenty-three-owned",
@@ -1731,6 +1779,28 @@ export const achievements = [
     sortOrder: 188,
     status: "enabled",
     trigger: { type: "combat.persistent.zero-gold-item-win", threshold: 1 }
+  },
+  {
+    id: "achievement.gold.leet-balance",
+    category: "weird",
+    title: "1337 у кишені",
+    description: "мати принаймні 1337 золота й змусити корчмарську бухгалтерію читати баланс як елітний шифр.",
+    hidden: false,
+    lockedDescription: "мати принаймні 1337 золота.",
+    sortOrder: 189,
+    status: "enabled",
+    trigger: { type: "gold.balance", threshold: 1337 }
+  },
+  {
+    id: "achievement.gold.over-nine-thousand",
+    category: "weird",
+    title: "Понад девʼять тисяч",
+    description: "мати принаймні 9001 золота й почути, як корчмарський лічильник просить не міряти силу гаманця.",
+    hidden: false,
+    lockedDescription: "мати принаймні 9001 золота.",
+    sortOrder: 190,
+    status: "enabled",
+    trigger: { type: "gold.balance", threshold: 9001 }
   },
   {
     id: "achievement.remort.first-memory",

@@ -8,11 +8,16 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 describe("latest events callback data", () => {
   it("parses list callbacks under Telegram limits", () => {
     const list = makeLatestEventsListCallbackData("cmb", 2);
+    const defaultList = makeLatestEventsListCallbackData();
 
     expect(Buffer.byteLength(list, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(parseLatestEventsCallbackData(list)).toEqual({
       ok: true,
       value: { type: "list", filter: "cmb", page: 2 }
+    });
+    expect(parseLatestEventsCallbackData(defaultList)).toEqual({
+      ok: true,
+      value: { type: "list", filter: "imp", page: 0 }
     });
   });
 

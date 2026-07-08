@@ -147,11 +147,12 @@ describe("lore board content", () => {
     expect(classLoreBody("class-ranger")).toContain("🏹 Рикошетний постріл");
     expect(classLoreBody("class-kharakternyk")).toContain("👁 Степовий косий погляд");
 
-    for (const entryId of ["class-warrior", "class-bard", "class-rogue", "class-priest", "class-ranger"]) {
+    for (const entryId of ["class-warrior", "class-mage", "class-bard", "class-rogue", "class-priest", "class-ranger"]) {
       expect(classLoreBody(entryId), entryId).toContain("\n\n");
     }
 
     expect(classLoreBody("class-warrior")).toContain("по зброї в кожній руці");
+    expect(classLoreBody("class-mage")).toContain("Чароковальнею");
     expect(classLoreBody("class-bard")).toContain("може виступити");
     expect(classLoreBody("class-rogue")).toContain("Тихою кишенею");
     expect(classLoreBody("class-priest")).toContain("полікувати маною без бинтів");
@@ -200,7 +201,16 @@ describe("lore board content", () => {
 
     expect(general?.body).toContain("Дія спорядження");
     expect(general?.body).toContain("бойового трюку");
+    expect(general?.body).toContain("магічне покращення");
     expect(general?.body).not.toContain("таємний");
+  });
+
+  it("keeps yard lore aligned with the elf-mage and Charkokovalnia", () => {
+    const yard = loreEntries.find((entry) => entry.id === "place-yard");
+
+    expect(yard?.body).toContain("Чароковальня");
+    expect(yard?.body).toContain("ельф-маг");
+    expect(yard?.body).toContain("Іскрокаменем");
   });
 
   it("detects broken lore records", () => {

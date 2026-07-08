@@ -183,6 +183,15 @@ describe("application factory wiring", () => {
       itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
     `));
     expect(source).toContain(compact(`
+      itemUpgrades: new ItemUpgradeService(
+        repositories.itemUpgrades,
+        undefined,
+        undefined,
+        achievements,
+        publicActivityEvents
+      )
+    `));
+    expect(source).toContain(compact(`
       levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents)
     `));
     expect(source).toContain(compact(`

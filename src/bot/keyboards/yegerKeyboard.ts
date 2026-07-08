@@ -14,6 +14,7 @@ import {
   makeYegerBuyBandageCallbackData,
   makeYegerCancelBandagePurchaseCallbackData,
   makeYegerConfirmBandagePurchaseCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerFreeBandageCallbackData,
   makeYegerHelpCallbackData,
   makeYegerNotchExchangeCallbackData,
@@ -34,8 +35,10 @@ import {
   type QuestMarkerInput
 } from "./questButtonMarkers";
 
-interface YegerNavigationOptions {
+export interface YegerNavigationOptions {
   questMarkers?: QuestMarkerInput | null;
+  showFieldKitHelp?: boolean;
+  showYardShortcut?: boolean;
 }
 
 export function buildYegerKeyboard(
@@ -114,6 +117,10 @@ export function buildYegerCornerKeyboard(
 
   if (isBaseYegerQuestCompleted(result)) {
     keyboard.text("🩹 Бинти", makeYegerBandagesCallbackData()).row();
+  }
+
+  if (options.showFieldKitHelp) {
+    keyboard.text("🧰 Аптечка?", makeYegerFieldKitHelpCallbackData()).row();
   }
 
   if (result.state === "completed" && result.notchExchange && result.notchExchange.options.length > 0) {
@@ -235,7 +242,13 @@ export function buildYegerTurnInKeyboard(
 }
 
 export function buildYegerHelpKeyboard(options: YegerNavigationOptions = {}): InlineKeyboard {
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard();
+
+  if (options.showYardShortcut) {
+    keyboard.text("Перейти в задвірок", makePlaceCallbackData("yard")).row();
+  }
+
+  return keyboard
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))

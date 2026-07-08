@@ -73,7 +73,12 @@ import {
   type MonsterCombatStats
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
-import { getItemDropChance, rollBandageDropQuantity, rollMonsterLoot } from "../domain/loot";
+import {
+  getItemDropChance,
+  rollBandageDropQuantity,
+  rollMonsterLoot,
+  rollPostFightBandageSlotReward
+} from "../domain/loot";
 import {
   CURRENT_GAME_LEVEL_CAP,
   isWithinActivityMaxLevel,
@@ -110,6 +115,7 @@ import {
 import {
   BANDAGE_ITEM_ID,
   enrichRewardItemGrants,
+  ISKROKAMIN_ITEM_ID,
   PAN_OF_PERSUASION_ITEM_ID,
   RECEIPT_OF_FORMAL_SUSPICION_ITEM_ID,
   starterEquipmentGrant,
@@ -4487,9 +4493,17 @@ function buildPersistentFightReward(
     luck: character.stats.luck,
     rng
   });
+  const bandageSlotReward = rollPostFightBandageSlotReward({
+    bandageQuantity,
+    luck: character.stats.luck,
+    rng
+  });
 
-  if (bandageQuantity > 0) {
-    itemGrants.push({ itemId: BANDAGE_ITEM_ID, quantity: bandageQuantity });
+  if (bandageSlotReward) {
+    itemGrants.push({
+      itemId: bandageSlotReward.kind === "iskrokamin" ? ISKROKAMIN_ITEM_ID : BANDAGE_ITEM_ID,
+      quantity: bandageSlotReward.quantity
+    });
   }
 
   return {

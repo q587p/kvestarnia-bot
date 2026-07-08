@@ -58,6 +58,26 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
+  it("presents legendary rarity on item detail pages", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.test-legendary-spoon",
+          name: "Ложка, яку не кладуть у шухляду",
+          description: "Навіть шухляда визнала статус.",
+          rarity: "legendary",
+          slot: "weapon",
+          goldValue: 587,
+          effect: {
+            weaponDamage: 1
+          }
+        }
+      })
+    );
+
+    expect(text).toContain("Рідкість: <b>легендарна</b>");
+  });
+
   it("shows slot-specific wording for armor and accessories", () => {
     const armor = presentOwnedItemDetail(
       itemSummary({
@@ -145,6 +165,29 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("смішним трофеєм");
     expect(text).not.toContain("до якої полиці");
     expect(text).not.toContain("правила майбутнього спорядження");
+  });
+
+  it("presents Iskrokamin as a resource instead of a funny trophy", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        quantity: 1000,
+        content: {
+          id: "item.iskrokamin",
+          name: "Іскрокамінь",
+          description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
+          rarity: "uncommon",
+          slot: "resource",
+          priceless: true,
+          tags: ["tradeable"]
+        }
+      })
+    );
+
+    expect(text).toContain("Категорія: <b>ресурс</b>");
+    expect(text).toContain("Вартість: <i>безцінна</i>");
+    expect(text).toContain("Екіпірування: <i>не вдягається. Це ресурс для майстерні");
+    expect(text).not.toContain("трофей / смішний доказ");
+    expect(text).not.toContain("смішним трофеєм");
   });
 
   it("describes Yeger notches as exchangeable marks instead of trophies", () => {
@@ -538,6 +581,36 @@ describe("item detail presenter", () => {
     expect(text).toContain("рівень 10+");
     expect(text).toContain("1 мани");
     expect(text).toContain("перезарядка 3 ходи");
+  });
+
+  it("shows concrete +N item ids as ordinary upgraded items", () => {
+    const content = items.find((item) => item.id === "item.pan-of-persuasion.plus-3");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected upgraded pan content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("🔎 <b>Пательня переконання +3</b>");
+    expect(text).toContain("Ефект: <b>+5 до удару</b>");
+    expect(text).toContain("Кількість: <b>1</b>");
+  });
+
+  it("shows generated high-plus loot as rare strong magic", () => {
+    const content = items.find((item) => item.id === "item.loot-v1-w037-plus-4");
+    expect(content).toBeDefined();
+    if (!content) {
+      throw new Error("Expected suspicious fish +4 content.");
+    }
+
+    const text = presentOwnedItemDetail(itemSummary({ itemId: content.id, content }));
+
+    expect(text).toContain("🔎 <b>Рибина Підозріла +4</b>");
+    expect(text).toContain("Рідкість: <b>рідкісна</b>");
+    expect(text).toContain("Посилення +4: сильна магія, мінімальний рівень 14.");
+    expect(text).not.toContain("Рідкість: <b>звичайна</b>");
+    expect(text).not.toContain("Посилення +4: слабка магія");
   });
 
   it("distinguishes borrowed gear actions and service perks on item detail pages", () => {

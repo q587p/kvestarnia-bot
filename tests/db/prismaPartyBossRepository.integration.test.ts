@@ -66,6 +66,11 @@ describe("PrismaPartyBossRepository integration", () => {
 
     expect(first.state).toBe("queued");
     expect(updated.state).toBe("updated");
+    expect(expectPartyBossSession(updated).queuedActions).toContainEqual({
+      characterId: "leader-user-character",
+      turn: 1,
+      action: "defend"
+    });
     expect(await prisma.partyBossAction.count()).toBe(1);
     await expect(prisma.partyBossAction.findFirstOrThrow({
       where: {

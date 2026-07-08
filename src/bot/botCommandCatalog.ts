@@ -348,6 +348,20 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_add_iskrokamin",
+    icon: "✨",
+    description: "додати Іскрокамінь для Чароковальні локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
+    command: "dev_finish_attunements",
+    icon: "⏩",
+    description: "завершити налаштування спорядження локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_add_yeger_line",
     icon: "📏",
     description: "додати єгерську риску локально",

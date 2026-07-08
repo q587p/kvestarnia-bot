@@ -1,4 +1,5 @@
 import type { Bot, Context } from "grammy";
+import type { EquipmentService } from "../../services/equipmentService";
 import {
   normalizeDevGrantRandomItemFilter,
   type DevGrantItemsResult,
@@ -16,6 +17,7 @@ import {
 
 const DEFAULT_DEV_GRANT_AMOUNT = 1;
 const MAX_DEV_GRANT_AMOUNT = 1_000;
+const MAX_DEV_GOLD_GRANT_AMOUNT = 1_000_000;
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
@@ -29,12 +31,17 @@ type DevGrantCommand =
   | "dev_add_bandage"
   | "dev_add_dense_bandage"
   | "dev_add_field_kit"
+  | "dev_add_iskrokamin"
   | "dev_add_yeger_line"
   | "dev_heal"
   | "dev_restore_mana";
 type DevGrantContext = Context & { match?: string };
 
-export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantService): void {
+export function registerDevGrantCommands(
+  bot: Bot,
+  devGrantService: DevGrantService,
+  equipmentService?: EquipmentService
+): void {
   bot.command("dev_add_level", async (ctx) => {
     await handleDevGrantCommand(ctx, devGrantService, "dev_add_level", (telegramUserId, amount) =>
       devGrantService.addLevel(telegramUserId, amount)
@@ -48,8 +55,12 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
   });
 
   bot.command("dev_add_gold", async (ctx) => {
-    await handleDevGrantCommand(ctx, devGrantService, "dev_add_gold", (telegramUserId, amount) =>
-      devGrantService.addGold(telegramUserId, amount)
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_gold",
+      (telegramUserId, amount) => devGrantService.addGold(telegramUserId, amount),
+      MAX_DEV_GOLD_GRANT_AMOUNT
     );
   });
 
@@ -96,6 +107,15 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
     );
   });
 
+  bot.command("dev_add_iskrokamin", async (ctx) => {
+    await handleDevGrantCommand(
+      ctx,
+      devGrantService,
+      "dev_add_iskrokamin",
+      (telegramUserId, amount) => devGrantService.addIskrokamin(telegramUserId, amount)
+    );
+  });
+
   bot.command("dev_add_yeger_line", async (ctx) => {
     await handleDevGrantCommand(
       ctx,
@@ -136,6 +156,10 @@ export function registerDevGrantCommands(bot: Bot, devGrantService: DevGrantServ
   bot.command("dev_yeger_second_done", async (ctx) => {
     await handleDevCompleteYegerQuestCommand(ctx, devGrantService, "second");
   });
+
+  bot.command("dev_finish_attunements", async (ctx) => {
+    await handleDevFinishAttunementsCommand(ctx, devGrantService, equipmentService);
+  });
 }
 
 async function handleDevGrantCommand(
@@ -145,14 +169,15 @@ async function handleDevGrantCommand(
   grant: (
     telegramUserId: bigint,
     amount: number
-  ) => Promise<DevGrantResult | DevGrantItemsResult>
+  ) => Promise<DevGrantResult | DevGrantItemsResult>,
+  maxAmount = MAX_DEV_GRANT_AMOUNT
 ): Promise<void> {
   if (!devGrantService.isEnabled()) {
     await ctx.reply(presentDevGrantDisabled());
     return;
   }
 
-  const amount = parseDevGrantAmount(ctx.match);
+  const amount = parseDevGrantAmount(ctx.match, maxAmount);
 
   if (amount === null) {
     await ctx.reply(presentDevGrantInvalidAmount(command));
@@ -441,7 +466,38 @@ async function handleDevCompleteYegerQuestCommand(
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }
 
-function parseDevGrantAmount(raw: string | undefined): number | null {
+async function handleDevFinishAttunementsCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService,
+  equipmentService?: EquipmentService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await equipmentService?.finishPendingAttunementsForDev(telegramUserId);
+
+  if (!result || result.state === "no-character") {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  await ctx.reply(
+    result.count > 0
+      ? `✨ Готово: налаштувань пришвидшено: ${result.count}.`
+      : "✨ Активних налаштувань не знайдено."
+  );
+}
+
+function parseDevGrantAmount(raw: string | undefined, maxAmount = MAX_DEV_GRANT_AMOUNT): number | null {
   const value = raw?.trim();
 
   if (!value) {
@@ -454,7 +510,7 @@ function parseDevGrantAmount(raw: string | undefined): number | null {
 
   const amount = Number(value);
 
-  return Number.isSafeInteger(amount) && amount >= 1 && amount <= MAX_DEV_GRANT_AMOUNT
+  return Number.isSafeInteger(amount) && amount >= 1 && amount <= maxAmount
     ? amount
     : null;
 }

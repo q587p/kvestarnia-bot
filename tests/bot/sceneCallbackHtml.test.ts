@@ -58,6 +58,7 @@ import {
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
   makeYegerBandagesCallbackData,
+  makeYegerFieldKitHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerTrackCallbackData,
   makeYegerTurnInCallbackData
@@ -2075,6 +2076,172 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("v1:craft:p:kit");
   });
 
+  it("offers field-kit help from the Yeger corner when Charkokovalnia needs a kit but kit crafting is locked", async () => {
+    const getUnlockQuestForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "unlock-required" as const,
+        character,
+        fieldKitQuantity: 0,
+        rewardXp: 42
+      })
+    );
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "locked" as const }));
+    const calls = await captureApiCalls(
+      makeYegerOpenCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "offered" as const,
+              character,
+              progress: { wins: 0, target: 5 }
+            })
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getUnlockQuestForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
+    expect(keyboard).toContain("🧰 Аптечка?");
+    expect(keyboard).toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("offers field-kit help on the first tavern ranger route from the mage link", async () => {
+    const getUnlockQuestForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "unlock-required" as const,
+        character,
+        fieldKitQuantity: 0,
+        rewardXp: 42
+      })
+    );
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "locked" as const }));
+    const calls = await captureApiCalls(
+      makeTavernCallbackData("ranger"),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "offered" as const,
+              character,
+              progress: { wins: 0, target: 5 }
+            })
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getUnlockQuestForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
+    expect(keyboard).toContain("🧰 Аптечка?");
+    expect(keyboard).toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("hides field-kit help from the Yeger corner when kit crafting access already exists", async () => {
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "not-enough" as const }));
+    const calls = await captureApiCalls(
+      makeYegerOpenCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () =>
+            Promise.resolve({
+              state: "offered" as const,
+              character,
+              progress: { wins: 0, target: 5 }
+            })
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 0,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
+    expect(keyboard).not.toContain("🧰 Аптечка?");
+    expect(keyboard).not.toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("explains the Yeger boards from the field-kit help callback", async () => {
+    const calls = await captureApiCalls(
+      makeYegerFieldKitHelpCallbackData(),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 0,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser: () => Promise.resolve({ state: "locked" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🧰 Аптечка?");
+    expect(String(edit?.payload.text)).toContain("«Неспокійні справи»");
+    expect(String(edit?.payload.text)).toContain("«Неспокійні справи 2.0»");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeYegerOpenCallbackData());
+  });
+
+  it("points field-kit help back to the yard when the kit is already owned", async () => {
+    const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "locked" as const }));
+    const calls = await captureApiCalls(
+      makeYegerFieldKitHelpCallbackData(),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 1,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(String(edit?.payload.text)).toContain("Молодець. Польова аптечка вже у вас.");
+    expect(String(edit?.payload.text)).toContain("до мага в задвірок");
+    expect(keyboard).toContain("Перейти в задвірок");
+    expect(keyboard).toContain(makePlaceCallbackData("yard"));
+    expect(previewForTelegramUser).not.toHaveBeenCalled();
+  });
+
   it("edits equip requirement denials as message text instead of popup text", async () => {
     const calls = await captureApiCalls(
       makeEquipItemCallbackData("item.loot-v1-borgomanta-token-plus-3"),
@@ -2166,7 +2333,11 @@ describe("scene callback HTML options", () => {
       42n,
       "item.pan-of-persuasion",
       null,
-      { confirmTwohand: false }
+      {
+        confirmTwohand: false,
+        confirmAttunement: false,
+        confirmAttunementInterrupt: false
+      }
     );
     expect(getEquipmentForTelegramUser).not.toHaveBeenCalled();
     expect(text).toContain("Екіпіровано: <b>Пательня переконання</b>.");
@@ -4035,7 +4206,7 @@ describe("scene callback HTML options", () => {
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("Нова ачівка")
     );
 
-    expect(listRecent).toHaveBeenCalledWith("all", { page: 0 });
+    expect(listRecent).toHaveBeenCalledWith("imp", { page: 0 });
     expect(trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
     expect(String(edit?.payload.text)).toContain("📜 Хроніки Квестарні");
     expect(String(achievement?.payload.text)).toContain("Хроніка відкрила око");

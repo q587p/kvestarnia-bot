@@ -245,6 +245,10 @@ describe("PrismaPartySessionRepository integration", () => {
 
     expect(blocked.state).toBe("ineligible");
     expect(blocked.state === "ineligible" ? blocked.reason : null).toBe("loss-cooldown");
+    if (blocked.state !== "ineligible" || blocked.reason !== "loss-cooldown") {
+      throw new Error("Expected loss cooldown blocker.");
+    }
+    expect(blocked.availableAt).toEqual(new Date(now().getTime() + 60_000));
     expect(await prisma.partySession.count({
       where: {
         inviteToken: "party-token-big-create-cooldown"
@@ -292,6 +296,10 @@ describe("PrismaPartySessionRepository integration", () => {
 
     expect(joined.state).toBe("ineligible");
     expect(joined.state === "ineligible" ? joined.reason : null).toBe("loss-cooldown");
+    if (joined.state !== "ineligible" || joined.reason !== "loss-cooldown") {
+      throw new Error("Expected loss cooldown blocker.");
+    }
+    expect(joined.availableAt).toEqual(new Date(now().getTime() + 60_000));
     await expectNoMembership(prisma, "party-token-big-join-loss-cooldown", 2554n);
   });
 

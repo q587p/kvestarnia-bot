@@ -7,6 +7,62 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
+
+### Added
+- Added the `✨ Чароковальня` Telegram surface from `Задвірок корчми`, with the elf-mage NPC framing and no public `/upgrade` command or `Манатки` shortcut.
+- Added a Charkokovalnia unlock gate: level `5+`, or remorted level `3+`, then one field kit turn-in that consumes `Польова аптечка`, grants dynamic XP and unlocks upgrade attempts.
+- Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
+- Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
+- Added `Іскрокамінь` as the narrow material stack used by the upgrade loop, plus local `/dev_add_iskrokamin` QA support behind the existing non-production dev-grant gate.
+- Added weak/strong magic attunement for magical equipment: `+1..+3` items tune for 13 minutes, while `+4..+5`, Mantok set pieces and ability-grant manatky tune for 42 minutes before their bonuses count; magical specialist classes tune those bands in 5 and 23 minutes.
+- Added the runtime attunement completion scheduler and local `/dev_finish_attunements` QA helper behind the existing non-production dev-grant gate.
+- Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
+- Added a rewardless first-Iskrokamin achievement now that `Іскрокамінь` can appear from fight rewards.
+- Added `legendary` item-rarity support with Ukrainian item-card labels and sorting above `epic`, while keeping broad legendary loot disabled.
+- Added `📜 Хроніки Квестарні` manatky rows for successful upgrades, with `+5` upgrades marked as important.
+- Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
+- Added very rare generated Loot Expansion `+N` drop weighting, keeping plus variants possible without double-upgrading generated ids or turning plus drops into the normal loot path.
+
+### Changed
+- Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
+- Upgrade attempt buttons now carry a compact per-preview guard that is claimed before spending, so concurrent duplicate callbacks from the same visible button cannot double-spend while future same-item attempts with a refreshed preview are not blocked by an old stack/pity claim.
+- Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
+- Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
+- Equipment bonuses, set bonuses and Mantok ability grants from tuning magical manatky are withheld until attunement is ready; equipment cards strike through the pending effect, hero cards show the `Налаштування на...` status, and replacing a tuning slot requires a separate confirmation.
+- Replaying equip for the same item already tuning in the same slot now preserves the pending attunement row as a no-op; active attunement is cancelled when the item actually changes, another slot is cleared, or the tuning slot is directly unequipped.
+- Attunement completion notification scans now page past old cancelled/notified rows instead of only filtering a small oldest-row window in memory.
+- Ordinary fight reward bandage slots can now rarely be replaced by bounded `Іскрокамінь` grants instead of granting both from the same slot.
+- `Іскрокамінь` is explicitly tradeable through Safe Gifting and postal delivery while staying priceless, so it is not eligible for Shynok manatka sales or Munchkin level barter value.
+- `Іскрокамінь` now uses the explicit `resource` item slot on detail cards, shows as priceless, and links directly back to `✨ До Чароковальні`.
+- `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
+- Charkokovalnia Iskrokamin costs now use the Kvestarnia-spaced ladder `5 / 13 / 23 / 42 / 93`; rarity/set modifiers use `x1.05` for uncommon, `x1.13` for rare, `x1.23` for epic, `x1.42` for set pieces and `x1.93` for legendary items, and same-template/same-set/same-slot donor discounts are `42%`/`23%`/`13%` with a 50% floor and a visible minimum discount when a donor applies.
+- Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.
+- Same-template Charkokovalnia donors now appear before weaker donor types even when their `+N` level differs; higher-plus same-template donors scale their bonus by the plus difference up to the bounded `+5` donor ceiling.
+- `/chronicles` now opens `📜 Хроніки Квестарні` on the `⭐ Важливе` filter by default, and the current filter is marked in the message and keyboard.
+- Big Barrel Brother post-loss retry blockers now show the remaining wait, and local `/dev_raid_reset` clears that wait for QA.
+- Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
+- Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; committed result cards show spent resources and the new effect without exposing the exact roll chance.
+- Charkokovalnia preview cards now show the character's current gold and Iskrokamin balances under the price.
+- Item detail cards opened from Charkokovalnia now return directly to `✨ До Чароковальні` instead of showing ordinary inventory/equipment navigation.
+- Charkokovalnia candidate lists now paginate upgradeable manatky, let the page counter open a page-number prompt, support received-date/name sorting, and mark currently equipped manatky with the equip icon instead of a generic check mark.
+- Charkokovalnia list edit callbacks now use the shared safe edit wrapper, so repeated identical list refreshes do not log Telegram `message is not modified` errors.
+- Charkokovalnia can now upgrade accessories when they have a supported primary combat stat; utility-only and consumable/one-use manatky remain excluded from upgrade candidates.
+- Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.
+- Named combat abilities now read more naturally in hit lines, e.g. `застосовує ... і влучає`, while basic attack lines stay unchanged.
+- Big Barrel/raid active cards now replace `що робимо?` with the viewer's queued plan after an action is chosen, and update that plan when the player switches to another action.
+- Big Barrel Brother recruiting cards now keep `🔎 Оновити` beside the ready/waiting toggle, put `🚪 Вийти` and `🧹 Скасувати збір` on one row while cancel is available, hide `🧹 Скасувати збір` once at least two participants have joined, show `📣 Картка запрошення` and `🔗 Запросити на рейд` on one row, and keep `🛢️ Почати рейд` at the bottom of the card.
+- Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
+- When the Charkokovalnia unlock is pending, `Єгерський куток` now offers `🧰 Аптечка?` immediately from the mage/Yeger route: without a field kit it points to both Yeger board stages, and with a field kit already owned it points back to the Korchma yard.
+- Quest completion reward blocks now share the compact `<i>Отримано:</i>` format across Charkokovalnia unlock, Korchma-round, Barrel tutorial, Yeger, Adventure and Cellar quest results.
+- Completed Priest healing cards now offer `⚕️ Полікувати ще` when the same target is still wounded and the Priest has enough mana for another heal, including self-heals and nearby-target heals.
+- Local `/dev_add_gold` now accepts larger QA amounts, and gold-balance achievement tracking unlocks rewardless `1337` and `9001+` gold milestones.
+- Updated task docs, developer setup notes, balance notes, achievement catalog, lore board, release notes and compact Codex context for the shipped `0.3.0` MVP.
+- Bumped package metadata to `0.3.0`.
+
+### Deferred
+- No item-instance rewrite, Prisma migration, market, auction, player-to-player upgrade service, broad crafting/economy rewrite, new combat action, duel tournament, Rogue reputation system or Quest Overview redesign ships in this slice.
+
 ## [0.2.32] - 12026-07-08 - Combat and Korchma Polish Rollup
 
 ### Fixed
