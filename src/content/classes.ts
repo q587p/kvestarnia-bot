@@ -22,7 +22,7 @@ export const classes = [
   {
     id: "class.mage",
     name: "Маг",
-    description: "Каже складні слова, після яких у кімнаті стає гарячіше.",
+    description: "Каже складні слова, гріє кімнату й краще за інших розуміє, чому манатки іскрять.",
     primaryStat: "intelligence",
     allowedRaces: [
       "race.human-ish",
