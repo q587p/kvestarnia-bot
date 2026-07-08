@@ -133,6 +133,25 @@ describe("tavern command screens", () => {
     });
   });
 
+  it("hides the hall Yeger count joke after the player has seen it once", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendTavern(
+      makeContext(replies),
+      readyTavernService(),
+      korchmaPresenceService(),
+      "reply",
+      {
+        playerHintService: {
+          claimKorchmaHallYegerCountHint: () => Promise.resolve({ shouldShow: false })
+        }
+      }
+    );
+
+    expect(replies[0]?.text).toContain("За столами й закутками корчми: 2 активні, 1 притихлий.");
+    expect(replies[0]?.text).not.toContain("Підозрілий єгер у кутку біля бочки не рахується");
+  });
+
   it("sends active Yeger quests to outdoor hunting from the front door", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 

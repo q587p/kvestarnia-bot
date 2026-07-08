@@ -115,7 +115,7 @@ export function presentKorchmaHall(
   character: CharacterSummary,
   presence?: PresenceGroup | null,
   viewerTelegramUserId?: bigint,
-  options: { flavorSeed?: string } = {}
+  options: { flavorSeed?: string; showYegerCountHint?: boolean } = {}
 ): string {
   return [
     "🍺 Зала корчми",
@@ -129,7 +129,9 @@ export function presentKorchmaHall(
     "",
     ...presentKorchmaGreeting(character, options.flavorSeed),
     "",
-    ...presentTavernPresence(presence, viewerTelegramUserId),
+    ...presentTavernPresence(presence, viewerTelegramUserId, {
+      showYegerCountHint: options.showYegerCountHint ?? true
+    }),
     "",
     `<b>${escapeHtml(character.name)}</b>, куди йдемо?`
   ].join("\n");
@@ -872,7 +874,8 @@ function presentMilestoneRank(rank: number): string {
 
 function presentTavernPresence(
   presence: PresenceGroup | null | undefined,
-  viewerTelegramUserId?: bigint
+  viewerTelegramUserId?: bigint,
+  options: { showYegerCountHint?: boolean } = {}
 ): string[] {
   if (isOnlyActiveViewer(presence, viewerTelegramUserId)) {
     return ["За столами: поки тільки ви й підозрілий єгер у кутку біля бочки."];
@@ -893,7 +896,9 @@ function presentTavernPresence(
   }
 
   const lines = [
-    `За столами й закутками корчми: ${summary.join(", ")}. Підозрілий єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
+    options.showYegerCountHint === false
+      ? `За столами й закутками корчми: ${summary.join(", ")}.`
+      : `За столами й закутками корчми: ${summary.join(", ")}. Підозрілий єгер у кутку біля бочки не рахується, бо відмовився бути числом.`
   ];
 
   return lines;

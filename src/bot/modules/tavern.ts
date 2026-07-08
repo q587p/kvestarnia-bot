@@ -215,6 +215,7 @@ export function registerTavernBotModule(
     botUsername: options.botUsername,
     partyBoss: services.partyBoss,
     partySessions: services.partySessions,
+    playerHintService: services.playerHints,
     resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
   registerLatestEventsCommand(bot, services.activityEvents, services.hero);
@@ -1113,6 +1114,7 @@ async function handlePlaceCallback(
       return;
     }
     await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      playerHintService: services.playerHints,
       ...(questMarkers ? { questMarkers } : {})
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
