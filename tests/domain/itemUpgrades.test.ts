@@ -145,6 +145,24 @@ describe("item upgrades", () => {
 
   it("keeps upgrade eligibility narrow and excludes materials", () => {
     expect(isItemUpgradeable(weapon)).toBe(true);
+    expect(isItemUpgradeable({
+      ...weapon,
+      id: "item.test-upgrade-amulet",
+      slot: "accessory",
+      effect: { spellPower: 1 }
+    })).toBe(true);
+    expect(isItemUpgradeable({
+      ...weapon,
+      id: "item.test-upgrade-bracelet",
+      slot: "accessory",
+      effect: { armor: 1 }
+    })).toBe(true);
+    expect(isItemUpgradeable({
+      ...weapon,
+      id: "item.test-upgrade-lucky-ring",
+      slot: "accessory",
+      effect: { luck: 1 }
+    })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, slot: "resource", id: "item.iskrokamin" })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, slot: "consumable", tags: ["consumable"] })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, tags: ["consumable"] })).toBe(false);
@@ -304,6 +322,13 @@ describe("item upgrades", () => {
     expect(applyItemUpgradeEffect(offhand.effect, offhand, 2)).toMatchObject({
       weaponDamage: 2,
       armor: 1
+    });
+    expect(applyItemUpgradeEffect(
+      { armor: 1 },
+      { ...weapon, slot: "accessory", effect: { armor: 1 } },
+      2
+    )).toMatchObject({
+      armor: 3
     });
   });
 

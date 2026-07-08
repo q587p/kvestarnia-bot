@@ -42,6 +42,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Charkokovalnia preview cards now show the character's current gold and Iskrokamin balances under the price.
 - Charkokovalnia candidate lists now paginate upgradeable manatky instead of silently hiding entries after the first ten, and mark currently equipped manatky with the equip icon instead of a generic check mark.
+- Charkokovalnia can now upgrade accessories when they have a supported primary combat stat; utility-only and consumable/one-use manatky remain excluded from upgrade candidates.
 - Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.
 - Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
 - When the Charkokovalnia unlock is pending, `Єгерський куток` now offers `🧰 Аптечка?` immediately from the mage/Yeger route: without a field kit it points to both Yeger board stages, and with a field kit already owned it points back to the Korchma yard.

@@ -146,7 +146,6 @@ export function isItemUpgradeable(item: ItemContent, level = getItemUpgradeLevel
   const tags = new Set(item.tags ?? []);
 
   if (
-    item.slot === "accessory" ||
     item.slot === "consumable" ||
     item.slot === "cosmetic" ||
     item.slot === "junk" ||
@@ -180,8 +179,16 @@ export function getItemUpgradePrimaryStat(item: ItemContent): ItemUpgradePrimary
     return "weaponDamage";
   }
 
+  if (item.slot === "accessory" && (item.effect?.weaponDamage ?? 0) > 0) {
+    return "weaponDamage";
+  }
+
   if ((item.effect?.resist ?? 0) > (item.effect?.armor ?? 0)) {
     return "resist";
+  }
+
+  if (item.slot === "accessory" && (item.effect?.armor ?? 0) > 0) {
+    return "armor";
   }
 
   if (item.slot === "armor" || item.equipmentSlot) {
