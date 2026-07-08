@@ -3,6 +3,7 @@ import {
   buildItemUpgradeListKeyboard,
   buildItemUpgradePreviewKeyboard
 } from "../../src/bot/keyboards/itemUpgradeKeyboard";
+import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import type {
   ItemUpgradeListResult,
   ItemUpgradePreviewResult
@@ -29,6 +30,29 @@ describe("item upgrade keyboard", () => {
     expect(buttonTexts(keyboard)).toContain("🧥 Фартух піностійкого пригодника");
     expect(buttonTexts(keyboard)).toContain("✨ Пательня переконання");
     expect(buttonTexts(keyboard).join("\n")).not.toContain("✅ Фартух піностійкого пригодника");
+  });
+
+  it("paginates upgrade candidates instead of silently hiding the tail", () => {
+    const items = Array.from({ length: 12 }, (_, index) =>
+      upgradeItem({
+        itemId: `item.test-upgrade-${index + 1}`,
+        name: `Манатка ${index + 1}`
+      })
+    );
+    const firstPage = buildItemUpgradeListKeyboard(readyList({ items }));
+    const secondPage = buildItemUpgradeListKeyboard(readyList({ items }), 1);
+
+    expect(buttonTexts(firstPage)).toContain("✨ Манатка 10");
+    expect(buttonTexts(firstPage)).not.toContain("✨ Манатка 11");
+    expect(buttonTexts(firstPage)).toContain("1/2");
+    expect(buttonTexts(firstPage)).toContain("Далі ▶️");
+    expect(buttonCallbacks(firstPage)).toContain(makeItemUpgradeListCallbackData(1));
+
+    expect(buttonTexts(secondPage)).toContain("✨ Манатка 11");
+    expect(buttonTexts(secondPage)).toContain("✨ Манатка 12");
+    expect(buttonTexts(secondPage)).toContain("◀️ Назад");
+    expect(buttonTexts(secondPage)).toContain("2/2");
+    expect(buttonCallbacks(secondPage)).toContain(makeItemUpgradeListCallbackData(0));
   });
 
   it("hides self temper preview for non-magical classes", () => {
@@ -168,4 +192,12 @@ function character(overrides: Partial<CharacterSummary> = {}): CharacterSummary 
 
 function buttonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> } | undefined): string[] {
   return keyboard?.inline_keyboard.flat().map((button) => button.text) ?? [];
+}
+
+function buttonCallbacks(
+  keyboard: { inline_keyboard: Array<Array<{ callback_data?: string }>> } | undefined
+): string[] {
+  return keyboard?.inline_keyboard.flat().flatMap((button) =>
+    button.callback_data ? [button.callback_data] : []
+  ) ?? [];
 }

@@ -531,7 +531,7 @@ async function handleItemUpgradeCallback(
 
   if (action.type === "list") {
     await safeAnswerCallbackQuery(ctx);
-    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit");
+    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit", action.page);
     return;
   }
 

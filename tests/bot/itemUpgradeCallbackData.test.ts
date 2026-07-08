@@ -11,6 +11,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 describe("item upgrade callback data", () => {
   it("serializes compact list, preview and attempt callbacks", () => {
     const list = makeItemUpgradeListCallbackData();
+    const listPage = makeItemUpgradeListCallbackData(3);
     const unlock = makeItemUpgradeUnlockCallbackData();
     const preview = makeItemUpgradePreviewCallbackData(
       "item.mantok.coverage.path.ordinary-route-ruler",
@@ -27,12 +28,17 @@ describe("item upgrade callback data", () => {
     });
 
     expect(Buffer.byteLength(list, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(listPage, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(unlock, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(preview, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(attempt, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(parseItemUpgradeCallbackData(list)).toEqual({
       ok: true,
-      value: { type: "list" }
+      value: { type: "list", page: 0 }
+    });
+    expect(parseItemUpgradeCallbackData(listPage)).toEqual({
+      ok: true,
+      value: { type: "list", page: 3 }
     });
     expect(parseItemUpgradeCallbackData(unlock)).toEqual({
       ok: true,
@@ -86,6 +92,8 @@ describe("item upgrade callback data", () => {
 
   it("rejects malformed or oversized callback data", () => {
     expect(parseItemUpgradeCallbackData("v1:up:p:item.pan-of-persuasion:x")).toEqual({ ok: false });
+    expect(parseItemUpgradeCallbackData("v1:up:l:nope")).toEqual({ ok: false });
+    expect(parseItemUpgradeCallbackData("v1:up:l:1:extra")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData("v1:up:a:item.pan-of-persuasion:n:0:1:nope")).toEqual({ ok: false });
     expect(parseItemUpgradeCallbackData(`v1:up:l:${"x".repeat(80)}`)).toEqual({ ok: false });

@@ -19,17 +19,35 @@ const MAX_LIST_BUTTONS = 10;
 const EQUIPPED_UPGRADE_ITEM_ICON = "🧥";
 const UPGRADE_ITEM_ICON = "✨";
 
-export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult): InlineKeyboard {
+export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult, page = 0): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "ready") {
-    for (const item of result.items.slice(0, MAX_LIST_BUTTONS)) {
+    const safePage = clampItemUpgradeListPage(result.items.length, page);
+    const totalPages = getItemUpgradeListPageCount(result.items.length);
+    const start = safePage * MAX_LIST_BUTTONS;
+
+    for (const item of result.items.slice(start, start + MAX_LIST_BUTTONS)) {
       keyboard
         .text(
           `${item.equipped ? EQUIPPED_UPGRADE_ITEM_ICON : UPGRADE_ITEM_ICON} ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
           makeItemUpgradePreviewCallbackData(item.itemId)
         )
         .row();
+    }
+
+    if (totalPages > 1) {
+      if (safePage > 0) {
+        keyboard.text("◀️ Назад", makeItemUpgradeListCallbackData(safePage - 1));
+      }
+
+      keyboard.text(`${safePage + 1}/${totalPages}`, makeItemUpgradeListCallbackData(safePage));
+
+      if (safePage < totalPages - 1) {
+        keyboard.text("Далі ▶️", makeItemUpgradeListCallbackData(safePage + 1));
+      }
+
+      keyboard.row();
     }
   }
 
@@ -42,6 +60,17 @@ export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult): Inl
   }
 
   return keyboard.text("⬅️ До задвірку", makePlaceCallbackData("yard"));
+}
+
+function getItemUpgradeListPageCount(itemCount: number): number {
+  return Math.max(1, Math.ceil(Math.max(0, itemCount) / MAX_LIST_BUTTONS));
+}
+
+function clampItemUpgradeListPage(itemCount: number, page: number): number {
+  const pageCount = getItemUpgradeListPageCount(itemCount);
+  const safePage = Math.max(0, Math.floor(page));
+
+  return Math.min(safePage, pageCount - 1);
 }
 
 export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult): InlineKeyboard {

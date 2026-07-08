@@ -11,7 +11,8 @@ const HTML_MESSAGE_OPTIONS = {
 export async function sendItemUpgradeList(
   ctx: Context,
   itemUpgrades: ItemUpgradeService,
-  mode: "reply" | "edit" = "reply"
+  mode: "reply" | "edit" = "reply",
+  page = 0
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
   const result = telegramUserId
@@ -20,7 +21,7 @@ export async function sendItemUpgradeList(
   const message = presentItemUpgradeList(result);
   const options = {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUpgradeListKeyboard(result)
+    reply_markup: buildItemUpgradeListKeyboard(result, page)
   };
 
   if (mode === "edit") {

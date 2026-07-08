@@ -10,7 +10,7 @@ const { itemCallbackKeyById, itemIdByCallbackKey } = buildItemCallbackKeyMaps(
 );
 
 export type ItemUpgradeCallback =
-  | { type: "list" }
+  | { type: "list"; page: number }
   | { type: "unlock" }
   | { type: "preview"; itemId: string; method: "npc" | "self"; donorItemId: string | null }
   | {
@@ -23,8 +23,10 @@ export type ItemUpgradeCallback =
       expectedPityFailures: number;
     };
 
-export function makeItemUpgradeListCallbackData(): string {
-  return assertCallbackData(`${PREFIX}:l`);
+export function makeItemUpgradeListCallbackData(page = 0): string {
+  const safePage = safeSmallInt(page);
+
+  return assertCallbackData(safePage > 0 ? `${PREFIX}:l:${safePage}` : `${PREFIX}:l`);
 }
 
 export function makeItemUpgradeUnlockCallbackData(): string {
@@ -62,7 +64,17 @@ export function parseItemUpgradeCallbackData(data: string | undefined): { ok: tr
   }
 
   if (data === `${PREFIX}:l`) {
-    return { ok: true, value: { type: "list" } };
+    return { ok: true, value: { type: "list", page: 0 } };
+  }
+
+  if (data.startsWith(`${PREFIX}:l:`)) {
+    const [version, scope, action, pagePart, ...rest] = data.split(":");
+    const page = parseSmallInt(pagePart);
+    if (version !== "v1" || scope !== "up" || action !== "l" || page === null || rest.length > 0) {
+      return { ok: false };
+    }
+
+    return { ok: true, value: { type: "list", page } };
   }
 
   if (data === `${PREFIX}:u`) {
