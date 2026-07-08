@@ -11,7 +11,7 @@ import type {
   YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentYegerQuestTitle } from "./yegerQuestTitle";
@@ -671,8 +671,7 @@ function presentYegerCompleted(input: {
 
   lines.push(
     "",
-    "Нагорода:",
-    presentRewardAmount({ xp: input.reward.xp, gold: input.reward.gold }),
+    presentQuestRewardAmount({ xp: input.reward.xp, gold: input.reward.gold }),
     ...input.reward.itemGrants.map((grant) =>
       presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
     )

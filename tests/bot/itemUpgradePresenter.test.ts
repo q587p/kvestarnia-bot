@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { presentItemUpgradeList } from "../../src/bot/presenters/itemUpgradePresenter";
+import {
+  presentItemUpgradeList,
+  presentItemUpgradeUnlock
+} from "../../src/bot/presenters/itemUpgradePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("item upgrade presenter", () => {
@@ -15,6 +18,24 @@ describe("item upgrade presenter", () => {
     expect(text).toContain("Можна віддати її магу");
     expect(text).not.toContain("ельфу-магу");
     expect(text.match(/ельф-маг/giu)).toHaveLength(1);
+  });
+
+  it("renders unlock XP with the shared quest reward block", () => {
+    const text = presentItemUpgradeUnlock({
+      state: "unlocked",
+      character,
+      rewardXp: 38,
+      action: null,
+      levelChange: {
+        oldLevel: 5,
+        newLevel: 5,
+        leveledUp: false
+      }
+    } as Parameters<typeof presentItemUpgradeUnlock>[0]);
+
+    expect(text).toContain("<i>Отримано:</i>\n+38 XP");
+    expect(text).not.toContain("Отримано: <b>+38 XP</b>");
+    expect(text).not.toContain("Рівень лишився на місці");
   });
 });
 

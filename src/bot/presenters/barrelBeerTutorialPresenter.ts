@@ -7,6 +7,7 @@ import {
   type BarrelBeerTutorialProgress,
   type BarrelBeerTutorialTurnInResult
 } from "../../services/barrelBeerTutorialService";
+import { presentQuestRewardAmount } from "./rewardPresenter";
 
 export function presentBarrelBeerTutorialLookup(
   result: BarrelBeerTutorialLookupResult
@@ -80,8 +81,7 @@ export function presentBarrelBeerTutorialAccept(
     "",
     "Завдання просте: знайти Бочку, пройти там новачковий соло-рейд, виставити пива, випити кухоль і повернутися до столу, доки хміль ще тримає. На полі лишився припис: «Потрібен зломщик. Або хоча б пригодник, який не питає забагато до першого кухля».",
     "",
-    "<i>Отримано:</i>",
-    `+${BARREL_BEER_TUTORIAL_STIPEND_GOLD} золота`
+    presentQuestRewardAmount({ xp: 0, gold: BARREL_BEER_TUTORIAL_STIPEND_GOLD })
   ].join("\n");
 }
 
@@ -139,8 +139,7 @@ export function presentBarrelBeerTutorialTurnIn(
     "",
     "Під запискою лишився маленький перстень. Не схоже, що він зробить тебе невидимим, але після Бочки й так не всіх хочеться бачити.",
     "",
-    "<i>Отримано:</i>",
-    `+${result.reward.xp} XP`,
+    presentQuestRewardAmount({ xp: result.reward.xp, gold: 0 }),
     ...rewardLines
   ].join("\n");
 }

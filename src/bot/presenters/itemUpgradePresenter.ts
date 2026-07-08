@@ -6,6 +6,7 @@ import type {
 } from "../../services/itemUpgradeService";
 import { items } from "../../content";
 import { presentItemEffect } from "./itemEffectPresenter";
+import { presentQuestRewardAmount } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
@@ -183,10 +184,7 @@ export function presentItemUpgradeUnlock(result: ItemUpgradeUnlockServiceResult)
     "",
     "Іскрокамінь тримає іскру, донорські манатки можуть допомогти, а невдачі памʼятає Жалісливий молот.",
     "",
-    `Отримано: <b>+${result.rewardXp} XP</b>`,
-    result.levelChange?.leveledUp
-      ? `Рівень: <b>${result.levelChange.oldLevel}</b> → <b>${result.levelChange.newLevel}</b>`
-      : "Рівень лишився на місці, але вже підозрює майбутнє."
+    presentQuestRewardAmount({ xp: result.rewardXp, gold: 0 })
   ].join("\n");
 }
 

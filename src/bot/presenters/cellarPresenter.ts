@@ -11,7 +11,7 @@ import type {
 } from "../../services/cellarGrownupQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardAmount, presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentCellarIntro(
@@ -248,7 +248,7 @@ export function presentCellarGrownupResult(result: CellarGrownupQuestResult): st
     "",
     endingLine,
     "",
-    presentRewardAmount(result.reward)
+    presentQuestRewardAmount(result.reward)
   ].join("\n");
 }
 
@@ -316,7 +316,7 @@ export function presentCellarResult(
     ...(spentGold > 0 ? [`Списано: ${spentGold} золота.`] : []),
     ...presentHpLossLines(result.hpLoss, result.character),
     "",
-    presentRewardAmount({ ...result.reward, label: "Винагорода за справу" }),
+    presentQuestRewardAmount(result.reward),
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
 

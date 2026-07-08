@@ -8,7 +8,7 @@ import type {
 import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../services/adventureService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureOffer(
@@ -259,7 +259,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
             "Винагорода за справу:\n<b>0 XP\n0 золота</b>",
             "Наступний набір справ відкриється в наступний 93-хвилинний період."
           ]
-        : ["", presentRewardAmount({ ...result.reward, label: "Винагорода за справу" })]),
+        : ["", presentQuestRewardAmount(result.reward)]),
     "",
     ...presentItemGrantLines(result.reward.itemGrants)
   ];
@@ -306,7 +306,7 @@ export function presentMimicShawarmaResult(
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...presentHpLossLines(result.hpLoss, result.character),
     "",
-    presentRewardAmount({ ...result.reward, label: "Винагорода за пригоду" }),
+    presentQuestRewardAmount(result.reward),
     ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
   ];
 

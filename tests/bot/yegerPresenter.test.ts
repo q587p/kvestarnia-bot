@@ -85,8 +85,8 @@ describe("Yeger presenter", () => {
       }
     });
 
-    expect(text).toContain("Нагорода:");
-    expect(text).toContain("<b>+35 XP\n+120 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("+35 XP\n+120 золота");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
     expect(text).toContain(
       "Здобуто: <i>Єгерська риска на дощечці</i>\n\nВідкрито: Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
@@ -113,7 +113,8 @@ describe("Yeger presenter", () => {
 
     expect(text).toContain("Неспокійні справи 2.0 закрито");
     expect(text).toContain("Єгер ставить дві риски на дощечці.");
-    expect(text).toContain("<b>+56 XP\n+170 золота</b>");
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("+56 XP\n+170 золота");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці ×2</i>");
   });
 
