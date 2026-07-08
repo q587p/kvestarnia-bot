@@ -8,8 +8,8 @@
 
 Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/duel-tournaments-qa.md`](../qa/duel-tournaments-qa.md).
 
-1. Open Korchma -> `🥊 Бійцівський куток`; verify `🏆 Турніри` appears beside existing duel actions and `🏆 Переможці`.
-2. Open `🏆 Турніри`; verify day/week/month tabs, current points, rank, remaining time and previous winners render compactly.
+1. Open Korchma -> `🥊 Бійцівський куток`; verify `🎖️ Турніри` appears beside existing duel actions and `🏆 Переможці`.
+2. Open `🎖️ Турніри`; verify day/week/month tabs, current points, rank, remaining time and previous winners render compactly.
 3. Complete a turn-based duel and verify only the resolved result affects the active tournament.
 4. Replay old duel cards and duplicate tournament buttons; verify no additional points or rewards are created.
 5. Claim an available completed-period reward and verify gold plus bandage are granted once.

@@ -229,7 +229,7 @@ export function buildKorchmaFightingCornerKeyboard(
     .row()
     .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())
     .row()
-    .text("🏆 Турніри", makeDuelTournamentOpenCallbackData("day"))
+    .text("🎖️ Турніри", makeDuelTournamentOpenCallbackData("day"))
     .row()
     .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
     .row()

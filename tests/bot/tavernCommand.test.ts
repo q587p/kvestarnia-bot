@@ -540,7 +540,7 @@ describe("tavern command screens", () => {
           [{ text: "🥊 Потренуватися", callback_data: "v1:spar:open" }],
           [{ text: "⚡ Миттєва дуель", callback_data: "v1:duel:new" }],
           [{ text: "♟️ Покрокова дуель", callback_data: "v1:duel:new-t" }],
-          [{ text: "🏆 Турніри", callback_data: "v1:tour:o:d" }],
+          [{ text: "🎖️ Турніри", callback_data: "v1:tour:o:d" }],
           [
             { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
           ],

@@ -17,7 +17,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 
 1. Refresh the isolated local bot snapshot with `refresh-local-bot.cmd`.
 2. Use two or more test accounts with level 3+ characters.
-3. Open Korchma -> `🥊 Бійцівський куток` -> `🏆 Турніри`.
+3. Open Korchma -> `🥊 Бійцівський куток` -> `🎖️ Турніри`.
 4. Verify daily, weekly and monthly tabs render compact cards.
 5. Complete a turn-based duel and verify the active daily standings update.
 6. Complete repeated wins against the same opponent and verify points stop growing after the bounded contribution.
