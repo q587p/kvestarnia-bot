@@ -44,6 +44,10 @@ sendHuntBoard,
 sendYegerCorner
 } from "../commands/huntCommand";
 import {
+getYegerFieldKitHelpStateForTelegramUser,
+shouldShowYegerFieldKitHelp
+} from "../commands/yegerFieldKitHelp";
+import {
 registerQuestHubCommand,
 sendQuestHub
 } from "../commands/questHubCommand";
@@ -555,7 +559,8 @@ async function handleQuestCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       requireKorchmaInterior: false,
-      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1091,12 +1096,19 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "field-kit-help") {
+    const fieldKitHelp = await getYegerFieldKitHelpStateForTelegramUser(telegramUserId, services);
     const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    const hasFieldKit = fieldKitHelp.state === "has-field-kit";
     await safeAnswerCallbackQuery(ctx);
     await markYegerCornerPresence(ctx, services.presence);
-    await safeEditMessageText(ctx, presentYegerFieldKitHelp(), {
+    await safeEditMessageText(ctx, presentYegerFieldKitHelp({
+      state: hasFieldKit ? "has-field-kit" : "needs-yeger-boards"
+    }), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildYegerHelpKeyboard(yegerNavigationOptions)
+      reply_markup: buildYegerHelpKeyboard({
+        ...yegerNavigationOptions,
+        ...(hasFieldKit ? { showYardShortcut: true } : {})
+      })
     });
     return;
   }
@@ -1510,25 +1522,4 @@ async function buildYegerNavigationOptions(
     ...(questMarkers ? { questMarkers } : {}),
     ...(showFieldKitHelp ? { showFieldKitHelp: true } : {})
   };
-}
-
-async function shouldShowYegerFieldKitHelp(
-  telegramUserId: bigint,
-  services: BotServices
-): Promise<boolean> {
-  if (
-    typeof services.itemUpgrades?.getUnlockQuestForTelegramUser !== "function" ||
-    typeof services.itemCraft?.previewForTelegramUser !== "function"
-  ) {
-    return false;
-  }
-
-  const unlockQuest = await services.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId);
-  if (unlockQuest.state !== "unlock-required" || unlockQuest.fieldKitQuantity > 0) {
-    return false;
-  }
-
-  const kitPreview = await services.itemCraft.previewForTelegramUser(telegramUserId, "kit");
-
-  return kitPreview.state === "locked";
 }

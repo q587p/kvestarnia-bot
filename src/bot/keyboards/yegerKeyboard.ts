@@ -38,6 +38,7 @@ import {
 export interface YegerNavigationOptions {
   questMarkers?: QuestMarkerInput | null;
   showFieldKitHelp?: boolean;
+  showYardShortcut?: boolean;
 }
 
 export function buildYegerKeyboard(
@@ -241,7 +242,13 @@ export function buildYegerTurnInKeyboard(
 }
 
 export function buildYegerHelpKeyboard(options: YegerNavigationOptions = {}): InlineKeyboard {
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard();
+
+  if (options.showYardShortcut) {
+    keyboard.text("Перейти в задвірок", makePlaceCallbackData("yard")).row();
+  }
+
+  return keyboard
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
     .row()
     .text("📖 Бестіарій", makeBestiaryListCallbackData(0))

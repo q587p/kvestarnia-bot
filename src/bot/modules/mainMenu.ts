@@ -29,6 +29,7 @@ import { sendEquipment } from "../commands/equipmentCommand";
 import {
 sendHuntBoard
 } from "../commands/huntCommand";
+import { shouldShowYegerFieldKitHelp } from "../commands/yegerFieldKitHelp";
 import { sendInventory } from "../commands/inventoryCommand";
 import { sendOnline } from "../commands/onlineCommand";
 import {
@@ -603,6 +604,7 @@ async function sendCurrentPresenceLocation(
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
       tavernRaid: services.tavern,
+      resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services),
       ...(questMarkers ? { questMarkers } : {})
     });
     return;

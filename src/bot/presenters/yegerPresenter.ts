@@ -515,7 +515,22 @@ export function presentYegerHelp(): string {
   ].join("\n");
 }
 
-export function presentYegerFieldKitHelp(): string {
+export function presentYegerFieldKitHelp(
+  input: { state?: "needs-yeger-boards" | "has-field-kit" } = {}
+): string {
+  if (input.state === "has-field-kit") {
+    return [
+      "🧰 Аптечка?",
+      "",
+      "Єгер дивиться на вашу торбу й киває так, ніби це він усе спланував.",
+      "",
+      npcQuote(
+        "Єгер",
+        "Молодець. Польова аптечка вже у вас. Тепер ідіть до мага в задвірок: хай він офіційно нервує біля іскор."
+      )
+    ].join("\n");
+  }
+
   return [
     "🧰 Аптечка?",
     "",

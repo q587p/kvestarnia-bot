@@ -6,6 +6,7 @@ import {
   buildYegerBandagesKeyboard,
   buildYegerBandagePurchaseKeyboard,
   buildYegerCornerKeyboard,
+  buildYegerHelpKeyboard,
   buildYegerHuntKeyboard,
   buildYegerKeyboard,
   buildYegerNotchExchangeKeyboard,
@@ -148,6 +149,15 @@ describe("Yeger keyboard", () => {
     expect(flatButtons(withHelp)).toContainEqual({
       text: "🧰 Аптечка?",
       callback_data: makeYegerFieldKitHelpCallbackData()
+    });
+  });
+
+  it("can point field-kit help back to the Korchma yard", () => {
+    const keyboard = buildYegerHelpKeyboard({ showYardShortcut: true });
+
+    expect(flatButtons(keyboard)[0]).toEqual({
+      text: "Перейти в задвірок",
+      callback_data: makePlaceCallbackData("yard")
     });
   });
 

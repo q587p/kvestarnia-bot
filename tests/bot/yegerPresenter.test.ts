@@ -283,6 +283,16 @@ describe("Yeger presenter", () => {
     expect(text).toContain("Після другої дощечки");
   });
 
+  it("points back to the mage when the field kit is already in inventory", () => {
+    const text = presentYegerFieldKitHelp({ state: "has-field-kit" });
+
+    expect(text).toContain("🧰 Аптечка?");
+    expect(text).toContain("Молодець. Польова аптечка вже у вас.");
+    expect(text).toContain("ідіть");
+    expect(text).toContain("до мага в задвірок");
+    expect(text).not.toContain("«Неспокійні справи 2.0»");
+  });
+
   it("uses biography-aware ranger corner reactions", () => {
     const text = presentYegerCorner({
       state: "offered",
