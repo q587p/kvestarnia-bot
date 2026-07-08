@@ -28,9 +28,11 @@ import { getLevelForXp } from "../../src/domain/progression/level";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import {
+  buildBigBarrelBrotherItemGrants,
   buildBarrelRaidItemGrants,
   buildBarrelRaidRewardAmounts,
   FRIDAY_BARREL_RAID_KEY,
+  FRIDAY_BARREL_RAID_REPEAT_ITEM_DROP_CHANCE,
   FRIDAY_BARREL_RAID_REWARD_GOLD_MIN,
   FRIDAY_BARREL_RAID_REWARD_XP_MIN,
   FRIDAY_BARREL_RAID_PENDING_KEY,
@@ -102,17 +104,101 @@ describe("TavernRaidService", () => {
   });
 
   it("builds deterministic barrel raid starter and rotating loot for each period", () => {
-    expect(buildBarrelRaidItemGrants("2026-06-12T13:23")).toEqual([
+    const firstRaidInput = {
+      periodId: "2026-06-12T13:23",
+      characterId: "character-42",
+      level: 1,
+      classId: "class.warrior",
+      raceId: "race.human-ish",
+      isFirstSoloRaid: true
+    };
+    const nextRaidInput = {
+      ...firstRaidInput,
+      periodId: "2026-06-12T14:23"
+    };
+
+    expect(buildBarrelRaidItemGrants(firstRaidInput)).toEqual([
       { itemId: "item.apron-of-foam-resistance", quantity: 1, maxOwnedQuantity: 1 },
       { itemId: "item.wet-hero-ticket", quantity: 1 },
       { itemId: "item.barrel-splinter-of-optimism", quantity: 1 }
     ]);
-    expect(buildBarrelRaidItemGrants("2026-06-12T13:23")).toEqual(
-      buildBarrelRaidItemGrants("2026-06-12T13:23")
+    expect(buildBarrelRaidItemGrants(firstRaidInput)).toEqual(
+      buildBarrelRaidItemGrants(firstRaidInput)
     );
-    expect(buildBarrelRaidItemGrants("2026-06-12T14:23")).not.toEqual(
-      buildBarrelRaidItemGrants("2026-06-12T13:23")
+    expect(buildBarrelRaidItemGrants(nextRaidInput)).not.toEqual(
+      buildBarrelRaidItemGrants(firstRaidInput)
     );
+  });
+
+  it("keeps repeat solo Barrel item drops rare and profile-based", () => {
+    const noDrop = buildBarrelRaidItemGrants({
+      periodId: "2026-06-12T16:23",
+      characterId: "character-42",
+      level: 3,
+      classId: "class.warrior",
+      raceId: "race.human-ish",
+      isFirstSoloRaid: false
+    });
+    const drop = buildBarrelRaidItemGrants({
+      periodId: "2026-06-12T16:23",
+      characterId: "character-42",
+      level: 8,
+      classId: "class.rogue",
+      raceId: "race.bisyny",
+      isFirstSoloRaid: false
+    });
+
+    expect(FRIDAY_BARREL_RAID_REPEAT_ITEM_DROP_CHANCE).toBe(0.23);
+    expect(noDrop).toEqual([]);
+    expect(drop).toHaveLength(1);
+    expect(drop[0]?.itemId).toMatch(/^item\.loot-v1-/);
+    expect(new Set([
+      "item.apron-of-foam-resistance",
+      "item.wet-hero-ticket",
+      "item.barrel-splinter-of-optimism",
+      "item.foam-cork-of-accounting",
+      "item.mirage-foam-sample"
+    ])).not.toContain(drop[0]?.itemId);
+  });
+
+  it("builds deterministic profile-based Big Barrel Brother loot instead of the solo raid starter bundle", () => {
+    const warrior = buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T14:23",
+      characterId: "character-warrior",
+      level: 8,
+      luck: 6,
+      classId: "class.warrior",
+      raceId: "race.human-ish"
+    });
+    const rogue = buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T14:23",
+      characterId: "character-rogue",
+      level: 10,
+      luck: 16,
+      classId: "class.rogue",
+      raceId: "race.bisyny"
+    });
+
+    expect(warrior).toEqual(buildBigBarrelBrotherItemGrants({
+      periodId: "2026-06-12T14:23",
+      characterId: "character-warrior",
+      level: 8,
+      luck: 6,
+      classId: "class.warrior",
+      raceId: "race.human-ish"
+    }));
+    expect(warrior).toHaveLength(1);
+    expect(rogue).toHaveLength(1);
+    expect(warrior[0]?.itemId).toMatch(/^item\.loot-v1-/);
+    expect(rogue[0]?.itemId).toMatch(/^item\.loot-v1-/);
+    expect(new Set([
+      "item.apron-of-foam-resistance",
+      "item.wet-hero-ticket",
+      "item.barrel-splinter-of-optimism",
+      "item.foam-cork-of-accounting",
+      "item.mirage-foam-sample"
+    ])).not.toContain(warrior[0]?.itemId);
+    expect(rogue[0]?.itemId).not.toBe(warrior[0]?.itemId);
   });
 
   it("scales barrel raid wait bounds by level", () => {
@@ -272,6 +358,27 @@ describe("TavernRaidService", () => {
       });
       expect(repeated.character.xp).toBe(fixedRaidReward.xp);
       expect(repeated.character.gold).toBe(fixedRaidReward.gold);
+    }
+  });
+
+  it("grants the solo Barrel starter bundle only on the first completed period", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId);
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const service = createTavernRaidService(characters, dailyActions);
+
+    const first = await service.completeFridayBarrelRaid(telegramUserId);
+    const next = await service.completeFridayBarrelRaid(telegramUserId, "2026-06-12T14:23");
+
+    expect(first.state).toBe("completed");
+    expect(next.state).toBe("completed");
+    if (first.state === "completed" && next.state === "completed") {
+      expect(first.reward.itemGrants.map((grant) => grant.itemId)).toEqual([
+        "item.apron-of-foam-resistance",
+        "item.wet-hero-ticket",
+        "item.barrel-splinter-of-optimism"
+      ]);
+      expect(next.reward.itemGrants).toEqual([]);
     }
   });
 
@@ -1461,6 +1568,21 @@ class FakeDailyActionRepository implements DailyActionRepository {
         leveledUp: getLevelForXp(character.xp + input.rewardXp) > getLevelForXp(character.xp)
       }
     };
+  }
+
+  async listForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()]
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 
   async deleteForTelegramUser(

@@ -12,7 +12,8 @@ import type {
   KorchmaRoundTier
 } from "../db/repositories/korchmaRoundPurchaseRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
-import { CryptoRandomSource, type RandomSource } from "../shared/random";
+import { rollLootExpansionItem } from "../domain/loot";
+import { CryptoRandomSource, SeededRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import {
   APRON_OF_FOAM_RESISTANCE_ITEM_ID,
@@ -37,6 +38,7 @@ export const FRIDAY_BARREL_RAID_REWARD_GOLD_MAX = 14;
 export const FRIDAY_BARREL_RAID_MIN_WAIT_MINUTES = 5;
 export const FRIDAY_BARREL_RAID_MAX_WAIT_MINUTES = 8;
 export const FRIDAY_BARREL_RAID_LEVEL_WAIT_BONUS_SECONDS = 30;
+export const FRIDAY_BARREL_RAID_REPEAT_ITEM_DROP_CHANCE = 0.23;
 export const BARREL_RAID_PERIOD_START_MINUTE = 23;
 export const BARREL_RAID_AUDIT_BREAK_START_HOUR = 3;
 export const BARREL_RAID_AUDIT_BREAK_END_HOUR = 7;
@@ -314,12 +316,26 @@ export class TavernRaidService {
       characterLevel: summarizeCharacter(pending.character).level,
       waitDurationMs: getBarrelRaidWaitDurationMs(pending)
     });
+    const soloRaidHistory = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY
+    });
+    const character = summarizeCharacter(pending.character);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: FRIDAY_BARREL_RAID_KEY,
       localDate: periodId,
       rewardXp: rewardAmounts.xp,
       rewardGold: rewardAmounts.gold,
-      itemGrants: buildBarrelRaidItemGrants(periodId)
+      itemGrants: buildBarrelRaidItemGrants({
+        periodId,
+        characterId: pending.character.id,
+        level: character.level,
+        luck: character.stats.luck,
+        ...(pending.character.classId ? { classId: pending.character.classId } : {}),
+        ...(pending.character.raceId ? { raceId: pending.character.raceId } : {}),
+        isFirstSoloRaid: soloRaidHistory
+          ? soloRaidHistory.every((action) => action.localDate === periodId)
+          : false
+      })
     });
 
     if (!claim) {
@@ -777,16 +793,27 @@ export function getNextBarrelRaidAvailableAt(now: Date): Date {
   return current.endsAt;
 }
 
-export function buildBarrelRaidItemGrants(
-  periodId: string
-): Array<{ itemId: string; quantity: number }> {
+export function buildBarrelRaidItemGrants(input: {
+  periodId: string;
+  characterId: string;
+  level: number;
+  luck?: number;
+  classId?: string;
+  raceId?: string;
+  isFirstSoloRaid: boolean;
+}): Array<{ itemId: string; quantity: number }> {
+  if (!input.isFirstSoloRaid) {
+    return buildRepeatBarrelRaidItemGrants(input);
+  }
+
   const rotatingLoot = [
     BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID,
     FOAM_CORK_OF_ACCOUNTING_ITEM_ID,
     MIRAGE_FOAM_SAMPLE_ITEM_ID
   ];
   const rotatingItemId =
-    rotatingLoot[stableHash(periodId) % rotatingLoot.length] ?? BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID;
+    rotatingLoot[stableHash(input.periodId) % rotatingLoot.length] ??
+    BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID;
 
   return [
     starterEquipmentGrant(APRON_OF_FOAM_RESISTANCE_ITEM_ID),
@@ -799,6 +826,78 @@ export function buildBarrelRaidItemGrants(
       quantity: 1
     }
   ];
+}
+
+function buildRepeatBarrelRaidItemGrants(input: {
+  periodId: string;
+  characterId: string;
+  level: number;
+  luck?: number;
+  classId?: string;
+  raceId?: string;
+}): Array<{ itemId: string; quantity: number }> {
+  const level = Math.max(1, Math.floor(input.level));
+  const seed = [
+    "friday-barrel-raid-repeat",
+    input.periodId,
+    input.characterId,
+    level,
+    input.classId ?? "unknown-class",
+    input.raceId ?? "unknown-race"
+  ].join(":");
+  const rng = new SeededRandomSource(seed);
+
+  if (rng.nextFloat() >= FRIDAY_BARREL_RAID_REPEAT_ITEM_DROP_CHANCE) {
+    return [];
+  }
+
+  const item = rollLootExpansionItem({
+    profile: {
+      level,
+      ...(input.classId ? { classId: input.classId } : {}),
+      ...(input.raceId ? { raceId: input.raceId } : {})
+    },
+    sourceId: "tavern_event",
+    sourceTags: ["barrel", "raid"],
+    ...(input.luck === undefined ? {} : { luck: input.luck }),
+    rng
+  });
+
+  return item ? [{ itemId: item.id, quantity: 1 }] : [];
+}
+
+export function buildBigBarrelBrotherItemGrants(input: {
+  periodId: string;
+  characterId: string;
+  level: number;
+  luck?: number;
+  classId?: string;
+  raceId?: string;
+}): Array<{ itemId: string; quantity: number }> {
+  const level = Math.max(1, Math.floor(input.level));
+  const seed = [
+    "big-barrel-brother",
+    input.periodId,
+    input.characterId,
+    level,
+    input.classId ?? "unknown-class",
+    input.raceId ?? "unknown-race"
+  ].join(":");
+  const item = rollLootExpansionItem({
+    profile: {
+      level,
+      ...(input.classId ? { classId: input.classId } : {}),
+      ...(input.raceId ? { raceId: input.raceId } : {})
+    },
+    sourceId: "boss_chest",
+    ...(input.luck === undefined ? {} : { luck: input.luck }),
+    rng: new SeededRandomSource(seed)
+  });
+
+  return [{
+    itemId: item?.id ?? getFallbackBigBarrelGeneratedItemId(seed),
+    quantity: 1
+  }];
 }
 
 export function getBarrelRaidWaitBounds(characterLevel: number): {
@@ -920,6 +1019,16 @@ function stableHash(value: string): number {
   }
 
   return hash;
+}
+
+function getFallbackBigBarrelGeneratedItemId(seed: string): string {
+  const fallbackLoot = [
+    "item.loot-v1-w001",
+    "item.loot-v1-a001",
+    "item.loot-v1-t001"
+  ];
+
+  return fallbackLoot[stableHash(seed) % fallbackLoot.length] ?? "item.loot-v1-w001";
 }
 
 function getBarrelRaidWaitDurationMs(pending: PendingFridayBarrelRaid): number {

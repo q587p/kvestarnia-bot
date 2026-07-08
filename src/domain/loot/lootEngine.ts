@@ -194,6 +194,7 @@ export function rollLootExpansionItem(input: {
   profile: LootExpansionProfile;
   sourceId?: LootExpansionSourceId;
   sourceTags?: readonly string[];
+  luck?: number;
   rng: RandomSource;
 }): ItemContent | null {
   const candidates = getLootExpansionCandidates({
@@ -201,8 +202,12 @@ export function rollLootExpansionItem(input: {
     sourceId: input.sourceId ?? "trash_mob",
     ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
   });
+  const eligible =
+    input.luck === undefined
+      ? candidates
+      : selectCandidatesForRarity(candidates, rollLootRarity(input.rng, input.luck));
 
-  return selectWeightedCandidate(candidates, input.rng)?.item ?? null;
+  return selectWeightedCandidate(eligible, input.rng)?.item ?? null;
 }
 
 export function rollLootRarity(rng: RandomSource, luck: number): LootRarity {
