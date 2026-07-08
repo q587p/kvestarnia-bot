@@ -551,7 +551,7 @@ function findItem(itemId: string) {
 }
 
 function toInventoryRow(
-  row: { id: string; characterId: string; itemId: string; quantity: number },
+  row: { id: string; characterId: string; itemId: string; quantity: number; createdAt?: Date },
   equippedItemIds: ReadonlySet<string>
 ): ItemUpgradeInventoryRow {
   return {
@@ -559,7 +559,8 @@ function toInventoryRow(
     characterId: row.characterId,
     itemId: row.itemId,
     quantity: row.quantity,
-    equipped: equippedItemIds.has(row.itemId)
+    equipped: equippedItemIds.has(row.itemId),
+    ...(row.createdAt ? { createdAt: row.createdAt } : {})
   };
 }
 

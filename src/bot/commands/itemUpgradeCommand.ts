@@ -1,6 +1,7 @@
 import type { Context } from "grammy";
 import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import { playerFromContext } from "../context";
+import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
 import { buildItemUpgradeListKeyboard } from "../keyboards/itemUpgradeKeyboard";
 import { presentItemUpgradeList } from "../presenters/itemUpgradePresenter";
 
@@ -12,7 +13,8 @@ export async function sendItemUpgradeList(
   ctx: Context,
   itemUpgrades: ItemUpgradeService,
   mode: "reply" | "edit" = "reply",
-  page = 0
+  page = 0,
+  sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
   const result = telegramUserId
@@ -21,7 +23,7 @@ export async function sendItemUpgradeList(
   const message = presentItemUpgradeList(result);
   const options = {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUpgradeListKeyboard(result, page)
+    reply_markup: buildItemUpgradeListKeyboard(result, page, sort)
   };
 
   if (mode === "edit") {

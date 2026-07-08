@@ -52,6 +52,7 @@ export interface ItemUpgradePresentedItem {
   setId: string | null;
   setName: string | null;
   isSetPiece: boolean;
+  createdAt?: Date;
 }
 
 export interface ItemUpgradeDonorOption {
@@ -134,7 +135,7 @@ export class ItemUpgradeService {
           return [];
         }
 
-        return [presentItem(content, row.itemId, row.quantity, row.equipped)];
+        return [presentItem(content, row.itemId, row.quantity, row.equipped, row.createdAt)];
       })
     };
   }
@@ -193,7 +194,7 @@ export class ItemUpgradeService {
       return { state: "not-upgradeable" };
     }
 
-    const presented = presentItem(item, row.itemId, row.quantity, row.equipped);
+    const presented = presentItem(item, row.itemId, row.quantity, row.equipped, row.createdAt);
     if (presented.targetLevel === null) {
       return { state: "cap-reached", item: presented };
     }
@@ -400,7 +401,8 @@ function presentItem(
   content: ItemContent,
   itemId: string,
   quantity: number,
-  equipped: boolean
+  equipped: boolean,
+  createdAt?: Date
 ): ItemUpgradePresentedItem {
   const level = getItemUpgradeLevelFromItemId(itemId);
   const set = getMantokSetForItem(itemId);
@@ -417,7 +419,8 @@ function presentItem(
     rarity: content.rarity,
     setId: set?.id ?? null,
     setName: set?.name ?? null,
-    isSetPiece: Boolean(set)
+    isSetPiece: Boolean(set),
+    ...(createdAt ? { createdAt } : {})
   };
 }
 

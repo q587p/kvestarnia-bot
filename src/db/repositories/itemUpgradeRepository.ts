@@ -9,6 +9,7 @@ export interface ItemUpgradeInventoryRow {
   itemId: string;
   quantity: number;
   equipped: boolean;
+  createdAt?: Date;
 }
 
 export interface ItemUpgradeSnapshot {

@@ -42,6 +42,12 @@ parseInventoryPagePrompt,
 presentInventoryPagePrompt
 } from "../inventoryPagePrompt";
 import {
+getItemUpgradePagePromptPlaceholder,
+parseItemUpgradePageNumber,
+parseItemUpgradePagePrompt,
+presentItemUpgradePagePrompt
+} from "../itemUpgradePagePrompt";
+import {
 buildEquipItemResultKeyboard,
 buildEquipmentKeyboard,
 buildItemCraftPreviewKeyboard,
@@ -257,20 +263,34 @@ async function handleInventoryPageReply(
   ctx: Context,
   services: BotServices
 ): Promise<boolean> {
-  const prompt = parseInventoryPagePrompt(ctx.message?.reply_to_message?.text);
+  const replyText = ctx.message?.reply_to_message?.text;
+  const prompt = parseInventoryPagePrompt(replyText);
 
-  if (!prompt) {
-    return false;
-  }
+  if (prompt) {
+    const pageNumber = parseInventoryPageNumber(ctx.message?.text, prompt.totalPages);
 
-  const pageNumber = parseInventoryPageNumber(ctx.message?.text, prompt.totalPages);
+    if (pageNumber === null) {
+      await ctx.reply(`Введіть число від 1 до ${prompt.totalPages}.`);
+      return true;
+    }
 
-  if (pageNumber === null) {
-    await ctx.reply(`Введіть число від 1 до ${prompt.totalPages}.`);
+    await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment, prompt.sort);
     return true;
   }
 
-  await sendInventory(ctx, services.inventory, "reply", pageNumber - 1, prompt.filter, services.equipment, prompt.sort);
+  const itemUpgradePrompt = parseItemUpgradePagePrompt(replyText);
+  if (!itemUpgradePrompt) {
+    return false;
+  }
+
+  const pageNumber = parseItemUpgradePageNumber(ctx.message?.text, itemUpgradePrompt.totalPages);
+
+  if (pageNumber === null) {
+    await ctx.reply(`Введіть число від 1 до ${itemUpgradePrompt.totalPages}.`);
+    return true;
+  }
+
+  await sendItemUpgradeList(ctx, services.itemUpgrades, "reply", pageNumber - 1, itemUpgradePrompt.sort);
   return true;
 }
 
@@ -531,7 +551,21 @@ async function handleItemUpgradeCallback(
 
   if (action.type === "list") {
     await safeAnswerCallbackQuery(ctx);
-    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit", action.page);
+    await sendItemUpgradeList(ctx, services.itemUpgrades, "edit", action.page, action.sort);
+    return;
+  }
+
+  if (action.type === "page-prompt") {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Напишіть номер сторінки у відповідь на підказку.",
+      show_alert: false
+    });
+    await ctx.reply(presentItemUpgradePagePrompt(action.totalPages, action.sort), {
+      reply_markup: {
+        force_reply: true,
+        input_field_placeholder: getItemUpgradePagePromptPlaceholder(action.totalPages)
+      }
+    });
     return;
   }
 

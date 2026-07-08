@@ -3,7 +3,10 @@ import {
   buildItemUpgradeListKeyboard,
   buildItemUpgradePreviewKeyboard
 } from "../../src/bot/keyboards/itemUpgradeKeyboard";
-import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
+import {
+  makeItemUpgradeListCallbackData,
+  makeItemUpgradePagePromptCallbackData
+} from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import type {
   ItemUpgradeListResult,
   ItemUpgradePreviewResult
@@ -47,12 +50,56 @@ describe("item upgrade keyboard", () => {
     expect(buttonTexts(firstPage)).toContain("1/2");
     expect(buttonTexts(firstPage)).toContain("Далі ▶️");
     expect(buttonCallbacks(firstPage)).toContain(makeItemUpgradeListCallbackData(1));
+    expect(buttonCallbacks(firstPage)).toContain(makeItemUpgradePagePromptCallbackData(2));
 
     expect(buttonTexts(secondPage)).toContain("✨ Манатка 11");
     expect(buttonTexts(secondPage)).toContain("✨ Манатка 12");
     expect(buttonTexts(secondPage)).toContain("◀️ Назад");
     expect(buttonTexts(secondPage)).toContain("2/2");
     expect(buttonCallbacks(secondPage)).toContain(makeItemUpgradeListCallbackData(0));
+  });
+
+  it("sorts upgrade candidates by newest date and name", () => {
+    const items = [
+      upgradeItem({
+        itemId: "item.test-beta",
+        name: "Бета",
+        createdAt: new Date("2026-07-01T10:00:00.000Z")
+      }),
+      upgradeItem({
+        itemId: "item.test-alpha",
+        name: "Альфа",
+        createdAt: new Date("2026-07-03T10:00:00.000Z")
+      }),
+      upgradeItem({
+        itemId: "item.test-gamma",
+        name: "Гама",
+        createdAt: new Date("2026-07-02T10:00:00.000Z")
+      })
+    ];
+
+    const newest = buttonTexts(buildItemUpgradeListKeyboard(readyList({ items }), 0, "date-desc"));
+    const byName = buttonTexts(buildItemUpgradeListKeyboard(readyList({ items }), 0, "name-asc"));
+
+    expect(newest.slice(2, 5)).toEqual(["✨ Альфа", "✨ Гама", "✨ Бета"]);
+    expect(byName.slice(2, 5)).toEqual(["✨ Альфа", "✨ Бета", "✨ Гама"]);
+  });
+
+  it("shows sort controls and preserves sort through pagination", () => {
+    const items = Array.from({ length: 12 }, (_, index) =>
+      upgradeItem({
+        itemId: `item.test-upgrade-${index + 1}`,
+        name: `Манатка ${index + 1}`
+      })
+    );
+    const keyboard = buildItemUpgradeListKeyboard(readyList({ items }), 1, "name-asc");
+
+    expect(buttonTexts(keyboard)).toContain("🕒 Нові спершу");
+    expect(buttonTexts(keyboard)).toContain("🔤 Я-А");
+    expect(buttonCallbacks(keyboard)).toContain(makeItemUpgradeListCallbackData(0, "date-desc"));
+    expect(buttonCallbacks(keyboard)).toContain(makeItemUpgradeListCallbackData(0, "name-desc"));
+    expect(buttonCallbacks(keyboard)).toContain(makeItemUpgradeListCallbackData(0, "name-asc"));
+    expect(buttonCallbacks(keyboard)).toContain(makeItemUpgradePagePromptCallbackData(2, "name-asc"));
   });
 
   it("hides self temper preview for non-magical classes", () => {
@@ -111,6 +158,7 @@ function upgradeItem(
     setId: null,
     setName: null,
     isSetPiece: false,
+    createdAt: new Date("2026-07-01T10:00:00.000Z"),
     ...overrides
   };
 }
@@ -131,7 +179,8 @@ function readyPreview(overrides: Partial<Extract<ItemUpgradePreviewResult, { sta
       rarity: "common",
       setId: null,
       setName: null,
-      isSetPiece: false
+      isSetPiece: false,
+      createdAt: new Date("2026-07-01T10:00:00.000Z")
     },
     method: "npc",
     costs: { gold: 50, iskrokamin: 5, mana: 0 },
