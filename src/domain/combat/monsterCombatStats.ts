@@ -4,9 +4,10 @@ import type { MonsterCombatStats } from "./combatState";
 export interface MonsterCombatStatsOptions {
   remortCount?: number;
   remortPressureMode?: "single" | "multi";
+  remortPressureFreeRanks?: number;
 }
 
-const REMORT_PRESSURE_FREE_RANKS = 3;
+const DEFAULT_REMORT_PRESSURE_FREE_RANKS = 3;
 
 export function deriveMonsterCombatStats(
   monster: MonsterContent,
@@ -14,7 +15,10 @@ export function deriveMonsterCombatStats(
 ): MonsterCombatStats {
   const tags = [...monster.tags];
   const level = Math.max(1, Math.floor(monster.level));
-  const pressureRank = getRemortMonsterPressureRank(options.remortCount ?? 0);
+  const pressureRank = getRemortMonsterPressureRank(
+    options.remortCount ?? 0,
+    options.remortPressureFreeRanks ?? DEFAULT_REMORT_PRESSURE_FREE_RANKS
+  );
   const statLevel = buildRemortMonsterStatLevel(
     level,
     pressureRank,
@@ -48,10 +52,10 @@ export function deriveMonsterCombatStats(
   };
 }
 
-function getRemortMonsterPressureRank(remortCount: number): number {
+function getRemortMonsterPressureRank(remortCount: number, freeRanks: number): number {
   return Math.max(
     0,
-    Math.floor(remortCount) - REMORT_PRESSURE_FREE_RANKS
+    Math.floor(remortCount) - Math.max(0, Math.floor(freeRanks))
   );
 }
 

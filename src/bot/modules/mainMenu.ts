@@ -426,7 +426,9 @@ export async function sendCurrentLocation(
   const requestedLocationId = getMainMenuLocationButtonPresenceId(ctx.message?.text?.trim());
 
   if (!telegramUserId) {
-    await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      playerHintService: services.playerHints
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -434,7 +436,9 @@ export async function sendCurrentLocation(
   const place = await services.presence.getCurrentPlaceForTelegramUser(telegramUserId);
 
   if (place.state === "no-character") {
-    await sendTavern(ctx, services.tavern, services.presence, "reply");
+    await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      playerHintService: services.playerHints
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
@@ -544,6 +548,7 @@ async function sendCurrentPresenceLocation(
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_HALL) {
     await sendTavern(ctx, services.tavern, services.presence, "reply", {
+      playerHintService: services.playerHints,
       ...(questMarkers ? { questMarkers } : {})
     });
     return;
@@ -633,5 +638,7 @@ async function sendCurrentPresenceLocation(
     return;
   }
 
-  await sendTavern(ctx, services.tavern, services.presence, "reply");
+  await sendTavern(ctx, services.tavern, services.presence, "reply", {
+    playerHintService: services.playerHints
+  });
 }

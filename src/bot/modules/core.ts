@@ -116,7 +116,9 @@ async function handleMenuCallback(
     return;
   }
 
-  await sendTavern(ctx, services.tavern, services.presence, "edit");
+  await sendTavern(ctx, services.tavern, services.presence, "edit", {
+    playerHintService: services.playerHints
+  });
 }
 
 async function handleNewsCallback(ctx: Context, action: NewsCallback): Promise<void> {

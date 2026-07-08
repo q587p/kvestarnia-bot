@@ -135,6 +135,7 @@ export interface TavernCommandOptions {
   botUsername?: string | undefined;
   partyBoss?: PartyBossService | undefined;
   partySessions?: PartySessionService | undefined;
+  playerHintService?: Pick<PlayerHintService, "claimKorchmaHallYegerCountHint"> | undefined;
   openBigBarrelRecruiting?: boolean | undefined;
   onlyBigBarrelRecruiting?: boolean | undefined;
   questMarkers?: QuestMarkerInput | null | undefined;
@@ -154,6 +155,7 @@ export function registerTavernCommand(
   bot.command("tavern", async (ctx) => {
     const questMarkers = await resolveTavernCommandQuestMarkers(ctx, options);
     await sendTavern(ctx, tavernRaidService, presenceService, "reply", {
+      ...(options.playerHintService ? { playerHintService: options.playerHintService } : {}),
       ...(questMarkers === undefined ? {} : { questMarkers })
     });
   });
@@ -190,7 +192,10 @@ export async function sendTavern(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options: { questMarkers?: QuestMarkerInput | null } = {}
+  options: {
+    playerHintService?: Pick<PlayerHintService, "claimKorchmaHallYegerCountHint"> | undefined;
+    questMarkers?: QuestMarkerInput | null;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -220,12 +225,16 @@ export async function sendTavern(
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_HALL);
   const presence = await presenceService.getKorchmaInteriorPresence();
+  const yegerCountHint = await options.playerHintService?.claimKorchmaHallYegerCountHint(telegramUserId, {
+    remortCount: result.character.remortCount
+  });
 
   await sendText(
     ctx,
     mode,
     presentKorchmaHall(result.character, presence, telegramUserId, {
-      flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`
+      flavorSeed: `korchma-hall:${ctx.update?.update_id ?? "manual"}`,
+      showYegerCountHint: yegerCountHint?.shouldShow ?? true
     }),
     {
       state: "hall",
