@@ -192,6 +192,7 @@ describe("lore board content", () => {
     ]));
     expect(crafting?.body).toContain("Щільний бинт");
     expect(crafting?.body).toContain("Польову аптечку");
+    expect(crafting?.body).toContain("ремортного досвіду");
   });
 
   it("keeps manatky lore aligned with visible gear-action grants", () => {

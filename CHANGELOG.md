@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Added a future-task note for expanding `Корчмарський обхід` small-catastrophe scenes to 42 variants with anti-repeat selection.
+- Dense-bandage and field-kit crafting from `Манатки` now also unlocks for remorted characters at level `3+` without requiring the second Yeger board, while Yeger free supplies and notch exchanges still require the Yeger quest line.
 - Bumped package metadata to `0.2.32` for the consolidated polish rollup.
 
 ## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
