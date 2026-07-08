@@ -20,6 +20,7 @@ import {
 import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
+import { makeItemUpgradeListCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type {
   EquipmentResult,
@@ -51,6 +52,7 @@ import {
   getInventoryTotalPages,
   type InventoryPresenterOptions
 } from "../presenters/inventoryPresenter";
+import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 
 export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
 
@@ -211,6 +213,10 @@ export function buildItemDetailKeyboard(
     } else {
       keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
     }
+  }
+
+  if (result.state === "found" && result.item.itemId === ISKROKAMIN_ITEM_ID) {
+    keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData()).row();
   }
 
   return keyboard

@@ -95,6 +95,7 @@ import {
   buildTrainingDoppelgangerStartKeyboard
 } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 
 describe("main menu and scene keyboards", () => {
   it("builds the universal menu as a persistent reply keyboard", () => {
@@ -2766,6 +2767,36 @@ describe("main menu and scene keyboards", () => {
       "v1:chest:inventory"
     ]);
     expect(callbacks.every((callback) => Buffer.byteLength(callback, "utf8") <= 64)).toBe(true);
+  });
+
+  it("links Iskrokamin item details to Charkokovalnia", () => {
+    const keyboard = buildItemDetailKeyboard({
+      state: "found",
+      item: {
+        id: "character-item-iskrokamin",
+        itemId: "item.iskrokamin",
+        quantity: 1000,
+        content: {
+          id: "item.iskrokamin",
+          name: "Іскрокамінь",
+          description: "Малий камінець.",
+          rarity: "uncommon",
+          slot: "resource",
+          goldValue: 23
+        }
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).toEqual([
+      "✨ До Чароковальні",
+      "⬅️ До манаток",
+      "🛡️ Спорядження"
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      makeItemUpgradeListCallbackData(),
+      "v1:item:inventory",
+      "v1:equip:view"
+    ]);
   });
 
   it("links Mantok Chest output directly to item details", () => {

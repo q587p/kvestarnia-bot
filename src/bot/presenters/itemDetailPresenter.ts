@@ -186,6 +186,10 @@ function presentEquipmentLine(
     return "Екіпірування: <i>не вдягається. Єгер міняє такі риски на медичний запас після закритої другої дощечки.</i>";
   }
 
+  if (item.slot === "resource") {
+    return "Екіпірування: <i>не вдягається. Це ресурс для майстерні, а не аргумент для манекена.</i>";
+  }
+
   if (!isEquippableItem(item)) {
     return "Екіпірування: <i>не вдягається. Корчма визнала це смішним трофеєм.</i>";
   }
@@ -314,7 +318,8 @@ export function presentItemSlot(slot: ItemContent["slot"]): string {
     accessory: "аксесуар",
     consumable: "витратна манатка",
     cosmetic: "косметика",
-    junk: "трофей / смішний доказ"
+    junk: "трофей / смішний доказ",
+    resource: "ресурс"
   };
 
   return labels[slot];
@@ -357,6 +362,10 @@ function presentItemFlavor(item: ItemContent): string {
 
   if (item.slot === "junk") {
     return "<i>Корчмар записав це в журнал як «важливо, але не чіпати голими руками».</i>";
+  }
+
+  if (item.slot === "resource") {
+    return "<i>Корчмар не кладе це на полицю трофеїв. Ресурси самі знають, де їм небезпечно блищати.</i>";
   }
 
   if (item.slot === "consumable") {

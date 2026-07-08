@@ -113,7 +113,7 @@ export const itemSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   rarity: itemRaritySchema,
-  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk"]),
+  slot: z.enum(["weapon", "armor", "accessory", "consumable", "cosmetic", "junk", "resource"]),
   equipmentSlot: equipmentSlotSchema.optional(),
   equipmentRequirements: itemEquipmentRequirementsSchema.optional(),
   goldValue: z.number().int().min(0).optional(),

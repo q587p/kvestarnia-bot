@@ -145,7 +145,7 @@ describe("item upgrades", () => {
 
   it("keeps upgrade eligibility narrow and excludes materials", () => {
     expect(isItemUpgradeable(weapon)).toBe(true);
-    expect(isItemUpgradeable({ ...weapon, slot: "junk", id: "item.iskrokamin" })).toBe(false);
+    expect(isItemUpgradeable({ ...weapon, slot: "resource", id: "item.iskrokamin" })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, slot: "consumable", tags: ["consumable"] })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, slot: "cosmetic" })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, id: "item.test-upgrade-pan.plus-5" }, 5)).toBe(false);

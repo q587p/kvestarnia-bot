@@ -179,9 +179,9 @@ describe("content tables", () => {
     });
   });
 
-  it("keeps junk, cosmetics, and the thirteen-problems badge free of power effects", () => {
+  it("keeps junk, cosmetics, resources, and the thirteen-problems badge free of power effects", () => {
     for (const item of items.filter((candidate) =>
-      ["junk", "cosmetic", "consumable"].includes(candidate.slot)
+      ["junk", "cosmetic", "consumable", "resource"].includes(candidate.slot)
     )) {
       expect(item).not.toHaveProperty("effect");
       expect(item).not.toHaveProperty("stats");
@@ -270,6 +270,22 @@ describe("content tables", () => {
         }
       })
     ).not.toThrow();
+  });
+
+  it("accepts resource items without treating Iskrokamin as a trophy slot", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-resource",
+        name: "Тестовий ресурс",
+        description: "Лежить у тесті й не проситься на манекен.",
+        rarity: "uncommon",
+        slot: "resource",
+        goldValue: 23
+      })
+    ).not.toThrow();
+    expect(items.find((item) => item.id === "item.iskrokamin")).toMatchObject({
+      slot: "resource"
+    });
   });
 
   it("rejects equipment slot metadata on unsupported item slots", () => {

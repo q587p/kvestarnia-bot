@@ -282,7 +282,7 @@ const authoredItemContents = [
     name: "Іскрокамінь",
     description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
     rarity: "uncommon",
-    slot: "junk",
+    slot: "resource",
     goldValue: 23
   },
   {

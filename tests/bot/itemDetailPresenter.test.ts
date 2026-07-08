@@ -167,6 +167,27 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("правила майбутнього спорядження");
   });
 
+  it("presents Iskrokamin as a resource instead of a funny trophy", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        quantity: 1000,
+        content: {
+          id: "item.iskrokamin",
+          name: "Іскрокамінь",
+          description: "Малий камінець, який світиться так, ніби вже підписав техніку безпеки замість вас.",
+          rarity: "uncommon",
+          slot: "resource",
+          goldValue: 23
+        }
+      })
+    );
+
+    expect(text).toContain("Категорія: <b>ресурс</b>");
+    expect(text).toContain("Екіпірування: <i>не вдягається. Це ресурс для майстерні");
+    expect(text).not.toContain("трофей / смішний доказ");
+    expect(text).not.toContain("смішним трофеєм");
+  });
+
   it("describes Yeger notches as exchangeable marks instead of trophies", () => {
     const text = presentOwnedItemDetail(
       itemSummary({

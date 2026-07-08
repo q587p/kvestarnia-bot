@@ -145,7 +145,13 @@ export function getItemUpgradeMagicStrengthLabel(level: number): "слабка �
 export function isItemUpgradeable(item: ItemContent, level = getItemUpgradeLevelFromItemId(item.id)): boolean {
   const tags = new Set(item.tags ?? []);
 
-  if (item.slot === "accessory" || item.slot === "consumable" || item.slot === "cosmetic" || item.slot === "junk") {
+  if (
+    item.slot === "accessory" ||
+    item.slot === "consumable" ||
+    item.slot === "cosmetic" ||
+    item.slot === "junk" ||
+    item.slot === "resource"
+  ) {
     return false;
   }
 
