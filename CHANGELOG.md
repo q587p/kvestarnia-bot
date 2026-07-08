@@ -15,7 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
 - Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
 - Added `Іскрокамінь` as the narrow material stack used by the upgrade loop, plus local `/dev_add_iskrokamin` QA support behind the existing non-production dev-grant gate.
-- Added weak/strong magic attunement for magical equipment: `+1..+3` items tune for 13 minutes, while `+4..+5`, Mantok set pieces and ability-grant manatky tune for 42 minutes before their bonuses count.
+- Added weak/strong magic attunement for magical equipment: `+1..+3` items tune for 13 minutes, while `+4..+5`, Mantok set pieces and ability-grant manatky tune for 42 minutes before their bonuses count; magical specialist classes tune those bands in 5 and 23 minutes.
 - Added the runtime attunement completion scheduler and local `/dev_finish_attunements` QA helper behind the existing non-production dev-grant gate.
 - Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
 - Added a rewardless first-Iskrokamin achievement now that `Іскрокамінь` can appear from fight rewards.
@@ -36,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
+- Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.
 - Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
 - When the Charkokovalnia unlock is pending but field-kit crafting is still locked and the player has no field kit, `Єгерський куток` now offers `🧰 Аптечка?`; the hint points to completing both Yeger board stages instead of leaving the field-kit route implicit.
 - Quest completion reward blocks now share the compact `<i>Отримано:</i>` format across Charkokovalnia unlock, Korchma-round, Barrel tutorial, Yeger, Adventure and Cellar quest results.

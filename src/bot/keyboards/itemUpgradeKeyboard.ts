@@ -4,6 +4,7 @@ import type {
   ItemUpgradePreviewResult,
   ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
+import { isMageClassForItemSelfUpgrade } from "../../domain/itemUpgrades";
 import {
   makeItemUpgradeAttemptCallbackData,
   makeItemUpgradeListCallbackData,
@@ -59,13 +60,13 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
       )
       .row();
 
-    if (result.method === "npc") {
+    if (result.method === "npc" && isMageClassForItemSelfUpgrade(result.character.classId)) {
       keyboard.text("🔮 Іскровий підкрут", makeItemUpgradePreviewCallbackData(
         result.item.itemId,
         "self",
         result.donor?.itemId ?? null
       )).row();
-    } else {
+    } else if (result.method === "self") {
       keyboard.text("🛠️ До Мага", makeItemUpgradePreviewCallbackData(
         result.item.itemId,
         "npc",

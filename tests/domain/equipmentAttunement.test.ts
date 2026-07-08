@@ -3,6 +3,8 @@ import { items } from "../../src/content";
 import {
   getEquipmentAttunementDurationMs,
   getEquipmentMagicStrength,
+  MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS,
+  MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS,
   STRONG_EQUIPMENT_ATTUNEMENT_MS,
   WEAK_EQUIPMENT_ATTUNEMENT_MS
 } from "../../src/domain/equipment/equipmentAttunement";
@@ -18,6 +20,15 @@ describe("equipment attunement", () => {
     expect(strong && getEquipmentMagicStrength(strong.id)).toBe("strong");
     expect(getEquipmentAttunementDurationMs("weak")).toBe(WEAK_EQUIPMENT_ATTUNEMENT_MS);
     expect(getEquipmentAttunementDurationMs("strong")).toBe(STRONG_EQUIPMENT_ATTUNEMENT_MS);
+    expect(getEquipmentAttunementDurationMs("weak", "class.warrior")).toBe(WEAK_EQUIPMENT_ATTUNEMENT_MS);
+    expect(getEquipmentAttunementDurationMs("strong", "class.warrior")).toBe(STRONG_EQUIPMENT_ATTUNEMENT_MS);
+  });
+
+  it("lets magical specialist classes attune weak and strong magic faster", () => {
+    expect(getEquipmentAttunementDurationMs("weak", "class.mage")).toBe(MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS);
+    expect(getEquipmentAttunementDurationMs("strong", "class.mage")).toBe(MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS);
+    expect(getEquipmentAttunementDurationMs("weak", "class.varenyk-mancer")).toBe(MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS);
+    expect(getEquipmentAttunementDurationMs("strong", "class.bureaucramancer")).toBe(MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS);
   });
 
   it("treats set pieces and ability-grant manatky as strong magic", () => {

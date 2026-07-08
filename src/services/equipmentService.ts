@@ -345,7 +345,7 @@ export class EquipmentService {
         slot,
         currentItem,
         strength,
-        durationMinutes: getEquipmentAttunementDurationMinutes(strength)
+        durationMinutes: getEquipmentAttunementDurationMinutes(strength, character?.classId)
       };
     }
 
@@ -500,7 +500,7 @@ export class EquipmentService {
         slot,
         currentItem: replacedItem,
         strength,
-        durationMinutes: getEquipmentAttunementDurationMinutes(strength)
+        durationMinutes: getEquipmentAttunementDurationMinutes(strength, character?.classId)
       };
     }
 
@@ -519,7 +519,7 @@ export class EquipmentService {
               strength,
               itemName: content.name,
               startedAt: now,
-              readyAt: new Date(now.getTime() + getEquipmentAttunementDurationMs(strength))
+              readyAt: new Date(now.getTime() + getEquipmentAttunementDurationMs(strength, character?.classId))
             }
           }
         : {})
@@ -938,8 +938,11 @@ function toEquipmentItemSummary(row: CharacterEquipmentRecord): EquipmentItemSum
   };
 }
 
-function getEquipmentAttunementDurationMinutes(strength: EquipmentMagicStrength): number {
-  return Math.ceil(getEquipmentAttunementDurationMs(strength) / 60_000);
+function getEquipmentAttunementDurationMinutes(
+  strength: EquipmentMagicStrength,
+  classId?: string | null
+): number {
+  return Math.ceil(getEquipmentAttunementDurationMs(strength, classId) / 60_000);
 }
 
 function resolveEquipmentSlotForItem(

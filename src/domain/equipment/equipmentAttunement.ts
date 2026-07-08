@@ -1,10 +1,12 @@
 import { findMantokAbilityGrantByItemId } from "../../content/mantokAbilityGrants";
 import { getMantokSetForItem } from "./mantokSetBonuses";
-import { getItemUpgradeLevelFromItemId } from "../itemUpgrades";
+import { getItemUpgradeLevelFromItemId, isMageClassForItemSelfUpgrade } from "../itemUpgrades";
 
 export const EQUIPMENT_ATTUNEMENT_ACTION_KEY = "equipment.attunement";
 export const WEAK_EQUIPMENT_ATTUNEMENT_MS = 13 * 60 * 1000;
 export const STRONG_EQUIPMENT_ATTUNEMENT_MS = 42 * 60 * 1000;
+export const MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS = 5 * 60 * 1000;
+export const MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS = 23 * 60 * 1000;
 
 export type EquipmentMagicStrength = "weak" | "strong";
 export type EquipmentAttunementState = "tuning" | "attuned";
@@ -48,7 +50,16 @@ export function getEquipmentMagicStrength(itemId: string): EquipmentMagicStrengt
   return null;
 }
 
-export function getEquipmentAttunementDurationMs(strength: EquipmentMagicStrength): number {
+export function getEquipmentAttunementDurationMs(
+  strength: EquipmentMagicStrength,
+  classId?: string | null
+): number {
+  if (classId && isMageClassForItemSelfUpgrade(classId)) {
+    return strength === "strong"
+      ? MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS
+      : MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS;
+  }
+
   return strength === "strong"
     ? STRONG_EQUIPMENT_ATTUNEMENT_MS
     : WEAK_EQUIPMENT_ATTUNEMENT_MS;
