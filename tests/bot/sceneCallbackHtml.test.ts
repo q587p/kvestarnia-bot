@@ -2152,7 +2152,7 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain(makeYegerFieldKitHelpCallbackData());
   });
 
-  it("hides field-kit help from the Yeger corner when kit crafting access already exists", async () => {
+  it("offers field-kit help from the Yeger corner when kit crafting access already exists", async () => {
     const previewForTelegramUser = vi.fn(() => Promise.resolve({ state: "not-enough" as const }));
     const calls = await captureApiCalls(
       makeYegerOpenCallbackData(),
@@ -2183,8 +2183,35 @@ describe("scene callback HTML options", () => {
     const keyboard = JSON.stringify(edit?.payload.reply_markup);
 
     expect(previewForTelegramUser).toHaveBeenCalledWith(42n, "kit");
-    expect(keyboard).not.toContain("🧰 Аптечка?");
-    expect(keyboard).not.toContain(makeYegerFieldKitHelpCallbackData());
+    expect(keyboard).toContain("🧰 Аптечка?");
+    expect(keyboard).toContain(makeYegerFieldKitHelpCallbackData());
+  });
+
+  it("explains inventory crafting from the field-kit help callback when kit crafting is available", async () => {
+    const calls = await captureApiCalls(
+      makeYegerFieldKitHelpCallbackData(),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: () =>
+            Promise.resolve({
+              state: "unlock-required" as const,
+              character,
+              fieldKitQuantity: 0,
+              rewardXp: 42
+            })
+        },
+        itemCraft: {
+          previewForTelegramUser: () => Promise.resolve({ state: "not-enough" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🧰 Аптечка?");
+    expect(String(edit?.payload.text)).toContain("купіть бинти");
+    expect(String(edit?.payload.text)).toContain("Манатки");
+    expect(String(edit?.payload.text)).toContain("польову аптечку");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeYegerOpenCallbackData());
   });
 
   it("explains the Yeger boards from the field-kit help callback", async () => {

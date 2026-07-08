@@ -516,7 +516,7 @@ export function presentYegerHelp(): string {
 }
 
 export function presentYegerFieldKitHelp(
-  input: { state?: "needs-yeger-boards" | "has-field-kit" } = {}
+  input: { state?: "needs-yeger-boards" | "can-craft-kit" | "has-field-kit" } = {}
 ): string {
   if (input.state === "has-field-kit") {
     return [
@@ -527,6 +527,19 @@ export function presentYegerFieldKitHelp(
       npcQuote(
         "Єгер",
         "Молодець. Польова аптечка вже у вас. Тепер ідіть до мага в задвірок: хай він офіційно нервує біля іскор."
+      )
+    ].join("\n");
+  }
+
+  if (input.state === "can-craft-kit") {
+    return [
+      "🧰 Аптечка?",
+      "",
+      "Єгер дивиться на ваші руки й трохи заспокоюється: вони вже достатньо підозрілі для ремесла.",
+      "",
+      npcQuote(
+        "Єгер",
+        "Квест узяли, отже слухайте коротко. Якщо рівень уже пускає до справи, купіть бинти тут, відкрийте Манатки й складіть польову аптечку там. Аптечка любить, коли її роблять офіційно, а не з паніки й кишенькового пилу."
       )
     ].join("\n");
   }
