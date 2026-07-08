@@ -89,7 +89,7 @@ export const loreEntryGroups: readonly LoreEntryGroup[] = [
     id: "outside",
     categoryId: "places",
     title: "🏚 Надвірʼя",
-    description: "Поріг, дощ і задвірок, де ельф-маг уже зайняв навіс під Чароковальню.",
+    description: "Поріг, дощ і задвірок, де маг уже зайняв навіс під Чароковальню.",
     sortOrder: 10,
     entryIds: ["place-front", "place-yard"]
   },

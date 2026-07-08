@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+import { presentItemUpgradeList } from "../../src/bot/presenters/itemUpgradePresenter";
+import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+
+describe("item upgrade presenter", () => {
+  it("mentions the elf-mage once and then shortens to mage on the field-kit gate", () => {
+    const text = presentItemUpgradeList({
+      state: "unlock-required",
+      character,
+      fieldKitQuantity: 1,
+      rewardXp: 42
+    });
+
+    expect(text).toContain("Ельф-маг просить <b>Польову аптечку</b>");
+    expect(text).toContain("Можна віддати її магу");
+    expect(text).not.toContain("ельфу-магу");
+    expect(text.match(/ельф-маг/giu)).toHaveLength(1);
+  });
+});
+
+const character: CharacterSummary = {
+  name: "Мандрівник",
+  pronoun: "they",
+  pronounLabel: "Вони",
+  path: "boundary",
+  raceId: "race.human-ish",
+  raceName: "Людисько",
+  classId: "class.warrior",
+  className: "Воїн",
+  title: "Пересічний Пригодник",
+  level: 5,
+  xp: 120,
+  nextLevelXp: 180,
+  xpToNextLevel: 60,
+  gold: 0,
+  hpCurrent: 24,
+  hpMax: 24,
+  manaCurrent: 12,
+  manaMax: 12,
+  stats: {
+    strength: 8,
+    dexterity: 6,
+    intelligence: 6,
+    charisma: 6,
+    luck: 6
+  },
+  levelBonus: {
+    hpMax: 0,
+    manaMax: 0,
+    primaryStat: {
+      stat: "strength",
+      bonus: 0
+    }
+  }
+};
