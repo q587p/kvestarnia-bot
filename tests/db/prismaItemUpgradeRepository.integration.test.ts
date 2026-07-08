@@ -17,6 +17,8 @@ const userId = "user-upgrade-3030";
 const characterId = "character-upgrade-3030";
 const panItemId = "item.pan-of-persuasion";
 const panPlusOneItemId = "item.pan-of-persuasion.plus-1";
+const panPlusTwoItemId = "item.pan-of-persuasion.plus-2";
+const panPlusFourItemId = "item.pan-of-persuasion.plus-4";
 
 describe("PrismaItemUpgradeRepository integration", () => {
   let dir: string;
@@ -141,6 +143,46 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectItemQuantity(panPlusOneItemId, 1);
     await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
+  });
+
+  it("accepts a higher-plus same-template donor and consumes it once", async () => {
+    await seedUnlock();
+    await seedItem(panPlusOneItemId, 1);
+    await seedItem(panPlusFourItemId, 1);
+    await seedItem(ISKROKAMIN_ITEM_ID, 20);
+
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panPlusOneItemId,
+      method: "npc",
+      donorItemId: panPlusFourItemId,
+      now: now(),
+      roll: 0,
+      expectedFromLevel: 1,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({
+      state: "attempted",
+      success: true,
+      donorConsumed: true,
+      fromLevel: 1,
+      targetLevel: 2,
+      item: {
+        itemId: panPlusTwoItemId,
+        quantity: 1
+      },
+      finalChance: 98,
+      spent: {
+        gold: 120,
+        iskrokamin: 7,
+        mana: 0
+      }
+    });
+
+    await expectItemQuantity(panPlusOneItemId, 0);
+    await expectItemQuantity(panPlusTwoItemId, 1);
+    await expectItemQuantity(panPlusFourItemId, 0);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 13);
+    await expectCharacterResources({ gold: 880, manaCurrent: 80 });
   });
 
   it("spends a failed attempt exactly once and records bounded pity", async () => {

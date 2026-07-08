@@ -226,7 +226,7 @@ describe("item upgrades", () => {
     });
   });
 
-  it("accepts donors only at matching upgrade level and compatible template or slot", () => {
+  it("accepts same-template donors before level matching but keeps same-set and same-slot level-matched", () => {
     expect(getDonorBonus({
       baseItem: weapon,
       baseItemId: "item.test-upgrade-pan.plus-1",
@@ -236,6 +236,36 @@ describe("item upgrades", () => {
       kind: "same-template",
       chanceBonus: 12,
       iskrokaminDiscountPercent: 42
+    });
+    expect(getDonorBonus({
+      baseItem: weapon,
+      baseItemId: "item.test-upgrade-pan.plus-1",
+      donorItem: weapon,
+      donorItemId: "item.test-upgrade-pan.plus-4"
+    })).toMatchObject({
+      kind: "same-template",
+      chanceBonus: 19,
+      iskrokaminDiscountPercent: 73
+    });
+    expect(getDonorBonus({
+      baseItem: weapon,
+      baseItemId: "item.test-upgrade-pan.plus-4",
+      donorItem: weapon,
+      donorItemId: "item.test-upgrade-pan.plus-5"
+    })).toMatchObject({
+      kind: "same-template",
+      chanceBonus: 14,
+      iskrokaminDiscountPercent: 52
+    });
+    expect(getDonorBonus({
+      baseItem: weapon,
+      baseItemId: "item.test-upgrade-pan",
+      donorItem: weapon,
+      donorItemId: "item.test-upgrade-pan.plus-5"
+    })).toMatchObject({
+      kind: "same-template",
+      chanceBonus: 23,
+      iskrokaminDiscountPercent: 93
     });
     expect(getDonorBonus({
       baseItem: weapon,

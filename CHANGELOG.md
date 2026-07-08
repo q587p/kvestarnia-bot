@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia Iskrokamin costs now use the Kvestarnia-spaced ladder `5 / 13 / 23 / 42 / 93`; rarity/set modifiers use `x1.05` for uncommon, `x1.13` for rare, `x1.23` for epic, `x1.42` for set pieces and `x1.93` for legendary items, and same-template/same-set/same-slot donor discounts are `42%`/`23%`/`13%` with a 50% floor and a visible minimum discount when a donor applies.
 - Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.
+- Same-template Charkokovalnia donors now appear before weaker donor types even when their `+N` level differs; higher-plus same-template donors scale their bonus by the plus difference up to the bounded `+5` donor ceiling.
 - `/chronicles` now opens `📜 Хроніки Квестарні` on the `⭐ Важливе` filter by default, and the current filter is marked in the message and keyboard.
 - Big Barrel Brother post-loss retry blockers now show the remaining wait, and local `/dev_raid_reset` clears that wait for QA.
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.

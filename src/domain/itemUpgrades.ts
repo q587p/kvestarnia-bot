@@ -32,6 +32,10 @@ export const ITEM_UPGRADE_DONOR_DISCOUNTS: Record<ItemUpgradeDonorBonus["kind"],
   "same-slot": 13
 };
 
+const SAME_TEMPLATE_DONOR_BASE_CHANCE_BONUS = 12;
+const SAME_TEMPLATE_DONOR_MAX_CHANCE_BONUS = 23;
+const SAME_TEMPLATE_DONOR_MAX_DISCOUNT_PERCENT = 93;
+
 export interface ItemUpgradeChanceBreakdown {
   baseChance: number;
   luckBonus: number;
@@ -325,17 +329,28 @@ export function getDonorBonus(input: {
 }): ItemUpgradeDonorBonus | null {
   const baseLevel = getItemUpgradeLevelFromItemId(input.baseItemId);
   const donorLevel = getItemUpgradeLevelFromItemId(input.donorItemId);
+  const sameTemplate = getBaseItemIdForUpgradeVariant(input.baseItemId) === getBaseItemIdForUpgradeVariant(input.donorItemId);
+
+  if (sameTemplate && isItemUpgradeable(input.donorItem, Math.min(donorLevel, MAX_ITEM_UPGRADE_LEVEL - 1))) {
+    const strongerDonorDelta = Math.max(0, donorLevel - baseLevel);
+
+    return {
+      kind: "same-template",
+      chanceBonus: scaleSameTemplateDonorBonus(
+        SAME_TEMPLATE_DONOR_BASE_CHANCE_BONUS,
+        SAME_TEMPLATE_DONOR_MAX_CHANCE_BONUS,
+        strongerDonorDelta
+      ),
+      iskrokaminDiscountPercent: scaleSameTemplateDonorBonus(
+        ITEM_UPGRADE_DONOR_DISCOUNTS["same-template"],
+        SAME_TEMPLATE_DONOR_MAX_DISCOUNT_PERCENT,
+        strongerDonorDelta
+      )
+    };
+  }
 
   if (baseLevel !== donorLevel || !isItemUpgradeable(input.donorItem, donorLevel)) {
     return null;
-  }
-
-  if (getBaseItemIdForUpgradeVariant(input.baseItemId) === getBaseItemIdForUpgradeVariant(input.donorItemId)) {
-    return {
-      kind: "same-template",
-      chanceBonus: 12,
-      iskrokaminDiscountPercent: ITEM_UPGRADE_DONOR_DISCOUNTS["same-template"]
-    };
   }
 
   if (input.baseSetId && input.donorSetId && input.baseSetId === input.donorSetId) {
@@ -355,6 +370,15 @@ export function getDonorBonus(input: {
   }
 
   return null;
+}
+
+function scaleSameTemplateDonorBonus(baseValue: number, maxValue: number, strongerDonorDelta: number): number {
+  const delta = Math.max(0, Math.min(MAX_ITEM_UPGRADE_LEVEL, Math.floor(strongerDonorDelta)));
+
+  return Math.min(
+    maxValue,
+    Math.round(baseValue + (maxValue - baseValue) * (delta / MAX_ITEM_UPGRADE_LEVEL))
+  );
 }
 
 export function isMageClassForItemSelfUpgrade(classId: string): boolean {

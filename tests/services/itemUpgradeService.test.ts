@@ -233,6 +233,60 @@ describe("ItemUpgradeService", () => {
     ]);
   });
 
+  it("puts same-template donors first even when their upgrade level differs", async () => {
+    const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
+      character,
+      unlocked: true,
+      pities: [],
+      items: [
+        {
+          id: "row-pan-plus-1",
+          characterId: character.id,
+          itemId: "item.pan-of-persuasion.plus-1",
+          quantity: 1,
+          equipped: false
+        },
+        {
+          id: "row-stamp-plus-1",
+          characterId: character.id,
+          itemId: "item.stamp-of-minor-authority.plus-1",
+          quantity: 1,
+          equipped: false
+        },
+        {
+          id: "row-pan-plus-4",
+          characterId: character.id,
+          itemId: "item.pan-of-persuasion.plus-4",
+          quantity: 1,
+          equipped: false
+        }
+      ]
+    });
+    const service = new ItemUpgradeService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.previewForTelegramUser(42n, "item.pan-of-persuasion.plus-1");
+
+    expect(result.state === "ready" ? result.donorOptions.map((donor) => ({
+      itemId: donor.itemId,
+      kind: donor.kind,
+      chanceBonus: donor.chanceBonus,
+      iskrokaminDiscountPercent: donor.iskrokaminDiscountPercent
+    })) : []).toEqual([
+      {
+        itemId: "item.pan-of-persuasion.plus-4",
+        kind: "same-template",
+        chanceBonus: 19,
+        iskrokaminDiscountPercent: 73
+      },
+      {
+        itemId: "item.stamp-of-minor-authority.plus-1",
+        kind: "same-slot",
+        chanceBonus: 7,
+        iskrokaminDiscountPercent: 13
+      }
+    ]);
+  });
+
   it("returns current gold and Iskrokamin balances in upgrade previews", async () => {
     const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
       character: { ...character, gold: 321 },
