@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentItemUpgradeList,
+  presentItemUpgradePreview,
   presentItemUpgradeUnlock
 } from "../../src/bot/presenters/itemUpgradePresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -36,6 +37,45 @@ describe("item upgrade presenter", () => {
     expect(text).toContain("<i>Отримано:</i>\n+38 XP");
     expect(text).not.toContain("Отримано: <b>+38 XP</b>");
     expect(text).not.toContain("Рівень лишився на місці");
+  });
+
+  it("marks set pieces in upgrade previews without exposing formulas", () => {
+    const text = presentItemUpgradePreview({
+      state: "ready",
+      character,
+      item: {
+        itemId: "item.set.barrel-brother.helm",
+        name: "Шолом бочкового дзвону",
+        baseName: "Шолом бочкового дзвону",
+        quantity: 1,
+        enhancementLevel: 0,
+        equipped: false,
+        targetLevel: 1,
+        primaryStat: "armor",
+        rarity: "epic",
+        setId: "mantok-set.barrel-brother-bulwark",
+        setName: "Бочковий панцир старшого Брата",
+        isSetPiece: true
+      },
+      method: "npc",
+      costs: { gold: 50, iskrokamin: 3, mana: 0 },
+      chance: {
+        baseChance: 95,
+        luckBonus: 0,
+        pityBonus: 0,
+        donorBonus: 0,
+        finalChance: 95,
+        guaranteed: false
+      },
+      donor: null,
+      donorOptions: [],
+      pityFailures: 0
+    });
+
+    expect(text).toContain("Сетова манатка");
+    expect(text).toContain("більше думок");
+    expect(text).not.toContain("x1.25");
+    expect(text).not.toContain("13%");
   });
 });
 

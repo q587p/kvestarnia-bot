@@ -3,6 +3,7 @@ import { items } from "../content";
 import type { ItemContent } from "../content/schema";
 import type { ItemUpgradeRepository } from "../db/repositories/itemUpgradeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
+import { getMantokSetForItem } from "../domain/equipment/mantokSetBonuses";
 import {
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
@@ -47,14 +48,18 @@ export interface ItemUpgradePresentedItem {
   equipped: boolean;
   targetLevel: number | null;
   primaryStat: string | null;
+  rarity: ItemContent["rarity"];
+  setId: string | null;
+  setName: string | null;
+  isSetPiece: boolean;
 }
 
 export interface ItemUpgradeDonorOption {
   itemId: string;
   name: string;
-  kind: "same-template" | "same-slot";
+  kind: "same-template" | "same-set" | "same-slot";
   chanceBonus: number;
-  iskrokaminDiscount: number;
+  iskrokaminDiscountPercent: number;
 }
 
 export type ItemUpgradePreviewResult =
@@ -205,6 +210,8 @@ export class ItemUpgradeService {
     const costs = calculateItemUpgradeCosts({
       method,
       targetLevel: presented.targetLevel,
+      itemRarity: presented.rarity,
+      isSetPiece: presented.isSetPiece,
       donor
     });
     const chance = calculateItemUpgradeChance({
@@ -355,12 +362,16 @@ function buildDonorOptions(
     }
 
     const donorItem = findItem(row.itemId);
+    const baseSet = getMantokSetForItem(itemId);
+    const donorSet = getMantokSetForItem(row.itemId);
     const bonus = donorItem
       ? getDonorBonus({
           baseItem: item,
           baseItemId: itemId,
+          baseSetId: baseSet?.id ?? null,
           donorItem,
-          donorItemId: row.itemId
+          donorItemId: row.itemId,
+          donorSetId: donorSet?.id ?? null
         })
       : null;
 
@@ -370,12 +381,12 @@ function buildDonorOptions(
           name: getItemDisplayNameWithUpgrade(donorItem, getItemUpgradeLevelFromItemId(row.itemId)),
           kind: bonus.kind,
           chanceBonus: bonus.chanceBonus,
-          iskrokaminDiscount: bonus.iskrokaminDiscount
+          iskrokaminDiscountPercent: bonus.iskrokaminDiscountPercent
         }]
       : [];
   }).sort((left, right) =>
     right.chanceBonus - left.chanceBonus ||
-    right.iskrokaminDiscount - left.iskrokaminDiscount ||
+    right.iskrokaminDiscountPercent - left.iskrokaminDiscountPercent ||
     left.name.localeCompare(right.name, "uk")
   );
 }
@@ -387,6 +398,7 @@ function presentItem(
   equipped: boolean
 ): ItemUpgradePresentedItem {
   const level = getItemUpgradeLevelFromItemId(itemId);
+  const set = getMantokSetForItem(itemId);
 
   return {
     itemId,
@@ -396,7 +408,11 @@ function presentItem(
     enhancementLevel: level,
     equipped,
     targetLevel: level >= 5 ? null : level + 1,
-    primaryStat: getItemUpgradePrimaryStat(content)
+    primaryStat: getItemUpgradePrimaryStat(content),
+    rarity: content.rarity,
+    setId: set?.id ?? null,
+    setName: set?.name ?? null,
+    isSetPiece: Boolean(set)
   };
 }
 

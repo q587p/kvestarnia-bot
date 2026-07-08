@@ -47,6 +47,11 @@ describe("latest events presenter", () => {
             subjectName: "Пляшка Пінного Міражу",
             payload: { rarity: "rare" }
           }),
+          makeEvent("item.rare_received", "2026-07-01T19:30:00.000Z", {
+            actorDisplayName: "Майстриня",
+            subjectName: "Ложка, яку не кладуть у шухляду",
+            payload: { rarity: "legendary" }
+          }),
           makeEvent("combat.underdog_won", "2026-07-01T19:00:00.000Z", {
             actorDisplayName: "Пандочка",
             subjectName: "Огрище",
@@ -68,6 +73,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
     expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");
     expect(text).toContain("Мудрий: рідкісна манатка — «Пляшка Пінного Міражу».");
+    expect(text).toContain("Майстриня: легендарна манатка — «Ложка, яку не кладуть у шухляду».");
     expect(text).toContain("Пандочка: перемога. Монстр — «Огрище», перевага рівнів: +6.");
   });
 

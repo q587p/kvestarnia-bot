@@ -12,7 +12,7 @@ import {
 } from "../../content/lootExpansionV1";
 import type { RandomSource } from "../../shared/random";
 
-export type LootRarity = "common" | "uncommon" | "rare" | "epic";
+export type LootRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export interface LootCandidate {
   item: ItemContent;
@@ -55,7 +55,8 @@ export const LOOT_RARITY_WEIGHTS: Record<LootRarity, number> = {
   common: 0.7,
   uncommon: 0.22,
   rare: 0.07,
-  epic: 0.01
+  epic: 0.01,
+  legendary: 0
 };
 
 export const BASE_ITEM_DROP_CHANCE = 0.35;
@@ -72,7 +73,7 @@ export const BANDAGE_DROP_QUANTITY_WEIGHTS: ReadonlyArray<{ quantity: number; we
 export const ISKROKAMIN_REPLACEMENT_BASE_CHANCE = 0.04;
 export const ISKROKAMIN_REPLACEMENT_MAX_CHANCE = 0.06;
 
-const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic"];
+const rarityOrder: LootRarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
 export function rollMonsterLoot(input: LootRollInput): LootRollResult {
   const candidates = [

@@ -18,6 +18,8 @@ describe("Mantok Chest domain", () => {
   it("scores items from gold value and rarity rank", () => {
     expect(calculateMantokChestItemScore(item({ goldValue: 10, rarity: "common" }))).toBe(35);
     expect(calculateMantokChestItemScore(item({ goldValue: 10, rarity: "rare" }))).toBe(85);
+    expect(calculateMantokChestItemScore(item({ goldValue: 10, rarity: "epic" }))).toBe(110);
+    expect(calculateMantokChestItemScore(item({ goldValue: 10, rarity: "legendary" }))).toBe(135);
   });
 
   it("excludes priceless, protected, equipped, missing, and empty stacks", () => {

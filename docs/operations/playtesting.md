@@ -74,7 +74,7 @@ Manual Telegram QA status for the implementation pass: not run.
 Manual Telegram QA status for the implementation pass: not run.
 
 1. Open `/equipment`, `/gear` or `/equip`; verify tuned generated weapon, chest, accessory and tool manatky still show their canonical slots and visible effects.
-2. Open `🎒 Манатки`, then each equipment slot filter. Compare several common/uncommon/rare/epic items in the same slot and verify the names, rarity, values and effects feel coherent rather than obviously inverted.
+2. Open `🎒 Манатки`, then each equipment slot filter. Compare several common/uncommon/rare/epic items in the same slot and, when test data exists, a legendary item; verify the names, rarity, values and effects feel coherent rather than obviously inverted.
 3. Open a generated `+1` or higher Loot Expansion item if local data can seed one; verify the item detail shows a visible improvement over the simpler version in the same family.
 4. Equip a tuned item into an occupied slot and verify the result card still says the previous manatka stayed in the bag.
 5. On a warrior, equip two different ordinary weapons into `Основна рука` and `Друга рука`; on a non-warrior, verify ordinary weapons do not appear as second-hand options unless the manatka is explicitly offhand-capable.
@@ -132,7 +132,7 @@ Manual Telegram QA status for the implementation pass: not run.
 3. Create a new disposable character; reopen the feed and verify one public new-adventurer row appears and duplicate onboarding replays do not add another row.
 4. Trigger or inspect a configured level milestone; verify one deduped level row appears and ordinary non-milestone rewards do not create noise.
 5. Finish one Big Barrel Brother victory; verify exactly one public victory row appears for the terminal boss session and losses/attempt XP create no row.
-6. Grant or win a rare/epic manatka if convenient; verify it appears, while common manatky do not, and only epic manatky appear under `⭐ Важливе`.
+6. Grant or win a rare/epic/legendary manatka if convenient; verify it appears, while common manatky do not, and only epic/legendary manatky appear under `⭐ Важливе`.
 7. Win an underdog fight where the monster is at least 5 levels above the character; verify a row appears, while ordinary wins and losses do not.
 8. Try every feed filter and pagination button; verify old refresh/stale callbacks answer safely and callback payloads do not leak ids.
 9. Use long or HTML-like character/item names in a disposable path if convenient; verify feed rows escape and truncate names and the message stays mobile-sized.

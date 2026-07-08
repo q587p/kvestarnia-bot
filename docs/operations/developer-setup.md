@@ -279,7 +279,7 @@ npm run maintenance:backfill-activity-events -- --apply
 npm run maintenance:poll-activity-events -- --limit=13
 ```
 
-Скрипт відновлює лише події, які можна підтягнути без вигадування історії: створення персонажів, рівні з `character_achievements`, rare/epic манатки з поточного інвентаря та Big Barrel Brother victory sessions. `combat.underdog_won` не backfill-иться, бо архівні combat rows не гарантують точний рівень персонажа на момент бою.
+Скрипт відновлює лише події, які можна підтягнути без вигадування історії: створення персонажів, рівні з `character_achievements`, rare/epic/legendary манатки з поточного інвентаря та Big Barrel Brother victory sessions. `combat.underdog_won` не backfill-иться, бо архівні combat rows не гарантують точний рівень персонажа на момент бою.
 
 `npm run maintenance:poll-activity-events` нічого не змінює в БД: він читає public `ActivityEvent` rows через той самий bounded feed query, який використовує runtime. Це швидка перевірка, чи хроніки вже мають нові рядки, або чи backfill/apply справді записав очікувані події.
 

@@ -137,6 +137,9 @@ function renderEventRow(event: ActivityEventRecord): string {
     }
     case "item.rare_received": {
       const rarity = readPayloadString(event.payload, "rarity");
+      if (rarity === "legendary") {
+        return `💎 ${time} | ${actor}: легендарна манатка — «${subject}». Корчмар дістає підставку, серветку й окрему підставку для серветки.`;
+      }
       if (rarity === "epic") {
         return `💎 ${time} | ${actor}: епічна манатка — «${subject}». Корчмар просить не ставити її на стіл без підставки.`;
       }

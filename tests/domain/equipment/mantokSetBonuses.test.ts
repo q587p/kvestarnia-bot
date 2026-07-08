@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getActiveMantokSets,
+  getMantokSetForItem,
   summarizeMantokSetBonusEffects
 } from "../../../src/domain/equipment/mantokSetBonuses";
 
@@ -38,6 +39,15 @@ describe("mantok set bonuses", () => {
       "item.set.red-line.margin-dagger"
     ]);
     expect(summary?.activeBonuses[0]?.pieces).toBe(2);
+  });
+
+  it("resolves upgraded set-piece ids to the same Mantok set family", () => {
+    expect(getMantokSetForItem("item.set.barrel-brother.helm")?.id).toBe(
+      "mantok-set.barrel-brother-bulwark"
+    );
+    expect(getMantokSetForItem("item.set.barrel-brother.helm.plus-5")?.id).toBe(
+      "mantok-set.barrel-brother-bulwark"
+    );
   });
 
   it("activates partial and full armor thresholds", () => {

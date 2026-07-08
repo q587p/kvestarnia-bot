@@ -67,11 +67,13 @@ export function presentItemUpgradePreview(result: ItemUpgradePreviewResult): str
   const donorLine = result.donor
     ? `Донор: <b>${escapeHtml(result.donor.name)}</b> — після спроби зникне зі стосу.`
     : "Донор: <i>не вибрано</i>.";
+  const traitLines = presentItemUpgradeTraitLines(result.item);
 
   return [
     `✨ <b>${escapeHtml(result.item.name)}</b> → <b>+${result.item.targetLevel}</b>`,
     "",
     methodLine,
+    ...traitLines,
     `Ціна: ${presentCosts(result.costs)}`,
     donorLine,
     "",
@@ -201,6 +203,30 @@ function presentCosts(costs: { gold: number; iskrokamin: number; mana: number })
     `${costs.iskrokamin} Іскрокамінь`,
     costs.mana > 0 ? `${costs.mana} мани` : null
   ].filter((part): part is string => Boolean(part)).join(" · ");
+}
+
+function presentItemUpgradeTraitLines(
+  item: Extract<ItemUpgradePreviewResult, { state: "ready" }>["item"]
+): string[] {
+  if (item.isSetPiece && item.rarity === "legendary") {
+    return [
+      `Тип: <b>сетова легендарна манатка</b>${item.setName ? ` — ${escapeHtml(item.setName)}` : ""}. Маг стабілізує обережніше: у цієї речі більше думок.`
+    ];
+  }
+
+  if (item.isSetPiece) {
+    return [
+      `Тип: <b>Сетова манатка</b>${item.setName ? ` — ${escapeHtml(item.setName)}` : ""}. Маг стабілізує обережніше: у комплектних речей більше думок.`
+    ];
+  }
+
+  if (item.rarity === "legendary") {
+    return [
+      "Рідкість: <b>легендарна</b>. Маг стабілізує обережніше: у такої манатки більше думок."
+    ];
+  }
+
+  return [];
 }
 
 function presentItemUpgradeGate(result: Extract<

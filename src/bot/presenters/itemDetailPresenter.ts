@@ -166,7 +166,8 @@ export function presentRarity(rarity: ItemContent["rarity"]): string {
     common: "звичайна",
     uncommon: "незвична",
     rare: "рідкісна",
-    epic: "епічна"
+    epic: "епічна",
+    legendary: "легендарна"
   };
 
   return labels[rarity];

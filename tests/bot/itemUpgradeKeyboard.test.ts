@@ -45,10 +45,14 @@ function readyPreview(overrides: Partial<Extract<ItemUpgradePreviewResult, { sta
       enhancementLevel: 0,
       equipped: false,
       targetLevel: 1,
-      primaryStat: "weaponDamage"
+      primaryStat: "weaponDamage",
+      rarity: "common",
+      setId: null,
+      setName: null,
+      isSetPiece: false
     },
     method: "npc",
-    costs: { gold: 50, iskrokamin: 1, mana: 0 },
+    costs: { gold: 50, iskrokamin: 2, mana: 0 },
     chance: {
       baseChance: 95,
       luckBonus: 0,

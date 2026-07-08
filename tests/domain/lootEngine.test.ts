@@ -13,6 +13,7 @@ import {
   getLootExpansionCandidates,
   getLootCandidates,
   getLuckUpgradeChance,
+  LOOT_RARITY_WEIGHTS,
   rollBandageDropQuantity,
   rollLootExpansionItem,
   rollLootRarity,
@@ -42,6 +43,18 @@ describe("loot engine", () => {
       { item: items[2], rarity: "rare" },
       { item: items[3], rarity: "epic" }
     ]);
+  });
+
+  it("accepts legendary candidates while keeping base legendary loot disabled", () => {
+    const legendary = item("item.legendary-ladle", "legendary");
+
+    expect(getLootCandidates({
+      monsterId: "monster.legendary-test",
+      monsterLoot: { "monster.legendary-test": [legendary.id] },
+      items: [legendary]
+    })).toEqual([{ item: legendary, rarity: "legendary" }]);
+    expect(LOOT_RARITY_WEIGHTS.legendary).toBe(0);
+    expect(rollLootRarity(new FakeRandomSource([0.999, 0]), 999)).toBe("epic");
   });
 
   it("preserves explicit monster loot weights on candidates", () => {

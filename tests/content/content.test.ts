@@ -255,6 +255,23 @@ describe("content tables", () => {
     ).toThrow();
   });
 
+  it("accepts legendary item rarity without requiring broad legendary drops", () => {
+    expect(() =>
+      itemSchema.parse({
+        id: "item.test-legendary-proof",
+        name: "Тестова легендарна манатка",
+        description: "Стоїть у тесті й не падає з монстрів.",
+        rarity: "legendary",
+        slot: "weapon",
+        equipmentSlot: "weapon",
+        goldValue: 587,
+        effect: {
+          weaponDamage: 1
+        }
+      })
+    ).not.toThrow();
+  });
+
   it("rejects equipment slot metadata on unsupported item slots", () => {
     expect(() =>
       itemSchema.parse({

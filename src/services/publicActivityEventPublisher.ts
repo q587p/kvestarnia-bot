@@ -9,8 +9,8 @@ export const LATEST_EVENTS_PUBLIC_MIN_LEVEL = 2;
 export const LATEST_EVENTS_MILESTONE_LEVELS = [5, 8, 10, 13] as const;
 export const LATEST_EVENTS_UNDERDOG_LEVEL_DELTA = 5;
 export const LATEST_EVENTS_IMPORTANT_UNDERDOG_LEVEL_DELTA = 8;
-export const LATEST_EVENTS_PUBLIC_ITEM_RARITIES = ["rare", "epic"] as const;
-export const LATEST_EVENTS_LEGENDARY_ITEM_RARITIES = ["epic"] as const;
+export const LATEST_EVENTS_PUBLIC_ITEM_RARITIES = ["rare", "epic", "legendary"] as const;
+export const LATEST_EVENTS_LEGENDARY_ITEM_RARITIES = ["epic", "legendary"] as const;
 
 type ActivityEventRecorder = Pick<ActivityEventService, "recordSafely">;
 
@@ -64,7 +64,7 @@ export class PublicActivityEventPublisher {
 
     for (const itemId of new Set(input.itemIds ?? [])) {
       const item = items.find((candidate) => candidate.id === itemId);
-      if (!item || (item.rarity !== "rare" && item.rarity !== "epic")) {
+      if (!item || !LATEST_EVENTS_PUBLIC_ITEM_RARITIES.includes(item.rarity as (typeof LATEST_EVENTS_PUBLIC_ITEM_RARITIES)[number])) {
         continue;
       }
       const rarity = item.rarity;
@@ -72,7 +72,9 @@ export class PublicActivityEventPublisher {
       await this.recordSafely({
         eventType: "item.rare_received",
         category: "manatky",
-        severity: rarity === "epic" ? "legendary" : "normal",
+        severity: LATEST_EVENTS_LEGENDARY_ITEM_RARITIES.includes(rarity as (typeof LATEST_EVENTS_LEGENDARY_ITEM_RARITIES)[number])
+          ? "legendary"
+          : "normal",
         actorCharacterId: input.characterId,
         actorDisplayName: input.actorDisplayName,
         subjectKind: "item",

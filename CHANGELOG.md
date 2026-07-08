@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the runtime attunement completion scheduler and local `/dev_finish_attunements` QA helper behind the existing non-production dev-grant gate.
 - Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
 - Added a rewardless first-Iskrokamin achievement now that `Іскрокамінь` can appear from fight rewards.
+- Added `legendary` item-rarity support with Ukrainian item-card labels and sorting above `epic`, while keeping broad legendary loot disabled.
 - Added `📜 Хроніки Квестарні` manatky rows for successful upgrades, with `+5` upgrades marked as important.
 - Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
 - Added very rare generated Loot Expansion `+N` drop weighting, keeping plus variants possible without double-upgrading generated ids or turning plus drops into the normal loot path.
@@ -34,6 +35,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Ordinary fight reward bandage slots can now rarely be replaced by bounded `Іскрокамінь` grants instead of granting both from the same slot.
 - `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
+- Charkokovalnia Iskrokamin costs now use the rounded log-spaced ladder `2 / 5 / 13 / 34 / 89`; set pieces cost `x1.25`, legendary items cost `x1.5`, legendary set pieces cost `x2`, and donor discounts are percentage-based with a 50% floor.
+- Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.

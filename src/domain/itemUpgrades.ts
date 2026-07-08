@@ -21,9 +21,9 @@ export interface ItemUpgradeLevelConfig {
 }
 
 export interface ItemUpgradeDonorBonus {
-  kind: "same-template" | "same-slot";
+  kind: "same-template" | "same-set" | "same-slot";
   chanceBonus: number;
-  iskrokaminDiscount: number;
+  iskrokaminDiscountPercent: number;
 }
 
 export interface ItemUpgradeChanceBreakdown {
@@ -56,12 +56,21 @@ export function getItemUpgradeUnlockRewardXp(character: { level: number; remortC
   return Math.max(13, Math.min(93, 18 + level * 4 + remortCount * 7));
 }
 
+// Rounded log-spaced Iskrokamin ladder; this is intentionally not a linear cost curve.
+export const ITEM_UPGRADE_ISKROKAMIN_LADDER: Record<number, number> = {
+  1: 2,
+  2: 5,
+  3: 13,
+  4: 34,
+  5: 89
+};
+
 export const ITEM_UPGRADE_LEVELS: Record<number, ItemUpgradeLevelConfig> = {
-  1: { gold: 50, iskrokamin: 1, mana: 10, npcChance: 95, selfChance: 90 },
-  2: { gold: 120, iskrokamin: 2, mana: 18, npcChance: 82, selfChance: 76 },
-  3: { gold: 260, iskrokamin: 4, mana: 30, npcChance: 66, selfChance: 60 },
-  4: { gold: 500, iskrokamin: 10, mana: 45, npcChance: 48, selfChance: 42 },
-  5: { gold: 900, iskrokamin: 17, mana: 65, npcChance: 32, selfChance: 28 }
+  1: { gold: 50, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[1]!, mana: 10, npcChance: 95, selfChance: 90 },
+  2: { gold: 120, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[2]!, mana: 18, npcChance: 82, selfChance: 76 },
+  3: { gold: 260, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[3]!, mana: 30, npcChance: 66, selfChance: 60 },
+  4: { gold: 500, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[4]!, mana: 45, npcChance: 48, selfChance: 42 },
+  5: { gold: 900, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[5]!, mana: 65, npcChance: 32, selfChance: 28 }
 };
 
 export function normalizeItemUpgradeLevel(value: number | undefined | null): number {
@@ -114,7 +123,7 @@ export function getItemDisplayNameWithUpgrade(item: Pick<ItemContent, "name">, l
   return safeLevel > 0 ? `${baseName} +${safeLevel}` : baseName;
 }
 
-const rarityOrder: ItemContent["rarity"][] = ["common", "uncommon", "rare", "epic"];
+const rarityOrder: ItemContent["rarity"][] = ["common", "uncommon", "rare", "epic", "legendary"];
 
 export function getItemUpgradeRarity(
   baseRarity: ItemContent["rarity"],
@@ -208,16 +217,53 @@ export function getItemUpgradeLevelConfig(targetLevel: number): ItemUpgradeLevel
 export function calculateItemUpgradeCosts(input: {
   method: ItemUpgradeMethod;
   targetLevel: number;
+  itemRarity?: ItemContent["rarity"] | null;
+  isSetPiece?: boolean | null;
   donor?: ItemUpgradeDonorBonus | null;
 }): { gold: number; iskrokamin: number; mana: number } {
   const config = getItemUpgradeLevelConfig(input.targetLevel);
-  const discount = Math.max(0, input.donor?.iskrokaminDiscount ?? 0);
+  const modifiedIskrokamin = calculateModifiedItemUpgradeIskrokaminCost({
+    baseCost: config.iskrokamin,
+    itemRarity: input.itemRarity ?? "common",
+    isSetPiece: input.isSetPiece ?? false
+  });
 
   return {
     gold: input.method === "npc" ? config.gold : 0,
-    iskrokamin: Math.max(1, config.iskrokamin - discount),
+    iskrokamin: applyItemUpgradeDonorDiscount(modifiedIskrokamin, input.donor),
     mana: input.method === "self" ? config.mana : 0
   };
+}
+
+export function calculateModifiedItemUpgradeIskrokaminCost(input: {
+  baseCost: number;
+  itemRarity: ItemContent["rarity"];
+  isSetPiece: boolean;
+}): number {
+  const baseCost = Math.max(1, Math.floor(input.baseCost));
+  const isLegendary = input.itemRarity === "legendary";
+  const multiplier = isLegendary && input.isSetPiece
+    ? 2
+    : isLegendary
+      ? 1.5
+      : input.isSetPiece
+        ? 1.25
+        : 1;
+
+  return Math.max(1, Math.ceil(baseCost * multiplier));
+}
+
+export function applyItemUpgradeDonorDiscount(
+  iskrokaminCost: number,
+  donor?: ItemUpgradeDonorBonus | null
+): number {
+  const cost = Math.max(1, Math.floor(iskrokaminCost));
+  const discountPercent = Math.max(0, Math.floor(donor?.iskrokaminDiscountPercent ?? 0));
+  const discount = Math.floor(cost * discountPercent / 100);
+  const discounted = cost - discount;
+  const floor = Math.ceil(cost * 0.5);
+
+  return Math.max(floor, discounted);
 }
 
 export function calculateItemUpgradeChance(input: {
@@ -248,8 +294,10 @@ export function calculateItemUpgradeChance(input: {
 export function getDonorBonus(input: {
   baseItem: ItemContent;
   baseItemId: string;
+  baseSetId?: string | null;
   donorItem: ItemContent;
   donorItemId: string;
+  donorSetId?: string | null;
 }): ItemUpgradeDonorBonus | null {
   const baseLevel = getItemUpgradeLevelFromItemId(input.baseItemId);
   const donorLevel = getItemUpgradeLevelFromItemId(input.donorItemId);
@@ -262,7 +310,15 @@ export function getDonorBonus(input: {
     return {
       kind: "same-template",
       chanceBonus: 12,
-      iskrokaminDiscount: baseLevel >= 3 ? 2 : 1
+      iskrokaminDiscountPercent: 20
+    };
+  }
+
+  if (input.baseSetId && input.donorSetId && input.baseSetId === input.donorSetId) {
+    return {
+      kind: "same-set",
+      chanceBonus: 9,
+      iskrokaminDiscountPercent: 13
     };
   }
 
@@ -270,7 +326,7 @@ export function getDonorBonus(input: {
     return {
       kind: "same-slot",
       chanceBonus: 7,
-      iskrokaminDiscount: 1
+      iskrokaminDiscountPercent: 7
     };
   }
 

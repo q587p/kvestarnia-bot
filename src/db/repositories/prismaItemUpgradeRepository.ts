@@ -1,6 +1,7 @@
 import { Prisma, type Character, type DailyAction, type PrismaClient } from "@prisma/client";
 import { items } from "../../content";
 import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
+import { getMantokSetForItem } from "../../domain/equipment/mantokSetBonuses";
 import {
   canAccessItemUpgrades,
   calculateItemUpgradeChance,
@@ -145,12 +146,16 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
           return { state: "invalid-donor" };
         }
         const donorContent = input.donorItemId ? findItem(input.donorItemId) : null;
+        const baseSet = getMantokSetForItem(input.itemId);
+        const donorSet = input.donorItemId ? getMantokSetForItem(input.donorItemId) : null;
         const donorBonus = donor && donorContent
           ? getDonorBonus({
               baseItem: itemContent,
               baseItemId: input.itemId,
+              baseSetId: baseSet?.id ?? null,
               donorItem: donorContent,
-              donorItemId: input.donorItemId!
+              donorItemId: input.donorItemId!,
+              donorSetId: donorSet?.id ?? null
             })
           : null;
         if (input.donorItemId && !donorBonus) {
@@ -164,7 +169,13 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
           pityFailures: pityFailuresBefore,
           donor: donorBonus
         });
-        const spent = calculateItemUpgradeCosts({ method: input.method, targetLevel, donor: donorBonus });
+        const spent = calculateItemUpgradeCosts({
+          method: input.method,
+          targetLevel,
+          itemRarity: itemContent.rarity,
+          isSetPiece: Boolean(baseSet),
+          donor: donorBonus
+        });
         const iskrokaminRow = await tx.characterItem.findUnique({
           where: { characterId_itemId: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID } }
         });
@@ -522,12 +533,16 @@ function isValidDonor(
 
   const baseContent = findItem(base.itemId);
   const donorContent = findItem(donor.itemId);
+  const baseSet = getMantokSetForItem(baseItemId);
+  const donorSet = getMantokSetForItem(donorItemId);
 
   return Boolean(baseContent && donorContent && getDonorBonus({
     baseItem: baseContent,
     baseItemId,
+    baseSetId: baseSet?.id ?? null,
     donorItem: donorContent,
-    donorItemId
+    donorItemId,
+    donorSetId: donorSet?.id ?? null
   }));
 }
 

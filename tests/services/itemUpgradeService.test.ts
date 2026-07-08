@@ -32,7 +32,7 @@ describe("ItemUpgradeService", () => {
       pityFailuresBefore: 0,
       pityFailuresAfter: 0,
       pityGuaranteed: false,
-      spent: { gold: 900, iskrokamin: 17, mana: 0 }
+      spent: { gold: 900, iskrokamin: 89, mana: 0 }
     });
     const publisher = {
       recordItemUpgradeSucceededSafely:
@@ -85,7 +85,7 @@ describe("ItemUpgradeService", () => {
       pityFailuresBefore: 0,
       pityFailuresAfter: 1,
       pityGuaranteed: false,
-      spent: { gold: 900, iskrokamin: 17, mana: 0 }
+      spent: { gold: 900, iskrokamin: 89, mana: 0 }
     });
     const publisher = {
       recordItemUpgradeSucceededSafely:
@@ -130,7 +130,7 @@ describe("ItemUpgradeService", () => {
         pityFailuresBefore: 0,
         pityFailuresAfter: 0,
         pityGuaranteed: false,
-        spent: { gold: 50, iskrokamin: 1, mana: 0 }
+        spent: { gold: 50, iskrokamin: 2, mana: 0 }
       },
       {
         state: "attempted",
@@ -150,7 +150,7 @@ describe("ItemUpgradeService", () => {
         pityFailuresBefore: 0,
         pityFailuresAfter: 0,
         pityGuaranteed: false,
-        spent: { gold: 50, iskrokamin: 1, mana: 0 }
+        spent: { gold: 50, iskrokamin: 2, mana: 0 }
       }
     ]);
     const publisher = {
@@ -185,13 +185,63 @@ describe("ItemUpgradeService", () => {
     ]);
     expect(new Set(sourceIds)).toHaveProperty("size", 2);
   });
+
+  it("orders same-template donors before same-set and same-slot donors in previews", async () => {
+    const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
+      character,
+      unlocked: true,
+      pities: [],
+      items: [
+        {
+          id: "row-helm",
+          characterId: character.id,
+          itemId: "item.set.barrel-brother.helm",
+          quantity: 2,
+          equipped: false
+        },
+        {
+          id: "row-cuirass",
+          characterId: character.id,
+          itemId: "item.set.barrel-brother.cuirass",
+          quantity: 1,
+          equipped: false
+        },
+        {
+          id: "row-pot-helmet",
+          characterId: character.id,
+          itemId: "item.pot-helmet-of-early-access",
+          quantity: 1,
+          equipped: false
+        }
+      ]
+    });
+    const service = new ItemUpgradeService(repository, () => now, new FakeRandomSource([0]));
+
+    const result = await service.previewForTelegramUser(42n, "item.set.barrel-brother.helm");
+
+    expect(result).toMatchObject({
+      state: "ready",
+      item: {
+        isSetPiece: true,
+        setId: "mantok-set.barrel-brother-bulwark"
+      }
+    });
+    expect(result.state === "ready" ? result.donorOptions.map((donor) => donor.kind) : []).toEqual([
+      "same-template",
+      "same-set",
+      "same-slot"
+    ]);
+  });
 });
 
 class FakeItemUpgradeRepository implements ItemUpgradeRepository {
-  constructor(private readonly result: ItemUpgradeAttemptResult) {}
+  constructor(
+    private readonly result: ItemUpgradeAttemptResult,
+    private readonly snapshot: ItemUpgradeSnapshot | null = null
+  ) {}
 
   getSnapshotForTelegramUser(): Promise<ItemUpgradeSnapshot | null> {
-    return Promise.resolve(null);
+    return Promise.resolve(this.snapshot);
   }
 
   attemptForTelegramUser(): Promise<ItemUpgradeAttemptResult> {

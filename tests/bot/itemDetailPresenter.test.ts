@@ -58,6 +58,26 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("бонуси поки лежать у бухгалтерії");
   });
 
+  it("presents legendary rarity on item detail pages", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        content: {
+          id: "item.test-legendary-spoon",
+          name: "Ложка, яку не кладуть у шухляду",
+          description: "Навіть шухляда визнала статус.",
+          rarity: "legendary",
+          slot: "weapon",
+          goldValue: 587,
+          effect: {
+            weaponDamage: 1
+          }
+        }
+      })
+    );
+
+    expect(text).toContain("Рідкість: <b>легендарна</b>");
+  });
+
   it("shows slot-specific wording for armor and accessories", () => {
     const armor = presentOwnedItemDetail(
       itemSummary({
