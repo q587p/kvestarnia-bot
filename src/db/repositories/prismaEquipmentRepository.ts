@@ -164,13 +164,21 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
   }
 
   async unequipForCharacter(characterId: string, slot: EquipmentSlot): Promise<boolean> {
-    const deleted = await this.prisma.characterEquipment.deleteMany({
-      where: {
-        characterId,
-        slot: {
-          in: [...getEquipmentSlotStorageKeys(slot)]
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const deletedRows = await tx.characterEquipment.deleteMany({
+        where: {
+          characterId,
+          slot: {
+            in: [...getEquipmentSlotStorageKeys(slot)]
+          }
         }
+      });
+
+      if (deletedRows.count > 0) {
+        await cancelActiveAttunementsForSlot(tx, characterId, slot, new Date());
       }
+
+      return deletedRows;
     });
 
     return deleted.count > 0;
@@ -180,59 +188,77 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     now: Date,
     options: { limit?: number } = {}
   ): Promise<EquipmentAttunementNotificationRecord[]> {
-    const rows = await this.prisma.dailyAction.findMany({
-      where: {
-        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
-      },
-      include: {
-        character: {
-          include: {
-            user: true,
-            equipment: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: "asc"
-      },
-      take: Math.max(1, options.limit ?? 50) * 3
-    });
+    const limit = Math.max(1, options.limit ?? 50);
+    const batchSize = Math.max(limit * 3, 50);
     const due: EquipmentAttunementNotificationRecord[] = [];
+    let cursor: string | undefined;
 
-    for (const row of rows) {
-      const payload = parseEquipmentAttunementPayload(row.resultJson);
-      if (
-        !payload ||
-        payload.status !== "tuning" ||
-        payload.notifiedAt ||
-        !isEquipmentAttunementReady(payload, now)
-      ) {
-        continue;
-      }
-
-      const stillEquipped = row.character.equipment.some((equipment) =>
-        equipment.slot === payload.slot &&
-        equipment.itemId === payload.itemId &&
-        equipment.updatedAt.toISOString() === payload.equipmentUpdatedAt
-      );
-
-      if (!stillEquipped) {
-        continue;
-      }
-
-      due.push({
-        actionId: row.id,
-        characterId: row.characterId,
-        telegramUserId: row.character.user.telegramUserId,
-        itemId: payload.itemId,
-        itemName: payload.itemName,
-        strength: payload.strength,
-        readyAt: new Date(payload.readyAt)
+    while (due.length < limit) {
+      const rows = await this.prisma.dailyAction.findMany({
+        where: {
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+        },
+        include: {
+          character: {
+            include: {
+              user: true,
+              equipment: true
+            }
+          }
+        },
+        orderBy: [
+          { createdAt: "asc" },
+          { id: "asc" }
+        ],
+        take: batchSize,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
       });
 
-      if (due.length >= (options.limit ?? 50)) {
+      if (rows.length === 0) {
         break;
       }
+
+      for (const row of rows) {
+        const payload = parseEquipmentAttunementPayload(row.resultJson);
+        if (
+          !payload ||
+          payload.status !== "tuning" ||
+          payload.notifiedAt ||
+          !isEquipmentAttunementReady(payload, now)
+        ) {
+          continue;
+        }
+
+        const stillEquipped = row.character.equipment.some((equipment) =>
+          equipment.slot === payload.slot &&
+          equipment.itemId === payload.itemId &&
+          equipment.updatedAt.toISOString() === payload.equipmentUpdatedAt
+        );
+
+        if (!stillEquipped) {
+          continue;
+        }
+
+        due.push({
+          actionId: row.id,
+          characterId: row.characterId,
+          telegramUserId: row.character.user.telegramUserId,
+          itemId: payload.itemId,
+          itemName: payload.itemName,
+          strength: payload.strength,
+          readyAt: new Date(payload.readyAt)
+        });
+
+        if (due.length >= limit) {
+          break;
+        }
+      }
+
+      if (rows.length < batchSize) {
+        break;
+      }
+
+      cursor = rows.at(-1)?.id;
     }
 
     return due;

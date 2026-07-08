@@ -38,6 +38,10 @@ type TxClient = Prisma.TransactionClient;
 const PITY_LOCAL_DATE = "persistent";
 const PITY_KEY_PREFIX = "item-upgrade.pity:";
 const PITY_KIND = "item-upgrade-pity";
+const ATTEMPT_CLAIM_KEY_PREFIX = "item-upgrade.attempt:";
+const ATTEMPT_CLAIM_KIND = "item-upgrade-attempt-claim";
+
+class StaleSnapshotRollbackError extends Error {}
 
 export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -80,170 +84,187 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
     telegramUserId: bigint,
     input: ItemUpgradeAttemptInput
   ): Promise<ItemUpgradeAttemptResult> {
-    return this.prisma.$transaction(async (tx) => {
-      const character = await findCharacter(tx, telegramUserId);
-      if (!character) {
-        return { state: "no-character" };
-      }
-
-      const gate = await getUpgradeGateResult(tx, character);
-      if (gate) {
-        return gate;
-      }
-
-      const [base, equipment] = await Promise.all([
-        tx.characterItem.findUnique({
-          where: { characterId_itemId: { characterId: character.id, itemId: input.itemId } }
-        }),
-        tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } })
-      ]);
-      const equipped = new Set(equipment.map((row) => row.itemId));
-      if (!base || base.quantity <= 0) {
-        return { state: "not-owned" };
-      }
-
-      const itemContent = findItem(input.itemId);
-      const fromLevel = getItemUpgradeLevelFromItemId(input.itemId);
-      if (!itemContent || !isItemUpgradeable(itemContent, fromLevel)) {
-        return { state: "not-upgradeable" };
-      }
-
-      if (fromLevel >= MAX_ITEM_UPGRADE_LEVEL) {
-        return { state: "cap-reached", item: toInventoryRow(base, equipped) };
-      }
-
-      if (input.expectedFromLevel !== fromLevel || input.expectedQuantity !== base.quantity) {
-        return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
-      }
-
-      const targetLevel = fromLevel + 1;
-      const nextItemId = getNextItemUpgradeItemId(input.itemId);
-      if (!nextItemId || !findItem(nextItemId)) {
-        return { state: "not-upgradeable" };
-      }
-
-      if (input.method === "self" && !isMageClassForItemSelfUpgrade(character.classId)) {
-        return { state: "class-not-allowed" };
-      }
-
-      const pityFailuresBefore = await getPityFailureCount(tx, character.id, input.itemId, targetLevel);
-      if (input.expectedPityFailures !== pityFailuresBefore) {
-        return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
-      }
-
-      const donor = input.donorItemId
-        ? await tx.characterItem.findUnique({
-            where: { characterId_itemId: { characterId: character.id, itemId: input.donorItemId } }
-          })
-        : null;
-      if (input.donorItemId && (!donor || donor.quantity <= 0 || !isValidDonor(base, donor, input.itemId, input.donorItemId))) {
-        return { state: "invalid-donor" };
-      }
-      const donorContent = input.donorItemId ? findItem(input.donorItemId) : null;
-      const donorBonus = donor && donorContent
-        ? getDonorBonus({
-            baseItem: itemContent,
-            baseItemId: input.itemId,
-            donorItem: donorContent,
-            donorItemId: input.donorItemId!
-          })
-        : null;
-      if (input.donorItemId && !donorBonus) {
-        return { state: "invalid-donor" };
-      }
-
-      const chance = calculateItemUpgradeChance({
-        method: input.method,
-        targetLevel,
-        luck: getLuckFromStats(parseStats(character.statsJson)),
-        pityFailures: pityFailuresBefore,
-        donor: donorBonus
-      });
-      const spent = calculateItemUpgradeCosts({ method: input.method, targetLevel, donor: donorBonus });
-      const iskrokaminRow = await tx.characterItem.findUnique({
-        where: { characterId_itemId: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID } }
-      });
-      const iskrokaminQuantity = iskrokaminRow?.quantity ?? 0;
-
-      if (character.gold < spent.gold) {
-        return { state: "not-enough-gold", required: spent.gold, available: character.gold };
-      }
-      if (character.manaCurrent < spent.mana) {
-        return { state: "not-enough-mana", required: spent.mana, available: character.manaCurrent };
-      }
-      if (iskrokaminQuantity < spent.iskrokamin) {
-        return { state: "not-enough-iskrokamin", required: spent.iskrokamin, available: iskrokaminQuantity };
-      }
-
-      const charged = await tx.character.updateMany({
-        where: { id: character.id, gold: { gte: spent.gold }, manaCurrent: { gte: spent.mana } },
-        data: {
-          gold: { decrement: spent.gold },
-          manaCurrent: { decrement: spent.mana },
-          ...(spent.mana > 0 ? { manaRegenAt: input.now } : {})
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
         }
-      });
-      if (charged.count !== 1) {
-        return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
-      }
 
-      const spentSpark = await tx.characterItem.updateMany({
-        where: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID, quantity: { gte: spent.iskrokamin } },
-        data: { quantity: { decrement: spent.iskrokamin } }
-      });
-      if (spentSpark.count !== 1) {
-        throw new Error("Iskrokamin spend failed after precondition check.");
-      }
+        const gate = await getUpgradeGateResult(tx, character);
+        if (gate) {
+          return gate;
+        }
 
-      let donorConsumed = false;
-      if (donor && input.donorItemId) {
-        const spentDonor = await tx.characterItem.updateMany({
-          where: {
-            characterId: character.id,
-            itemId: input.donorItemId,
-            quantity: { gte: input.donorItemId === input.itemId ? 2 : 1 }
-          },
-          data: { quantity: { decrement: 1 } }
+        const [base, equipment] = await Promise.all([
+          tx.characterItem.findUnique({
+            where: { characterId_itemId: { characterId: character.id, itemId: input.itemId } }
+          }),
+          tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } })
+        ]);
+        const equipped = new Set(equipment.map((row) => row.itemId));
+        if (!base || base.quantity <= 0) {
+          return { state: "not-owned" };
+        }
+
+        const itemContent = findItem(input.itemId);
+        const fromLevel = getItemUpgradeLevelFromItemId(input.itemId);
+        if (!itemContent || !isItemUpgradeable(itemContent, fromLevel)) {
+          return { state: "not-upgradeable" };
+        }
+
+        if (fromLevel >= MAX_ITEM_UPGRADE_LEVEL) {
+          return { state: "cap-reached", item: toInventoryRow(base, equipped) };
+        }
+
+        if (input.expectedFromLevel !== fromLevel || input.expectedQuantity !== base.quantity) {
+          return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
+        }
+
+        const targetLevel = fromLevel + 1;
+        const nextItemId = getNextItemUpgradeItemId(input.itemId);
+        if (!nextItemId || !findItem(nextItemId)) {
+          return { state: "not-upgradeable" };
+        }
+
+        if (input.method === "self" && !isMageClassForItemSelfUpgrade(character.classId)) {
+          return { state: "class-not-allowed" };
+        }
+
+        const pityFailuresBefore = await getPityFailureCount(tx, character.id, input.itemId, targetLevel);
+        if (input.expectedPityFailures !== pityFailuresBefore) {
+          return { state: "stale-snapshot", item: toInventoryRow(base, equipped) };
+        }
+
+        const donor = input.donorItemId
+          ? await tx.characterItem.findUnique({
+              where: { characterId_itemId: { characterId: character.id, itemId: input.donorItemId } }
+            })
+          : null;
+        if (input.donorItemId && (!donor || donor.quantity <= 0 || !isValidDonor(base, donor, input.itemId, input.donorItemId))) {
+          return { state: "invalid-donor" };
+        }
+        const donorContent = input.donorItemId ? findItem(input.donorItemId) : null;
+        const donorBonus = donor && donorContent
+          ? getDonorBonus({
+              baseItem: itemContent,
+              baseItemId: input.itemId,
+              donorItem: donorContent,
+              donorItemId: input.donorItemId!
+            })
+          : null;
+        if (input.donorItemId && !donorBonus) {
+          return { state: "invalid-donor" };
+        }
+
+        const chance = calculateItemUpgradeChance({
+          method: input.method,
+          targetLevel,
+          luck: getLuckFromStats(parseStats(character.statsJson)),
+          pityFailures: pityFailuresBefore,
+          donor: donorBonus
         });
-        if (spentDonor.count !== 1) {
-          throw new Error("Donor spend failed after precondition check.");
+        const spent = calculateItemUpgradeCosts({ method: input.method, targetLevel, donor: donorBonus });
+        const iskrokaminRow = await tx.characterItem.findUnique({
+          where: { characterId_itemId: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID } }
+        });
+        const iskrokaminQuantity = iskrokaminRow?.quantity ?? 0;
+
+        if (character.gold < spent.gold) {
+          return { state: "not-enough-gold", required: spent.gold, available: character.gold };
         }
-        donorConsumed = true;
+        if (character.manaCurrent < spent.mana) {
+          return { state: "not-enough-mana", required: spent.mana, available: character.manaCurrent };
+        }
+        if (iskrokaminQuantity < spent.iskrokamin) {
+          return { state: "not-enough-iskrokamin", required: spent.iskrokamin, available: iskrokaminQuantity };
+        }
+
+        await createAttemptClaim(tx, character.id, {
+          itemId: input.itemId,
+          fromLevel,
+          targetLevel,
+          expectedQuantity: input.expectedQuantity,
+          expectedPityFailures: input.expectedPityFailures,
+          now: input.now
+        });
+
+        const charged = await tx.character.updateMany({
+          where: { id: character.id, gold: { gte: spent.gold }, manaCurrent: { gte: spent.mana } },
+          data: {
+            gold: { decrement: spent.gold },
+            manaCurrent: { decrement: spent.mana },
+            ...(spent.mana > 0 ? { manaRegenAt: input.now } : {})
+          }
+        });
+        if (charged.count !== 1) {
+          throw new StaleSnapshotRollbackError();
+        }
+
+        const spentSpark = await tx.characterItem.updateMany({
+          where: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID, quantity: { gte: spent.iskrokamin } },
+          data: { quantity: { decrement: spent.iskrokamin } }
+        });
+        if (spentSpark.count !== 1) {
+          throw new StaleSnapshotRollbackError();
+        }
+
+        let donorConsumed = false;
+        if (donor && input.donorItemId) {
+          const spentDonor = await tx.characterItem.updateMany({
+            where: {
+              characterId: character.id,
+              itemId: input.donorItemId,
+              quantity: { gte: input.donorItemId === input.itemId ? 2 : 1 }
+            },
+            data: { quantity: { decrement: 1 } }
+          });
+          if (spentDonor.count !== 1) {
+            throw new StaleSnapshotRollbackError();
+          }
+          donorConsumed = true;
+        }
+
+        const success = chance.guaranteed || input.roll * 100 < chance.finalChance;
+        const updatedItemId = success ? nextItemId : input.itemId;
+        if (success) {
+          await replaceOneItemId(tx, character.id, input.itemId, nextItemId);
+          await clearPity(tx, character.id, input.itemId, targetLevel);
+        } else {
+          await setPity(tx, character.id, input.itemId, targetLevel, pityFailuresBefore + 1, input.now);
+        }
+
+        await tx.characterItem.deleteMany({ where: { characterId: character.id, quantity: { lte: 0 } } });
+        const [updatedCharacter, updatedItem, updatedPity] = await Promise.all([
+          tx.character.findUniqueOrThrow({ where: { id: character.id }, include: characterInclude }),
+          tx.characterItem.findUniqueOrThrow({
+            where: { characterId_itemId: { characterId: character.id, itemId: updatedItemId } }
+          }),
+          getPityFailureCount(tx, character.id, input.itemId, targetLevel)
+        ]);
+
+        return {
+          state: "attempted",
+          success,
+          character: toCharacterRecord(updatedCharacter),
+          item: toInventoryRow(updatedItem, new Set([...equipped].map((itemId) => itemId === input.itemId ? updatedItemId : itemId))),
+          donorConsumed,
+          fromLevel,
+          targetLevel,
+          finalChance: chance.finalChance,
+          pityFailuresBefore,
+          pityFailuresAfter: success ? 0 : updatedPity,
+          pityGuaranteed: chance.guaranteed,
+          spent
+        };
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error) && !(error instanceof StaleSnapshotRollbackError)) {
+        throw error;
       }
 
-      const success = chance.guaranteed || input.roll * 100 < chance.finalChance;
-      const updatedItemId = success ? nextItemId : input.itemId;
-      if (success) {
-        await replaceOneItemId(tx, character.id, input.itemId, nextItemId);
-        await clearPity(tx, character.id, input.itemId, targetLevel);
-      } else {
-        await setPity(tx, character.id, input.itemId, targetLevel, pityFailuresBefore + 1, input.now);
-      }
-
-      await tx.characterItem.deleteMany({ where: { characterId: character.id, quantity: { lte: 0 } } });
-      const [updatedCharacter, updatedItem, updatedPity] = await Promise.all([
-        tx.character.findUniqueOrThrow({ where: { id: character.id }, include: characterInclude }),
-        tx.characterItem.findUniqueOrThrow({
-          where: { characterId_itemId: { characterId: character.id, itemId: updatedItemId } }
-        }),
-        getPityFailureCount(tx, character.id, input.itemId, targetLevel)
-      ]);
-
-      return {
-        state: "attempted",
-        success,
-        character: toCharacterRecord(updatedCharacter),
-        item: toInventoryRow(updatedItem, new Set([...equipped].map((itemId) => itemId === input.itemId ? updatedItemId : itemId))),
-        donorConsumed,
-        fromLevel,
-        targetLevel,
-        finalChance: chance.finalChance,
-        pityFailuresBefore,
-        pityFailuresAfter: success ? 0 : updatedPity,
-        pityGuaranteed: chance.guaranteed,
-        spent
-      };
-    });
+      return getStaleSnapshotResult(this.prisma, telegramUserId, input.itemId);
+    }
   }
 
   async setPityForTelegramUser(
@@ -595,8 +616,74 @@ async function clearPity(tx: TxClient, characterId: string, itemId: string, targ
   });
 }
 
+async function createAttemptClaim(
+  tx: TxClient,
+  characterId: string,
+  input: {
+    itemId: string;
+    fromLevel: number;
+    targetLevel: number;
+    expectedQuantity: number;
+    expectedPityFailures: number;
+    now: Date;
+  }
+): Promise<void> {
+  await tx.dailyAction.create({
+    data: {
+      characterId,
+      key: attemptClaimKey(input.itemId, input.fromLevel, input.targetLevel),
+      localDate: attemptClaimLocalDate(input.expectedQuantity, input.expectedPityFailures),
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      createdAt: input.now,
+      resultJson: {
+        kind: ATTEMPT_CLAIM_KIND,
+        version: 1,
+        itemId: input.itemId,
+        fromLevel: input.fromLevel,
+        targetLevel: input.targetLevel,
+        expectedQuantity: input.expectedQuantity,
+        expectedPityFailures: input.expectedPityFailures,
+        claimedAt: input.now.toISOString()
+      }
+    }
+  });
+}
+
 function pityKey(itemId: string, targetLevel: number): string {
   return `${PITY_KEY_PREFIX}${itemId}:${normalizeItemUpgradeLevel(targetLevel)}`;
+}
+
+function attemptClaimKey(itemId: string, fromLevel: number, targetLevel: number): string {
+  return `${ATTEMPT_CLAIM_KEY_PREFIX}${itemId}:${normalizeItemUpgradeLevel(fromLevel)}->${normalizeItemUpgradeLevel(targetLevel)}`;
+}
+
+function attemptClaimLocalDate(expectedQuantity: number, expectedPityFailures: number): string {
+  return `q${Math.max(0, Math.floor(expectedQuantity))}:p${Math.max(0, Math.floor(expectedPityFailures))}`;
+}
+
+async function getStaleSnapshotResult(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  itemId: string
+): Promise<Extract<ItemUpgradeAttemptResult, { state: "stale-snapshot" }>> {
+  const character = await findCharacter(prisma, telegramUserId);
+  if (!character) {
+    return { state: "stale-snapshot" };
+  }
+
+  const [item, equipment] = await Promise.all([
+    prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: character.id, itemId } }
+    }),
+    prisma.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } })
+  ]);
+
+  return {
+    state: "stale-snapshot",
+    ...(item ? { item: toInventoryRow(item, new Set(equipment.map((row) => row.itemId))) } : {})
+  };
 }
 
 function mapPity(row: Pick<DailyAction, "key" | "resultJson"> | null): Array<{

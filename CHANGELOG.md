@@ -25,10 +25,12 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
+- Upgrade attempts now claim one exact stack/pity preview snapshot before spending, so concurrent duplicate attempt callbacks from a stack of `2+` cannot double-spend or upgrade two units from one stale preview.
 - Failed attempts spend the chosen resources once and increment bounded pity once; replays with stale stack, level or pity snapshots reject before spending.
 - Item detail, inventory, equipment, hero/effective-stat, Mantok set and Mantok ability-grant surfaces treat upgraded concrete ids as ordinary catalog ids with the expected `+N` display and preserved base semantics.
 - Equipment bonuses, set bonuses and Mantok ability grants from tuning magical manatky are withheld until attunement is ready; equipment cards strike through the pending effect, hero cards show the `Налаштування на...` status, and replacing a tuning slot requires a separate confirmation.
-- Replaying equip for the same item already tuning in the same slot now preserves the pending attunement row as a no-op; active attunement is cancelled only when the item actually changes or another slot is cleared.
+- Replaying equip for the same item already tuning in the same slot now preserves the pending attunement row as a no-op; active attunement is cancelled when the item actually changes, another slot is cleared, or the tuning slot is directly unequipped.
+- Attunement completion notification scans now page past old cancelled/notified rows instead of only filtering a small oldest-row window in memory.
 - Ordinary fight reward bandage slots can now rarely be replaced by bounded `Іскрокамінь` grants instead of granting both from the same slot.
 - `Іскрокамінь` is transferable through Safe Gifting and postal delivery like other ordinary tradeable material stacks.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.

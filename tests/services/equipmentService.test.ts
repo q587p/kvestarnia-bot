@@ -1131,6 +1131,36 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("directly unequips a tuning item and removes it from the immediate slot view", async () => {
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [
+        buildEquipment({
+          slot: "weapon",
+          itemId: "item.pan-of-persuasion.plus-1",
+          attunement: {
+            state: "tuning",
+            strength: "weak",
+            startedAt: new Date("2026-07-08T08:00:00.000Z"),
+            readyAt: new Date("2026-07-08T08:13:00.000Z")
+          }
+        })
+      ]
+    });
+    const service = new EquipmentService(equipment, new FakeInventoryRepository([]));
+
+    const result = await service.unequipSlotForTelegramUser(telegramUserId, "weapon");
+
+    expect(result.state).toBe("unequipped");
+    if (result.state !== "unequipped") {
+      return;
+    }
+    expect(result.slots.find((slot) => slot.slot === "weapon")).toMatchObject({
+      item: null
+    });
+    expect(equipment.rows).toEqual([]);
+  });
+
   it("returns no-character when repositories cannot find a character", async () => {
     const service = createService({ snapshot: null, inventoryRows: null });
 

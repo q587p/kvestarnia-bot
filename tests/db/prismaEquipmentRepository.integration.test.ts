@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
 import {
+  buildEquipmentAttunementPayload,
   EQUIPMENT_ATTUNEMENT_ACTION_KEY,
   parseEquipmentAttunementPayload
 } from "../../src/domain/equipment/equipmentAttunement";
@@ -329,6 +330,80 @@ describe("PrismaEquipmentRepository integration", () => {
         slot: "offhand",
         itemId: "item.set.red-line.margin-dagger"
       })
+    ]);
+  });
+
+  it("cancels tuning attunement when directly unequipping the slot", async () => {
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        strength: "weak",
+        itemName: "Пательня переконання +1",
+        startedAt: new Date("2099-01-01T00:00:00.000Z"),
+        readyAt: new Date("2099-01-01T00:13:00.000Z")
+      }
+    });
+
+    await expect(repository.unequipForCharacter(characterId, "weapon")).resolves.toBe(true);
+    await expect(prisma.characterEquipment.count({ where: { characterId } })).resolves.toBe(0);
+    const payloads = (await prisma.dailyAction.findMany({
+      where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
+    })).map((row) => parseEquipmentAttunementPayload(row.resultJson));
+
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        status: "cancelled",
+        slot: "weapon",
+        itemId: "item.pan-of-persuasion.plus-1"
+      })
+    ]);
+  });
+
+  it("paginates attunement notification scans past old cancelled and notified rows", async () => {
+    const stalePayload = buildEquipmentAttunementPayload({
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      itemName: "Пательня переконання +1",
+      equipmentUpdatedAt: new Date("1999-01-01T00:00:00.000Z"),
+      strength: "weak",
+      startedAt: new Date("1999-01-01T00:00:00.000Z"),
+      readyAt: new Date("1999-01-01T00:13:00.000Z")
+    });
+    await prisma.dailyAction.createMany({
+      data: Array.from({ length: 60 }, (_, index) => ({
+        characterId,
+        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+        localDate: `stale-${index}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        createdAt: new Date(`1999-01-01T00:${String(index).padStart(2, "0")}:00.000Z`),
+        resultJson: index % 2 === 0
+          ? { ...stalePayload, status: "cancelled" as const, cancelledAt: "1999-01-01T00:30:00.000Z" }
+          : { ...stalePayload, notifiedAt: "1999-01-01T00:30:00.000Z" }
+      }))
+    });
+    await repository.equipForCharacterAtomically({
+      characterId,
+      slot: "weapon",
+      itemId: "item.pan-of-persuasion.plus-1",
+      attunement: {
+        strength: "weak",
+        itemName: "Пательня переконання +1",
+        startedAt: new Date("2000-01-01T00:00:00.000Z"),
+        readyAt: new Date("2000-01-01T00:13:00.000Z")
+      }
+    });
+
+    await expect(
+      repository.listDueAttunementNotifications(new Date("2000-01-01T00:13:00.000Z"), { limit: 1 })
+    ).resolves.toMatchObject([
+      {
+        characterId,
+        itemId: "item.pan-of-persuasion.plus-1"
+      }
     ]);
   });
 

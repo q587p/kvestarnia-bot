@@ -116,6 +116,33 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectEquippedItem(panPlusOneItemId);
   });
 
+  it("commits only one concurrent duplicate attempt from the same stack preview", async () => {
+    await seedUnlock();
+    await seedItem(panItemId, 2);
+    await seedItem(ISKROKAMIN_ITEM_ID, 5);
+
+    const input = {
+      itemId: panItemId,
+      method: "npc" as const,
+      now: now(),
+      roll: 0,
+      expectedFromLevel: 0,
+      expectedQuantity: 2,
+      expectedPityFailures: 0
+    };
+    const results = await Promise.all([
+      repository.attemptForTelegramUser(telegramUserId, input),
+      repository.attemptForTelegramUser(telegramUserId, input)
+    ]);
+
+    expect(results.filter((result) => result.state === "attempted")).toHaveLength(1);
+    expect(results.filter((result) => result.state === "stale-snapshot")).toHaveLength(1);
+    await expectItemQuantity(panItemId, 1);
+    await expectItemQuantity(panPlusOneItemId, 1);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 4);
+    await expectCharacterResources({ gold: 950, manaCurrent: 80 });
+  });
+
   it("spends a failed attempt exactly once and records bounded pity", async () => {
     await seedUnlock();
     await seedItem(panItemId, 1);
