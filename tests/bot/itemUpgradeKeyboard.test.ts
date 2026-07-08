@@ -149,6 +149,18 @@ describe("item upgrade keyboard", () => {
       }
     });
   });
+
+  it("uses lowercase mage in the field-kit turn-in button", () => {
+    const keyboard = buildItemUpgradeListKeyboard({
+      state: "unlock-required",
+      character: character(),
+      fieldKitQuantity: 1,
+      rewardXp: 42
+    });
+
+    expect(buttonTexts(keyboard)).toContain("🧰 Віддати аптечку магу");
+    expect(buttonTexts(keyboard).join("\n")).not.toContain("Магу");
+  });
 });
 
 function readyList(overrides: Partial<Extract<ItemUpgradeListResult, { state: "ready" }>> = {}): Extract<ItemUpgradeListResult, { state: "ready" }> {

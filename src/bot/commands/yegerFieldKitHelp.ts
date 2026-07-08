@@ -4,6 +4,7 @@ import { safeOptionalUiLookup } from "../optionalUiLookup";
 export type YegerFieldKitHelpState =
   | { state: "hidden" }
   | { state: "needs-yeger-boards" }
+  | { state: "can-craft-kit" }
   | { state: "has-field-kit" };
 
 type YegerFieldKitHelpServices = Pick<BotServices, "itemCraft" | "itemUpgrades">;
@@ -33,7 +34,7 @@ export async function getYegerFieldKitHelpStateForTelegramUser(
 
     return kitPreview.state === "locked"
       ? { state: "needs-yeger-boards" }
-      : { state: "hidden" };
+      : { state: "can-craft-kit" };
   }, { state: "hidden" });
 }
 

@@ -80,7 +80,7 @@ export function buildItemUpgradeListKeyboard(
 
   if (result.state === "unlock-required") {
     if (result.fieldKitQuantity > 0) {
-      keyboard.text("🧰 Віддати аптечку Магу", makeItemUpgradeUnlockCallbackData()).row();
+      keyboard.text("🧰 Віддати аптечку магу", makeItemUpgradeUnlockCallbackData()).row();
     } else {
       keyboard.text("🏹 До Єгеря по аптечку", makeTavernCallbackData("ranger")).row();
     }

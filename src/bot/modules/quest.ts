@@ -1102,7 +1102,7 @@ async function handleYegerCallback(
     await safeAnswerCallbackQuery(ctx);
     await markYegerCornerPresence(ctx, services.presence);
     await safeEditMessageText(ctx, presentYegerFieldKitHelp({
-      state: hasFieldKit ? "has-field-kit" : "needs-yeger-boards"
+      state: fieldKitHelp.state === "hidden" ? "needs-yeger-boards" : fieldKitHelp.state
     }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildYegerHelpKeyboard({

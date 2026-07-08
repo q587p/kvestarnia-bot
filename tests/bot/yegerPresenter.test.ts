@@ -293,6 +293,15 @@ describe("Yeger presenter", () => {
     expect(text).not.toContain("«Неспокійні справи 2.0»");
   });
 
+  it("points to bandages and inventory crafting when field-kit crafting is already available", () => {
+    const text = presentYegerFieldKitHelp({ state: "can-craft-kit" });
+
+    expect(text).toContain("🧰 Аптечка?");
+    expect(text).toContain("купіть бинти");
+    expect(text).toContain("Манатки");
+    expect(text).toContain("польову аптечку");
+  });
+
   it("uses biography-aware ranger corner reactions", () => {
     const text = presentYegerCorner({
       state: "offered",
