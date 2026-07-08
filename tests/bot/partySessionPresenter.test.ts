@@ -681,6 +681,7 @@ describe("party session presenter", () => {
     });
 
     expect(text).toContain("🛢️ <b>Збір до Старшого Брата Бочки</b>");
+    expect(text).toContain("Лідер ватаги може почати бій раніше.");
     expect(text).not.toContain("Запрошення:");
     expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
     expect(text).not.toContain("Бочку довго ображали словом «меблі»");

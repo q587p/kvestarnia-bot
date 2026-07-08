@@ -523,6 +523,8 @@ Show/open the new current offer without mutating the old one.
 
 Після telemetry, на тому самому persistence/location foundation можна додати окремими slices:
 
+- **42 базові дрібниці** — розширити scene pool `Корчмарського обходу` до 42 варіянтів і додати anti-repeat selection, щоб один персонаж не бачив ті самі дрібниці надто часто.
+
 1. **«Чутка на ніжках»** — Дошка вістей → одна підозрювана локація → повернення.
 2. **«Посилка без адреси»** — два можливі одержувачі, обрати одного; різний punchline, одна reward.
 3. **«Інвентаризація неможливого»** — три objects, two-of-three, rare class-flavor action.

@@ -1850,14 +1850,29 @@ export class FightService {
       locationTags: buildPersistentFightLocationTags(options.source ?? "normal")
     });
     const monsterContext = resolveMonsterContext({ monster, world: worldContext });
+    const remortCount = character.remortCount ?? 0;
+    const hasExtraMonsters = extraMonsters.length > 0;
     const monsterStats = applyMonsterContextToStats(
-      deriveMonsterCombatStats(monster),
+      deriveMonsterCombatStats(monster, hasExtraMonsters
+        ? {}
+        : buildPersistentFightMonsterStatsOptions({
+            remortCount,
+            source: options.source ?? "normal",
+            remortPressureMode: "single"
+          })),
       monsterContext
     );
     const extraMonsterStats = extraMonsters.map(({ monster: enemy }) => {
       const context = resolveMonsterContext({ monster: enemy, world: worldContext });
 
-      return applyMonsterContextToStats(deriveMonsterCombatStats(enemy), context);
+      return applyMonsterContextToStats(
+        deriveMonsterCombatStats(enemy, buildPersistentFightMonsterStatsOptions({
+          remortCount,
+          source: options.source ?? "normal",
+          remortPressureMode: "multi"
+        })),
+        context
+      );
     });
     const state = startCombat({
       id: sessionId,
@@ -1869,7 +1884,7 @@ export class FightService {
     state.source = options.source ?? "normal";
     state.life = freezeCombatLife({
       characterId: character.id,
-      remortCount: character.remortCount ?? 0,
+      remortCount,
       now
     });
     state.settlement = {
@@ -4071,14 +4086,22 @@ export class FightService {
     const monsterStats = applyMonsterContextToStats(
       deriveMonsterCombatStats(input.monster, hasExtraMonsters
         ? {}
-        : { remortCount, remortPressureMode: "single" }),
+        : buildPersistentFightMonsterStatsOptions({
+            remortCount,
+            source: input.source,
+            remortPressureMode: "single"
+          })),
       monsterContext
     );
     const extraMonsterStats = (input.extraMonsters ?? []).map(({ monster }) => {
       const context = resolveMonsterContext({ monster, world: worldContext });
 
       return applyMonsterContextToStats(
-        deriveMonsterCombatStats(monster, { remortCount, remortPressureMode: "multi" }),
+        deriveMonsterCombatStats(monster, buildPersistentFightMonsterStatsOptions({
+          remortCount,
+          source: input.source,
+          remortPressureMode: "multi"
+        })),
         context
       );
     });
@@ -5098,6 +5121,21 @@ function buildPersistentFightLocationTags(source: NonNullable<PersistentFightSta
   }
 
   return ["korchma", "nyz", "underground", "cellar"];
+}
+
+function buildPersistentFightMonsterStatsOptions(input: {
+  remortCount: number;
+  source: NonNullable<PersistentFightStartOptions["source"]>;
+  remortPressureMode: "single" | "multi";
+}): Parameters<typeof deriveMonsterCombatStats>[1] {
+  const options = {
+    remortCount: input.remortCount,
+    remortPressureMode: input.remortPressureMode
+  };
+
+  return input.source === "yeger"
+    ? { ...options, remortPressureFreeRanks: 2 }
+    : options;
 }
 
 function mapPersistentFightSourceToAnalyticsSource(

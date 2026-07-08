@@ -375,6 +375,43 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("opens Rogue target lists without loading effective equipment or Priest blessings", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: rogue({ level: 3, statsJson: { dexterity: 7, luck: 5 } }),
+      target: target({ level: 3, gold: 50 }),
+      activeBlessings: new Map([
+        [actorTelegramUserId, priestBlessing({ bonusStat: "luck", bonusAmount: 3 })],
+        [targetTelegramUserId, priestBlessing({ bonusStat: "dexterity", bonusAmount: 2 })]
+      ])
+    });
+    const equipment = new FakeEquipmentRepository([
+      snapshotFor(actorTelegramUserId, [
+        equipmentRow({ characterId: "actor", itemId: "item.bone-key-of-half-access", slot: "accessory" })
+      ]),
+      snapshotFor(targetTelegramUserId, [
+        equipmentRow({
+          id: "equipment-target-chest",
+          characterId: "target",
+          itemId: "item.apron-of-foam-resistance",
+          slot: "chest"
+        })
+      ])
+    ]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => now,
+      new FakeRandomSource([0]),
+      undefined,
+      equipment
+    );
+
+    const result = await service.openForTelegramUser(actorTelegramUserId, "rogue");
+
+    expect(result).toMatchObject({ state: "ready", mode: "rogue" });
+    expect(repository.activeBlessingLookupTelegramUserIds).toEqual([]);
+    expect(equipment.lookupTelegramUserIds).toEqual([]);
+  });
+
   it("carries actor busy state into the open result", async () => {
     const repository = new FakeClassNoncombatRepository({
       actorBlocked: true
@@ -419,6 +456,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   lastPickpocketInput: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1] | null = null;
   lastClaimRetaliationInput: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1] | null = null;
   lastRetaliationDuelInput: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1] | null = null;
+  readonly activeBlessingLookupTelegramUserIds: bigint[] = [];
 
   private readonly actor: CharacterRecord;
   private readonly target: CharacterRecord;
@@ -479,6 +517,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   }
 
   getActivePriestBlessingForTelegramUser(telegramUserId: bigint) {
+    this.activeBlessingLookupTelegramUserIds.push(telegramUserId);
     return Promise.resolve(this.activeBlessings.get(telegramUserId) ?? null);
   }
 
@@ -578,6 +617,7 @@ class FakeAchievementService {
 }
 
 class FakeEquipmentRepository implements Pick<EquipmentRepository, "listByTelegramUserId"> {
+  readonly lookupTelegramUserIds: bigint[] = [];
   private readonly snapshotsByTelegramUserId = new Map<bigint, CharacterEquipmentSnapshot>();
 
   constructor(snapshots: Array<{ telegramUserId: bigint; snapshot: CharacterEquipmentSnapshot }>) {
@@ -587,6 +627,7 @@ class FakeEquipmentRepository implements Pick<EquipmentRepository, "listByTelegr
   }
 
   listByTelegramUserId(telegramUserId: bigint): Promise<CharacterEquipmentSnapshot | null> {
+    this.lookupTelegramUserIds.push(telegramUserId);
     return Promise.resolve(this.snapshotsByTelegramUserId.get(telegramUserId) ?? null);
   }
 }

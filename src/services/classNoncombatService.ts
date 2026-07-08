@@ -109,8 +109,9 @@ export class ClassNoncombatService {
       return { state: "no-character" };
     }
 
-    const effectiveActor = await this.summarizeForPlanning(telegramUserId, snapshot.character, now);
-    const character = effectiveActor.summary;
+    const character = mode === "rogue"
+      ? summarizeCharacterForOpenList(snapshot.character)
+      : (await this.summarizeForPlanning(telegramUserId, snapshot.character, now)).summary;
     const eligible =
       character.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
       ((mode === "priest" && character.classId === "class.priest") ||
@@ -127,16 +128,21 @@ export class ClassNoncombatService {
       locationName: snapshot.locationName,
       targetPage: snapshot.targetPage,
       targetTotalPages: snapshot.targetTotalPages,
-      targets: await Promise.all(snapshot.targets.map(async (target) => ({
-        ...target,
-        ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
-        canPriestAid: mode === "priest",
-        canRoguePickpocket:
-          mode === "rogue" &&
-          target.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
-          !target.rogueAttemptedToday &&
-          !snapshot.roguePickpocketCooldownAvailableAt
-      }))),
+      targets: mode === "rogue"
+        ? snapshot.targets.map((target) => ({
+            ...target,
+            canPriestAid: false,
+            canRoguePickpocket:
+              target.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
+              !target.rogueAttemptedToday &&
+              !snapshot.roguePickpocketCooldownAvailableAt
+          }))
+        : await Promise.all(snapshot.targets.map(async (target) => ({
+            ...target,
+            ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
+            canPriestAid: true,
+            canRoguePickpocket: false
+          }))),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
       priestSelfBlessAvailableAt: snapshot.priestSelfBlessAvailableAt,
       roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt
@@ -435,6 +441,14 @@ function presentBlocked<T extends { state: "blocked"; reason: NoncombatGateReaso
     mapped.target = summarizeCharacter(result.target as CharacterRecord);
   }
   return mapped;
+}
+
+function summarizeCharacterForOpenList(character: CharacterRecord): CharacterSummary {
+  const baseSummary = summarizeCharacter(character);
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+  return activeCosmeticTitle
+    ? { ...baseSummary, activeCosmeticTitle }
+    : baseSummary;
 }
 
 interface EffectiveClassNoncombatCharacter {

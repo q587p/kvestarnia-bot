@@ -67,6 +67,14 @@ describe("presence routing", () => {
     ["v1:equip:view", {}],
     ["v1:chest:open", {}],
     ["v1:lvlx:confirm:abc123", {}],
+    [
+      "v1:sh:round:s",
+      {
+        locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+        currentRaidId: null,
+        currentAdventureId: null
+      }
+    ],
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],

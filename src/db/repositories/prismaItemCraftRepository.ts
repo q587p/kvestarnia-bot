@@ -177,6 +177,7 @@ async function getCraftContext(
     return { state: "combat-locked" };
   }
 
+  const unlockedByRemort = getIncludedRemortCount(character) > 0 && character.level >= 3;
   const completed = await tx.dailyAction.findFirst({
     where: {
       characterId: character.id,
@@ -184,7 +185,7 @@ async function getCraftContext(
       localDate: YEGER_UNQUIET_TRIAL_BUCKET
     }
   });
-  if (!completed) {
+  if (!completed && !unlockedByRemort) {
     return { state: "locked" };
   }
 

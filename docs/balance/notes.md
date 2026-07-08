@@ -95,6 +95,8 @@ Final aggregate signal: the 100-run human-ish sweep finished at `84.2%` overall 
 
 `0.2.31` adds a narrow remort-aware monster pressure guard for persistent PvE after the third remort. One-enemy fights, including Yeger contracts, derive combat stats from a higher internal stat level plus tiny HP/attack pressure while keeping the displayed encounter level unchanged; two-enemy threat fights keep the primary monster authored and put capped HP/attack pressure only on the backup enemy. Active solo fight cards explain the pressure as `Відплата за минулі пригоди` for Yeger sources and `Відлуння минулих пригод` elsewhere, while existing two-enemy cards keep the ordinary `Натиск Низу` language. A compact all-active-race, level `13`, same-level monster sweep with `30` runs per matchup landed at `68.3%`/`54.1%`/`63.7%` wins for one-enemy fights at remorts `5`/`7`/`9`, and `50.0%`/`50.8%`/`56.5%` for two-enemy threat fights at the same remort counts. Rewards, loot/drop odds, Yeger progress, authored monster level, remort XP math, item economy and schema remain unchanged.
 
+`0.2.32` keeps the same pressure formula but applies it to Yeger contracts one remort earlier, so remort `3` hunt monsters no longer stay at base stats. Rewards, loot/drop odds, Yeger progress, authored monster level, remort XP math, item economy and schema remain unchanged.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

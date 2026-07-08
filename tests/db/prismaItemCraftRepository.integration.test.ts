@@ -166,6 +166,54 @@ describe("PrismaItemCraftRepository integration", () => {
     await expectItemQuantity(FIELD_KIT_ITEM_ID, 0);
   });
 
+  it("unlocks Mantok crafting for remorted level 3 characters without the second Yeger board", async () => {
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { level: 3, xp: 30 }
+    });
+    await seedRemort(1);
+    await seedBandages(8);
+
+    await expect(repository.previewForTelegramUser(telegramUserId, {
+      recipe: denseRecipe,
+      itemContents: items
+    })).resolves.toMatchObject({
+      state: "preview",
+      preview: {
+        availableQuantity: 8
+      }
+    });
+
+    await expect(repository.craftForTelegramUser(telegramUserId, {
+      recipe: denseRecipe,
+      itemContents: items,
+      now: now(),
+      craftSavingsRolls: { chanceRoll: 0.99, quantityRoll: 0 }
+    })).resolves.toMatchObject({
+      state: "crafted",
+      spentSourceQuantity: 8,
+      remainingSourceQuantity: 0,
+      outputQuantity: 1
+    });
+
+    await expectItemQuantity(RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, 0);
+    await expectItemQuantity(DENSE_BANDAGE_ITEM_ID, 1);
+  });
+
+  it("keeps Mantok crafting locked for remorted characters below level 3", async () => {
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { level: 2, xp: 10 }
+    });
+    await seedRemort(1);
+    await seedBandages(13);
+
+    await expect(repository.previewForTelegramUser(telegramUserId, {
+      recipe: kitRecipe,
+      itemContents: items
+    })).resolves.toMatchObject({ state: "locked" });
+  });
+
   async function seedCharacter(): Promise<void> {
     await prisma.user.create({
       data: {
@@ -221,6 +269,22 @@ describe("PrismaItemCraftRepository integration", () => {
         characterId,
         itemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID,
         quantity
+      }
+    });
+  }
+
+  async function seedRemort(remortNumber: number): Promise<void> {
+    await prisma.characterRemort.create({
+      data: {
+        id: `${characterId}-remort-${remortNumber}`,
+        characterId,
+        token: `${characterId}-remort-token-${remortNumber}`,
+        remortNumber,
+        previousLevel: 13,
+        previousXp: 1_300,
+        previousGold: 587,
+        displayNameSnapshot: "Тестовий Єгерник",
+        preservedPayloadJson: {}
       }
     });
   }
