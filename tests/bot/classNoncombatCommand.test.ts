@@ -75,6 +75,85 @@ describe("class noncombat command", () => {
     ]));
   });
 
+  it("offers another Priest heal for self when HP and mana still allow it", async () => {
+    const { ctx, editMessageText, sendMessage } = callbackContext();
+    const service = {
+      healForTelegramUser: vi.fn().mockResolvedValue(priestHealResult({
+        self: true,
+        actor: { hpCurrent: 15, hpMax: 30, manaCurrent: 20 },
+        target: { hpCurrent: 15, hpMax: 30, manaCurrent: 20 }
+      }))
+    };
+    const callback = parseClassNoncombatCallbackData(makePriestHealCallbackData({
+      targetTelegramUserId: null,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(ctx, callback.ok ? callback.value : neverCallback(), service as never);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    const [, options] = firstEditCall(editMessageText);
+    expect(keyboardTexts(options)).toEqual(["⚕️ Полікувати ще"]);
+  });
+
+  it("offers another Priest heal for another target when HP and mana still allow it", async () => {
+    const { ctx, editMessageText } = callbackContext();
+    const service = {
+      healForTelegramUser: vi.fn().mockResolvedValue(priestHealResult({
+        actor: { manaCurrent: 20 },
+        target: { hpCurrent: 15, hpMax: 30 }
+      }))
+    };
+    const callback = parseClassNoncombatCallbackData(makePriestHealCallbackData({
+      targetTelegramUserId,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(ctx, callback.ok ? callback.value : neverCallback(), service as never);
+
+    const [, options] = firstEditCall(editMessageText);
+    expect(keyboardTexts(options)).toEqual(["⚕️ Полікувати ще"]);
+  });
+
+  it("does not offer another Priest heal when the target is full or mana is gone", async () => {
+    const fullHp = callbackContext();
+    const fullHpService = {
+      healForTelegramUser: vi.fn().mockResolvedValue(priestHealResult({
+        actor: { manaCurrent: 20 },
+        target: { hpCurrent: 30, hpMax: 30 }
+      }))
+    };
+    const callback = parseClassNoncombatCallbackData(makePriestHealCallbackData({
+      targetTelegramUserId,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0
+    }));
+
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(fullHp.ctx, callback.ok ? callback.value : neverCallback(), fullHpService as never);
+
+    expect(keyboardTexts(firstEditCall(fullHp.editMessageText)[1])).toEqual([]);
+
+    const noMana = callbackContext();
+    const noManaService = {
+      healForTelegramUser: vi.fn().mockResolvedValue(priestHealResult({
+        actor: { manaCurrent: 0 },
+        target: { hpCurrent: 15, hpMax: 30 }
+      }))
+    };
+
+    await handleClassNoncombatCallback(noMana.ctx, callback.ok ? callback.value : neverCallback(), noManaService as never);
+
+    expect(keyboardTexts(firstEditCall(noMana.editMessageText)[1])).toEqual([]);
+  });
+
   it("keeps Priest action buttons under already-blessed results", async () => {
     const { ctx, editMessageText, reply, sendMessage } = callbackContext();
     const service = {
@@ -484,25 +563,34 @@ function keyboardTexts(options: EditOptions): string[] {
   return options.reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? [];
 }
 
-function priestHealResult(): PriestHealResult {
+function priestHealResult(options: {
+  self?: boolean;
+  actor?: Partial<CharacterSummary>;
+  target?: Partial<CharacterSummary>;
+} = {}): PriestHealResult {
+  const self = options.self ?? false;
   return {
     state: "completed",
     action: {
       id: "aid-1",
       actorCharacterId: "actor",
-      targetCharacterId: "target",
+      targetCharacterId: self ? "actor" : "target",
       actorTelegramUserId,
-      targetTelegramUserId,
+      targetTelegramUserId: self ? actorTelegramUserId : targetTelegramUserId,
       actorName: "Жрець",
-      targetName: "Ціль",
+      targetName: self ? "Жрець" : "Ціль",
       actionKind: "heal",
       healAmount: 5,
       manaCost: 5,
       cooldownAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
       completedAt: now
     },
-    actor: character("Жрець", "class.priest"),
-    target: character("Ціль", "class.warrior", { hpCurrent: 15, hpMax: 20 }),
+    actor: character("Жрець", "class.priest", options.actor),
+    target: character(self ? "Жрець" : "Ціль", self ? "class.priest" : "class.warrior", {
+      hpCurrent: 15,
+      hpMax: 20,
+      ...options.target
+    }),
     unlocks: [{
       id: "achievement.class.priest.first-heal",
       title: "Добра мана",

@@ -1,11 +1,13 @@
 import { InlineKeyboard, type Context } from "grammy";
 import {
   makeClassNoncombatOpenCallbackData,
+  makePriestHealCallbackData,
   makeRogueRetaliationDuelCallbackData,
   type ClassNoncombatCallback
 } from "../callbacks/classNoncombatCallbackData";
 import type {
   ClassNoncombatService,
+  PriestHealResult,
   RoguePickpocketResult,
   RogueRetaliationResult
 } from "../../services/classNoncombatService";
@@ -15,6 +17,7 @@ import type {
   DuelChallengeService,
   DuelTargetedCreateResult
 } from "../../services/duelChallengeService";
+import { buildPriestHealPlan } from "../../domain/noncombat/classNoncombatTechniques";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { getCombatSkillProfile } from "../../domain/combat";
 import { telegramUserIdFromContext } from "../context";
@@ -69,7 +72,15 @@ export async function handleClassNoncombatCallback(
       expectedActorRemortCount: callback.actorRemortCount,
       expectedTargetRemortCount: callback.targetRemortCount
     });
-    await editPriestResult(ctx, service, telegramUserId, callback.page, presentPriestHealResult(result), result.state);
+    await editPriestResult(
+      ctx,
+      service,
+      telegramUserId,
+      callback.page,
+      presentPriestHealResult(result),
+      result.state,
+      buildRepeatPriestHealKeyboard(result, callback.page)
+    );
     if (result.state === "completed" && result.action.actorTelegramUserId !== result.action.targetTelegramUserId) {
       await notifyTarget(ctx, result.action.targetTelegramUserId, presentPriestHealTargetNotification(result));
     }
@@ -140,10 +151,13 @@ async function editPriestResult(
   telegramUserId: bigint,
   page: number,
   text: string,
-  state: "completed" | "blocked"
+  state: "completed" | "blocked",
+  completedKeyboard?: InlineKeyboard
 ): Promise<void> {
   if (state === "completed") {
-    await safeEditMessageText(ctx, text, HTML_MESSAGE_OPTIONS);
+    await safeEditMessageText(ctx, text, completedKeyboard
+      ? { ...HTML_MESSAGE_OPTIONS, reply_markup: completedKeyboard }
+      : HTML_MESSAGE_OPTIONS);
     return;
   }
 
@@ -152,6 +166,32 @@ async function editPriestResult(
   await safeEditMessageText(ctx, text, keyboard
     ? { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
     : HTML_MESSAGE_OPTIONS);
+}
+
+function buildRepeatPriestHealKeyboard(result: PriestHealResult, page: number): InlineKeyboard | undefined {
+  if (result.state !== "completed" || result.target.hpCurrent >= result.target.hpMax) {
+    return undefined;
+  }
+
+  const nextPlan = buildPriestHealPlan({
+    missingHp: result.target.hpMax - result.target.hpCurrent,
+    charisma: result.actor.stats.charisma,
+    intelligence: result.actor.stats.intelligence,
+    level: result.actor.level
+  });
+  if (result.actor.manaCurrent < nextPlan.manaCost) {
+    return undefined;
+  }
+
+  const actorRemortCount = result.actor.remortCount ?? 0;
+  return new InlineKeyboard().text("⚕️ Полікувати ще", makePriestHealCallbackData({
+    targetTelegramUserId: result.action.actorTelegramUserId === result.action.targetTelegramUserId
+      ? null
+      : result.action.targetTelegramUserId,
+    actorRemortCount,
+    targetRemortCount: result.target.remortCount ?? 0,
+    page
+  }));
 }
 
 async function handleRogueRetaliationDuel(
