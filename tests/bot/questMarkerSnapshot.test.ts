@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BotServices } from "../../src/bot/botServices";
 import {
   buildEnterKorchmaKeyboard,
@@ -8,6 +8,10 @@ import {
 import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
 
 describe("quest marker snapshot", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("keeps cellar markers when other quest lookups have no character state", async () => {
     const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, {
       adventure: {
@@ -128,6 +132,41 @@ describe("quest marker snapshot", () => {
     expect(flatInlineButtonTexts(buildKorchmaYardKeyboard({ questMarkers: snapshot }))).toContain(
       "✨ Чароковальня ⚠️"
     );
+  });
+
+  it("keeps available markers when an optional quest lookup times out", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, {
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      yeger: {
+        getForTelegramUser: () => Promise.reject(new Error("P1008"))
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      itemUpgrades: {
+        getUnlockQuestForTelegramUser: () => Promise.reject(new Error("P1008"))
+      }
+    } as unknown as Pick<
+      BotServices,
+      "adventure" | "cellarErrand" | "cellarGrownup" | "dailyKorchmaRound" | "fight" | "yeger"
+    > & Partial<Pick<BotServices, "itemUpgrades">>);
+
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(snapshot?.yeger).toBeUndefined();
+    expect(snapshot?.itemUpgrades).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("quest marker yeger"), expect.any(Error));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("quest marker item upgrades"), expect.any(Error));
   });
 });
 
