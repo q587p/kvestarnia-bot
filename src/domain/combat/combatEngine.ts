@@ -1033,7 +1033,8 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   const fled = rollFleeSuccess(
     applyMonsterRuntimeFleePenalty(nextState, input.hero),
     input.monster,
-    input.rng
+    input.rng,
+    getNextFleeAttemptNumber(input.state)
   );
   let monsterDamage = 0;
   let heroEffectDamage = 0;
@@ -1339,7 +1340,8 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
   const fled = rollFleeSuccess(
     applyMonsterRuntimeFleePenalty(nextState, input.hero),
     findEnemyStats(input, primary),
-    input.rng
+    input.rng,
+    getNextFleeAttemptNumber(input.state)
   );
   tickSkillCooldown(nextState);
   tickCombatItemCooldowns(nextState);
@@ -1793,6 +1795,14 @@ function appendCombatTurnLog(
     },
     ...turnLogEnemies(state)
   });
+}
+
+function getNextFleeAttemptNumber(state: CombatState): number {
+  const failedAttempts = state.turnLog?.filter((entry) =>
+    entry.summary.action === "flee" && entry.summary.heroOutcome === "flee-failed"
+  ).length ?? 0;
+
+  return failedAttempts + 1;
 }
 
 function buildCombatTurnLogNotices(state: CombatState): string[] {
