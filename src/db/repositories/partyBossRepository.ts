@@ -32,6 +32,13 @@ export interface PartyBossSessionRecord {
   turnExpiresAt: Date;
   completedAt: Date | null;
   participants: PartyBossParticipantSnapshot[];
+  queuedActions?: Array<{
+    characterId: string;
+    turn: number;
+    action: PartyBossActionKey;
+    item?: PartyBossCombatItemInput;
+    gearAbility?: CombatGearAbilityInput;
+  }>;
 }
 
 export type PartyBossAchievementEventRecord =

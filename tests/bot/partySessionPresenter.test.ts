@@ -17,6 +17,7 @@ import {
 } from "../../src/bot/presenters/partySessionPresenter";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
+import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -35,6 +36,63 @@ describe("party session presenter", () => {
 
     expect(text).toContain("▪️ Голова: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
+  });
+
+  it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
+    const base = makeBigBossSession({}, {
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "defend"
+      }]
+    });
+    const defending = presentPartyBoss(base, { viewerCharacterId: "leader" });
+    const attacking = presentPartyBoss({
+      ...base,
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "attack"
+      }]
+    }, { viewerCharacterId: "leader" });
+
+    expect(defending).toContain("<b>Голова</b>, ви плануєте захищатися.");
+    expect(attacking).toContain("<b>Голова</b>, ви плануєте вдарити.");
+    expect(attacking).not.toContain("<b>Голова</b>, що робимо?");
+  });
+
+  it("names queued Big Barrel Brother skill and gear action plans", () => {
+    const gearGrant = getCombatMantokAbilityGrantsByIds({
+      grantIds: ["mantok-ability.last-page-rapier"],
+      characterLevel: 13
+    })[0];
+    expect(gearGrant?.combat).toBeDefined();
+
+    const leader = participant("leader", "Голова");
+    leader.combatStats.classId = "class.priest";
+    leader.combatStats.level = 13;
+    leader.equipmentAbilityGrantIds = ["mantok-ability.last-page-rapier"];
+    const base = makeBigBossSession({ participants: [leader] });
+    const skill = presentPartyBoss({
+      ...base,
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "skill"
+      }]
+    }, { viewerCharacterId: "leader" });
+    const gear = presentPartyBoss({
+      ...base,
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "gear",
+        gearAbility: { profile: gearGrant!.combat!.profile }
+      }]
+    }, { viewerCharacterId: "leader" });
+
+    expect(skill).toContain("<b>Голова</b>, ви плануєте ✨ <i>Суворе благословення</i>.");
+    expect(gear).toContain("<b>Голова</b>, ви плануєте дію спорядження 🖋 <i>Остання сторінка</i>.");
   });
 
   it("renders the Big Barrel Brother intro as a separate start card", () => {
@@ -717,7 +775,8 @@ describe("party session presenter", () => {
 });
 
 function makeBigBossSession(
-  stateOverrides: Partial<PartyBossSessionRecord["state"]> = {}
+  stateOverrides: Partial<PartyBossSessionRecord["state"]> = {},
+  sessionOverrides: Partial<PartyBossSessionRecord> = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const state: PartyBossSessionRecord["state"] = {
@@ -763,7 +822,8 @@ function makeBigBossSession(
     participants: [
       bossParticipantSnapshot("leader", "Голова", 42n),
       bossParticipantSnapshot("striker", "Шкодійка", 93n)
-    ]
+    ],
+    ...sessionOverrides
   };
 }
 

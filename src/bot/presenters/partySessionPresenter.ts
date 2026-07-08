@@ -11,6 +11,7 @@ import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../service
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossActionResult, PartyBossSessionRecord, PartyBossStartResult } from "../../db/repositories/partyBossRepository";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import { getCombatRaceAbilityProfile, getCombatSkillProfile } from "../../domain/combat";
 import {
   buildBigBarrelLossXp,
   getPartyBossRetaliationPlan,
@@ -483,7 +484,7 @@ export function presentPartyBoss(
   if (viewer && session.status === "active") {
     lines.push("");
     lines.push(viewerCanAct
-      ? `<b>${escapeHtml(viewer.name)}</b>, що робимо?\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`
+      ? presentPartyBossViewerTurnPrompt(session, viewer)
       : big
         ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
         : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
@@ -502,6 +503,56 @@ export function presentPartyBoss(
   }
 
   return lines.join("\n");
+}
+
+function presentPartyBossViewerTurnPrompt(
+  session: PartyBossSessionRecord,
+  viewer: PartyBossSessionRecord["state"]["participants"][number]
+): string {
+  const queuedAction = findPartyBossQueuedAction(session, viewer.characterId);
+  const prompt = queuedAction
+    ? `<b>${escapeHtml(viewer.name)}</b>, ви плануєте ${presentPartyBossQueuedActionPlan(queuedAction, viewer)}.`
+    : `<b>${escapeHtml(viewer.name)}</b>, що робимо?`;
+
+  return `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
+}
+
+function findPartyBossQueuedAction(
+  session: PartyBossSessionRecord,
+  characterId: string
+): NonNullable<PartyBossSessionRecord["queuedActions"]>[number] | null {
+  return session.queuedActions?.find((action) =>
+    action.turn === session.turn && action.characterId === characterId
+  ) ?? null;
+}
+
+function presentPartyBossQueuedActionPlan(
+  action: NonNullable<PartyBossSessionRecord["queuedActions"]>[number],
+  viewer: PartyBossSessionRecord["state"]["participants"][number]
+): string {
+  switch (action.action) {
+    case "attack":
+      return "вдарити";
+    case "defend":
+      return "захищатися";
+    case "skill":
+      return presentCombatSkillHtml(getCombatSkillProfile(viewer.combatStats.classId).id);
+    case "race": {
+      const ability = getCombatRaceAbilityProfile(viewer.combatStats.raceId);
+
+      return ability ? presentCombatSkillHtml(ability.id) : "расову дію";
+    }
+    case "gear":
+      return action.gearAbility
+        ? `дію спорядження ${presentCombatSkillHtml(action.gearAbility.profile.id)}`
+        : "дію спорядження";
+    case "item":
+      return action.item
+        ? `одноразову манатку <i>${escapeHtml(action.item.name)}</i>`
+        : "одноразову манатку";
+    default:
+      return "дію";
+  }
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {

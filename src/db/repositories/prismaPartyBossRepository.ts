@@ -1350,6 +1350,18 @@ function mapSession(row: PartyBossRow): PartyBossSessionRecord {
     result: parseResult(row.resultJson, state),
     turnExpiresAt: row.turnExpiresAt,
     completedAt: row.completedAt,
+    queuedActions: row.actions.map((action) => {
+      const item = parseActionItem(action.resultJson);
+      const gearAbility = parseActionGearAbility(action.resultJson);
+
+      return {
+        characterId: action.actorCharacterId,
+        turn: action.turn,
+        action: parseActionKey(action.actionKey),
+        ...(item ? { item } : {}),
+        ...(gearAbility ? { gearAbility } : {})
+      };
+    }),
     participants: row.partySession.participants
       .filter((participant) => participant.status === "joined")
       .map((participant) => mapCharacter(participant.character))
