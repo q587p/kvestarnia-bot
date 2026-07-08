@@ -1,9 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { buildItemUpgradePreviewKeyboard } from "../../src/bot/keyboards/itemUpgradeKeyboard";
-import type { ItemUpgradePreviewResult } from "../../src/services/itemUpgradeService";
+import {
+  buildItemUpgradeListKeyboard,
+  buildItemUpgradePreviewKeyboard
+} from "../../src/bot/keyboards/itemUpgradeKeyboard";
+import type {
+  ItemUpgradeListResult,
+  ItemUpgradePreviewResult
+} from "../../src/services/itemUpgradeService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("item upgrade keyboard", () => {
+  it("marks equipped upgrade candidates with the equip icon", () => {
+    const keyboard = buildItemUpgradeListKeyboard(readyList({
+      items: [
+        upgradeItem({
+          itemId: "item.apron-of-foam-resistance",
+          name: "Фартух піностійкого пригодника",
+          equipped: true
+        }),
+        upgradeItem({
+          itemId: "item.pan-of-persuasion",
+          name: "Пательня переконання",
+          equipped: false
+        })
+      ]
+    }));
+
+    expect(buttonTexts(keyboard)).toContain("🧥 Фартух піностійкого пригодника");
+    expect(buttonTexts(keyboard)).toContain("✨ Пательня переконання");
+    expect(buttonTexts(keyboard).join("\n")).not.toContain("✅ Фартух піностійкого пригодника");
+  });
+
   it("hides self temper preview for non-magical classes", () => {
     const keyboard = buildItemUpgradePreviewKeyboard(readyPreview({
       character: character({ classId: "class.warrior" }),
@@ -32,6 +59,37 @@ describe("item upgrade keyboard", () => {
     expect(buttonTexts(keyboard)).toContain("🛠️ За допомогою ельфа-мага");
   });
 });
+
+function readyList(overrides: Partial<Extract<ItemUpgradeListResult, { state: "ready" }>> = {}): Extract<ItemUpgradeListResult, { state: "ready" }> {
+  return {
+    state: "ready",
+    character: character(),
+    iskrokamin: 13,
+    canUseSelfTemper: false,
+    items: [],
+    ...overrides
+  };
+}
+
+function upgradeItem(
+  overrides: Partial<Extract<ItemUpgradeListResult, { state: "ready" }>["items"][number]> = {}
+): Extract<ItemUpgradeListResult, { state: "ready" }>["items"][number] {
+  return {
+    itemId: "item.pan-of-persuasion",
+    name: "Пательня переконання",
+    baseName: "Пательня переконання",
+    quantity: 1,
+    enhancementLevel: 0,
+    equipped: false,
+    targetLevel: 1,
+    primaryStat: "weaponDamage",
+    rarity: "common",
+    setId: null,
+    setName: null,
+    isSetPiece: false,
+    ...overrides
+  };
+}
 
 function readyPreview(overrides: Partial<Extract<ItemUpgradePreviewResult, { state: "ready" }>> = {}): Extract<ItemUpgradePreviewResult, { state: "ready" }> {
   return {

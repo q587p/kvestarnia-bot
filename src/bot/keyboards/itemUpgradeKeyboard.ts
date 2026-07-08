@@ -16,6 +16,8 @@ import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 
 const MAX_LIST_BUTTONS = 10;
+const EQUIPPED_UPGRADE_ITEM_ICON = "🧥";
+const UPGRADE_ITEM_ICON = "✨";
 
 export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -24,7 +26,7 @@ export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult): Inl
     for (const item of result.items.slice(0, MAX_LIST_BUTTONS)) {
       keyboard
         .text(
-          `${item.equipped ? "✅" : "✨"} ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
+          `${item.equipped ? EQUIPPED_UPGRADE_ITEM_ICON : UPGRADE_ITEM_ICON} ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
           makeItemUpgradePreviewCallbackData(item.itemId)
         )
         .row();
