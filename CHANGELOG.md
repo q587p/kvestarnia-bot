@@ -7,11 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.31] - 12026-07-08 - Mantok Ability Grants Polish
+## [0.2.32] - 12026-07-08 - Combat and Korchma Polish Rollup
 
 ### Fixed
 - Repeated persistent PvE flee attempts now ramp their success chance from the old first-attempt formula toward a bounded escape guarantee: attempt 5 succeeds at 93%, attempt 6 at 96.5%, and attempt 7 at 100%, with the attempt number replayed from the stored combat turn log and no schema change.
 - The Korchma hall presence summary now shows the "Yeger does not count" joke only once per character remort life, using player hint receipts without changing presence counts, Yeger routing or schema.
+- Yeger contracts now apply the existing combat-only remort-aware monster pressure one remort earlier than ordinary one-enemy PvE, so remort `3` hunt monsters no longer stay at base stats. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
+- Completed Big Barrel Brother result cards opened without a matching participant viewer now show the total raid XP, gold and item grants as `Загальна винагорода рейду` without assigning those rewards to a specific participant; participant cards still label the personal payout as `Ваша винагорода за рейд`.
+- Big Barrel Brother victory settlement now grants each meaningful participant one deterministic Loot Expansion manatka using the frozen participant level/class/race/luck profile and a participant-specific seed, without requiring Barrel-specific loot tags or replaying the solo Barrel starter bundle (`Фартух`, `Квиток`, rotating Barrel keepsake) for everyone.
+- Solo Barrel raids now grant the starter Barrel bundle only on the character's first Barrel completion ledger; later completions keep XP/gold but only have a bounded deterministic 23% chance to grant one profile-based Loot Expansion manatka from the character's current level/class/race/luck.
+
+### Changed
+- Added a future-task note for expanding `Корчмарський обхід` small-catastrophe scenes to 42 variants with anti-repeat selection.
+- Bumped package metadata to `0.2.32` for the consolidated polish rollup.
+
+## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+
+### Fixed
 - Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
 - Turn-based duel gear-action round resolution now carries first-use achievement unlock notifications back to the acting participant and the other participant's refreshed card, while stale, blocked, duplicate or queued-only callbacks still do not spend mana, advance turns, tick cooldowns, mutate RNG or unlock early.
 - Unknown or stale Telegram callback payloads now answer with the existing invalid-button alert instead of leaving the client spinner blinking silently; the `Хто поруч` Rogue `Тиха кишеня` callback is covered as an active regression path.
@@ -20,13 +32,10 @@ This project follows a simple pre-1.0 versioning policy:
 - Shynok problem-paper issue results now rebuild quest markers after the paper is issued, so `⬅️ До зали` still points toward other available Korchma-location quests instead of showing stale unmarked navigation.
 - Race- and class-personalized adventure problem titles and hooks now render identity forms without awkward capitalized quoted insertions, for example `Портрет раси ельфа` and `Іспит для злодія`.
 - Generated Loot Expansion enhancement prices now use a soft economy cap, so high-base `+4`/`+5` manatky no longer inflate `goldValue`, Shynok sale payouts, Mantok Chest score or Munchkin exchange value into runaway five-digit ranges; combat stats, rarity, level gates and drop odds are unchanged.
-- Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, while Yeger contracts use the same pressure one remort earlier so remort `3` hunt monsters no longer stay at base stats. Active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
+- Persistent one-enemy PvE fights now apply combat-only remort-aware monster pressure after the third remort, including Yeger contracts, and active fight cards label the solo pressure as `Відплата за минулі пригоди` for Yeger sources or `Відлуння минулих пригод` elsewhere. Two-enemy threat backup monsters get a capped remort pressure guard while the primary enemy stays on its authored level. Encounter level display, rewards, loot/drop odds, Yeger progress and Prisma schema are unchanged.
 - Ordinary Nyz two-enemy threat escalation now lowers its consecutive-win gate by current remort life: base-life characters still need three eligible wins, remort `1` needs two, and remort `2+` needs one. Losses, excluded routes, rewards, loot, Yeger fights, Adventure fights, dev-forced two-enemy rows and repeat escalated checkpoint rules stay unchanged.
 - Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
 - `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories. New public level-up rows also include the character's remort life tag, such as `(р5)`, after the reached level.
-- Completed Big Barrel Brother result cards opened without a matching participant viewer now show the total raid XP, gold and item grants as `Загальна винагорода рейду` without assigning those rewards to a specific participant; participant cards still label the personal payout as `Ваша винагорода за рейд`.
-- Big Barrel Brother victory settlement now grants each meaningful participant one deterministic Loot Expansion manatka using the frozen participant level/class/race/luck profile and a participant-specific seed, without requiring Barrel-specific loot tags or replaying the solo Barrel starter bundle (`Фартух`, `Квиток`, rotating Barrel keepsake) for everyone.
-- Solo Barrel raids now grant the starter Barrel bundle only on the character's first Barrel completion ledger; later solo completions keep XP/gold but only have a bounded deterministic 23% chance to grant one profile-based Loot Expansion manatka from the character's current level/class/race/luck.
 - The `👤 Персонаж` card now includes a direct inline `🛡️ Спорядження` button above achievements/titles and recovery actions, opening the existing equipment screen without going through `🎒 Манатки`; the persistent main menu keeps its compact location/quest/inventory/nearby/help layout.
 - Outside-Korchma quest gates no longer mark `🚪 Зайти в корчму` by default when no verified active quest marker exists, so a cooldown-only cellar errand cannot imply fresh quests inside; direct `/tavern` hall cards now resolve the same quest marker snapshot as place callbacks, while the hall `📋 Стіл зі справами` button no longer duplicates `⚠️` for quests already visible on final location buttons such as `🐭 Льох`.
 - Quest Table cards now build their keyboard as the physical `📋 Стіл зі справами` location, so `🍺 До зали` does not duplicate `⚠️` for starter/problem quests already visible on the same table card.

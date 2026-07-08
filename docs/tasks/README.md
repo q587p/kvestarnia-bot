@@ -52,10 +52,11 @@ Recently shipped:
 
 - [0.2.30-mantok-ability-grants-foundation.md](0.2.30-mantok-ability-grants-foundation.md) — Mantok ability-grant foundation with persistent PvE gear actions, compact callbacks, visible bleed and additive high-level loot.
 - [0.2.31-polish-bugfixes.md](0.2.31-polish-bugfixes.md) — narrow Mantok Ability Grants post-merge polish for first-use gear-action notification delivery in Big Barrel Brother raids and turn-based duels, plus silent callback, Barrel/Yeger quest-marker, generated-price, remort PvE pressure, same-location quest-marker, stale table-game replay, inventory sort and item-detail replacement hardening.
+- [0.2.32-polish-rollup.md](0.2.32-polish-rollup.md) — consolidated combat and Korchma polish rollup for repeated flee chance, once-only Yeger count copy, Yeger remort pressure and future daily-round variant tracking.
 
 Near-term next tasks:
 
-Post-`0.2.31`, new feature work starts on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
+Post-`0.2.32`, new feature work starts on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
 - [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP with concrete `+N` item ids and replay-safe upgrade attempts.
 - [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
