@@ -55,7 +55,7 @@ export function presentPartyCreate(
   }
 
   if (result.state === "ineligible") {
-    return presentPartyCreateIneligible(result.reason);
+    return presentPartyCreateIneligible(result);
   }
 
   const notice = result.state === "created"
@@ -90,7 +90,7 @@ export function presentPartyJoin(
   }
 
   if (result.state === "ineligible") {
-    return presentPartyJoinIneligible(result.reason);
+    return presentPartyJoinIneligible(result);
   }
 
   if (result.state === "full") {
@@ -121,18 +121,23 @@ export function presentPartyJoin(
 }
 
 function presentPartyCreateIneligible(
-  reason: Extract<PartyCreateResult, { state: "ineligible" }>["reason"]
+  result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
-  if (reason === "loss-cooldown") {
-    return "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+  if (result.reason === "loss-cooldown") {
+    return [
+      "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
+      `Спробуйте ще раз за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+    ].join("\n");
   }
 
   return "Рейдова канцелярія притримала новий збір. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
 }
 
 function presentPartyJoinIneligible(
-  reason: Extract<PartyJoinResult, { state: "ineligible" }>["reason"]
+  result: Extract<PartyJoinResult, { state: "ineligible" }>
 ): string {
+  const reason = result.reason;
+
   if (reason === "level-gate") {
     return "Рейдова канцелярія відсіяла запис: Старший Брат Бочки пускає в цю бійку пригодників від 8 рівня, або ремортованих від 3 рівня.";
   }
@@ -146,10 +151,37 @@ function presentPartyJoinIneligible(
   }
 
   if (reason === "loss-cooldown") {
-    return "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.";
+    return [
+      "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
+      `Спробуйте ще раз за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+    ].join("\n");
   }
 
   return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+}
+
+function formatRemainingWait(availableAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
+  return `${minutes} ${formatUkrainianMinutes(minutes)}`;
+}
+
+function formatUkrainianMinutes(value: number): string {
+  const lastTwo = value % 100;
+  const last = value % 10;
+
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "хвилин";
+  }
+
+  if (last === 1) {
+    return "хвилину";
+  }
+
+  if (last >= 2 && last <= 4) {
+    return "хвилини";
+  }
+
+  return "хвилин";
 }
 
 export function presentPartyLeave(

@@ -65,17 +65,22 @@ export interface JoinPartySessionInput {
   messageId?: number | null;
 }
 
-export type PartyCreateIneligibleReason = "loss-cooldown";
-
 export type PartyJoinIneligibleReason =
   | "level-gate"
   | "active-combat"
   | "already-completed"
   | "loss-cooldown";
 
+export type PartyLossCooldownIneligible = {
+  state: "ineligible";
+  reason: "loss-cooldown";
+  availableAt: Date;
+  now: Date;
+};
+
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
-  | { state: "ineligible"; reason?: PartyCreateIneligibleReason | undefined }
+  | PartyLossCooldownIneligible
   | { state: "live"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | { state: "created"; session: PartySessionRecord };
@@ -90,7 +95,12 @@ export type PartyJoinRepositoryResult =
     }
   | { state: "already-joined"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
-  | { state: "ineligible"; session: PartySessionRecord; reason?: PartyJoinIneligibleReason | undefined }
+  | (PartyLossCooldownIneligible & { session: PartySessionRecord })
+  | {
+      state: "ineligible";
+      session: PartySessionRecord;
+      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown"> | undefined;
+    }
   | { state: "full" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyLeaveRepositoryResult =

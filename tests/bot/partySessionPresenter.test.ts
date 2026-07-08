@@ -769,7 +769,15 @@ describe("party session presenter", () => {
     expect(presentPartyJoin({ state: "ineligible", reason: "level-gate", session })).toContain("від 8 рівня");
     expect(presentPartyJoin({ state: "ineligible", reason: "active-combat", session })).toContain("в активному бою");
     expect(presentPartyJoin({ state: "ineligible", reason: "already-completed", session })).toContain("вже зарахована");
-    expect(presentPartyJoin({ state: "ineligible", reason: "loss-cooldown", session })).toContain("короткий перепочинок");
+    const cooldownText = presentPartyJoin({
+      state: "ineligible",
+      reason: "loss-cooldown",
+      availableAt: new Date("2026-06-30T10:02:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+    expect(cooldownText).toContain("короткий перепочинок");
+    expect(cooldownText).toContain("2 хвилини");
     expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
   });
 });

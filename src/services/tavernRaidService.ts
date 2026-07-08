@@ -15,6 +15,7 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import { rollLootExpansionItem } from "../domain/loot";
 import { CryptoRandomSource, SeededRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
+import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../domain/partyBoss/partyBoss";
 import {
   APRON_OF_FOAM_RESISTANCE_ITEM_ID,
   BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID,
@@ -145,6 +146,7 @@ export type TavernDevRaidResetResult =
       periodId: string;
       clearedPending: boolean;
       clearedCompletion: boolean;
+      clearedLossCooldown: boolean;
     }
   | { state: "nothing-to-reset"; character: CharacterSummary; periodId: string };
 
@@ -449,12 +451,23 @@ export class TavernRaidService {
       key: FRIDAY_BARREL_RAID_KEY,
       localDate: period.id
     });
+    const lossCooldownDeleted = await this.pendingRaids.deleteForTelegramUser(telegramUserId, {
+      key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY
+    });
 
-    if (pendingDeleted === "no-character" || completionDeleted === "no-character") {
+    if (
+      pendingDeleted === "no-character" ||
+      completionDeleted === "no-character" ||
+      lossCooldownDeleted === "no-character"
+    ) {
       return { state: "no-character" };
     }
 
-    if (pendingDeleted === "missing" && completionDeleted === "missing") {
+    if (
+      pendingDeleted === "missing" &&
+      completionDeleted === "missing" &&
+      lossCooldownDeleted === "missing"
+    ) {
       return {
         state: "nothing-to-reset",
         character: summarizeCharacter(pending.character),
@@ -467,7 +480,8 @@ export class TavernRaidService {
       character: summarizeCharacter(pending.character),
       periodId: period.id,
       clearedPending: pendingDeleted === "deleted",
-      clearedCompletion: completionDeleted === "deleted"
+      clearedCompletion: completionDeleted === "deleted",
+      clearedLossCooldown: lossCooldownDeleted === "deleted"
     };
   }
 

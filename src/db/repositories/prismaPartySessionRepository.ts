@@ -74,11 +74,17 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" } satisfies PartyCreateRepositoryResult;
       }
 
-      if (
-        input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
-        await hasActiveBigBarrelLossCooldown(tx, character.id, input.now)
-      ) {
-        return { state: "ineligible", reason: "loss-cooldown" } satisfies PartyCreateRepositoryResult;
+      const lossCooldown = input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+        ? await findActiveBigBarrelLossCooldown(tx, character.id, input.now)
+        : null;
+
+      if (lossCooldown) {
+        return {
+          state: "ineligible",
+          reason: "loss-cooldown",
+          availableAt: lossCooldown.availableAt,
+          now: input.now
+        } satisfies PartyCreateRepositoryResult;
       }
 
       const liveLeader = await findLiveLeaderSession(tx, character.id);
@@ -188,9 +194,17 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      const ineligibleReason = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
-      if (ineligibleReason) {
-        return { state: "ineligible", reason: ineligibleReason, session: mapSession(session) };
+      const ineligible = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
+      if (ineligible) {
+        return ineligible.reason === "loss-cooldown"
+          ? {
+              state: "ineligible",
+              reason: ineligible.reason,
+              availableAt: ineligible.availableAt,
+              now: input.now,
+              session: mapSession(session)
+            }
+          : { state: "ineligible", reason: ineligible.reason, session: mapSession(session) };
       }
 
       const existing = session.participants.find((row) => row.characterId === character.id);
@@ -854,13 +868,17 @@ async function getBigBarrelJoinIneligibleReason(
   session: PartySessionRow,
   character: CharacterRow,
   now: Date
-): Promise<PartyJoinIneligibleReason | null> {
+): Promise<
+  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown"> }
+  | { reason: "loss-cooldown"; availableAt: Date }
+  | null
+> {
   if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
     return null;
   }
 
   if (!isBigBarrelEligible(character.level, character._count.remorts)) {
-    return "level-gate";
+    return { reason: "level-gate" };
   }
 
   const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
@@ -886,29 +904,32 @@ async function getBigBarrelJoinIneligibleReason(
           }
         })
       : Promise.resolve(null),
-    hasActiveBigBarrelLossCooldown(tx, character.id, now)
+    findActiveBigBarrelLossCooldown(tx, character.id, now)
   ]);
 
   if (activeLease) {
-    return "active-combat";
+    return { reason: "active-combat" };
   }
 
   if (existingSuccess) {
-    return "already-completed";
+    return { reason: "already-completed" };
   }
 
   if (activeLossCooldown) {
-    return "loss-cooldown";
+    return {
+      reason: "loss-cooldown",
+      availableAt: activeLossCooldown.availableAt
+    };
   }
 
   return null;
 }
 
-async function hasActiveBigBarrelLossCooldown(
+async function findActiveBigBarrelLossCooldown(
   tx: TxClient,
   characterId: string,
   now: Date
-): Promise<boolean> {
+): Promise<{ availableAt: Date } | null> {
   const cooldown = await tx.characterCooldown.findUnique({
     where: {
       characterId_key: {
@@ -921,7 +942,7 @@ async function hasActiveBigBarrelLossCooldown(
     }
   });
 
-  return Boolean(cooldown && cooldown.availableAt > now);
+  return cooldown && cooldown.availableAt > now ? cooldown : null;
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {

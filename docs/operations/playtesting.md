@@ -201,9 +201,9 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
 17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, names terminal participant rows by character rather than `Ви`, and does not show active-only cooldown rows. Then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
 17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
-18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; verify it does not clear the Big Barrel Brother loss retry cooldown.
+18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; after a Big loss, verify it clears the Big Barrel Brother loss retry cooldown for QA.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.
-19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked until roughly 3 minutes pass, then verify they work again after cooldown expiry.
+19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked with a remaining-wait line, then verify they work again after cooldown expiry.
 20. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
 21. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
@@ -891,7 +891,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_adventure_reset` — у локальному режимі скидає й перетасовує поточний вибір пригоди для швидкого ручного тесту.
 - `/dev_reset_korchma_round` — у локальному режимі скидає поточний київський день Корчмарського обходу для швидкого ручного тесту.
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
-- `/dev_raid_reset` — у локальному режимі скидає pending-таймер і зарахований поточний відтинок Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді; навмисно не скидає 3-хвилинний кулдаун після програшу Старшому Брату Бочки.
+- `/dev_raid_reset` — у локальному режимі скидає pending-таймер, зарахований поточний відтинок Бочки й 3-хвилинний кулдаун після програшу Старшому Брату Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
