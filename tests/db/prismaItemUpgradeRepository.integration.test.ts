@@ -82,14 +82,14 @@ describe("PrismaItemUpgradeRepository integration", () => {
       },
       spent: {
         gold: 50,
-        iskrokamin: 2,
+        iskrokamin: 5,
         mana: 0
       }
     });
 
     await expectItemQuantity(panItemId, 1);
     await expectItemQuantity(panPlusOneItemId, 1);
-    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 3);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
     await expectEquippedItem(panPlusOneItemId);
 
@@ -111,7 +111,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
 
     await expectItemQuantity(panItemId, 1);
     await expectItemQuantity(panPlusOneItemId, 1);
-    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 3);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
     await expectEquippedItem(panPlusOneItemId);
   });
@@ -139,7 +139,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
     expect(results.filter((result) => result.state === "stale-snapshot")).toHaveLength(1);
     await expectItemQuantity(panItemId, 1);
     await expectItemQuantity(panPlusOneItemId, 1);
-    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 3);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
   });
 
@@ -165,7 +165,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
 
     await expectItemQuantity(panItemId, 1);
     await expectItemQuantity(panPlusOneItemId, 0);
-    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 3);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
 
     await expect(repository.attemptForTelegramUser(telegramUserId, {
@@ -184,7 +184,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
       }
     });
 
-    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 3);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
   });
 

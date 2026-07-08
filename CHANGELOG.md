@@ -36,7 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `Іскрокамінь` is explicitly tradeable through Safe Gifting and postal delivery while staying priceless, so it is not eligible for Shynok manatka sales or Munchkin level barter value.
 - `Іскрокамінь` now uses the explicit `resource` item slot on detail cards, shows as priceless, and links directly back to `✨ До Чароковальні`.
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
-- Charkokovalnia Iskrokamin costs now use the rounded log-spaced ladder `2 / 5 / 13 / 34 / 89`; set pieces cost `x1.25`, legendary items cost `x1.5`, legendary set pieces cost `x2`, and donor discounts are percentage-based with a 50% floor.
+- Charkokovalnia Iskrokamin costs now use the Kvestarnia-spaced ladder `5 / 13 / 23 / 42 / 93`; rarity/set modifiers use `x1.05` for uncommon, `x1.13` for rare, `x1.23` for epic, `x1.42` for set pieces and `x1.93` for legendary items, and donor discounts are percentage-based with a 50% floor.
 - Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.

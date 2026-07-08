@@ -32,7 +32,7 @@ describe("ItemUpgradeService", () => {
       pityFailuresBefore: 0,
       pityFailuresAfter: 0,
       pityGuaranteed: false,
-      spent: { gold: 900, iskrokamin: 89, mana: 0 }
+      spent: { gold: 900, iskrokamin: 93, mana: 0 }
     });
     const publisher = {
       recordItemUpgradeSucceededSafely:
@@ -85,7 +85,7 @@ describe("ItemUpgradeService", () => {
       pityFailuresBefore: 0,
       pityFailuresAfter: 1,
       pityGuaranteed: false,
-      spent: { gold: 900, iskrokamin: 89, mana: 0 }
+      spent: { gold: 900, iskrokamin: 93, mana: 0 }
     });
     const publisher = {
       recordItemUpgradeSucceededSafely:
@@ -130,7 +130,7 @@ describe("ItemUpgradeService", () => {
         pityFailuresBefore: 0,
         pityFailuresAfter: 0,
         pityGuaranteed: false,
-        spent: { gold: 50, iskrokamin: 2, mana: 0 }
+        spent: { gold: 50, iskrokamin: 5, mana: 0 }
       },
       {
         state: "attempted",
@@ -150,7 +150,7 @@ describe("ItemUpgradeService", () => {
         pityFailuresBefore: 0,
         pityFailuresAfter: 0,
         pityGuaranteed: false,
-        spent: { gold: 50, iskrokamin: 2, mana: 0 }
+        spent: { gold: 50, iskrokamin: 5, mana: 0 }
       }
     ]);
     const publisher = {

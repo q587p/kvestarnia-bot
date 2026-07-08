@@ -56,13 +56,13 @@ export function getItemUpgradeUnlockRewardXp(character: { level: number; remortC
   return Math.max(13, Math.min(93, 18 + level * 4 + remortCount * 7));
 }
 
-// Rounded log-spaced Iskrokamin ladder; this is intentionally not a linear cost curve.
+// Rounded Kvestarnia-spaced Iskrokamin ladder; this is intentionally not a linear cost curve.
 export const ITEM_UPGRADE_ISKROKAMIN_LADDER: Record<number, number> = {
-  1: 2,
-  2: 5,
-  3: 13,
-  4: 34,
-  5: 89
+  1: 5,
+  2: 13,
+  3: 23,
+  4: 42,
+  5: 93
 };
 
 export const ITEM_UPGRADE_LEVELS: Record<number, ItemUpgradeLevelConfig> = {
@@ -247,14 +247,17 @@ export function calculateModifiedItemUpgradeIskrokaminCost(input: {
   isSetPiece: boolean;
 }): number {
   const baseCost = Math.max(1, Math.floor(input.baseCost));
-  const isLegendary = input.itemRarity === "legendary";
-  const multiplier = isLegendary && input.isSetPiece
-    ? 2
-    : isLegendary
-      ? 1.5
-      : input.isSetPiece
-        ? 1.25
-        : 1;
+  const rarityMultiplier: Record<ItemContent["rarity"], number> = {
+    common: 1,
+    uncommon: 1.05,
+    rare: 1.13,
+    epic: 1.23,
+    legendary: 1.93
+  };
+  const multiplier = Math.max(
+    rarityMultiplier[input.itemRarity] ?? 1,
+    input.isSetPiece ? 1.42 : 1
+  );
 
   return Math.max(1, Math.ceil(baseCost * multiplier));
 }
@@ -316,7 +319,7 @@ export function getDonorBonus(input: {
     return {
       kind: "same-template",
       chanceBonus: 12,
-      iskrokaminDiscountPercent: 20
+      iskrokaminDiscountPercent: 23
     };
   }
 

@@ -167,24 +167,24 @@ describe("item upgrades", () => {
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 3,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 20 }
-    })).toEqual({ gold: 260, iskrokamin: 11, mana: 0 });
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
+    })).toEqual({ gold: 260, iskrokamin: 18, mana: 0 });
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 5
-    })).toEqual({ gold: 900, iskrokamin: 89, mana: 0 });
+    })).toEqual({ gold: 900, iskrokamin: 93, mana: 0 });
     expect(calculateItemUpgradeCosts({
       method: "self",
       targetLevel: 1,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 20 }
-    })).toEqual({ gold: 0, iskrokamin: 2, mana: 10 });
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
+    })).toEqual({ gold: 0, iskrokamin: 4, mana: 10 });
 
     expect(calculateItemUpgradeChance({
       method: "npc",
       targetLevel: 5,
       luck: 99,
       pityFailures: 4,
-      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 20 }
+      donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 23 }
     })).toMatchObject({
       donorBonus: 12,
       finalChance: 91,
@@ -209,7 +209,8 @@ describe("item upgrades", () => {
       donorItemId: "item.test-upgrade-pan.plus-1"
     })).toMatchObject({
       kind: "same-template",
-      chanceBonus: 12
+      chanceBonus: 12,
+      iskrokaminDiscountPercent: 23
     });
     expect(getDonorBonus({
       baseItem: weapon,
@@ -248,38 +249,44 @@ describe("item upgrades", () => {
     })).toBeNull();
   });
 
-  it("applies rounded log-spaced Iskrokamin costs with rarity and set modifiers", () => {
+  it("applies Kvestarnia-spaced Iskrokamin costs with rarity and set modifiers", () => {
     expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1 })).toEqual({
       gold: 50,
-      iskrokamin: 2,
+      iskrokamin: 5,
       mana: 0
     });
     expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5 })).toEqual({
       gold: 900,
-      iskrokamin: 89,
+      iskrokamin: 93,
       mana: 0
     });
-    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, isSetPiece: true })).toMatchObject({ iskrokamin: 3 });
-    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, isSetPiece: true })).toMatchObject({ iskrokamin: 112 });
-    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, itemRarity: "legendary" })).toMatchObject({ iskrokamin: 3 });
-    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, itemRarity: "legendary" })).toMatchObject({ iskrokamin: 134 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, itemRarity: "uncommon" })).toMatchObject({ iskrokamin: 6 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, itemRarity: "uncommon" })).toMatchObject({ iskrokamin: 98 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, itemRarity: "rare" })).toMatchObject({ iskrokamin: 6 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, itemRarity: "rare" })).toMatchObject({ iskrokamin: 106 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, itemRarity: "epic" })).toMatchObject({ iskrokamin: 7 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, itemRarity: "epic" })).toMatchObject({ iskrokamin: 115 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, isSetPiece: true })).toMatchObject({ iskrokamin: 8 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, isSetPiece: true })).toMatchObject({ iskrokamin: 133 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 1, itemRarity: "legendary" })).toMatchObject({ iskrokamin: 10 });
+    expect(calculateItemUpgradeCosts({ method: "npc", targetLevel: 5, itemRarity: "legendary" })).toMatchObject({ iskrokamin: 180 });
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 1,
       itemRarity: "legendary",
       isSetPiece: true
-    })).toMatchObject({ iskrokamin: 4 });
+    })).toMatchObject({ iskrokamin: 10 });
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 5,
       itemRarity: "legendary",
       isSetPiece: true
-    })).toMatchObject({ iskrokamin: 178 });
+    })).toMatchObject({ iskrokamin: 180 });
     expect(calculateItemUpgradeCosts({
       method: "npc",
       targetLevel: 5,
       donor: { kind: "same-template", chanceBonus: 12, iskrokaminDiscountPercent: 99 }
-    })).toMatchObject({ iskrokamin: 45 });
+    })).toMatchObject({ iskrokamin: 47 });
   });
 
   it("applies primary stat upgrades to the chosen item effect", () => {
