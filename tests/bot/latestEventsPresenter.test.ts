@@ -11,6 +11,7 @@ describe("latest events presenter", () => {
     expect(presentLatestEventsEmpty()).toContain("📜 Хроніки Квестарні");
     expect(presentLatestEventsEmpty()).toContain("Літописець гріє чорнило");
     expect(presentLatestEventsEmpty("imp")).toContain("⭐ Важливе");
+    expect(presentLatestEventsEmpty("imp")).toContain("Фільтр: <b>⭐ Важливе</b>");
     expect(presentLatestEventsEmpty("adv")).toContain("👥 Пригодники");
     expect(presentLatestEventsEmpty("cmb")).toContain("⚔️ Бої");
     expect(presentLatestEventsEmpty("itm")).toContain("🎒 Манатки");
@@ -104,6 +105,7 @@ describe("latest events presenter", () => {
 
   it("renders successful item upgrade activity rows", () => {
     const text = presentLatestEventsPage({
+      filter: "itm",
       now: new Date("2026-07-08T12:00:00.000Z"),
       page: {
         events: [
@@ -119,6 +121,7 @@ describe("latest events presenter", () => {
       }
     });
 
+    expect(text).toContain("Фільтр: <b>🎒 Манатки</b>");
     expect(text).toContain("Майстер: манатка підсилена до +5 — «Пательня переконання +5».");
   });
 });

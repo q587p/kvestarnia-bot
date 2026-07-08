@@ -17,13 +17,16 @@ describe("latest events command", () => {
 
   it("does not show an error card when the achievement notice reply fails after a feed reply", async () => {
     const ctx = makeContext();
+    const listRecent = makeListRecent();
+    const activityEvents = makeActivityEvents(listRecent);
     const feedReply = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("notice failed"));
     ctx.reply = feedReply;
 
-    await sendLatestEvents(ctx, makeActivityEvents(), "reply", {
+    await sendLatestEvents(ctx, activityEvents, "reply", {
       achievementTracker: makeAchievementTracker()
     });
 
+    expect(listRecent).toHaveBeenCalledWith("imp", { page: 0 });
     expect(feedReply).toHaveBeenCalledTimes(2);
     expect(feedReply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
     expect(feedReply.mock.calls[1]?.[0]).toContain("Нова ачівка");
@@ -45,6 +48,7 @@ describe("latest events command", () => {
     expect(reply).toHaveBeenCalledTimes(2);
     expect(reply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain('"parse_mode":"HTML"');
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("✅ ⭐ Важливе");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎒 Манатки");
     expect(achievementTracker.trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
   });
@@ -117,14 +121,18 @@ function makeContext(overrides: Partial<Context> = {}): Context {
   } as Context;
 }
 
-function makeActivityEvents(): ActivityEventService {
+function makeListRecent() {
+  return vi.fn().mockResolvedValue({
+    events: [],
+    page: 0,
+    pageSize: 15,
+    hasNextPage: false
+  });
+}
+
+function makeActivityEvents(listRecent = makeListRecent()): ActivityEventService {
   return {
-    listRecent: vi.fn().mockResolvedValue({
-      events: [],
-      page: 0,
-      pageSize: 15,
-      hasNextPage: false
-    })
+    listRecent
   } as unknown as ActivityEventService;
 }
 

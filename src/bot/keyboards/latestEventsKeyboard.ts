@@ -9,11 +9,11 @@ export function buildLatestEventsKeyboard(input: {
   hasNextPage: boolean;
 }): InlineKeyboard {
   const keyboard = new InlineKeyboard()
-    .text("⭐ Важливе", makeLatestEventsListCallbackData("imp", 0))
-    .text("👥 Пригодники", makeLatestEventsListCallbackData("adv", 0))
+    .text(filterButtonLabel(input.filter, "imp", "⭐ Важливе"), makeLatestEventsListCallbackData("imp", 0))
+    .text(filterButtonLabel(input.filter, "adv", "👥 Пригодники"), makeLatestEventsListCallbackData("adv", 0))
     .row()
-    .text("⚔️ Бої", makeLatestEventsListCallbackData("cmb", 0))
-    .text("🎒 Манатки", makeLatestEventsListCallbackData("itm", 0));
+    .text(filterButtonLabel(input.filter, "cmb", "⚔️ Бої"), makeLatestEventsListCallbackData("cmb", 0))
+    .text(filterButtonLabel(input.filter, "itm", "🎒 Манатки"), makeLatestEventsListCallbackData("itm", 0));
 
   if (input.page > 0) {
     keyboard.row();
@@ -30,4 +30,12 @@ export function buildLatestEventsKeyboard(input: {
   return keyboard
     .row()
     .text("⬅️ До дошки", makePlaceCallbackData("news-corner"));
+}
+
+function filterButtonLabel(
+  currentFilter: LatestEventFilter,
+  filter: LatestEventFilter,
+  label: string
+): string {
+  return currentFilter === filter ? `✅ ${label}` : label;
 }

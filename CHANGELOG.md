@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `+4` and `+5` upgrade effects now use stronger stat jumps than weak `+1..+3` upgrades and spend more Iskrokamin.
 - Charkokovalnia Iskrokamin costs now use the Kvestarnia-spaced ladder `5 / 13 / 23 / 42 / 93`; rarity/set modifiers use `x1.05` for uncommon, `x1.13` for rare, `x1.23` for epic, `x1.42` for set pieces and `x1.93` for legendary items, and donor discounts are percentage-based with a 50% floor.
 - Charkokovalnia previews now identify set pieces as `Сетова манатка`, preserve upgraded Mantok set semantics, and distinguish same-template, same-set and same-slot donors.
+- `/chronicles` now opens `📜 Хроніки Квестарні` on the `⭐ Важливе` filter by default, and the current filter is marked in the message and keyboard.
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Charkokovalnia preview cards now show the character's current gold and Iskrokamin balances under the price.

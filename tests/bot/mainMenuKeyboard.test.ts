@@ -574,7 +574,7 @@ describe("main menu and scene keyboards", () => {
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaNewsCornerKeyboard())).toEqual([
       "v1:news:list:0",
-      "v1:ev:l:all:0",
+      "v1:ev:l:imp:0",
       "v1:lore:m",
       "v1:gift:open",
       "v1:post:open",

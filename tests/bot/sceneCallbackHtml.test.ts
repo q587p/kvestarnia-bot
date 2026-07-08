@@ -4206,7 +4206,7 @@ describe("scene callback HTML options", () => {
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("Нова ачівка")
     );
 
-    expect(listRecent).toHaveBeenCalledWith("all", { page: 0 });
+    expect(listRecent).toHaveBeenCalledWith("imp", { page: 0 });
     expect(trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
     expect(String(edit?.payload.text)).toContain("📜 Хроніки Квестарні");
     expect(String(achievement?.payload.text)).toContain("Хроніка відкрила око");
