@@ -4,7 +4,7 @@ import type {
   ItemUpgradePreviewResult,
   ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
-import { items } from "../../content";
+import { findItemContent } from "../../content/itemLookup";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { presentQuestRewardAmount } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -135,7 +135,7 @@ export function presentItemUpgradeAttempt(result: ItemUpgradeAttemptServiceResul
     return `Не вистачає мани: треба <b>${result.required}</b>, зараз <b>${result.available}</b>.`;
   }
 
-  const item = items.find((item) => item.id === result.item.itemId) ?? null;
+  const item = findItemContent(result.item.itemId);
   const itemName = escapeHtml(item?.name ?? result.item.itemId);
   const outcome = result.success
     ? `✅ <b>Підсилено до +${result.targetLevel}</b>`

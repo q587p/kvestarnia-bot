@@ -1,8 +1,10 @@
 import { type Bot,type Context } from "grammy";
-import { items } from "../../content";
+import { findItemContent } from "../../content/itemLookup";
 import { getItemUseEffect } from "../../domain/itemUse";
+import { RESPONSIBLE_PANIC_BANDAGE_ITEM_ID } from "../../domain/itemCraft";
 import { getMunchkinLocationAt } from "../../domain/levelBarter/munchkinSchedule";
 import { getCombatUsableItem } from "../../services/combatItemUse";
+import { isEquippableItem } from "../../services/equipmentService";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import {
@@ -75,6 +77,7 @@ buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
 import { isInventoryEquipmentSlotFilter } from "../inventoryFilter";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
+import { elapsedMs, hotPathNow, logSlowHotPathTiming } from "../performanceLogger";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentEquipItemResult,
@@ -124,6 +127,53 @@ import type { BotModuleDependencies } from "./types";
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
+
+function startCallbackTiming(route: string, telegramUserId: bigint) {
+  const totalStartedAt = hotPathNow();
+  let dbMs = 0;
+  let computeMs = 0;
+  let telegramEditMs = 0;
+
+  return {
+    async measureDb<T>(callback: () => Promise<T>): Promise<T> {
+      const startedAt = hotPathNow();
+      const result = await callback();
+      dbMs += elapsedMs(startedAt);
+
+      return result;
+    },
+    measureCompute<T>(callback: () => T): T {
+      const startedAt = hotPathNow();
+      const result = callback();
+      computeMs += elapsedMs(startedAt);
+
+      return result;
+    },
+    async measureTelegram<T>(callback: () => Promise<T>): Promise<T> {
+      const startedAt = hotPathNow();
+      const result = await callback();
+      telegramEditMs += elapsedMs(startedAt);
+
+      return result;
+    },
+    log(fields: {
+      itemCount?: number | null;
+      filter?: string | null;
+      sort?: string | null;
+      page?: number | null;
+    } = {}): void {
+      logSlowHotPathTiming({
+        route,
+        telegramUserId,
+        ...fields,
+        dbMs,
+        computeMs,
+        telegramEditMs,
+        totalMs: elapsedMs(totalStartedAt)
+      });
+    }
+  };
+}
 
 export function registerInventoryBotModule(
   bot: Bot,
@@ -209,14 +259,26 @@ async function handleItemCallback(
     return;
   }
 
+  const totalStartedAt = hotPathNow();
+  const dbStartedAt = hotPathNow();
   const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
-  const equipment = await services.equipment.getEquipmentForTelegramUser(telegramUserId);
   const targetSlot = isInventoryEquipmentSlotFilter(action.filter) ? action.filter : null;
-  const equipPreview = await services.equipment.previewItemEquipForTelegramUser(
-    telegramUserId,
-    action.itemId,
-    targetSlot
-  );
+  const canPreviewEquip = result.state === "found" && isEquippableItem(result.item.content);
+  const shouldCheckCraftOptions = result.state === "found" && result.item.itemId === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID;
+  const equipmentPromise = result.state === "found"
+    ? services.equipment.getEquipmentForTelegramUser(telegramUserId)
+    : Promise.resolve({ state: "no-character" as const });
+  const equipPreviewPromise = canPreviewEquip
+    ? services.equipment.previewItemEquipForTelegramUser(telegramUserId, action.itemId, targetSlot)
+    : Promise.resolve(null);
+  const craftOptionsPromise = shouldCheckCraftOptions
+    ? services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, result.item.itemId)
+    : Promise.resolve([]);
+  const [equipment, equipPreview, craftOptions] = await Promise.all([
+    equipmentPromise,
+    equipPreviewPromise,
+    craftOptionsPromise
+  ]);
   const equippedSlot =
     equipment.state === "ready"
       ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
@@ -232,32 +294,47 @@ async function handleItemCallback(
     ? await getCombatUseStateForItem(services, telegramUserId, result.item.content)
     : null;
   const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
-  const craftOptions = result.state === "found"
-    ? await services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, result.item.itemId)
-    : [];
+  const dbMs = elapsedMs(dbStartedAt);
+  const computeStartedAt = hotPathNow();
+  const text = presentItemDetail(result, {
+    equippedSlot,
+    equipPreview,
+    itemUse,
+    combatUseAvailable: Boolean(combatUse?.action),
+    equippedItemIds
+  });
+  const keyboard = buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
+    canUse,
+    ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
+    craftOptions,
+    equipPreview,
+    sort: action.sort,
+    source: action.source
+  });
+  const computeMs = elapsedMs(computeStartedAt);
 
   await safeAnswerCallbackQuery(ctx);
+  const telegramStartedAt = hotPathNow();
   await safeEditMessageText(
     ctx,
-    presentItemDetail(result, {
-      equippedSlot,
-      equipPreview,
-      itemUse,
-      combatUseAvailable: Boolean(combatUse?.action),
-      equippedItemIds
-    }),
+    text,
     {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
-        canUse,
-        ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
-        craftOptions,
-        equipPreview,
-        sort: action.sort,
-        source: action.source
-      })
+      reply_markup: keyboard
     }
   );
+  logSlowHotPathTiming({
+    route: "item.detail",
+    telegramUserId,
+    itemCount: result.state === "found" ? result.item.quantity : 0,
+    filter: action.filter,
+    sort: action.sort,
+    page: action.page,
+    dbMs,
+    computeMs,
+    telegramEditMs: elapsedMs(telegramStartedAt),
+    totalMs: elapsedMs(totalStartedAt)
+  });
 }
 
 async function handleInventoryPageReply(
@@ -661,7 +738,7 @@ async function hasCombatUseActionForItemId(
   telegramUserId: bigint,
   itemId: string
 ): Promise<boolean> {
-  const item = items.find((candidate) => candidate.id === itemId);
+  const item = findItemContent(itemId);
   if (!item) {
     return false;
   }
@@ -694,7 +771,7 @@ async function getRepeatItemUseOptions(
     return {};
   }
 
-  const item = items.find((candidate) => candidate.id === itemId);
+  const item = findItemContent(itemId);
   const effect = item ? getItemUseEffect(item) : null;
   const missingHp = Math.max(0, outcome.hpMax - outcome.hpAfter);
   const neededQuantity = effect?.kind === "heal-hp" && effect.amount > 0
@@ -798,6 +875,8 @@ async function handleMantokChestCallback(
     return;
   }
 
+  const timing = startCallbackTiming(`mantok-chest.${action.type}`, telegramUserId);
+
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
     await sendInventory(ctx, services.inventory, "edit", 0, null, services.equipment);
@@ -814,18 +893,30 @@ async function handleMantokChestCallback(
   }
 
   if (action.type === "open") {
-    const overview = await services.mantokChest.getOverviewForTelegramUser(telegramUserId);
+    const overview = await timing.measureDb(() => services.mantokChest.getOverviewForTelegramUser(telegramUserId));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestOverview(overview),
+      replyMarkup: buildMantokChestOverviewKeyboard()
+    }));
 
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentMantokChestOverview(overview), {
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildMantokChestOverviewKeyboard()
-    });
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({ itemCount: overview.state === "ready" ? overview.eligibleCount : 0 });
     return;
   }
 
   if (action.type === "auto") {
-    const preview = await services.mantokChest.createAutoPickPreviewForTelegramUser(telegramUserId);
+    const preview = await timing.measureDb(() => services.mantokChest.createAutoPickPreviewForTelegramUser(telegramUserId));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestPreview(preview),
+      replyMarkup:
+        preview.state === "preview-created"
+          ? buildMantokChestPreviewKeyboard(preview.run.token)
+          : buildMantokChestOverviewKeyboard()
+    }));
 
     await safeAnswerCallbackQuery(
       ctx,
@@ -833,53 +924,82 @@ async function handleMantokChestCallback(
         ? { text: "Скрині треба 5 доступних манаток.", show_alert: true }
         : { show_alert: preview.state === "no-character" }
     );
-    await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount:
         preview.state === "preview-created"
-          ? buildMantokChestPreviewKeyboard(preview.run.token)
-          : buildMantokChestOverviewKeyboard()
+          ? preview.inputItems.reduce((sum, item) => sum + item.quantity, 0)
+          : preview.state === "not-enough-items"
+            ? preview.eligibleCount
+            : 0
     });
     return;
   }
 
   if (action.type === "manual") {
-    const selection = await services.mantokChest.startManualSelectionForTelegramUser(telegramUserId);
-
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
+    const selection = await timing.measureDb(() => services.mantokChest.startManualSelectionForTelegramUser(telegramUserId));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestManualSelection(selection),
+      replyMarkup:
         selection.state === "selection"
           ? buildMantokChestManualSelectionKeyboard(selection)
           : buildMantokChestOverviewKeyboard()
+    }));
+
+    await safeAnswerCallbackQuery(ctx);
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount: selection.state === "selection" ? selection.eligibleCount : 0,
+      page: selection.state === "selection" ? selection.page : 0
     });
     return;
   }
 
   if (action.type === "page") {
-    const selection = await services.mantokChest.getManualSelectionForTelegramUser(
+    const selection = await timing.measureDb(() => services.mantokChest.getManualSelectionForTelegramUser(
       telegramUserId,
       action.token,
       action.page
-    );
-
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
+    ));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestManualSelection(selection),
+      replyMarkup:
         selection.state === "selection"
           ? buildMantokChestManualSelectionKeyboard(selection)
           : buildMantokChestOverviewKeyboard()
+    }));
+
+    await safeAnswerCallbackQuery(ctx);
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount: selection.state === "selection" ? selection.eligibleCount : 0,
+      page: selection.state === "selection" ? selection.page : action.page
     });
     return;
   }
 
   if (action.type === "add" || action.type === "remove") {
-    const selection =
+    const selection = await timing.measureDb(() =>
       action.type === "add"
-        ? await services.mantokChest.addManualSelectionUnitForTelegramUser(telegramUserId, action)
-        : await services.mantokChest.removeManualSelectionUnitForTelegramUser(telegramUserId, action);
+        ? services.mantokChest.addManualSelectionUnitForTelegramUser(telegramUserId, action)
+        : services.mantokChest.removeManualSelectionUnitForTelegramUser(telegramUserId, action)
+    );
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestManualSelection(selection),
+      replyMarkup:
+        selection.state === "selection"
+          ? buildMantokChestManualSelectionKeyboard(selection)
+          : buildMantokChestOverviewKeyboard()
+    }));
 
     await safeAnswerCallbackQuery(
       ctx,
@@ -887,21 +1007,29 @@ async function handleMantokChestCallback(
         ? { text: "На виделці рівно 5 манаток." }
         : undefined
     );
-    await safeEditMessageText(ctx, presentMantokChestManualSelection(selection), {
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
-        selection.state === "selection"
-          ? buildMantokChestManualSelectionKeyboard(selection)
-          : buildMantokChestOverviewKeyboard()
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount: selection.state === "selection" ? selection.eligibleCount : 0,
+      page: selection.state === "selection" ? selection.page : action.page
     });
     return;
   }
 
   if (action.type === "preview") {
-    const preview = await services.mantokChest.getManualPreviewForTelegramUser(
+    const preview = await timing.measureDb(() => services.mantokChest.getManualPreviewForTelegramUser(
       telegramUserId,
       action.token
-    );
+    ));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestPreview(preview),
+      replyMarkup:
+        preview.state === "preview-created"
+          ? buildMantokChestPreviewKeyboard(preview.run.token)
+          : buildMantokChestOverviewKeyboard()
+    }));
 
     await safeAnswerCallbackQuery(
       ctx,
@@ -909,39 +1037,49 @@ async function handleMantokChestCallback(
         ? { text: "Скрині треба рівно 5 манаток.", show_alert: true }
         : { show_alert: preview.state !== "preview-created" }
     );
-    await safeEditMessageText(ctx, presentMantokChestPreview(preview), {
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup:
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount:
         preview.state === "preview-created"
-          ? buildMantokChestPreviewKeyboard(preview.run.token)
-          : buildMantokChestOverviewKeyboard()
+          ? preview.inputItems.reduce((sum, item) => sum + item.quantity, 0)
+          : preview.state === "selection-incomplete"
+            ? preview.selectedCount
+            : 0
     });
     return;
   }
 
   if (action.type === "cancel") {
-    const result = await services.mantokChest.cancelRecycleForTelegramUser(
+    const result = await timing.measureDb(() => services.mantokChest.cancelRecycleForTelegramUser(
       telegramUserId,
       action.token
-    );
+    ));
 
     await safeAnswerCallbackQuery(ctx, {
       text: result.state === "cancelled" ? "Скриня відпустила манатки." : presentInvalidCallback(),
       show_alert: result.state !== "cancelled"
     });
 
-    const overview = await services.mantokChest.getOverviewForTelegramUser(telegramUserId);
-    await safeEditMessageText(ctx, presentMantokChestOverview(overview), {
+    const overview = await timing.measureDb(() => services.mantokChest.getOverviewForTelegramUser(telegramUserId));
+    const rendered = timing.measureCompute(() => ({
+      text: presentMantokChestOverview(overview),
+      replyMarkup: buildMantokChestOverviewKeyboard()
+    }));
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildMantokChestOverviewKeyboard()
-    });
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({ itemCount: overview.state === "ready" ? overview.eligibleCount : 0 });
     return;
   }
 
-  const result = await services.mantokChest.confirmRecycleForTelegramUser(
+  const result = await timing.measureDb(() => services.mantokChest.confirmRecycleForTelegramUser(
     telegramUserId,
     action.token
-  );
+  ));
 
   await safeAnswerCallbackQuery(
     ctx,
@@ -956,10 +1094,20 @@ async function handleMantokChestCallback(
   );
   const outputItem =
     result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
+  const rendered = timing.measureCompute(() => ({
+    text: presentMantokChestRecycleResult(result),
+    replyMarkup: buildMantokChestResultKeyboard(outputItem)
+  }));
 
-  await safeEditMessageText(ctx, presentMantokChestRecycleResult(result), {
+  await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildMantokChestResultKeyboard(outputItem)
+    reply_markup: rendered.replyMarkup
+  }));
+  timing.log({
+    itemCount:
+      result.state === "recycled" || result.state === "replayed"
+        ? result.run.inputItems.reduce((sum, item) => sum + item.quantity, 0)
+        : 0
   });
   const achievementText = presentAchievementUnlockNotification(
     result.state === "recycled" ? result.achievementUnlocks ?? [] : []

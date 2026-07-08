@@ -31,7 +31,8 @@ import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callback
 import {
   makeEquipItemCallbackData,
   makeInventoryCallbackData,
-  makeInventoryPagePromptCallbackData
+  makeInventoryPagePromptCallbackData,
+  makeItemDetailCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
 import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
@@ -4766,6 +4767,54 @@ describe("scene callback HTML options", () => {
     expect(itemCalls).toBe(1);
     expect(String(edit?.payload.text)).toContain("Такої манатки в торбі не знайшлося");
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("skips equip preview and craft checks for non-equippable item detail callbacks", async () => {
+    const previewItemEquipForTelegramUser = vi.fn(() => Promise.resolve({ state: "not-equippable" as const }));
+    const getCraftOptionsForTelegramUser = vi.fn(() => Promise.resolve([]));
+    const calls = await captureApiCalls(
+      makeItemDetailCallbackData("item.wet-hero-ticket"),
+      servicesWith({
+        inventory: {
+          getItemForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              item: {
+                id: "character-item-ticket",
+                itemId: "item.wet-hero-ticket",
+                quantity: 1,
+                content: {
+                  id: "item.wet-hero-ticket",
+                  name: "Квиток мокрого пригодника",
+                  description: "Трофей.",
+                  rarity: "common" as const,
+                  slot: "junk" as const,
+                  priceless: true
+                }
+              }
+            })
+        },
+        equipment: {
+          getEquipmentForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              slots: []
+            }),
+          previewItemEquipForTelegramUser
+        },
+        itemUse: {
+          getAvailability: () => ({ state: "not-usable" as const })
+        },
+        itemCraft: {
+          getCraftOptionsForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(previewItemEquipForTelegramUser).not.toHaveBeenCalled();
+    expect(getCraftOptionsForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edit?.payload.text)).toContain("Квиток мокрого пригодника");
   });
 
   it("lets remort callbacks through during an active persistent fight", async () => {

@@ -47,10 +47,8 @@ import {
   type InventorySort
 } from "../inventorySort";
 import {
-  clampInventoryPage,
-  getFilteredInventoryItems,
-  getInventoryPageItems,
-  getInventoryTotalPages,
+  buildInventoryViewModel,
+  type InventoryViewModel,
   type InventoryPresenterOptions
 } from "../presenters/inventoryPresenter";
 import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
@@ -63,9 +61,12 @@ export function buildInventoryKeyboard(
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ): InlineKeyboard {
+  return buildInventoryKeyboardFromViewModel(buildInventoryViewModel(result, page, filter, options));
+}
+
+export function buildInventoryKeyboardFromViewModel(model: InventoryViewModel): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-  const sort = options.sort ?? DEFAULT_INVENTORY_SORT;
-  const inventoryOptions = { ...options, sort };
+  const { result, filter, sort, safePage, totalPages, pageItems, options } = model;
 
   if (result.state === "no-character") {
     return keyboard;
@@ -85,9 +86,7 @@ export function buildInventoryKeyboard(
     return keyboard;
   }
 
-  const filteredCount = getFilteredInventoryItems(result, filter, inventoryOptions).length;
-
-  if (filteredCount > 1) {
+  if (model.filteredCount > 1) {
     keyboard
       .text(
         presentInventoryDateSortButton(sort),
@@ -99,11 +98,6 @@ export function buildInventoryKeyboard(
       )
       .row();
   }
-
-  const safePage = clampInventoryPage(result, page, filter, inventoryOptions);
-  const totalPages = getInventoryTotalPages(result, filter, inventoryOptions);
-
-  const pageItems = getInventoryPageItems(result, safePage, filter, inventoryOptions);
 
   for (const [index, item] of pageItems.entries()) {
     const isEquipped =

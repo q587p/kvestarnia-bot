@@ -14,6 +14,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 - Duel presenter and command coverage confirms combat-style active turn-based cards, stored journal pages and targeted rematch invite delivery.
 - Latest Events coverage confirms tournament claim rows render as combat recognition.
 - Schema coverage confirms the replay-safe claim table and unique character/period/period-key index.
+- Inventory performance follow-up coverage confirms the inventory view model reuses one filter/sort/page result, Mantok Chest auto-select stays equivalent while consuming stack quantities directly, and non-equipment item detail callbacks skip irrelevant equip-preview/craft work.
 
 ## Manual Telegram QA
 
@@ -35,6 +36,10 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 14. Verify no public event appears for tournament losses.
 15. Open `📜 Журнал бою` from a turn-based result and verify the stored round replay does not mutate duel state.
 16. Press `🔁 Реванш` from a result and verify the other participant receives the targeted invite card.
+17. Open `Манатки`, change filter, sort and page, and verify the card/keyboard text stays unchanged while slow logs include route, item count, filter/sort/page and timing fields only when the callback is slow.
+18. Open a non-equipment item detail and verify the visible item card is unchanged and no unnecessary equip-preview behavior appears.
+19. Open `♻️ До Дружньої Скрині`, try auto-pick plus manual add/remove/page/preview/confirm, and verify selected quantities and output behavior match the previous rules.
+20. Open `✨ Чароковальня`, page/sort the list and preview an item, verifying the list remains responsive and the visible controls are unchanged.
 
 ## Known Manual Gap
 

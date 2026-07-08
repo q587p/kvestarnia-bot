@@ -23,12 +23,31 @@ export interface InventoryPresenterOptions {
   sort?: InventorySort;
 }
 
+export interface InventoryViewModel {
+  result: InventoryResult;
+  rawItems: readonly InventoryItemSummary[];
+  filteredItems: readonly InventoryItemSummary[];
+  filteredCount: number;
+  safePage: number;
+  totalPages: number;
+  pageItems: readonly InventoryItemSummary[];
+  filter: InventoryFilter;
+  sort: InventorySort;
+  options: InventoryPresenterOptions;
+}
+
 export function presentInventory(
   result: InventoryResult,
   page = 0,
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ): string {
+  return presentInventoryViewModel(buildInventoryViewModel(result, page, filter, options));
+}
+
+export function presentInventoryViewModel(model: InventoryViewModel): string {
+  const { result, filter, options } = model;
+
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Манатки не люблять порожніх біографій.";
   }
@@ -46,11 +65,7 @@ export function presentInventory(
     ].join("\n");
   }
 
-  const filteredItems = getFilteredInventoryItems(result, filter, options);
-  const safePage = clampInventoryPage(result, page, filter, options);
-  const totalPages = getInventoryTotalPages(result, filter, options);
-
-  if (filter && filteredItems.length === 0) {
+  if (filter && model.filteredCount === 0) {
     return presentEmptyFilteredInventory(filter, options);
   }
 
@@ -64,10 +79,40 @@ export function presentInventory(
     "",
     ...(isInventoryEquipmentSlotFilter(filter) ? [...presentCurrentSlotItem(options.currentSlotItem ?? null), ""] : []),
     filter
-      ? presentFilteredCountLine(filter, filteredItems.length)
+      ? presentFilteredCountLine(filter, model.filteredCount)
       : `Оціночна вартість столу: <b>${result.totalGoldValue} золота</b>. Стіл уже поводиться як фінансовий радник.`,
-    ...(totalPages > 1 ? ["", `Сторінка <b>${safePage + 1}/${totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : [])
+    ...(model.totalPages > 1 ? ["", `Сторінка <b>${model.safePage + 1}/${model.totalPages}</b>. Усе інше стіл поки тримає під ліктем.`] : [])
   ].join("\n");
+}
+
+export function buildInventoryViewModel(
+  result: InventoryResult,
+  page = 0,
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
+): InventoryViewModel {
+  const sort = options.sort ?? DEFAULT_INVENTORY_SORT;
+  const normalizedOptions = { ...options, sort };
+  const rawItems = result.state === "found" ? result.items : [];
+  const filteredItems = result.state === "found"
+    ? filterInventoryItems(rawItems, filter, normalizedOptions)
+    : [];
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / INVENTORY_PAGE_SIZE));
+  const safePage = clampPage(page, totalPages);
+  const start = safePage * INVENTORY_PAGE_SIZE;
+
+  return {
+    result,
+    rawItems,
+    filteredItems,
+    filteredCount: filteredItems.length,
+    safePage,
+    totalPages,
+    pageItems: filteredItems.slice(start, start + INVENTORY_PAGE_SIZE),
+    filter,
+    sort,
+    options: normalizedOptions
+  };
 }
 
 export function getInventoryTotalPages(
@@ -75,11 +120,7 @@ export function getInventoryTotalPages(
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ): number {
-  if (result.state !== "found") {
-    return 1;
-  }
-
-  return Math.max(1, Math.ceil(getFilteredInventoryItems(result, filter, options).length / INVENTORY_PAGE_SIZE));
+  return buildInventoryViewModel(result, 0, filter, options).totalPages;
 }
 
 export function clampInventoryPage(
@@ -88,10 +129,7 @@ export function clampInventoryPage(
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ): number {
-  const totalPages = getInventoryTotalPages(result, filter, options);
-  const safePage = Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
-
-  return Math.min(safePage, totalPages - 1);
+  return buildInventoryViewModel(result, page, filter, options).safePage;
 }
 
 export function getInventoryPageItems(
@@ -100,14 +138,7 @@ export function getInventoryPageItems(
   filter: InventoryFilter = null,
   options: InventoryPresenterOptions = {}
 ) {
-  if (result.state !== "found") {
-    return [];
-  }
-
-  const safePage = clampInventoryPage(result, page, filter, options);
-  const start = safePage * INVENTORY_PAGE_SIZE;
-
-  return getFilteredInventoryItems(result, filter, options).slice(start, start + INVENTORY_PAGE_SIZE);
+  return buildInventoryViewModel(result, page, filter, options).pageItems;
 }
 
 export function getFilteredInventoryItems(
@@ -119,32 +150,46 @@ export function getFilteredInventoryItems(
     return [];
   }
 
+  return filterInventoryItems(result.items, filter, options);
+}
+
+function filterInventoryItems(
+  items: readonly InventoryItemSummary[],
+  filter: InventoryFilter = null,
+  options: InventoryPresenterOptions = {}
+) {
   if (!filter) {
-    return sortInventoryItems(result.items, options.sort ?? DEFAULT_INVENTORY_SORT);
+    return sortInventoryItems(items, options.sort ?? DEFAULT_INVENTORY_SORT);
   }
 
   if (isInventoryEquipmentSlotFilter(filter)) {
     if (options.slotCompatibleItemIds) {
       return sortInventoryItems(
-        result.items.filter((item) => options.slotCompatibleItemIds?.has(item.itemId)),
+        items.filter((item) => options.slotCompatibleItemIds?.has(item.itemId)),
         options.sort ?? DEFAULT_INVENTORY_SORT
       );
     }
 
     return sortInventoryItems(
-      result.items.filter((item) => mapItemToEquipmentSlot(item.content) === filter),
+      items.filter((item) => mapItemToEquipmentSlot(item.content) === filter),
       options.sort ?? DEFAULT_INVENTORY_SORT
     );
   }
 
   if (isOneUseInventoryFilter(filter)) {
     return sortInventoryItems(
-      result.items.filter((item) => item.content.tags?.includes("one-use")),
+      items.filter((item) => item.content.tags?.includes("one-use")),
       options.sort ?? DEFAULT_INVENTORY_SORT
     );
   }
 
-  return sortInventoryItems(result.items, options.sort ?? DEFAULT_INVENTORY_SORT);
+  return sortInventoryItems(items, options.sort ?? DEFAULT_INVENTORY_SORT);
+}
+
+function clampPage(page: number, totalPages: number): number {
+  const safePage = Math.max(0, Math.floor(Number.isFinite(page) ? page : 0));
+
+  return Math.min(safePage, totalPages - 1);
 }
 
 function sortInventoryItems(

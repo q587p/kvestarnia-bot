@@ -80,14 +80,32 @@ export function selectCheapestMantokChestUnits(
   stacks: readonly MantokChestEligibleStack[],
   batchSize = MANTOK_CHEST_BATCH_SIZE
 ): MantokChestInputSelection | null {
-  const units = expandMantokChestStacks(stacks)
+  const sortedStacks = [...stacks]
     .sort((left, right) => left.score - right.score || left.itemId.localeCompare(right.itemId));
+  const selectedUnits: MantokChestUnit[] = [];
 
-  if (units.length < batchSize) {
+  for (const stack of sortedStacks) {
+    const remaining = batchSize - selectedUnits.length;
+
+    if (remaining <= 0) {
+      break;
+    }
+
+    const take = Math.min(stack.quantity, remaining);
+
+    for (let count = 0; count < take; count += 1) {
+      selectedUnits.push({
+        itemId: stack.itemId,
+        content: stack.content,
+        score: stack.score
+      });
+    }
+  }
+
+  if (selectedUnits.length < batchSize) {
     return null;
   }
 
-  const selectedUnits = units.slice(0, batchSize);
   const averageInputScore = calculateMantokChestAverageScore(selectedUnits);
 
   return {
