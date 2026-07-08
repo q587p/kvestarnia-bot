@@ -5,7 +5,8 @@ import {
   makeInventoryCallbackData,
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData,
-  makeUnequipSlotCallbackData
+  makeUnequipSlotCallbackData,
+  type ItemDetailSource
 } from "../callbacks/itemCallbackData";
 import {
   makeItemCraftConfirmCallbackData,
@@ -162,12 +163,17 @@ export function buildItemDetailKeyboard(
         };
     craftOptions?: ItemCraftOption[];
     equipPreview?: ItemEquipPreviewResult | null;
+    source?: ItemDetailSource | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "no-character") {
     return keyboard;
+  }
+
+  if (options.source === "item-upgrade") {
+    return keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
   }
 
   if (result.state === "found" && isEquippableItem(result.item.content)) {

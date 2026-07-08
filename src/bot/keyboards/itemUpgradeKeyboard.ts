@@ -171,7 +171,13 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
         .row();
     }
 
-    keyboard.text("🔎 До манатки", makeItemDetailCallbackData(result.item.itemId)).row();
+    keyboard.text("🔎 До манатки", makeItemDetailCallbackData(
+      result.item.itemId,
+      0,
+      null,
+      "default",
+      { source: "item-upgrade" }
+    )).row();
   }
 
   return keyboard
@@ -184,7 +190,13 @@ export function buildItemUpgradeResultKeyboard(itemId?: string): InlineKeyboard 
   const keyboard = new InlineKeyboard();
 
   if (itemId) {
-    keyboard.text("🔎 До манатки", makeItemDetailCallbackData(itemId)).row();
+    keyboard.text("🔎 До манатки", makeItemDetailCallbackData(
+      itemId,
+      0,
+      null,
+      "default",
+      { source: "item-upgrade" }
+    )).row();
   }
 
   return keyboard

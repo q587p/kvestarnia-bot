@@ -26,7 +26,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 0,
         filter: null,
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
 
@@ -37,7 +38,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 2,
         filter: null,
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
     expect(
@@ -49,7 +51,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 2,
         filter: "weapon",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
     expect(
@@ -61,7 +64,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.responsible-panic-bandage",
         page: 1,
         filter: "one-use",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
       }
     });
   });
@@ -82,7 +86,26 @@ describe("item and equipment callback data", () => {
         itemId: "item.mantok.coverage.universal.lantern-of-suspicious-corners",
         page: 12,
         filter: "tool",
-        sort: "default"
+        sort: "default",
+        source: "inventory"
+      }
+    });
+  });
+
+  it("marks item detail callbacks opened from Charkokovalnia", () => {
+    const data = makeItemDetailCallbackData("item.wet-hero-ticket", 0, null, "default", {
+      source: "item-upgrade"
+    });
+
+    expect(parseItemCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.wet-hero-ticket",
+        page: 0,
+        filter: null,
+        sort: "default",
+        source: "item-upgrade"
       }
     });
   });
@@ -125,7 +148,8 @@ describe("item and equipment callback data", () => {
           itemId: item.id,
           page: 999,
           filter: "offhand",
-          sort: "default"
+          sort: "default",
+          source: "inventory"
         }
       });
     }
@@ -222,7 +246,8 @@ describe("item and equipment callback data", () => {
         itemId: "item.wet-hero-ticket",
         page: 1,
         filter: null,
-        sort: "date-asc"
+        sort: "date-asc",
+        source: "inventory"
       }
     });
     expect(parseItemCallbackData(makeInventoryPagePromptCallbackData(4, "offhand", "name-desc"))).toEqual({

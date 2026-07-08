@@ -253,7 +253,8 @@ async function handleItemCallback(
         ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
         craftOptions,
         equipPreview,
-        sort: action.sort
+        sort: action.sort,
+        source: action.source
       })
     }
   );

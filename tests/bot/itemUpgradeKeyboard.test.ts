@@ -7,6 +7,7 @@ import {
   makeItemUpgradeListCallbackData,
   makeItemUpgradePagePromptCallbackData
 } from "../../src/bot/callbacks/itemUpgradeCallbackData";
+import { parseItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import type {
   ItemUpgradeListResult,
   ItemUpgradePreviewResult
@@ -128,6 +129,25 @@ describe("item upgrade keyboard", () => {
     }));
 
     expect(buttonTexts(keyboard)).toContain("🛠️ За допомогою ельфа-мага");
+  });
+
+  it("opens item details with Charkokovalnia return navigation", () => {
+    const keyboard = buildItemUpgradePreviewKeyboard(readyPreview());
+    const detailCallback = buttonCallbacks(keyboard).find((callback) =>
+      parseItemCallbackData(callback).ok
+    );
+
+    expect(parseItemCallbackData(detailCallback)).toEqual({
+      ok: true,
+      value: {
+        type: "detail",
+        itemId: "item.pan-of-persuasion",
+        page: 0,
+        filter: null,
+        sort: "default",
+        source: "item-upgrade"
+      }
+    });
   });
 });
 

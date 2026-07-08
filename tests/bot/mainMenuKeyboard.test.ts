@@ -2092,6 +2092,32 @@ describe("main menu and scene keyboards", () => {
               }
             }
           },
+          null,
+          0,
+          null,
+          { source: "item-upgrade" }
+        )
+      )
+    ).toEqual(["✨ До Чароковальні"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
+              id: "character-item-1",
+              itemId: "item.pan-of-persuasion",
+              quantity: 1,
+              content: {
+                id: "item.pan-of-persuasion",
+                name: "Пательня переконання",
+                description: "Важкий аргумент.",
+                rarity: "common",
+                slot: "weapon",
+                goldValue: 25
+              }
+            }
+          },
           "weapon"
         )
       )

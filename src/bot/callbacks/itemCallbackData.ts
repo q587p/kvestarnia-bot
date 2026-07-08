@@ -27,6 +27,7 @@ export type ItemCallbackKeyMaps = {
   itemCallbackKeyById: ReadonlyMap<string, string>;
   itemIdByCallbackKey: ReadonlyMap<string, string>;
 };
+export type ItemDetailSource = "inventory" | "item-upgrade";
 
 export function buildItemCallbackKeyMaps(
   itemIds: readonly string[],
@@ -60,7 +61,14 @@ export function makeStableItemCallbackKey(itemId: string): string {
 }
 
 export type ItemCallback =
-  | { type: "detail"; itemId: string; page: number; filter: InventoryFilter; sort: InventorySort }
+  | {
+      type: "detail";
+      itemId: string;
+      page: number;
+      filter: InventoryFilter;
+      sort: InventorySort;
+      source: ItemDetailSource;
+    }
   | { type: "inventory"; page: number; filter: InventoryFilter; sort: InventorySort }
   | { type: "page-prompt"; totalPages: number; filter: InventoryFilter; sort: InventorySort };
 export type EquipmentCallback =
@@ -79,10 +87,14 @@ export function makeItemDetailCallbackData(
   itemId: string,
   page = 0,
   filter: InventoryFilter = null,
-  sort: InventorySort = DEFAULT_INVENTORY_SORT
+  sort: InventorySort = DEFAULT_INVENTORY_SORT,
+  options: { source?: ItemDetailSource | undefined } = {}
 ): string {
   const suffix = formatInventoryNavigationSuffix(page, filter, sort);
-  const legacyData = `${ITEM_PREFIX}:detail:${itemId}${suffix}`;
+  const source = options.source ?? "inventory";
+  const legacyAction = source === "item-upgrade" ? "upgrade" : "detail";
+  const compactAction = source === "item-upgrade" ? "u" : "d";
+  const legacyData = `${ITEM_PREFIX}:${legacyAction}:${itemId}${suffix}`;
 
   if (!isTooLong(legacyData)) {
     return legacyData;
@@ -91,7 +103,7 @@ export function makeItemDetailCallbackData(
   const compactItemKey = itemCallbackKeyById.get(itemId);
 
   if (compactItemKey) {
-    return assertCallbackData(`${ITEM_PREFIX}:d:${compactItemKey}${suffix}`);
+    return assertCallbackData(`${ITEM_PREFIX}:${compactAction}:${compactItemKey}${suffix}`);
   }
 
   return assertCallbackData(legacyData);
@@ -180,7 +192,7 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
     };
   }
 
-  if (action === "d") {
+  if (action === "d" || action === "u") {
     if (rest.length < 1 || rest.length > 6) {
       return { ok: false };
     }
@@ -200,12 +212,13 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
         itemId,
         page: parsed.page,
         filter: parsed.filter,
-        sort: parsed.sort
+        sort: parsed.sort,
+        source: action === "u" ? "item-upgrade" : "inventory"
       }
     };
   }
 
-  if (action !== "detail" || rest.length < 1 || rest.length > 6) {
+  if ((action !== "detail" && action !== "upgrade") || rest.length < 1 || rest.length > 6) {
     return { ok: false };
   }
 
@@ -227,7 +240,8 @@ export function parseItemCallbackData(data: string | undefined): ParseItemCallba
       itemId,
       page: parsed.page,
       filter: parsed.filter,
-      sort: parsed.sort
+      sort: parsed.sort,
+      source: action === "upgrade" ? "item-upgrade" : "inventory"
     }
   };
 }

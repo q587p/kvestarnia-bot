@@ -43,6 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored and generated plus manatky now share visible rarity floors and magic labels: `+1..+2` are at least uncommon, `+3..+4` at least rare, `+5` at least epic, and `+4..+5` item-card text says strong magic.
 - Charkokovalnia previews describe costs, donor help and qualitative odds before commit without revealing exact hidden chances; exact committed result details can appear after an attempt.
 - Charkokovalnia preview cards now show the character's current gold and Iskrokamin balances under the price.
+- Item detail cards opened from Charkokovalnia now return directly to `✨ До Чароковальні` instead of showing ordinary inventory/equipment navigation.
 - Charkokovalnia candidate lists now paginate upgradeable manatky, let the page counter open a page-number prompt, support received-date/name sorting, and mark currently equipped manatky with the equip icon instead of a generic check mark.
 - Charkokovalnia can now upgrade accessories when they have a supported primary combat stat; utility-only and consumable/one-use manatky remain excluded from upgrade candidates.
 - Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.
