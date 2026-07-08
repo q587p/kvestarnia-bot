@@ -329,6 +329,7 @@ export class TavernRaidService {
         periodId,
         characterId: pending.character.id,
         level: character.level,
+        luck: character.stats.luck,
         ...(pending.character.classId ? { classId: pending.character.classId } : {}),
         ...(pending.character.raceId ? { raceId: pending.character.raceId } : {}),
         isFirstSoloRaid: soloRaidHistory
@@ -796,6 +797,7 @@ export function buildBarrelRaidItemGrants(input: {
   periodId: string;
   characterId: string;
   level: number;
+  luck?: number;
   classId?: string;
   raceId?: string;
   isFirstSoloRaid: boolean;
@@ -830,6 +832,7 @@ function buildRepeatBarrelRaidItemGrants(input: {
   periodId: string;
   characterId: string;
   level: number;
+  luck?: number;
   classId?: string;
   raceId?: string;
 }): Array<{ itemId: string; quantity: number }> {
@@ -856,6 +859,7 @@ function buildRepeatBarrelRaidItemGrants(input: {
     },
     sourceId: "tavern_event",
     sourceTags: ["barrel", "raid"],
+    ...(input.luck === undefined ? {} : { luck: input.luck }),
     rng
   });
 
@@ -866,6 +870,7 @@ export function buildBigBarrelBrotherItemGrants(input: {
   periodId: string;
   characterId: string;
   level: number;
+  luck?: number;
   classId?: string;
   raceId?: string;
 }): Array<{ itemId: string; quantity: number }> {
@@ -885,12 +890,12 @@ export function buildBigBarrelBrotherItemGrants(input: {
       ...(input.raceId ? { raceId: input.raceId } : {})
     },
     sourceId: "boss_chest",
-    sourceTags: ["barrel", "boss", "raid"],
+    ...(input.luck === undefined ? {} : { luck: input.luck }),
     rng: new SeededRandomSource(seed)
   });
 
   return [{
-    itemId: item?.id ?? getFallbackBigBarrelItemId(seed),
+    itemId: item?.id ?? getFallbackBigBarrelGeneratedItemId(seed),
     quantity: 1
   }];
 }
@@ -1016,14 +1021,14 @@ function stableHash(value: string): number {
   return hash;
 }
 
-function getFallbackBigBarrelItemId(seed: string): string {
-  const rotatingLoot = [
-    BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID,
-    FOAM_CORK_OF_ACCOUNTING_ITEM_ID,
-    MIRAGE_FOAM_SAMPLE_ITEM_ID
+function getFallbackBigBarrelGeneratedItemId(seed: string): string {
+  const fallbackLoot = [
+    "item.loot-v1-w001",
+    "item.loot-v1-a001",
+    "item.loot-v1-t001"
   ];
 
-  return rotatingLoot[stableHash(seed) % rotatingLoot.length] ?? BARREL_SPLINTER_OF_OPTIMISM_ITEM_ID;
+  return fallbackLoot[stableHash(seed) % fallbackLoot.length] ?? "item.loot-v1-w001";
 }
 
 function getBarrelRaidWaitDurationMs(pending: PendingFridayBarrelRaid): number {

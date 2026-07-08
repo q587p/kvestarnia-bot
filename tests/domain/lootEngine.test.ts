@@ -282,6 +282,32 @@ describe("loot engine", () => {
 
     expect(first).toEqual(second);
   });
+
+  it("lets LUCK influence guaranteed expansion item rarity", () => {
+    const baseLuck = rollLootExpansionItem({
+      profile: {
+        level: 8,
+        classId: "class.warrior",
+        raceId: "race.human-ish"
+      },
+      sourceId: "boss_chest",
+      luck: 6,
+      rng: new FakeRandomSource([0.1, 0, 0])
+    });
+    const highLuck = rollLootExpansionItem({
+      profile: {
+        level: 8,
+        classId: "class.warrior",
+        raceId: "race.human-ish"
+      },
+      sourceId: "boss_chest",
+      luck: 16,
+      rng: new FakeRandomSource([0.1, 0, 0])
+    });
+
+    expect(baseLuck?.rarity).toBe("common");
+    expect(highLuck?.rarity).toBe("uncommon");
+  });
 });
 
 function item(id: string, rarity: ItemContent["rarity"]): ItemContent {

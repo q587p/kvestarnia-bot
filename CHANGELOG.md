@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.2.31] - 12026-07-07 - Mantok Ability Grants Polish
+## [0.2.31] - 12026-07-08 - Mantok Ability Grants Polish
 
 ### Fixed
 - Big Barrel Brother raid gear-action settlements now carry first-use achievement unlock notifications back to the acting participant and any refreshed participant cards, matching persistent PvE combat without changing raid damage, mana, cooldown, reward or replay behavior.
@@ -23,8 +23,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Korchmar problem-chain counters now count persistent fight wins only from the character's current remort life, so taking or checking `Тринадцять дрібних проблем` cannot auto-complete from stale pre-remort victories.
 - `📜 Хроніки Квестарні` now records completed raid outcomes for solo Barrel raids and Big Barrel Brother group raids; `⚔️ Бої` includes both wins and losses, while `⭐ Важливе` only promotes group raid victories. New public level-up rows also include the character's remort life tag, such as `(р5)`, after the reached level.
 - Completed Big Barrel Brother result cards opened without a matching participant viewer now show the total raid XP, gold and item grants as `Загальна винагорода рейду` without assigning those rewards to a specific participant; participant cards still label the personal payout as `Ваша винагорода за рейд`.
-- Big Barrel Brother victory settlement now grants each meaningful participant one deterministic Loot Expansion manatka using the frozen participant level/class/race profile and a participant-specific seed, instead of replaying the solo Barrel starter bundle (`Фартух`, `Квиток`, rotating Barrel keepsake) for everyone.
-- Solo Barrel raids now grant the starter Barrel bundle only on the character's first Barrel completion ledger; later solo completions keep XP/gold but only have a bounded deterministic 23% chance to grant one profile-based Loot Expansion manatka from the character's current level/class/race.
+- Big Barrel Brother victory settlement now grants each meaningful participant one deterministic Loot Expansion manatka using the frozen participant level/class/race/luck profile and a participant-specific seed, without requiring Barrel-specific loot tags or replaying the solo Barrel starter bundle (`Фартух`, `Квиток`, rotating Barrel keepsake) for everyone.
+- Solo Barrel raids now grant the starter Barrel bundle only on the character's first Barrel completion ledger; later solo completions keep XP/gold but only have a bounded deterministic 23% chance to grant one profile-based Loot Expansion manatka from the character's current level/class/race/luck.
 - The `👤 Персонаж` card now includes a direct inline `🛡️ Спорядження` button above achievements/titles and recovery actions, opening the existing equipment screen without going through `🎒 Манатки`; the persistent main menu keeps its compact location/quest/inventory/nearby/help layout.
 - Outside-Korchma quest gates no longer mark `🚪 Зайти в корчму` by default when no verified active quest marker exists, so a cooldown-only cellar errand cannot imply fresh quests inside; direct `/tavern` hall cards now resolve the same quest marker snapshot as place callbacks, while the hall `📋 Стіл зі справами` button no longer duplicates `⚠️` for quests already visible on final location buttons such as `🐭 Льох`.
 - Quest Table cards now build their keyboard as the physical `📋 Стіл зі справами` location, so `🍺 До зали` does not duplicate `⚠️` for starter/problem quests already visible on the same table card.

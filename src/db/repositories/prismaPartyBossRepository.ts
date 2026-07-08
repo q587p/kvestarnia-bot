@@ -904,6 +904,7 @@ async function settleTerminalPartyBoss(
           periodId,
           characterId: participant.characterId,
           level: participant.combatStats.level,
+          luck: participant.combatStats.luck,
           ...(participant.combatStats.classId ? { classId: participant.combatStats.classId } : {}),
           ...(participant.combatStats.raceId ? { raceId: participant.combatStats.raceId } : {})
         })

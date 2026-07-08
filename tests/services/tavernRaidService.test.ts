@@ -163,24 +163,27 @@ describe("TavernRaidService", () => {
 
   it("builds deterministic profile-based Big Barrel Brother loot instead of the solo raid starter bundle", () => {
     const warrior = buildBigBarrelBrotherItemGrants({
-      periodId: "2026-06-12T13:23",
+      periodId: "2026-06-12T14:23",
       characterId: "character-warrior",
       level: 8,
+      luck: 6,
       classId: "class.warrior",
       raceId: "race.human-ish"
     });
     const rogue = buildBigBarrelBrotherItemGrants({
-      periodId: "2026-06-12T13:23",
+      periodId: "2026-06-12T14:23",
       characterId: "character-rogue",
       level: 10,
+      luck: 16,
       classId: "class.rogue",
       raceId: "race.bisyny"
     });
 
     expect(warrior).toEqual(buildBigBarrelBrotherItemGrants({
-      periodId: "2026-06-12T13:23",
+      periodId: "2026-06-12T14:23",
       characterId: "character-warrior",
       level: 8,
+      luck: 6,
       classId: "class.warrior",
       raceId: "race.human-ish"
     }));
