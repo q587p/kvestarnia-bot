@@ -44,6 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Charkokovalnia candidate lists now paginate upgradeable manatky instead of silently hiding entries after the first ten, and mark currently equipped manatky with the equip icon instead of a generic check mark.
 - Charkokovalnia can now upgrade accessories when they have a supported primary combat stat; utility-only and consumable/one-use manatky remain excluded from upgrade candidates.
 - Charkokovalnia preview keyboards now show `🔮 Іскровий підкрут` only to magical specialist classes that can actually use that self-temper method.
+- Named combat abilities now read more naturally in hit lines, e.g. `застосовує ... і влучає`, while basic attack lines stay unchanged.
 - Charkokovalnia unlock markers now propagate through the Korchma entrance, hall, quest table and yard routes; `Стіл зі справами` shows the spoiler-light `✨ Доступ до Чароковальні` route while the elf-mage still handles the field-kit unlock inside Charkokovalnia, and `Задвірок корчми` no longer duplicates the daily `До обходу` route.
 - When the Charkokovalnia unlock is pending, `Єгерський куток` now offers `🧰 Аптечка?` immediately from the mage/Yeger route: without a field kit it points to both Yeger board stages, and with a field kit already owned it points back to the Korchma yard.
 - Quest completion reward blocks now share the compact `<i>Отримано:</i>` format across Charkokovalnia unlock, Korchma-round, Barrel tutorial, Yeger, Adventure and Cellar quest results.

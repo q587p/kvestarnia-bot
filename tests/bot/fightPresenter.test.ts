@@ -1457,7 +1457,7 @@ describe("fight presenter", () => {
       0
     );
 
-    expect(text).toContain("Вміння 🩸 <i>Червоний рядок</i> влучає на 5 шкоди.");
+    expect(text).toContain("Вміння 🩸 <i>Червоний рядок</i> і влучає на 5 шкоди.");
     expect(text).toContain("Накладений ефект спрацював і завдав 1 шкоди.");
     expect(text).toContain("🫁 🩸 Червоний рядок відсапується: ще 2 ходи.");
     expect(text).toContain("🧷 Ефект триває: кровотеча 1 шкоди, ще 2 активац.");
@@ -1623,7 +1623,7 @@ describe("fight presenter", () => {
 
     expect(text).toContain(
       [
-        "Вміння ✨ <i>Суворе благословення</i> влучає критично на 17 шкоди.",
+        "Вміння ✨ <i>Суворе благословення</i> і влучає критично на 17 шкоди.",
         "Монстр атакував у відповідь на ваш хід і завдав 8 шкоди."
       ].join("\n")
     );
@@ -2159,7 +2159,7 @@ describe("fight presenter", () => {
     expect(text).toContain("Хід <b>2</b> · запис 2/2");
     expect(text).toContain("❤️ Ви після ходу: 19/24 · мана 11/12");
     expect(text).toContain("👹 Монстр після ходу: 0/18");
-    expect(text).toContain("Вміння ✨ <i>Суворе благословення</i> влучає на 14 шкоди.");
+    expect(text).toContain("Вміння ✨ <i>Суворе благословення</i> і влучає на 14 шкоди.");
   });
 
   it("does not duplicate an explicit terminal journal event", () => {

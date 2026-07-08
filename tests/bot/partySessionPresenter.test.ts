@@ -68,7 +68,7 @@ describe("party session presenter", () => {
     const striker = participant("striker", "Шкодійка");
     striker.resources.cooldowns = {
       skill: {
-        id: "skill.ricochet-shot",
+        id: "skill.trick-shot",
         remainingTurns: 3
       }
     };
@@ -87,11 +87,12 @@ describe("party session presenter", () => {
           },
           {
             characterId: "striker",
-            action: "attack",
+            action: "skill",
             origin: "manual",
             outcome: "hit",
             damage: 13,
-            manaSpent: 0
+            manaSpent: 1,
+            skillId: "skill.trick-shot"
           }
         ],
         bossDamage: 13,
@@ -138,6 +139,7 @@ describe("party session presenter", () => {
     expect(text).toContain("▪️ Шкодійка після ходу: HP 53/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("<b>Останні дії:</b>");
     expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
+    expect(text).toContain("Шкодійка застосовує 🏹 <i>Рикошетний постріл</i> і влучає на 13 шкоди.");
     expect(text).toContain("<b>Кулдауни та ефекти:</b>");
     expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 1 хід.");
     expect(text).toContain("Голова: 🫁 🩹 Щільний бинт відсапується: ще 4 ходи.");
@@ -196,7 +198,7 @@ describe("party session presenter", () => {
     };
     striker.resources.cooldowns = {
       skill: {
-        id: "skill.ricochet-shot",
+        id: "skill.trick-shot",
         remainingTurns: 2
       }
     };
@@ -233,7 +235,7 @@ describe("party session presenter", () => {
       }]
     }), { viewerCharacterId: "leader" });
 
-    expect(text).toContain("Ваше вміння 🌀 <i>Крок крізь Межу</i> влучає на 10 шкоди.");
+    expect(text).toContain("Ваше вміння 🌀 <i>Крок крізь Межу</i> і влучає на 10 шкоди.");
     expect(text).toContain("Шкодійка: Корчма не дочекалася вибору й поставила в захист: ворогові важче влучити, а удар буде слабшим.");
     expect(text).toContain("Старший Брат Бочки атакує Голова у відповідь і завдає 5 шкоди.");
     expect(text).toContain("🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 4 ходи.");
