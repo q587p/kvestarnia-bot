@@ -1,5 +1,6 @@
 import type { BotServices } from "./botServices";
 import type { QuestMarkerInput } from "./keyboards/questButtonMarkers";
+import { safeOptionalUiLookup } from "./optionalUiLookup";
 
 export async function buildQuestMarkerSnapshotForTelegramUser(
   telegramUserId: bigint,
@@ -23,6 +24,10 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     return null;
   }
 
+  const barrelBeerTutorialService = services.barrelBeerTutorial;
+  const itemUpgradesService = services.itemUpgrades;
+  const cellarGrownupService = services.cellarGrownup;
+
   const [
     adventure,
     starterAdventure,
@@ -35,37 +40,67 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     itemUpgrades
   ] = await Promise.all([
     typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
-      ? services.adventure.getAdventureOfferForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "adventure offer",
+          () => services.adventure.getAdventureOfferForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     typeof services.adventure.getMimicShawarmaForTelegramUser === "function"
-      ? services.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "starter adventure",
+          () => services.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     typeof services.fight?.getFightOverviewForTelegramUser === "function"
-      ? services.fight.getFightOverviewForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "fight overview",
+          () => services.fight.getFightOverviewForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     typeof services.fight?.getProblemQuestProgressForTelegramUser === "function"
-      ? services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "problem quest",
+          () => services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     typeof services.yeger?.getForTelegramUser === "function"
-      ? services.yeger.getForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "yeger",
+          () => services.yeger.getForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     typeof services.cellarErrand?.getForTelegramUser === "function"
-      ? services.cellarErrand.getForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "cellar",
+          () => services.cellarErrand.getForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
-    typeof services.barrelBeerTutorial?.getForTelegramUser === "function"
-      ? services.barrelBeerTutorial.getForTelegramUser(telegramUserId)
+    typeof barrelBeerTutorialService?.getForTelegramUser === "function"
+      ? optionalQuestMarkerLookup(
+          "barrel beer tutorial",
+          () => barrelBeerTutorialService.getForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
     services.dailyKorchmaRound
-      ? services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+      ? optionalQuestMarkerLookup(
+          "daily korchma round",
+          () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null),
-    typeof services.itemUpgrades?.getUnlockQuestForTelegramUser === "function"
-      ? services.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId)
+    typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
+      ? optionalQuestMarkerLookup(
+          "item upgrades",
+          () => itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
+        )
       : Promise.resolve(null)
   ]);
 
   const cellarGrownup =
-    services.cellarGrownup && cellar?.state === "level-retired"
-      ? await services.cellarGrownup.getForTelegramUser(telegramUserId)
+    cellarGrownupService && cellar?.state === "level-retired"
+      ? await optionalQuestMarkerLookup(
+          "cellar grownup",
+          () => cellarGrownupService.getForTelegramUser(telegramUserId)
+        )
       : null;
 
   const characterLevel = [
@@ -110,4 +145,11 @@ function getCharacterLevel(result: unknown): number | undefined {
   const character = (result as { character?: { level?: unknown } }).character;
 
   return typeof character?.level === "number" ? character.level : undefined;
+}
+
+function optionalQuestMarkerLookup<T>(
+  label: string,
+  lookup: () => Promise<T>
+): Promise<T | null> {
+  return safeOptionalUiLookup<T | null>(`quest marker ${label}`, lookup, null);
 }

@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { sendHuntBoard, sendYegerCorner } from "../../src/bot/commands/huntCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -13,6 +13,10 @@ import {
 } from "../../src/services/presenceService";
 
 describe("hunt command", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("blocks /hunt outside before marking the quest table", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -202,6 +206,25 @@ describe("hunt command", () => {
     });
 
     expect(JSON.stringify(replies[0]?.options)).toContain("🛢️ До Бочки ⚠️");
+  });
+
+  it("keeps the Yeger corner usable when optional navigation lookups time out", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await sendYegerCorner(makeContext(replies), completedYegerService(), "reply", {
+      presence: new CapturingPresenceService({
+        locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+        insideKorchma: true
+      }),
+      requireKorchmaInterior: true,
+      resolveQuestMarkers: () => Promise.reject(new Error("P1008")),
+      resolveFieldKitHelp: () => Promise.reject(new Error("P1008"))
+    });
+
+    expect(replies[0]?.text).toContain("🧥 Єгерський куток");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("yeger navigation markers"), expect.any(Error));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("yeger field-kit navigation"), expect.any(Error));
   });
 });
 

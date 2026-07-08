@@ -23,6 +23,7 @@ import {
 } from "../presenters/yegerPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { safeOptionalUiLookup } from "../optionalUiLookup";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
@@ -263,8 +264,16 @@ async function resolveYegerNavigationOptions(
   options: HuntCommandOptions | undefined
 ): Promise<YegerNavigationOptions> {
   const [questMarkers, showFieldKitHelp] = await Promise.all([
-    resolveYegerQuestMarkers(telegramUserId, options),
-    options?.resolveFieldKitHelp?.(telegramUserId) ?? Promise.resolve(false)
+    safeOptionalUiLookup(
+      "yeger navigation markers",
+      () => resolveYegerQuestMarkers(telegramUserId, options),
+      null
+    ),
+    safeOptionalUiLookup(
+      "yeger field-kit navigation",
+      () => options?.resolveFieldKitHelp?.(telegramUserId) ?? Promise.resolve(false),
+      false
+    )
   ]);
 
   return {
