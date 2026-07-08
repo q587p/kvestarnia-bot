@@ -1,7 +1,8 @@
 import type {
   ItemUpgradeAttemptServiceResult,
   ItemUpgradeListResult,
-  ItemUpgradePreviewResult
+  ItemUpgradePreviewResult,
+  ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
 import { items } from "../../content";
 import { presentItemEffect } from "./itemEffectPresenter";
@@ -12,11 +13,15 @@ export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
     return "Спершу створіть пригодника через /start. Чароковальня не кує порожнечу без техзавдання.";
   }
 
+  if (result.state === "wrong-place" || result.state === "level-locked" || result.state === "unlock-required") {
+    return presentItemUpgradeGate(result);
+  }
+
   if (result.items.length === 0) {
     return [
       "✨ <b>Чароковальня</b>",
       "",
-      "Коваль дивиться в торбу й не знаходить манатки, яку зараз варто підсилювати.",
+      "Маг дивиться в торбу й не знаходить манатки, яку зараз варто підсилювати.",
       "",
       `Іскрокамінь: <b>${result.iskrokamin}</b>`
     ].join("\n");
@@ -25,12 +30,12 @@ export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
   return [
     "✨ <b>Чароковальня</b>",
     "",
-    "Тут одну манатку зі стосу можна підсилити до наступного «+». Попередній перегляд нічого не витрачає.",
+    "У задвірку корчми Маг тримає іскри в банці й підсилює одну манатку зі стосу до наступного «+». Попередній перегляд нічого не витрачає.",
     "",
     `Іскрокамінь: <b>${result.iskrokamin}</b>`,
     result.canUseSelfTemper
-      ? "Магічна самозакалка доступна: менше золота, більше мани й трохи більше нервів."
-      : "Магічна самозакалка доступна лише магам і спорідненим майстрам іскор."
+      ? "Як маг, ви можете зробити іскровий підкрут самі: менше золота, більше мани й трохи більше нервів."
+      : "Якщо ви не маг, Маг робить відповідальний стукіт сам."
   ].join("\n");
 }
 
@@ -39,12 +44,16 @@ export function presentItemUpgradePreview(result: ItemUpgradePreviewResult): str
     return "Спершу створіть пригодника через /start. Іскри не мають кому летіти в рукав.";
   }
 
+  if (result.state === "wrong-place" || result.state === "level-locked" || result.state === "unlock-required") {
+    return presentItemUpgradeGate(result);
+  }
+
   if (result.state === "not-owned") {
     return "Цієї манатки вже немає в торбі. Вона або втекла, або стала доказом у іншій справі.";
   }
 
   if (result.state === "not-upgradeable") {
-    return "Цю манатку Чароковальня поки не бере. Коваль каже: «Не все, що блищить, треба бити молотом».";
+    return "Цю манатку Чароковальня поки не бере. Маг каже: «Не все, що блищить, треба бити молотом».";
   }
 
   if (result.state === "cap-reached") {
@@ -52,8 +61,8 @@ export function presentItemUpgradePreview(result: ItemUpgradePreviewResult): str
   }
 
   const methodLine = result.method === "self"
-    ? "Спосіб: <b>самозакалка</b> — без золота, але з маною."
-    : "Спосіб: <b>майстер Чароковальні</b> — золото за відповідальний стукіт.";
+    ? "Спосіб: <b>іскровий підкрут</b> — без золота, але з маною."
+    : "Спосіб: <b>Маг Чароковальні</b> — золото за відповідальний стукіт.";
   const donorLine = result.donor
     ? `Донор: <b>${escapeHtml(result.donor.name)}</b> — після спроби зникне зі стосу.`
     : "Донор: <i>не вибрано</i>.";
@@ -79,6 +88,10 @@ export function presentItemUpgradePreview(result: ItemUpgradePreviewResult): str
 export function presentItemUpgradeAttempt(result: ItemUpgradeAttemptServiceResult): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Молот не знайшов замовника.";
+  }
+
+  if (result.state === "wrong-place" || result.state === "level-locked" || result.state === "unlock-required") {
+    return presentItemUpgradeGate(result);
   }
 
   if (result.state === "not-owned") {
@@ -136,6 +149,47 @@ export function presentItemUpgradeAttempt(result: ItemUpgradeAttemptServiceResul
   ].join("\n");
 }
 
+export function presentItemUpgradeUnlock(result: ItemUpgradeUnlockServiceResult): string {
+  if (result.state === "no-character") {
+    return "Спершу створіть пригодника через /start. Маг не приймає аптечки від туману.";
+  }
+
+  if (result.state === "wrong-place" || result.state === "level-locked") {
+    return presentItemUpgradeGate(result);
+  }
+
+  if (result.state === "missing-field-kit") {
+    return [
+      "✨ <b>Чароковальня</b>",
+      "",
+      "Маг просить принести <b>Польову аптечку</b>. Без неї він відмовляється пояснювати, чому іскри іноді поводяться як бухгалтерія.",
+      "",
+      "Якщо аптечки немає, Єгер знає, з якого кінця починається здобування."
+    ].join("\n");
+  }
+
+  if (result.state === "already-unlocked") {
+    return [
+      "✨ <b>Чароковальня вже відкрита</b>",
+      "",
+      "Маг дивиться на журнал і киває: аптечка вже пішла на безпеку, іскри вже підписалися під правилами."
+    ].join("\n");
+  }
+
+  return [
+    "✨ <b>Чароковальня відкрита</b>",
+    "",
+    "Маг приймає <b>Польову аптечку</b>, кладе її біля банки з Іскрокаменем і урочисто пояснює: манатки можна підсилювати тільки по одній одиниці зі стосу, а стара кнопка не має права вдруге брати плату.",
+    "",
+    "Іскрокамінь тримає іскру, донорські манатки можуть допомогти, а невдачі памʼятає Жалісливий молот.",
+    "",
+    `Отримано: <b>+${result.rewardXp} XP</b>`,
+    result.levelChange?.leveledUp
+      ? `Рівень: <b>${result.levelChange.oldLevel}</b> → <b>${result.levelChange.newLevel}</b>`
+      : "Рівень лишився на місці, але вже підозрює майбутнє."
+  ].join("\n");
+}
+
 export function presentItemUpgradeEffectDelta(before: { effect?: Parameters<typeof presentItemEffect>[0] }, after: { effect?: Parameters<typeof presentItemEffect>[0] }): string | null {
   const beforeEffect = presentItemEffect(before.effect) ?? "без видимого ефекту";
   const afterEffect = presentItemEffect(after.effect) ?? "без видимого ефекту";
@@ -149,6 +203,42 @@ function presentCosts(costs: { gold: number; iskrokamin: number; mana: number })
     `${costs.iskrokamin} Іскрокамінь`,
     costs.mana > 0 ? `${costs.mana} мани` : null
   ].filter((part): part is string => Boolean(part)).join(" · ");
+}
+
+function presentItemUpgradeGate(result: Extract<
+  ItemUpgradeListResult | ItemUpgradePreviewResult | ItemUpgradeAttemptServiceResult | ItemUpgradeUnlockServiceResult,
+  { state: "wrong-place" | "level-locked" | "unlock-required" }
+>): string {
+  if (result.state === "wrong-place") {
+    return [
+      "✨ <b>Чароковальня</b>",
+      "",
+      "Маг працює не в торбі, а в <b>задвірку корчми</b>. Тут кнопка тільки чемно показує дорогу й нічого не витрачає."
+    ].join("\n");
+  }
+
+  if (result.state === "level-locked") {
+    const remortLine = result.character.remortCount && result.character.remortCount > 0
+      ? `Після реморту Маг пускає з <b>${result.requiredLevel}</b> рівня.`
+      : `Маг пускає до іскор з <b>${result.requiredLevel}</b> рівня.`;
+
+    return [
+      "✨ <b>Чароковальня ще зачинена</b>",
+      "",
+      remortLine,
+      "Поки що задвірок чує тільки підозрілий дзвін і робить вигляд, що це вітер."
+    ].join("\n");
+  }
+
+  return [
+    "✨ <b>Чароковальня</b>",
+    "",
+    "Маг просить <b>Польову аптечку</b> для першого запуску: іскри люблять безпеку, навіть якщо соромляться цього слова.",
+    "",
+    result.fieldKitQuantity > 0
+      ? "Аптечка у вас є. Можна віддати її Магу й відкрити роботу з Іскрокаменем."
+      : "Аптечки в торбі немає. Єгер, як завжди, виглядає так, ніби знає, де її шукати."
+  ].join("\n");
 }
 
 function presentQualitativeChance(chance: number): string {

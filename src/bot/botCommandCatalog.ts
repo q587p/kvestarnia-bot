@@ -105,12 +105,6 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: true
   },
   {
-    command: "upgrade",
-    icon: "🔨",
-    description: "Чароковальня",
-    includeInMenu: false
-  },
-  {
     command: "items",
     icon: "📦",
     description: "перелік манаток",

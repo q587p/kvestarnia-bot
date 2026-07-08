@@ -5,11 +5,15 @@ import { summarizeCharacter, type CharacterSummary } from "../domain/characters/
 import {
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  canAccessItemUpgrades,
   getDonorBonus,
   getItemDisplayNameWithUpgrade,
+  getItemUpgradeRequiredLevel,
   getItemUpgradeLevelFromItemId,
+  getItemUpgradeUnlockRewardXp,
   getItemUpgradePrimaryStat,
   getLuckFromStats,
+  ITEM_UPGRADE_LOCATION_ID,
   isItemUpgradeable,
   isMageClassForItemSelfUpgrade,
   type ItemUpgradeMethod
@@ -17,9 +21,13 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import { ISKROKAMIN_ITEM_ID } from "./itemGrant";
+import { FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
 
 export type ItemUpgradeListResult =
   | { state: "no-character" }
+  | { state: "wrong-place"; character: CharacterSummary }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "unlock-required"; character: CharacterSummary; fieldKitQuantity: number; rewardXp: number }
   | {
       state: "ready";
       character: CharacterSummary;
@@ -49,6 +57,9 @@ export interface ItemUpgradeDonorOption {
 
 export type ItemUpgradePreviewResult =
   | { state: "no-character" }
+  | { state: "wrong-place"; character: CharacterSummary }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "unlock-required"; character: CharacterSummary; fieldKitQuantity: number; rewardXp: number }
   | { state: "not-owned" }
   | { state: "not-upgradeable" }
   | { state: "cap-reached"; item: ItemUpgradePresentedItem }
@@ -76,6 +87,8 @@ export type ItemUpgradeAttemptServiceResult =
     achievementUnlocks?: AchievementUnlock[];
   };
 
+export type ItemUpgradeUnlockServiceResult = Awaited<ReturnType<ItemUpgradeRepository["unlockForTelegramUser"]>>;
+
 export class ItemUpgradeService {
   constructor(
     private readonly repository: ItemUpgradeRepository,
@@ -88,6 +101,10 @@ export class ItemUpgradeService {
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
     if (!snapshot) {
       return { state: "no-character" };
+    }
+    const gated = getListGate(snapshot);
+    if (gated) {
+      return gated;
     }
 
     return {
@@ -115,6 +132,10 @@ export class ItemUpgradeService {
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
     if (!snapshot) {
       return { state: "no-character" };
+    }
+    const gated = getListGate(snapshot);
+    if (gated) {
+      return gated;
     }
 
     const row = snapshot.items.find((item) => item.itemId === itemId);
@@ -226,6 +247,44 @@ export class ItemUpgradeService {
   ) {
     return this.repository.setPityForTelegramUser(telegramUserId, itemId, targetLevel, failureCount, this.clock());
   }
+
+  unlockForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeUnlockServiceResult> {
+    return this.repository.unlockForTelegramUser(telegramUserId, this.clock());
+  }
+}
+
+function getListGate(snapshot: Awaited<ReturnType<ItemUpgradeRepository["getSnapshotForTelegramUser"]>>): Extract<
+  ItemUpgradeListResult,
+  { state: "wrong-place" | "level-locked" | "unlock-required" }
+> | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  const character = summarizeCharacter(snapshot.character);
+
+  if (snapshot.character.currentLocationId !== ITEM_UPGRADE_LOCATION_ID) {
+    return { state: "wrong-place", character };
+  }
+
+  if (!canAccessItemUpgrades(snapshot.character)) {
+    return {
+      state: "level-locked",
+      character,
+      requiredLevel: getItemUpgradeRequiredLevel(snapshot.character)
+    };
+  }
+
+  if (!snapshot.unlocked) {
+    return {
+      state: "unlock-required",
+      character,
+      fieldKitQuantity: snapshot.items.find((item) => item.itemId === FIELD_KIT_ITEM_ID)?.quantity ?? 0,
+      rewardXp: getItemUpgradeUnlockRewardXp(snapshot.character)
+    };
+  }
+
+  return null;
 }
 
 function buildDonorOptions(

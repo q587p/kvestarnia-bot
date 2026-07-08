@@ -33,7 +33,7 @@ type MantokChestCallback
 } from "../callbacks/mantokChestCallbackData";
 import { registerEquipmentCommand,sendEquipment } from "../commands/equipmentCommand";
 import { registerInventoryCommand,sendInventory } from "../commands/inventoryCommand";
-import { registerItemUpgradeCommand, sendItemUpgradeList } from "../commands/itemUpgradeCommand";
+import { sendItemUpgradeList } from "../commands/itemUpgradeCommand";
 import { playerFromContext } from "../context";
 import {
 getInventoryPagePromptPlaceholder,
@@ -52,7 +52,8 @@ buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
 import {
 buildItemUpgradePreviewKeyboard,
-buildItemUpgradeResultKeyboard
+buildItemUpgradeResultKeyboard,
+buildItemUpgradeUnlockResultKeyboard
 } from "../keyboards/itemUpgradeKeyboard";
 import {
 buildLevelBarterOfferKeyboard,
@@ -81,7 +82,8 @@ presentItemCraftResult
 } from "../presenters/itemCraftPresenter";
 import {
 presentItemUpgradeAttempt,
-presentItemUpgradePreview
+presentItemUpgradePreview,
+presentItemUpgradeUnlock
 } from "../presenters/itemUpgradePresenter";
 import {
 presentItemUseCancel,
@@ -121,7 +123,7 @@ export function registerInventoryBotModule(
   bot: Bot,
   { services }: BotModuleDependencies
 ): void {
-  bot.command(["inventory", "items", "bag", "equipment", "gear", "equip", "upgrade", "charkokovalnia"], async (ctx, next) => {
+  bot.command(["inventory", "items", "bag", "equipment", "gear", "equip"], async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
   });
 
@@ -135,7 +137,6 @@ export function registerInventoryBotModule(
 
   registerInventoryCommand(bot, services.inventory, services.equipment);
   registerEquipmentCommand(bot, services.equipment);
-  registerItemUpgradeCommand(bot, services.itemUpgrades);
 
   registerParsedCallbackRoute(bot, /^v1:equip:/, parseEquipmentCallbackData, async (ctx, action) => {
     await handleEquipmentCallback(ctx, action, services);
@@ -534,6 +535,29 @@ async function handleItemUpgradeCallback(
     return;
   }
 
+  if (action.type === "unlock") {
+    const result = await services.itemUpgrades.unlockForTelegramUser(telegramUserId);
+
+    await safeAnswerCallbackQuery(
+      ctx,
+      result.state === "unlocked"
+        ? { text: "Чароковальню відкрито." }
+        : result.state === "already-unlocked"
+          ? { text: "Уже відкрито." }
+          : {
+              show_alert:
+                result.state === "wrong-place" ||
+                result.state === "level-locked" ||
+                result.state === "missing-field-kit"
+            }
+    );
+    await safeEditMessageText(ctx, presentItemUpgradeUnlock(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeUnlockResultKeyboard(result)
+    });
+    return;
+  }
+
   if (action.type === "preview") {
     const result = await services.itemUpgrades.previewForTelegramUser(
       telegramUserId,
@@ -546,7 +570,10 @@ async function handleItemUpgradeCallback(
       show_alert:
         result.state === "not-owned" ||
         result.state === "not-upgradeable" ||
-        result.state === "cap-reached"
+        result.state === "cap-reached" ||
+        result.state === "wrong-place" ||
+        result.state === "level-locked" ||
+        result.state === "unlock-required"
     });
     await safeEditMessageText(ctx, presentItemUpgradePreview(result), {
       ...HTML_MESSAGE_OPTIONS,
@@ -575,7 +602,10 @@ async function handleItemUpgradeCallback(
             result.state === "not-enough-gold" ||
             result.state === "not-enough-iskrokamin" ||
             result.state === "not-enough-mana" ||
-            result.state === "class-not-allowed"
+            result.state === "class-not-allowed" ||
+            result.state === "wrong-place" ||
+            result.state === "level-locked" ||
+            result.state === "unlock-required"
         }
   );
   await safeEditMessageText(ctx, presentItemUpgradeAttempt(result), {

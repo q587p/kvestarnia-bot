@@ -11,6 +11,7 @@ const { itemCallbackKeyById, itemIdByCallbackKey } = buildItemCallbackKeyMaps(
 
 export type ItemUpgradeCallback =
   | { type: "list" }
+  | { type: "unlock" }
   | { type: "preview"; itemId: string; method: "npc" | "self"; donorItemId: string | null }
   | {
       type: "attempt";
@@ -24,6 +25,10 @@ export type ItemUpgradeCallback =
 
 export function makeItemUpgradeListCallbackData(): string {
   return assertCallbackData(`${PREFIX}:l`);
+}
+
+export function makeItemUpgradeUnlockCallbackData(): string {
+  return assertCallbackData(`${PREFIX}:u`);
 }
 
 export function makeItemUpgradePreviewCallbackData(
@@ -58,6 +63,10 @@ export function parseItemUpgradeCallbackData(data: string | undefined): { ok: tr
 
   if (data === `${PREFIX}:l`) {
     return { ok: true, value: { type: "list" } };
+  }
+
+  if (data === `${PREFIX}:u`) {
+    return { ok: true, value: { type: "unlock" } };
   }
 
   const [version, scope, action, itemKeyPart, methodPart, ...rest] = data.split(":");

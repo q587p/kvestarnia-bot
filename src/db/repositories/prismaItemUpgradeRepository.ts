@@ -1,17 +1,25 @@
 import { Prisma, type Character, type DailyAction, type PrismaClient } from "@prisma/client";
 import { items } from "../../content";
+import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import {
+  canAccessItemUpgrades,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  getItemUpgradeRequiredLevel,
+  getItemUpgradeUnlockRewardXp,
   getDonorBonus,
   getItemUpgradeLevelFromItemId,
   getLuckFromStats,
   getNextItemUpgradeItemId,
+  ITEM_UPGRADE_LOCATION_ID,
+  ITEM_UPGRADE_UNLOCK_KEY,
+  ITEM_UPGRADE_UNLOCK_LOCAL_DATE,
   isItemUpgradeable,
   isMageClassForItemSelfUpgrade,
   MAX_ITEM_UPGRADE_LEVEL,
   normalizeItemUpgradeLevel
 } from "../../domain/itemUpgrades";
+import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 import type { CharacterRecord } from "./characterRepository";
 import type {
@@ -19,8 +27,11 @@ import type {
   ItemUpgradeAttemptResult,
   ItemUpgradeInventoryRow,
   ItemUpgradeRepository,
-  ItemUpgradeSnapshot
+  ItemUpgradeSnapshot,
+  ItemUpgradeUnlockResult
 } from "./itemUpgradeRepository";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
+import { getIncludedRemortCount } from "./prismaRemortCount";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -38,11 +49,20 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         return null;
       }
 
-      const [itemRows, equipment, pities] = await Promise.all([
+      const [itemRows, equipment, pities, unlocked] = await Promise.all([
         tx.characterItem.findMany({ where: { characterId: character.id }, orderBy: [{ createdAt: "asc" }] }),
         tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } }),
         tx.dailyAction.findMany({
           where: { characterId: character.id, key: { startsWith: PITY_KEY_PREFIX }, localDate: PITY_LOCAL_DATE }
+        }),
+        tx.dailyAction.findUnique({
+          where: {
+            characterId_key_localDate: {
+              characterId: character.id,
+              key: ITEM_UPGRADE_UNLOCK_KEY,
+              localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE
+            }
+          }
         })
       ]);
       const equipped = new Set(equipment.map((row) => row.itemId));
@@ -50,7 +70,8 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       return {
         character: toCharacterRecord(character),
         items: itemRows.map((row) => toInventoryRow(row, equipped)),
-        pities: pities.flatMap(mapPity)
+        pities: pities.flatMap(mapPity),
+        unlocked: Boolean(unlocked)
       };
     });
   }
@@ -63,6 +84,11 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return { state: "no-character" };
+      }
+
+      const gate = await getUpgradeGateResult(tx, character);
+      if (gate) {
+        return gate;
       }
 
       const [base, equipment] = await Promise.all([
@@ -243,6 +269,204 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       return { character: toCharacterRecord(character), failureCount: safeFailures };
     });
   }
+
+  async unlockForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<ItemUpgradeUnlockResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+
+        const wrongPlace = getWrongPlaceResult(character);
+        if (wrongPlace) {
+          return wrongPlace;
+        }
+
+        const levelLocked = getLevelLockedResult(character);
+        if (levelLocked) {
+          return levelLocked;
+        }
+
+        const existing = await getUnlockAction(tx, character.id);
+        if (existing) {
+          return {
+            state: "already-unlocked",
+            character: toCharacterRecord(character),
+            rewardXp: existing.rewardXp,
+            action: existing,
+            levelChange: null
+          };
+        }
+
+        const fieldKit = await tx.characterItem.findUnique({
+          where: { characterId_itemId: { characterId: character.id, itemId: FIELD_KIT_ITEM_ID } }
+        });
+        if (!fieldKit || fieldKit.quantity <= 0) {
+          return {
+            state: "missing-field-kit",
+            character: toCharacterRecord(character),
+            fieldKitQuantity: fieldKit?.quantity ?? 0
+          };
+        }
+
+        const rewardXp = getItemUpgradeUnlockRewardXp(character);
+        const action = await tx.dailyAction.create({
+          data: {
+            characterId: character.id,
+            key: ITEM_UPGRADE_UNLOCK_KEY,
+            localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE,
+            rewardXp,
+            rewardGold: 0,
+            spentGold: 0,
+            resultJson: {
+              kind: "item-upgrade-unlock",
+              version: 1,
+              spentItemId: FIELD_KIT_ITEM_ID
+            },
+            createdAt: now
+          }
+        });
+
+        await consumeOneItem(tx, character.id, FIELD_KIT_ITEM_ID);
+        const rewarded = await tx.character.update({
+          where: { id: character.id },
+          data: { xp: { increment: rewardXp } }
+        });
+        const remortCount = getIncludedRemortCount(character);
+        const rewardProgress = applyXpReward(character.xp, rewardXp, { remortCount });
+        const oldLevel = Math.max(character.level, rewardProgress.oldLevel);
+        const newLevel = Math.max(rewarded.level, getLevelForXp(rewarded.xp, { remortCount }));
+        const updatedCharacter =
+          newLevel === rewarded.level
+            ? rewarded
+            : await tx.character.update({
+                where: { id: rewarded.id },
+                data: { level: newLevel }
+              });
+        await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, { remortCount });
+
+        return {
+          state: "unlocked",
+          character: toCharacterRecord({
+            ...updatedCharacter,
+            user: character.user,
+            ...(character._count ? { _count: character._count } : {})
+          }),
+          rewardXp,
+          action,
+          levelChange: {
+            oldLevel,
+            newLevel,
+            leveledUp: newLevel > oldLevel
+          }
+        };
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const character = await this.prisma.character.findFirst({
+          where: { user: { telegramUserId } },
+          include: characterInclude
+        });
+        const existing = character ? await getUnlockAction(this.prisma, character.id) : null;
+
+        return character && existing
+          ? {
+              state: "already-unlocked",
+              character: toCharacterRecord(character),
+              rewardXp: existing.rewardXp,
+              action: existing,
+              levelChange: null
+            }
+          : { state: "no-character" };
+      }
+
+      throw error;
+    }
+  }
+}
+
+async function getUpgradeGateResult(
+  tx: TxClient,
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+): Promise<
+  | Extract<ItemUpgradeAttemptResult, { state: "wrong-place" | "level-locked" | "unlock-required" }>
+  | null
+> {
+  const wrongPlace = getWrongPlaceResult(character);
+  if (wrongPlace) {
+    return wrongPlace;
+  }
+
+  const levelLocked = getLevelLockedResult(character);
+  if (levelLocked) {
+    return levelLocked;
+  }
+
+  if (await getUnlockAction(tx, character.id)) {
+    return null;
+  }
+
+  const fieldKit = await tx.characterItem.findUnique({
+    where: { characterId_itemId: { characterId: character.id, itemId: FIELD_KIT_ITEM_ID } },
+    select: { quantity: true }
+  });
+
+  return {
+    state: "unlock-required",
+    character: toCharacterRecord(character),
+    fieldKitQuantity: fieldKit?.quantity ?? 0
+  };
+}
+
+function getWrongPlaceResult(
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+): Extract<ItemUpgradeAttemptResult, { state: "wrong-place" }> | null {
+  return character.user.lastSeenLocationId === ITEM_UPGRADE_LOCATION_ID
+    ? null
+    : { state: "wrong-place", character: toCharacterRecord(character) };
+}
+
+function getLevelLockedResult(
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+): Extract<ItemUpgradeAttemptResult, { state: "level-locked" }> | null {
+  return canAccessItemUpgrades(toCharacterRecord(character))
+    ? null
+    : {
+        state: "level-locked",
+        character: toCharacterRecord(character),
+        requiredLevel: getItemUpgradeRequiredLevel(toCharacterRecord(character))
+      };
+}
+
+async function getUnlockAction(
+  tx: Pick<TxClient, "dailyAction">,
+  characterId: string
+): Promise<DailyAction | null> {
+  return tx.dailyAction.findUnique({
+    where: {
+      characterId_key_localDate: {
+        characterId,
+        key: ITEM_UPGRADE_UNLOCK_KEY,
+        localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE
+      }
+    }
+  });
+}
+
+async function consumeOneItem(tx: TxClient, characterId: string, itemId: string): Promise<void> {
+  const consumed = await tx.characterItem.updateMany({
+    where: { characterId, itemId, quantity: { gte: 1 } },
+    data: { quantity: { decrement: 1 } }
+  });
+  if (consumed.count !== 1) {
+    throw new Error(`Item upgrade unlock source row disappeared: ${itemId}`);
+  }
+
+  await tx.characterItem.deleteMany({ where: { characterId, itemId, quantity: { lte: 0 } } });
 }
 
 async function replaceOneItemId(tx: TxClient, characterId: string, fromItemId: string, toItemId: string): Promise<void> {
@@ -397,6 +621,11 @@ function mapPity(row: Pick<DailyAction, "key" | "resultJson"> | null): Array<{
 }
 
 const characterInclude = {
+  _count: {
+    select: {
+      remorts: true
+    }
+  },
   user: {
     select: {
       lastSeenLocationId: true
@@ -407,19 +636,23 @@ const characterInclude = {
 async function findCharacter(
   tx: TxClient,
   telegramUserId: bigint
-): Promise<(Character & { user: { lastSeenLocationId: string | null } }) | null> {
+): Promise<(Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }) | null> {
   return tx.character.findFirst({
     where: { user: { telegramUserId } },
     include: characterInclude
   });
 }
 
-function toCharacterRecord(character: Character & { user: { lastSeenLocationId: string | null } }): CharacterRecord {
+function toCharacterRecord(
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+): CharacterRecord {
   const { user, ...record } = character;
+  delete (record as { _count?: unknown })._count;
 
   return {
     ...record,
-    currentLocationId: user.lastSeenLocationId
+    currentLocationId: user.lastSeenLocationId,
+    remortCount: getIncludedRemortCount(character)
   };
 }
 
@@ -441,4 +674,8 @@ function numberOrZero(value: unknown): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }

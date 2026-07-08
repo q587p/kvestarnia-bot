@@ -223,8 +223,6 @@ describe("presence routing", () => {
       }
     ],
     ["inventory", {}],
-    ["upgrade", {}],
-    ["charkokovalnia", {}],
     ["online", {}],
     ["look", {}],
     ["support", {}],

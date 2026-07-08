@@ -113,16 +113,9 @@ describe("bot command catalog", () => {
     );
   });
 
-  it("lists Charkokovalnia in help without adding it to the side menu", () => {
-    expect(getHelpCommandEntries(false).find((entry) => entry.command === "upgrade"))
-      .toMatchObject({
-        icon: "🔨",
-        description: "Чароковальня",
-        includeInMenu: false
-      });
-    expect(getTelegramMenuCommands(false).some((entry) => entry.command === "upgrade")).toBe(
-      false
-    );
+  it("keeps Charkokovalnia out of command help because it lives in the Korchma yard", () => {
+    expect(getHelpCommandEntries(false).find((entry) => entry.command === "upgrade")).toBeUndefined();
+    expect(getTelegramMenuCommands(false).some((entry) => entry.command === "upgrade")).toBe(false);
   });
 
   it("shows tavern games commands only when their player surface is enabled", () => {

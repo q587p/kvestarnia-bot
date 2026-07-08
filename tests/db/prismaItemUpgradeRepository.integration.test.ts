@@ -4,6 +4,12 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
+import { FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
+import {
+  ITEM_UPGRADE_LOCATION_ID,
+  ITEM_UPGRADE_UNLOCK_KEY,
+  ITEM_UPGRADE_UNLOCK_LOCAL_DATE
+} from "../../src/domain/itemUpgrades";
 import { ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
 
 const telegramUserId = 3030n;
@@ -45,6 +51,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
   });
 
   it("upgrades one owned stack unit, aligns equipped rows and rejects stale replays before spend", async () => {
+    await seedUnlock();
     await seedItem(panItemId, 2);
     await seedItem(ISKROKAMIN_ITEM_ID, 5);
     await prisma.characterEquipment.create({
@@ -110,6 +117,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
   });
 
   it("spends a failed attempt exactly once and records bounded pity", async () => {
+    await seedUnlock();
     await seedItem(panItemId, 1);
     await seedItem(ISKROKAMIN_ITEM_ID, 5);
 
@@ -153,12 +161,81 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
   });
 
+  it("requires the Korchma yard, level gate and field-kit unlock before spending", async () => {
+    await seedItem(panItemId, 1);
+    await seedItem(ISKROKAMIN_ITEM_ID, 5);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastSeenLocationId: "location.korchma.hall" }
+    });
+
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({ state: "wrong-place" });
+    await expectCharacterResources({ gold: 1_000, manaCurrent: 80 });
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 5);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastSeenLocationId: ITEM_UPGRADE_LOCATION_ID }
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { level: 4, xp: 0 }
+    });
+
+    await expect(repository.unlockForTelegramUser(telegramUserId, now()))
+      .resolves.toMatchObject({ state: "level-locked", requiredLevel: 5 });
+
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { level: 5, xp: 0 }
+    });
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({ state: "unlock-required", fieldKitQuantity: 0 });
+
+    await seedItem(FIELD_KIT_ITEM_ID, 1);
+    await expect(repository.unlockForTelegramUser(telegramUserId, now()))
+      .resolves.toMatchObject({
+        state: "unlocked",
+        rewardXp: 38,
+        levelChange: {
+          leveledUp: false
+        }
+      });
+    await expectItemQuantity(FIELD_KIT_ITEM_ID, 0);
+
+    await expect(repository.attemptForTelegramUser(telegramUserId, {
+      itemId: panItemId,
+      method: "npc",
+      now: now(),
+      roll: 0,
+      expectedFromLevel: 0,
+      expectedQuantity: 1,
+      expectedPityFailures: 0
+    })).resolves.toMatchObject({ state: "attempted", success: true });
+  });
+
   async function seedCharacter(): Promise<void> {
     await prisma.user.create({
       data: {
         id: userId,
         telegramUserId,
-        displayName: "Upgrade Test"
+        displayName: "Upgrade Test",
+        lastSeenLocationId: ITEM_UPGRADE_LOCATION_ID
       }
     });
     await prisma.character.create({
@@ -194,6 +271,24 @@ describe("PrismaItemUpgradeRepository integration", () => {
         characterId,
         itemId,
         quantity
+      }
+    });
+  }
+
+  async function seedUnlock(): Promise<void> {
+    await prisma.dailyAction.create({
+      data: {
+        characterId,
+        key: ITEM_UPGRADE_UNLOCK_KEY,
+        localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: {
+          kind: "item-upgrade-unlock",
+          version: 1,
+          seeded: true
+        }
       }
     });
   }
@@ -291,6 +386,16 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       CONSTRAINT "character_equipment_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE UNIQUE INDEX "character_equipment_character_id_slot_key" ON "character_equipment"("character_id", "slot")`,
+    `CREATE TABLE "character_remorts" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "character_id" TEXT NOT NULL,
+      "remort_number" INTEGER NOT NULL,
+      "level_before" INTEGER NOT NULL DEFAULT 13,
+      "xp_before" INTEGER NOT NULL DEFAULT 0,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "character_remorts_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "character_remorts_character_id_remort_number_key" ON "character_remorts"("character_id", "remort_number")`,
     `CREATE TABLE "daily_actions" (
       "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       "character_id" TEXT NOT NULL,

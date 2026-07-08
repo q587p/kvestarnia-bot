@@ -79,7 +79,7 @@ describe("health server", () => {
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Чароковальня підсилює манатки");
-    expect(text).toContain("зʼявилася <code>Чароковальня</code>");
+    expect(text).toContain("зʼявилася <code>Чароковальня</code>: Маг");
     expect(text).toContain("конкретною одиницею зі стосу");
     expect(text).toContain("старі натискання після успіху");
     expect(text).toContain("Це не крамниця, не ринок і не нова система торгівлі");

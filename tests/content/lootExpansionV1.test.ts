@@ -168,6 +168,19 @@ describe("loot expansion v1 content adapter", () => {
     expect(getEnhancementWeight(18, 5)).toBeGreaterThan(0);
   });
 
+  it("keeps enhancement drop weights as a very rare tail of generated loot", () => {
+    const weights = ([0, 1, 2, 3, 4, 5] as const).map((enhancement) =>
+      getEnhancementWeight(18, enhancement)
+    );
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const plusTotal = total - weights[0]!;
+
+    expect(weights[0]).toBe(100);
+    expect(plusTotal / total).toBeLessThan(0.07);
+    expect(getEnhancementWeight(18, 5)).toBeGreaterThan(0);
+    expect(getEnhancementWeight(18, 5)).toBeLessThan(getEnhancementWeight(18, 1));
+  });
+
   it("resolves all effect and affinity ids against the package dictionaries", () => {
     expect(getLootExpansionValidationReport()).toEqual({
       effectIdsResolve: true,

@@ -10,12 +10,14 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
 ### Added
-- Added the `🔨 Чароковальня` / `/upgrade` Telegram surface for replay-safe direct item upgrades on selected equipment manatky.
+- Added the `✨ Чароковальня` Telegram surface from `Задвірок корчми`, with the Mage NPC framing and no public `/upgrade` command or `Манатки` shortcut.
+- Added a Charkokovalnia unlock gate: level `5+`, or remorted level `3+`, then one field kit turn-in that consumes `Польова аптечка`, grants dynamic XP and unlocks upgrade attempts.
 - Added concrete authored upgrade variants for eligible manatky as `base.plus-1` through `base.plus-5`, while preserving existing generated Loot Expansion `-plus-N` ids and avoiding item-instance identity.
 - Added deterministic upgrade cost, chance, pity and donor-bonus math with passive previews and stale snapshot checks for direct attempts.
 - Added `Іскрокамінь` as the narrow material stack used by the upgrade loop, plus local `/dev_add_iskrokamin` QA support behind the existing non-production dev-grant gate.
 - Added rewardless first upgrade success, first upgrade failure and first `+5` upgrade achievement hooks.
 - Added focused domain, callback, presenter, Mantok semantics, dev-helper and Prisma transaction coverage for upgrade math, compact snapshot callbacks, equipped-row alignment, stale replay rejection and plus-id presentation.
+- Added very rare generated Loot Expansion `+N` drop weighting, keeping plus variants possible without double-upgrading generated ids or turning plus drops into the normal loot path.
 
 ### Changed
 - Successful upgrades now move exactly one owned stack unit from the current item id to the next concrete plus id and align equipped rows that pointed at the upgraded stack id.
@@ -26,7 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Bumped package metadata to `0.3.0`.
 
 ### Deferred
-- No item-instance rewrite, Prisma migration, market, auction, player-to-player upgrade service, broad crafting/economy rewrite, new combat action, plus-drop loot change, duel tournament, Rogue reputation system or Quest Overview redesign ships in this slice.
+- No item-instance rewrite, Prisma migration, market, auction, player-to-player upgrade service, broad crafting/economy rewrite, new combat action, duel tournament, Rogue reputation system or Quest Overview redesign ships in this slice.
 
 ## [0.2.32] - 12026-07-08 - Combat and Korchma Polish Rollup
 

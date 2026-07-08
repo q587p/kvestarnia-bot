@@ -3,6 +3,7 @@ import { makeCellarCallbackData } from "../callbacks/cellarCallbackData";
 import { makeLevelBarterOpenCallbackData } from "../callbacks/levelBarterCallbackData";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
+import { makeItemUpgradeListCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
 import { makeLatestEventsListCallbackData } from "../callbacks/latestEventsCallbackData";
@@ -127,6 +128,8 @@ export function buildKorchmaFrontKeyboard(
 
 export function buildKorchmaYardKeyboard(options: { questMarkers?: QuestMarkerInput | null } = {}): InlineKeyboard {
   return new InlineKeyboard()
+    .text("✨ Чароковальня", makeItemUpgradeListCallbackData())
+    .row()
     .text(
       decorateButtonLabel(
         "🧾 До обходу",

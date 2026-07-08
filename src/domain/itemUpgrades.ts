@@ -3,6 +3,11 @@ import type { CharacterStats } from "./characters/starterStats";
 
 export const MAX_ITEM_UPGRADE_LEVEL = 5;
 export const ITEM_UPGRADE_VARIANT_SUFFIX = ".plus-";
+export const ITEM_UPGRADE_LOCATION_ID = "location.korchma.yard";
+export const ITEM_UPGRADE_UNLOCK_KEY = "item-upgrade.charkokovalnia.unlocked";
+export const ITEM_UPGRADE_UNLOCK_LOCAL_DATE = "persistent";
+export const ITEM_UPGRADE_REQUIRED_LEVEL = 5;
+export const ITEM_UPGRADE_REMORT_REQUIRED_LEVEL = 3;
 
 export type ItemUpgradeMethod = "npc" | "self";
 export type ItemUpgradePrimaryStat = "weaponDamage" | "spellPower" | "armor" | "resist";
@@ -28,6 +33,27 @@ export interface ItemUpgradeChanceBreakdown {
   donorBonus: number;
   finalChance: number;
   guaranteed: boolean;
+}
+
+export function canAccessItemUpgrades(character: { level: number; remortCount?: number | null }): boolean {
+  const level = Math.max(1, Math.floor(character.level));
+  const remortCount = Math.max(0, Math.floor(character.remortCount ?? 0));
+
+  return level >= ITEM_UPGRADE_REQUIRED_LEVEL ||
+    (remortCount > 0 && level >= ITEM_UPGRADE_REMORT_REQUIRED_LEVEL);
+}
+
+export function getItemUpgradeRequiredLevel(character: { remortCount?: number | null }): number {
+  return Math.max(0, Math.floor(character.remortCount ?? 0)) > 0
+    ? ITEM_UPGRADE_REMORT_REQUIRED_LEVEL
+    : ITEM_UPGRADE_REQUIRED_LEVEL;
+}
+
+export function getItemUpgradeUnlockRewardXp(character: { level: number; remortCount?: number | null }): number {
+  const level = Math.max(1, Math.floor(character.level));
+  const remortCount = Math.max(0, Math.floor(character.remortCount ?? 0));
+
+  return Math.max(13, Math.min(93, 18 + level * 4 + remortCount * 7));
 }
 
 export const ITEM_UPGRADE_LEVELS: Record<number, ItemUpgradeLevelConfig> = {

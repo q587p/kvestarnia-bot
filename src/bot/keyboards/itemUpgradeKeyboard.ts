@@ -1,14 +1,18 @@
 import { InlineKeyboard } from "grammy";
 import type {
   ItemUpgradeListResult,
-  ItemUpgradePreviewResult
+  ItemUpgradePreviewResult,
+  ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
 import {
   makeItemUpgradeAttemptCallbackData,
   makeItemUpgradeListCallbackData,
-  makeItemUpgradePreviewCallbackData
+  makeItemUpgradePreviewCallbackData,
+  makeItemUpgradeUnlockCallbackData
 } from "../callbacks/itemUpgradeCallbackData";
-import { makeInventoryCallbackData, makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
+import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
+import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 
 const MAX_LIST_BUTTONS = 10;
 
@@ -26,7 +30,15 @@ export function buildItemUpgradeListKeyboard(result: ItemUpgradeListResult): Inl
     }
   }
 
-  return keyboard.text("⬅️ До манаток", makeInventoryCallbackData());
+  if (result.state === "unlock-required") {
+    if (result.fieldKitQuantity > 0) {
+      keyboard.text("🧰 Віддати аптечку Магу", makeItemUpgradeUnlockCallbackData()).row();
+    } else {
+      keyboard.text("🏹 До Єгеря по аптечку", makeTavernCallbackData("ranger")).row();
+    }
+  }
+
+  return keyboard.text("⬅️ До задвірку", makePlaceCallbackData("yard"));
 }
 
 export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult): InlineKeyboard {
@@ -48,13 +60,13 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
       .row();
 
     if (result.method === "npc") {
-      keyboard.text("🔮 Самозакалка", makeItemUpgradePreviewCallbackData(
+      keyboard.text("🔮 Іскровий підкрут", makeItemUpgradePreviewCallbackData(
         result.item.itemId,
         "self",
         result.donor?.itemId ?? null
       )).row();
     } else {
-      keyboard.text("🛠️ До майстра", makeItemUpgradePreviewCallbackData(
+      keyboard.text("🛠️ До Мага", makeItemUpgradePreviewCallbackData(
         result.item.itemId,
         "npc",
         result.donor?.itemId ?? null
@@ -80,7 +92,7 @@ export function buildItemUpgradePreviewKeyboard(result: ItemUpgradePreviewResult
   return keyboard
     .text("✨ До Чароковальні", makeItemUpgradeListCallbackData())
     .row()
-    .text("⬅️ До манаток", makeInventoryCallbackData());
+    .text("⬅️ До задвірку", makePlaceCallbackData("yard"));
 }
 
 export function buildItemUpgradeResultKeyboard(itemId?: string): InlineKeyboard {
@@ -93,5 +105,19 @@ export function buildItemUpgradeResultKeyboard(itemId?: string): InlineKeyboard 
   return keyboard
     .text("✨ До Чароковальні", makeItemUpgradeListCallbackData())
     .row()
-    .text("⬅️ До манаток", makeInventoryCallbackData());
+    .text("⬅️ До задвірку", makePlaceCallbackData("yard"));
+}
+
+export function buildItemUpgradeUnlockResultKeyboard(result: ItemUpgradeUnlockServiceResult): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (result.state === "missing-field-kit") {
+    keyboard.text("🏹 До Єгеря по аптечку", makeTavernCallbackData("ranger")).row();
+  }
+
+  if (result.state === "unlocked" || result.state === "already-unlocked") {
+    keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData()).row();
+  }
+
+  return keyboard.text("⬅️ До задвірку", makePlaceCallbackData("yard"));
 }

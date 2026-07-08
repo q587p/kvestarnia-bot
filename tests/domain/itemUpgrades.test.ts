@@ -5,10 +5,13 @@ import {
   buildItemUpgradeVariantContents,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  canAccessItemUpgrades,
   getBaseItemIdForUpgradeVariant,
   getDonorBonus,
   getItemDisplayNameWithUpgrade,
+  getItemUpgradeRequiredLevel,
   getItemUpgradeLevelFromItemId,
+  getItemUpgradeUnlockRewardXp,
   getNextItemUpgradeItemId,
   isItemUpgradeable,
   makeItemUpgradeVariantId
@@ -102,6 +105,18 @@ describe("item upgrades", () => {
     expect(isItemUpgradeable({ ...weapon, slot: "consumable", tags: ["consumable"] })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, slot: "cosmetic" })).toBe(false);
     expect(isItemUpgradeable({ ...weapon, id: "item.test-upgrade-pan.plus-5" }, 5)).toBe(false);
+  });
+
+  it("gates Charkokovalnia by level, remort and dynamic unlock XP", () => {
+    expect(canAccessItemUpgrades({ level: 4, remortCount: 0 })).toBe(false);
+    expect(canAccessItemUpgrades({ level: 5, remortCount: 0 })).toBe(true);
+    expect(canAccessItemUpgrades({ level: 2, remortCount: 1 })).toBe(false);
+    expect(canAccessItemUpgrades({ level: 3, remortCount: 1 })).toBe(true);
+
+    expect(getItemUpgradeRequiredLevel({ remortCount: 0 })).toBe(5);
+    expect(getItemUpgradeRequiredLevel({ remortCount: 2 })).toBe(3);
+    expect(getItemUpgradeUnlockRewardXp({ level: 5, remortCount: 0 })).toBe(38);
+    expect(getItemUpgradeUnlockRewardXp({ level: 99, remortCount: 9 })).toBe(93);
   });
 
   it("bounds costs, chance, pity and donor bonuses", () => {

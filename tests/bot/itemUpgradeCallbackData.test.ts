@@ -3,6 +3,7 @@ import {
   makeItemUpgradeAttemptCallbackData,
   makeItemUpgradeListCallbackData,
   makeItemUpgradePreviewCallbackData,
+  makeItemUpgradeUnlockCallbackData,
   parseItemUpgradeCallbackData
 } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -10,6 +11,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 describe("item upgrade callback data", () => {
   it("serializes compact list, preview and attempt callbacks", () => {
     const list = makeItemUpgradeListCallbackData();
+    const unlock = makeItemUpgradeUnlockCallbackData();
     const preview = makeItemUpgradePreviewCallbackData(
       "item.mantok.coverage.path.ordinary-route-ruler",
       "self",
@@ -25,11 +27,16 @@ describe("item upgrade callback data", () => {
     });
 
     expect(Buffer.byteLength(list, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+    expect(Buffer.byteLength(unlock, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(preview, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(Buffer.byteLength(attempt, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
     expect(parseItemUpgradeCallbackData(list)).toEqual({
       ok: true,
       value: { type: "list" }
+    });
+    expect(parseItemUpgradeCallbackData(unlock)).toEqual({
+      ok: true,
+      value: { type: "unlock" }
     });
     expect(parseItemUpgradeCallbackData(preview)).toEqual({
       ok: true,

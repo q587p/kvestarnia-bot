@@ -20,7 +20,7 @@ describe("help presenter", () => {
     expect(text).toContain("🚪 /start — почати пригоду");
     expect(text).toContain("👤 /hero — персонаж і прогрес");
     expect(text).toContain("🗺️ /quest — стіл зі справами");
-    expect(text).toContain("🔨 /upgrade — Чароковальня");
+    expect(text).not.toContain("/upgrade");
     expect(text).toContain("🗂️ /lore — Перекази Квестарні");
     expect(text).toContain("📖 /help — допомога");
     expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");

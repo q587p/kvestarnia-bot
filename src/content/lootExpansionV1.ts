@@ -337,27 +337,27 @@ export const PLUS_PRICE_MULT: Record<LootExpansionEnhancement, number> = {
 const PLUS_PRICE_SOFT_CAP_PER_LEVEL = 23;
 
 const enhancementOddsByMax: Record<LootExpansionEnhancement, number> = {
-  0: 35,
-  1: 25,
-  2: 18,
-  3: 12,
-  4: 7,
-  5: 3
+  0: 100,
+  1: 4.2,
+  2: 1.8,
+  3: 0.5,
+  4: 0.2,
+  5: 0.1
 };
 const enhancementOddsLevel10: Record<LootExpansionEnhancement, number> = {
-  0: 55,
-  1: 25,
-  2: 14,
-  3: 6,
+  0: 100,
+  1: 3.1,
+  2: 0.9,
+  3: 0.2,
   4: 0,
   5: 0
 };
 const enhancementOddsLevel14: Record<LootExpansionEnhancement, number> = {
-  0: 45,
-  1: 25,
-  2: 17,
-  3: 9,
-  4: 4,
+  0: 100,
+  1: 3.6,
+  2: 1.2,
+  3: 0.3,
+  4: 0.1,
   5: 0
 };
 
@@ -401,11 +401,11 @@ export function getEnhancementWeight(
   }
 
   if (playerLevel < 6) {
-    return enhancement === 0 ? 88 : enhancement === 1 ? 12 : 0;
+    return enhancement === 0 ? 100 : enhancement === 1 ? 1.3 : 0;
   }
 
   if (playerLevel < 10) {
-    return enhancement === 0 ? 70 : enhancement === 1 ? 22 : enhancement === 2 ? 8 : 0;
+    return enhancement === 0 ? 100 : enhancement === 1 ? 2.3 : enhancement === 2 ? 0.4 : 0;
   }
 
   if (playerLevel < 14) {

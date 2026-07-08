@@ -300,8 +300,6 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "profile" ||
     command === "me" ||
     command === "inventory" ||
-    command === "upgrade" ||
-    command === "charkokovalnia" ||
     command === "items" ||
     command === "bag" ||
     command === "equipment" ||

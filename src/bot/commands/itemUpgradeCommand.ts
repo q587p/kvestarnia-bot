@@ -1,4 +1,4 @@
-import type { Bot, Context } from "grammy";
+import type { Context } from "grammy";
 import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import { playerFromContext } from "../context";
 import { buildItemUpgradeListKeyboard } from "../keyboards/itemUpgradeKeyboard";
@@ -7,12 +7,6 @@ import { presentItemUpgradeList } from "../presenters/itemUpgradePresenter";
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
-
-export function registerItemUpgradeCommand(bot: Bot, itemUpgrades: ItemUpgradeService): void {
-  bot.command(["upgrade", "charkokovalnia"], async (ctx) => {
-    await sendItemUpgradeList(ctx, itemUpgrades, "reply");
-  });
-}
 
 export async function sendItemUpgradeList(
   ctx: Context,

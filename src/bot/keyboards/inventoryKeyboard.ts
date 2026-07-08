@@ -20,11 +20,6 @@ import {
 import { makeFightItemUseCallbackData } from "../callbacks/fightCallbackData";
 import { makePartyBossItemUseCallbackData } from "../callbacks/partySessionCallbackData";
 import { makeMantokChestOpenCallbackData } from "../callbacks/mantokChestCallbackData";
-import {
-  makeItemUpgradeListCallbackData,
-  makeItemUpgradePreviewCallbackData
-} from "../callbacks/itemUpgradeCallbackData";
-import { isItemUpgradeable } from "../../domain/itemUpgrades";
 import type { InventoryItemDetailResult, InventoryResult } from "../../services/inventoryService";
 import type {
   EquipmentResult,
@@ -80,7 +75,6 @@ export function buildInventoryKeyboard(
     keyboard
       .text(`${ONE_USE_INVENTORY_FILTER_ICON} Разові`, makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER, sort))
       .row();
-    keyboard.text("✨ Чароковальня", makeItemUpgradeListCallbackData()).row();
     keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
   }
 
@@ -204,10 +198,6 @@ export function buildItemDetailKeyboard(
     for (const option of options.craftOptions) {
       keyboard.text(option.recipe.buttonLabel, makeItemCraftPreviewCallbackData(option.recipe.code)).row();
     }
-  }
-
-  if (result.state === "found" && isItemUpgradeable(result.item.content)) {
-    keyboard.text("✨ Підсилити", makeItemUpgradePreviewCallbackData(result.item.itemId)).row();
   }
 
   if (result.state === "found" && options.canUse === true) {

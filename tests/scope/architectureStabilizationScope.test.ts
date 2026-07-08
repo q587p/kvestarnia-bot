@@ -33,7 +33,6 @@ const expectedCommandRegistrationCalls = [
   "registerRemortCommand",
   "registerInventoryCommand",
   "registerEquipmentCommand",
-  "registerItemUpgradeCommand",
   "registerCellarCommand",
   "registerTavernCommand",
   "registerLatestEventsCommand",
@@ -51,7 +50,6 @@ const expectedCommandAliasInventory = [
   "bag",
   "bestiary",
   "cellar",
-  "charkokovalnia",
   "chronicles",
   "dev_add_bandage",
   "dev_add_dense_bandage",
@@ -109,7 +107,6 @@ const expectedCommandAliasInventory = [
   "start",
   "support",
   "tavern",
-  "upgrade",
   "version"
 ];
 

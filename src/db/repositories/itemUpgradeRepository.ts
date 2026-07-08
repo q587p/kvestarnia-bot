@@ -1,4 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
+import type { DailyActionRecord, RewardLevelChange } from "./dailyActionRepository";
 
 export type ItemUpgradeMethod = "npc" | "self";
 
@@ -14,6 +15,7 @@ export interface ItemUpgradeSnapshot {
   character: CharacterRecord;
   items: ItemUpgradeInventoryRow[];
   pities: Array<{ itemId: string; targetLevel: number; failureCount: number }>;
+  unlocked: boolean;
 }
 
 export interface ItemUpgradeAttemptInput {
@@ -29,6 +31,9 @@ export interface ItemUpgradeAttemptInput {
 
 export type ItemUpgradeAttemptResult =
   | { state: "no-character" }
+  | { state: "wrong-place"; character: CharacterRecord }
+  | { state: "level-locked"; character: CharacterRecord; requiredLevel: number }
+  | { state: "unlock-required"; character: CharacterRecord; fieldKitQuantity: number }
   | { state: "not-owned" }
   | { state: "not-upgradeable" }
   | { state: "cap-reached"; item: ItemUpgradeInventoryRow }
@@ -53,6 +58,19 @@ export type ItemUpgradeAttemptResult =
       spent: { gold: number; iskrokamin: number; mana: number };
     };
 
+export type ItemUpgradeUnlockResult =
+  | { state: "no-character" }
+  | { state: "wrong-place"; character: CharacterRecord }
+  | { state: "level-locked"; character: CharacterRecord; requiredLevel: number }
+  | { state: "missing-field-kit"; character: CharacterRecord; fieldKitQuantity: number }
+  | {
+      state: "unlocked" | "already-unlocked";
+      character: CharacterRecord;
+      rewardXp: number;
+      action: DailyActionRecord | null;
+      levelChange: RewardLevelChange | null;
+    };
+
 export interface ItemUpgradeRepository {
   getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeSnapshot | null>;
   attemptForTelegramUser(
@@ -66,4 +84,5 @@ export interface ItemUpgradeRepository {
     failureCount: number,
     now: Date
   ): Promise<{ character: CharacterRecord; failureCount: number } | null>;
+  unlockForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeUnlockResult>;
 }
