@@ -60,6 +60,7 @@ Near-term next tasks:
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
 - [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — capped Korchma-funded rewards for resolved turn-based duel tournament periods.
+- [0.3.x-bureaucramancer-personal-protocol.md](0.3.x-bureaucramancer-personal-protocol.md) — draft narrow Bureaucramancer personal-protocol raid-prep slice for Big Barrel Brother recruiting: one protocol per session, count-only signatures, and per-signer first personal boss attack protection without broad-attack mitigation.
 - [0.2.x-turn-based-duel-journal.md](0.2.x-turn-based-duel-journal.md) — draft follow-up for a paginated `📜 Журнал дуелі` over resolved turn-based duel rounds without leaking unresolved private choices.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.3.x-quest-overview-route.md](0.3.x-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
