@@ -766,12 +766,14 @@ describe("party boss reducer", () => {
       mitigationPercent: 45
     });
     expect(state.roundLog.at(-1)?.wardSign?.preventedDamage).toBeGreaterThan(0);
+    const firstPreventedDamage = state.roundLog.at(-1)?.wardSign?.preventedDamage ?? 0;
     expect(state.wardSign).toMatchObject({
       status: "carried",
       supportCount: 2,
       usesRemaining: 1,
       usesMax: 2,
-      mitigationPercent: 45
+      mitigationPercent: 45,
+      preventedDamage: firstPreventedDamage
     });
 
     for (let turn = 5; turn <= 8; turn += 1) {
@@ -795,12 +797,14 @@ describe("party boss reducer", () => {
       usesMax: 2,
       mitigationPercent: 45
     });
+    const secondPreventedDamage = state.roundLog.at(-1)?.wardSign?.preventedDamage ?? 0;
     expect(state.wardSign).toMatchObject({
       status: "broken",
       supportCount: 2,
       usesRemaining: 0,
       usesMax: 2,
-      mitigationPercent: 45
+      mitigationPercent: 45,
+      preventedDamage: firstPreventedDamage + secondPreventedDamage
     });
   });
 

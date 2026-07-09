@@ -811,14 +811,14 @@ function presentKharakternykWardTriggeredLine(
 ): string {
   const usesRemaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? 0));
   if (wardSign.supportCount > 0 && usesRemaining > 0) {
-    return `🧿 Знак характерника частково луснув і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
+    return `🧿 Знак характерника частково луснув і цього разу забрав на себе ${wardSign.preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
   }
 
   if (wardSign.supportCount > 0) {
-    return `🧿 Знак характерника луснув зовсім і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор не лишилося.`;
+    return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${wardSign.preventedDamage} шкоди. Підпор не лишилося.`;
   }
 
-  return `🧿 Знак характерника луснув зовсім і забрав на себе ${wardSign.preventedDamage} шкоди.`;
+  return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${wardSign.preventedDamage} шкоди.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -914,14 +914,14 @@ function presentKharakternykWardBossLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
 ): string {
   if (wardSign.status === "broken") {
-    return `🧿 Знак характерника вже зовсім тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
+    return `🧿 Знак характерника вже зовсім тріснув і всього забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
   }
 
   if (wardSign.supportCount > 0) {
     const remaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? wardSign.supportCount));
     const supportCap = Math.max(wardSign.supportCount, Math.floor(wardSign.supportCap ?? 7));
     if (wardSign.triggeredTurn) {
-      return `🧿 Знак характерника частково тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди. Підпор: ${remaining}/${supportCap}.`;
+      return `🧿 Знак характерника частково тріснув і всього забрав на себе ${wardSign.preventedDamage ?? 0} шкоди. Підпор: ${remaining}/${supportCap}.`;
     }
 
     return `🧿 Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;

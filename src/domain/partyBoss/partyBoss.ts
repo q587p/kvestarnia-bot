@@ -752,13 +752,14 @@ function applyBossRetaliation(state: PartyBossState): {
     const currentUsesRemaining = Math.max(1, Math.floor(state.wardSign.usesRemaining ?? Math.max(1, state.wardSign.supportCount)));
     const usesRemaining = Math.max(0, currentUsesRemaining - 1);
     const usesMax = Math.max(1, Math.floor(state.wardSign.usesMax ?? Math.max(1, state.wardSign.supportCount)));
+    const totalPreventedDamage = Math.max(0, Math.floor(state.wardSign.preventedDamage ?? 0)) + wardPreventedDamage;
     state.wardSign = {
       ...state.wardSign,
       status: usesRemaining > 0 ? "carried" : "broken",
       usesRemaining,
       usesMax,
       triggeredTurn: state.turn,
-      preventedDamage: wardPreventedDamage,
+      preventedDamage: totalPreventedDamage,
       affectedCharacterIds: wardAffectedCharacterIds
     };
     return {

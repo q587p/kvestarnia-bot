@@ -57,6 +57,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 1. Resolve Big Barrel turns until the first `Бочковий гуркіт`.
 2. With no supports, verify the ward triggers once, shows prevented damage on the active card/journal, then marks the sign fully broken.
 3. With supports, verify each broad-hit activation reduces the visible `Підпор: N/7` count by one and keeps the sign carried until the last support is spent.
-4. On the final supported activation, verify the active card says the sign fully cracked and recent actions say no supports remain.
-5. Refresh the active card and replay the journal/result; the carried/broken state and remaining supports must persist.
-6. Continue resolving later turns after the final activation; ordinary attacks and later broad hits must not trigger the same sign again.
+4. After the second supported activation, verify the active card shows total prevented damage across all ward triggers, not only the latest trigger.
+5. On the final supported activation, verify the active card says the sign fully cracked and recent actions say no supports remain with the current-trigger prevented damage.
+6. Refresh the active card and replay the journal/result; the carried/broken state, cumulative active-card total and per-trigger journal values must persist.
+7. Continue resolving later turns after the final activation; ordinary attacks and later broad hits must not trigger the same sign again.

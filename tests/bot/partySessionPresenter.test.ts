@@ -73,7 +73,27 @@ describe("party session presenter", () => {
       }
     }));
 
-    expect(text).toContain("🧿 Знак характерника частково тріснув і забрав на себе 12 шкоди. Підпор: 1/7.");
+    expect(text).toContain("🧿 Знак характерника частково тріснув і всього забрав на себе 12 шкоди. Підпор: 1/7.");
+  });
+
+  it("shows cumulative Kharakternyk ward damage after final breakage on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 2,
+        supportCap: 7,
+        mitigationPercent: 45,
+        status: "broken",
+        usesRemaining: 0,
+        usesMax: 2,
+        triggeredTurn: 8,
+        preventedDamage: 23,
+        affectedCharacterIds: ["leader", "striker"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув і всього забрав на себе 23 шкоди.");
   });
 
   it("shows final Kharakternyk ward breakage in recent actions", () => {
@@ -99,7 +119,7 @@ describe("party session presenter", () => {
       }]
     }));
 
-    expect(text).toContain("🧿 Знак характерника луснув зовсім і забрав на себе 11 шкоди. Підпор не лишилося.");
+    expect(text).toContain("🧿 Знак характерника луснув зовсім і цього разу забрав на себе 11 шкоди. Підпор не лишилося.");
   });
 
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
