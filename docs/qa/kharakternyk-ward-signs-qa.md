@@ -22,6 +22,15 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 4. Tap the old placement button again and verify mana does not drop again.
 5. Try placement from a non-Kharakternyk account and verify it fails closed with blocker copy.
 
+## Placement Race
+
+1. Join the same Big Barrel Brother recruiting lobby with two level `3+` Kharakternyk accounts that each have at least `5` mana.
+2. Have both accounts tap `🧿 Поставити знак` as close together as possible.
+3. Verify exactly one card shows the sign as placed and the other account receives clear no-mutation copy such as `Знак уже стоїть біля бочки.`.
+4. Verify only the winning Kharakternyk spent exactly `5` mana; the losing Kharakternyk's mana did not change.
+5. Refresh the lobby and verify there is one count-only sign line, not two signs or signer names.
+6. Join with a supporter, tap `✋ Підперти знак`, and verify the support count attaches to the winning sign and duplicate support still does not spend twice.
+
 ## Support
 
 1. Join the lobby with a non-Kharakternyk.

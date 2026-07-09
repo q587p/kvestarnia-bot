@@ -194,6 +194,97 @@ describe("PrismaPartySessionRepository integration", () => {
     ]);
   });
 
+  it("commits only one Kharakternyk ward sign when two eligible placers race", async () => {
+    await seedCharacter(prisma, "ward-race-one-user", 2133n, "Перший Знакар", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 10,
+      statsJson: { intelligence: 13 }
+    });
+    await seedCharacter(prisma, "ward-race-two-user", 2134n, "Другий Знакар", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 10,
+      statsJson: { intelligence: 13 }
+    });
+    await seedCharacter(prisma, "ward-race-support-user", 2135n, "Підпора", {
+      level: 8,
+      manaCurrent: 10,
+      statsJson: { intelligence: 13 }
+    });
+    await repository.createForTelegramUser(2133n, bigBarrelInput("party-token-ward-race"));
+    await repository.joinByTokenForTelegramUser(2134n, "party-token-ward-race", joinInput());
+    await repository.joinByTokenForTelegramUser(2135n, "party-token-ward-race", joinInput());
+
+    const placementResults = await Promise.all([
+      repository.placeKharakternykWardSign(2133n, "party-token-ward-race", now()),
+      repository.placeKharakternykWardSign(2134n, "party-token-ward-race", now())
+    ]);
+
+    expect(placementResults.map((result) => result.state).sort()).toEqual(["already-exists", "updated"]);
+    const winner = placementResults.find((result) => result.state === "updated");
+    const winningPlacerCharacterId = winner && "session" in winner
+      ? winner.session.wardSign?.placerCharacterId
+      : null;
+    expect(winningPlacerCharacterId).toMatch(/^ward-race-(one|two)-user-character$/);
+    const losingPlacerCharacterId = winningPlacerCharacterId === "ward-race-one-user-character"
+      ? "ward-race-two-user-character"
+      : "ward-race-one-user-character";
+    const winnerTelegramUserId = winningPlacerCharacterId === "ward-race-one-user-character" ? 2133n : 2134n;
+
+    const duplicateWinner = await repository.placeKharakternykWardSign(winnerTelegramUserId, "party-token-ward-race", now());
+    const supported = await repository.supportKharakternykWardSign(2135n, "party-token-ward-race", now());
+    const duplicateSupport = await repository.supportKharakternykWardSign(2135n, "party-token-ward-race", now());
+
+    expect(duplicateWinner.state).toBe("already-placed");
+    expect(supported.state).toBe("updated");
+    expect(duplicateSupport.state).toBe("already-supported");
+    expect("session" in supported ? supported.session.wardSign : null).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: winningPlacerCharacterId,
+      supportCount: 1,
+      supportCap: 7
+    });
+    expect("session" in supported
+      ? supported.session.participants.find((participant) => participant.character.telegramUserId === 2135n)?.wardSignSupport
+      : null).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: winningPlacerCharacterId,
+      supporterCharacterId: "ward-race-support-user-character",
+      manaCost: 1
+    });
+
+    const manaRows = await prisma.character.findMany({
+      where: {
+        id: {
+          in: [
+            "ward-race-one-user-character",
+            "ward-race-two-user-character",
+            "ward-race-support-user-character"
+          ]
+        }
+      },
+      orderBy: { id: "asc" },
+      select: { id: true, manaCurrent: true }
+    });
+    const manaByCharacterId = Object.fromEntries(manaRows.map((row) => [row.id, row.manaCurrent]));
+    expect(manaByCharacterId[winningPlacerCharacterId!]).toBe(5);
+    expect(manaByCharacterId[losingPlacerCharacterId]).toBe(10);
+    expect(manaByCharacterId["ward-race-support-user-character"]).toBe(9);
+
+    const snapshots = await prisma.partyParticipant.findMany({
+      where: {
+        session: {
+          inviteToken: "party-token-ward-race"
+        }
+      },
+      select: {
+        snapshotJson: true
+      }
+    });
+    expect(snapshots.filter((row) => hasKharakternykWardSignSnapshot(row.snapshotJson))).toHaveLength(1);
+  });
+
   it("records the actual sent recruiting card message reference for a joined participant", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
@@ -674,6 +765,20 @@ async function characterIdForTelegramUser(prisma: PrismaClient, telegramUserId: 
   });
 
   return character.id;
+}
+
+function hasKharakternykWardSignSnapshot(snapshotJson: unknown): boolean {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return false;
+  }
+
+  const wardSign = (snapshotJson as Record<string, unknown>).kharakternykWardSign;
+  return Boolean(
+    wardSign &&
+    typeof wardSign === "object" &&
+    !Array.isArray(wardSign) &&
+    (wardSign as Record<string, unknown>).kind === "kharakternyk"
+  );
 }
 
 async function createMinimalSchema(prisma: PrismaClient): Promise<void> {

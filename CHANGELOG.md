@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Big Barrel Brother broad retaliations now carry typed ward-prevention details when a ward sign is active; ordinary boss hits remain unchanged.
 - Big Barrel recruiting cards can show count-only Kharakternyk ward support status and eligible placement/support buttons without exposing hidden support-cost thresholds.
+- Kharakternyk ward placement now uses a session-level compare-and-swap guard before mana spend so simultaneous placers cannot commit two signs or charge the losing placer.
 - Big Barrel active cards now stop repeating the auto-defense timer after the viewer has already queued an action for the current turn.
 - Big Barrel active cards and journal pages now hide stale personal cooldown lines after a participant has been knocked out of the raid.
 - The Lore Board Kharakternyk entry now mentions the class's visible raid-prep sign behavior.

@@ -549,6 +549,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-enough-mana", session: mapSession(session) };
       }
 
+      const reserved = await reserveKharakternykWardSignSlot(tx, session);
+      if (reserved !== "reserved") {
+        return resolveKharakternykWardSignReservationLoss(reserved, character.id);
+      }
+
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
@@ -577,12 +582,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             manaCost: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST,
             placedAt: now.toISOString()
           })
-        }
-      });
-      await tx.partySession.update({
-        where: { id: session.id },
-        data: {
-          version: { increment: 1 }
         }
       });
 
@@ -1292,6 +1291,70 @@ function parseParticipantReadiness(snapshotJson: Prisma.JsonValue | null): Party
   }
 
   return "waiting";
+}
+
+async function reserveKharakternykWardSignSlot(
+  tx: TxClient,
+  session: PartySessionRow
+): Promise<"reserved" | PartySessionRow | null> {
+  let candidate: PartySessionRow | null = session;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const reserved = await tx.partySession.updateMany({
+      where: {
+        id: candidate.id,
+        status: LIVE_STATUS,
+        originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+        version: candidate.version
+      },
+      data: {
+        version: { increment: 1 }
+      }
+    });
+    if (reserved.count === 1) {
+      return "reserved";
+    }
+
+    candidate = await findSessionById(tx, candidate.id);
+    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      return candidate;
+    }
+
+    if (getActiveWardSign(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidate;
+}
+
+function resolveKharakternykWardSignReservationLoss(
+  session: PartySessionRow | null,
+  placerCharacterId: string
+): PartyWardSignPlaceRepositoryResult {
+  if (!session) {
+    return { state: "not-found" };
+  }
+
+  const terminalState = getTerminalReplayState(session);
+  if (terminalState) {
+    return { state: terminalState, session: mapSession(session) };
+  }
+
+  if (session.status !== LIVE_STATUS) {
+    return { state: "not-recruiting", session: mapSession(session) };
+  }
+
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return { state: "not-big-barrel", session: mapSession(session) };
+  }
+
+  const existingWard = getActiveWardSign(session);
+  if (existingWard?.placerCharacterId === placerCharacterId) {
+    return { state: "already-placed", session: mapSession(session) };
+  }
+
+  return { state: "already-exists", session: mapSession(session) };
 }
 
 interface InternalWardSignSnapshot {
