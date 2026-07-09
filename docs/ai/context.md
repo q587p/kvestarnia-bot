@@ -22,23 +22,14 @@ Keep this file compact. Target: under 250 lines.
 - If a user names a PR, verify its live `base` and `head` before reviewing or continuing; do not assume the current checkout is the PR head.
 - Next-task base checks must account for squash merges: fetch `origin/main`, verify expected version/content, and compare tree diffs before stopping on a non-ancestor branch.
 - Codex prompt generation follows `docs/ai/CODEX_PROMPT_POLICY.md`: English, `$skill`-based, compact, target-branch aware, and no pasted long rules.
-- Second Codex review defaults to changed files only.
+- Second Codex review defaults to `Review mode: short` and changed files only; use `default`/`deep` only for higher-risk PRs.
 - Final Codex responses should be short: changed files, behavior changed, tests run, risks, completion status. No tutorial.
 - After a versioned task closes, write a compact handoff and start the next task in a new Codex thread.
 
-## Active skills
-Repo-specific skills in `.agents/skills/`:
-- `$kvestarnia-version-task` — main implementation for one scoped versioned task.
-- `$kvestarnia-second-codex-readonly` — second Codex read-only review, changed-files default.
-- `$kvestarnia-telegram-qa` — compact/full Telegram QA plans.
-- `$kvestarnia-release-checklist` — release readiness and handoff.
-- `$kvestarnia-local-runtime` — isolated local bot scripts, Prisma/SQLite, and Windows DLL/process-lock issues.
-- `$kvestarnia-codex-prompt-writer` — writing/reviewing Codex prompts, review prompts, and delta integration prompts.
-- `$balance-review` — combat, loot, progression, and economy risks.
-- `$ukrainian-rpg-content` — Ukrainian player-facing battle/tip/location/news/content copy.
+## Active Skills
 
+Repo skills live in `.agents/skills/`; use one main skill by default and add another only when it materially helps. Main set: `$kvestarnia-version-task`, `$kvestarnia-second-codex-readonly`, `$kvestarnia-telegram-qa`, `$kvestarnia-release-checklist`, `$kvestarnia-local-runtime`, `$kvestarnia-codex-prompt-writer`, `$balance-review`, `$ukrainian-rpg-content`.
 Compatibility/reference copies in `skills/` may exist, but default workflow should rely on `.agents/skills/` so `$skill` activation is predictable.
-Use one main skill by default. Add another skill only when it materially helps.
 ## Important docs
 - `AGENTS.md` — hard project/Codex rules.
 - `README.md` — public-facing project window.
@@ -46,6 +37,7 @@ Use one main skill by default. Add another skill only when it materially helps.
 - `docs/DOCUMENTATION_STRUCTURE.md` and category `README.md` files under `docs/product/`, `docs/design/`, `docs/balance/`, `docs/architecture/`, `docs/operations/`, `docs/content/`, `docs/qa/`, `docs/ai/`, `docs/backlog/`, `docs/history/`, and `docs/phase2/` — documentation placement and navigation rules.
 - `docs/ai/codex-workflow.md` — workflow and token-economy rules.
 - `docs/ai/CODEX_PROMPT_POLICY.md` — durable prompt-writing policy for Codex prompts and delta integration instructions.
+- `docs/ai/prompts/second-codex-pr-review.md` and `docs/ai/prompts/main-codex-fix-review-findings.md` — parameterized review and main-fix prompts.
 - `docs/tasks/README.md` — version task doc convention.
 - `docs/product/brand.md` — naming and public voice.
 - `docs/product/product-brief.md` — positioning and MVP scope.

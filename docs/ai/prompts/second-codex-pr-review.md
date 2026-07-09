@@ -5,37 +5,25 @@ Use this for independent read-only review.
 ```text
 Use $kvestarnia-second-codex-readonly.
 
-Review PR #<number> against main.
+PR: #<number>
+Base: main
+Review mode: short
+Task doc: docs/tasks/<version>-<short-slug>.md
 
-Mode:
-READ ONLY report only.
-
-Scope:
-Changed files only by default. Inspect direct dependencies only if needed for correctness.
-
-Focus:
-- does the PR match the version task?
-- correctness regressions
-- Telegram duplicate messages/callbacks
-- stale callback behavior
-- player/session/state consistency
-- presence/routing risks if touched
-- idempotency and DB transaction risks
-- missing tests
-- compact manual Telegram checks
-
-Do not edit files.
-Do not run auto-fix/format/codemod.
-Do not commit or push.
-
-Output:
-- PR summary
-- relevant changed files
-- findings: blockers / important / minor / looks good
-- missing tests
-- manual Telegram checks
-- questions for main Codex
-- safe notes
-
-No tutorial.
+Extra focus:
+<optional; delete if not needed>
 ```
+
+Modes:
+- `short` — everyday changed-files-only PR review.
+- `default` — medium-risk, release-oriented, or multi-area runtime PR.
+- `deep` — high-risk state, persistence, combat, raids, party sessions, routing, migrations, scheduler, economy, or balance.
+
+Default scope:
+Changed files only. Inspect direct dependencies only if needed for correctness.
+
+Escalate with a second skill only when the PR needs it:
+- `Use $kvestarnia-telegram-qa.` for full QA plans or release-critical Telegram flow changes.
+- `Use $balance-review.` for balance, economy, progression, boss/raid rewards, cooldowns, or loot.
+- `Use $ukrainian-rpg-content.` for substantial player-facing Ukrainian copy.
+- `Use $kvestarnia-local-runtime.` for local launcher/runtime/Prisma/Windows issues.

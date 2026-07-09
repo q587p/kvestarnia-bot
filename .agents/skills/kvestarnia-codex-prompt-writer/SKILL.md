@@ -49,21 +49,32 @@ Default second Codex PR review prompt shape:
 ```text
 Use $kvestarnia-second-codex-readonly.
 
-Review PR #<number> against main.
+PR: #<number>
+Base: main
+Review mode: short
+Task doc: docs/tasks/<version>-<short-slug>.md
 
-Mode:
-READ ONLY report only.
+Extra focus:
+<optional; delete if not needed>
+```
 
-Scope:
-Changed files only by default. Inspect direct dependencies only if needed for correctness.
+Use `short` by default, `default` for medium-risk/release-oriented PRs, and `deep` only for high-risk state, persistence, combat, raids, party sessions, routing, migrations, scheduler, economy, or balance.
 
-Focus:
-correctness, regressions, Telegram callbacks/messages, state/session consistency, idempotency, missing tests.
+Default main Codex review-fix prompt shape:
 
-Output:
-blockers, important issues, minor issues, missing tests, manual Telegram checks, safe notes.
+```text
+Use $kvestarnia-version-task.
 
-No tutorial.
+Task:
+Fix second-Codex review findings for PR #<number>.
+
+Review payload:
+<paste only blockers, important issues, missing tests, and key edge cases>
+
+Context:
+docs/ai/context.md
+
+Final output: findings addressed, changed files, tests run, risks/follow-ups, completion status. No tutorial.
 ```
 
 Default delta integration prompt shape:
