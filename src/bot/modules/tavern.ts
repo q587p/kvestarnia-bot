@@ -799,13 +799,13 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
-    if (result.state === "completed") {
-      await notifyShynokRoundRecipients(ctx, result);
-    }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildShynokRoundResultKeyboard(result, roundResultNavigationOptions)
     });
+    if (result.state === "completed") {
+      await notifyShynokRoundRecipients(ctx, result);
+    }
     return;
   }
 

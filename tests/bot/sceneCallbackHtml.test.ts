@@ -3657,10 +3657,17 @@ describe("scene callback HTML options", () => {
       }),
       { messageResults: true }
     );
+    const confirmMessageIndex = calls.findIndex((call) => call.method === "editMessageText");
+    const recipientMessageIndex = calls.findIndex((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
     const recipientMessage = calls.find((call) =>
       call.method === "sendMessage" && call.payload.chat_id === 93
     );
 
+    expect(confirmMessageIndex).toBeGreaterThanOrEqual(0);
+    expect(recipientMessageIndex).toBeGreaterThan(confirmMessageIndex);
+    expect(String(calls[confirmMessageIndex]?.payload.text)).toContain("Корчмар поставив кухлі");
     expect(String(recipientMessage?.payload.text)).toContain("<b>Мандрівник</b> ставить вам <b>Просте пиво</b>");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:ra:round-offer-93");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:rd:round-offer-93");
