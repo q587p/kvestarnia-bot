@@ -719,7 +719,7 @@ describe("party boss reducer", () => {
     })));
   });
 
-  it("breaks a Kharakternyk ward sign on the first Big Barrel broad hit only", () => {
+  it("spends Kharakternyk ward sign supports as repeated Big Barrel broad-hit charges", () => {
     let state = createPartyBossState({
       partySessionId: "big-ward-sign",
       variant: "big-barrel",
@@ -761,22 +761,107 @@ describe("party boss reducer", () => {
       kind: "kharakternyk",
       status: "triggered",
       supportCount: 2,
+      usesRemaining: 1,
+      usesMax: 2,
       mitigationPercent: 45
     });
     expect(state.roundLog.at(-1)?.wardSign?.preventedDamage).toBeGreaterThan(0);
     expect(state.wardSign).toMatchObject({
+      status: "carried",
+      supportCount: 2,
+      usesRemaining: 1,
+      usesMax: 2,
+      mitigationPercent: 45
+    });
+
+    for (let turn = 5; turn <= 8; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
+        seed: "big-ward-sign",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" },
+          { characterId: "ally", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 2,
+      usesRemaining: 0,
+      usesMax: 2,
+      mitigationPercent: 45
+    });
+    expect(state.wardSign).toMatchObject({
       status: "broken",
       supportCount: 2,
+      usesRemaining: 0,
+      usesMax: 2,
       mitigationPercent: 45
+    });
+  });
+
+  it("lets an unsupported Kharakternyk ward sign trigger once", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-ward-sign-solo",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0
+      },
+      participants: [
+        participant("leader", "Знакар", { hp: 160, level: 8, intelligence: 15, classId: "class.kharakternyk" })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 500,
+        hpMax: 500
+      }
+    };
+
+    for (let turn = 1; turn <= 4; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:1${turn}:00.000Z`),
+        seed: "big-ward-sign-solo",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      mitigationPercent: 25
+    });
+    expect(state.wardSign).toMatchObject({
+      status: "broken",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      mitigationPercent: 25
     });
 
     const afterBroken = resolvePartyBossRound({
       state,
-      now: new Date("2026-06-30T10:05:00.000Z"),
-      seed: "big-ward-sign",
+      now: new Date("2026-06-30T10:15:00.000Z"),
+      seed: "big-ward-sign-solo",
       actions: [
-        { characterId: "leader", action: "defend", origin: "manual" },
-        { characterId: "ally", action: "defend", origin: "manual" }
+        { characterId: "leader", action: "defend", origin: "manual" }
       ]
     });
 

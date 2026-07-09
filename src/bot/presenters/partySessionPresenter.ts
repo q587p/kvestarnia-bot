@@ -809,7 +809,16 @@ function presentLastRoundLines(
 function presentKharakternykWardTriggeredLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["wardSign"]>
 ): string {
-  return `🧿 Знак характерника луснув і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор спрацювало: ${wardSign.supportCount}.`;
+  const usesRemaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? 0));
+  if (wardSign.supportCount > 0 && usesRemaining > 0) {
+    return `🧿 Знак характерника частково луснув і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
+  }
+
+  if (wardSign.supportCount > 0) {
+    return `🧿 Знак характерника луснув зовсім і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор не лишилося.`;
+  }
+
+  return `🧿 Знак характерника луснув зовсім і забрав на себе ${wardSign.preventedDamage} шкоди.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -905,15 +914,29 @@ function presentKharakternykWardBossLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
 ): string {
   if (wardSign.status === "broken") {
-    return `🧿 Знак характерника вже тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
+    return `🧿 Знак характерника вже зовсім тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
   }
 
-  return `🧿 Знак характерника тримається. Підпор: ${wardSign.supportCount}/${7}.`;
+  if (wardSign.supportCount > 0) {
+    const remaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? wardSign.supportCount));
+    const supportCap = Math.max(wardSign.supportCount, Math.floor(wardSign.supportCap ?? 7));
+    if (wardSign.triggeredTurn) {
+      return `🧿 Знак характерника частково тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди. Підпор: ${remaining}/${supportCap}.`;
+    }
+
+    return `🧿 Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;
+  }
+
+  return "🧿 Знак характерника тримається.";
 }
 
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
   const supportCount = session.wardSign?.supportCount ?? 0;
   const supportCap = session.wardSign?.supportCap ?? 7;
+  if (supportCount <= 0) {
+    return "🧿 Знак характерника стоїть біля бочки.";
+  }
+
   return `🧿 Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
 }
 

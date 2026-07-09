@@ -147,12 +147,12 @@ describe("PrismaPartySessionRepository integration", () => {
       level: 8,
       classId: "class.kharakternyk",
       manaCurrent: 10,
-      statsJson: { intelligence: 13 }
+      statsJson: { intelligence: 13, luck: 13 }
     });
     await seedCharacter(prisma, "ward-support-user", 2132n, "РџС–РґРїРѕСЂР°", {
       level: 8,
       manaCurrent: 10,
-      statsJson: { intelligence: 13 }
+      statsJson: { intelligence: 13, luck: 13 }
     });
     await repository.createForTelegramUser(2131n, bigBarrelInput("party-token-ward"));
     await repository.joinByTokenForTelegramUser(2132n, "party-token-ward", joinInput());
@@ -170,7 +170,8 @@ describe("PrismaPartySessionRepository integration", () => {
       kind: "kharakternyk",
       placerCharacterId: "ward-leader-user-character",
       supportCount: 1,
-      supportCap: 7
+      supportCap: 7,
+      manaCost: 10
     });
     expect("session" in supported
       ? supported.session.participants.find((participant) => participant.character.telegramUserId === 2132n)?.wardSignSupport
@@ -178,7 +179,7 @@ describe("PrismaPartySessionRepository integration", () => {
       kind: "kharakternyk",
       placerCharacterId: "ward-leader-user-character",
       supporterCharacterId: "ward-support-user-character",
-      manaCost: 1
+      manaCost: 5
     });
     await expect(prisma.character.findMany({
       where: {
@@ -189,8 +190,8 @@ describe("PrismaPartySessionRepository integration", () => {
       orderBy: { id: "asc" },
       select: { id: true, manaCurrent: true }
     })).resolves.toEqual([
-      { id: "ward-leader-user-character", manaCurrent: 5 },
-      { id: "ward-support-user-character", manaCurrent: 9 }
+      { id: "ward-leader-user-character", manaCurrent: 0 },
+      { id: "ward-support-user-character", manaCurrent: 5 }
     ]);
   });
 
@@ -199,18 +200,18 @@ describe("PrismaPartySessionRepository integration", () => {
       level: 8,
       classId: "class.kharakternyk",
       manaCurrent: 10,
-      statsJson: { intelligence: 13 }
+      statsJson: { intelligence: 13, luck: 13 }
     });
     await seedCharacter(prisma, "ward-race-two-user", 2134n, "Другий Знакар", {
       level: 8,
       classId: "class.kharakternyk",
       manaCurrent: 10,
-      statsJson: { intelligence: 13 }
+      statsJson: { intelligence: 13, luck: 13 }
     });
     await seedCharacter(prisma, "ward-race-support-user", 2135n, "Підпора", {
       level: 8,
       manaCurrent: 10,
-      statsJson: { intelligence: 13 }
+      statsJson: { intelligence: 13, luck: 13 }
     });
     await repository.createForTelegramUser(2133n, bigBarrelInput("party-token-ward-race"));
     await repository.joinByTokenForTelegramUser(2134n, "party-token-ward-race", joinInput());
@@ -251,7 +252,7 @@ describe("PrismaPartySessionRepository integration", () => {
       kind: "kharakternyk",
       placerCharacterId: winningPlacerCharacterId,
       supporterCharacterId: "ward-race-support-user-character",
-      manaCost: 1
+      manaCost: 5
     });
 
     const manaRows = await prisma.character.findMany({
@@ -268,9 +269,9 @@ describe("PrismaPartySessionRepository integration", () => {
       select: { id: true, manaCurrent: true }
     });
     const manaByCharacterId = Object.fromEntries(manaRows.map((row) => [row.id, row.manaCurrent]));
-    expect(manaByCharacterId[winningPlacerCharacterId!]).toBe(5);
+    expect(manaByCharacterId[winningPlacerCharacterId!]).toBe(0);
     expect(manaByCharacterId[losingPlacerCharacterId]).toBe(10);
-    expect(manaByCharacterId["ward-race-support-user-character"]).toBe(9);
+    expect(manaByCharacterId["ward-race-support-user-character"]).toBe(5);
 
     const snapshots = await prisma.partyParticipant.findMany({
       where: {

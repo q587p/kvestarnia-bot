@@ -178,6 +178,7 @@ describe("party session keyboard", () => {
         placerCharacterId: "character-1",
         supportCount: 0,
         supportCap: 7,
+        manaCost: 10,
         placedAt: new Date("2026-06-30T10:00:00.000Z")
       },
       participants: [

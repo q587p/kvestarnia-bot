@@ -10,12 +10,12 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.3.2] - 12026-07-09 - Kharakternyk Ward Signs for Big Barrel Raids
 
 ### Added
-- Added `class.kharakternyk` ward signs to Big Barrel Brother recruiting lobbies: an eligible joined Kharakternyk can spend exactly `5` mana to place one sign before the raid starts.
-- Added one replay-safe support action per joined participant before start. Kharakternyk supporters spend `0` mana; other supporters spend a deterministic `1..3` mana from effective Intelligence.
+- Added `class.kharakternyk` ward signs to Big Barrel Brother recruiting lobbies: an eligible joined Kharakternyk can spend deterministic `8..11` mana from effective Intelligence plus Luck to place one sign before the raid starts.
+- Added one replay-safe support action per joined participant before start. Supporters spend deterministic `5..8` mana from effective Intelligence plus Luck, without a free Kharakternyk support exception.
 - Added durable lobby snapshot storage for ward placement/support without a schema migration, plus final-roster revalidation so left/remorted/absent placers or supporters do not affect the started raid.
-- Added frozen Big Barrel ward mitigation state at boss start with `min(95, 25 + 10 * supportCount)` mitigation, capped at `7` supporters, and a one-time broken/triggered state.
-- Added Big Barrel active-card and battle-journal copy for carried and broken ward signs, including the post-resolution prevented damage amount.
-- Added focused reducer, callback-data, keyboard and Prisma repository/integration coverage for placement, support, duplicate replay, final roster freezing and one-time broad-hit mitigation.
+- Added frozen Big Barrel ward mitigation state at boss start with `min(95, 25 + 10 * supportCount)` mitigation, capped at `7` supporters, and remaining activation charges: unsupported signs trigger once, supported signs trigger once per support.
+- Added Big Barrel active-card and battle-journal copy for carried, partially cracked and fully broken ward signs, including remaining supports and the post-resolution prevented damage amount.
+- Added focused reducer, callback-data, keyboard and Prisma repository/integration coverage for placement, support, duplicate replay, final roster freezing and support-charge broad-hit mitigation.
 
 ### Changed
 - Big Barrel Brother broad retaliations now carry typed ward-prevention details when a ward sign is active; ordinary boss hits remain unchanged.

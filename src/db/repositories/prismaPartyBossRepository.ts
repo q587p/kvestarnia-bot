@@ -1428,7 +1428,7 @@ function parseActionKey(value: string): PartyBossActionKey {
 
 function buildKharakternykWardSignForStartedParty(
   joined: PartyRow["participants"]
-): { kind: "kharakternyk"; placerCharacterId: string; supportCount: number } | undefined {
+): { kind: "kharakternyk"; placerCharacterId: string; supportCount: number; supportCap: number } | undefined {
   const placer = joined.find((participant) => {
     const wardSign = parseWardSignSnapshot(participant.snapshotJson);
     return (
@@ -1456,7 +1456,8 @@ function buildKharakternykWardSignForStartedParty(
   return {
     kind: "kharakternyk",
     placerCharacterId: placer.characterId,
-    supportCount: Math.min(KHARAKTERNYK_WARD_SUPPORT_CAP, supportCount)
+    supportCount: Math.min(KHARAKTERNYK_WARD_SUPPORT_CAP, supportCount),
+    supportCap: KHARAKTERNYK_WARD_SUPPORT_CAP
   };
 }
 

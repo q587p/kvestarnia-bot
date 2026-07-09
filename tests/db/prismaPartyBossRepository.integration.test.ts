@@ -1201,7 +1201,7 @@ describe("PrismaPartyBossRepository integration", () => {
       hp: 80,
       level: 8,
       classId: "class.kharakternyk",
-      manaCurrent: 10,
+      manaCurrent: 13,
       intelligence: 15
     });
     await seedCharacter(prisma, "big-ward-support-user", 5082n, "РџС–РґРїРѕСЂР°", {
@@ -1242,6 +1242,9 @@ describe("PrismaPartyBossRepository integration", () => {
       kind: "kharakternyk",
       placerCharacterId: "big-ward-leader-user-character",
       supportCount: 1,
+      supportCap: 7,
+      usesRemaining: 1,
+      usesMax: 1,
       mitigationPercent: 35,
       status: "carried"
     });

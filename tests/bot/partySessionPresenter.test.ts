@@ -38,6 +38,70 @@ describe("party session presenter", () => {
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
   });
 
+  it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0,
+        supportCap: 7,
+        mitigationPercent: 25,
+        status: "carried",
+        usesRemaining: 1,
+        usesMax: 1
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника тримається.");
+    expect(text).not.toContain("Підпор: 0/7");
+  });
+
+  it("shows partially cracked Kharakternyk ward support charges on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 2,
+        supportCap: 7,
+        mitigationPercent: 45,
+        status: "carried",
+        usesRemaining: 1,
+        usesMax: 2,
+        triggeredTurn: 4,
+        preventedDamage: 12,
+        affectedCharacterIds: ["leader", "striker"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника частково тріснув і забрав на себе 12 шкоди. Підпор: 1/7.");
+  });
+
+  it("shows final Kharakternyk ward breakage in recent actions", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 4,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        wardSign: {
+          kind: "kharakternyk",
+          status: "triggered",
+          supportCount: 2,
+          supportCap: 7,
+          usesRemaining: 0,
+          usesMax: 2,
+          mitigationPercent: 45,
+          preventedDamage: 11,
+          affectedCharacterIds: ["leader", "striker"]
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("🧿 Знак характерника луснув зовсім і забрав на себе 11 шкоди. Підпор не лишилося.");
+  });
+
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
     const base = makeBigBossSession({}, {
       queuedActions: [{

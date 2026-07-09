@@ -32,6 +32,7 @@ export interface PartyWardSignRecord {
   placerCharacterId: string;
   supportCount: number;
   supportCap: number;
+  manaCost: number;
   placedAt: Date;
 }
 

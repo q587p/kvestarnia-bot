@@ -68,8 +68,11 @@ export interface PartyBossWardSignState {
   kind: "kharakternyk";
   placerCharacterId: string;
   supportCount: number;
+  supportCap?: number;
   mitigationPercent: number;
   status: "carried" | "broken";
+  usesRemaining?: number;
+  usesMax?: number;
   triggeredTurn?: number;
   preventedDamage?: number;
   affectedCharacterIds?: string[];
@@ -112,6 +115,9 @@ export interface PartyBossWardSignRoundSummary {
   kind: "kharakternyk";
   status: "triggered";
   supportCount: number;
+  supportCap?: number;
+  usesRemaining?: number;
+  usesMax?: number;
   mitigationPercent: number;
   preventedDamage: number;
   affectedCharacterIds: string[];
@@ -196,6 +202,7 @@ export function createPartyBossState(input: {
     kind: "kharakternyk";
     placerCharacterId: string;
     supportCount: number;
+    supportCap?: number;
   };
   now: Date;
 }): PartyBossState {
@@ -262,12 +269,15 @@ export function createPartyBossState(input: {
       };
     }),
     ...(isBig && input.wardSign
-      ? {
+        ? {
           wardSign: {
             kind: "kharakternyk",
             placerCharacterId: input.wardSign.placerCharacterId,
             supportCount: clamp(Math.floor(input.wardSign.supportCount), 0, 7),
+            supportCap: Math.max(1, Math.floor(input.wardSign.supportCap ?? 7)),
             mitigationPercent: calculateKharakternykWardMitigation(input.wardSign.supportCount),
+            usesRemaining: Math.max(1, clamp(Math.floor(input.wardSign.supportCount), 0, 7)),
+            usesMax: Math.max(1, clamp(Math.floor(input.wardSign.supportCount), 0, 7)),
             status: "carried"
           }
         }
@@ -739,9 +749,14 @@ function applyBossRetaliation(state: PartyBossState): {
   }
 
   if (wardCanTrigger && state.wardSign && wardAffectedCharacterIds.length > 0) {
+    const currentUsesRemaining = Math.max(1, Math.floor(state.wardSign.usesRemaining ?? Math.max(1, state.wardSign.supportCount)));
+    const usesRemaining = Math.max(0, currentUsesRemaining - 1);
+    const usesMax = Math.max(1, Math.floor(state.wardSign.usesMax ?? Math.max(1, state.wardSign.supportCount)));
     state.wardSign = {
       ...state.wardSign,
-      status: "broken",
+      status: usesRemaining > 0 ? "carried" : "broken",
+      usesRemaining,
+      usesMax,
       triggeredTurn: state.turn,
       preventedDamage: wardPreventedDamage,
       affectedCharacterIds: wardAffectedCharacterIds
@@ -752,6 +767,9 @@ function applyBossRetaliation(state: PartyBossState): {
         kind: "kharakternyk",
         status: "triggered",
         supportCount: state.wardSign.supportCount,
+        supportCap: state.wardSign.supportCap ?? 7,
+        usesRemaining,
+        usesMax,
         mitigationPercent: state.wardSign.mitigationPercent,
         preventedDamage: wardPreventedDamage,
         affectedCharacterIds: wardAffectedCharacterIds

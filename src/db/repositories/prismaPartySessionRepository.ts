@@ -33,7 +33,8 @@ const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
-const KHARAKTERNYK_WARD_PLACEMENT_MANA_COST = 5;
+const KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST = 13;
+const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
 const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
 const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
 const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
@@ -545,7 +546,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "ineligible", session: mapSession(session) };
       }
 
-      if (character.manaCurrent < KHARAKTERNYK_WARD_PLACEMENT_MANA_COST) {
+      const manaCost = calculateWardPlacementManaCost(character);
+      if (character.manaCurrent < manaCost) {
         return { state: "not-enough-mana", session: mapSession(session) };
       }
 
@@ -558,12 +560,12 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         where: {
           id: character.id,
           manaCurrent: {
-            gte: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST
+            gte: manaCost
           }
         },
         data: {
           manaCurrent: {
-            decrement: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST
+            decrement: manaCost
           },
           manaRegenAt: now
         }
@@ -579,7 +581,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             kind: "kharakternyk",
             placerCharacterId: character.id,
             remortCount: character._count.remorts,
-            manaCost: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST,
+            manaCost,
             placedAt: now.toISOString()
           })
         }
@@ -1082,6 +1084,7 @@ function mapWardSign(row: PartySessionRow): PartyWardSignRecord | null {
     placerCharacterId: active.placerCharacterId,
     supportCount: countActiveWardSupports(row, active.placerCharacterId),
     supportCap: KHARAKTERNYK_WARD_SUPPORT_CAP,
+    manaCost: active.manaCost,
     placedAt: new Date(active.placedAt)
   };
 }
@@ -1488,20 +1491,22 @@ function getSnapshotObject(snapshotJson: Prisma.JsonValue | null, key: string): 
 }
 
 function calculateWardSupportManaCost(character: CharacterRow): number {
-  if (character.classId === KHARAKTERNYK_CLASS_ID) {
-    return 0;
-  }
+  return KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST - calculateWardManaDiscount(character, 0, 3);
+}
 
+function calculateWardPlacementManaCost(character: CharacterRow): number {
+  return KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST - calculateWardManaDiscount(character, 2, 5);
+}
+
+function calculateWardManaDiscount(character: CharacterRow, min: number, max: number): number {
   const stats = buildPartyBossCombatStats({
     ...mapCharacter(character),
     equipment: character.equipment
   });
+  const craftSense = Math.max(0, Math.floor(stats.intelligence)) + Math.max(0, Math.floor(stats.luck));
+  const discount = Math.floor(craftSense / 8);
 
-  if (stats.intelligence >= 13) {
-    return 1;
-  }
-
-  return stats.intelligence >= 8 ? 2 : 3;
+  return Math.min(max, Math.max(min, discount));
 }
 
 function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {

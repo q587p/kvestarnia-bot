@@ -11,11 +11,11 @@ Manual Telegram QA status for the implementation pass: not run in Telegram. Use 
 Use two or three local accounts with eligible Big Barrel Brother characters and `BIG_BARREL_BROTHER_RAID_ENABLED=true`.
 
 1. On a level `8+` `class.kharakternyk`, open `🛢️ Бочка`, create a Big Barrel Brother recruiting lobby and tap `🧿 Поставити знак`.
-2. Verify the lobby shows `Знак характерника` support count only, the Kharakternyk spent `5` mana once, and duplicate taps replay without another spend.
+2. Verify the lobby shows `Знак характерника` count-only support state, the Kharakternyk spent the deterministic placement cost once, and duplicate taps replay without another spend.
 3. Join with a non-Kharakternyk and tap `✋ Підперти знак`; verify support is recorded once, mana spend matches the callback result, and duplicate taps replay safely.
-4. Join with another Kharakternyk if available; verify support costs no mana and still increases the count by one.
+4. Join with another Kharakternyk if available; verify support uses the same deterministic support-cost range and still increases the count by one.
 5. Have one supporter leave before start; start the raid and verify the started fight counts only the final joined roster.
-6. Resolve turns until the first broad `Бочковий гуркіт`; verify the sign triggers once, the active card/journal show prevented damage, and later refreshes do not apply it again.
+6. Resolve turns until broad `Бочковий гуркіт`; verify unsupported signs trigger once, supported signs decrement visible `Підпор: N/7` on each activation, the active card/journal show prevented damage, and later refreshes do not duplicate resolved activations.
 
 ## 0.3.1 — Duel Tournaments smoke
 
