@@ -79,6 +79,34 @@ describe("quest overview presenter", () => {
     expect(rows[1]?.body).toContain("Де: стіл зі справами.");
   });
 
+  it("shows the cellar starter follow-up after the shawarma and starter fight are completed", () => {
+    const rows = buildQuestOverviewRows(makeSnapshot({
+      firstKorchmaQuest: {
+        state: "completed",
+        character,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: true,
+          currentLocationId: "location.korchma.quest-table"
+        },
+        reward: { xp: 1, gold: 0 }
+      },
+      starterAdventure: { state: "already-completed", character, fightAvailable: false },
+      starterFight: { state: "already-completed", character },
+      cellar: { state: "ready", character },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+
+    expect(rows.map((row) => row.id)).toEqual(["cellar"]);
+    expect(rows[0]).toMatchObject({
+      priority: "active",
+      title: "🐭 <b>Льохова справа</b> — перший спуск"
+    });
+    expect(rows[0]?.body).toContain("Зроблено: підозріла шаурма дала свідчення");
+    expect(rows[0]?.body).toContain("Далі: спустіться в льох");
+    expect(rows[0]?.body).toContain("Де: льох корчми.");
+  });
+
   it("keeps only claimable and active rows, ordered by current work", () => {
     const rows = buildQuestOverviewRows(makeSnapshot({
       dailyKorchmaRound: {

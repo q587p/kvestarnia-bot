@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added the first current-life route quest, `Перший крок до столу`: enter Korchma, reach `Стіл зі справами`, then receive a replay-safe +1 XP completion.
 - Added the rewardless first-table-route achievement `achievement.quest.first-korchma`.
 - Added starter follow-up overview rows after the first route quest: `Підозріла шаурма` and `Новачкова сутичка` now explain what is already done, what to do next, and that both continue at `Стіл зі справами`.
+- Added the next starter overview handoff after `Підозріла шаурма` and `Новачкова сутичка`: `Льохова справа` now appears with the same `Зроблено` / `Далі` / `Де` guidance when the cellar mouse quest is ready.
 - Added focused service, presenter, keyboard, marker, command and achievement coverage for active-only overview visibility, hidden locked/generic/completed rows, outside overview access, first-route progress/completion/remort reset, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
 
 ### Changed
@@ -23,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Overview buttons are now navigation-only and minimal: only `📋 До Столу зі справами`. Per-quest places such as `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, the overview does not duplicate the main keyboard's always-available quest or location routes, and it does not accept, claim, start fights or start raids.
 - `📋 До Столу зі справами` now routes through the normal place movement callback, so reaching the table can complete the first route quest while leaving the overview itself non-mutating.
 - The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
+- `Підозріла шаурма` now shows 4 character-varied method buttons on the start/help cards instead of filling the screen with all 7 possible starter methods.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh

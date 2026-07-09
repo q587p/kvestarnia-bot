@@ -10,17 +10,19 @@
 2. Press `🚪 Зайти в корчму`, then reopen `🗺️ Квести`; verify `Перший крок до столу` appears as 1/2 and points to Столу зі справами.
 3. Press `📋 До Столу зі справами`; verify normal place movement opens the old `📋 Стіл зі справами` card, presence moves only on that route, the first route quest completes once with its small XP line, and duplicate table refreshes do not pay again.
 4. After that completion, press `🗺️ Квести`; verify `Підозріла шаурма` and `Новачкова сутичка` appear with `Зроблено`, `Далі`, and `Де` lines, but still only one inline button: `📋 До Столу зі справами`.
-5. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
-6. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
-7. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
-8. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
-9. Problem Quest in progress: verify the row appears with progress and turn-in guidance; completed/reward-claimed Problem Quest disappears.
-10. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with Єгерський куток guidance and no direct `До Єгеря` button.
-11. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
-12. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
-13. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-14. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
-15. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+5. Open `Підозріла шаурма` and its `💡 Підказка`; verify the method keyboard shows 4 current-character options, not all possible starter options.
+6. Complete `Підозріла шаурма` and `Новачкова сутичка`, then press `🗺️ Квести`; verify `Льохова справа` appears with `Зроблено`, `Далі`, and `Де` lines.
+7. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
+8. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
+9. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
+10. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
+11. Problem Quest in progress: verify the row appears with progress and turn-in guidance; completed/reward-claimed Problem Quest disappears.
+12. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with Єгерський куток guidance and no direct `До Єгеря` button.
+13. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
+14. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
+15. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+16. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+17. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
 

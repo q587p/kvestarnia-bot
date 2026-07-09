@@ -488,6 +488,23 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
   }
 
   if (cellar.state === "ready") {
+    const starterPathCompleted =
+      snapshot.starterAdventure?.state === "already-completed" &&
+      snapshot.starterFight?.state === "already-completed";
+
+    if (starterPathCompleted) {
+      return {
+        id: "cellar",
+        priority: "active",
+        title: "🐭 <b>Льохова справа</b> — перший спуск",
+        body: [
+          "Зроблено: підозріла шаурма дала свідчення, а новачкова сутичка вже записана в журнал.",
+          "Далі: спустіться в льох і спробуйте владнати мишачу дрібницю.",
+          "Де: льох корчми."
+        ].join("\n")
+      };
+    }
+
     return {
       id: "cellar",
       priority: "available",

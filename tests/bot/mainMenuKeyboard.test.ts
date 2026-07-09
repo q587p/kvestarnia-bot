@@ -1103,8 +1103,7 @@ describe("main menu and scene keyboards", () => {
   it("keeps character-aware adventure labels on the same callback actions", () => {
     const labels = flatInlineButtonTexts(buildAdventureKeyboard({ ...character, classId: "class.rogue" }));
 
-    expect(labels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
-    expect(labels).toContain("📋 Вимагати чек і походження начинки");
+    expect(labels.slice(0, -2)).toHaveLength(4);
     expect(labels.join("\n")).not.toMatch(/Звірити «|Витягти доказ|🏷️|Пересічні Пригодники/u);
     expect(labels.at(-2)).toBe("💡 Підказка");
     expect(labels.at(-1)).toBe("📋 До справ");

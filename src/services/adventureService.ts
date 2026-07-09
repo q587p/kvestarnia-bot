@@ -1179,17 +1179,15 @@ export function buildAdventureMethodOptions(
 export function buildStarterMethodOptions(
   sceneId: "shawarma" | "cellar-mouse",
   character: CharacterSummary,
-  maxMethods = 7
+  maxMethods?: number
 ): AdventureApproachOption[] {
+  const effectiveMaxMethods = maxMethods ?? (sceneId === "shawarma" ? 4 : 7);
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
-  if (sceneId === "cellar-mouse") {
-    return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
-      toAdventureApproachOption(method, character)
-    );
-  }
-
-  return resolveQuestMethodsForCharacter(scene, character, { maxMethods, minMethods: 5 }).map((method) =>
+  return resolveQuestMethodsForCharacter(scene, character, {
+    maxMethods: effectiveMaxMethods,
+    minMethods: Math.min(5, effectiveMaxMethods)
+  }).map((method) =>
     toAdventureApproachOption(method, character)
   );
 }
