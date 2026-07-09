@@ -37,8 +37,13 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 1. Join the lobby with a non-Kharakternyk.
 2. Tap `✋ Підперти знак` and verify support count increases by one.
 3. Confirm the separate support confirmation shows `💫 Мани витрачено`, and the mana spend is deterministic in the `5..8` range and may be lower with stronger effective Intelligence plus Luck.
-4. Tap duplicate support and verify the support row and mana do not change.
-5. If another Kharakternyk joins, support from that account and verify it uses the same deterministic support-cost range, not a free class exception.
+4. Double-tap `✋ Підперти знак` quickly and verify:
+   - exactly one support is recorded for that participant;
+   - mana drops only once;
+   - the duplicate callback copy says the support already holds the sign;
+   - the support count remains one for that participant.
+5. Support from another participant and verify the support count increases separately.
+6. If another Kharakternyk joins, support from that account and verify it uses the same deterministic support-cost range, not a free class exception.
 
 ## Final Roster
 

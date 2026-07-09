@@ -286,6 +286,109 @@ describe("PrismaPartySessionRepository integration", () => {
     expect(snapshots.filter((row) => hasKharakternykWardSignSnapshot(row.snapshotJson))).toHaveLength(1);
   });
 
+  it("charges concurrent duplicate Kharakternyk ward support only once", async () => {
+    await seedCharacter(prisma, "ward-support-race-leader-user", 2136n, "Знакар Підпор", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 10,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await seedCharacter(prisma, "ward-support-race-one-user", 2137n, "Перша Підпора", {
+      level: 8,
+      manaCurrent: 10,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await seedCharacter(prisma, "ward-support-race-two-user", 2138n, "Друга Підпора", {
+      level: 8,
+      manaCurrent: 10,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await repository.createForTelegramUser(2136n, bigBarrelInput("party-token-ward-support-race"));
+    await repository.joinByTokenForTelegramUser(2137n, "party-token-ward-support-race", joinInput());
+    await repository.joinByTokenForTelegramUser(2138n, "party-token-ward-support-race", joinInput());
+    await repository.placeKharakternykWardSign(2136n, "party-token-ward-support-race", now());
+
+    const duplicateResults = await Promise.all([
+      repository.supportKharakternykWardSign(2137n, "party-token-ward-support-race", now()),
+      repository.supportKharakternykWardSign(2137n, "party-token-ward-support-race", now())
+    ]);
+
+    expect(duplicateResults.map((result) => result.state).sort()).toEqual(["already-supported", "updated"]);
+    const afterDuplicate = await repository.findByToken("party-token-ward-support-race", now());
+    expect(afterDuplicate?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "ward-support-race-leader-user-character",
+      supportCount: 1,
+      supportCap: 7
+    });
+    expect(afterDuplicate?.participants.find((participant) =>
+      participant.character.telegramUserId === 2137n
+    )?.wardSignSupport).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "ward-support-race-leader-user-character",
+      supporterCharacterId: "ward-support-race-one-user-character",
+      manaCost: 5
+    });
+    await expectWardSupportSnapshotCount(prisma, "party-token-ward-support-race", 1);
+
+    const secondSupport = await repository.supportKharakternykWardSign(2138n, "party-token-ward-support-race", now());
+
+    expect(secondSupport.state).toBe("updated");
+    expect("session" in secondSupport ? secondSupport.session.wardSign : null).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "ward-support-race-leader-user-character",
+      supportCount: 2,
+      supportCap: 7
+    });
+    await expectWardSupportSnapshotCount(prisma, "party-token-ward-support-race", 2);
+    await expect(prisma.character.findMany({
+      where: {
+        id: {
+          in: [
+            "ward-support-race-leader-user-character",
+            "ward-support-race-one-user-character",
+            "ward-support-race-two-user-character"
+          ]
+        }
+      },
+      orderBy: { id: "asc" },
+      select: { id: true, manaCurrent: true }
+    })).resolves.toEqual([
+      { id: "ward-support-race-leader-user-character", manaCurrent: 0 },
+      { id: "ward-support-race-one-user-character", manaCurrent: 5 },
+      { id: "ward-support-race-two-user-character", manaCurrent: 5 }
+    ]);
+  });
+
+  it("fails closed for non-member and terminal Kharakternyk ward support callbacks", async () => {
+    await seedCharacter(prisma, "ward-support-closed-leader-user", 2139n, "Закривач Знака", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 10,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await seedCharacter(prisma, "ward-support-closed-outsider-user", 2140n, "Зайва Підпора", {
+      level: 8,
+      manaCurrent: 10,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await repository.createForTelegramUser(2139n, bigBarrelInput("party-token-ward-support-closed"));
+    await repository.placeKharakternykWardSign(2139n, "party-token-ward-support-closed", now());
+
+    const nonMember = await repository.supportKharakternykWardSign(2140n, "party-token-ward-support-closed", now());
+    const cancelled = await repository.cancelByTokenForTelegramUser(2139n, "party-token-ward-support-closed", now());
+    const staleTerminal = await repository.supportKharakternykWardSign(2140n, "party-token-ward-support-closed", now());
+
+    expect(nonMember.state).toBe("not-member");
+    expect(cancelled.state).toBe("cancelled");
+    expect(staleTerminal.state).toBe("cancelled");
+    await expectWardSupportSnapshotCount(prisma, "party-token-ward-support-closed", 0);
+    await expect(prisma.character.findUnique({
+      where: { id: "ward-support-closed-outsider-user-character" },
+      select: { manaCurrent: true }
+    })).resolves.toEqual({ manaCurrent: 10 });
+  });
+
   it("records the actual sent recruiting card message reference for a joined participant", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
@@ -779,6 +882,39 @@ function hasKharakternykWardSignSnapshot(snapshotJson: unknown): boolean {
     typeof wardSign === "object" &&
     !Array.isArray(wardSign) &&
     (wardSign as Record<string, unknown>).kind === "kharakternyk"
+  );
+}
+
+async function expectWardSupportSnapshotCount(
+  prisma: PrismaClient,
+  inviteToken: string,
+  expectedCount: number
+): Promise<void> {
+  const snapshots = await prisma.partyParticipant.findMany({
+    where: {
+      session: {
+        inviteToken
+      }
+    },
+    select: {
+      snapshotJson: true
+    }
+  });
+
+  expect(snapshots.filter((row) => hasKharakternykWardSupportSnapshot(row.snapshotJson))).toHaveLength(expectedCount);
+}
+
+function hasKharakternykWardSupportSnapshot(snapshotJson: unknown): boolean {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return false;
+  }
+
+  const wardSupport = (snapshotJson as Record<string, unknown>).kharakternykWardSupport;
+  return Boolean(
+    wardSupport &&
+    typeof wardSupport === "object" &&
+    !Array.isArray(wardSupport) &&
+    (wardSupport as Record<string, unknown>).kind === "kharakternyk"
   );
 }
 

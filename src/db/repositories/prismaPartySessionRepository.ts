@@ -29,6 +29,12 @@ type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
 type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof partyCharacterInclude }>;
 
+class KharakternykWardSupportManaSpendLostError extends Error {
+  constructor(readonly sessionId: string) {
+    super("Kharakternyk ward support mana spend lost after reservation.");
+  }
+}
+
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
@@ -597,62 +603,74 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     inviteToken: string,
     now: Date
   ): Promise<PartyWardSignSupportRepositoryResult> {
-    return this.prisma.$transaction(async (tx): Promise<PartyWardSignSupportRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
-      const session = await findSessionByToken(tx, inviteToken);
+    try {
+      return await this.prisma.$transaction(async (tx): Promise<PartyWardSignSupportRepositoryResult> => {
+        await expireTokenIfNeededTx(tx, inviteToken, now);
+        const session = await findSessionByToken(tx, inviteToken);
 
-      if (!session) {
-        return { state: "not-found" };
-      }
+        if (!session) {
+          return { state: "not-found" };
+        }
 
-      const terminalState = getTerminalReplayState(session);
-      if (terminalState) {
-        return { state: terminalState, session: mapSession(session) };
-      }
+        const terminalState = getTerminalReplayState(session);
+        if (terminalState) {
+          return { state: terminalState, session: mapSession(session) };
+        }
 
-      if (session.status !== LIVE_STATUS) {
-        return { state: "not-recruiting", session: mapSession(session) };
-      }
+        if (session.status !== LIVE_STATUS) {
+          return { state: "not-recruiting", session: mapSession(session) };
+        }
 
-      if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
-        return { state: "not-big-barrel", session: mapSession(session) };
-      }
+        if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+          return { state: "not-big-barrel", session: mapSession(session) };
+        }
 
-      const character = await findCharacterByTelegramUser(tx, telegramUserId);
-      if (!character) {
-        return { state: "no-character" };
-      }
+        const character = await findCharacterByTelegramUser(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
 
-      const participant = session.participants.find((row) =>
-        row.characterId === character.id && row.status === "joined"
-      );
-      if (!participant) {
-        return { state: "not-member", session: mapSession(session) };
-      }
-      if (participant.remortCount !== character._count.remorts) {
-        return { state: "not-member", session: mapSession(session) };
-      }
+        const participant = session.participants.find((row) =>
+          row.characterId === character.id && row.status === "joined"
+        );
+        if (!participant) {
+          return { state: "not-member", session: mapSession(session) };
+        }
+        if (participant.remortCount !== character._count.remorts) {
+          return { state: "not-member", session: mapSession(session) };
+        }
 
-      const ward = getActiveWardSign(session);
-      if (!ward) {
-        return { state: "no-sign", session: mapSession(session) };
-      }
+        const ward = getActiveWardSign(session);
+        if (!ward) {
+          return { state: "no-sign", session: mapSession(session) };
+        }
 
-      if (ward.placerCharacterId === character.id) {
-        return { state: "self-support", session: mapSession(session) };
-      }
+        if (ward.placerCharacterId === character.id) {
+          return { state: "self-support", session: mapSession(session) };
+        }
 
-      const existingSupport = parseWardSupport(participant.snapshotJson);
-      if (existingSupport?.placerCharacterId === ward.placerCharacterId) {
-        return { state: "already-supported", session: mapSession(session) };
-      }
+        const existingSupport = parseWardSupport(participant.snapshotJson);
+        if (existingSupport?.placerCharacterId === ward.placerCharacterId) {
+          return { state: "already-supported", session: mapSession(session) };
+        }
 
-      const manaCost = calculateWardSupportManaCost(character);
-      if (character.manaCurrent < manaCost) {
-        return { state: "not-enough-mana", session: mapSession(session) };
-      }
+        const manaCost = calculateWardSupportManaCost(character);
+        if (character.manaCurrent < manaCost) {
+          return { state: "not-enough-mana", session: mapSession(session) };
+        }
 
-      if (manaCost > 0) {
+        const reserved = await reserveKharakternykWardSupportSlot(tx, session, participant, character, {
+          kind: "kharakternyk",
+          placerCharacterId: ward.placerCharacterId,
+          supporterCharacterId: character.id,
+          remortCount: character._count.remorts,
+          manaCost,
+          supportedAt: now.toISOString()
+        });
+        if (reserved !== "reserved") {
+          return resolveKharakternykWardSupportReservationLoss(reserved, character.id, character._count.remorts);
+        }
+
         const spent = await tx.character.updateMany({
           where: {
             id: character.id,
@@ -668,33 +686,20 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           }
         });
         if (spent.count !== 1) {
-          return { state: "not-enough-mana", session: mapSession(session) };
+          throw new KharakternykWardSupportManaSpendLostError(session.id);
         }
+
+        const updated = await findSessionById(tx, session.id);
+        return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+      });
+    } catch (error) {
+      if (error instanceof KharakternykWardSupportManaSpendLostError) {
+        const session = await findSessionById(this.prisma, error.sessionId);
+        return session ? { state: "not-enough-mana", session: mapSession(session) } : { state: "not-found" };
       }
 
-      await tx.partyParticipant.update({
-        where: { id: participant.id },
-        data: {
-          snapshotJson: snapshotWithWardSupport(participant.snapshotJson, {
-            kind: "kharakternyk",
-            placerCharacterId: ward.placerCharacterId,
-            supporterCharacterId: character.id,
-            remortCount: character._count.remorts,
-            manaCost,
-            supportedAt: now.toISOString()
-          })
-        }
-      });
-      await tx.partySession.update({
-        where: { id: session.id },
-        data: {
-          version: { increment: 1 }
-        }
-      });
-
-      const updated = await findSessionById(tx, session.id);
-      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
-    });
+      throw error;
+    }
   }
 
   async findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
@@ -1358,6 +1363,121 @@ function resolveKharakternykWardSignReservationLoss(
   }
 
   return { state: "already-exists", session: mapSession(session) };
+}
+
+async function reserveKharakternykWardSupportSlot(
+  tx: TxClient,
+  session: PartySessionRow,
+  participant: PartySessionRow["participants"][number],
+  character: CharacterRow,
+  wardSupport: InternalWardSupportSnapshot
+): Promise<"reserved" | PartySessionRow | null> {
+  let candidate: PartySessionRow | null = session;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidateParticipant = candidate.participants.find((row) =>
+      row.id === participant.id &&
+      row.characterId === character.id &&
+      row.status === "joined" &&
+      row.remortCount === character._count.remorts
+    );
+    if (!candidateParticipant) {
+      return candidate;
+    }
+
+    const ward = getActiveWardSign(candidate);
+    if (!ward || ward.placerCharacterId !== wardSupport.placerCharacterId) {
+      return candidate;
+    }
+
+    const existingSupport = parseWardSupport(candidateParticipant.snapshotJson);
+    if (existingSupport?.placerCharacterId === ward.placerCharacterId) {
+      return candidate;
+    }
+
+    const reserved = await tx.partyParticipant.updateMany({
+      where: {
+        id: candidateParticipant.id,
+        characterId: character.id,
+        status: "joined",
+        remortCount: character._count.remorts,
+        updatedAt: candidateParticipant.updatedAt,
+        session: {
+          id: candidate.id,
+          status: LIVE_STATUS,
+          originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          version: candidate.version
+        }
+      },
+      data: {
+        snapshotJson: snapshotWithWardSupport(candidateParticipant.snapshotJson, wardSupport)
+      }
+    });
+    if (reserved.count === 1) {
+      await tx.partySession.update({
+        where: { id: candidate.id },
+        data: {
+          version: { increment: 1 }
+        }
+      });
+      return "reserved";
+    }
+
+    candidate = await findSessionById(tx, candidate.id);
+    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      return candidate;
+    }
+  }
+
+  return candidate;
+}
+
+function resolveKharakternykWardSupportReservationLoss(
+  session: PartySessionRow | null,
+  supporterCharacterId: string,
+  supporterRemortCount: number
+): PartyWardSignSupportRepositoryResult {
+  if (!session) {
+    return { state: "not-found" };
+  }
+
+  const terminalState = getTerminalReplayState(session);
+  if (terminalState) {
+    return { state: terminalState, session: mapSession(session) };
+  }
+
+  if (session.status !== LIVE_STATUS) {
+    return { state: "not-recruiting", session: mapSession(session) };
+  }
+
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return { state: "not-big-barrel", session: mapSession(session) };
+  }
+
+  const participant = session.participants.find((row) =>
+    row.characterId === supporterCharacterId &&
+    row.status === "joined" &&
+    row.remortCount === supporterRemortCount
+  );
+  if (!participant) {
+    return { state: "not-member", session: mapSession(session) };
+  }
+
+  const ward = getActiveWardSign(session);
+  if (!ward) {
+    return { state: "no-sign", session: mapSession(session) };
+  }
+
+  if (ward.placerCharacterId === supporterCharacterId) {
+    return { state: "self-support", session: mapSession(session) };
+  }
+
+  const existingSupport = parseWardSupport(participant.snapshotJson);
+  if (existingSupport?.placerCharacterId === ward.placerCharacterId) {
+    return { state: "already-supported", session: mapSession(session) };
+  }
+
+  return { state: "already-supported", session: mapSession(session) };
 }
 
 interface InternalWardSignSnapshot {
