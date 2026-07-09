@@ -3,9 +3,17 @@ import { SeededRandomSource } from "../../shared/random";
 import type {
   QuestMethodDefinition,
   QuestResolutionGrade,
+  QuestRiskBand,
   QuestTechniqueId
 } from "../../content/questResolution";
 import { classTechniqueProfiles, raceTechniqueProfiles } from "../../content/questResolution";
+
+export const QUEST_RISK_BAND_CHANCE_CAPS = {
+  safe: 79,
+  steady: 65,
+  risky: 64,
+  wild: 54
+} as const satisfies Record<QuestRiskBand, number>;
 
 export interface QuestCheckResult {
   version: "quest-check-v1";
@@ -81,6 +89,8 @@ export function calculateQuestChance(input: {
     method.primaryStat === "luck"
       ? 0
       : clamp(Math.floor(((stats.luck ?? 0) - 5) / 2), -2, 4);
+  const riskBand = deriveQuestRiskBand(method);
+  const riskCap = QUEST_RISK_BAND_CHANCE_CAPS[riskBand];
 
   return clamp(
     Math.round(
@@ -93,8 +103,39 @@ export function calculateQuestChance(input: {
         luckAdjustment
     ),
     45,
-    88
+    riskCap
   );
+}
+
+export function deriveQuestRiskBand(method: QuestMethodDefinition): QuestRiskBand {
+  const complication = method.consequenceByGrade.complication;
+  const hasRiskTechnique = method.techniques.some((technique) =>
+    ["deception", "force", "improvisation", "traps"].includes(technique)
+  );
+
+  if (
+    complication === "fight-handoff" ||
+    complication === "serious-injury" ||
+    complication === "local-failure" ||
+    method.intent === "fight"
+  ) {
+    return "wild";
+  }
+
+  if (
+    complication === "minor-injury" ||
+    method.rewardProfile === "generous" ||
+    method.intent === "deceive" ||
+    hasRiskTechnique
+  ) {
+    return "risky";
+  }
+
+  if (method.goldCost || method.rewardProfile === "modest") {
+    return "safe";
+  }
+
+  return "steady";
 }
 
 export function qualitativeQuestChance(chance: number): string {

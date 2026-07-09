@@ -56,6 +56,7 @@ Recently shipped:
 - [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP from the Korchma yard Mage, with a field-kit unlock, concrete `+N` item ids, replay-safe upgrade attempts, equipped-row alignment, bounded pity/donor gates, weak/strong magic attunement timers, very rare generated `+N` drops, rare fight Iskrokamin replacement rewards, successful-upgrade Chronicles rows and local `Іскрокамінь`/attunement QA support.
 - [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — fixed daily/weekly/monthly turn-based duel tournaments with rules help, repeated-opponent downweighting, replay-safe Korchma-funded top-three prize chests, bounded unclaimed reward lookback, Holocene period display, combat-style turn-based duel cards, stored duel journals and Chronicles recognition for claims only.
 - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — Kharakternyk Big Barrel Brother ward signs with replay-safe mana placement/support, count-only lobby support, final-roster freezing and one-time broad-hit mitigation.
+- [0.3.3-quest-variety-risk-refresh.md](0.3.3-quest-variety-risk-refresh.md) — Adventure Choice risk-band readability, Daily Korchma Round scene expansion, and starter cellar mouse authored reply variety without new rewards, schema, combat or routes.
 
 Near-term next tasks:
 
@@ -65,7 +66,6 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.3.x-warrior-raid-taunt.md](0.3.x-warrior-raid-taunt.md) — draft narrow Warrior Big Barrel Brother raid taunt slice: a living joined Warrior can spend their queued raid action to redirect personal and broad boss attacks into themselves for exactly three boss responses, with a five-turn cooldown and no generic threat system.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.3.x-quest-overview-route.md](0.3.x-quest-overview-route.md) — compact `🗺️ Квести` overview/journal route without a new quest engine or rewards.
-- [0.3.x-adventure-risk-reward-rebalance.md](0.3.x-adventure-risk-reward-rebalance.md) — future Adventure Choice balance/readability pass so method help preserves real risk/reward tradeoffs instead of collapsing into all-`майже надійно` rows.
 - [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.

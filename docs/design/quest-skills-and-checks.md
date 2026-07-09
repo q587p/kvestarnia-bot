@@ -1,5 +1,7 @@
 # Quest Skills and Checks
 
+`0.3.3` keeps the same stats/affinity inputs but applies a derived `safe | steady | risky | wild` cap before the qualitative label. Safe is reserved for paid/modest lower-reward methods, steady for ordinary standard methods, risky for generous/deception/injury/unstable methods, and wild for fight handoff, local failure, serious injury or direct fight methods. Method help must stay qualitative and avoid exact odds.
+
 ## Мета
 
 Цей документ описує, як зробити не-бойові рішення механічними, не створюючи окрему важку skill tree й не дублюючи вже наявну class identity.

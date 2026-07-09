@@ -203,7 +203,9 @@ describe("adventure presenter", () => {
     expect(text).toContain("Детальніше про способи:");
     expect(text).toContain("🔎 Перевірити, чому лаваш дихає не в ритм");
     expect(text).toContain("<i>Розслідування без поспіху.");
-    expect(text).toContain("Добрі шанси.</i>");
+    expect(text).toContain("Непевно.</i>");
+    expect(text).toContain("Памʼятка: надійніше");
+    expect(text).not.toContain("%");
     expect(text).not.toContain("<b>Мандрівник</b>, що робимо?");
   });
 

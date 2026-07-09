@@ -9,9 +9,9 @@ import {
 } from "../../src/services/presenceService";
 
 describe("daily Korchma round content", () => {
-  it("ships 13 valid v1 scenes with three unique actions each", () => {
+  it("ships 36 valid scenes with three unique actions each", () => {
     expect(() => validateDailyKorchmaRoundContent()).not.toThrow();
-    expect(dailyKorchmaRoundScenes).toHaveLength(13);
+    expect(dailyKorchmaRoundScenes).toHaveLength(36);
 
     for (const scene of dailyKorchmaRoundScenes) {
       expect(scene.actions).toHaveLength(3);
@@ -19,6 +19,7 @@ describe("daily Korchma round content", () => {
 
       for (const action of scene.actions) {
         expect(action.description?.trim()).toBeTruthy();
+        expect(action.outcome.trim()).toBeTruthy();
       }
     }
   });

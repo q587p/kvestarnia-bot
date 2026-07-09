@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
+
+### Added
+- Added quest risk bands for authored method checks so safe, steady, risky and wild methods have distinct qualitative reliability ceilings instead of all scaling into `майже надійно`.
+- Added a compact method-help memo for Adventure/starter method cards explaining the qualitative tradeoff: safer is calmer, riskier is richer, and exact odds stay hidden.
+- Added 23 new Daily Korchma Round scenes, expanding the active pool from 13 to 36 while preserving exactly three actions per scene, deterministic local outcomes and explicit Quest Table turn-in.
+- Added seven authored cellar mouse methods with 28 new grade outcome lines, all still routed through the visible-method allowlist and conservative level 2-3 cellar reward envelope.
+- Added validation for Daily Korchma Round zone/location mismatches, missing action outcomes and too few interior location groups.
+- Added focused domain/content/presenter/service tests for risk-band caps, Adventure method-help distribution, Daily Korchma Round content validation, cellar method reachability and tiny cellar rewards.
+
+### Changed
+- Adventure Choice method-help cards now keep risky/generous/deception/injury/fight/local-failure methods from looking as reliable as paid or modest methods.
+- Standard investigate/negotiate methods are treated as steady rather than safe; paid or modest methods remain the calmer lower-reward band.
+- Daily Korchma Round mechanics, rewards, persistence, offer count and completion rules are unchanged.
+- Cellar mouse cooldowns, replay behavior, active-combat/pending-raid guards, transaction safety and item/reward semantics are unchanged.
+- Existing local-failure Adventure results still pay `0 XP`, `0 gold`, no items and no fight; fight-handoff results still defer rewards to the existing combat path.
+
 ## [0.3.2] - 12026-07-09 - Kharakternyk Ward Signs for Big Barrel Raids
 
 ### Added

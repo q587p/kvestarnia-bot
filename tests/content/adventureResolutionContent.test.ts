@@ -17,6 +17,11 @@ import {
   getQuestMethodTacticKey,
   resolveQuestMethodsForCharacter
 } from "../../src/domain/quests/questMethodResolver";
+import {
+  calculateQuestChance,
+  deriveQuestRiskBand,
+  qualitativeQuestChance
+} from "../../src/domain/quests/questChecks";
 
 describe("adventure resolution content", () => {
   it("covers every current general adventure problem with authored scene methods", () => {
@@ -249,6 +254,70 @@ describe("adventure resolution content", () => {
             expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
           }
         }
+      }
+    }
+  });
+
+  it("keeps representative method-help cards from collapsing into safe odds", () => {
+    const samples = [
+      character,
+      {
+        ...character,
+        raceId: "race.dryland-rusalka",
+        raceName: "Русалка сухопутна",
+        classId: "class.bard",
+        className: "Бард",
+        stats: {
+          ...character.stats,
+          charisma: 12,
+          luck: 10
+        }
+      },
+      {
+        ...character,
+        raceId: "race.drantohor",
+        raceName: "Дрантогор",
+        classId: "class.rogue",
+        className: "Пройдисвіт",
+        stats: {
+          ...character.stats,
+          dexterity: 12,
+          luck: 11
+        }
+      }
+    ];
+
+    for (const problemId of ADVENTURE_PROBLEM_IDS) {
+      for (const profile of samples) {
+        const methods = resolveQuestMethodsForCharacter(
+          buildAdventureResolutionScene({
+            problemId,
+            title: problemId,
+            character: profile
+          }),
+          profile,
+          { maxMethods: 5, minMethods: 5 }
+        );
+        const chanceHints = methods.map((method) =>
+          qualitativeQuestChance(
+            calculateQuestChance({
+              method,
+              stats: profile.stats,
+              raceId: profile.raceId,
+              classId: profile.classId
+            })
+          )
+        );
+        const riskBands = methods.map(deriveQuestRiskBand);
+
+        expect(methods.length, `${problemId}:${profile.raceId}:${profile.classId}`).toBe(5);
+        expect(chanceHints.filter((hint) => hint === "майже надійно").length, problemId).toBeLessThanOrEqual(1);
+        expect(chanceHints.filter((hint) => hint === "добрі шанси").length, problemId).toBeLessThanOrEqual(2);
+        expect(
+          chanceHints.filter((hint) => hint === "непевно" || hint === "дуже непевно").length,
+          problemId
+        ).toBeGreaterThanOrEqual(2);
+        expect(riskBands.some((band) => band === "risky" || band === "wild"), problemId).toBe(true);
       }
     }
   });
@@ -909,6 +978,47 @@ describe("adventure resolution content", () => {
       expect(injuryConsequences, sceneId).toContain("minor-injury");
       expect(injuryConsequences, sceneId).not.toContain("serious-injury");
     }
+  });
+
+  it("keeps the refreshed cellar mouse replies authored, reachable and varied", () => {
+    const scene = buildStarterQuestResolutionScene("cellar-mouse", bard);
+    const newMethodIds = [
+      "write-mouse-minutes",
+      "offer-thimble-office",
+      "audit-crumb-border",
+      "borrow-shadow",
+      "sing-cheese-anthem",
+      "appoint-shelf-mayor",
+      "file-napkin-treaty"
+    ];
+    const newMethods = newMethodIds.map((id) => scene.methods.find((method) => method.id === id));
+
+    expect(newMethods.every(Boolean)).toBe(true);
+
+    for (const id of newMethodIds) {
+      const visible = resolveQuestMethodsForCharacter(scene, bard, {
+        sceneSlotKey: id,
+        maxMethods: 7,
+        minMethods: 5
+      });
+
+      expect(visible.map((method) => method.id), id).toContain(id);
+    }
+
+    const outcomeBodies = newMethods.flatMap((method) =>
+      Object.values(method!.outcomeText).map((outcome) => outcome.body.join(" "))
+    );
+    const longSkeletons = outcomeBodies.map((body) =>
+      normalize(body)
+        .split(" ")
+        .filter((word) => word.length > 3)
+        .slice(0, 4)
+        .join(" ")
+    );
+
+    expect(outcomeBodies).toHaveLength(28);
+    expect(new Set(outcomeBodies).size).toBe(outcomeBodies.length);
+    expect(new Set(longSkeletons).size).toBeGreaterThanOrEqual(13);
   });
 
   it("resolves duplicated legacy starter aliases through explicit canonical methods", () => {
