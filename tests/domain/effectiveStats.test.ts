@@ -147,6 +147,26 @@ describe("buildEffectiveCharacterStats", () => {
     });
   });
 
+  it("keeps the inactive legacy Kharakternyk race as a growth bias for stored characters", () => {
+    const legacy = buildEffectiveCharacterStats(
+      input({
+        classId: "class.mage",
+        level: 12,
+        raceId: "race.kharakternyk"
+      })
+    );
+    const withoutRace = buildEffectiveCharacterStats(
+      input({
+        classId: "class.mage",
+        level: 12,
+        raceId: "race.not-a-race"
+      })
+    );
+
+    expect(legacy.levelBonus.stats).not.toEqual(withoutRace.levelBonus.stats);
+    expect(legacy.levelBonus.stats.luck).toBeGreaterThanOrEqual(withoutRace.levelBonus.stats.luck);
+  });
+
   it("does not mutate the input stats object", () => {
     const stats = { ...storedStats };
 

@@ -66,6 +66,24 @@ export const races = [
     }
   },
   {
+    id: "race.kharakternyk",
+    name: "Козак-характерник",
+    description:
+      "Deprecated fallback для старих персонажів. Нові характерники тепер обираються як клас.",
+    statBonus: {
+      strength: 1,
+      dexterity: 0,
+      intelligence: 0,
+      charisma: 0,
+      luck: 2
+    },
+    allowedPronouns: ["he", "they"],
+    availableInOnboarding: false,
+    unavailableReasons: {
+      she: "Канцелярія персонажів каже: характерниця буде окремим пригодницьким папером."
+    }
+  },
+  {
     id: "race.domovyk",
     name: "Домовик",
     description: "Знаходить дрібний лут там, де інші знаходять лише пил.",

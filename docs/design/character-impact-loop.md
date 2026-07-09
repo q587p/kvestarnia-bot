@@ -44,6 +44,10 @@
 - `race.intellectual-orc` — Орк-інтелігент
 - `race.molfar-soul` — Мольфарська душа
 
+Deprecated/fallback:
+
+- `race.kharakternyk` — тільки для старих персонажів; нові пригодники обирають `class.kharakternyk`.
+
 Активні класи:
 
 - `class.warrior` — Воїн

@@ -387,13 +387,23 @@ describe("content tables", () => {
     }
   });
 
-  it("keeps Kharakternyk as a class-only identity", () => {
+  it("keeps legacy Kharakternyk race content inactive but resolvable", () => {
     const oldRaceId = "class.kharakternyk".replace("class.", "race.");
 
     expect(activeRaces.map((race) => race.id)).toEqual(
       expect.arrayContaining(["race.bisyny", "race.drantohor"])
     );
-    expect(races.some((race) => race.id === oldRaceId)).toBe(false);
+    expect(races.find((race) => race.id === oldRaceId)).toMatchObject({
+      name: "Козак-характерник",
+      availableInOnboarding: false,
+      statBonus: {
+        strength: 1,
+        dexterity: 0,
+        intelligence: 0,
+        charisma: 0,
+        luck: 2
+      }
+    });
     expect(activeRaces.some((race) => race.id === oldRaceId)).toBe(false);
     expect(classes.some((characterClass) => characterClass.id === "class.kharakternyk")).toBe(
       true

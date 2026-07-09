@@ -947,6 +947,39 @@ describe("handlePartySessionCallback", () => {
     );
   });
 
+  it("does not mutate or confirm stale ward support callbacks after the raid starts", async () => {
+    const boss = makeBossSession({
+      rulesVersion: "big-barrel-brother-v1",
+      boss: {
+        ...makeBossSession().state.boss,
+        monsterId: "big-barrel-brother",
+        name: "Старший Брат Бочки"
+      }
+    });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(boss);
+    const supportKharakternykWardSignForTelegramUser = vi.fn();
+    const { ctx, answerCallbackQuery, editMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "ward-support", token: boss.partyInviteToken },
+      serviceWith({ supportKharakternykWardSignForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot",
+        partyBoss: partyBossWith({ getByPartyInviteToken })
+      }
+    );
+
+    expect(getByPartyInviteToken).toHaveBeenCalledWith(boss.partyInviteToken);
+    expect(supportKharakternykWardSignForTelegramUser).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Рейд уже стартував. Нові підпори не приймаються."
+    });
+    expect(messageText(editMessageText)).toContain("Старший Брат Бочки");
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it("lets any joined Big Barrel Brother participant rotate invite-card text", async () => {
     const session = {
       ...makeSessionWithMember(),

@@ -872,6 +872,57 @@ describe("party boss reducer", () => {
     expect(afterBroken.round.wardSign).toBeUndefined();
   });
 
+  it("spends a Kharakternyk ward activation even when mitigation rounds to zero", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-ward-sign-zero",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0
+      },
+      participants: [
+        participant("leader", "Знакар", { hp: 160, level: 8, intelligence: 15, classId: "class.kharakternyk" })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        attack: 1,
+        hp: 500,
+        hpMax: 500
+      }
+    };
+
+    for (let turn = 1; turn <= 4; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:2${turn}:00.000Z`),
+        seed: "big-ward-sign-zero",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      status: "triggered",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      preventedDamage: 0
+    });
+    expect(state.wardSign).toMatchObject({
+      status: "broken",
+      usesRemaining: 0,
+      preventedDamage: 0
+    });
+  });
+
   it("stays active past the old five-turn proof cap while the boss and a participant are alive", () => {
     let state = createPartyBossState({
       partySessionId: "party-old-cap",

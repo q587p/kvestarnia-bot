@@ -96,6 +96,27 @@ describe("party session presenter", () => {
     expect(text).toContain("🧿 Знак характерника вже зовсім тріснув і всього забрав на себе 23 шкоди.");
   });
 
+  it("avoids zero-damage Kharakternyk ward totals on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0,
+        supportCap: 7,
+        mitigationPercent: 25,
+        status: "broken",
+        usesRemaining: 0,
+        usesMax: 1,
+        triggeredTurn: 4,
+        preventedDamage: 0,
+        affectedCharacterIds: ["leader"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.");
+    expect(text).not.toContain("0 шкоди");
+  });
+
   it("shows final Kharakternyk ward breakage in recent actions", () => {
     const text = presentPartyBoss(makeBigBossSession({
       roundLog: [{
@@ -120,6 +141,33 @@ describe("party session presenter", () => {
     }));
 
     expect(text).toContain("🧿 Знак характерника луснув зовсім і цього разу забрав на себе 11 шкоди. Підпор не лишилося.");
+  });
+
+  it("avoids zero-damage Kharakternyk ward recent-action lines", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 4,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        wardSign: {
+          kind: "kharakternyk",
+          status: "triggered",
+          supportCount: 0,
+          supportCap: 7,
+          usesRemaining: 0,
+          usesMax: 1,
+          mitigationPercent: 25,
+          preventedDamage: 0,
+          affectedCharacterIds: ["leader"]
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.");
+    expect(text).not.toContain("0 шкоди");
   });
 
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {

@@ -39,7 +39,7 @@ describe("player ability catalog", () => {
     }
   });
 
-  it("assigns one race ability to every active race and none to the class-only Kharakternyk identity", () => {
+  it("assigns one race ability to every active race and none to the inactive Kharakternyk fallback race", () => {
     const oldRaceId = "class.kharakternyk".replace("class.", "race.");
 
     expect(raceAbilities.map((ability) => ability.raceId).sort()).toEqual(
@@ -54,7 +54,7 @@ describe("player ability catalog", () => {
       });
     }
 
-    expect(races.some((race) => race.id === oldRaceId)).toBe(false);
+    expect(races.some((race) => race.id === oldRaceId)).toBe(true);
     expect(findRaceAbility(oldRaceId)).toBeNull();
   });
 

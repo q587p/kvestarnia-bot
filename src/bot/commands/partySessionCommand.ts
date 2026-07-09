@@ -539,7 +539,11 @@ export async function handlePartySessionCallback(
   if (callback.type === "ward-place" || callback.type === "ward-support") {
     const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
     if (boss) {
-      await safeAnswerCallbackQuery(ctx, { text: "Рейд уже стартував. Знак лишився у зборі." });
+      await safeAnswerCallbackQuery(ctx, {
+        text: callback.type === "ward-place"
+          ? "Рейд уже стартував. Нові знаки не приймаються."
+          : "Рейд уже стартував. Нові підпори не приймаються."
+      });
       const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
       await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
         session: boss,

@@ -810,15 +810,28 @@ function presentKharakternykWardTriggeredLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["wardSign"]>
 ): string {
   const usesRemaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? 0));
+  const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage));
+  if (preventedDamage <= 0) {
+    if (wardSign.supportCount > 0 && usesRemaining > 0) {
+      return `🧿 Знак характерника частково луснув, але цього разу шкода прослизнула повз нього. Підпор лишилося: ${usesRemaining}.`;
+    }
+
+    if (wardSign.supportCount > 0) {
+      return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього. Підпор не лишилося.";
+    }
+
+    return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.";
+  }
+
   if (wardSign.supportCount > 0 && usesRemaining > 0) {
-    return `🧿 Знак характерника частково луснув і цього разу забрав на себе ${wardSign.preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
+    return `🧿 Знак характерника частково луснув і цього разу забрав на себе ${preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
   }
 
   if (wardSign.supportCount > 0) {
-    return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${wardSign.preventedDamage} шкоди. Підпор не лишилося.`;
+    return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди. Підпор не лишилося.`;
   }
 
-  return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${wardSign.preventedDamage} шкоди.`;
+  return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -913,15 +926,20 @@ export function presentPartySession(
 function presentKharakternykWardBossLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
 ): string {
+  const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage ?? 0));
   if (wardSign.status === "broken") {
-    return `🧿 Знак характерника вже зовсім тріснув і всього забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
+    return preventedDamage > 0
+      ? `🧿 Знак характерника вже зовсім тріснув і всього забрав на себе ${preventedDamage} шкоди.`
+      : "🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.";
   }
 
   if (wardSign.supportCount > 0) {
     const remaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? wardSign.supportCount));
     const supportCap = Math.max(wardSign.supportCount, Math.floor(wardSign.supportCap ?? 7));
     if (wardSign.triggeredTurn) {
-      return `🧿 Знак характерника частково тріснув і всього забрав на себе ${wardSign.preventedDamage ?? 0} шкоди. Підпор: ${remaining}/${supportCap}.`;
+      return preventedDamage > 0
+        ? `🧿 Знак характерника частково тріснув і всього забрав на себе ${preventedDamage} шкоди. Підпор: ${remaining}/${supportCap}.`
+        : `🧿 Знак характерника частково тріснув, але шкода поки прослизає повз нього. Підпор: ${remaining}/${supportCap}.`;
     }
 
     return `🧿 Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;

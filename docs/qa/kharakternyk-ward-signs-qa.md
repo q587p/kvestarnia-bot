@@ -44,6 +44,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
    - the support count remains one for that participant.
 5. Support from another participant and verify the support count increases separately.
 6. If another Kharakternyk joins, support from that account and verify it uses the same deterministic support-cost range, not a free class exception.
+7. After the raid starts, tap an old `✋ Підперти знак` callback and verify it only refreshes the boss card, says new supports are no longer accepted, does not spend mana and does not send a mana-spend confirmation.
 
 ## Final Roster
 
@@ -61,3 +62,10 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 5. On the final supported activation, verify the active card says the sign fully cracked and recent actions say no supports remain with the current-trigger prevented damage.
 6. Refresh the active card and replay the journal/result; the carried/broken state, cumulative active-card total and per-trigger journal values must persist.
 7. Continue resolving later turns after the final activation; ordinary attacks and later broad hits must not trigger the same sign again.
+8. If a very small broad hit rounds ward prevention to `0`, verify the activation is still spent but the active card/recent action does not print `0 шкоди`.
+
+## Compatibility Notes
+
+1. Existing characters with stored `race.kharakternyk` remain displayable and keep their legacy race growth bias.
+2. New character creation still does not offer `race.kharakternyk`; players use `class.kharakternyk`.
+3. Keep CI/integration coverage as the production-like confidence check for the same-row support compare-and-swap behavior.
