@@ -7,13 +7,14 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.4] - 12026-07-09 - Quest Overview Route and First Table Step
+## [0.3.4] - 12026-07-10 - Quest Overview Route and First Table Step
 
 ### Added
 - Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing only active, taken or claimable quest work with progress, completed steps, next-step hints and location/turn-in hints.
 - Added a compact empty state when there are no active/taken/claimable quest rows.
 - Added the first current-life route quest, `Перший крок до столу`: enter Korchma, reach `Стіл зі справами`, then receive a replay-safe +1 XP completion.
 - Added the rewardless first-table-route achievement `achievement.quest.first-korchma`.
+- Added starter follow-up overview rows after the first route quest: `Підозріла шаурма` and `Новачкова сутичка` now explain what is already done, what to do next, and that both continue at `Стіл зі справами`.
 - Added focused service, presenter, keyboard, marker, command and achievement coverage for active-only overview visibility, hidden locked/generic/completed rows, outside overview access, first-route progress/completion/remort reset, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
 
 ### Changed

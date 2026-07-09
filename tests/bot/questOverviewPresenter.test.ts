@@ -45,6 +45,40 @@ describe("quest overview presenter", () => {
     expect(insideRows[0]?.body).toContain("Далі: дійдіть до Столу зі справами.");
   });
 
+  it("shows starter quests after the first Korchma route is completed", () => {
+    const rows = buildQuestOverviewRows(makeSnapshot({
+      firstKorchmaQuest: {
+        state: "completed",
+        character,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: true,
+          currentLocationId: "location.korchma.quest-table"
+        },
+        reward: { xp: 1, gold: 0 }
+      },
+      starterAdventure: { state: "ready", character },
+      starterFight: { state: "ready", character },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+
+    expect(rows.map((row) => row.id)).toEqual(["starter-adventure", "starter-fight"]);
+    expect(rows[0]).toMatchObject({
+      priority: "active",
+      title: "🌯 <b>Підозріла шаурма</b> — новачкова підозра"
+    });
+    expect(rows[0]?.body).toContain("Зроблено: перший шлях до столу пройдено");
+    expect(rows[0]?.body).toContain("Далі: відкрийте підозрілу шаурму");
+    expect(rows[0]?.body).toContain("Де: стіл зі справами.");
+    expect(rows[1]).toMatchObject({
+      priority: "active",
+      title: "⚔️ <b>Новачкова сутичка</b> — чекає свідчень"
+    });
+    expect(rows[1]?.body).toContain("Зроблено: шаурма ще не дала свідчень");
+    expect(rows[1]?.body).toContain("Далі: спершу розберіться з підозрілою шаурмою");
+    expect(rows[1]?.body).toContain("Де: стіл зі справами.");
+  });
+
   it("keeps only claimable and active rows, ordered by current work", () => {
     const rows = buildQuestOverviewRows(makeSnapshot({
       dailyKorchmaRound: {

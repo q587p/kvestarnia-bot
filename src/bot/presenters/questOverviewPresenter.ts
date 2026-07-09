@@ -315,18 +315,18 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
 function getStarterAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
   const starter = snapshot.starterAdventure;
 
-  if (!starter) {
+  if (!starter || snapshot.firstKorchmaQuest?.state !== "completed") {
     return null;
   }
 
   if (starter.state === "ready") {
     return {
       id: "starter-adventure",
-      priority: "available",
-      title: "🌯 <b>Підозріла шаурма</b> — готова",
+      priority: "active",
+      title: "🌯 <b>Підозріла шаурма</b> — новачкова підозра",
       body: [
-        "Статус: перша підозра лежить на столі й пахне вступним протоколом.",
-        "Далі: розберіться з шаурмою без зайвої довіри до лаваша.",
+        "Зроблено: перший шлях до столу пройдено, і на папері вже є соусний натяк.",
+        "Далі: відкрийте підозрілу шаурму й оберіть, як із нею розібратися.",
         "Де: стіл зі справами."
       ].join("\n")
     };
@@ -360,18 +360,18 @@ function getStarterAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOvervi
 function getStarterFightOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
   const fight = snapshot.starterFight;
 
-  if (!fight) {
+  if (!fight || snapshot.firstKorchmaQuest?.state !== "completed") {
     return null;
   }
 
   if (fight.state === "ready") {
     return {
       id: "starter-fight",
-      priority: "available",
-      title: "⚔️ <b>Новачкова сутичка</b> — готова",
+      priority: "active",
+      title: "⚔️ <b>Новачкова сутичка</b> — чекає свідчень",
       body: [
-        "Статус: перший бій чекає біля столу й удає, що це просто знайомство.",
-        "Далі: завершіть новачкову сутичку.",
+        "Зроблено: шаурма ще не дала свідчень, тож бій чемно тримає чергу.",
+        "Далі: спершу розберіться з підозрілою шаурмою, потім поверніться до сутички.",
         "Де: стіл зі справами."
       ].join("\n")
     };

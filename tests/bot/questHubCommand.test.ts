@@ -154,6 +154,40 @@ describe("quest hub command", () => {
     expect(presence.marks).toEqual([]);
   });
 
+  it("shows starter quests in the overview after the first route quest is completed", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        firstKorchmaQuest: firstKorchmaQuestService(levelOneCharacter, true, true)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🌯 <b>Підозріла шаурма</b> — новачкова підозра");
+    expect(replies[0]?.text).toContain("Зроблено: перший шлях до столу пройдено");
+    expect(replies[0]?.text).toContain("Далі: відкрийте підозрілу шаурму");
+    expect(replies[0]?.text).toContain("⚔️ <b>Новачкова сутичка</b> — чекає свідчень");
+    expect(replies[0]?.text).toContain("Зроблено: шаурма ще не дала свідчень");
+    expect(replies[0]?.text).toContain("Далі: спершу розберіться з підозрілою шаурмою");
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toEqual([
+      {
+        text: "📋 До Столу зі справами",
+        callback_data: makePlaceCallbackData("quest-table")
+      }
+    ]);
+  });
+
   it("opens the overview from existing lookups without accepting or claiming quest progress", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const getExistingForTelegramUser = vi.fn(() =>
@@ -1635,21 +1669,35 @@ function completedBarrelBeerTutorialService(summary: CharacterSummary): BarrelBe
 
 function firstKorchmaQuestService(
   summary: CharacterSummary,
-  enteredKorchma: boolean
+  enteredKorchma: boolean,
+  completed = false
 ): FirstKorchmaQuestService {
   return {
     getForTelegramUser: () =>
-      Promise.resolve({
-        state: "active",
-        character: summary,
-        progress: {
-          enteredKorchma,
-          reachedQuestTable: false,
-          currentLocationId: enteredKorchma
-            ? PRESENCE_LOCATION_KORCHMA_HALL
-            : PRESENCE_LOCATION_KORCHMA_FRONT
-        }
-      }),
+      Promise.resolve(
+        completed
+          ? {
+              state: "completed",
+              character: summary,
+              progress: {
+                enteredKorchma: true,
+                reachedQuestTable: true,
+                currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+              },
+              reward: { xp: 1, gold: 0 }
+            }
+          : {
+              state: "active",
+              character: summary,
+              progress: {
+                enteredKorchma,
+                reachedQuestTable: false,
+                currentLocationId: enteredKorchma
+                  ? PRESENCE_LOCATION_KORCHMA_HALL
+                  : PRESENCE_LOCATION_KORCHMA_FRONT
+              }
+            }
+      ),
     completeForTelegramUser: () =>
       Promise.resolve({
         state: "already-completed",
