@@ -63,6 +63,7 @@ Near-term next tasks:
 
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
+- [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — next P0 performance hardening task from the static audit: instrumentation, bounded `DailyAction` hot-path queries, Yeger bandage fast path, and Daily Korchma Round step-row narrowing before inviting more players.
 - [0.3.x-bureaucramancer-personal-protocol.md](0.3.x-bureaucramancer-personal-protocol.md) — draft narrow Bureaucramancer personal-protocol raid-prep slice for Big Barrel Brother recruiting: one protocol per session, count-only signatures, and per-signer first personal boss attack protection without broad-attack mitigation.
 - [0.3.x-warrior-raid-taunt.md](0.3.x-warrior-raid-taunt.md) — draft narrow Warrior Big Barrel Brother raid taunt slice: a living joined Warrior can spend their queued raid action to redirect personal and broad boss attacks into themselves for exactly three boss responses, with a five-turn cooldown and no generic threat system.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
