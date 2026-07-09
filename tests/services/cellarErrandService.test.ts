@@ -277,6 +277,7 @@ describe("CellarErrandService", () => {
     expect(character).not.toBeNull();
     const methods = buildCellarMethodOptions(summarizeCharacter(character!));
 
+    expect(methods).toHaveLength(4);
     expect(methods.map((method) => method.id)).toContain("bribe-cheese");
     expect(methods.find((method) => method.id === "bribe-cheese")?.callbackKey).toBeDefined();
 

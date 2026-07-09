@@ -1181,7 +1181,7 @@ export function buildStarterMethodOptions(
   character: CharacterSummary,
   maxMethods?: number
 ): AdventureApproachOption[] {
-  const effectiveMaxMethods = maxMethods ?? (sceneId === "shawarma" ? 4 : 7);
+  const effectiveMaxMethods = maxMethods ?? (sceneId === "cellar-mouse" ? 4 : 7);
   const scene = buildStarterQuestResolutionScene(sceneId, character);
 
   return resolveQuestMethodsForCharacter(scene, character, {

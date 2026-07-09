@@ -10,8 +10,8 @@
 2. Press `🚪 Зайти в корчму`, then reopen `🗺️ Квести`; verify `Перший крок до столу` appears as 1/2 and points to Столу зі справами.
 3. Press `📋 До Столу зі справами`; verify normal place movement opens the old `📋 Стіл зі справами` card, presence moves only on that route, the first route quest completes once with its small XP line, and duplicate table refreshes do not pay again.
 4. After that completion, press `🗺️ Квести`; verify `Підозріла шаурма` and `Новачкова сутичка` appear with `Зроблено`, `Далі`, and `Де` lines, but still only one inline button: `📋 До Столу зі справами`.
-5. Open `Підозріла шаурма` and its `💡 Підказка`; verify the method keyboard shows 4 current-character options, not all possible starter options.
-6. Complete `Підозріла шаурма` and `Новачкова сутичка`, then press `🗺️ Квести`; verify `Льохова справа` appears with `Зроблено`, `Далі`, and `Де` lines.
+5. Complete `Підозріла шаурма` and `Новачкова сутичка`, then press `🗺️ Квести`; verify `Льохова справа` appears with `Зроблено`, `Далі`, and `Де` lines.
+6. Open `Льохова справа` and its `💡 Підказка`; verify the method keyboard shows 4 current-character options, not all possible cellar options.
 7. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
 8. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
 9. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.

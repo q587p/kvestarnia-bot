@@ -24,7 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Overview buttons are now navigation-only and minimal: only `📋 До Столу зі справами`. Per-quest places such as `Корчмарський обхід`, `єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, the overview does not duplicate the main keyboard's always-available quest or location routes, and it does not accept, claim, start fights or start raids.
 - `📋 До Столу зі справами` now routes through the normal place movement callback, so reaching the table can complete the first route quest while leaving the overview itself non-mutating.
 - The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
-- `Підозріла шаурма` now shows 4 character-varied method buttons on the start/help cards instead of filling the screen with all 7 possible starter methods.
+- `Льохова справа` now shows 4 character-varied method buttons on the start/help cards instead of filling the screen with all 7 possible cellar methods.
 - Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 

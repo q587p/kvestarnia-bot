@@ -35,6 +35,7 @@ import { getEquippedItemContents } from "./equipmentService";
 export const CELLAR_MOUSE_ERRAND_KEY = "cellar.mouse-errand";
 export const CELLAR_MOUSE_ERRAND_COOLDOWN_MS = 3 * 60 * 1000;
 const CELLAR_DEFAULT_SCENE_SLOT = "bribe-cheese";
+const CELLAR_VISIBLE_METHOD_COUNT = 4;
 
 export type CellarErrandAction = string;
 export type CellarErrandCompletionInput =
@@ -216,6 +217,8 @@ export class CellarErrandService {
     const method =
       completionInput.type === "method"
         ? findVisibleQuestMethodByCallbackKey(scene, character, completionInput.methodId, {
+            maxMethods: CELLAR_VISIBLE_METHOD_COUNT,
+            minMethods: CELLAR_VISIBLE_METHOD_COUNT,
             sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
           })
         : findQuestMethodByLegacyAction(scene, completionInput.action);
@@ -333,8 +336,8 @@ export class CellarErrandService {
 export function buildCellarMethodOptions(character: CharacterSummary): CellarErrandMethodOption[] {
   const scene = buildStarterQuestResolutionScene("cellar-mouse", character);
   return resolveQuestMethodsForCharacter(scene, character, {
-    maxMethods: 7,
-    minMethods: 5,
+    maxMethods: CELLAR_VISIBLE_METHOD_COUNT,
+    minMethods: CELLAR_VISIBLE_METHOD_COUNT,
     sceneSlotKey: CELLAR_DEFAULT_SCENE_SLOT
   }).map(toCellarMethodOption);
 }
