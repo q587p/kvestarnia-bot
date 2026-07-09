@@ -715,6 +715,13 @@ function presentJournalCooldownLines(
 
   return participants.flatMap((participant) => {
     const resourceSnapshot = resourcesByCharacterId.get(participant.characterId);
+    const activeAfterRound = resourceSnapshot
+      ? resourceSnapshot.status === "active" && resourceSnapshot.hp > 0
+      : participant.status === "active" && participant.resources.hp > 0;
+    if (!activeAfterRound) {
+      return [];
+    }
+
     const cooldowns = resourceSnapshot
       ? resourceSnapshot.cooldowns
       : participant.resources.cooldowns;
@@ -1303,7 +1310,7 @@ function presentPartyBossActionSubject(
 function presentPartyBossCooldownLines(
   viewer: PartyBossSessionRecord["state"]["participants"][number] | null
 ): string[] {
-  if (!viewer) {
+  if (!viewer || viewer.status !== "active" || viewer.resources.hp <= 0) {
     return [];
   }
 

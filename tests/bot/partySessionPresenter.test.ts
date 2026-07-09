@@ -224,6 +224,61 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Бос отримав:");
   });
 
+  it("hides stale cooldown notices for knocked-out participants in Big Barrel Brother journal pages", () => {
+    const text = presentPartyBossJournal(makeBigBossSession({
+      turn: 7,
+      roundLog: [{
+        turn: 6,
+        actions: [
+          {
+            characterId: "leader",
+            action: "defend",
+            origin: "timeout",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 383,
+        bossRetaliations: [
+          { characterId: "leader", damage: 20, hpAfter: 0 }
+        ],
+        participantsAfter: [
+          {
+            characterId: "leader",
+            status: "knocked-out",
+            hp: 0,
+            hpMax: 60,
+            mana: 19,
+            manaMax: 20,
+            cooldowns: {
+              skill: {
+                id: "technique.class.bureaucramancer.peer-reviewed-strike",
+                remainingTurns: 4
+              }
+            },
+            combatItems: {
+              cooldowns: {
+                "item.dense-bandage": {
+                  itemId: "item.dense-bandage",
+                  remainingTurns: 3
+                }
+              }
+            }
+          },
+          { characterId: "striker", status: "active", hp: 32, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("Голова після ходу: HP 0/60 · мана 19/20 · вибито");
+    expect(text).not.toContain("Голова: 🫁");
+    expect(text).not.toContain("Рецензований удар відсапується");
+    expect(text).not.toContain("Щільний бинт відсапується");
+  });
+
   it("names the Big Barrel Brother broad attack in the active battle card", () => {
     const text = presentPartyBoss(makeBigBossSession({
       turn: 5,
@@ -543,6 +598,38 @@ describe("party session presenter", () => {
     expect(text).not.toContain("❤️ Ви:");
     expect(text).not.toContain("відсапується");
     expect(text).toContain("Ваша винагорода за рейд:\n<b>+2 XP\n+4 золота</b>");
+  });
+
+  it("hides stale viewer cooldowns after the viewer is knocked out of an active Big Barrel Brother raid", () => {
+    const leader = participant("leader", "Голова");
+    leader.status = "knocked-out";
+    leader.resources = {
+      ...leader.resources,
+      hp: 0,
+      cooldowns: {
+        skill: {
+          id: "technique.class.bureaucramancer.peer-reviewed-strike",
+          remainingTurns: 4
+        }
+      }
+    };
+    leader.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": {
+          itemId: "item.dense-bandage",
+          remainingTurns: 3
+        }
+      }
+    };
+    const text = presentPartyBoss(makeBigBossSession({
+      turn: 7,
+      participants: [leader, participant("striker", "Шкодійка")]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("❤️ Ви: HP 0/60 · мана 20/20 · вибито");
+    expect(text).toContain("Ви вибиті з рейду. Картка лишається для спостереження й оновлення.");
+    expect(text).not.toContain("Рецензований удар відсапується");
+    expect(text).not.toContain("Щільний бинт відсапується");
   });
 
   it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {
