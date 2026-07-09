@@ -81,7 +81,8 @@ describe("health server", () => {
     expect(text).toContain("Журнал квестів перестав штовхати стіл");
     expect(text).toContain("мапа відповідальності");
     expect(text).toContain("Три справи");
-    expect(text).toContain("кнопки з огляду ведуть до вже знайомих місць");
+    expect(text).toContain("сам огляд не телепортує до кожної справи");
+    expect(text).toContain("кнопки з огляду лишають тільки безпечну навігацію");
     expect(text).toContain("не новий журнал нагород і не новий квестовий рушій");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");

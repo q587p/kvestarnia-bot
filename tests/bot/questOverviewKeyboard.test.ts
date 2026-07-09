@@ -3,30 +3,37 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { buildQuestOverviewKeyboard } from "../../src/bot/keyboards/questOverviewKeyboard";
-import type { QuestOverviewRow } from "../../src/bot/presenters/questOverviewPresenter";
 
 describe("quest overview keyboard", () => {
-  it("keeps direct route buttons passive and adds the table/back routes", () => {
-    const keyboard = buildQuestOverviewKeyboard([
-      routeRow("daily", "🧾 До обходу", "v1:dkr:o:20260709"),
-      routeRow("yeger", "🏹 До Єгеря", "v1:tavern:ranger"),
-      routeRow("barrel", "🍺 До бочки", makePlaceCallbackData("barrel"))
-    ]);
+  it("keeps only safe navigation buttons", () => {
+    const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
-      ["🧾 До обходу"],
-      ["🏹 До Єгеря"],
-      ["🍺 До бочки"],
       ["📋 До Столу зі справами"],
-      ["↩️ Назад"]
+      ["🔎 Оновити", "🍺 До зали"]
     ]);
     expect(callbacks(keyboard)).toEqual([
-      "v1:dkr:o:20260709",
-      "v1:tavern:ranger",
-      makePlaceCallbackData("barrel"),
       makeQuestCallbackData("list"),
+      makeQuestCallbackData("overview"),
       makePlaceCallbackData("hall")
     ]);
+    expect(buttonRows(keyboard).flat()).not.toEqual(expect.arrayContaining([
+      "🧾 До обходу",
+      "📋 До Трьох справ",
+      "🧾 До Корчмаря",
+      "🪜 До Низу",
+      "🏹 До Єгеря",
+      "🐭 До льоху",
+      "🍺 До бочки",
+      "🍻 До шинку",
+      "✨ До задвірка"
+    ]));
+    expect(callbacks(keyboard)).not.toContain("v1:dkr:o:20260709");
+    expect(callbacks(keyboard)).not.toContain("v1:tavern:ranger");
+    expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("bar"));
+    expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("barrel"));
+    expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("deep"));
+    expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("yard"));
     expect(callbacks(keyboard)).not.toContain(makeQuestCallbackData("barrel-tutorial"));
     expect(callbacks(keyboard)).not.toContain(makeQuestCallbackData("barrel-tutorial-turn-in"));
     for (const callback of callbacks(keyboard)) {
@@ -34,27 +41,15 @@ describe("quest overview keyboard", () => {
     }
   });
 
-  it("does not duplicate the Quest Table route when a row already uses it", () => {
-    const keyboard = buildQuestOverviewKeyboard([
-      routeRow("starter", "📋 До Столу зі справами", makeQuestCallbackData("list"))
-    ]);
+  it("uses the same safe buttons even when no rows are visible", () => {
+    const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
       ["📋 До Столу зі справами"],
-      ["↩️ Назад"]
+      ["🔎 Оновити", "🍺 До зали"]
     ]);
   });
 });
-
-function routeRow(id: string, label: string, callbackData: string): QuestOverviewRow {
-  return {
-    id,
-    priority: "available",
-    title: "Тест",
-    body: "Тест",
-    route: { label, callbackData }
-  };
-}
 
 function buttonRows(keyboard: { inline_keyboard: { text: string }[][] }): string[][] {
   return keyboard.inline_keyboard.map((row) => row.map((button) => button.text));

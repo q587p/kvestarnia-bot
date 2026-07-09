@@ -99,6 +99,51 @@ describe("quest overview presenter", () => {
     expect(text).toContain("Папір &lt;підозри&gt; &amp; печатка");
     expect(text).not.toContain("Папір <підозри> & печатка");
   });
+
+  it("renders progress, done, next-step and location hints without route-button labels", () => {
+    const text = presentQuestOverview(makeSnapshot({
+      dailyKorchmaRound: {
+        state: "ready",
+        character,
+        offer: dailyOffer(["scene.sign"])
+      },
+      problemQuest: {
+        stageId: "13",
+        title: "Тринадцять дрібних проблем",
+        wins: 7,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: true,
+        branchComplete: false
+      },
+      yeger: {
+        state: "in-progress",
+        character,
+        progress: { stageId: "second", wins: 7, target: 17 }
+      }
+    }));
+
+    expect(text).toContain("🧾 <b>Корчмарський обхід</b> — 1/2");
+    expect(text).toContain("Зроблено: Вивіска сперечається з цвяхом.");
+    expect(text).toContain("Далі: владнайте ще 1 дрібницю.");
+    expect(text).toContain("Де: шукайте сьогоднішні сцени у відповідних місцинах корчми.");
+    expect(text).toContain("🧾 <b>Тринадцять дрібних проблем</b> — 7/13");
+    expect(text).toContain("Зроблено: 7 перемог.");
+    expect(text).toContain("Далі: ще 6 проблем у Низу.");
+    expect(text).toContain("Де: Спуск до Низу. Здати — Корчмарю в шинку.");
+    expect(text).toContain("🏹 <b>Неспокійні справи 2.0</b> — 7/17");
+    expect(text).toContain("Де: Єгерський куток показує умови, але полювання лишається через звичайні маршрути.");
+    expect(text).not.toContain("До обходу");
+    expect(text).not.toContain("До Трьох справ");
+    expect(text).not.toContain("До Корчмаря");
+    expect(text).not.toContain("До Низу");
+    expect(text).not.toContain("До Єгеря");
+    expect(text).not.toContain("До льоху");
+    expect(text).not.toContain("До бочки");
+    expect(text).not.toContain("До шинку");
+    expect(text).not.toContain("До задвірка");
+  });
 });
 
 function makeSnapshot(overrides: Partial<QuestHubSnapshot> = {}): QuestHubSnapshot {
@@ -146,7 +191,24 @@ function dailyOffer(completedSceneIds: string[]) {
     requiredSteps: 2,
     completedSceneIds,
     omittedSceneId: null,
-    scenes: []
+    scenes: [
+      {
+        id: "scene.sign",
+        icon: "🪧",
+        title: "Вивіска сперечається з цвяхом",
+        locationId: "location.korchma.hall",
+        hook: "Вивіска має думку.",
+        actions: []
+      },
+      {
+        id: "scene.well",
+        icon: "🪣",
+        title: "Криниця рахує відлуння",
+        locationId: "location.korchma.yard",
+        hook: "Криниця має бухгалтерський настрій.",
+        actions: []
+      }
+    ]
   };
 }
 

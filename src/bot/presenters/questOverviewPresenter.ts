@@ -5,27 +5,17 @@ import {
   STARTER_ACTIVITY_MAX_LEVEL,
   meetsActivityLevel
 } from "../../domain/progression/activityGates";
-import { makeDailyKorchmaRoundOverviewCallbackData } from "../callbacks/dailyKorchmaRoundCallbackData";
-import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
-import { makeQuestCallbackData } from "../callbacks/questCallbackData";
-import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import type { QuestHubSnapshot } from "./questHubPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentYegerQuestTitle } from "./yegerQuestTitle";
 
 export type QuestOverviewPriority = "claimable" | "active" | "available" | "locked" | "completed";
 
-export interface QuestOverviewRoute {
-  label: string;
-  callbackData: string;
-}
-
 export interface QuestOverviewRow {
   id: string;
   priority: QuestOverviewPriority;
   title: string;
   body: string;
-  route?: QuestOverviewRoute;
 }
 
 interface RankedQuestOverviewRow extends QuestOverviewRow {
@@ -88,14 +78,12 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
 }
 
 function stripOverviewOrder(row: RankedQuestOverviewRow): QuestOverviewRow {
-  const overviewRow = {
+  return {
     id: row.id,
     title: row.title,
     body: row.body,
     priority: row.priority
   };
-
-  return row.route ? { ...overviewRow, route: row.route } : overviewRow;
 }
 
 function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
@@ -111,7 +99,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "locked",
       title: `${title} — з ${daily.requiredLevel} рівня`,
-      body: "Книга вже має список дрібниць, але ще не довіряє вашим підписам."
+      body: [
+        "Статус: Книга вже має список дрібниць, але ще не довіряє вашим підписам.",
+        `Далі: доростіть до ${daily.requiredLevel} рівня.`,
+        "Де: стіл зі справами покаже обхід, коли Корчма визнає ваш почерк."
+      ].join("\n")
     };
   }
 
@@ -120,7 +112,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "locked",
       title: `${title} — пауза`,
-      body: "Спершу відновіть хоча б 1 HP. Корчмар не видає обхід тим, хто тримається на репутації."
+      body: [
+        "Статус: Корчмар не видає обхід тим, хто тримається на репутації.",
+        "Далі: відновіть хоча б 1 HP.",
+        "Де: після відпочинку шукайте список за столом зі справами."
+      ].join("\n")
     };
   }
 
@@ -129,7 +125,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "locked",
       title: `${title} — бій попереду журналу`,
-      body: "Спершу завершіть сутичку. Книга не любить, коли її плямують бойовою логікою."
+      body: [
+        "Статус: Книга не любить, коли її плямують бойовою логікою.",
+        "Далі: завершіть поточну сутичку.",
+        "Де: обхід повернеться на стіл зі справами після бою."
+      ].join("\n")
     };
   }
 
@@ -138,7 +138,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "locked",
       title: `${title} — Бочка тримає чергу`,
-      body: "Поки Бочка ревнує до розкладу, обхід чемно чекає збоку."
+      body: [
+        "Статус: Бочка ревнує до розкладу, тож обхід чемно чекає збоку.",
+        "Далі: дочекайтеся завершення рейдової черги.",
+        "Де: стіл зі справами знову заговорить після Бочки."
+      ].join("\n")
     };
   }
 
@@ -147,27 +151,32 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "available",
       title: `${title} — доступно`,
-      body: "Список дрібних катастроф ще не вручено. Це найкращий його стан.",
-      route: {
-        label: "🧾 До обходу",
-        callbackData: makeDailyKorchmaRoundOverviewCallbackData(daily.dayToken)
-      }
+      body: [
+        "Зроблено: сьогоднішній список ще не взято.",
+        "Далі: візьміть дрібні катастрофи, якщо готові до канцелярії з пилом.",
+        "Де: старт і здача — за столом зі справами."
+      ].join("\n")
     };
   }
 
   const completed = daily.offer.completedSceneIds.length;
   const total = daily.offer.requiredSteps;
+  const doneLine = formatDoneLine(
+    getCompletedDailySceneTitles(daily.offer),
+    completed,
+    pluralize(completed, "дрібницю", "дрібниці", "дрібниць")
+  );
 
   if (daily.state === "turn-in-ready") {
     return {
       id: "daily-korchma-round",
       priority: "claimable",
       title: `${title} — ${completed}/${total}`,
-      body: "Дві дрібниці в журналі. Корчмар чекає так, ніби це він усе виніс на плечах.",
-      route: {
-        label: "🧾 До обходу",
-        callbackData: makeDailyKorchmaRoundOverviewCallbackData(daily.offer.dayToken)
-      }
+      body: [
+        doneLine,
+        "Далі: здайте обхід, поки Книга не додала ще одну пляму як свідка.",
+        "Де: здати — за столом зі справами."
+      ].join("\n")
     };
   }
 
@@ -176,7 +185,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       id: "daily-korchma-round",
       priority: "completed",
       title: `${title} — виконано`,
-      body: "Сьогодні Книга вже закрилась і робить вигляд, що не підглядала."
+      body: [
+        doneLine,
+        "Далі: сьогодні Книга вже закрилась і робить вигляд, що не підглядала.",
+        "Де: новий обхід чекатиме за столом зі справами іншого київського дня."
+      ].join("\n")
     };
   }
 
@@ -184,11 +197,11 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
     id: "daily-korchma-round",
     priority: "active",
     title: `${title} — ${completed}/${total}`,
-    body: "Ще одна дрібниця — і Книга перестане дивитися осудливо.",
-    route: {
-      label: "🧾 До обходу",
-      callbackData: makeDailyKorchmaRoundOverviewCallbackData(daily.offer.dayToken)
-    }
+    body: [
+      doneLine,
+      `Далі: владнайте ще ${total - completed} ${pluralize(total - completed, "дрібницю", "дрібниці", "дрібниць")}.`,
+      "Де: шукайте сьогоднішні сцени у відповідних місцинах корчми. Здати — за столом зі справами."
+    ].join("\n")
   };
 }
 
@@ -201,11 +214,11 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
       id: "adventure",
       priority: "available",
       title: `${title} — доступно`,
-      body: "Методи тепер різні: безпечне спокійніше, ризиковане щедріше.",
-      route: {
-        label: "📋 До Трьох справ",
-        callbackData: makeQuestCallbackData("adventure")
-      }
+      body: [
+        "Статус: три папірці лежать і роблять вигляд, що вони вибір долі.",
+        "Далі: оберіть одну справу й метод, коли будете біля столу.",
+        "Де: стіл зі справами."
+      ].join("\n")
     };
   }
 
@@ -214,7 +227,11 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
       id: "adventure",
       priority: "locked",
       title: `${title} — бій триває`,
-      body: "Спершу завершіть поточну сутичку. Папірці не люблять паралельного героїзму."
+      body: [
+        "Статус: папірці не люблять паралельного героїзму.",
+        "Далі: завершіть поточну сутичку.",
+        "Де: після бою новий вибір чекатиме за столом зі справами."
+      ].join("\n")
     };
   }
 
@@ -223,7 +240,11 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
       id: "adventure",
       priority: "completed",
       title: `${title} — виконано`,
-      body: "Сьогоднішній вибір уже записано. Стіл прикидається, що не хоче продовження."
+      body: [
+        "Зроблено: сьогоднішній вибір уже записано.",
+        "Далі: стіл прикидається, що не хоче продовження.",
+        "Де: нові три справи зʼявляться за столом зі справами в наступному періоді."
+      ].join("\n")
     };
   }
 
@@ -235,7 +256,11 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
     id: "adventure",
     priority: "locked",
     title: `${title} — з ${adventure.requiredLevel} рівня`,
-    body: "Корчмар тримає серйозніші папери вище, щоб вони самі не втекли."
+    body: [
+      "Статус: Корчмар тримає серйозніші папери вище, щоб вони самі не втекли.",
+      `Далі: доростіть до ${adventure.requiredLevel} рівня.`,
+      "Де: доросліші підозри живуть за столом зі справами."
+    ].join("\n")
   };
 }
 
@@ -251,11 +276,11 @@ function getStarterAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOvervi
       id: "starter-adventure",
       priority: "available",
       title: "🌯 <b>Підозріла шаурма</b> — готова",
-      body: "Перша підозра лежить на столі й пахне вступним протоколом.",
-      route: {
-        label: "📋 До Столу зі справами",
-        callbackData: makeQuestCallbackData("list")
-      }
+      body: [
+        "Статус: перша підозра лежить на столі й пахне вступним протоколом.",
+        "Далі: розберіться з шаурмою без зайвої довіри до лаваша.",
+        "Де: стіл зі справами."
+      ].join("\n")
     };
   }
 
@@ -264,7 +289,11 @@ function getStarterAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOvervi
       id: "starter-adventure",
       priority: "completed",
       title: "🌯 <b>Підозріла шаурма</b> — виконано",
-      body: "Соус лишився в журналі як свідок із дуже впевненою плямою."
+      body: [
+        "Зроблено: шаурма дала перші підозрілі свідчення.",
+        "Далі: шукайте наступну новачкову сутичку або доросліші справи за рівнем.",
+        "Де: стіл зі справами."
+      ].join("\n")
     };
   }
 
@@ -272,7 +301,11 @@ function getStarterAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOvervi
     id: "starter-adventure",
     priority: "completed",
     title: "🌯 <b>Підозріла шаурма</b> — новачкова справа",
-    body: `Працює до ${starter.maxLevel} рівня. Далі стіл видає доросліші підозри.`
+    body: [
+      `Статус: працює до ${starter.maxLevel} рівня.`,
+      "Далі: стіл видає доросліші підозри.",
+      "Де: старі соусні сліди лишаються в журналі, нові справи — за столом."
+    ].join("\n")
   };
 }
 
@@ -288,11 +321,11 @@ function getStarterFightOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "starter-fight",
       priority: "available",
       title: "⚔️ <b>Новачкова сутичка</b> — готова",
-      body: "Перший бій чекає біля столу й удає, що це просто знайомство.",
-      route: {
-        label: "📋 До Столу зі справами",
-        callbackData: makeQuestCallbackData("list")
-      }
+      body: [
+        "Статус: перший бій чекає біля столу й удає, що це просто знайомство.",
+        "Далі: завершіть новачкову сутичку.",
+        "Де: стіл зі справами."
+      ].join("\n")
     };
   }
 
@@ -301,7 +334,11 @@ function getStarterFightOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "starter-fight",
       priority: "completed",
       title: "⚔️ <b>Новачкова сутичка</b> — виконано",
-      body: "Перший висновок вижив у журналі. Це вже щось."
+      body: [
+        "Зроблено: перший висновок вижив у журналі.",
+        "Далі: Низ і доросліші справи відкриватимуться за рівнем.",
+        "Де: стіл зі справами покаже, що вже доречно чіпати."
+      ].join("\n")
     };
   }
 
@@ -310,7 +347,11 @@ function getStarterFightOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "starter-fight",
       priority: "completed",
       title: "⚔️ <b>Новачкова сутичка</b> — новачкова",
-      body: `Працює до ${fight.maxLevel} рівня. Далі Низ дивиться значно професійніше.`
+      body: [
+        `Статус: працює до ${fight.maxLevel} рівня.`,
+        "Далі: Низ дивиться значно професійніше.",
+        "Де: бойові проблеми шукайте через звичайний рух до спуску до Низу."
+      ].join("\n")
     };
   }
 
@@ -326,7 +367,11 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "problem-quest",
       priority: "locked",
       title: `${title} — з ${FIGHTING_CORNER_MIN_LEVEL} рівня`,
-      body: "Корчмар має папірці, але ще не впевнений, що ви переживете їхній почерк."
+      body: [
+        "Статус: Корчмар має папірці, але ще не впевнений, що ви переживете їхній почерк.",
+        `Далі: доростіть до ${FIGHTING_CORNER_MIN_LEVEL} рівня.`,
+        "Де: Корчмар у шинку видасть папірець, коли Спуск до Низу перестане бути передчасною ідеєю."
+      ].join("\n")
     };
   }
 
@@ -335,7 +380,11 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "problem-quest",
       priority: "completed",
       title: `${title} — гілку закрито`,
-      body: "Корчмар тимчасово робить вигляд, що не вміє рахувати далі."
+      body: [
+        `Зроблено: ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
+        "Далі: Корчмар тимчасово робить вигляд, що не вміє рахувати далі.",
+        "Де: шинок лишається місцем для офіційних папірців і неофіційних поглядів."
+      ].join("\n")
     };
   }
 
@@ -344,11 +393,11 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "problem-quest",
       priority: "claimable",
       title: `${title} — ${progress.wins}/${progress.target}`,
-      body: "Проблеми записано. Корчмар чекає в шинку з печаткою й підозрою.",
-      route: {
-        label: "🧾 До Корчмаря",
-        callbackData: makePlaceCallbackData("bar")
-      }
+      body: [
+        `Зроблено: ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
+        "Далі: здайте папірець, поки проблеми не попросили власний журнал.",
+        "Де: Корчмар у шинку приймає здачу."
+      ].join("\n")
     };
   }
 
@@ -357,11 +406,11 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       id: "problem-quest",
       priority: "available",
       title: `${title} — доступно`,
-      body: "Новий папірець лежить у шинку й намагається виглядати офіційно.",
-      route: {
-        label: "🧾 До Корчмаря",
-        callbackData: makePlaceCallbackData("bar")
-      }
+      body: [
+        "Зроблено: новий папірець ще не взято.",
+        "Далі: візьміть справу в Корчмаря, якщо готові до проблем із підписом.",
+        "Де: шинок."
+      ].join("\n")
     };
   }
 
@@ -370,12 +419,16 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
     priority: "active",
     title: `${title} — ${progress.wins}/${progress.target}`,
     body: progress.completed
-      ? "Справу здано. Корчмар має наступний папірець і вираз службового натхнення."
-      : "Низ має проблеми, а журнал має клітинки. Це підозріло зручно.",
-    route: {
-      label: progress.completed ? "🧾 До Корчмаря" : "🪜 До Низу",
-      callbackData: progress.completed ? makePlaceCallbackData("bar") : makePlaceCallbackData("deep")
-    }
+      ? [
+          `Зроблено: ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
+          "Далі: Корчмар має наступний папірець і вираз службового натхнення.",
+          "Де: шинок."
+        ].join("\n")
+      : [
+          `Зроблено: ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
+          `Далі: ще ${progress.target - progress.wins} ${pluralize(progress.target - progress.wins, "проблема", "проблеми", "проблем")} у Низу.`,
+          "Де: Спуск до Низу. Здати — Корчмарю в шинку."
+        ].join("\n")
   };
 }
 
@@ -387,7 +440,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       id: "cellar",
       priority: "locked",
       title: `🐭 <b>Льохова справа</b> — з ${cellar.requiredLevel} рівня`,
-      body: "Миша ще не готова приймати аргументи від настільки свіжих пригодників."
+      body: [
+        "Статус: миша ще не готова приймати аргументи від настільки свіжих пригодників.",
+        `Далі: доростіть до ${cellar.requiredLevel} рівня.`,
+        "Де: льох корчми відкриє дрібну дипломатію пізніше."
+      ].join("\n")
     };
   }
 
@@ -396,11 +453,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       id: "cellar",
       priority: "available",
       title: "🐭 <b>Льохова справа</b> — готова",
-      body: "Вона знову має позицію, крихти й юридичну інтонацію.",
-      route: {
-        label: "🐭 До льоху",
-        callbackData: makeQuestCallbackData("cellar")
-      }
+      body: [
+        "Статус: миша знову має позицію, крихти й юридичну інтонацію.",
+        "Далі: спробуйте владнати льохову дрібницю.",
+        "Де: льох корчми."
+      ].join("\n")
     };
   }
 
@@ -409,11 +466,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       id: "cellar",
       priority: "locked",
       title: "🐭 <b>Льохова справа</b> — пауза",
-      body: `Миша радиться з крихтами ще ${formatCooldown(cellar.availableAt, cellar.now)}.`,
-      route: {
-        label: "🐭 До льоху",
-        callbackData: makeQuestCallbackData("cellar")
-      }
+      body: [
+        `Статус: миша радиться з крихтами ще ${formatCooldown(cellar.availableAt, cellar.now)}.`,
+        "Далі: дочекайтеся кінця паузи.",
+        "Де: льох корчми памʼятає, хто вже сперечався."
+      ].join("\n")
     };
   }
 
@@ -424,7 +481,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       id: "cellar-grownup",
       priority: "completed",
       title: "🐭 <b>Справа не до миші</b> — виконано",
-      body: "Дорослу льохову справу закрито. Пляшка в журналі поводиться пристойно."
+      body: [
+        "Зроблено: дорослу льохову справу закрито.",
+        "Далі: пляшка в журналі поводиться пристойно.",
+        "Де: льох і шинок повернулися до звичайної підозрілої рівноваги."
+      ].join("\n")
     };
   }
 
@@ -433,11 +494,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       id: "cellar-grownup",
       priority: "claimable",
       title: "🐭 <b>Справа не до миші</b> — пляшка з вами",
-      body: "Корчмар чекає в шинку. Пляшка робить вигляд, що це вона веде переговори.",
-      route: {
-        label: "🧾 До Корчмаря",
-        callbackData: makePlaceCallbackData("bar")
-      }
+      body: [
+        "Зроблено: пляшка з вами й робить вигляд, що це вона веде переговори.",
+        "Далі: віднесіть її Корчмарю.",
+        "Де: здати — у шинку."
+      ].join("\n")
     };
   }
 
@@ -447,12 +508,16 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       priority: grownup.state === "roleplay-cooldown" ? "locked" : "available",
       title: "🐭 <b>Справа не до миші</b> — доступно",
       body: grownup.state === "roleplay-cooldown"
-        ? `Льохова дипломатія відсапується ще ${formatCooldown(grownup.availableAt, grownup.now)}.`
-        : "У льосі є інша справа для старших пригодників, і вона тримає інтонацію.",
-      route: {
-        label: "🐭 До льоху",
-        callbackData: makeQuestCallbackData("cellar")
-      }
+        ? [
+            `Статус: льохова дипломатія відсапується ще ${formatCooldown(grownup.availableAt, grownup.now)}.`,
+            "Далі: дочекайтеся, поки крихти закінчать нараду.",
+            "Де: льох корчми."
+          ].join("\n")
+        : [
+            "Статус: у льосі є інша справа для старших пригодників, і вона тримає інтонацію.",
+            "Далі: домовтеся з мишею або знайдіть доросліший аргумент.",
+            "Де: льох корчми."
+          ].join("\n")
     };
   }
 
@@ -460,7 +525,11 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
     id: "cellar",
     priority: "completed",
     title: "🐭 <b>Льохова справа</b> — новачкова",
-    body: `Працює до ${cellar.maxLevel} рівня. Далі миша вимагає доросліший протокол.`
+    body: [
+      `Статус: працює до ${cellar.maxLevel} рівня.`,
+      "Далі: миша вимагає доросліший протокол.",
+      "Де: льох корчми лишається місцем переговорів із крихтами."
+    ].join("\n")
   };
 }
 
@@ -472,7 +541,11 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
       id: "yeger",
       priority: "locked",
       title: `🏹 <b>Єгерська дошка</b> — з ${yeger.requiredLevel} рівня`,
-      body: "Сліди вже є, але Єгер поки не дає їм юридичного статусу."
+      body: [
+        "Статус: сліди вже є, але Єгер поки не дає їм юридичного статусу.",
+        `Далі: доростіть до ${yeger.requiredLevel} рівня.`,
+        "Де: Єгерський куток чекатиме біля Бочки."
+      ].join("\n")
     };
   }
 
@@ -481,11 +554,11 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
       id: "yeger",
       priority: "available",
       title: "🏹 <b>Єгерська дошка</b> — доступно",
-      body: "Єгер має роботу для тих, хто не плутає слід із мотузкою.",
-      route: {
-        label: "🏹 До Єгеря",
-        callbackData: makeTavernCallbackData("ranger")
-      }
+      body: [
+        "Статус: Єгер має роботу для тих, хто не плутає слід із мотузкою.",
+        "Далі: візьміть дошку й умови полювання.",
+        "Де: Єгерський куток показує умови, але саме полювання лишається через звичайні маршрути."
+      ].join("\n")
     };
   }
 
@@ -495,12 +568,16 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
       priority: yeger.state === "turn-in-ready" ? "claimable" : "active",
       title: `🏹 <b>${escapeHtml(presentYegerQuestTitle(yeger.progress))}</b> — ${yeger.progress.wins}/${yeger.progress.target}`,
       body: yeger.state === "turn-in-ready"
-        ? "Сліди є. Єгер теж є. Хтось із них перебільшує, але дощечку можна нести."
-        : "Сліди є. Єгер теж є. Журнал просить ще кілька переконливих доказів.",
-      route: {
-        label: "🏹 До Єгеря",
-        callbackData: makeTavernCallbackData("ranger")
-      }
+        ? [
+            `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
+            "Далі: здайте дощечку, поки вона не почала перебільшувати.",
+            "Де: Єгерський куток біля Бочки."
+          ].join("\n")
+        : [
+            `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
+            `Далі: ще ${yeger.progress.target - yeger.progress.wins} відповідних ${pluralize(yeger.progress.target - yeger.progress.wins, "монстр", "монстри", "монстрів")}.`,
+            "Де: Єгерський куток показує умови, але полювання лишається через звичайні маршрути."
+          ].join("\n")
     };
   }
 
@@ -508,7 +585,11 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
     id: "yeger",
     priority: "completed",
     title: `🏹 <b>${escapeHtml(presentYegerQuestTitle(yeger.progress))}</b> — виконано`,
-    body: "Єгер удає, що не пишається, але дощечка все бачила."
+    body: [
+      `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
+      "Далі: Єгер удає, що не пишається, але дощечка все бачила.",
+      "Де: наступні умови, якщо будуть, зʼявляться в Єгерському кутку."
+    ].join("\n")
   };
 }
 
@@ -525,7 +606,11 @@ function getBarrelBeerTutorialOverviewRow(snapshot: QuestHubSnapshot): QuestOver
       id: "barrel-beer-tutorial",
       priority: "locked",
       title: `${title} — з ${quest.requiredLevel} рівня`,
-      body: "Бочка ще робить вигляд, що новачкова піна не для вас."
+      body: [
+        "Статус: Бочка ще робить вигляд, що новачкова піна не для вас.",
+        `Далі: доростіть до ${quest.requiredLevel} рівня.`,
+        "Де: записка зʼявиться за столом зі справами."
+      ].join("\n")
     };
   }
 
@@ -534,7 +619,11 @@ function getBarrelBeerTutorialOverviewRow(snapshot: QuestHubSnapshot): QuestOver
       id: "barrel-beer-tutorial",
       priority: "completed",
       title: `${title} — новачкова`,
-      body: `Працює до ${quest.maxLevel} рівня. Далі Бочка вимагає дорослішого драматизму.`
+      body: [
+        `Статус: працює до ${quest.maxLevel} рівня.`,
+        "Далі: Бочка вимагає дорослішого драматизму.",
+        "Де: стару записку лишено в журналі як мокрий доказ."
+      ].join("\n")
     };
   }
 
@@ -543,7 +632,11 @@ function getBarrelBeerTutorialOverviewRow(snapshot: QuestHubSnapshot): QuestOver
       id: "barrel-beer-tutorial",
       priority: "completed",
       title: `${title} — виконано`,
-      body: "Бочка тепер робить вигляд, що так і планувала."
+      body: [
+        "Зроблено: Бочка, рейд і пінна формальність пережиті.",
+        "Далі: Бочка робить вигляд, що так і планувала.",
+        "Де: новачкова записка лишається в архіві столу зі справами."
+      ].join("\n")
     };
   }
 
@@ -552,22 +645,19 @@ function getBarrelBeerTutorialOverviewRow(snapshot: QuestHubSnapshot): QuestOver
       id: "barrel-beer-tutorial",
       priority: "available",
       title: `${title} — доступно`,
-      body: "На столі лежить записка з круглим слідом від кухля.",
-      route: {
-        label: "📋 До Столу зі справами",
-        callbackData: makeQuestCallbackData("list")
-      }
+      body: [
+        "Статус: на столі лежить записка з круглим слідом від кухля.",
+        "Далі: візьміть записку, якщо готові до піни з навчальним нахилом.",
+        "Де: стіл зі справами."
+      ].join("\n")
     };
   }
-
-  const route = getBarrelBeerTutorialRoute(quest.progress);
 
   return {
     id: "barrel-beer-tutorial",
     priority: quest.state === "turn-in-ready" ? "claimable" : "active",
     title: `${title} — ${quest.state === "turn-in-ready" ? "готово здати" : "триває"}`,
-    body: getBarrelBeerTutorialBody(quest.progress, quest.state === "turn-in-ready"),
-    route
+    body: getBarrelBeerTutorialBody(quest.progress, quest.state === "turn-in-ready")
   };
 }
 
@@ -580,32 +670,11 @@ function getCharkokovalniaOverviewRow(snapshot: QuestHubSnapshot): QuestOverview
     id: "charkokovalnia",
     priority: "available",
     title: "✨ <b>Доступ до Чароковальні</b> — доступно",
-    body: "Ельф-маг у задвірку кличе до справи й обіцяє офіційні суперечки манаток.",
-    route: {
-      label: "✨ До задвірка",
-      callbackData: makePlaceCallbackData("yard")
-    }
-  };
-}
-
-function getBarrelBeerTutorialRoute(progress: { visitedBarrel: boolean; raidCompleted: boolean; beerRoundOffered: boolean; beerDrunk: boolean; activeBeer: boolean }): QuestOverviewRoute {
-  if (!progress.visitedBarrel || !progress.raidCompleted) {
-    return {
-      label: "🍺 До бочки",
-      callbackData: makePlaceCallbackData("barrel")
-    };
-  }
-
-  if (!progress.beerRoundOffered || !progress.beerDrunk || !progress.activeBeer) {
-    return {
-      label: "🍻 До шинку",
-      callbackData: makePlaceCallbackData("bar")
-    };
-  }
-
-  return {
-    label: "📋 До Столу зі справами",
-    callbackData: makeQuestCallbackData("list")
+    body: [
+      "Статус: ельф-маг у задвірку кличе до справи й обіцяє офіційні суперечки манаток.",
+      "Далі: принесіть потрібну аптечку й домовтеся з іскрами.",
+      "Де: задвірок корчми."
+    ].join("\n")
   };
 }
 
@@ -614,22 +683,65 @@ function getBarrelBeerTutorialBody(
   ready: boolean
 ): string {
   if (ready) {
-    return "Піна ще тримається. Стіл чекає повернення з Бочки.";
+    return [
+      "Зроблено: Бочка відвідана, рейд пережито, пиво випито.",
+      "Далі: поверніться зі свіжою піною до столу.",
+      "Де: здати — за столом зі справами."
+    ].join("\n");
   }
 
   if (!progress.visitedBarrel) {
-    return "Бочка сама себе не знайде, хоч і поводиться так, ніби вже знайшла вас.";
+    return [
+      "Зроблено: записку взято.",
+      "Далі: знайдіть Бочку, хоч вона поводиться так, ніби вже знайшла вас.",
+      "Де: Бочка Пінного Міражу."
+    ].join("\n");
   }
 
   if (!progress.raidCompleted) {
-    return "Ви біля Бочки. Для початку потрібна місцева новачкова колотнеча.";
+    return [
+      "Зроблено: Бочка знайдена.",
+      "Далі: завершіть місцеву новачкову колотнечу.",
+      "Де: Бочка Пінного Міражу."
+    ].join("\n");
   }
 
   if (!progress.beerRoundOffered || !progress.beerDrunk) {
-    return "Рейд позаду. Тепер шинок чекає на пінну формальність.";
+    return [
+      "Зроблено: рейд біля Бочки пережито.",
+      "Далі: проведіть пінну формальність.",
+      "Де: шинок."
+    ].join("\n");
   }
 
-  return "Пивна відвага має бути активною, інакше журнал почне тверезіти.";
+  return [
+    "Зроблено: пиво випито, але відвага вже сперечається з годинником.",
+    "Далі: тримайте активну пивну відвагу перед здачею.",
+    "Де: шинок для піни, стіл зі справами для здачі."
+  ].join("\n");
+}
+
+function getCompletedDailySceneTitles(offer: {
+  completedSceneIds: readonly string[];
+  scenes: readonly { id: string; title: string }[];
+}): string[] {
+  const titlesById = new Map(offer.scenes.map((scene) => [scene.id, scene.title]));
+
+  return offer.completedSceneIds
+    .map((sceneId) => titlesById.get(sceneId))
+    .filter((title): title is string => Boolean(title));
+}
+
+function formatDoneLine(labels: string[], count: number, fallbackNoun: string): string {
+  if (labels.length > 0) {
+    return `Зроблено: ${labels.map(escapeHtml).join(", ")}.`;
+  }
+
+  if (count > 0) {
+    return `Зроблено: ${count} ${fallbackNoun}.`;
+  }
+
+  return "Зроблено: ще нічого, журнал аж підозріло чистий.";
 }
 
 function formatCooldown(availableAt: Date, now: Date): string {

@@ -24,7 +24,6 @@ import {
   type QuestHubSnapshot
 } from "../presenters/questHubPresenter";
 import {
-  buildQuestOverviewRows,
   presentQuestOverview
 } from "../presenters/questOverviewPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -138,9 +137,7 @@ export async function sendQuestOverview(
     return;
   }
 
-  await sendText(ctx, mode, presentQuestOverview(snapshot), {
-    overviewRows: buildQuestOverviewRows(snapshot)
-  });
+  await sendText(ctx, mode, presentQuestOverview(snapshot), "overview");
 }
 
 export async function buildQuestHubSnapshot(
@@ -235,7 +232,7 @@ async function sendText(
   text: string,
   keyboard:
     | { snapshot: QuestHubSnapshot; mode: QuestHubMode }
-    | { overviewRows: ReturnType<typeof buildQuestOverviewRows> }
+    | "overview"
     | "enter-korchma"
     | false = false
 ): Promise<void> {
@@ -245,8 +242,8 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildEnterKorchmaKeyboard()
-            : "overviewRows" in keyboard
-              ? buildQuestOverviewKeyboard(keyboard.overviewRows)
+            : keyboard === "overview"
+              ? buildQuestOverviewKeyboard()
             : buildQuestHubKeyboard({
                 ...keyboard.snapshot,
                 characterLevel: keyboard.snapshot.character.level,
