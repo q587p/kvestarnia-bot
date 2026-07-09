@@ -14,6 +14,8 @@ MVP має бути веселим, не ідеально збалансован
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
 
+`0.3.2` Kharakternyk ward signs are a narrow Big Barrel Brother prep mitigation, not a generic shield or reward source. Placement costs exactly `5` mana from one joined level 3+ `class.kharakternyk`; each non-placer supporter contributes at most once, Kharakternyks support for `0` mana and non-Kharakternyks spend deterministic `1..3` mana biased by effective Intelligence. Final support count is frozen from the joined/remort-valid start roster and capped at `7`, producing one-time broad-hit mitigation `min(95, 25 + 10 * supportCount)`. It affects only the first Big Barrel Brother broad retaliation and then persists as broken, so ordinary attacks, later broad hits, rewards, loot, XP, gold and public feed economy remain unchanged.
+
 ## Стати MVP
 - STR — фізична шкода.
 - DEX — ухилення/крит.

@@ -4,6 +4,19 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.2 — Kharakternyk Ward Signs smoke
+
+Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/kharakternyk-ward-signs-qa.md`](../qa/kharakternyk-ward-signs-qa.md).
+
+Use two or three local accounts with eligible Big Barrel Brother characters and `BIG_BARREL_BROTHER_RAID_ENABLED=true`.
+
+1. On a level `8+` `class.kharakternyk`, open `🛢️ Бочка`, create a Big Barrel Brother recruiting lobby and tap `🧿 Поставити знак`.
+2. Verify the lobby shows `Знак характерника` support count only, the Kharakternyk spent `5` mana once, and duplicate taps replay without another spend.
+3. Join with a non-Kharakternyk and tap `✋ Підперти знак`; verify support is recorded once, mana spend matches the callback result, and duplicate taps replay safely.
+4. Join with another Kharakternyk if available; verify support costs no mana and still increases the count by one.
+5. Have one supporter leave before start; start the raid and verify the started fight counts only the final joined roster.
+6. Resolve turns until the first broad `Бочковий гуркіт`; verify the sign triggers once, the active card/journal show prevented damage, and later refreshes do not apply it again.
+
 ## 0.3.1 — Duel Tournaments smoke
 
 Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/duel-tournaments-qa.md`](../qa/duel-tournaments-qa.md).

@@ -142,6 +142,58 @@ describe("PrismaPartySessionRepository integration", () => {
     });
   });
 
+  it("stores Kharakternyk ward sign placement and support without double spending mana", async () => {
+    await seedCharacter(prisma, "ward-leader-user", 2131n, "Р—РЅР°РєР°СЂ", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 10,
+      statsJson: { intelligence: 13 }
+    });
+    await seedCharacter(prisma, "ward-support-user", 2132n, "РџС–РґРїРѕСЂР°", {
+      level: 8,
+      manaCurrent: 10,
+      statsJson: { intelligence: 13 }
+    });
+    await repository.createForTelegramUser(2131n, bigBarrelInput("party-token-ward"));
+    await repository.joinByTokenForTelegramUser(2132n, "party-token-ward", joinInput());
+
+    const placed = await repository.placeKharakternykWardSign(2131n, "party-token-ward", now());
+    const duplicatePlace = await repository.placeKharakternykWardSign(2131n, "party-token-ward", now());
+    const supported = await repository.supportKharakternykWardSign(2132n, "party-token-ward", now());
+    const duplicateSupport = await repository.supportKharakternykWardSign(2132n, "party-token-ward", now());
+
+    expect(placed.state).toBe("updated");
+    expect(duplicatePlace.state).toBe("already-placed");
+    expect(supported.state).toBe("updated");
+    expect(duplicateSupport.state).toBe("already-supported");
+    expect("session" in supported ? supported.session.wardSign : null).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "ward-leader-user-character",
+      supportCount: 1,
+      supportCap: 7
+    });
+    expect("session" in supported
+      ? supported.session.participants.find((participant) => participant.character.telegramUserId === 2132n)?.wardSignSupport
+      : null).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "ward-leader-user-character",
+      supporterCharacterId: "ward-support-user-character",
+      manaCost: 1
+    });
+    await expect(prisma.character.findMany({
+      where: {
+        id: {
+          in: ["ward-leader-user-character", "ward-support-user-character"]
+        }
+      },
+      orderBy: { id: "asc" },
+      select: { id: true, manaCurrent: true }
+    })).resolves.toEqual([
+      { id: "ward-leader-user-character", manaCurrent: 5 },
+      { id: "ward-support-user-character", manaCurrent: 9 }
+    ]);
+  });
+
   it("records the actual sent recruiting card message reference for a joined participant", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
@@ -541,7 +593,13 @@ async function seedCharacter(
   userId: string,
   telegramUserId: bigint,
   name: string,
-  options: { level?: number; remortCount?: number } = {}
+  options: {
+    level?: number;
+    remortCount?: number;
+    classId?: string;
+    manaCurrent?: number;
+    statsJson?: Record<string, number>;
+  } = {}
 ): Promise<void> {
   await prisma.user.create({
     data: {
@@ -553,9 +611,11 @@ async function seedCharacter(
           id: `${userId}-character`,
           name,
           raceId: "human",
-          classId: "warrior",
+          classId: options.classId ?? "warrior",
           level: options.level ?? 1,
-          statsJson: {}
+          manaCurrent: options.manaCurrent ?? 10,
+          manaMax: Math.max(10, options.manaCurrent ?? 10),
+          statsJson: options.statsJson ?? {}
         }
       }
     }
@@ -665,6 +725,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_equipment (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE active_combat_leases (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL UNIQUE,
@@ -725,6 +793,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE UNIQUE INDEX party_sessions_invite_token_key ON party_sessions(invite_token)`,
+    `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`,
+    `CREATE INDEX character_equipment_item_id_idx ON character_equipment(item_id)`,
     `CREATE UNIQUE INDEX party_sessions_active_leader_key_key ON party_sessions(active_leader_key)`,
     `CREATE INDEX party_sessions_status_expires_at_idx ON party_sessions(status, expires_at)`,
     `CREATE INDEX active_combat_leases_kind_reference_id_idx ON active_combat_leases(kind, reference_id)`,

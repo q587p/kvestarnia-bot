@@ -6,6 +6,8 @@ import type {
   PartyLeaveRepositoryResult,
   PartyParticipantReadiness,
   PartyReadinessRepositoryResult,
+  PartyWardSignPlaceRepositoryResult,
+  PartyWardSignSupportRepositoryResult,
   PartySessionRecord,
   PartySessionRepository
 } from "../db/repositories/partySessionRepository";
@@ -25,6 +27,8 @@ export type PartyJoinResult = PartyJoinRepositoryResult;
 export type PartyLeaveResult = PartyLeaveRepositoryResult;
 export type PartyCancelResult = PartyCancelRepositoryResult;
 export type PartyReadinessResult = PartyReadinessRepositoryResult;
+export type PartyWardSignPlaceResult = PartyWardSignPlaceRepositoryResult;
+export type PartyWardSignSupportResult = PartyWardSignSupportRepositoryResult;
 
 export interface PartySessionServiceOptions {
   enabled: boolean;
@@ -134,6 +138,28 @@ export class PartySessionService {
     }
 
     return this.sessions.setParticipantReadiness(telegramUserId, inviteToken, readiness, this.clock());
+  }
+
+  async placeKharakternykWardSignForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<PartyWardSignPlaceResult> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return { state: "not-found" };
+    }
+
+    return this.sessions.placeKharakternykWardSign(telegramUserId, inviteToken, this.clock());
+  }
+
+  async supportKharakternykWardSignForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<PartyWardSignSupportResult> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return { state: "not-found" };
+    }
+
+    return this.sessions.supportKharakternykWardSign(telegramUserId, inviteToken, this.clock());
   }
 
   async getByToken(inviteToken: string): Promise<PartyViewResult> {

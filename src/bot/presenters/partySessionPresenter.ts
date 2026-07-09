@@ -496,6 +496,9 @@ export function presentPartyBoss(
     viewerCharacterId: session.status === "active" ? viewer?.characterId ?? null : null,
     targetedCharacterIds
   }));
+  if (big && state.wardSign) {
+    lines.push(presentKharakternykWardBossLine(state.wardSign));
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null));
   }
@@ -622,6 +625,10 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     }
   } else if (round.statusAfter === "active") {
     actionLines.push(`${escapeHtml(session.state.boss.name ?? "Бос")} не завдав шкоди цього ходу.`);
+  }
+
+  if (round.wardSign) {
+    actionLines.push(presentKharakternykWardTriggeredLine(round.wardSign));
   }
 
   return presentBattleJournalPage({
@@ -784,7 +791,16 @@ function presentLastRoundLines(
   } else if (round.statusAfter === "active") {
     lines.push(`${escapeHtml(bossName)} не завдав шкоди цього ходу.`);
   }
+  if (round.wardSign) {
+    lines.push(presentKharakternykWardTriggeredLine(round.wardSign));
+  }
   return lines;
+}
+
+function presentKharakternykWardTriggeredLine(
+  wardSign: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["wardSign"]>
+): string {
+  return `🧿 Знак характерника луснув і забрав на себе ${wardSign.preventedDamage} шкоди. Підпор спрацювало: ${wardSign.supportCount}.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -851,6 +867,10 @@ export function presentPartySession(
     lines.push(escapeHtml(options.notice), "");
   }
 
+  if (big && session.wardSign) {
+    lines.push(presentKharakternykWardLobbyLine(session), "");
+  }
+
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
@@ -870,6 +890,22 @@ export function presentPartySession(
   }
 
   return lines.join("\n");
+}
+
+function presentKharakternykWardBossLine(
+  wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
+): string {
+  if (wardSign.status === "broken") {
+    return `🧿 Знак характерника вже тріснув і забрав на себе ${wardSign.preventedDamage ?? 0} шкоди.`;
+  }
+
+  return `🧿 Знак характерника тримається. Підпор: ${wardSign.supportCount}/${7}.`;
+}
+
+function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
+  const supportCount = session.wardSign?.supportCount ?? 0;
+  const supportCap = session.wardSign?.supportCap ?? 7;
+  return `🧿 Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
 }
 
 function isBigBarrelParty(session: PartySessionRecord): boolean {

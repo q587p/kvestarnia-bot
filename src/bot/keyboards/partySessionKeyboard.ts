@@ -27,6 +27,8 @@ import {
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
   makePartySessionReadinessCallbackData,
+  makePartySessionWardPlaceCallbackData,
+  makePartySessionWardSupportCallbackData,
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
@@ -68,6 +70,11 @@ export function buildPartySessionKeyboard(
           makePartySessionReadinessCallbackData(token, ready ? "waiting" : "ready")
         ).text("🔎 Оновити", makePartySessionViewCallbackData(token)).row();
         refreshPlaced = true;
+        if (!session.wardSign && canPlaceKharakternykWardSign(viewer)) {
+          keyboard.text("🧿 Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
+        } else if (canSupportKharakternykWardSign(session, viewer)) {
+          keyboard.text("✋ Підперти знак", makePartySessionWardSupportCallbackData(token)).row();
+        }
       }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token));
       if (options.viewerCharacterId === session.leaderCharacterId && joinedParticipantCount < 2) {
@@ -101,6 +108,23 @@ export function buildPartySessionKeyboard(
   }
 
   return keyboard;
+}
+
+function canPlaceKharakternykWardSign(
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return viewer.character.classId === "class.kharakternyk" && viewer.character.level >= 3;
+}
+
+function canSupportKharakternykWardSign(
+  session: PartySessionRecord,
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return Boolean(
+    session.wardSign &&
+    session.wardSign.placerCharacterId !== viewer.characterId &&
+    viewer.wardSignSupport?.placerCharacterId !== session.wardSign.placerCharacterId
+  );
 }
 
 export function buildPartyBossKeyboard(

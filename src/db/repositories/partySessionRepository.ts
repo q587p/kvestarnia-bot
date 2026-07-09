@@ -23,7 +23,24 @@ export interface PartyParticipantRecord {
   chatId: bigint | null;
   messageId: number | null;
   readiness?: PartyParticipantReadiness | undefined;
+  wardSignSupport?: PartyWardSignSupportRecord | undefined;
   character: PartyCharacterSnapshot;
+}
+
+export interface PartyWardSignRecord {
+  kind: "kharakternyk";
+  placerCharacterId: string;
+  supportCount: number;
+  supportCap: number;
+  placedAt: Date;
+}
+
+export interface PartyWardSignSupportRecord {
+  kind: "kharakternyk";
+  placerCharacterId: string;
+  supporterCharacterId: string;
+  manaCost: number;
+  supportedAt: Date;
 }
 
 export interface PartySessionRecord {
@@ -43,6 +60,7 @@ export interface PartySessionRecord {
   updatedAt: Date;
   leader: PartyCharacterSnapshot;
   participants: PartyParticipantRecord[];
+  wardSign?: PartyWardSignRecord | undefined;
 }
 
 export interface CreatePartySessionInput {
@@ -121,6 +139,42 @@ export type PartyReadinessRepositoryResult =
   | { state: "not-member" | "not-recruiting"; session: PartySessionRecord }
   | { state: "updated" | "already-set" | "cancelled" | "expired"; session: PartySessionRecord };
 
+export type PartyWardSignPlaceRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | {
+      state:
+        | "updated"
+        | "already-placed"
+        | "already-exists"
+        | "not-member"
+        | "not-recruiting"
+        | "not-big-barrel"
+        | "ineligible"
+        | "not-enough-mana"
+        | "cancelled"
+        | "expired";
+      session: PartySessionRecord;
+    };
+
+export type PartyWardSignSupportRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | {
+      state:
+        | "updated"
+        | "already-supported"
+        | "not-member"
+        | "not-recruiting"
+        | "not-big-barrel"
+        | "no-sign"
+        | "self-support"
+        | "not-enough-mana"
+        | "cancelled"
+        | "expired";
+      session: PartySessionRecord;
+    };
+
 export interface PartySessionRepository {
   createForTelegramUser(
     telegramUserId: bigint,
@@ -151,6 +205,18 @@ export interface PartySessionRepository {
     readiness: PartyParticipantReadiness,
     now: Date
   ): Promise<PartyReadinessRepositoryResult>;
+
+  placeKharakternykWardSign(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyWardSignPlaceRepositoryResult>;
+
+  supportKharakternykWardSign(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyWardSignSupportRepositoryResult>;
 
   findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   findLiveRecruitingByTelegramUser(telegramUserId: bigint, now: Date): Promise<PartySessionRecord | null>;

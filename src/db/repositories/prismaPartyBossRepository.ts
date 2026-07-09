@@ -55,6 +55,9 @@ const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
+const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
+const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
     super(reason);
@@ -218,11 +221,13 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           : { state: "blocked" };
       }
 
+      const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
+        ...(wardSign ? { wardSign } : {}),
         participants: joined.map((participant) => {
           const combatCharacter = mapCharacterForCombat(participant.character);
           const combatStats = buildPartyBossCombatStats(combatCharacter);
@@ -1419,6 +1424,91 @@ function parseStatus(value: string): PartyBossSessionStatus {
 
 function parseActionKey(value: string): PartyBossActionKey {
   return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" ? value : "attack";
+}
+
+function buildKharakternykWardSignForStartedParty(
+  joined: PartyRow["participants"]
+): { kind: "kharakternyk"; placerCharacterId: string; supportCount: number } | undefined {
+  const placer = joined.find((participant) => {
+    const wardSign = parseWardSignSnapshot(participant.snapshotJson);
+    return (
+      wardSign?.placerCharacterId === participant.characterId &&
+      wardSign.remortCount === participant.remortCount
+    );
+  });
+  if (!placer) {
+    return undefined;
+  }
+
+  const supportCount = joined.filter((participant) => {
+    if (participant.characterId === placer.characterId) {
+      return false;
+    }
+
+    const support = parseWardSupportSnapshot(participant.snapshotJson);
+    return (
+      support?.placerCharacterId === placer.characterId &&
+      support.supporterCharacterId === participant.characterId &&
+      support.remortCount === participant.remortCount
+    );
+  }).length;
+
+  return {
+    kind: "kharakternyk",
+    placerCharacterId: placer.characterId,
+    supportCount: Math.min(KHARAKTERNYK_WARD_SUPPORT_CAP, supportCount)
+  };
+}
+
+function parseWardSignSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  placerCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY);
+  if (!value || value.kind !== "kharakternyk") {
+    return null;
+  }
+
+  return typeof value.placerCharacterId === "string" && typeof value.remortCount === "number"
+    ? {
+        placerCharacterId: value.placerCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function parseWardSupportSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  placerCharacterId: string;
+  supporterCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY);
+  if (!value || value.kind !== "kharakternyk") {
+    return null;
+  }
+
+  return (
+    typeof value.placerCharacterId === "string" &&
+    typeof value.supporterCharacterId === "string" &&
+    typeof value.remortCount === "number"
+  )
+    ? {
+        placerCharacterId: value.placerCharacterId,
+        supporterCharacterId: value.supporterCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function getSnapshotObject(snapshotJson: Prisma.JsonValue | null, key: string): Record<string, unknown> | null {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return null;
+  }
+
+  const value = (snapshotJson as Record<string, unknown>)[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | null {

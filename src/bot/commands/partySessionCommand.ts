@@ -535,6 +535,56 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "ward-place" || callback.type === "ward-support") {
+    const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
+    if (boss) {
+      await safeAnswerCallbackQuery(ctx, { text: "Рейд уже стартував. Знак лишився у зборі." });
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
+        session: boss,
+        viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    const result = callback.type === "ward-place"
+      ? await service.placeKharakternykWardSignForTelegramUser(telegramUserId, callback.token)
+      : await service.supportKharakternykWardSignForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(ctx, {
+      text: callback.type === "ward-place"
+        ? presentWardPlaceCallbackAnswer(
+            result.state as Awaited<ReturnType<PartySessionService["placeKharakternykWardSignForTelegramUser"]>>["state"]
+          )
+        : presentWardSupportCallbackAnswer(
+            result.state as Awaited<ReturnType<PartySessionService["supportKharakternykWardSignForTelegramUser"]>>["state"]
+          )
+    });
+
+    if (!("session" in result)) {
+      await sendText(ctx, "edit", result.state === "no-character"
+        ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
+        : "Ватага не знайшлася.", false);
+      return;
+    }
+
+    const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+    await sendText(ctx, "edit", presentPartyView({ state: "ready", session: result.session }, { inviteUrl }), {
+      session: result.session,
+      inviteUrl,
+      viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+      includeDevExpire: service.areDevHelpersEnabled(),
+      includeBossStart: isBigBarrelParty(result.session)
+    });
+
+    if (result.state === "updated") {
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
+    return;
+  }
+
   if (callback.type === "join") {
     const result = await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
       source: "nearby",
@@ -1088,6 +1138,60 @@ function presentReadinessCallbackAnswer(
 
 function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[0]): boolean {
   return session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+}
+
+function presentWardPlaceCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["placeKharakternykWardSignForTelegramUser"]>>["state"]
+): string {
+  if (state === "updated") {
+    return "Знак поставлено.";
+  }
+  if (state === "already-placed") {
+    return "Ваш знак уже стоїть.";
+  }
+  if (state === "already-exists") {
+    return "Знак уже стоїть біля бочки.";
+  }
+  if (state === "ineligible") {
+    return "Це вміє тільки характерник від 3 рівня.";
+  }
+  if (state === "not-enough-mana") {
+    return "Не вистачає мани.";
+  }
+  if (state === "not-member") {
+    return "Спершу треба бути у ватазі.";
+  }
+  if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
+    return "Цей збір уже не приймає знаки.";
+  }
+  return "Знак не записався.";
+}
+
+function presentWardSupportCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["supportKharakternykWardSignForTelegramUser"]>>["state"]
+): string {
+  if (state === "updated") {
+    return "Підпор записано.";
+  }
+  if (state === "already-supported") {
+    return "Ваш підпор уже тримає знак.";
+  }
+  if (state === "no-sign") {
+    return "Знак ще не стоїть.";
+  }
+  if (state === "self-support") {
+    return "Власний знак сам себе не підпирає.";
+  }
+  if (state === "not-enough-mana") {
+    return "Не вистачає мани.";
+  }
+  if (state === "not-member") {
+    return "Спершу треба бути у ватазі.";
+  }
+  if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
+    return "Цей збір уже не приймає підпор.";
+  }
+  return "Підпор не записався.";
 }
 
 function isJoinedParticipant(

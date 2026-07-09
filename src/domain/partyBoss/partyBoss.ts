@@ -24,6 +24,9 @@ export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY = "tavern.big-barrel-bro
 export const BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS = 3 * 60_000;
 export const PARTY_BOSS_TURN_MS = 23 * 1000;
 const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
+const KHARAKTERNYK_WARD_BASE_MITIGATION_PERCENT = 25;
+const KHARAKTERNYK_WARD_SUPPORT_MITIGATION_PERCENT = 10;
+const KHARAKTERNYK_WARD_MAX_MITIGATION_PERCENT = 95;
 
 export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
@@ -55,9 +58,21 @@ export interface PartyBossState {
   turn: number;
   boss: MonsterCombatStats & { hp: number };
   participants: PartyBossParticipantState[];
+  wardSign?: PartyBossWardSignState;
   roundLog: PartyBossRoundSummary[];
   startedAt: string;
   completedAt?: string;
+}
+
+export interface PartyBossWardSignState {
+  kind: "kharakternyk";
+  placerCharacterId: string;
+  supportCount: number;
+  mitigationPercent: number;
+  status: "carried" | "broken";
+  triggeredTurn?: number;
+  preventedDamage?: number;
+  affectedCharacterIds?: string[];
 }
 
 export interface PartyBossRoundActionInput {
@@ -88,8 +103,18 @@ export interface PartyBossRoundSummary {
   bossDamage: number;
   bossHpAfter: number;
   bossRetaliations: PartyBossRetaliationSummary[];
+  wardSign?: PartyBossWardSignRoundSummary;
   participantsAfter?: PartyBossParticipantResourceSummary[];
   statusAfter: PartyBossStatus;
+}
+
+export interface PartyBossWardSignRoundSummary {
+  kind: "kharakternyk";
+  status: "triggered";
+  supportCount: number;
+  mitigationPercent: number;
+  preventedDamage: number;
+  affectedCharacterIds: string[];
 }
 
 export interface PartyBossParticipantResourceSummary {
@@ -122,6 +147,8 @@ export interface PartyBossRetaliationSummary {
   characterId: string;
   damage: number;
   hpAfter: number;
+  damageBeforeWard?: number;
+  wardPreventedDamage?: number;
 }
 
 export interface PartyBossRetaliationPlan {
@@ -165,6 +192,11 @@ export function createPartyBossState(input: {
     combatStats: CombatActorStats & { hpCurrent: number; manaCurrent: number };
     equipmentAbilityGrantIds?: string[];
   }>;
+  wardSign?: {
+    kind: "kharakternyk";
+    placerCharacterId: string;
+    supportCount: number;
+  };
   now: Date;
 }): PartyBossState {
   const levels = input.participants.map((participant) => participant.combatStats.level);
@@ -229,6 +261,17 @@ export function createPartyBossState(input: {
         }
       };
     }),
+    ...(isBig && input.wardSign
+      ? {
+          wardSign: {
+            kind: "kharakternyk",
+            placerCharacterId: input.wardSign.placerCharacterId,
+            supportCount: clamp(Math.floor(input.wardSign.supportCount), 0, 7),
+            mitigationPercent: calculateKharakternykWardMitigation(input.wardSign.supportCount),
+            status: "carried"
+          }
+        }
+      : {}),
     roundLog: [],
     startedAt: input.now.toISOString()
   };
@@ -347,7 +390,8 @@ export function resolvePartyBossRound(input: {
     });
   }
 
-  const bossRetaliations = next.boss.hp > 0 ? applyBossRetaliation(next) : [];
+  const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
+  const bossRetaliations = retaliationResolution.retaliations;
   const livingParticipants = next.participants.filter(
     (participant) => participant.status === "active" && participant.resources.hp > 0
   );
@@ -362,6 +406,7 @@ export function resolvePartyBossRound(input: {
     bossDamage,
     bossHpAfter: next.boss.hp,
     bossRetaliations,
+    ...(retaliationResolution.wardSign ? { wardSign: retaliationResolution.wardSign } : {}),
     participantsAfter: next.participants.map((participant) => ({
       characterId: participant.characterId,
       status: participant.status,
@@ -421,6 +466,15 @@ export function isBigBarrelEligible(level: number, remortCount = 0): boolean {
   return safeRemortCount >= 1
     ? safeLevel >= 3
     : safeLevel >= 8;
+}
+
+export function calculateKharakternykWardMitigation(supportCount: number): number {
+  return clamp(
+    KHARAKTERNYK_WARD_BASE_MITIGATION_PERCENT +
+      KHARAKTERNYK_WARD_SUPPORT_MITIGATION_PERCENT * Math.max(0, Math.floor(supportCount)),
+    KHARAKTERNYK_WARD_BASE_MITIGATION_PERCENT,
+    KHARAKTERNYK_WARD_MAX_MITIGATION_PERCENT
+  );
 }
 
 export function calculatePartyBossCombatItemHealing(
@@ -489,6 +543,16 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
   return {
     ...state,
     boss: { ...state.boss, tags: [...state.boss.tags] },
+    ...(state.wardSign
+      ? {
+          wardSign: {
+            ...state.wardSign,
+            ...(state.wardSign.affectedCharacterIds
+              ? { affectedCharacterIds: [...state.wardSign.affectedCharacterIds] }
+              : {})
+          }
+        }
+      : {}),
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
@@ -516,6 +580,9 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       ...round,
       actions: round.actions.map((action) => ({ ...action })),
       bossRetaliations: round.bossRetaliations.map((retaliation) => ({ ...retaliation })),
+      ...(round.wardSign
+        ? { wardSign: { ...round.wardSign, affectedCharacterIds: [...round.wardSign.affectedCharacterIds] } }
+        : {}),
       ...(round.participantsAfter
         ? {
             participantsAfter: round.participantsAfter.map((participant) => ({
@@ -621,13 +688,19 @@ function cloneAbilityCooldowns(
   );
 }
 
-function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummary[] {
+function applyBossRetaliation(state: PartyBossState): {
+  retaliations: PartyBossRetaliationSummary[];
+  wardSign?: PartyBossWardSignRoundSummary;
+} {
   const retaliations: PartyBossRetaliationSummary[] = [];
   const big = isBigBarrelBrotherState(state);
   const broadBigRetaliation = big && isBigBarrelBroadRetaliationTurn(state);
+  const wardCanTrigger = broadBigRetaliation && state.wardSign?.status === "carried";
   const targetIds = big ? getPartyBossRetaliationPlan(state).characterIds : state.participants.map((participant) => participant.characterId);
   const targetIdSet = new Set(targetIds);
   const targets = state.participants.filter((participant) => targetIdSet.has(participant.characterId));
+  let wardPreventedDamage = 0;
+  const wardAffectedCharacterIds: string[] = [];
 
   for (const participant of targets) {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
@@ -641,7 +714,15 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
     const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
-    const damage = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
+    const damageBeforeWard = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
+    const wardPrevented = wardCanTrigger
+      ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
+      : 0;
+    const damage = Math.max(0, damageBeforeWard - wardPrevented);
+    if (wardCanTrigger) {
+      wardPreventedDamage += wardPrevented;
+      wardAffectedCharacterIds.push(participant.characterId);
+    }
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
 
@@ -652,11 +733,33 @@ function applyBossRetaliation(state: PartyBossState): PartyBossRetaliationSummar
     retaliations.push({
       characterId: participant.characterId,
       damage,
-      hpAfter: participant.resources.hp
+      hpAfter: participant.resources.hp,
+      ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {})
     });
   }
 
-  return retaliations;
+  if (wardCanTrigger && state.wardSign && wardAffectedCharacterIds.length > 0) {
+    state.wardSign = {
+      ...state.wardSign,
+      status: "broken",
+      triggeredTurn: state.turn,
+      preventedDamage: wardPreventedDamage,
+      affectedCharacterIds: wardAffectedCharacterIds
+    };
+    return {
+      retaliations,
+      wardSign: {
+        kind: "kharakternyk",
+        status: "triggered",
+        supportCount: state.wardSign.supportCount,
+        mitigationPercent: state.wardSign.mitigationPercent,
+        preventedDamage: wardPreventedDamage,
+        affectedCharacterIds: wardAffectedCharacterIds
+      }
+    };
+  }
+
+  return { retaliations };
 }
 
 function applyPartyBossGearSupport(

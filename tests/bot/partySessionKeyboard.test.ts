@@ -139,6 +139,98 @@ describe("party session keyboard", () => {
     expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:r");
   });
 
+  it("shows Kharakternyk ward sign lobby actions only to eligible participants", () => {
+    const base = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother",
+      leader: {
+        ...makeSession().leader,
+        classId: "class.kharakternyk",
+        level: 3
+      },
+      participants: makeSession().participants.map((participant) =>
+        participant.characterId === "character-1"
+          ? {
+              ...participant,
+              character: {
+                ...participant.character,
+                classId: "class.kharakternyk",
+                level: 3
+              }
+            }
+          : participant
+      )
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
+      viewerCharacterId: "character-1",
+      includeBossStart: true
+    }))).toContain("🧿 Поставити знак");
+    expect(keyboardText(buildPartySessionKeyboard(base, {
+      viewerCharacterId: "character-1",
+      includeBossStart: true
+    }))).toContain("v1:party:wp:partyABC12");
+
+    const withWard = {
+      ...base,
+      wardSign: {
+        kind: "kharakternyk" as const,
+        placerCharacterId: "character-1",
+        supportCount: 0,
+        supportCap: 7,
+        placedAt: new Date("2026-06-30T10:00:00.000Z")
+      },
+      participants: [
+        ...base.participants,
+        {
+          id: "participant-2",
+          sessionId: "party-1",
+          characterId: "character-2",
+          remortCount: 0,
+          status: "joined" as const,
+          joinSource: "nearby" as const,
+          joinedAt: new Date("2026-06-29T15:01:00.000Z"),
+          leftAt: null,
+          chatId: 43n,
+          messageId: 14,
+          character: makeCharacter("character-2", 43n)
+        }
+      ]
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(withWard, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).toContain("✋ Підперти знак");
+    expect(keyboardText(buildPartySessionKeyboard(withWard, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).toContain("v1:party:ws:partyABC12");
+
+    const supported = {
+      ...withWard,
+      participants: withWard.participants.map((participant) =>
+        participant.characterId === "character-2"
+          ? {
+              ...participant,
+              wardSignSupport: {
+                kind: "kharakternyk" as const,
+                placerCharacterId: "character-1",
+                supporterCharacterId: "character-2",
+                manaCost: 2,
+                supportedAt: new Date("2026-06-30T10:01:00.000Z")
+              }
+            }
+          : participant
+      )
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(supported, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).not.toContain("✋ Підперти знак");
+  });
+
   it("hides Big Barrel Brother cancel once another participant has joined", () => {
     const session = {
       ...makeSession(),

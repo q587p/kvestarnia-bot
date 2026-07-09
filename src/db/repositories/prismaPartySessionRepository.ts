@@ -11,6 +11,10 @@ import type {
   PartyParticipantReadiness,
   PartyParticipantRecord,
   PartyReadinessRepositoryResult,
+  PartyWardSignPlaceRepositoryResult,
+  PartyWardSignRecord,
+  PartyWardSignSupportRecord,
+  PartyWardSignSupportRepositoryResult,
   PartySessionRecord,
   PartySessionRepository,
   PartySessionStatus,
@@ -19,6 +23,7 @@ import type {
 } from "./partySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
+import { buildPartyBossCombatStats } from "./partyBossRepository";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -27,12 +32,22 @@ type CharacterRow = Prisma.CharacterGetPayload<{ include: typeof partyCharacterI
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
+const KHARAKTERNYK_WARD_PLACEMENT_MANA_COST = 5;
+const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
+const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
+const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
 
 const partyCharacterInclude = {
   user: {
     select: {
       telegramUserId: true,
       lastSeenLocationId: true
+    }
+  },
+  equipment: {
+    orderBy: {
+      slot: "asc" as const
     }
   },
   _count: {
@@ -477,6 +492,210 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     });
   }
 
+  async placeKharakternykWardSign(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyWardSignPlaceRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyWardSignPlaceRepositoryResult> => {
+      await expireTokenIfNeededTx(tx, inviteToken, now);
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
+      }
+
+      if (session.status !== LIVE_STATUS) {
+        return { state: "not-recruiting", session: mapSession(session) };
+      }
+
+      if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return { state: "not-big-barrel", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && row.status === "joined"
+      );
+      if (!participant) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+      if (participant.remortCount !== character._count.remorts) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+
+      const existingWard = getActiveWardSign(session);
+      if (existingWard?.placerCharacterId === character.id) {
+        return { state: "already-placed", session: mapSession(session) };
+      }
+      if (existingWard) {
+        return { state: "already-exists", session: mapSession(session) };
+      }
+
+      if (character.classId !== KHARAKTERNYK_CLASS_ID || character.level < 3) {
+        return { state: "ineligible", session: mapSession(session) };
+      }
+
+      if (character.manaCurrent < KHARAKTERNYK_WARD_PLACEMENT_MANA_COST) {
+        return { state: "not-enough-mana", session: mapSession(session) };
+      }
+
+      const spent = await tx.character.updateMany({
+        where: {
+          id: character.id,
+          manaCurrent: {
+            gte: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST
+          }
+        },
+        data: {
+          manaCurrent: {
+            decrement: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST
+          },
+          manaRegenAt: now
+        }
+      });
+      if (spent.count !== 1) {
+        return { state: "not-enough-mana", session: mapSession(session) };
+      }
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          snapshotJson: snapshotWithWardSign(participant.snapshotJson, {
+            kind: "kharakternyk",
+            placerCharacterId: character.id,
+            remortCount: character._count.remorts,
+            manaCost: KHARAKTERNYK_WARD_PLACEMENT_MANA_COST,
+            placedAt: now.toISOString()
+          })
+        }
+      });
+      await tx.partySession.update({
+        where: { id: session.id },
+        data: {
+          version: { increment: 1 }
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    });
+  }
+
+  async supportKharakternykWardSign(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyWardSignSupportRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyWardSignSupportRepositoryResult> => {
+      await expireTokenIfNeededTx(tx, inviteToken, now);
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
+      }
+
+      if (session.status !== LIVE_STATUS) {
+        return { state: "not-recruiting", session: mapSession(session) };
+      }
+
+      if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return { state: "not-big-barrel", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && row.status === "joined"
+      );
+      if (!participant) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+      if (participant.remortCount !== character._count.remorts) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+
+      const ward = getActiveWardSign(session);
+      if (!ward) {
+        return { state: "no-sign", session: mapSession(session) };
+      }
+
+      if (ward.placerCharacterId === character.id) {
+        return { state: "self-support", session: mapSession(session) };
+      }
+
+      const existingSupport = parseWardSupport(participant.snapshotJson);
+      if (existingSupport?.placerCharacterId === ward.placerCharacterId) {
+        return { state: "already-supported", session: mapSession(session) };
+      }
+
+      const manaCost = calculateWardSupportManaCost(character);
+      if (character.manaCurrent < manaCost) {
+        return { state: "not-enough-mana", session: mapSession(session) };
+      }
+
+      if (manaCost > 0) {
+        const spent = await tx.character.updateMany({
+          where: {
+            id: character.id,
+            manaCurrent: {
+              gte: manaCost
+            }
+          },
+          data: {
+            manaCurrent: {
+              decrement: manaCost
+            },
+            manaRegenAt: now
+          }
+        });
+        if (spent.count !== 1) {
+          return { state: "not-enough-mana", session: mapSession(session) };
+        }
+      }
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          snapshotJson: snapshotWithWardSupport(participant.snapshotJson, {
+            kind: "kharakternyk",
+            placerCharacterId: ward.placerCharacterId,
+            supporterCharacterId: character.id,
+            remortCount: character._count.remorts,
+            manaCost,
+            supportedAt: now.toISOString()
+          })
+        }
+      });
+      await tx.partySession.update({
+        where: { id: session.id },
+        data: {
+          version: { increment: 1 }
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    });
+  }
+
   async findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     await this.expireByToken(inviteToken, now);
     const session = await findSessionByToken(this.prisma, inviteToken);
@@ -831,6 +1050,7 @@ async function terminalizeSessionTx(
 }
 
 function mapSession(row: PartySessionRow): PartySessionRecord {
+  const wardSign = mapWardSign(row);
   return {
     id: row.id,
     inviteToken: row.inviteToken,
@@ -847,7 +1067,23 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     leader: mapCharacter(row.leader),
-    participants: row.participants.map(mapParticipant)
+    participants: row.participants.map(mapParticipant),
+    ...(wardSign ? { wardSign } : {})
+  };
+}
+
+function mapWardSign(row: PartySessionRow): PartyWardSignRecord | null {
+  const active = getActiveWardSign(row);
+  if (!active) {
+    return null;
+  }
+
+  return {
+    kind: "kharakternyk",
+    placerCharacterId: active.placerCharacterId,
+    supportCount: countActiveWardSupports(row, active.placerCharacterId),
+    supportCap: KHARAKTERNYK_WARD_SUPPORT_CAP,
+    placedAt: new Date(active.placedAt)
   };
 }
 
@@ -946,6 +1182,7 @@ async function findActiveBigBarrelLossCooldown(
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {
+  const wardSignSupport = parseWardSupport(row.snapshotJson);
   return {
     id: row.id,
     sessionId: row.sessionId,
@@ -958,6 +1195,7 @@ function mapParticipant(row: PartySessionRow["participants"][number]): PartyPart
     chatId: row.chatId,
     messageId: row.messageId,
     readiness: parseParticipantReadiness(row.snapshotJson),
+    ...(wardSignSupport ? { wardSignSupport } : {}),
     character: mapCharacter(row.character)
   };
 }
@@ -1004,6 +1242,38 @@ function snapshotWithReadiness(
   snapshotJson: Prisma.JsonValue | null,
   readiness: PartyParticipantReadiness
 ): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotJson);
+
+  snapshot.raidReadiness = readiness;
+  return snapshot;
+}
+
+function snapshotWithWardSign(
+  snapshotJson: Prisma.JsonValue | null,
+  wardSign: InternalWardSignSnapshot
+): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotJson);
+  snapshot[KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY] = {
+    version: 1,
+    ...wardSign
+  };
+  delete snapshot[KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY];
+  return snapshot;
+}
+
+function snapshotWithWardSupport(
+  snapshotJson: Prisma.JsonValue | null,
+  wardSupport: InternalWardSupportSnapshot
+): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotJson);
+  snapshot[KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY] = {
+    version: 1,
+    ...wardSupport
+  };
+  return snapshot;
+}
+
+function copySnapshot(snapshotJson: Prisma.JsonValue | null): Record<string, Prisma.InputJsonValue> {
   const snapshot: Record<string, Prisma.InputJsonValue> = {};
 
   if (snapshotJson && typeof snapshotJson === "object" && !Array.isArray(snapshotJson)) {
@@ -1012,7 +1282,6 @@ function snapshotWithReadiness(
     }
   }
 
-  snapshot.raidReadiness = readiness;
   return snapshot;
 }
 
@@ -1023,6 +1292,153 @@ function parseParticipantReadiness(snapshotJson: Prisma.JsonValue | null): Party
   }
 
   return "waiting";
+}
+
+interface InternalWardSignSnapshot {
+  kind: "kharakternyk";
+  placerCharacterId: string;
+  remortCount: number;
+  manaCost: number;
+  placedAt: string;
+}
+
+interface InternalWardSupportSnapshot {
+  kind: "kharakternyk";
+  placerCharacterId: string;
+  supporterCharacterId: string;
+  remortCount: number;
+  manaCost: number;
+  supportedAt: string;
+}
+
+function getActiveWardSign(row: PartySessionRow): InternalWardSignSnapshot | null {
+  const joined = row.participants.filter((participant) => participant.status === "joined");
+  for (const participant of joined) {
+    const wardSign = parseWardSign(participant.snapshotJson);
+    if (
+      wardSign &&
+      wardSign.placerCharacterId === participant.characterId &&
+      wardSign.remortCount === participant.remortCount
+    ) {
+      return wardSign;
+    }
+  }
+
+  return null;
+}
+
+function countActiveWardSupports(row: PartySessionRow, placerCharacterId: string): number {
+  const count = row.participants.filter((participant) => {
+    if (participant.status !== "joined" || participant.characterId === placerCharacterId) {
+      return false;
+    }
+
+    const support = parseInternalWardSupport(participant.snapshotJson);
+    return (
+      support?.placerCharacterId === placerCharacterId &&
+      support.supporterCharacterId === participant.characterId &&
+      support.remortCount === participant.remortCount
+    );
+  }).length;
+
+  return Math.min(KHARAKTERNYK_WARD_SUPPORT_CAP, count);
+}
+
+function parseWardSign(snapshotJson: Prisma.JsonValue | null): InternalWardSignSnapshot | null {
+  const value = getSnapshotObject(snapshotJson, KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY);
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.kind !== "kharakternyk" ||
+    typeof value.placerCharacterId !== "string" ||
+    typeof value.remortCount !== "number" ||
+    typeof value.manaCost !== "number" ||
+    typeof value.placedAt !== "string" ||
+    Number.isNaN(new Date(value.placedAt).getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "kharakternyk",
+    placerCharacterId: value.placerCharacterId,
+    remortCount: Math.max(0, Math.floor(value.remortCount)),
+    manaCost: Math.max(0, Math.floor(value.manaCost)),
+    placedAt: value.placedAt
+  };
+}
+
+function parseWardSupport(snapshotJson: Prisma.JsonValue | null): PartyWardSignSupportRecord | null {
+  const support = parseInternalWardSupport(snapshotJson);
+  if (!support) {
+    return null;
+  }
+
+  return {
+    kind: "kharakternyk",
+    placerCharacterId: support.placerCharacterId,
+    supporterCharacterId: support.supporterCharacterId,
+    manaCost: support.manaCost,
+    supportedAt: new Date(support.supportedAt)
+  };
+}
+
+function parseInternalWardSupport(snapshotJson: Prisma.JsonValue | null): InternalWardSupportSnapshot | null {
+  const value = getSnapshotObject(snapshotJson, KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY);
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.kind !== "kharakternyk" ||
+    typeof value.placerCharacterId !== "string" ||
+    typeof value.supporterCharacterId !== "string" ||
+    typeof value.remortCount !== "number" ||
+    typeof value.manaCost !== "number" ||
+    typeof value.supportedAt !== "string" ||
+    Number.isNaN(new Date(value.supportedAt).getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "kharakternyk",
+    placerCharacterId: value.placerCharacterId,
+    supporterCharacterId: value.supporterCharacterId,
+    remortCount: Math.max(0, Math.floor(value.remortCount)),
+    manaCost: Math.max(0, Math.floor(value.manaCost)),
+    supportedAt: value.supportedAt
+  };
+}
+
+function getSnapshotObject(snapshotJson: Prisma.JsonValue | null, key: string): Record<string, unknown> | null {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return null;
+  }
+
+  const value = (snapshotJson as Record<string, unknown>)[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function calculateWardSupportManaCost(character: CharacterRow): number {
+  if (character.classId === KHARAKTERNYK_CLASS_ID) {
+    return 0;
+  }
+
+  const stats = buildPartyBossCombatStats({
+    ...mapCharacter(character),
+    equipment: character.equipment
+  });
+
+  if (stats.intelligence >= 13) {
+    return 1;
+  }
+
+  return stats.intelligence >= 8 ? 2 : 3;
 }
 
 function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {

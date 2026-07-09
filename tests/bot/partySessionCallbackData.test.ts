@@ -16,6 +16,8 @@ import {
   makePartySessionNearbyOpenCallbackData,
   makePartySessionReadinessCallbackData,
   makePartySessionShareCallbackData,
+  makePartySessionWardPlaceCallbackData,
+  makePartySessionWardSupportCallbackData,
   makePartySessionViewCallbackData,
   parsePartySessionCallbackData
 } from "../../src/bot/callbacks/partySessionCallbackData";
@@ -76,6 +78,14 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartySessionReadinessCallbackData(token, "waiting"))).toEqual({
       ok: true,
       value: { type: "readiness", token, readiness: "waiting" }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionWardPlaceCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "ward-place", token }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionWardSupportCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "ward-support", token }
     });
     expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
       ok: true,

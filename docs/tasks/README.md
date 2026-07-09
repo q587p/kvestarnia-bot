@@ -55,6 +55,7 @@ Recently shipped:
 - [0.2.32-polish-rollup.md](0.2.32-polish-rollup.md) — consolidated combat and Korchma polish rollup for repeated flee chance, once-only Yeger count copy, Yeger remort pressure, Big Barrel reward cleanup, remort medical-craft unlock and future daily-round variant tracking.
 - [0.3.0-charkokovalnia-item-upgrades.md](0.3.0-charkokovalnia-item-upgrades.md) — Charkokovalnia / Item Upgrades MVP from the Korchma yard Mage, with a field-kit unlock, concrete `+N` item ids, replay-safe upgrade attempts, equipped-row alignment, bounded pity/donor gates, weak/strong magic attunement timers, very rare generated `+N` drops, rare fight Iskrokamin replacement rewards, successful-upgrade Chronicles rows and local `Іскрокамінь`/attunement QA support.
 - [0.3.1-turn-based-duel-tournaments-rewards.md](0.3.1-turn-based-duel-tournaments-rewards.md) — fixed daily/weekly/monthly turn-based duel tournaments with rules help, repeated-opponent downweighting, replay-safe Korchma-funded top-three prize chests, bounded unclaimed reward lookback, Holocene period display, combat-style turn-based duel cards, stored duel journals and Chronicles recognition for claims only.
+- [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — Kharakternyk Big Barrel Brother ward signs with replay-safe mana placement/support, count-only lobby support, final-roster freezing and one-time broad-hit mitigation.
 
 Near-term next tasks:
 
@@ -111,7 +112,7 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
 - [0.2.x-raid-in-game-chat.md](0.2.x-raid-in-game-chat.md) — draft future in-game raid chat for joined participants, scoped to one raid and guarded against non-participant reads, stale writes and reward abuse.
-- [0.2.x-kharakternyk-ward-signs.md](0.2.x-kharakternyk-ward-signs.md) — draft future `class.kharakternyk` Big Barrel ward-sign support slice; docs-only until explicitly activated.
+- [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — activated from the former `0.2.x` Kharakternyk Big Barrel ward-sign draft.
 - [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
 - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.
 - [0.2.x-old-root-grove-location.md](0.2.x-old-root-grove-location.md) — optional future location split if the altar needs its own `Тихий Корінь` / root-grove presence after playtest.
