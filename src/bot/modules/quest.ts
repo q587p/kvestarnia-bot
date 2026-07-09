@@ -50,7 +50,8 @@ shouldShowYegerFieldKitHelp
 } from "../commands/yegerFieldKitHelp";
 import {
 registerQuestHubCommand,
-sendQuestHub
+sendQuestHub,
+sendQuestOverview
 } from "../commands/questHubCommand";
 import {
 sendKorchmaBar
@@ -365,6 +366,15 @@ async function handleQuestCallback(
   }
 
   await safeAnswerCallbackQuery(ctx);
+
+  if (action === "overview") {
+    await sendQuestOverview(
+      ctx,
+      buildQuestHubCommandOptions(services),
+      "edit"
+    );
+    return;
+  }
 
   if (action === "archive" || action === "list") {
     await sendQuestHub(

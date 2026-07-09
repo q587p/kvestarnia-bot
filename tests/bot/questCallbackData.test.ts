@@ -8,6 +8,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboarding
 
 describe("quest callback data", () => {
   it.each([
+    "overview",
     "adventure",
     "fight",
     "fight-descend",

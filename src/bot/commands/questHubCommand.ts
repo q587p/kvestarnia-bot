@@ -14,6 +14,7 @@ import {
 } from "../../services/presenceService";
 import { playerFromContext, telegramUserIdFromContext } from "../context";
 import { buildQuestHubKeyboard } from "../keyboards/questHubKeyboard";
+import { buildQuestOverviewKeyboard } from "../keyboards/questOverviewKeyboard";
 import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentKorchmaQuestGate,
@@ -22,6 +23,10 @@ import {
   type QuestHubMode,
   type QuestHubSnapshot
 } from "../presenters/questHubPresenter";
+import {
+  buildQuestOverviewRows,
+  presentQuestOverview
+} from "../presenters/questOverviewPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
@@ -92,7 +97,53 @@ export async function sendQuestHub(
   await sendText(ctx, mode, presentQuestHub(snapshot, hubMode), { snapshot, mode: hubMode });
 }
 
-async function buildQuestHubSnapshot(
+export async function sendQuestOverview(
+  ctx: Context,
+  options: QuestHubCommandOptions,
+  mode: "reply" | "edit"
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  if (
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, mode)
+  ) {
+    return;
+  }
+
+  const place = await options.presence.getCurrentPlaceForTelegramUser(telegramUserId);
+
+  if (place.state === "no-character") {
+    await sendText(ctx, mode, presentQuestHubNoCharacter());
+    return;
+  }
+
+  if (!place.insideKorchma) {
+    await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
+    return;
+  }
+
+  const snapshot = await buildQuestHubSnapshot(
+    telegramUserId,
+    options,
+    place.locationId
+  );
+
+  if (!snapshot) {
+    await sendText(ctx, mode, presentQuestHubNoCharacter());
+    return;
+  }
+
+  await sendText(ctx, mode, presentQuestOverview(snapshot), {
+    overviewRows: buildQuestOverviewRows(snapshot)
+  });
+}
+
+export async function buildQuestHubSnapshot(
   telegramUserId: bigint,
   options: QuestHubCommandOptions,
   currentLocationId: string | null = null
@@ -182,7 +233,11 @@ async function sendText(
   ctx: Context,
   mode: "reply" | "edit",
   text: string,
-  keyboard: { snapshot: QuestHubSnapshot; mode: QuestHubMode } | "enter-korchma" | false = false
+  keyboard:
+    | { snapshot: QuestHubSnapshot; mode: QuestHubMode }
+    | { overviewRows: ReturnType<typeof buildQuestOverviewRows> }
+    | "enter-korchma"
+    | false = false
 ): Promise<void> {
   const options = keyboard
     ? {
@@ -190,6 +245,8 @@ async function sendText(
         reply_markup:
           keyboard === "enter-korchma"
             ? buildEnterKorchmaKeyboard()
+            : "overviewRows" in keyboard
+              ? buildQuestOverviewKeyboard(keyboard.overviewRows)
             : buildQuestHubKeyboard({
                 ...keyboard.snapshot,
                 characterLevel: keyboard.snapshot.character.level,

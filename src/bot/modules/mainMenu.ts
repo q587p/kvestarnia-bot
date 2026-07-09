@@ -33,7 +33,8 @@ import { shouldShowYegerFieldKitHelp } from "../commands/yegerFieldKitHelp";
 import { sendInventory } from "../commands/inventoryCommand";
 import { sendOnline } from "../commands/onlineCommand";
 import {
-sendQuestHub
+sendQuestHub,
+sendQuestOverview
 } from "../commands/questHubCommand";
 import {
 sendKorchmaBar,
@@ -109,7 +110,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendQuestHub(
+    await sendQuestOverview(
       ctx,
       buildQuestHubCommandOptions(services),
       "reply"

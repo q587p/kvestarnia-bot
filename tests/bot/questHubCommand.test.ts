@@ -4,7 +4,7 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeYegerTurnInCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
-import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
+import { sendQuestHub, sendQuestOverview } from "../../src/bot/commands/questHubCommand";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -94,6 +94,61 @@ describe("quest hub command", () => {
       currentRaidId: null,
       currentAdventureId: null
     });
+  });
+
+  it("shows the quest overview from the main quest route without moving to the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+
+    await sendQuestOverview(makeContext(replies), servicesWith({ presence }), "reply");
+
+    expect(replies[0]?.text).toContain("🗺️ <b>Квести</b>");
+    expect(replies[0]?.text).toContain("🧾 <b>Тринадцять дрібних проблем</b>");
+    expect(replies[0]?.text).toContain("Журнал тільки показує дороги");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.callback_data)).toContain(makeQuestCallbackData("list"));
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("hall"));
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("opens the overview from existing lookups without accepting or claiming quest progress", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: characterAtLevel(3),
+        dayToken: "20260709"
+      })
+    );
+    const getForTelegramUser = vi.fn();
+    const completeAdventureApproach = vi.fn();
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        adventure: {
+          ...readyAdventureService(characterAtLevel(3)),
+          completeAdventureApproach
+        } as unknown as AdventureService,
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          getForTelegramUser
+        } as unknown as DailyKorchmaRoundService
+      }),
+      "reply"
+    );
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(replies[0]?.text).toContain("🧾 <b>Корчмарський обхід</b> — доступно");
   });
 
   it("keeps a hall return when the quest hub is opened from the quest table", async () => {

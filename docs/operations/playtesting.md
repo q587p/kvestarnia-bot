@@ -4,6 +4,20 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.4 — Quest Overview Route smoke
+
+1. Fresh level 1 inside the korchma: press `🗺️ Квести`; verify starter shawarma/fight guidance, locked notes for later routes, and no broken direct buttons.
+2. Press `📋 До Столу зі справами`; verify the old `📋 Стіл зі справами` card opens and presence moves only there, not when opening the overview.
+3. Level 2: verify cellar mouse and Barrel Beer Tutorial rows appear when eligible.
+4. Level 3+: verify `Корчмарський обхід` and `Три справи` rows appear; `🧾 До обходу` opens the daily overview without accepting or claiming.
+5. Daily Korchma Round at 1/2 and 2/2: verify progress rows and passive routing.
+6. Yeger not started / in progress / completed: verify row status and `🏹 До Єгеря` route.
+7. Barrel Beer Tutorial available / in progress / ready to turn in: verify overview routes to the existing table, Бочка, Shynok or table surface without accepting/claiming from the overview.
+8. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+9. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+
+Manual Telegram QA status for the implementation pass: not run in Telegram.
+
 ## 0.3.3 — Quest Variety and Risk Refresh smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.

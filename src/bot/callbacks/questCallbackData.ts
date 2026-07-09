@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type QuestCallback =
+  | "overview"
   | "adventure"
   | "fight"
   | "fight-descend"
@@ -20,6 +21,7 @@ export type QuestCallbackError = "invalid-version" | "invalid-prefix" | "invalid
 
 const PREFIX = "v1:quest";
 const questCallbacks = new Set<QuestCallback>([
+  "overview",
   "adventure",
   "fight",
   "fight-descend",

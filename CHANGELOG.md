@@ -7,6 +7,17 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.4] - 12026-07-09 - Quest Overview Route
+
+### Added
+- Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing current quest surfaces, progress, locked/completed notes and direct passive routes.
+- Added focused presenter/keyboard/command coverage for overview row priority, fresh level 1 guidance, level 3+ daily/adventure visibility, HTML escaping, callback size and passive direct-route buttons.
+
+### Changed
+- The persistent `🗺️ Квести` button now opens the compact overview without marking presence at `📋 Стіл зі справами`; `/quest`, the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
+- Overview direct buttons route only to existing surfaces such as `Стіл зі справами`, `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинк` or `задвірок`, and do not accept, claim, complete, start fights, start raids or mutate quest progress.
+- Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, outside-Korchma, no-character and stale-callback guards are preserved through the existing command/callback middleware.
+
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
 
 ### Added
