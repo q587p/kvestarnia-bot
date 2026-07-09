@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a compact method-help memo for Adventure/starter method cards explaining the qualitative tradeoff: safer is calmer, riskier is richer, and exact odds stay hidden.
 - Added 23 new Daily Korchma Round scenes, expanding the active pool from 13 to 36 while preserving exactly three actions per scene, deterministic local outcomes and explicit Quest Table turn-in.
 - Added seven authored cellar mouse methods with 28 new grade outcome lines, all still routed through the visible-method allowlist and conservative level 2-3 cellar reward envelope.
-- Added local `/dev_reset_cellar_mouse` for manual QA to clear only the repeatable cellar mouse cooldown on the current character.
+- Added local `/dev_reset_cellar_mouse` for manual QA to clear the repeatable cellar mouse and grownup mouse roleplay cooldowns on the current character.
 - Added validation for Daily Korchma Round zone/location mismatches, missing action outcomes and too few interior location groups.
 - Added focused domain/content/presenter/service tests for risk-band caps, Adventure method-help distribution, Daily Korchma Round content validation, cellar method reachability and tiny cellar rewards.
 

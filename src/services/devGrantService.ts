@@ -15,6 +15,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { AchievementService, type AchievementUnlock } from "./achievementService";
 import { CELLAR_MOUSE_ERRAND_KEY } from "./cellarErrandService";
+import { CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY } from "./cellarGrownupQuestService";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -439,10 +440,12 @@ export class DevGrantService {
       return { state: "disabled" };
     }
 
-    const result = await this.grants.clearCooldownForTelegramUser(
-      telegramUserId,
-      CELLAR_MOUSE_ERRAND_KEY
-    );
+    const result = await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
+      keys: [
+        CELLAR_MOUSE_ERRAND_KEY,
+        CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY
+      ]
+    });
 
     return result
       ? {

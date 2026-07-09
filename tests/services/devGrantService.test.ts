@@ -16,6 +16,7 @@ import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository"
 import { items } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
+import { CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY } from "../../src/services/cellarGrownupQuestService";
 import { CELLAR_MOUSE_ERRAND_KEY } from "../../src/services/cellarErrandService";
 import { DevGrantService } from "../../src/services/devGrantService";
 import { BANDAGE_ITEM_ID, ISKROKAMIN_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
@@ -480,7 +481,7 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`cooldown-ready:42:${YEGER_TRACKING_COOLDOWN_KEY}`);
   });
 
-  it("resets the cellar mouse errand cooldown for local QA", async () => {
+  it("resets the cellar mouse errand and grownup roleplay cooldowns for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
 
@@ -492,7 +493,9 @@ describe("DevGrantService", () => {
         id: "character-42"
       }
     });
-    expect(repository.calls).toContain(`cooldown:42:${CELLAR_MOUSE_ERRAND_KEY}`);
+    expect(repository.calls).toContain(
+      `cooldowns:42:${CELLAR_MOUSE_ERRAND_KEY},${CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY}`
+    );
   });
 
   it("resets Priest blessing and Quiet Pocket cooldowns for local QA", async () => {
