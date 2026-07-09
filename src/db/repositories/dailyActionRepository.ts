@@ -143,4 +143,9 @@ export interface DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string }
   ): Promise<DailyActionRecord[] | null>;
+
+  listForTelegramUserInCreatedAtRange?(
+    telegramUserId: bigint,
+    input: { key: string; createdAtGte: Date; createdAtLt: Date }
+  ): Promise<DailyActionRecord[] | null>;
 }

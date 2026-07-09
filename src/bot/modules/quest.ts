@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { type Bot,type Context } from "grammy";
 import type {
 FightService,
@@ -171,6 +172,48 @@ import type { BotModuleDependencies } from "./types";
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
+
+const YEGER_PERF_SLOW_MS = 250;
+
+interface YegerPerfTrace {
+  route: string;
+  startedAt: number;
+  lastAt: number;
+  steps: Array<{ step: string; ms: number }>;
+}
+
+function startYegerPerfTrace(route: string): YegerPerfTrace {
+  const now = performance.now();
+
+  return {
+    route,
+    startedAt: now,
+    lastAt: now,
+    steps: []
+  };
+}
+
+function markYegerPerfStep(trace: YegerPerfTrace, step: string): void {
+  const now = performance.now();
+  trace.steps.push({ step, ms: Math.round(now - trace.lastAt) });
+  trace.lastAt = now;
+}
+
+function finishYegerPerfTrace(trace: YegerPerfTrace, state: string): void {
+  const totalMs = Math.round(performance.now() - trace.startedAt);
+  const debug = process.env.YEGER_PERF_DEBUG === "1" || process.env.YEGER_PERF_DEBUG === "true";
+
+  if (!debug && totalMs < YEGER_PERF_SLOW_MS) {
+    return;
+  }
+
+  console.info("[yeger-perf]", {
+    route: trace.route,
+    state,
+    totalMs,
+    steps: trace.steps
+  });
+}
 
 export function registerQuestBotModule(
   bot: Bot,
@@ -1114,21 +1157,30 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "bandages") {
+    const perf = startYegerPerfTrace("bandages");
     await safeAnswerCallbackQuery(ctx);
+    markYegerPerfStep(perf, "answer");
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    markYegerPerfStep(perf, "quest");
 
     if (quest.state === "no-character") {
       await safeEditMessageText(ctx, presentYegerNoCharacter());
+      markYegerPerfStep(perf, "edit");
+      finishYegerPerfTrace(perf, quest.state);
       return;
     }
 
     const craftOptions = await getYegerBandageCraftOptions(services, telegramUserId);
     const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    markYegerPerfStep(perf, "menu-options");
     await markYegerCornerPresence(ctx, services.presence);
+    markYegerPerfStep(perf, "presence");
     await safeEditMessageText(ctx, presentYegerBandages(quest), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
+    markYegerPerfStep(perf, "edit");
+    finishYegerPerfTrace(perf, quest.state);
     return;
   }
 
@@ -1212,50 +1264,72 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "buy-bandage-preview") {
+    const perf = startYegerPerfTrace("buy-bandage-preview");
     const result = await services.yeger.previewBandagePurchaseForTelegramUser(
       telegramUserId,
       callback.targetQuantity
     );
+    markYegerPerfStep(perf, "preview");
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "preview"
         ? { text: "Єгер показав ціну." }
         : { show_alert: result.state === "insufficient-gold" || result.state === "daily-limit" || result.state === "locked" }
     );
+    markYegerPerfStep(perf, "answer");
     await markYegerCornerPresence(ctx, services.presence);
+    markYegerPerfStep(perf, "presence");
+    if (result.state === "preview") {
+      await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerBandagePurchaseKeyboard(result.token)
+      });
+      markYegerPerfStep(perf, "edit");
+      finishYegerPerfTrace(perf, result.state);
+      return;
+    }
+
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
-    const craftOptions = quest.state === "no-character" || result.state === "preview"
+    markYegerPerfStep(perf, "quest");
+    const craftOptions = quest.state === "no-character"
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
     const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    markYegerPerfStep(perf, "menu-options");
     await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: result.state === "preview"
-        ? buildYegerBandagePurchaseKeyboard(result.token)
-        : quest.state === "no-character"
+      reply_markup: quest.state === "no-character"
           ? buildYegerHelpKeyboard(yegerNavigationOptions)
           : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
+    markYegerPerfStep(perf, "edit");
+    finishYegerPerfTrace(perf, result.state);
     return;
   }
 
   if (callback.type === "buy-bandage-confirm" || callback.type === "buy-bandage-cancel") {
+    const perf = startYegerPerfTrace(callback.type);
     const result = callback.type === "buy-bandage-confirm"
       ? await services.yeger.confirmBandagePurchaseForTelegramUser(telegramUserId, callback.token)
       : await services.yeger.cancelBandagePurchaseForTelegramUser(telegramUserId, callback.token);
+    markYegerPerfStep(perf, "decision");
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "bought" || result.state === "replayed"
         ? { text: result.state === "bought" ? "Бинти у торбі." : "Чек уже проведено." }
         : { show_alert: result.state === "insufficient-gold" || result.state === "invalid-token" || result.state === "stale-token" || result.state === "locked" }
     );
+    markYegerPerfStep(perf, "answer");
     await markYegerCornerPresence(ctx, services.presence);
+    markYegerPerfStep(perf, "presence");
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    markYegerPerfStep(perf, "quest");
     const affordablePreview = result.state === "insufficient-gold" ? result.affordablePreview : undefined;
     const craftOptions = quest.state === "no-character" || affordablePreview
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
     const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    markYegerPerfStep(perf, "menu-options");
     await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: affordablePreview
@@ -1267,41 +1341,53 @@ async function handleYegerCallback(
           ? buildYegerHelpKeyboard(yegerNavigationOptions)
           : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
+    markYegerPerfStep(perf, "edit");
     const achievementText = presentAchievementUnlockNotification(
       result.state === "bought" ? result.achievementUnlocks ?? [] : []
     );
     if (achievementText) {
       await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      markYegerPerfStep(perf, "achievement");
     }
+    finishYegerPerfTrace(perf, result.state);
     return;
   }
 
   if (callback.type === "free-bandage") {
+    const perf = startYegerPerfTrace("free-bandage");
     const result = await services.yeger.claimRangerSupplyForTelegramUser(telegramUserId, callback.kind);
+    markYegerPerfStep(perf, "claim");
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "claimed"
         ? { text: "Єгер видав запас." }
         : { show_alert: result.state === "class-locked" || result.state === "on-cooldown" || result.state === "locked" }
     );
+    markYegerPerfStep(perf, "answer");
     await markYegerCornerPresence(ctx, services.presence);
+    markYegerPerfStep(perf, "presence");
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
+    markYegerPerfStep(perf, "quest");
     const craftOptions = quest.state === "no-character"
       ? []
       : await getYegerBandageCraftOptions(services, telegramUserId);
     const yegerNavigationOptions = await buildYegerNavigationOptions(telegramUserId, services);
+    markYegerPerfStep(perf, "menu-options");
     await safeEditMessageText(ctx, presentYegerRangerBandage(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: quest.state === "no-character"
         ? buildYegerHelpKeyboard(yegerNavigationOptions)
         : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
+    markYegerPerfStep(perf, "edit");
     const achievementText = presentAchievementUnlockNotification(
       result.state === "claimed" ? result.achievementUnlocks ?? [] : []
     );
     if (achievementText) {
       await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      markYegerPerfStep(perf, "achievement");
     }
+    finishYegerPerfTrace(perf, result.state);
     return;
   }
 

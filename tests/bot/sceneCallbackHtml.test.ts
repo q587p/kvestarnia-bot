@@ -59,6 +59,7 @@ import {
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
   makeYegerBandagesCallbackData,
+  makeYegerBuyBandageCallbackData,
   makeYegerFieldKitHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerTrackCallbackData,
@@ -2075,6 +2076,51 @@ describe("scene callback HTML options", () => {
     expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
     expect(keyboard).toContain("v1:craft:p:dense");
     expect(keyboard).toContain("v1:craft:p:kit");
+  });
+
+  it("edits successful Yeger bandage purchase previews without fetching the full menu context", async () => {
+    const token = "00000000-0000-4000-8000-000000000093";
+    const previewBandagePurchaseForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "preview" as const,
+        character,
+        token,
+        targetQuantity: 93 as const,
+        purchaseQuantity: 93,
+        purchasedToday: 0,
+        dailyLimit: 93,
+        priceGold: 651,
+        unitPriceGold: 7,
+        currentGold: 700,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Bandage", quantity: 93 }],
+        expiresAt: new Date("2026-06-15T10:10:00.000Z"),
+        now: new Date("2026-06-15T10:05:00.000Z")
+      })
+    );
+    const getForTelegramUser = vi.fn(() => Promise.reject(new Error("full Yeger menu lookup should not run")));
+    const getCraftOptionsForTelegramUser = vi.fn(() => Promise.resolve([]));
+
+    const calls = await captureApiCalls(
+      makeYegerBuyBandageCallbackData(93),
+      servicesWith({
+        itemCraft: {
+          getCraftOptionsForTelegramUser
+        },
+        yeger: {
+          previewBandagePurchaseForTelegramUser,
+          getForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(previewBandagePurchaseForTelegramUser).toHaveBeenCalledWith(42n, 93);
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(getCraftOptionsForTelegramUser).not.toHaveBeenCalled();
+    expect(keyboard).toContain(`v1:ygr:bc:${token}`);
+    expect(keyboard).toContain(`v1:ygr:bx:${token}`);
+    expect(keyboard).not.toContain(makeYegerBandagesCallbackData());
   });
 
   it("offers field-kit help from the Yeger corner when Charkokovalnia needs a kit but kit crafting is locked", async () => {
