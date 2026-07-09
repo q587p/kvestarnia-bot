@@ -282,7 +282,8 @@ export class CellarErrandService {
         check,
         cycleKey
       }),
-      itemGrants
+      itemGrants,
+      questIskrokaminBonus: true
     });
 
     if (!claim) {

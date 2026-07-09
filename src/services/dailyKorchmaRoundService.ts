@@ -33,6 +33,7 @@ import {
 } from "./presenceService";
 import type { TavernRaidService } from "./tavernRaidService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
+import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 
 export const DAILY_KORCHMA_ROUND_MIN_LEVEL = 3;
 
@@ -137,6 +138,7 @@ export interface DailyKorchmaRoundReward {
   xp: number;
   gold: number;
   localDate: string;
+  itemGrants: RewardItemGrant[];
 }
 
 interface DailyKorchmaRoundOfferJson {
@@ -431,7 +433,8 @@ export class DailyKorchmaRoundService {
         omittedSceneId: context.offer.omittedSceneId,
         reward
       },
-      expectedLife: { remortCount: context.lifeToken }
+      expectedLife: { remortCount: context.lifeToken },
+      questIskrokaminBonus: true
     });
 
     if (!claim) {
@@ -884,7 +887,8 @@ export function calculateDailyKorchmaRoundReward(input: {
   return {
     xp: level * 2 + random.nextInt(1, level),
     gold: level + random.nextInt(1, level),
-    localDate: input.dayKey
+    localDate: input.dayKey,
+    itemGrants: []
   };
 }
 
@@ -892,8 +896,38 @@ function buildRewardFromRecord(record: DailyActionRecord): DailyKorchmaRoundRewa
   return {
     xp: record.rewardXp,
     gold: record.rewardGold,
-    localDate: record.localDate
+    localDate: record.localDate,
+    itemGrants: enrichRewardItemGrants(readAppliedItemGrants(record.resultJson))
   };
+}
+
+function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const grants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  if (!Array.isArray(grants)) {
+    return [];
+  }
+
+  return grants.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
 }
 
 function stepLocalDate(dayKey: string, sceneId: string): string {

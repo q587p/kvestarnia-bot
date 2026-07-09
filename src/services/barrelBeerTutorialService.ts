@@ -320,7 +320,8 @@ export class BarrelBeerTutorialService {
         kind: "barrel-beer-tutorial-completed",
         version: 1,
         questId: BARREL_BEER_TUTORIAL_ID
-      }
+      },
+      questIskrokaminBonus: true
     });
 
     if (!claim) {

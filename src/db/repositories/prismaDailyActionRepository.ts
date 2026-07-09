@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { buildQuestIskrokaminBonusGrant } from "../../domain/quests/questIskrokaminBonus";
 import {
   DailyActionPrefixLimitExceededError,
   DailyActionQuantityLimitExceededError,
@@ -247,7 +248,12 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
           remortCount
         });
-        const itemGrants = input.itemGrants ?? [];
+        const itemGrants = withQuestIskrokaminBonus(input.itemGrants ?? [], {
+          enabled: input.questIskrokaminBonus === true,
+          characterId: character.id,
+          characterLevel: character.level,
+          sourceIdentity: `${input.key}:${input.localDate}`
+        });
         const appliedItemGrants: ItemGrant[] = [];
 
         for (const grant of itemGrants) {
@@ -641,6 +647,24 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       itemGrants: []
     };
   }
+}
+
+function withQuestIskrokaminBonus(
+  itemGrants: ItemGrant[],
+  input: {
+    enabled: boolean;
+    characterId: string;
+    characterLevel: number;
+    sourceIdentity: string;
+  }
+): ItemGrant[] {
+  if (!input.enabled) {
+    return itemGrants;
+  }
+
+  const bonus = buildQuestIskrokaminBonusGrant(input);
+
+  return bonus ? [...itemGrants, bonus] : itemGrants;
 }
 
 async function getGrantQuantity(

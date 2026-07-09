@@ -654,7 +654,8 @@ export class YegerQuestService {
       localDate: YEGER_UNQUIET_TRIAL_BUCKET,
       rewardXp: getYegerUnquietTrialTurnInXp(current.character, stage.id),
       rewardGold: stage.reward.gold,
-      itemGrants
+      itemGrants,
+      questIskrokaminBonus: true
     });
 
     if (!claim) {

@@ -1,5 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { DailyActionRecord, RewardLevelChange } from "./dailyActionRepository";
+import type { DailyActionRecord, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
 
 export interface CellarGrownupQuestRepositoryKeys {
   sealPurchaseKey: string;
@@ -42,6 +42,7 @@ export type CompleteCellarGrownupQuestResult =
       snapshot: CellarGrownupQuestSnapshot;
       ending: CellarGrownupFinalEnding;
       levelChange: RewardLevelChange;
+      itemGrants: ItemGrant[];
     };
 
 export interface CellarGrownupQuestRepository {

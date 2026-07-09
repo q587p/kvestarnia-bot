@@ -519,7 +519,8 @@ export class AdventureService {
         check,
         fightEncounter
       }),
-      itemGrants
+      itemGrants,
+      questIskrokaminBonus: true
     });
 
     if (!claim) {
@@ -720,7 +721,8 @@ export class AdventureService {
         check,
         fightEncounter: null
       }),
-      itemGrants
+      itemGrants,
+      questIskrokaminBonus: true
     });
 
     if (!claim) {

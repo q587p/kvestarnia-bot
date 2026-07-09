@@ -2943,7 +2943,8 @@ export class FightService {
           quantity: 1,
           maxOwnedQuantity: 1
         }
-      ]
+      ],
+      questIskrokaminBonus: true
     });
 
     if (!claim) {

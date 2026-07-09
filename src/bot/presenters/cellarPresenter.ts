@@ -250,7 +250,8 @@ export function presentCellarGrownupResult(result: CellarGrownupQuestResult): st
     "",
     endingLine,
     "",
-    presentQuestRewardAmount(result.reward)
+    presentQuestRewardAmount(result.reward),
+    ...presentItemGrantLines(result.reward.itemGrants)
   ].join("\n");
 }
 

@@ -29,9 +29,11 @@
 21. Buy a Shynok beer round for a nearby recipient; verify the buyer's card first changes to `Корчмар поставив кухлі`, then the recipient receives the separate beer offer with `Випити`.
 22. Before accepting or declining that live offer, reopen Shynok; verify `🍺 Вам пиво!` appears next to `🍹 Напої для себе`, opens the same offer card, and does not drink or decline until an explicit offer button is pressed.
 23. After drinking the tutorial beer while another Shynok/table affair remains available, return to the hall; verify `📋 Стіл зі справами ✅` is shown instead of `📋 Стіл зі справами ⚠️`.
-24. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-25. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
-26. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+24. On a level 4+ character, complete representative Adventure, Daily Korchma Round, Yeger, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock claims; when `Іскрокамінь` appears, verify the result card shows it once, the inventory quantity increased by the shown amount, and replaying the same claim does not reroll or duplicate it. Verify level 3 quest turn-ins do not receive this bonus.
+25. Verify ordinary combat rewards still use their existing loot/bandage/Iskrokamin replacement behavior and are not treated as quest turn-ins by this bonus.
+26. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+27. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+28. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
 

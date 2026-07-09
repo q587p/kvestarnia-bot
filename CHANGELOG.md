@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shynok cards now show a `🍺 Вам пиво!` shortcut next to `🍹 Напої для себе` while a live round offer can still be accepted, reopening the same offer card with `Випити` / `Ні, дякую` instead of hiding the cup in chat history.
 - The Korchma hall `📋 Стіл зі справами` marker now lets ready turn-ins such as the Barrel Beer Tutorial `✅` override unrelated available-work `⚠️` markers from Shynok or other table papers.
 - Charkokovalnia unlock markers now turn green when the player already has the `Польова аптечка`, including `Доступ до Чароковальні`, `Надвір`, `У задвірок` and the Charkokovalnia action itself.
+- Level 4+ quest turn-ins can now add a replay-safe `Іскрокамінь` bonus: 1 at 23%, 2 at 13%, or 3 at 5%, covering Adventure, Daily Korchma Round, Yeger, Barrel tutorial, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock reward paths without changing ordinary combat reward rolls.
 - The quest overview now distinguishes repeat `Льохова справа` availability after the first mouse errand completion, using `не перший спуск` and repeat-attempt next-step copy instead of claiming it is still the first descent.
 - Quest overview problem guidance now uses prose casing for `спуск до Низу`, keeping `Спуск до Низу` for buttons, titles and sentence starts.
 - Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.

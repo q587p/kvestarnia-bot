@@ -46,6 +46,7 @@ export interface ClaimDailyActionInput {
   hpLoss?: number | HpLossRequest;
   resultJson?: unknown;
   itemGrants?: ItemGrant[];
+  questIskrokaminBonus?: boolean;
   expectedLife?: {
     remortCount: number;
   };

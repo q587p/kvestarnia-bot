@@ -1,5 +1,6 @@
 import { Prisma, type Character, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { buildQuestIskrokaminBonusGrant } from "../../domain/quests/questIskrokaminBonus";
 import type { CharacterRecord } from "./characterRepository";
 import type {
   CharacterCooldownRecord,
@@ -329,7 +330,12 @@ export class PrismaCooldownRepository implements CooldownRepository {
     await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
       remortCount
     });
-    const itemGrants = input.itemGrants ?? [];
+    const itemGrants = withQuestIskrokaminBonus(input.itemGrants ?? [], {
+      enabled: input.questIskrokaminBonus === true,
+      characterId: character.id,
+      characterLevel: character.level,
+      sourceIdentity: `${input.key}:${input.now.toISOString()}:${input.availableAt.toISOString()}`
+    });
 
     const appliedItemGrants = await grantItems(tx, character.id, itemGrants);
     const persistedCooldown = await tx.characterCooldown.update({
@@ -422,6 +428,24 @@ function toCharacterRecord(character: Character & { _count?: { remorts?: number 
     ...record,
     remortCount
   };
+}
+
+function withQuestIskrokaminBonus(
+  itemGrants: ItemGrant[],
+  input: {
+    enabled: boolean;
+    characterId: string;
+    characterLevel: number;
+    sourceIdentity: string;
+  }
+): ItemGrant[] {
+  if (!input.enabled) {
+    return itemGrants;
+  }
+
+  const bonus = buildQuestIskrokaminBonusGrant(input);
+
+  return bonus ? [...itemGrants, bonus] : itemGrants;
 }
 
 async function grantItems(

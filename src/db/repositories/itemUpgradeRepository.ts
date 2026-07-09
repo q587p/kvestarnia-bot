@@ -1,5 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { DailyActionRecord, RewardLevelChange } from "./dailyActionRepository";
+import type { DailyActionRecord, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
 
 export type ItemUpgradeMethod = "npc" | "self";
 
@@ -69,6 +69,7 @@ export type ItemUpgradeUnlockResult =
       state: "unlocked" | "already-unlocked";
       character: CharacterRecord;
       rewardXp: number;
+      itemGrants: ItemGrant[];
       action: DailyActionRecord | null;
       levelChange: RewardLevelChange | null;
     };

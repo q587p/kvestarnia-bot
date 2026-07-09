@@ -194,7 +194,8 @@ export class HuntService {
       localDate: currentLocalPeriodId,
       rewardXp: reward.xp,
       rewardGold: reward.gold,
-      itemGrants: buildHuntItemGrants(contract, action, character.id)
+      itemGrants: buildHuntItemGrants(contract, action, character.id),
+      questIskrokaminBonus: true
     });
 
     if (!claim) {
