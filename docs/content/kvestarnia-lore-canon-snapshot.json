@@ -56,12 +56,6 @@
       "name": "Мольфарська душа",
       "description": "Носить у кишені оберіг, у голові туман, а в кишені ще один оберіг.",
       "status": "active"
-    },
-    {
-      "id": "race.kharakternyk",
-      "name": "Козак-характерник",
-      "description": "Deprecated fallback для старих персонажів. Нові характерники тепер обираються як клас.",
-      "status": "legacy-only"
     }
   ],
   "classes": [
@@ -666,6 +660,6 @@
   ],
   "notes": {
     "monsterCountInSnapshot": 93,
-    "legacyRace": "race.kharakternyk is legacy-only; class.kharakternyk is active."
+    "kharakternyk": "class.kharakternyk is active."
   }
 }

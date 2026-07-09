@@ -37,7 +37,7 @@ Critical properties:
 - class and race cooldowns do not collide;
 - all-enemies abilities hit each living enemy once;
 - ally/group scopes degrade to the acting hero until party runtime exists;
-- deprecated `race.kharakternyk` remains compatibility-only with no race button;
+- Kharakternyk identity remains class-only through `class.kharakternyk`;
 - Telegram copy is compact Ukrainian and does not expose raw recipe keys.
 
 Read first:

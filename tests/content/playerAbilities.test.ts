@@ -39,7 +39,9 @@ describe("player ability catalog", () => {
     }
   });
 
-  it("assigns one race ability to every active race and none to the deprecated fallback race", () => {
+  it("assigns one race ability to every active race and none to the class-only Kharakternyk identity", () => {
+    const oldRaceId = "class.kharakternyk".replace("class.", "race.");
+
     expect(raceAbilities.map((ability) => ability.raceId).sort()).toEqual(
       activeRaces.map((race) => race.id).sort()
     );
@@ -52,10 +54,8 @@ describe("player ability catalog", () => {
       });
     }
 
-    const deprecatedRace = races.find((race) => race.id === "race.kharakternyk");
-
-    expect(deprecatedRace?.availableInOnboarding).toBe(false);
-    expect(findRaceAbility("race.kharakternyk")).toBeNull();
+    expect(races.some((race) => race.id === oldRaceId)).toBe(false);
+    expect(findRaceAbility(oldRaceId)).toBeNull();
   });
 
   it("keeps player ability ids unique across class, fallback and race abilities", () => {

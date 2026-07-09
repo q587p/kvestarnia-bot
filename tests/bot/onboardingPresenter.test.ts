@@ -133,9 +133,11 @@ describe("onboarding presenters and keyboards", () => {
     );
   });
 
-  it("uses new kharakternyk combo titles while keeping the old race inactive", () => {
-    expect(activeRaces.some((race) => race.id === "race.kharakternyk")).toBe(false);
-    expect(races.some((race) => race.id === "race.kharakternyk")).toBe(true);
+  it("uses kharakternyk class combo titles without an identity fallback", () => {
+    const oldRaceId = "class.kharakternyk".replace("class.", "race.");
+
+    expect(activeRaces.some((race) => race.id === oldRaceId)).toBe(false);
+    expect(races.some((race) => race.id === oldRaceId)).toBe(false);
     expect(getComboTitle("race.human-ish", "class.kharakternyk")).toBe("Степовий Пояснювач");
     expect(getComboTitle("race.bisyny", "class.kharakternyk")).toBe(
       "Бісова Оселедцева Теорія"
@@ -143,12 +145,6 @@ describe("onboarding presenters and keyboards", () => {
     expect(getComboTitle("race.drantohor", "class.kharakternyk")).toBe("Межовий Заблуканець");
     expect(getComboTitle("race.drantohor", "class.kharakternyk", "they")).toBe(
       "Межові Заблуканці"
-    );
-    expect(getComboTitle("race.kharakternyk", "class.mage")).toBe(
-      "Пригодник місцевого значення"
-    );
-    expect(getComboTitle("race.kharakternyk", "class.mage", "she")).toBe(
-      "Пригодниця місцевого значення"
     );
   });
 

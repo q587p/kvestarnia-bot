@@ -6,7 +6,7 @@ Mode: READ ONLY report only.
 Scope: changed files only by default. Inspect direct dependencies only if needed.
 Focus:
 - ability catalog coverage for all active classes and active onboarding races;
-- deprecated `race.kharakternyk` no race button behavior;
+- Kharakternyk class-only identity behavior;
 - class/race cooldown independence and legacy `cooldowns.skill` compatibility;
 - no-op behavior for unavailable, cooldowned or insufficient-mana ability attempts;
 - AoE hitting each living enemy once;

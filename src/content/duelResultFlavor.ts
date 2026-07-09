@@ -216,14 +216,6 @@ export const DUEL_RACE_FINISHERS: DuelFlavorRegistry = {
     ({ winnerName, loserName }) =>
       `${winnerName} приносить у двобій чужу карту й місцевий результат. ${loserName} не встигає оформити візу.`
   ],
-  "race.kharakternyk": [
-    ({ winnerName, loserName }) =>
-      `${winnerName} згадує старий характерницький хід. ${loserName} згадує, що старі ходи болять ново.`,
-    ({ winnerName, loserName }) =>
-      `${winnerName} перемагає так, ніби це вже було в курені записано. ${loserName} просить показати сторінку.`,
-    ({ winnerName, loserName }) =>
-      `${winnerName} бере гору на туманному авторитеті. ${loserName} не знаходить, куди подавати заперечення.`
-  ],
   "race.domovyk": [
     ({ winnerName, loserName }) =>
       `${winnerName} виграє з кута, який щойно здавався просто кутом. ${loserName} починає поважати домашній простір.`,
@@ -345,12 +337,6 @@ export const DUEL_LOSER_RACE_FINISHERS: DuelFlavorRegistry = {
       `${winnerName} не губиться в чужій карті. ${loserName} губиться достатньо, щоб не знайти перемогу.`,
     ({ winnerName, loserName }) =>
       `${winnerName} перекриває межову стежку табуретом. ${loserName} визнає, що табурет сьогодні має юрисдикцію.`
-  ],
-  "race.kharakternyk": [
-    ({ winnerName, loserName }) =>
-      `${winnerName} не купується на старий характерницький хід. ${loserName} ображено називає його перевіркою.`,
-    ({ winnerName, loserName }) =>
-      `${winnerName} лишає туман без сцени. ${loserName} приходить ефектно, але трохи не в той фінал.`
   ],
   "race.domovyk": [
     ({ winnerName, loserName }) =>

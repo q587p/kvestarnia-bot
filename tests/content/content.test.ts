@@ -387,11 +387,14 @@ describe("content tables", () => {
     }
   });
 
-  it("keeps legacy kharakternyk race out of active onboarding races", () => {
+  it("keeps Kharakternyk as a class-only identity", () => {
+    const oldRaceId = "class.kharakternyk".replace("class.", "race.");
+
     expect(activeRaces.map((race) => race.id)).toEqual(
       expect.arrayContaining(["race.bisyny", "race.drantohor"])
     );
-    expect(activeRaces.some((race) => race.id === "race.kharakternyk")).toBe(false);
+    expect(races.some((race) => race.id === oldRaceId)).toBe(false);
+    expect(activeRaces.some((race) => race.id === oldRaceId)).toBe(false);
     expect(classes.some((characterClass) => characterClass.id === "class.kharakternyk")).toBe(
       true
     );

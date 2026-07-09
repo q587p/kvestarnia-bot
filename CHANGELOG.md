@@ -945,7 +945,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Passive HP/mana sync now preserves effective resource maxima from remorts and equipped manatky instead of clamping healed/rested characters back to the stored base maxima.
 
 ### Unchanged
-- Deprecated hidden `race.kharakternyk` intentionally has no race ability button; old characters rely on the active `class.kharakternyk` class ability.
+- Kharakternyk identity is class-only through `class.kharakternyk`, with no separate identity ability button.
 - No party/raid runtime, quick-duel formula rewrite, wagers, ratings, tournaments, new monsters, loot/economy/Yeger changes, item expansion, Prisma migration or remort redesign ships in this slice.
 - Critical fumble tracking is scoped to the stored active combat/turn-based-duel JSON in this PR; a durable per-character/per-ability lifetime counter remains a possible future hardening if the mechanic needs to span separate sessions.
 - Doppels keep their existing copied skill AI; their frozen identity/debug state now records the copied class/race ability ids, but they do not use a new race-ability AI policy yet.
@@ -2323,7 +2323,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Characters now persist a hidden `path` metadata field derived from the visible pronoun choice.
 - New characters receive `sun`, `moon`, or `boundary` internally, and the migration backfills existing local rows.
 - Added the active `Бісини` and `Дрантогор` races.
-- Added the `Характерник` class while keeping the old `race.kharakternyk` only as a compatibility fallback.
+- Added the `Характерник` class and moved the character concept fully into class identity.
 - Added a broader set of authored race/class combo titles for character creation summaries.
 - Tests cover hidden path helpers, onboarding validation, Prisma schema shape, active race content, combo titles, and presenter visibility.
 

@@ -26,7 +26,7 @@ Hard scope:
 - focused tests for placement, support, roster freeze, trigger, replay safety and presentation.
 
 Do not:
-- start from deprecated race.kharakternyk;
+- add a parallel Kharakternyk identity outside the existing class;
 - add new classes, races, locations, shops, crafting, loot, XP/gold rewards, item transfers, public feed rows or permanent buffs;
 - implement a universal noncombat engine;
 - parse Ukrainian combat log strings to detect boss specials;
