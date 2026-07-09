@@ -21,6 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Changed
 - Adventure Choice method-help cards now keep risky/generous/deception/injury/fight/local-failure methods from looking as reliable as paid or modest methods.
 - Standard investigate/negotiate methods are treated as steady rather than safe; paid or modest methods remain the calmer lower-reward band.
+- Daily Korchma Round omitted-scene copy now writes `не сьогоднішня катастрофа` with lowercase `не` in runtime cards.
 - Daily Korchma Round mechanics, rewards, persistence, offer count and completion rules are unchanged.
 - Cellar mouse cooldowns, replay behavior, active-combat/pending-raid guards, transaction safety and item/reward semantics are unchanged.
 - Existing local-failure Adventure results still pay `0 XP`, `0 gold`, no items and no fight; fight-handoff results still defer rewards to the existing combat path.

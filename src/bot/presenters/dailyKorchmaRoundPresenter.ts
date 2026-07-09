@@ -86,7 +86,7 @@ export function presentDailyKorchmaRound(result: DailyKorchmaRoundOverviewResult
       const done = result.offer.completedSceneIds.includes(scene.id);
       const omitted = result.offer.omittedSceneId === scene.id;
       const mark = done ? "✅" : omitted ? "—" : "○";
-      const suffix = omitted ? " — Не сьогоднішня катастрофа" : "";
+      const suffix = omitted ? " — не сьогоднішня катастрофа" : "";
 
       return `${mark} ${scene.icon} <b>${escapeHtml(getLocationName(scene.locationId))}</b>: ${escapeHtml(scene.title)}${suffix}`;
     }),
@@ -110,7 +110,7 @@ export function presentDailyKorchmaRoundScene(
   const canChooseAction = !result.locked && !result.alreadyCompleted;
 
   const suffix = result.locked
-    ? "\n\nЦе вже Не сьогоднішня катастрофа. Дощечка не дає мутувати третій пункт."
+    ? "\n\nЦе вже не сьогоднішня катастрофа. Дощечка не дає мутувати третій пункт."
     : result.alreadyCompleted
       ? "\n\nЦей пункт уже має підпис. Можна лише перечитати й підозріло кивнути."
       : "";
@@ -160,7 +160,7 @@ export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult
       escapeHtml(result.action.outcome),
       "",
       result.completedCount >= 2
-        ? "2/2. Дві катастрофи отримали підписи; третя стала «Не сьогоднішня катастрофа»."
+        ? "2/2. Дві катастрофи отримали підписи; третя стала «не сьогоднішня катастрофа»."
         : "1/2. Дощечка вдає, що це плановий порядок."
     ].join("\n");
   }
@@ -176,7 +176,7 @@ export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult
 
   if (result.state === "third-locked") {
     return [
-      "🧾 Не сьогоднішня катастрофа",
+      "🧾 не сьогоднішня катастрофа",
       "",
       `${result.scene.icon} ${escapeHtml(result.scene.title)} вже не мутує: два підписи зібрано, дощечка закрилась.`
     ].join("\n");
