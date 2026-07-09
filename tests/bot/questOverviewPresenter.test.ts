@@ -107,6 +107,34 @@ describe("quest overview presenter", () => {
     expect(rows[0]?.body).toContain("<i>Де:</i> льох корчми.");
   });
 
+  it("shows repeat cellar follow-up copy after the mouse errand was already completed once", () => {
+    const rows = buildQuestOverviewRows(makeSnapshot({
+      firstKorchmaQuest: {
+        state: "completed",
+        character,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: true,
+          currentLocationId: "location.korchma.quest-table"
+        },
+        reward: { xp: 1, gold: 0 }
+      },
+      starterAdventure: { state: "already-completed", character, fightAvailable: false },
+      starterFight: { state: "already-completed", character },
+      cellar: { state: "ready", character, completed: true },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+
+    expect(rows[0]).toMatchObject({
+      id: "cellar",
+      priority: "active",
+      title: "🐭 <b>Льохова справа</b> — не перший спуск"
+    });
+    expect(rows[0]?.body).toContain(
+      "<i>Далі:</i> ще раз спустіться в льох і спробуйте ще раз владнати мишачу дрібницю."
+    );
+  });
+
   it("keeps only claimable and active rows, ordered by current work", () => {
     const rows = buildQuestOverviewRows(makeSnapshot({
       dailyKorchmaRound: {

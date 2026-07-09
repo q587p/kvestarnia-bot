@@ -61,7 +61,7 @@ export type CellarErrandLookupResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
   | { state: "level-retired"; character: CharacterSummary; maxLevel: number; completed: boolean }
-  | { state: "ready"; character: CharacterSummary }
+  | { state: "ready"; character: CharacterSummary; completed?: boolean }
   | { state: "on-cooldown"; character: CharacterSummary; availableAt: Date; now: Date };
 
 export type CellarErrandResult =
@@ -164,7 +164,8 @@ export class CellarErrandService {
 
     return {
       state: "ready",
-      character
+      character,
+      completed: current.cooldown !== null
     };
   }
 

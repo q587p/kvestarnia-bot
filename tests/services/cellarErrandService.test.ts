@@ -166,6 +166,10 @@ describe("CellarErrandService", () => {
 
     const first = await service.complete(telegramUserId, "sweep-bravely");
     now = new Date(startedAt.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS + 1);
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready",
+      completed: true
+    });
     const second = await service.complete(telegramUserId, "cheese-trap");
 
     expect(second.state).toBe("completed");

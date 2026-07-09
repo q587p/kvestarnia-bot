@@ -493,13 +493,16 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
       snapshot.starterFight?.state === "already-completed";
 
     if (starterPathCompleted) {
+      const repeatedCellarRun = Boolean(cellar.completed);
       return {
         id: "cellar",
         priority: "active",
-        title: "🐭 <b>Льохова справа</b> — перший спуск",
+        title: `🐭 <b>Льохова справа</b> — ${repeatedCellarRun ? "не перший спуск" : "перший спуск"}`,
         body: [
           "<i>Зроблено:</i> підозріла шаурма дала свідчення, а новачкова сутичка вже записана в журнал.",
-          "<i>Далі:</i> спустіться в льох і спробуйте владнати мишачу дрібницю.",
+          repeatedCellarRun
+            ? "<i>Далі:</i> ще раз спустіться в льох і спробуйте ще раз владнати мишачу дрібницю."
+            : "<i>Далі:</i> спустіться в льох і спробуйте владнати мишачу дрібницю.",
           "<i>Де:</i> льох корчми."
         ].join("\n")
       };
