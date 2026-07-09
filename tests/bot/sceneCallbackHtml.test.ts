@@ -54,7 +54,8 @@ import {
   makeShynokDoppelgangerModeCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
-  makeShynokRoundConfirmCallbackData
+  makeShynokRoundConfirmCallbackData,
+  makeShynokRoundOfferOpenCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
@@ -3671,6 +3672,41 @@ describe("scene callback HTML options", () => {
     expect(String(recipientMessage?.payload.text)).toContain("<b>Мандрівник</b> ставить вам <b>Просте пиво</b>");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:ra:round-offer-93");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:rd:round-offer-93");
+  });
+
+  it("reopens a live Shynok beer offer from the bar shortcut", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundOfferOpenCallbackData("12345678-1234-4234-9234-000000000093"),
+      servicesWith({
+        shynok: {
+          getOpenRoundOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              buyerName: "Shannar de Kassal",
+              offer: {
+                id: "12345678-1234-4234-9234-000000000093",
+                expiresAt: new Date("2026-06-24T11:05:00.000Z"),
+                drink: {
+                  key: "drink.simple-beer",
+                  name: "Просте пиво",
+                  emoji: "🍺",
+                  priceGold: 13,
+                  durationMinutes: 23,
+                  recoveryMultiplierBp: 12300,
+                  accuracyPenaltyPp: 5
+                }
+              }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("<b>Shannar de Kassal</b> ставить вам <b>Просте пиво</b>.");
+    expect(String(edit?.payload.text)).toContain("Можна випити зараз або чемно відмовитися");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:ra:12345678-1234-4234-9234-000000000093");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rd:12345678-1234-4234-9234-000000000093");
   });
 
   it("does not notify round recipients again on replayed Shynok round confirm", async () => {

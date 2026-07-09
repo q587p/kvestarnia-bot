@@ -17,6 +17,7 @@ import {
   makeShynokBardPerformanceStartCallbackData,
   makeShynokDrinksCallbackData,
   makeShynokGamesCallbackData,
+  makeShynokRoundOfferOpenCallbackData,
   makeShynokRoundPreviewCallbackData,
   makeShynokSaleOpenCallbackData
 } from "../callbacks/shynokCallbackData";
@@ -32,6 +33,7 @@ import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
 import type { DuelTournamentPeriod } from "../../domain/duels/duelTournament";
 import type { DuelTournamentClaimState, DuelTournamentPendingReward } from "../../services/duelTournamentService";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
+import type { PresentedRoundOffer } from "../../services/shynokService";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import {
   decorateButtonLabel,
@@ -332,12 +334,24 @@ export function buildKorchmaBarKeyboard(
     bardPerformance?: boolean;
     tavernGames?: boolean;
     tavernGameTableCount?: number;
+    openRoundOffers?: readonly PresentedRoundOffer[];
     questMarkers?: QuestMarkerInput | null;
   } = {}
 ): InlineKeyboard {
-  const keyboard = new InlineKeyboard()
-    .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
-    .row()
+  const keyboard = new InlineKeyboard();
+  const openRoundOffers = options.openRoundOffers ?? [];
+
+  keyboard.text("🍹 Напої для себе", makeShynokDrinksCallbackData());
+  if (openRoundOffers[0]) {
+    keyboard.text("🍺 Вам пиво!", makeShynokRoundOfferOpenCallbackData(openRoundOffers[0].id));
+  }
+  keyboard.row();
+
+  for (const [index, offer] of openRoundOffers.slice(1).entries()) {
+    keyboard.text(`🍺 Вам пиво! ${index + 2}`, makeShynokRoundOfferOpenCallbackData(offer.id)).row();
+  }
+
+  keyboard
     .text("🍺 Просте всім", makeShynokRoundPreviewCallbackData("simple"))
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()

@@ -12,6 +12,7 @@ import type {
   ShynokDrinkStateRecord,
   ShynokInventorySnapshot,
   ShynokMantokSaleRecord,
+  ShynokOpenRoundOfferRecord,
   ShynokRepository,
   ShynokRespondRoundOfferResult,
   ShynokRoundRecipientRecord,
@@ -662,6 +663,41 @@ export class PrismaShynokRepository implements ShynokRepository {
     });
 
     return rows.map(mapRoundRecipient).filter((row): row is ShynokRoundRecipientRecord => Boolean(row));
+  }
+
+  async findOpenRoundOfferForTelegramUser(
+    telegramUserId: bigint,
+    offerId: string,
+    now: Date
+  ): Promise<ShynokOpenRoundOfferRecord | null> {
+    const row = await this.prisma.korchmaRoundRecipient.findFirst({
+      where: {
+        id: offerId,
+        status: "offered",
+        expiresAt: { gt: now },
+        character: { user: { telegramUserId } }
+      },
+      include: {
+        purchase: {
+          select: {
+            character: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+    const offer = mapRoundRecipient(row);
+    if (!row || !offer) {
+      return null;
+    }
+
+    return {
+      buyerName: row.purchase.character.name,
+      offer
+    };
   }
 
   async listRoundRecipientsForTelegramUser(

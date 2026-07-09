@@ -84,6 +84,11 @@ export interface ShynokRoundRecipientNotice {
   offer: ShynokRoundRecipientRecord;
 }
 
+export interface ShynokOpenRoundOfferRecord {
+  buyerName: string;
+  offer: ShynokRoundRecipientRecord;
+}
+
 export type ShynokConfirmDrinkResult =
   | { state: "no-character" }
   | { state: "invalid-token" }
@@ -202,6 +207,11 @@ export interface ShynokRepository {
     telegramUserId: bigint,
     now: Date
   ): Promise<ShynokRoundRecipientRecord[]>;
+  findOpenRoundOfferForTelegramUser(
+    telegramUserId: bigint,
+    offerId: string,
+    now: Date
+  ): Promise<ShynokOpenRoundOfferRecord | null>;
   listRoundRecipientsForTelegramUser(telegramUserId: bigint, now: Date): Promise<ShynokRoundRecipientSnapshot[]>;
   createSaleForTelegramUser(
     telegramUserId: bigint,

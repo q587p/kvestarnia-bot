@@ -567,7 +567,8 @@ async function handleQuestCallback(
         "edit",
         services.cellarGrownup,
         services.fight,
-        services.tavernGames
+        services.tavernGames,
+        { shynokService: services.shynok }
       );
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;

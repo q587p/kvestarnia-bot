@@ -571,6 +571,7 @@ async function sendCurrentPresenceLocation(
       services.fight,
       services.tavernGames,
       {
+        shynokService: services.shynok,
         ...(questMarkers ? { questMarkers } : {})
       }
     );

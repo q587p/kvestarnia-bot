@@ -142,6 +142,7 @@ presentShynokDrinkPreview,
 presentShynokGate,
 presentShynokOverview,
 presentShynokRoundConfirm,
+presentShynokRoundOfferOpen,
 presentShynokRoundOfferNotification,
 presentShynokRoundOfferResponse,
 presentShynokRoundPreview,
@@ -809,6 +810,18 @@ async function handleShynokCallback(
     return;
   }
 
+  if (action.type === "round-offer-open") {
+    const result = await services.shynok.getOpenRoundOfferForTelegramUser(telegramUserId, action.offerId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentShynokRoundOfferOpen(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "ready"
+        ? buildShynokRoundOfferNotificationKeyboard(result.offer.id)
+        : buildBackToShynokKeyboard(shynokNavigationOptions)
+    });
+    return;
+  }
+
   if (
     action.type === "round-accept" ||
     action.type === "round-decline" ||
@@ -1278,6 +1291,7 @@ async function handlePlaceCallback(
       services.fight,
       services.tavernGames,
       {
+        shynokService: services.shynok,
         ...(questMarkers ? { questMarkers } : {})
       }
     );

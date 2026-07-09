@@ -587,6 +587,28 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:so",
       "v1:place:hall"
     ]);
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
+      openRoundOffers: [{
+        id: "12345678-1234-4234-9234-000000000093",
+        expiresAt: new Date("2026-06-23T10:05:00.000Z"),
+        drink: {
+          key: "drink.simple-beer",
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          recoveryMultiplierBp: 12300,
+          accuracyPenaltyPp: 5
+        }
+      }]
+    }))).toEqual([
+      "🍹 Напої для себе",
+      "🍺 Вам пиво!",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
+      "⬅️ До зали"
+    ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("🎲 Ігри за столом");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
       tavernGames: true,

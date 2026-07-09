@@ -14,6 +14,18 @@ import { buildTavernGameActionKeyboard } from "../../src/bot/tavernGameNotificat
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
+  it("opens live beer offers next to self drinks instead of accepting from the overview", () => {
+    const keyboard = buildShynokOverviewKeyboard({
+      ...shynokOverviewResult(),
+      openRoundOffers: [roundOffer("12345678-1234-4234-9234-000000000093")]
+    });
+
+    expect(inlineButtonRows(keyboard)[0]).toEqual(["🍹 Напої для себе", "🍺 Вам пиво!"]);
+    expect(flatInlineButtonCallbacks(keyboard)).toContain("v1:sh:ro:12345678-1234-4234-9234-000000000093");
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain("v1:sh:ra:12345678-1234-4234-9234-000000000093");
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain("v1:sh:rd:12345678-1234-4234-9234-000000000093");
+  });
+
   it("does not mark the hall return when only Shynok itself has a quest marker", () => {
     const keyboard = buildShynokOverviewKeyboard(shynokOverviewResult(), {
       questMarkers: {
@@ -543,6 +555,22 @@ function shynokOverviewResult() {
     state: "ready" as const,
     character: shynokCharacter(),
     openRoundOffers: []
+  };
+}
+
+function roundOffer(id: string) {
+  return {
+    id,
+    expiresAt: new Date("2026-06-23T10:05:00.000Z"),
+    drink: {
+      key: "drink.simple-beer" as const,
+      name: "Просте пиво",
+      emoji: "🍺",
+      priceGold: 13,
+      durationMinutes: 23,
+      recoveryMultiplierBp: 12300,
+      accuracyPenaltyPp: 5
+    }
   };
 }
 
