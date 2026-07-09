@@ -26,7 +26,7 @@ describe("quest overview presenter", () => {
       priority: "active",
       title: "📋 <b>Перший крок до столу</b> — 0/2"
     });
-    expect(rows[0]?.body).toContain("Далі: зайдіть у Корчму.");
+    expect(rows[0]?.body).toContain("<i>Далі:</i> зайдіть у Корчму.");
 
     const insideRows = buildQuestOverviewRows(makeSnapshot({
       firstKorchmaQuest: {
@@ -42,7 +42,7 @@ describe("quest overview presenter", () => {
     }));
 
     expect(insideRows[0]?.title).toBe("📋 <b>Перший крок до столу</b> — 1/2");
-    expect(insideRows[0]?.body).toContain("Далі: дійдіть до Столу зі справами.");
+    expect(insideRows[0]?.body).toContain("<i>Далі:</i> дійдіть до Столу зі справами.");
   });
 
   it("shows starter quests after the first Korchma route is completed", () => {
@@ -67,16 +67,16 @@ describe("quest overview presenter", () => {
       priority: "active",
       title: "🌯 <b>Підозріла шаурма</b> — новачкова підозра"
     });
-    expect(rows[0]?.body).toContain("Зроблено: перший шлях до столу пройдено");
-    expect(rows[0]?.body).toContain("Далі: відкрийте підозрілу шаурму");
-    expect(rows[0]?.body).toContain("Де: стіл зі справами.");
+    expect(rows[0]?.body).toContain("<i>Зроблено:</i> перший шлях до столу пройдено");
+    expect(rows[0]?.body).toContain("<i>Далі:</i> відкрийте підозрілу шаурму");
+    expect(rows[0]?.body).toContain("<i>Де:</i> стіл зі справами.");
     expect(rows[1]).toMatchObject({
       priority: "active",
       title: "⚔️ <b>Новачкова сутичка</b> — чекає свідчень"
     });
-    expect(rows[1]?.body).toContain("Зроблено: шаурма ще не дала свідчень");
-    expect(rows[1]?.body).toContain("Далі: спершу розберіться з підозрілою шаурмою");
-    expect(rows[1]?.body).toContain("Де: стіл зі справами.");
+    expect(rows[1]?.body).toContain("<i>Зроблено:</i> шаурма ще не дала свідчень");
+    expect(rows[1]?.body).toContain("<i>Далі:</i> спершу розберіться з підозрілою шаурмою");
+    expect(rows[1]?.body).toContain("<i>Де:</i> стіл зі справами.");
   });
 
   it("shows the cellar starter follow-up after the shawarma and starter fight are completed", () => {
@@ -102,9 +102,9 @@ describe("quest overview presenter", () => {
       priority: "active",
       title: "🐭 <b>Льохова справа</b> — перший спуск"
     });
-    expect(rows[0]?.body).toContain("Зроблено: підозріла шаурма дала свідчення");
-    expect(rows[0]?.body).toContain("Далі: спустіться в льох");
-    expect(rows[0]?.body).toContain("Де: льох корчми.");
+    expect(rows[0]?.body).toContain("<i>Зроблено:</i> підозріла шаурма дала свідчення");
+    expect(rows[0]?.body).toContain("<i>Далі:</i> спустіться в льох");
+    expect(rows[0]?.body).toContain("<i>Де:</i> льох корчми.");
   });
 
   it("keeps only claimable and active rows, ordered by current work", () => {
@@ -216,9 +216,9 @@ describe("quest overview presenter", () => {
     }));
 
     expect(text).toContain("🧾 <b>Корчмарський обхід</b> — 1/2");
-    expect(text).toContain("Зроблено: Вивіска сперечається з цвяхом.");
-    expect(text).toContain("Далі: владнайте ще 1 дрібницю.");
-    expect(text).toContain("Де: шукайте сьогоднішні сцени у відповідних місцинах корчми.");
+    expect(text).toContain("<i>Зроблено:</i> Вивіска сперечається з цвяхом.");
+    expect(text).toContain("<i>Далі:</i> владнайте ще 1 дрібницю.");
+    expect(text).toContain("<i>Де:</i> шукайте сьогоднішні сцени у відповідних місцинах корчми.");
     expect(text).toContain("Здати — за столом зі справами.");
   });
 
@@ -238,7 +238,7 @@ describe("quest overview presenter", () => {
       priority: "claimable"
     });
     expect(rows[0]?.title).toContain("2/2");
-    expect(rows[0]?.body).toContain("Далі: здайте обхід");
+    expect(rows[0]?.body).toContain("<i>Далі:</i> здайте обхід");
   });
 
   it("shows active and claimable problem quests, then hides reward-claimed problem quests", () => {
@@ -253,7 +253,7 @@ describe("quest overview presenter", () => {
     }));
 
     expect(activeRows.map((row) => row.id)).toContain("problem-quest");
-    expect(activeRows.find((row) => row.id === "problem-quest")?.body).toContain("Далі: ще 6 проблем у Низу.");
+    expect(activeRows.find((row) => row.id === "problem-quest")?.body).toContain("<i>Далі:</i> ще 6 проблем у Низу.");
     expect(claimableRows.find((row) => row.id === "problem-quest")?.priority).toBe("claimable");
     expect(completedRows.map((row) => row.id)).not.toContain("problem-quest");
   });
@@ -284,7 +284,7 @@ describe("quest overview presenter", () => {
       }
     }));
 
-    expect(activeRows.find((row) => row.id === "yeger")?.body).toContain("Далі: ще 10 відповідних монстрів.");
+    expect(activeRows.find((row) => row.id === "yeger")?.body).toContain("<i>Далі:</i> ще 10 відповідних монстрів.");
     expect(claimableRows.find((row) => row.id === "yeger")?.priority).toBe("claimable");
     expect(offeredRows.map((row) => row.id)).not.toContain("yeger");
   });
@@ -327,9 +327,9 @@ describe("quest overview presenter", () => {
     }));
 
     expect(text).toContain("🧾 <b>Тринадцять дрібних проблем</b> — 7/13");
-    expect(text).toContain("Де: Спуск до Низу. Здати — Корчмарю в шинку.");
+    expect(text).toContain("<i>Де:</i> Спуск до Низу. Здати — Корчмарю в шинку.");
     expect(text).toContain("🏹 <b>Неспокійні справи 2.0</b> — 7/17");
-    expect(text).toContain("Де: єгерський куток показує умови, але полювання лишається через звичайні маршрути.");
+    expect(text).toContain("<i>Де:</i> єгерський куток показує умови, але полювання лишається через звичайні маршрути.");
     expect(text).not.toContain("До обходу");
     expect(text).not.toContain("До Трьох справ");
     expect(text).not.toContain("До Корчмаря");

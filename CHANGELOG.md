@@ -25,6 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `📋 До Столу зі справами` now routes through the normal place movement callback, so reaching the table can complete the first route quest while leaving the overview itself non-mutating.
 - The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
 - `Підозріла шаурма` now shows 4 character-varied method buttons on the start/help cards instead of filling the screen with all 7 possible starter methods.
+- Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
