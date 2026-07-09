@@ -12,6 +12,8 @@ They do not introduce a new combat engine. Tournament standings read resolved du
 
 Cards show the active period, current standings, the player's points/rank, time remaining, previous winners and pending Korchma prize chests.
 
+Tournament cards include `❔ Правила`, which opens a compact player-facing explanation of what counts, repeated-opponent scoring, top-three prizes and when/how Korchma prize chests become claimable.
+
 Unclaimed reward lookback is bounded:
 
 - Daily: 13 closed daily periods.

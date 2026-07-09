@@ -13,6 +13,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 - Service coverage confirms invalid or stale period keys fail closed without payment.
 - Presenter coverage confirms tournament cards omit public loss counts.
 - Presenter and keyboard coverage confirms pending prize chests render with Holocene period labels and separate claim buttons.
+- Callback, keyboard and presenter coverage confirms `❔ Правила` opens a compact scoring/prize/claim-timing rules card and returns to the current tournament period.
 - Presenter coverage confirms visible daily, weekly and monthly tournament period keys use Holocene display dates.
 - Duel presenter and command coverage confirms combat-style active turn-based cards, stored journal pages and targeted rematch invite delivery.
 - Latest Events coverage confirms completed quick/turn-based duels render under combat recognition and successful tournament claims are important rows.
@@ -25,8 +26,9 @@ Manual Telegram QA status for the implementation pass: not run in Telegram; auto
 2. Use two or more test accounts with level 3+ characters.
 3. Open Korchma -> `🥊 Бійцівський куток` -> `🏆 Турніри`.
 4. Verify daily, weekly and monthly tabs render compact cards.
-4a. Verify visible period labels use Holocene years, for example `12026-07`, not `2026-07`.
-4b. If rewards are waiting, verify `🥊 Бійцівський куток` marks `🏆 Турніри` with the pending count and the tournament card shows a `🎁 На вас чекають нагороди` block.
+4a. Open `❔ Правила` and verify it explains scoring, repeated-opponent limits, prize tables and when/how prize chests are claimed.
+4b. Verify visible period labels use Holocene years, for example `12026-07`, not `2026-07`.
+4c. If rewards are waiting, verify `🥊 Бійцівський куток` marks `🏆 Турніри` with the pending count and the tournament card shows a `🎁 На вас чекають нагороди` block.
 5. Complete a turn-based duel and verify the active daily standings update.
 5a. During the duel, verify the active card uses compact HP names, natural action lines and the 23-second turn hint.
 6. Complete repeated wins against the same opponent and verify points stop growing after the bounded contribution.

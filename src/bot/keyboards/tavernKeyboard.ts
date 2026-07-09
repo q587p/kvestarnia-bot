@@ -24,7 +24,8 @@ import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../callbacks/duelCallbackData";
 import {
   makeDuelTournamentClaimCallbackData,
-  makeDuelTournamentOpenCallbackData
+  makeDuelTournamentOpenCallbackData,
+  makeDuelTournamentRulesCallbackData
 } from "../callbacks/duelTournamentCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
@@ -271,7 +272,17 @@ export function buildDuelTournamentKeyboard(input: {
     ).row();
   }
 
-  return keyboard.text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
+  return keyboard
+    .text("❔ Правила", makeDuelTournamentRulesCallbackData(input.period))
+    .row()
+    .text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+export function buildDuelTournamentRulesKeyboard(period: DuelTournamentPeriod): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("↩️ До турніру", makeDuelTournamentOpenCallbackData(period))
+    .row()
+    .text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
 }
 
 function periodButtonLabel(period: DuelTournamentPeriod, current: DuelTournamentPeriod): string {

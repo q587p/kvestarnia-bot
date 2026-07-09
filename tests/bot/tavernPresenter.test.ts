@@ -5,6 +5,7 @@ import {
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
   presentDuelTournamentBoard,
+  presentDuelTournamentRules,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
   presentKorchmaDeepLevelLocked,
@@ -427,6 +428,22 @@ describe("tavern presenter", () => {
     expect(monthText).toContain("Період: 12026-07");
     expect(monthText).toContain("<b>Попередній місячний турнір</b> (12026-06)");
     expect(`${weekText}\n${monthText}`).not.toContain("Період: 2026-");
+  });
+
+  it("explains duel tournament scoring, prizes and claim timing", () => {
+    const text = presentDuelTournamentRules();
+
+    expect(text).toContain("❔ <b>Правила турнірів</b>");
+    expect(text).toContain("Рахуються тільки завершені <b>покрокові дуелі</b>.");
+    expect(text).toContain("перша перемога — <b>3 оч.</b>");
+    expect(text).toContain("друга перемога — <b>1 оч.</b>");
+    expect(text).toContain("третя й далі — <b>0 оч.</b>");
+    expect(text).toContain("перша нічия — <b>1 оч.</b>");
+    expect(text).toContain("день: 42/23/13 зол. + 5/3/1 «Бинт відповідальної паніки»");
+    expect(text).toContain("тиждень: 93/42/23 зол. + 5/3/1 «Щільний бинт»");
+    expect(text).toContain("місяць: 587/93/42 зол. + 3/2/1 «Польова аптечка»");
+    expect(text).toContain("Періоди закриваються за київським часом.");
+    expect(text).toContain("Повторні натискання показують той самий запис і не множать призи.");
   });
 
   it("shows a repeated duel winner cosmetic title only once per board card", () => {

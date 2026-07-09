@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added replay-safe tournament prize-chest claims with stored reward snapshots and unique character/period/period-key claims.
 - Added bounded unclaimed prize-chest lookback from the tournament screen: 13 closed daily periods, 8 closed weekly periods and 5 closed monthly periods.
 - Added Korchma-funded top-three reward tables for daily, weekly and monthly tournaments, granting bounded gold plus daily `Бинт відповідальної паніки`, weekly `Щільний бинт` and monthly `Польова аптечка` rewards.
+- Added a `❔ Правила` tournament help card that explains scoring, repeated-opponent downweighting, top-three prize tables, and when prize chests become claimable.
 - Added `📜 Хроніки Квестарні` combat rows for completed quick and turn-based duels, emitted once per resolved duel without publishing a loss/shame row.
 - Added `📜 Хроніки Квестарні` important rows for successful tournament reward claims, emitted once per claim and never for tournament losses.
 - Added focused tournament domain, service, callback, presenter and schema coverage for standings, rewards, duplicate callbacks, claim replay, anti-boost scoring, period rollover, duel combat-feed rows and Latest Events integration.

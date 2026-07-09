@@ -8,6 +8,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type DuelTournamentCallback =
   | { action: "open"; period: DuelTournamentPeriod }
+  | { action: "rules"; period: DuelTournamentPeriod }
   | { action: "claim"; period: DuelTournamentPeriod; periodKey: string };
 
 export type DuelTournamentCallbackError =
@@ -28,6 +29,10 @@ const codePeriods = new Map(Object.entries(periodCodes).map(([period, code]) => 
 
 export function makeDuelTournamentOpenCallbackData(period: DuelTournamentPeriod = "day"): string {
   return `${PREFIX}:o:${periodCodes[period]}`;
+}
+
+export function makeDuelTournamentRulesCallbackData(period: DuelTournamentPeriod = "day"): string {
+  return `${PREFIX}:r:${periodCodes[period]}`;
 }
 
 export function makeDuelTournamentClaimCallbackData(
@@ -64,6 +69,10 @@ export function parseDuelTournamentCallbackData(
 
   if (action === "o" && !periodKey && rest.length === 0) {
     return ok({ action: "open", period });
+  }
+
+  if (action === "r" && !periodKey && rest.length === 0) {
+    return ok({ action: "rules", period });
   }
 
   if (action === "c" && periodKey && rest.length === 0 && isValidPeriodKey(period, periodKey)) {

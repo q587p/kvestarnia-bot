@@ -564,6 +564,7 @@ describe("main menu and scene keyboards", () => {
       "Місяць",
       "🎁 Забрати скриньку",
       "🎁 Тиждень 12026-W27",
+      "❔ Правила",
       "↩️ До Бійцівського кутка"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({

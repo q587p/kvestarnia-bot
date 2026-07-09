@@ -99,6 +99,7 @@ import {
 buildBackToKorchmaHallKeyboard,
 buildBackToTavernRaidKeyboard,
 buildDuelTournamentKeyboard,
+buildDuelTournamentRulesKeyboard,
 buildKorchmaBarKeyboard,
 buildKorchmaRoundOfferKeyboard,
 buildKorchmaRoundResultKeyboard,
@@ -163,6 +164,7 @@ getNextTavernGameInviteTemplateIndex
 import {
 presentKorchmaDeepLevelLocked,
 presentDuelTournamentBoard,
+presentDuelTournamentRules,
 presentTavernNoCharacter,
 presentTavernRaidResult,
 presentTavernRoundLeaderboard,
@@ -284,6 +286,15 @@ async function handleDuelTournamentCallback(
       action.period,
       "edit"
     );
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+    return;
+  }
+
+  if (action.action === "rules") {
+    await safeEditMessageText(ctx, presentDuelTournamentRules(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDuelTournamentRulesKeyboard(action.period)
+    });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }

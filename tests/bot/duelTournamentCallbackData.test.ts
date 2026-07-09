@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeDuelTournamentClaimCallbackData,
   makeDuelTournamentOpenCallbackData,
+  makeDuelTournamentRulesCallbackData,
   parseDuelTournamentCallbackData
 } from "../../src/bot/callbacks/duelTournamentCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -15,6 +16,10 @@ describe("duel tournament callback data", () => {
     expect(parseDuelTournamentCallbackData(makeDuelTournamentOpenCallbackData("week"))).toEqual({
       ok: true,
       value: { action: "open", period: "week" }
+    });
+    expect(parseDuelTournamentCallbackData(makeDuelTournamentRulesCallbackData("week"))).toEqual({
+      ok: true,
+      value: { action: "rules", period: "week" }
     });
     expect(parseDuelTournamentCallbackData(makeDuelTournamentClaimCallbackData("month", "2026-07"))).toEqual({
       ok: true,
