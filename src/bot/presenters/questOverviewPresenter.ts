@@ -51,7 +51,7 @@ export function presentQuestOverview(snapshot: QuestHubSnapshot): string {
   return [
     "🗺️ <b>Квести</b>",
     "",
-    "Стіл зі справами, Єгерський куток і кілька дрібних катастроф дивляться на вас по черзі.",
+    "Стіл зі справами, єгерський куток і кілька дрібних катастроф дивляться на вас по черзі.",
     "",
     ...body,
     "",
@@ -600,7 +600,7 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
       body: [
         "Статус: сліди вже є, але Єгер поки не дає їм юридичного статусу.",
         `Далі: доростіть до ${yeger.requiredLevel} рівня.`,
-        "Де: Єгерський куток чекатиме біля Бочки."
+        "Де: єгерський куток чекатиме біля Бочки."
       ].join("\n")
     };
   }
@@ -613,7 +613,7 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
       body: [
         "Статус: Єгер має роботу для тих, хто не плутає слід із мотузкою.",
         "Далі: візьміть дошку й умови полювання.",
-        "Де: Єгерський куток показує умови, але саме полювання лишається через звичайні маршрути."
+        "Де: єгерський куток показує умови, але саме полювання лишається через звичайні маршрути."
       ].join("\n")
     };
   }
@@ -627,12 +627,12 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
         ? [
             `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
             "Далі: здайте дощечку, поки вона не почала перебільшувати.",
-            "Де: Єгерський куток біля Бочки."
+            "Де: єгерський куток біля Бочки."
           ].join("\n")
         : [
             `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
             `Далі: ще ${yeger.progress.target - yeger.progress.wins} відповідних ${pluralize(yeger.progress.target - yeger.progress.wins, "монстр", "монстри", "монстрів")}.`,
-            "Де: Єгерський куток показує умови, але полювання лишається через звичайні маршрути."
+            "Де: єгерський куток показує умови, але полювання лишається через звичайні маршрути."
           ].join("\n")
     };
   }
@@ -644,7 +644,7 @@ function getYegerOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nul
     body: [
       `Зроблено: ${yeger.progress.wins} ${pluralize(yeger.progress.wins, "слід", "сліди", "слідів")}.`,
       "Далі: Єгер удає, що не пишається, але дощечка все бачила.",
-      "Де: наступні умови, якщо будуть, зʼявляться в Єгерському кутку."
+      "Де: наступні умови, якщо будуть, зʼявляться в єгерському кутку."
     ].join("\n")
   };
 }
