@@ -78,39 +78,31 @@ No tutorial.
 ```text
 Use $kvestarnia-second-codex-readonly.
 
-Review PR #<number> against main.
+PR: #<number>
+Base: main
+Review mode: short
+Task doc: docs/tasks/<version>-<short-slug>.md
 
-Mode:
-READ ONLY report only.
-
-Scope:
-Changed files only by default. Inspect direct dependencies only if needed for correctness.
-
-Focus:
-- does the PR match the version task?
-- correctness regressions
-- Telegram duplicate messages/callbacks
-- stale callback behavior
-- player/session/state consistency
-- idempotency and DB transaction risks
-- missing tests
-- compact manual Telegram checks
-
-Do not edit files.
-Do not run auto-fix/format/codemod.
-Do not commit or push.
-
-Output:
-- PR summary
-- relevant changed files
-- findings: blockers / important / minor / looks good
-- missing tests
-- manual Telegram checks
-- questions for main Codex
-- safe notes
-
-No tutorial.
+Extra focus:
+<optional; delete if not needed>
 ```
+
+Use `short` by default. Use `default` for medium-risk or release-oriented PRs. Use `deep` only for high-risk state, persistence, combat, raids, party sessions, routing, migrations, scheduler, economy, or balance.
+
+The skill supplies read-only rules, changed-files scope, finding format, compact QA, and no-tutorial output.
+
+## Main Codex Review-Fix Template
+
+Use `docs/ai/prompts/main-codex-fix-review-findings.md` after a second-Codex review.
+
+Paste only:
+
+- blockers;
+- important issues;
+- missing tests;
+- key edge cases.
+
+Do not paste the full review if it is long.
 
 ## Delta integration prompt template
 

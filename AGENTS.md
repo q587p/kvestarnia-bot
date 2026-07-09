@@ -95,7 +95,10 @@ For second Codex review:
 3. Default to changed files only: review the PR diff, changed files, and direct dependencies.
 4. Do not edit files, commit, push, auto-fix, format, codemod, or create an alternative implementation.
 5. Provide actionable findings only; no exhaustive tutorial.
-6. Escalate to `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
+6. Use `Review mode: short` by default. Use `default` for medium-risk/release-oriented PRs and `deep` only for high-risk state, persistence, combat, raids, party sessions, routing, migrations, scheduler, economy, or balance.
+7. Escalate to `$kvestarnia-telegram-qa` only for full QA plans or high-risk Telegram flow changes.
+
+For main Codex follow-up after second-Codex review, use `docs/ai/prompts/main-codex-fix-review-findings.md`: pass only blockers, important issues, missing tests, and key edge cases, then fix them with `$kvestarnia-version-task`.
 
 After closing a versioned task:
 
