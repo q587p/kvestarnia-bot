@@ -5,7 +5,7 @@ import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 export function buildQuestOverviewKeyboard(): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  keyboard.text("📋 До Столу зі справами", makeQuestCallbackData("list")).row();
+  keyboard.text("📋 До Столу зі справами", makePlaceCallbackData("quest-table")).row();
   keyboard.text("🔎 Оновити", makeQuestCallbackData("overview"));
   keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
 

@@ -4,6 +4,7 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
@@ -43,6 +44,7 @@ export type QuestMarkerTarget =
   | "quest.adventure"
   | "quest.fight"
   | "quest.problem"
+  | "quest.first-korchma"
   | "quest.yeger"
   | "quest.cellar"
   | "quest.cellar-grownup"
@@ -55,6 +57,7 @@ export interface QuestMarkerInput {
   adventure?: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight?: Exclude<FightLookupResult, { state: "no-character" }>;
+  firstKorchmaQuest?: Exclude<FirstKorchmaQuestLookupResult, { state: "no-character" }>;
   problemQuest?: ProblemQuestProgress;
   yeger?: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
   cellar?: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
@@ -105,6 +108,8 @@ export function resolveQuestMarkerForTarget(
       return input.fight?.state === "ready" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
     case "quest.problem":
       return getProblemQuestMarker(input);
+    case "quest.first-korchma":
+      return getFirstKorchmaQuestMarker(input.firstKorchmaQuest);
     case "quest.yeger":
       return getYegerMarker(input.yeger);
     case "quest.cellar":
@@ -121,6 +126,7 @@ export function resolveQuestMarkerForTarget(
     case "menu.quest":
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "quest.adventure"),
+        resolveQuestMarkerForTarget(input, "quest.first-korchma"),
         resolveQuestMarkerForTarget(input, "quest.fight"),
         resolveQuestMarkerForTarget(input, "quest.problem"),
         resolveQuestMarkerForTarget(input, "quest.yeger"),
@@ -224,6 +230,12 @@ function getProblemQuestMarker(input: QuestMarkerInput): QuestMarker {
   }
 
   return QuestMarker.NONE;
+}
+
+function getFirstKorchmaQuestMarker(
+  quest: QuestMarkerInput["firstKorchmaQuest"]
+): QuestMarker {
+  return quest?.state === "active" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
 }
 
 function getCellarGrownupMarker(

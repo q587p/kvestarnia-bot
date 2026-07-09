@@ -14,6 +14,7 @@ import type { CellarErrandService } from "../../src/services/cellarErrandService
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { FightService } from "../../src/services/fightService";
+import type { FirstKorchmaQuestService } from "../../src/services/firstKorchmaQuestService";
 import type { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type { YegerQuestService } from "../../src/services/yegerQuestService";
@@ -113,8 +114,44 @@ describe("quest hub command", () => {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
       }
     ).reply_markup.inline_keyboard.flat();
-    expect(buttons.map((button) => button.callback_data)).toContain(makeQuestCallbackData("list"));
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("quest-table"));
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("hall"));
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("shows the quest overview outside the korchma with the first route quest", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      insideKorchma: false
+    });
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        presence,
+        firstKorchmaQuest: firstKorchmaQuestService(character, false)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🗺️ <b>Квести</b>");
+    expect(replies[0]?.text).toContain("📋 <b>Перший крок до столу</b> — 0/2");
+    expect(replies[0]?.text).toContain("Далі: зайдіть у Корчму.");
+    expect(replies[0]?.text).not.toBe("Квести видають усередині.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toContainEqual({
+      text: "📋 До Столу зі справами",
+      callback_data: makePlaceCallbackData("quest-table")
+    });
+    expect(buttons).toContainEqual({
+      text: "🍺 До зали",
+      callback_data: makePlaceCallbackData("hall")
+    });
     expect(presence.marks).toEqual([]);
   });
 
@@ -1462,6 +1499,7 @@ function servicesWith(overrides: {
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight?: FightService;
+  firstKorchmaQuest?: FirstKorchmaQuestService;
   itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
@@ -1482,6 +1520,7 @@ function servicesWith(overrides: {
     fight:
       overrides.fight ??
       readyFightService(character),
+    firstKorchmaQuest: overrides.firstKorchmaQuest,
     itemUpgrades: overrides.itemUpgrades,
     yeger:
       overrides.yeger ??
@@ -1593,6 +1632,39 @@ function completedBarrelBeerTutorialService(summary: CharacterSummary): BarrelBe
         }
       })
   } as unknown as BarrelBeerTutorialService;
+}
+
+function firstKorchmaQuestService(
+  summary: CharacterSummary,
+  enteredKorchma: boolean
+): FirstKorchmaQuestService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve({
+        state: "active",
+        character: summary,
+        progress: {
+          enteredKorchma,
+          reachedQuestTable: false,
+          currentLocationId: enteredKorchma
+            ? PRESENCE_LOCATION_KORCHMA_HALL
+            : PRESENCE_LOCATION_KORCHMA_FRONT
+        }
+      }),
+    completeForTelegramUser: () =>
+      Promise.resolve({
+        state: "already-completed",
+        character: summary,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: true,
+          currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+        },
+        reward: { xp: 1, gold: 0 },
+        levelChange: null,
+        achievementUnlocks: []
+      })
+  } as unknown as FirstKorchmaQuestService;
 }
 
 function barrelBeerTutorialProgress(done: boolean) {

@@ -19,6 +19,7 @@ import { DuelChallengeService } from "../services/duelChallengeService";
 import { DuelTournamentService } from "../services/duelTournamentService";
 import { EquipmentService } from "../services/equipmentService";
 import { FightService } from "../services/fightService";
+import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import { HeroService } from "../services/heroService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
@@ -86,6 +87,11 @@ export function createServices(
     repositories.dailyActions,
     repositories.shynok,
     undefined,
+    achievements
+  );
+  const firstKorchmaQuest = new FirstKorchmaQuestService(
+    repositories.characters,
+    repositories.dailyActions,
     achievements
   );
 
@@ -160,6 +166,7 @@ export function createServices(
       achievements
     ),
     fight,
+    firstKorchmaQuest,
     hero: new HeroService(
       repositories.characters,
       repositories.inventory,

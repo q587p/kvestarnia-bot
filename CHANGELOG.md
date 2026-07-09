@@ -7,19 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.4] - 12026-07-09 - Quest Overview Route
+## [0.3.4] - 12026-07-09 - Quest Overview Route and First Table Step
 
 ### Added
 - Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing only active, taken or claimable quest work with progress, completed steps, next-step hints and location/turn-in hints.
 - Added a compact empty state when there are no active/taken/claimable quest rows.
-- Added focused presenter/keyboard/command coverage for active-only overview visibility, hidden locked/generic/completed rows, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
+- Added the first current-life route quest, `Перший крок до столу`: enter Korchma, reach `Стіл зі справами`, then receive a replay-safe +1 XP completion.
+- Added the rewardless first-table-route achievement `achievement.quest.first-korchma`.
+- Added focused service, presenter, keyboard, marker, command and achievement coverage for active-only overview visibility, hidden locked/generic/completed rows, outside overview access, first-route progress/completion/remort reset, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
 
 ### Changed
-- The persistent `🗺️ Квести` button now opens the compact overview without marking presence at `📋 Стіл зі справами`; `/quest`, the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
+- The persistent `🗺️ Квести` button and `/quest` now open the compact overview from safe states inside or outside Korchma without marking presence at `📋 Стіл зі справами`; the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
 - The overview now hides generic available quests, locked future quests, retired starter rows and completed/reward-claimed rows; those remain the job of `📋 Стіл зі справами` or the archive.
-- Overview buttons are now navigation-only: `📋 До Столу зі справами`, refresh and hall/back navigation. Per-quest places such as `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, and the overview does not accept, claim, complete, start fights, start raids or mutate quest progress.
+- Overview buttons are now navigation-only: `📋 До Столу зі справами`, refresh and hall/back navigation. Per-quest places such as `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, and the overview does not accept, claim, start fights or start raids.
+- `📋 До Столу зі справами` now routes through the normal place movement callback, so reaching the table can complete the first route quest while leaving the overview itself non-mutating.
 - The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
-- Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, outside-Korchma, no-character and stale-callback guards are preserved through the existing command/callback middleware.
+- Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
 

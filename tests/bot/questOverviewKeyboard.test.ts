@@ -13,7 +13,7 @@ describe("quest overview keyboard", () => {
       ["🔎 Оновити", "🍺 До зали"]
     ]);
     expect(callbacks(keyboard)).toEqual([
-      makeQuestCallbackData("list"),
+      makePlaceCallbackData("quest-table"),
       makeQuestCallbackData("overview"),
       makePlaceCallbackData("hall")
     ]);

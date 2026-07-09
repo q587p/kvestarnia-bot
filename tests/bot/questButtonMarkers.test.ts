@@ -62,6 +62,39 @@ describe("quest button markers", () => {
     ).toBe(QuestMarker.CAN_TURN_IN);
   });
 
+  it("marks the first Korchma route until the quest table is reached", () => {
+    const input = {
+      characterLevel: 1,
+      firstKorchmaQuest: {
+        state: "active" as const,
+        character: character(),
+        progress: {
+          enteredKorchma: false,
+          reachedQuestTable: false,
+          currentLocationId: "location.korchma.front"
+        }
+      }
+    };
+
+    expect(resolveQuestMarkerForTarget(input, "quest.first-korchma")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(input, "menu.quest")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(input, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(input, "location.korchma.hall")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(
+      resolveQuestMarkerForTarget(
+        {
+          ...input,
+          firstKorchmaQuest: {
+            ...input.firstKorchmaQuest,
+            state: "completed" as const,
+            reward: { xp: 1, gold: 0 }
+          }
+        },
+        "quest.first-korchma"
+      )
+    ).toBe(QuestMarker.NONE);
+  });
+
   it("marks the barrel only when the Yeger quest is offered there", () => {
     expect(
       resolveQuestMarkerForTarget(

@@ -12,7 +12,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     | "dailyKorchmaRound"
     | "fight"
     | "yeger"
-  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "itemUpgrades">>
+  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "firstKorchmaQuest" | "itemUpgrades">>
 ): Promise<QuestMarkerInput | null> {
   if (
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
@@ -25,6 +25,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   }
 
   const barrelBeerTutorialService = services.barrelBeerTutorial;
+  const firstKorchmaQuestService = services.firstKorchmaQuest;
   const itemUpgradesService = services.itemUpgrades;
   const cellarGrownupService = services.cellarGrownup;
 
@@ -33,6 +34,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     starterAdventure,
     fight,
     problemQuest,
+    firstKorchmaQuest,
     yeger,
     cellar,
     barrelBeerTutorial,
@@ -61,6 +63,12 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
       ? optionalQuestMarkerLookup(
           "problem quest",
           () => services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
+        )
+      : Promise.resolve(null),
+    typeof firstKorchmaQuestService?.getForTelegramUser === "function"
+      ? optionalQuestMarkerLookup(
+          "first Korchma quest",
+          () => firstKorchmaQuestService.getForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
     typeof services.yeger?.getForTelegramUser === "function"
@@ -108,6 +116,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     starterAdventure,
     fight,
     problemQuest,
+    firstKorchmaQuest,
     yeger,
     cellar,
     barrelBeerTutorial,
@@ -125,6 +134,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     ...(adventure && adventure.state !== "no-character" ? { adventure } : {}),
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     ...(fight && fight.state !== "no-character" ? { fight } : {}),
+    ...(firstKorchmaQuest && firstKorchmaQuest.state !== "no-character" ? { firstKorchmaQuest } : {}),
     ...(problemQuest && problemQuest.state !== "no-character" ? { problemQuest: problemQuest.progress } : {}),
     ...(yeger && yeger.state !== "no-character" ? { yeger } : {}),
     ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),

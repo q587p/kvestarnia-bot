@@ -44,6 +44,7 @@ sendYegerCorner
 import { shouldShowYegerFieldKitHelp } from "../commands/yegerFieldKitHelp";
 import { sendNewsList } from "../commands/newsCommand";
 import {
+sendFirstKorchmaQuestCompletionIfNeeded,
 sendQuestHub
 } from "../commands/questHubCommand";
 import {
@@ -1185,6 +1186,7 @@ async function handlePlaceCallback(
 
   if (action === "hall") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
+    await services.firstKorchmaQuest?.markEnteredForTelegramUser(telegramUserId);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_HALL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -1328,6 +1330,7 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    await sendFirstKorchmaQuestCompletionIfNeeded(ctx, buildQuestHubCommandOptions(services), telegramUserId);
     if (
       await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, services)
     ) {

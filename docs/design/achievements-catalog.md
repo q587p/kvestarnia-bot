@@ -65,6 +65,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.quest.first-problem` | enabled | visible | `problem.quest.completed` | Перший пергамент не зʼїв | здати першу корчмарську проблему й лишити папірець придатним для архіву. |
 | `achievement.quest.problem-chain.23` | enabled | visible | `problem.quest.completed >= 2` | Двадцять три підозрілі підписи | закрити другу теку корчмарських проблем і не загубити підпис між плямами. |
 | `achievement.quest.problem-chain.42` | enabled | visible | `problem.quest.completed >= 3` | Сорок дві причини для печатки | закрити третю теку корчмарських проблем і змусити печатку задуматися. |
+| `achievement.quest.first-korchma` | enabled | visible | `quest.first-korchma.completed >= 1` | Стіл таки існує | зайти до Корчми й дійти до Столу зі справами, не вимагаючи карту на серветці. |
 | `achievement.quest.mimic-shawarma` | enabled | visible | `starter.mimic-shawarma.completed >= 1` | Шаурма мала зуби | завершити першу справу з міміком-шаурмою й не довіряти обіду з очима. |
 | `achievement.quest.cellar-mouse` | enabled | visible | `cellar.mouse.completed >= 1` | Мишача дипломатія | завершити льохову справу з мишею й лишити сирні аргументи в архіві. |
 | `achievement.quest.barrel-beer-tutorial` | enabled | visible | `quest.barrel-beer-tutorial.completed >= 1` | Туди, звідти і з кухлем | завершити першу бочкову справу з пивом і повернутися до столу, доки піна ще має юридичну силу. |

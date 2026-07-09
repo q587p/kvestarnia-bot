@@ -4,6 +4,7 @@ import type { BarrelBeerTutorialService } from "../../services/barrelBeerTutoria
 import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
+import type { FirstKorchmaQuestService } from "../../services/firstKorchmaQuestService";
 import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -17,6 +18,9 @@ import { buildQuestHubKeyboard } from "../keyboards/questHubKeyboard";
 import { buildQuestOverviewKeyboard } from "../keyboards/questOverviewKeyboard";
 import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
+  presentFirstKorchmaQuestCompletion
+} from "../presenters/firstKorchmaQuestPresenter";
+import {
   presentKorchmaQuestGate,
   presentQuestHub,
   presentQuestHubNoCharacter,
@@ -26,10 +30,16 @@ import {
 import {
   presentQuestOverview
 } from "../presenters/questOverviewPresenter";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
+import { sendLevelUpCelebration } from "../modules/levelUp";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
+
+const HTML_MESSAGE_OPTIONS = {
+  parse_mode: "HTML" as const
+};
 
 export interface QuestHubCommandOptions {
   adventure: AdventureService;
@@ -38,6 +48,7 @@ export interface QuestHubCommandOptions {
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight: FightService;
+  firstKorchmaQuest?: FirstKorchmaQuestService;
   itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger: YegerQuestService;
   presence: PresenceService;
@@ -46,7 +57,7 @@ export interface QuestHubCommandOptions {
 
 export function registerQuestHubCommand(bot: Bot, options: QuestHubCommandOptions): void {
   bot.command("quest", async (ctx) => {
-    await sendQuestHub(ctx, options, "reply");
+    await sendQuestOverview(ctx, options, "reply");
   });
 }
 
@@ -81,18 +92,19 @@ export async function sendQuestHub(
     return;
   }
 
+  await markQuestTablePresence(ctx, options.presence);
+  await sendFirstKorchmaQuestCompletionIfNeeded(ctx, options, telegramUserId);
+
   const snapshot = await buildQuestHubSnapshot(
     telegramUserId,
     options,
     PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
   );
-
   if (!snapshot) {
     await sendText(ctx, mode, presentQuestHubNoCharacter());
     return;
   }
 
-  await markQuestTablePresence(ctx, options.presence);
   await sendText(ctx, mode, presentQuestHub(snapshot, hubMode), { snapshot, mode: hubMode });
 }
 
@@ -118,11 +130,6 @@ export async function sendQuestOverview(
 
   if (place.state === "no-character") {
     await sendText(ctx, mode, presentQuestHubNoCharacter());
-    return;
-  }
-
-  if (!place.insideKorchma) {
-    await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
     return;
   }
 
@@ -157,6 +164,9 @@ export async function buildQuestHubSnapshot(
       : null;
 
   const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
+  const firstKorchmaQuest = options.firstKorchmaQuest
+    ? await options.firstKorchmaQuest.getForTelegramUser(telegramUserId)
+    : null;
   const starterFight =
     typeof options.fight.getMimicShawarmaForTelegramUser === "function"
       ? await options.fight.getMimicShawarmaForTelegramUser(telegramUserId)
@@ -180,6 +190,7 @@ export async function buildQuestHubSnapshot(
 
   if (
     fight.state === "no-character" ||
+    firstKorchmaQuest?.state === "no-character" ||
     problemQuest.state === "no-character" ||
     yeger.state === "no-character" ||
     cellar.state === "no-character" ||
@@ -195,6 +206,7 @@ export async function buildQuestHubSnapshot(
     character,
     currentLocationId,
     adventure,
+    ...(firstKorchmaQuest ? { firstKorchmaQuest } : {}),
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     fight,
     ...(starterFight && starterFight.state !== "no-character" ? { starterFight } : {}),
@@ -209,6 +221,40 @@ export async function buildQuestHubSnapshot(
       ? { cellarGrownup }
       : {})
   };
+}
+
+export async function sendFirstKorchmaQuestCompletionIfNeeded(
+  ctx: Context,
+  options: Pick<QuestHubCommandOptions, "firstKorchmaQuest">,
+  telegramUserId: bigint
+): Promise<void> {
+  if (!options.firstKorchmaQuest) {
+    return;
+  }
+
+  const result = await options.firstKorchmaQuest.completeForTelegramUser(telegramUserId);
+  const text = presentFirstKorchmaQuestCompletion(result);
+
+  if (!text) {
+    return;
+  }
+
+  await ctx.reply(text, HTML_MESSAGE_OPTIONS);
+
+  if (result.state === "completed" && result.levelChange?.leveledUp) {
+    await sendLevelUpCelebration(ctx, {
+      character: result.character,
+      levelChange: result.levelChange
+    });
+  }
+
+  const achievementText = result.state === "completed"
+    ? presentAchievementUnlockNotification(result.achievementUnlocks)
+    : null;
+
+  if (achievementText) {
+    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+  }
 }
 
 async function markQuestTablePresence(ctx: Context, presence: PresenceService): Promise<void> {

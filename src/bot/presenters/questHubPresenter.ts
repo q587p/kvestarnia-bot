@@ -7,6 +7,7 @@ import {
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
+import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import {
@@ -25,6 +26,7 @@ import { presentYegerQuestTitle } from "./yegerQuestTitle";
 export interface QuestHubSnapshot {
   character: CharacterSummary;
   currentLocationId?: string | null;
+  firstKorchmaQuest?: Exclude<FirstKorchmaQuestLookupResult, { state: "no-character" }>;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
@@ -492,8 +494,29 @@ function presentCellarArchiveRows(
   return rows;
 }
 
+function presentFirstKorchmaQuestRow(
+  quest: Exclude<FirstKorchmaQuestLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (!quest) {
+    return null;
+  }
+
+  if (quest.state === "completed") {
+    return "📋 <i>Перший крок до столу</i> — виконано; журнал навчився, що ноги теж інтерфейс.";
+  }
+
+  if (!quest.progress.enteredKorchma) {
+    return "📋 <i>Перший крок до столу</i> — зайдіть до Корчми й дійдіть до Столу зі справами.";
+  }
+
+  return "📋 <i>Перший крок до столу</i> — Корчму знайдено; лишився Стіл зі справами.";
+}
+
 function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
   const rows = [
+    snapshot.firstKorchmaQuest?.state === "active"
+      ? presentFirstKorchmaQuestRow(snapshot.firstKorchmaQuest)
+      : null,
     snapshot.adventure.state === "ready" ||
     (snapshot.adventure.state === "level-locked" &&
       snapshot.character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
@@ -523,6 +546,9 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
 function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   const starterFightArchiveRow = presentStarterFightArchiveRow(snapshot.starterFight);
   const rows = [
+    snapshot.firstKorchmaQuest?.state === "completed"
+      ? presentFirstKorchmaQuestRow(snapshot.firstKorchmaQuest)
+      : null,
     ...presentAdventureArchiveRows(snapshot.adventure, snapshot.starterAdventure),
     !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)

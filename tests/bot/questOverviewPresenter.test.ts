@@ -7,6 +7,44 @@ import type { QuestHubSnapshot } from "../../src/bot/presenters/questHubPresente
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("quest overview presenter", () => {
+  it("shows the first Korchma route quest as active guidance", () => {
+    const rows = buildQuestOverviewRows(makeSnapshot({
+      firstKorchmaQuest: {
+        state: "active",
+        character,
+        progress: {
+          enteredKorchma: false,
+          reachedQuestTable: false,
+          currentLocationId: "location.korchma.front"
+        }
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+
+    expect(rows[0]).toMatchObject({
+      id: "first-korchma",
+      priority: "active",
+      title: "📋 <b>Перший крок до столу</b> — 0/2"
+    });
+    expect(rows[0]?.body).toContain("Далі: зайдіть у Корчму.");
+
+    const insideRows = buildQuestOverviewRows(makeSnapshot({
+      firstKorchmaQuest: {
+        state: "active",
+        character,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: false,
+          currentLocationId: "location.korchma.hall"
+        }
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+
+    expect(insideRows[0]?.title).toBe("📋 <b>Перший крок до столу</b> — 1/2");
+    expect(insideRows[0]?.body).toContain("Далі: дійдіть до Столу зі справами.");
+  });
+
   it("keeps only claimable and active rows, ordered by current work", () => {
     const rows = buildQuestOverviewRows(makeSnapshot({
       dailyKorchmaRound: {

@@ -71,6 +71,7 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
     }
   };
 
+  add(getFirstKorchmaQuestOverviewRow(snapshot));
   add(getDailyKorchmaRoundOverviewRow(snapshot));
   add(getProblemQuestOverviewRow(snapshot));
   add(getAdventureOverviewRow(snapshot));
@@ -86,6 +87,38 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
     .sort((left, right) => PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority] || left.order - right.order)
     .slice(0, MAX_OVERVIEW_ROWS)
     .map(stripOverviewOrder);
+}
+
+function getFirstKorchmaQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
+  const quest = snapshot.firstKorchmaQuest;
+
+  if (!quest || quest.state === "completed") {
+    return null;
+  }
+
+  if (!quest.progress.enteredKorchma) {
+    return {
+      id: "first-korchma",
+      priority: "active",
+      title: "📋 <b>Перший крок до столу</b> — 0/2",
+      body: [
+        "Зроблено: персонаж уже є, і це сміливий адміністративний початок.",
+        "Далі: зайдіть у Корчму.",
+        "Де: натисніть «🚪 Зайти в корчму», а потім шукайте Стіл зі справами."
+      ].join("\n")
+    };
+  }
+
+  return {
+    id: "first-korchma",
+    priority: "active",
+    title: "📋 <b>Перший крок до столу</b> — 1/2",
+    body: [
+      "Зроблено: Корчму знайдено, двері пережили знайомство.",
+      "Далі: дійдіть до Столу зі справами.",
+      "Де: у залі натисніть «📋 Стіл зі справами»."
+    ].join("\n")
+  };
 }
 
 function isActionableOverviewRow(row: QuestOverviewRow): boolean {
