@@ -18,7 +18,7 @@
 10. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
 11. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
 12. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-13. Verify the overview keyboard contains only `📋 До Столу зі справами`, optional `🔎 Оновити`, and `🍺 До зали` / back navigation; no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+13. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
 14. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.

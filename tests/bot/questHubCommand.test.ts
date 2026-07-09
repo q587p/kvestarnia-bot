@@ -115,7 +115,8 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("quest-table"));
-    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("overview"));
     expect(presence.marks).toEqual([]);
   });
 
@@ -148,10 +149,8 @@ describe("quest hub command", () => {
       text: "📋 До Столу зі справами",
       callback_data: makePlaceCallbackData("quest-table")
     });
-    expect(buttons).toContainEqual({
-      text: "🍺 До зали",
-      callback_data: makePlaceCallbackData("hall")
-    });
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("overview"));
     expect(presence.marks).toEqual([]);
   });
 

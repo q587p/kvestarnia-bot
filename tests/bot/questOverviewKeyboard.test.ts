@@ -9,13 +9,10 @@ describe("quest overview keyboard", () => {
     const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
-      ["📋 До Столу зі справами"],
-      ["🔎 Оновити", "🍺 До зали"]
+      ["📋 До Столу зі справами"]
     ]);
     expect(callbacks(keyboard)).toEqual([
-      makePlaceCallbackData("quest-table"),
-      makeQuestCallbackData("overview"),
-      makePlaceCallbackData("hall")
+      makePlaceCallbackData("quest-table")
     ]);
     expect(buttonRows(keyboard).flat()).not.toEqual(expect.arrayContaining([
       "🧾 До обходу",
@@ -34,6 +31,7 @@ describe("quest overview keyboard", () => {
     expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("barrel"));
     expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("deep"));
     expect(callbacks(keyboard)).not.toContain(makePlaceCallbackData("yard"));
+    expect(callbacks(keyboard)).not.toContain(makeQuestCallbackData("overview"));
     expect(callbacks(keyboard)).not.toContain(makeQuestCallbackData("barrel-tutorial"));
     expect(callbacks(keyboard)).not.toContain(makeQuestCallbackData("barrel-tutorial-turn-in"));
     for (const callback of callbacks(keyboard)) {
@@ -45,8 +43,7 @@ describe("quest overview keyboard", () => {
     const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
-      ["📋 До Столу зі справами"],
-      ["🔎 Оновити", "🍺 До зали"]
+      ["📋 До Столу зі справами"]
     ]);
   });
 });
