@@ -735,6 +735,22 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
   });
 
+  it("keeps turn-based duel journals closed while combat is active", async () => {
+    const getTurnBasedJournalByToken = vi.fn().mockResolvedValue({ state: "not-ready" });
+    const service = serviceWith({ getTurnBasedJournalByToken });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, "private");
+
+    await handleDuelCallback(ctx, { type: "journal", token: TOKEN, page: 0 }, service, {
+      presence: createPresence()
+    });
+
+    expect(getTurnBasedJournalByToken).toHaveBeenCalledWith(TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Журнал бою буде після завершення дуелі."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
+  });
+
   it("sends a first gear-action achievement notice to the turn-based duel actor", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const activeSession = makeTurnBasedSession("active", target);

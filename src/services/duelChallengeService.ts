@@ -188,6 +188,7 @@ export type DuelInviteRotationResult =
 
 export type DuelTurnBasedJournalResult =
   | { state: "not-found" }
+  | { state: "not-ready" }
   | {
       state: "ready";
       session: DuelCombatSessionRecord;
@@ -632,6 +633,10 @@ export class DuelChallengeService {
 
     if (!session) {
       return { state: "not-found" };
+    }
+
+    if (session.status === "active") {
+      return { state: "not-ready" };
     }
 
     const actions = await this.challenges.listTurnBasedActionsByToken(inviteToken);

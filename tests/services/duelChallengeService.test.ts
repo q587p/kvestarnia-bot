@@ -1120,6 +1120,33 @@ describe("DuelChallengeService", () => {
     }
   });
 
+  it("keeps turn-based duel journals unavailable while combat is active", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    if (accepted.state !== "active") {
+      throw new Error(`Expected active turn-based duel, got ${accepted.state}`);
+    }
+
+    await expect(service.getTurnBasedJournalByToken(created.challenge.inviteToken))
+      .resolves.toEqual({ state: "not-ready" });
+  });
+
   it("accepts the second same-round choice from the original older-version button", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);

@@ -495,6 +495,11 @@ export async function handleDuelCallback(
       return;
     }
 
+    if (result.state === "not-ready") {
+      await answerCallback({ text: "Журнал бою буде після завершення дуелі." });
+      return;
+    }
+
     await answerCallback();
     await sendText(
       ctx,

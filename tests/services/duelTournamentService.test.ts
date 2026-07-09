@@ -143,6 +143,28 @@ describe("DuelTournamentService", () => {
     expect(repo.goldByCharacter.get("hero")).toBe(42);
     expect(repo.itemQuantity("hero", "item.responsible-panic-bandage")).toBe(5);
   });
+
+  it("keeps closed tournament rewards claimable after remort", async () => {
+    const repo = new FakeTournamentRepository([{
+      ...character("hero", 100n, "Ада"),
+      remortCount: 1
+    }]);
+    const service = new DuelTournamentService(
+      repo,
+      new FakeDuelSource([
+        duel("daily", "2026-07-07T09:00:00.000Z", "hero", "rival", "challenger")
+      ]),
+      new FakeActivityEvents(),
+      () => new Date("2026-07-08T12:00:00.000Z")
+    );
+
+    const result = await service.claimRewardForTelegramUser(100n, "day", "2026-07-07");
+
+    expect(result.state).toBe("claimed");
+    expect(result.state === "claimed" && result.created).toBe(true);
+    expect(repo.goldByCharacter.get("hero")).toBe(42);
+    expect(repo.itemQuantity("hero", "item.responsible-panic-bandage")).toBe(5);
+  });
 });
 
 class FakeTournamentRepository implements DuelTournamentRepository {
