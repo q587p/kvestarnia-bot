@@ -10,11 +10,13 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.3.4] - 12026-07-09 - Quest Overview Route
 
 ### Added
-- Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing current quest surfaces, progress, completed steps, next-step hints, location/turn-in hints and locked/completed notes.
-- Added focused presenter/keyboard/command coverage for overview row priority, fresh level 1 guidance, level 3+ daily/adventure visibility, HTML escaping, callback size and the absence of per-quest route buttons.
+- Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing only active, taken or claimable quest work with progress, completed steps, next-step hints and location/turn-in hints.
+- Added a compact empty state when there are no active/taken/claimable quest rows.
+- Added focused presenter/keyboard/command coverage for active-only overview visibility, hidden locked/generic/completed rows, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
 
 ### Changed
 - The persistent `🗺️ Квести` button now opens the compact overview without marking presence at `📋 Стіл зі справами`; `/quest`, the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
+- The overview now hides generic available quests, locked future quests, retired starter rows and completed/reward-claimed rows; those remain the job of `📋 Стіл зі справами` or the archive.
 - Overview buttons are now navigation-only: `📋 До Столу зі справами`, refresh and hall/back navigation. Per-quest places such as `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, and the overview does not accept, claim, complete, start fights, start raids or mutate quest progress.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, outside-Korchma, no-character and stale-callback guards are preserved through the existing command/callback middleware.
 

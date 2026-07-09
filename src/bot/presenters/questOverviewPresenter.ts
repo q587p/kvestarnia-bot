@@ -34,9 +34,19 @@ const MAX_OVERVIEW_ROWS = 8;
 
 export function presentQuestOverview(snapshot: QuestHubSnapshot): string {
   const rows = buildQuestOverviewRows(snapshot);
-  const body = rows.length > 0
-    ? rows.flatMap((row) => [`${row.title}`, row.body, ""]).slice(0, -1)
-    : ["Справи зараз удають меблі. Навіть журнал тихо закрив обкладинку."];
+
+  if (rows.length === 0) {
+    return [
+      "🗺️ <b>Квести</b>",
+      "",
+      "Активних справ зараз немає.",
+      "",
+      "Нові папери, пригоди й дрібні катастрофи беруться за Столом зі справами.",
+      "Журнал тільки показує вже взяте, щоб не тягнути вас за рукав."
+    ].join("\n");
+  }
+
+  const body = rows.flatMap((row) => [`${row.title}`, row.body, ""]).slice(0, -1);
 
   return [
     "🗺️ <b>Квести</b>",
@@ -72,9 +82,14 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
   add(getCharkokovalniaOverviewRow(snapshot));
 
   return rows
+    .filter(isActionableOverviewRow)
     .sort((left, right) => PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority] || left.order - right.order)
     .slice(0, MAX_OVERVIEW_ROWS)
     .map(stripOverviewOrder);
+}
+
+function isActionableOverviewRow(row: QuestOverviewRow): boolean {
+  return row.priority === "claimable" || row.priority === "active";
 }
 
 function stripOverviewOrder(row: RankedQuestOverviewRow): QuestOverviewRow {
@@ -375,17 +390,8 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
     };
   }
 
-  if (progress.branchComplete) {
-    return {
-      id: "problem-quest",
-      priority: "completed",
-      title: `${title} — гілку закрито`,
-      body: [
-        `Зроблено: ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
-        "Далі: Корчмар тимчасово робить вигляд, що не вміє рахувати далі.",
-        "Де: шинок лишається місцем для офіційних папірців і неофіційних поглядів."
-      ].join("\n")
-    };
+  if (progress.branchComplete || (progress.completed && progress.rewardClaimed)) {
+    return null;
   }
 
   if (progress.completed && !progress.rewardClaimed) {

@@ -6,16 +6,17 @@
 
 ## 0.3.4 — Quest Overview Route smoke
 
-1. Fresh level 1 inside the korchma: press `🗺️ Квести`; verify starter shawarma/fight guidance, locked notes for later routes, next-step/location hints, and no per-quest direct buttons.
-2. Press `📋 До Столу зі справами`; verify the old `📋 Стіл зі справами` card opens and presence moves only there, not when opening the overview.
-3. Level 2: verify cellar mouse and Barrel Beer Tutorial rows appear when eligible.
-4. Level 3+: verify `Корчмарський обхід` and `Три справи` rows appear with progress/next-step/location text, not direct route buttons.
-5. Daily Korchma Round at 1/2 and 2/2: verify progress rows, done-scene text and turn-in hints.
-6. Yeger not started / in progress / completed: verify row status, progress and Єгерський куток guidance without a direct `До Єгеря` button.
-7. Barrel Beer Tutorial available / in progress / ready to turn in: verify overview text points to the existing table, Бочка, Shynok or table turn-in surface without accepting/claiming from the overview.
-8. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-9. Verify the overview keyboard contains only `📋 До Столу зі справами`, optional `🔎 Оновити`, and `🍺 До зали` / back navigation; no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
-10. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+1. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
+2. Character with no active/taken quests: verify the compact empty state points to `Стіл зі справами`.
+3. Press `📋 До Столу зі справами`; verify the old `📋 Стіл зі справами` card opens and presence moves only there, not when opening the overview.
+4. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
+5. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
+6. Problem Quest in progress: verify the row appears with progress and turn-in guidance; completed/reward-claimed Problem Quest disappears.
+7. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with Єгерський куток guidance and no direct `До Єгеря` button.
+8. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
+9. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+10. Verify the overview keyboard contains only `📋 До Столу зі справами`, optional `🔎 Оновити`, and `🍺 До зали` / back navigation; no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+11. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
 

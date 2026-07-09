@@ -148,7 +148,8 @@ describe("quest hub command", () => {
     expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
     expect(getForTelegramUser).not.toHaveBeenCalled();
     expect(completeAdventureApproach).not.toHaveBeenCalled();
-    expect(replies[0]?.text).toContain("🧾 <b>Корчмарський обхід</b> — доступно");
+    expect(replies[0]?.text).toContain("🧾 <b>Тринадцять дрібних проблем</b>");
+    expect(replies[0]?.text).not.toContain("🧾 <b>Корчмарський обхід</b> — доступно");
   });
 
   it("keeps a hall return when the quest hub is opened from the quest table", async () => {
