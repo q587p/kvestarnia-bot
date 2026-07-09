@@ -42,8 +42,9 @@ describe("FirstKorchmaQuestService", () => {
   });
 
   it("completes at the quest table once per character life and grants symbolic XP", async () => {
+    const trackEventSafely = vi.fn(() => Promise.resolve([]));
     const achievements = {
-      trackEventSafely: vi.fn(() => Promise.resolve([]))
+      trackEventSafely
     } as unknown as AchievementService;
     const world = new TestWorld();
     world.character.currentLocationId = "location.korchma.quest_table";
@@ -66,8 +67,8 @@ describe("FirstKorchmaQuestService", () => {
     });
     expect(world.character.xp).toBe(FIRST_KORCHMA_QUEST_REWARD_XP);
     expect(world.daily.count("quest.first-korchma.completed", "life:0")).toBe(1);
-    expect(achievements.trackEventSafely).toHaveBeenCalledTimes(1);
-    expect(achievements.trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
       type: "quest.first-korchma.completed",
       characterId: world.character.id
     }));
