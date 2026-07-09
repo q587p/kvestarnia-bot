@@ -4,6 +4,17 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.3 — Quest Variety and Risk Refresh smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Open `🪧 Три справи`, choose a problem, then open `💡 Підказка`.
+2. Verify the visible methods use mixed qualitative risk text: no exact percentages, no exact pre-choice reward amounts, no pile of `майже надійно`, and the compact `Памʼятка` appears at the end.
+3. Resolve one calmer method and one risky/generous method across reset periods. Confirm local-failure outcomes still grant `0 XP`, `0 золота`, no item and no fight, while fight-handoff outcomes still route into the existing combat handoff without immediate Adventure reward.
+4. Reset/open `Корчмарський обхід` across several Kyiv days. Confirm each offer still has exactly three scenes, each scene has exactly three action buttons, completed scenes replay frozen outcomes, and final reward turn-in remains explicit at `📋 Стіл зі справами`.
+5. At levels 2-3, open the cellar mouse errand several times after `/dev_reset_cellar_mouse` cooldown resets. Confirm varied authored replies, tiny rewards, old/stale hidden method callbacks fail closed, and duplicate taps do not double-pay. At level 4+, use the same helper to inspect varied grownup mouse roleplay retry text without waiting.
+6. While in active combat or pending raid state, try the Adventure/cellar entry routes and confirm existing blockers still win before completion.
+
 ## 0.3.2 — Kharakternyk Ward Signs smoke
 
 Manual Telegram QA status for the implementation pass: not run in Telegram. Use the focused checklist in [`docs/qa/kharakternyk-ward-signs-qa.md`](../qa/kharakternyk-ward-signs-qa.md).
@@ -369,7 +380,7 @@ Use one level 2 account and one level 3+ account. Local dev grants/resets are ac
 3. Press `Берусь за обхід`; verify the daily overview shows one `Задвірок корчми` scene and two distinct interior scenes, but only offers `До справ` / `До зали` navigation, not direct scene-location buttons.
 4. Walk through normal Korchma navigation to the first required location; verify the active scene opens there, then complete one authored action.
 5. Try the second scene action from the wrong location using an old/stale scene card if available; verify no step row/reward is created and the card names the required place.
-6. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `Не сьогоднішня катастрофа`.
+6. Move through normal navigation to the correct second location and complete it; verify the third scene becomes `не сьогоднішня катастрофа`.
 7. Try to claim away from the Quest Table; verify claim is denied. Move to the Quest Table and claim; verify the stored result grants level-scaled XP/gold and replays the same exact values.
 8. Replay old overview/scene/action/claim buttons; verify no duplicate step, reward, achievement notification, XP or gold.
 9. Remort before and after claim in local QA; verify same-day progress/reward is not cleared or duplicated and old-life action buttons stale out.
@@ -913,6 +924,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_yeger_line [число]` — у локальному режимі додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_reset_cellar_mouse` — у локальному режимі скидає cooldown повторюваної льохової справи миші та дорослішої мишачої домовлености для поточного персонажа.
 - `/dev_reset_priest_blessing` — у локальному режимі скидає cooldown жрецького благословення/підтримки для поточного персонажа.
 - `/dev_reset_quiet_pocket` — у локальному режимі скидає cooldown злодійської `Тихої кишені` для поточного персонажа.
 - `/dev_reset_rogue` — у локальному режимі скидає cooldown `Тихої кишені` й забуває цілі, які цей злодій уже перевіряв поточного київського дня.

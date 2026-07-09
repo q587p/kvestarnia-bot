@@ -1088,6 +1088,7 @@ model DailyAction {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@unique([characterId, key, localDate])
+  @@index([characterId, key, createdAt], map: "daily_actions_character_id_key_created_at_idx")
   @@index([key])
   @@map("daily_actions")
 }

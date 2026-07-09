@@ -8,7 +8,8 @@ import {
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
-  PRESENCE_LOCATION_KORCHMA_YARD
+  PRESENCE_LOCATION_KORCHMA_YARD,
+  isKorchmaInteriorLocation
 } from "../services/presenceService";
 
 export const DAILY_KORCHMA_ROUND_CONTENT_VERSION = "v1";
@@ -397,6 +398,305 @@ export const dailyKorchmaRoundScenes = [
         outcome: "Записка «рахувати повільно» заспокоїла Спуск. Низ поки що не подав апеляцію."
       }
     ]
+  },
+  {
+    id: "yard-bench-migration",
+    zone: "yard",
+    locationId: PRESENCE_LOCATION_KORCHMA_YARD,
+    icon: "🪑",
+    title: "Лава просить сезонний переїзд",
+    hook: "Дворова лава стверджує, що бачила достатньо дверей і тепер хоче краєвид на іншу калюжу.",
+    actions: [
+      { id: "measure-shadow", label: "📏 Поміряти тінь", description: "Знайти нове місце за офіційною тінню, а не за настроєм дошок.", outcome: "Ви поміряли тінь і знайшли лаві кут із повагою до спини. Лава погодилась мігрувати на півметра." },
+      { id: "ask-bench", label: "🗣️ Спитати лаву", description: "Дати меблям слово, поки вони не створили комісію.", outcome: "Лава висловилась коротко й деревʼяно. Цього вистачило, щоб усі визнали її право на новий погляд." },
+      { id: "leave-plaque", label: "🏷️ Лишити табличку", description: "Пояснити майбутнім сидінням, що це не втеча, а ротація.", outcome: "Табличка «тимчасово поряд» зняла напругу. Стара пляма під лавою відчула себе архівом." }
+    ]
+  },
+  {
+    id: "yard-puddle-permit",
+    zone: "yard",
+    locationId: PRESENCE_LOCATION_KORCHMA_YARD,
+    icon: "💧",
+    title: "Калюжа просить дозвіл на віддзеркалення",
+    hook: "Калюжа біля порога показує небо без погодження і дуже пишається неофіційною висотою.",
+    actions: [
+      { id: "stamp-reflection", label: "📌 Завізувати відбиток", description: "Офіційно визнати небо там, де його можна переступити.", outcome: "Ви поставили умовну печатку на відбиток. Калюжа стала нижчою голосом і вищою статусом." },
+      { id: "add-leaf-frame", label: "🍂 Додати рамку", description: "Перетворити випадкову воду на майже експозицію.", outcome: "Листок ліг як рамка. Калюжа вирішила, що тепер вона не безлад, а малий культурний захід." },
+      { id: "route-boots", label: "🥾 Позначити обхід", description: "Зменшити драму без повного висушування амбіцій.", outcome: "Ви позначили обхід. Калюжа буркнула, але прийняла роль місцевої памʼятки." }
+    ]
+  },
+  {
+    id: "yard-broom-weather",
+    zone: "yard",
+    locationId: PRESENCE_LOCATION_KORCHMA_YARD,
+    icon: "🧹",
+    title: "Віник прогнозує погоду в пилюці",
+    hook: "Біля входу віник креслить у пилюці хмари й натякає, що синоптика без щетини неповна.",
+    actions: [
+      { id: "read-bristles", label: "🔎 Прочитати щетину", description: "Визнати прогноз, не створюючи окремого міністерства пилу.", outcome: "Щетина показала «можливо, вітер». Двір уважно кивнув, бо це завжди корисний прогноз." },
+      { id: "sweep-map", label: "🧭 Змести карту", description: "Зняти зайву географію з місця, де ходять чоботи.", outcome: "Ви змели карту в акуратну купку. Віник заявив, що це фронтальна лінія порядку." },
+      { id: "hang-under-roof", label: "🪝 Повісити під дах", description: "Дати експерту сухий кабінет і менше стихійної графіки.", outcome: "Віник отримав дах над щетиною. Прогноз одразу став стриманішим і трохи чистішим." }
+    ]
+  },
+  {
+    id: "yard-lantern-oath",
+    zone: "yard",
+    locationId: PRESENCE_LOCATION_KORCHMA_YARD,
+    icon: "🏮",
+    title: "Ліхтар склав присягу світити по черзі",
+    hook: "Дворовий ліхтар заявляє, що світло потребує графіка, і моргає так, ніби це вже протокол.",
+    actions: [
+      { id: "draw-shift", label: "🗓️ Намалювати зміну", description: "Дати мерехтінню робочий розклад без бухгалтерії вогню.", outcome: "Графік зміни зʼявився на клапті паперу. Ліхтар моргнув дисципліновано і перестав сперечатись із вечором." },
+      { id: "clean-glass", label: "🧽 Протерти скло", description: "Зменшити пафос присяги простим блиском.", outcome: "Скло стало прозорішим. Ліхтар визнав, що іноді служба починається з ганчірки." },
+      { id: "appoint-evening", label: "🌙 Призначити вечір", description: "Пояснити, кому саме він зараз служить.", outcome: "Вечір прийняв призначення без промови. Ліхтар засяяв так, ніби давно чекав керівника." }
+    ]
+  },
+  {
+    id: "yard-crate-republic",
+    zone: "yard",
+    locationId: PRESENCE_LOCATION_KORCHMA_YARD,
+    icon: "📦",
+    title: "Ящик проголосив республіку кутів",
+    hook: "Порожній ящик біля стіни оголосив, що кожен кут має право на власну сторону.",
+    actions: [
+      { id: "count-corners", label: "🔢 Порахувати кути", description: "Перевірити конституцію геометрії без перевороту.", outcome: "Кутів виявилось рівно стільки, щоб республіка не розпалась до обіду. Ящик задоволено скрипнув." },
+      { id: "offer-label", label: "🏷️ Дати назву", description: "Заспокоїти державність простим інвентарним ярликом.", outcome: "Ярлик «ящик службовий» повернув кордони на місце. Республіка стала відділом." },
+      { id: "turn-open-side", label: "↪️ Розвернути відкритим боком", description: "Показати ящику, що прозорість теж форма влади.", outcome: "Ящик побачив власну порожнечу й тимчасово відмовився від гучних посад." }
+    ]
+  },
+  {
+    id: "hall-napkin-census",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+    icon: "🧾",
+    title: "Серветка проводить перепис плям",
+    hook: "У залі серветка занотовує кожну пляму й дуже хоче зрозуміти, яка з них староста.",
+    actions: [
+      { id: "circle-chief", label: "⭕ Обвести старосту", description: "Дати плямам старшинство без довгої кампанії.", outcome: "Найстаршу пляму обведено. Решта плям погодилась бути населенням без додаткових скарг." },
+      { id: "fold-districts", label: "📐 Скласти райони", description: "Перетворити хаос на адміністративну геометрію.", outcome: "Серветка склалась у райони. Плями тепер мешкають компактно і майже пишаються адресами." },
+      { id: "retire-form", label: "📁 Здати форму", description: "Закрити перепис до появи нових крапель.", outcome: "Форму здано до уявного архіву. Серветка з полегшенням повернулась до головної роботи." }
+    ]
+  },
+  {
+    id: "hall-spoon-parliament",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+    icon: "🥄",
+    title: "Ложки відкрили парламент дзенькотом",
+    hook: "На столі кілька ложок сперечаються, чи суп має право на тишу, якщо його ще не принесли.",
+    actions: [
+      { id: "tap-gavel", label: "🔨 Дати молоточок", description: "Перетворити дзенькіт на процедуру.", outcome: "Одна ложка отримала роль молоточка. Парламент став гучним, але принаймні по черзі." },
+      { id: "separate-caucus", label: "↔️ Розсадити фракції", description: "Відсунути металеву демократію на безпечну відстань.", outcome: "Фракції розсаджено. Ложки тепер обмінюються поглядами, а не постійними аргументами." },
+      { id: "write-agenda", label: "📝 Написати порядок", description: "Дати дебатам тему коротшу за звук.", outcome: "Порядок денний містить один пункт: «не дзвеніти без супу». Ложки прийняли його в першому читанні." }
+    ]
+  },
+  {
+    id: "hall-coat-hanger-vote",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+    icon: "🧥",
+    title: "Вішак голосує за чужі плащі",
+    hook: "Біля стіни вішак порахував плащі й вирішив, що має мандат на порядок.",
+    actions: [
+      { id: "pair-hooks", label: "🪝 Попарувати гачки", description: "Зменшити виборчий шум через симетрію.", outcome: "Гачки стали парами. Вішак визнав, що коаліція плечей працює краще за випадковий нахил." },
+      { id: "ask-cloaks", label: "🗳️ Спитати плащі", description: "Почути електорат, який переважно мовчить тканиною.", outcome: "Плащі пошелестіли за порядок. Вішак записав це як переконливу більшість." },
+      { id: "mark-guest-row", label: "📍 Позначити ряд", description: "Дати гостям місце без урочистого входу.", outcome: "Гостьовий ряд позначено. Вішак став суворішим, але припинив рахувати кожен рукав." }
+    ]
+  },
+  {
+    id: "bar-teapot-union",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+    icon: "🫖",
+    title: "Чайник вимагає профспілку пари",
+    hook: "На шинку чайник тихо сопе й натякає, що пара теж хоче перерву без кипіння.",
+    actions: [
+      { id: "lift-lid", label: "🫧 Підняти кришку", description: "Випустити аргумент до того, як він стане свистом.", outcome: "Пара вийшла з гідністю. Чайник одразу став менш революційним і більш питним." },
+      { id: "pour-small", label: "🍵 Налити малий кухоль", description: "Показати, що робота має видимий результат.", outcome: "Малий кухоль прийняв чай без дебатів. Чайник заспокоївся, бо його почули практично." },
+      { id: "write-break", label: "🗓️ Записати перерву", description: "Дати парі графік, а шинку тишу.", outcome: "Перерву внесено між «ледь кипить» і «вже всім зрозуміло». Чайник шанобливо булькнув." }
+    ]
+  },
+  {
+    id: "bar-foam-forecast",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+    icon: "🍺",
+    title: "Піна на кухлі малює карту настрою",
+    hook: "На шинку піна зібралась у форму стрілки й упевнено показує не туди, куди всі дивляться.",
+    actions: [
+      { id: "turn-mug", label: "🔄 Повернути кухоль", description: "Перевірити, чи карта залежить від географії руки.", outcome: "Стрілка повернулась разом із кухлем і зробила вигляд, що так було задумано." },
+      { id: "ask-foam", label: "❔ Спитати піну", description: "Почути прогноз, поки він не зник у напої.", outcome: "Піна прошепотіла «обережно з пафосом». Це виявився найточніший прогноз вечора." },
+      { id: "sip-border", label: "🥄 Зняти край", description: "Мʼяко скоротити надмірну картографію.", outcome: "Край піни зник, і карта стала схожа на звичайний кухоль із дуже важливою біографією." }
+    ]
+  },
+  {
+    id: "bar-sugar-audit",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_BAR,
+    icon: "🧂",
+    title: "Цукор підозрює себе в пересолодженні",
+    hook: "Біля шинку грудочка цукру стоїть окремо й просить незалежну перевірку власної солодкости.",
+    actions: [
+      { id: "appoint-tea", label: "🫖 Призначити чай", description: "Дати солодкому питанню нейтральне середовище.", outcome: "Чай прийняв грудочку без паніки. Цукор визнав, що перевірка була теплою і справедливою." },
+      { id: "split-grain", label: "🔍 Розділити крупинку", description: "Провести аудит у масштабі, де вже соромно сваритись.", outcome: "Крупинка поділилась на аргументи. Усі вони виявились солодкими, але помірними." },
+      { id: "file-sweet", label: "📁 Підшити висновок", description: "Закрити справу до появи варення.", outcome: "Висновок підшито: «солодко, але не нахабно». Цукор повернувся до служби." }
+    ]
+  },
+  {
+    id: "news-pin-trial",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+    icon: "📌",
+    title: "Кнопка на дошці вимагає суду присяжних",
+    hook: "У кутку вістей кнопка тримає оголошення й наполягає, що її роль недооцінюють.",
+    actions: [
+      { id: "hear-pin", label: "👂 Вислухати кнопку", description: "Дати гострому аргументу коротку промову.", outcome: "Кнопка пояснила, що тримає все буквально. Дошка вістей визнала внесок без оплесків." },
+      { id: "rotate-paper", label: "🔄 Розвернути аркуш", description: "Зняти напругу з одного героїчного вістря.", outcome: "Аркуш ліг рівніше. Кнопка одразу стала схожа на працівника архіву, а не на бунтівника." },
+      { id: "add-second-pin", label: "➕ Додати сусіда", description: "Перетворити самотню відповідальність на зміну.", outcome: "Друга кнопка взяла край аркуша. Перша перестала говорити про конституційну кризу." }
+    ]
+  },
+  {
+    id: "news-ink-confession",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
+    icon: "🖋️",
+    title: "Чорнило зізнається в надмірній драмі",
+    hook: "На дошці вістей підпис розтікся так урочисто, ніби оголошення вже стало легендою.",
+    actions: [
+      { id: "blot-title", label: "🧻 Промокнути титул", description: "Залишити зміст, але прибрати фанфари.", outcome: "Титул став коротшим. Чорнило полегшено зітхнуло і перестало претендувати на монумент." },
+      { id: "underline-date", label: "📅 Підкреслити дату", description: "Повернути оголошення з епосу до розкладу.", outcome: "Дата отримала лінію й відповідальність. Оголошення стало схожим на справу, а не на долю." },
+      { id: "move-corner", label: "↘️ Зсунути в кут", description: "Дати драмі місце, де вона не перекриває новини.", outcome: "Чорнильна драма переїхала в кут. Там вона виглядає майже культурно." }
+    ]
+  },
+  {
+    id: "quest-table-paper-sneeze",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    icon: "📄",
+    title: "Папірець зі справою чхає пилом",
+    hook: "На Столі зі справами папірець підстрибує від власного пилу й просить не називати це старістю.",
+    actions: [
+      { id: "dust-margin", label: "🧹 Змести поле", description: "Повернути справі край без зміни суті.", outcome: "Поле стало читабельним. Папірець вдячно чхнув востаннє і прийняв молодший вигляд." },
+      { id: "press-flat", label: "✋ Пригладити", description: "Зменшити драму простим тиском долоні.", outcome: "Папірець ліг рівно. Тепер він виглядає як завдання, а не як мапа давнього кашлю." },
+      { id: "add-tissue", label: "🧻 Дати серветку", description: "Допомогти документу зберегти гідність.", outcome: "Серветка прийняла пил на себе. Папірець заявив, що це службова підтримка, не слабкість." }
+    ]
+  },
+  {
+    id: "quest-table-string-appeal",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    icon: "🧶",
+    title: "Нитка подала апеляцію на вузол",
+    hook: "На краю Столу зі справами нитка стверджує, що вузол був емоційним і процедурно сумнівним.",
+    actions: [
+      { id: "loosen-case", label: "🪢 Послабити справу", description: "Дати вузлу простір для меншого пафосу.", outcome: "Вузол послабився і раптом став схожим на компроміс. Нитка відкликала апеляцію." },
+      { id: "name-knot-clerk", label: "🏷️ Назвати вузол", description: "Перетворити проблему на службову одиницю.", outcome: "Вузол отримав назву «тимчасовий тримач». Нитка визнала, що з посадою сперечатись важче." },
+      { id: "clip-end", label: "📎 Закріпити край", description: "Забрати у нитки привід розповзатися в процес.", outcome: "Край закріплено. Нитка лежить спокійно й удає, що завжди любила порядок." }
+    ]
+  },
+  {
+    id: "quest-table-stamp-vacation",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+    icon: "🪪",
+    title: "Печатка просить відпустку від важливости",
+    hook: "Печатка на Столі зі справами лежить боком і натякає, що сьогодні хоче бути просто круглою.",
+    actions: [
+      { id: "roll-stamp", label: "🔄 Покотити печатку", description: "Дати важливості трохи руху без службового злочину.", outcome: "Печатка прокотилась півоберта й згадала, що круглість теж відповідальна." },
+      { id: "pad-ink", label: "🖋️ Оновити чорнило", description: "Повернути їй причину бути серйозною.", outcome: "Свіже чорнило додало печатці настрою. Відпустку скорочено до почесної паузи." },
+      { id: "stamp-blank", label: "📄 Поставити на чернетці", description: "Зняти напругу тренувальним ударом.", outcome: "Чернетка отримала красиве коло. Печатка задоволено повернулась до справ." }
+    ]
+  },
+  {
+    id: "cellar-candle-queue",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+    icon: "🕯️",
+    title: "Свічки в льосі стоять у черзі за темрявою",
+    hook: "У льосі кілька свічок сперечаються, кому першій пояснювати темряві межі повноважень.",
+    actions: [
+      { id: "assign-wick", label: "🧵 Призначити ґніт", description: "Дати першій свічці службовий старт.", outcome: "Ґніт отримав чергу й одразу став відповідальнішим. Темрява відступила на крок із повагою." },
+      { id: "space-candles", label: "↔️ Розставити свічки", description: "Зменшити конкуренцію світла між сусідами.", outcome: "Свічки отримали місце. Тепер кожна світить так, ніби це колективний проєкт." },
+      { id: "note-draft", label: "📝 Занотувати протяг", description: "Визнати невидимого учасника суперечки.", outcome: "Протяг внесено до протоколу. Свічки перестали звинувачувати одна одну в хитанні." }
+    ]
+  },
+  {
+    id: "cellar-potato-title",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+    icon: "🥔",
+    title: "Картоплина взяла собі почесний титул",
+    hook: "На полиці льоху картоплина лежить окремо й очікує, що її називатимуть повністю.",
+    actions: [
+      { id: "shorten-title", label: "✂️ Скоротити титул", description: "Залишити гідність, прибрати зайві склади.", outcome: "Титул скорочено до «пані Картоплина». Полиця видихнула, бо рядок знову вміщується." },
+      { id: "seat-basket", label: "🧺 Посадити в кошик", description: "Дати шляхетності практичне крісло.", outcome: "Кошик прийняв титул без реверансу. Картоплина стала поважною частиною запасів." },
+      { id: "read-lineage", label: "📜 Прочитати родовід", description: "Урочисто визнати походження з мішка.", outcome: "Родовід виявився коротким і переконливим. Картоплина дозволила іншим лежати поруч." }
+    ]
+  },
+  {
+    id: "cellar-shelf-complaint",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+    icon: "🪵",
+    title: "Полиця скаржиться на надмірну відповідальність",
+    hook: "Льохова полиця тримає банки й обурено натякає, що героїзм без перерви шкодить лаку.",
+    actions: [
+      { id: "redistribute-jars", label: "⚖️ Перерозподілити банки", description: "Повернути рівновагу без промови про долю дерева.", outcome: "Банки переїхали рівніше. Полиця перестала рипіти як маніфест." },
+      { id: "add-wedge", label: "🧩 Підкласти клин", description: "Дати опору там, де вже почалась філософія.", outcome: "Клин встав на місце. Полиця відчула підтримку і відклала скаргу." },
+      { id: "praise-grain", label: "🌾 Похвалити текстуру", description: "Моральна допомога деревині без нових витрат.", outcome: "Текстуру похвалено. Полиця скромно рипнула і продовжила службу." }
+    ]
+  },
+  {
+    id: "barrel-tap-choir",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+    icon: "🚰",
+    title: "Кран Бочки набирає хор крапель",
+    hook: "У Бочці Пінного Міражу кран капає строєм і чекає, що хтось оцінить дисципліну.",
+    actions: [
+      { id: "set-rhythm", label: "🥁 Задати ритм", description: "Перетворити крапання на коротку репетицію.", outcome: "Краплі пішли в ритм і швидко втомились від власної організованости. Кран стишився." },
+      { id: "tighten-tap", label: "🔧 Підкрутити кран", description: "Практичне рішення для надто музичної сантехніки.", outcome: "Кран підкручено. Хор завершив виступ на високій паузі." },
+      { id: "place-cup", label: "🍺 Поставити кухоль", description: "Дати таланту аудиторію з дном.", outcome: "Кухоль прийняв кілька крапель як овації. Кран вирішив, що концерт відбувся." }
+    ]
+  },
+  {
+    id: "barrel-echo-lease",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+    icon: "🛢️",
+    title: "Луна в Бочці просить договір оренди",
+    hook: "Порожня луна всередині Бочки повторює слово «місце» так, ніби вже має юридичний відділ.",
+    actions: [
+      { id: "answer-once", label: "🗣️ Відповісти один раз", description: "Не годувати повторення зайвою драмою.", outcome: "Ви відповіли один раз. Луна повторила й заспокоїлась, бо діалог формально відбувся." },
+      { id: "mark-corner", label: "📍 Позначити кут", description: "Дати луні адресу без права розширення.", outcome: "Кут позначено як «тимчасово порожній». Луна прийняла це за офіс." },
+      { id: "close-lid", label: "🪵 Прикрити віко", description: "Зменшити акустику до службового рівня.", outcome: "Віко приглушило повтори. Луна ще щось сказала, але вже без претензії на оренду." }
+    ]
+  },
+  {
+    id: "ranger-corner-boot-map",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+    icon: "🥾",
+    title: "Чобіт Єгерського кутка знайшов власну мапу",
+    hook: "У Єгерському кутку чобіт показує на підошву й переконує всіх, що це топографія досвіду.",
+    actions: [
+      { id: "brush-sole", label: "🧽 Почистити підошву", description: "Відокремити карту від звичайної дороги.", outcome: "Підошва стала чистішою, а маршрут коротшим. Чобіт визнав, що частина лісу була пилом." },
+      { id: "pin-trail", label: "📌 Позначити стежку", description: "Зберегти корисну частину без зайвих грудок.", outcome: "Стежку позначено маленькою подряпиною. Єгерський куток схвально промовчав." },
+      { id: "pair-boot", label: "👢 Знайти пару", description: "Перевірити, чи мапа має другу думку.", outcome: "Другий чобіт показав інший маршрут до того самого порога. Обидва назвали це дослідженням." }
+    ]
+  },
+  {
+    id: "deep-door-protocol",
+    zone: "interior",
+    locationId: PRESENCE_LOCATION_KORCHMA_DEEP,
+    icon: "🚪",
+    title: "Дверцята до Низу вимагають протокол стуку",
+    hook: "Біля Спуску до Низу дверцята не зачинені, але дуже хочуть, щоб їх поважали процедурно.",
+    actions: [
+      { id: "knock-three", label: "✊ Постукати тричі", description: "Дати порогу ритуал без відкриття нової експедиції.", outcome: "Три стуки прозвучали достатньо серйозно. Дверцята стали на мить менш образливими." },
+      { id: "oil-hinge", label: "🛢️ Змастити петлю", description: "Прибрати скрип із дипломатії деревини.", outcome: "Петля заспокоїлась. Дверцята тепер мовчать так, ніби це їхній вибір." },
+      { id: "write-rule", label: "📜 Написати правило", description: "Перетворити примху на коротку інструкцію.", outcome: "Правило «стукати без пафосу» повішено збоку. Низ поки не оскаржує." }
+    ]
   }
 ] as const satisfies readonly DailyKorchmaRoundScene[];
 
@@ -407,9 +707,12 @@ export function getDailyKorchmaRoundScene(id: string): DailyKorchmaRoundScene | 
 }
 
 export function validateDailyKorchmaRoundContent(): void {
+  const scenes: readonly DailyKorchmaRoundScene[] = dailyKorchmaRoundScenes;
   const ids = new Set<string>();
+  const interiorLocationIds = new Set<string>();
+  let yardSceneCount = 0;
 
-  for (const scene of dailyKorchmaRoundScenes) {
+  for (const scene of scenes) {
     assertId(scene.id, `scene ${scene.id}`);
 
     if (ids.has(scene.id)) {
@@ -417,6 +720,18 @@ export function validateDailyKorchmaRoundContent(): void {
     }
 
     ids.add(scene.id);
+
+    if (scene.zone === "yard") {
+      yardSceneCount += 1;
+
+      if (scene.locationId !== PRESENCE_LOCATION_KORCHMA_YARD) {
+        throw new Error(`Daily Korchma round yard scene ${scene.id} must use the yard location.`);
+      }
+    } else if (!isKorchmaInteriorLocation(scene.locationId)) {
+      throw new Error(`Daily Korchma round interior scene ${scene.id} must use a Korchma interior location.`);
+    } else {
+      interiorLocationIds.add(scene.locationId);
+    }
 
     if (scene.actions.length !== 3) {
       throw new Error(`Daily Korchma round scene ${scene.id} must have exactly three actions.`);
@@ -436,11 +751,19 @@ export function validateDailyKorchmaRoundContent(): void {
       if (!action.description?.trim()) {
         throw new Error(`Daily Korchma round action ${scene.id}:${action.id} must have a description.`);
       }
+
+      if (!action.outcome.trim()) {
+        throw new Error(`Daily Korchma round action ${scene.id}:${action.id} must have an outcome.`);
+      }
     }
   }
 
-  if (dailyKorchmaRoundScenes.filter((scene) => scene.zone === "yard").length === 0) {
+  if (yardSceneCount === 0) {
     throw new Error("Daily Korchma round content needs at least one yard scene.");
+  }
+
+  if (interiorLocationIds.size < 2) {
+    throw new Error("Daily Korchma round content needs at least two interior location groups.");
   }
 }
 

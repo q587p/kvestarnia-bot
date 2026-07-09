@@ -1384,7 +1384,12 @@ export class YegerQuestService {
   }
 
   private async countPaidBandagesPurchasedToday(telegramUserId: bigint, purchaseDay: string): Promise<number> {
-    const actions = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+    const dayBounds = getUtcDayBounds(purchaseDay);
+    const actions = await this.dailyActions.listForTelegramUserInCreatedAtRange?.(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      createdAtGte: dayBounds.start,
+      createdAtLt: dayBounds.end
+    }) ?? await this.dailyActions.listForTelegramUser?.(telegramUserId, {
       key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY
     });
 
@@ -1397,6 +1402,14 @@ export class YegerQuestService {
       actions.reduce((sum, action) => sum + readPurchasedBandageQuantityForDay(action, purchaseDay), 0)
     );
   }
+}
+
+function getUtcDayBounds(isoDate: string): { start: Date; end: Date } {
+  const start = new Date(`${isoDate}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
 }
 
 export function isYegerUnquietTarget(monster: Pick<MonsterContent, "tags">): boolean {

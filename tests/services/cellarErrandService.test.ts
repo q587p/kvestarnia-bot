@@ -292,7 +292,7 @@ describe("CellarErrandService", () => {
       expect(result.state).toBe("completed");
       if (result.state === "completed") {
         expect(result.reward.xp).toBeLessThanOrEqual(method.id === "sweep-bravely" ? 1 : 2);
-        expect(result.reward.gold).toBeLessThanOrEqual(method.id === "cheese-trap" ? 1 : 0);
+        expect(result.reward.gold).toBeLessThanOrEqual(1);
         expect(result.reward.gold - result.spentGold).toBeLessThanOrEqual(1);
       }
     }

@@ -69,6 +69,7 @@ const expectedCommandAliasInventory = [
   "dev_raid_reset",
   "dev_raid_stop",
   "dev_raid_win",
+  "dev_reset_cellar_mouse",
   "dev_reset_korchma_round",
   "dev_reset_me",
   "dev_reset_monster_rest",

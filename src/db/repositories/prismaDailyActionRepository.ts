@@ -563,6 +563,40 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async listForTelegramUserInCreatedAtRange(
+    telegramUserId: bigint,
+    input: { key: string; createdAtGte: Date; createdAtLt: Date }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        createdAt: {
+          gte: input.createdAtGte,
+          lt: input.createdAtLt
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      }
+    });
+  }
+
   private async findExistingClaim(
     telegramUserId: bigint,
     input: ClaimDailyActionInput
@@ -641,10 +675,15 @@ async function countLimitedActionQuantity(
   characterId: string,
   limit: NonNullable<ClaimDailyActionInput["quantityLimit"]>
 ): Promise<number> {
+  const dayBounds = getUtcDayBounds(limit.purchaseDay);
   const actions = await tx.dailyAction.findMany({
     where: {
       characterId,
-      key: limit.key
+      key: limit.key,
+      createdAt: {
+        gte: dayBounds.start,
+        lt: dayBounds.end
+      }
     }
   });
 
@@ -662,6 +701,14 @@ async function countLimitedActionQuantity(
       .filter((grant) => grant.itemId === limit.itemId)
       .reduce((grantSum, grant) => grantSum + Math.max(0, Math.floor(grant.quantity)), 0);
   }, 0);
+}
+
+function getUtcDayBounds(isoDate: string): { start: Date; end: Date } {
+  const start = new Date(`${isoDate}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
 }
 
 function isResultKind(resultJson: Prisma.JsonValue | null, kind: string): boolean {

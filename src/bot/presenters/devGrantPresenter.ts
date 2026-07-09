@@ -115,6 +115,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: Єгерський слід уже готовий або ще не взятий.";
   }
 
+  if (result.kind === "cellar-mouse-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: мишачий льоховий cooldown скинуто."
+      : "🧪 Dev: мишачий льоховий квест і так готовий до перевірки.";
+  }
+
   if (result.kind === "priest-blessing-cooldown") {
     return result.cleared
       ? "🧪 Dev: жрецьке благословення знову готове до локальної перевірки."

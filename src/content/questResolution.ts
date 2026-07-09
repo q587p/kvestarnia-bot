@@ -48,6 +48,7 @@ export type QuestConsequenceKind =
   | "cosmetic-mess";
 
 export type QuestRewardProfile = "modest" | "standard" | "generous";
+export type QuestRiskBand = "safe" | "steady" | "risky" | "wild";
 
 export interface QuestMethodOutcomeText {
   headline: string;

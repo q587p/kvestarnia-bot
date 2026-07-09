@@ -1,5 +1,10 @@
 # Content Authoring Checklist
 
+`0.3.3` authoring guards:
+
+- [ ] Method-help labels preserve risk/reward variety: no exact odds before commit, no all-`майже надійно` cards, and risky/generous/injury/fight/local-failure methods have visibly less reliable qualitative text than paid/modest methods.
+- [ ] Daily Korchma Round scenes have exactly three actions, authored outcomes, correct yard/interior location ids, and preserve at least two interior groups.
+
 Цей чекліст використовувати при додаванні нових квестів, предметів, реплік NPC, рейдів, манаток і майбутніх сезонних подій.
 
 ## Коротке правило

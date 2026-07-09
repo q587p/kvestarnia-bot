@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
-import { resolveQuestCheck } from "../../src/domain/quests/questChecks";
+import {
+  QUEST_RISK_BAND_CHANCE_CAPS,
+  calculateQuestChance,
+  deriveQuestRiskBand,
+  qualitativeQuestChance,
+  resolveQuestCheck
+} from "../../src/domain/quests/questChecks";
 import { findQuestMethod } from "../../src/domain/quests/questMethodResolver";
 
 describe("quest resolution checks", () => {
@@ -73,6 +79,68 @@ describe("quest resolution checks", () => {
 
     expect(lowStats.chance).toBeGreaterThanOrEqual(45);
     expect(highStats.chance).toBeLessThanOrEqual(88);
+  });
+
+  it("caps reliable, risky and fight-like methods by risk band", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "stew",
+      title: "РљР°Р·Р°РЅРѕРє СЂРµРїРµС‚РёСЂСѓС” РѕРїРµСЂСѓ",
+      character
+    });
+    const method = findQuestMethod(scene, "conduct-duet");
+
+    expect(method).not.toBeNull();
+    if (!method) {
+      throw new Error("Missing test method.");
+    }
+
+    const highStats = { strength: 99, dexterity: 99, intelligence: 99, charisma: 99, luck: 99 };
+    const safeMethod = {
+      ...method,
+      baseChance: 99,
+      rewardProfile: "modest" as const,
+      intent: "investigate" as const,
+      techniques: ["investigation"] as const,
+      consequenceByGrade: {
+        ...method.consequenceByGrade,
+        complication: "cosmetic-mess" as const
+      }
+    };
+    const riskyMethod = {
+      ...method,
+      baseChance: 99,
+      rewardProfile: "generous" as const,
+      intent: "deceive" as const,
+      techniques: ["deception"] as const,
+      consequenceByGrade: {
+        ...method.consequenceByGrade,
+        complication: "minor-injury" as const
+      }
+    };
+    const wildMethod = {
+      ...method,
+      baseChance: 99,
+      rewardProfile: "generous" as const,
+      intent: "fight" as const,
+      techniques: ["force"] as const,
+      consequenceByGrade: {
+        ...method.consequenceByGrade,
+        complication: "fight-handoff" as const
+      }
+    };
+
+    expect(deriveQuestRiskBand(safeMethod)).toBe("safe");
+    expect(deriveQuestRiskBand(riskyMethod)).toBe("risky");
+    expect(deriveQuestRiskBand(wildMethod)).toBe("wild");
+    expect(calculateQuestChance({ method: safeMethod, stats: highStats, raceId: character.raceId, classId: character.classId }))
+      .toBe(QUEST_RISK_BAND_CHANCE_CAPS.safe);
+    expect(calculateQuestChance({ method: riskyMethod, stats: highStats, raceId: character.raceId, classId: character.classId }))
+      .toBe(QUEST_RISK_BAND_CHANCE_CAPS.risky);
+    expect(calculateQuestChance({ method: wildMethod, stats: highStats, raceId: character.raceId, classId: character.classId }))
+      .toBe(QUEST_RISK_BAND_CHANCE_CAPS.wild);
+    expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.safe)).toBe("майже надійно");
+    expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.risky)).toBe("непевно");
+    expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.wild)).toBe("дуже непевно");
   });
 });
 

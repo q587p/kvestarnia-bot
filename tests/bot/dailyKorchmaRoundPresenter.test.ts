@@ -28,6 +28,8 @@ describe("daily Korchma round presenter", () => {
     expect(text).not.toContain("<b>Shannar de Kassal</b>");
     expect(text).not.toContain("Шахтна Іскрознавиця");
     expect(text).toContain("Поверніться до <i>столу зі справами</i> й здайте обхід Корчмарю.");
+    expect(text).toContain("— не сьогоднішня катастрофа");
+    expect(text).not.toContain("— Не сьогоднішня катастрофа");
     expect(text).not.toContain("Поверніться до Столу зі справами");
   });
 

@@ -2,6 +2,8 @@
 
 Status: shipped in `0.2.9` on `12026-06-28`. The implementation uses existing `daily_actions` offer/step/reward rows, Kyiv day keys, and no Prisma schema migration.
 
+`0.3.3` expands the active content pool to 36 authored scenes without changing the persistence contract: each offer still freezes three scene ids, requires any two completions, and turns in explicitly at the Quest Table. Content validation now also rejects zone/location mismatches, missing action outcomes, duplicate ids, wrong action counts and fewer than two interior location groups.
+
 This document is the canonical product/persistence contract for the first `Корчмарський обхід` implementation. If the release number changes before activation, rename the task file and release surfaces without changing the feature contract silently.
 
 ---

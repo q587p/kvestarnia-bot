@@ -757,6 +757,29 @@ describe("YegerQuestService", () => {
     expect(world.itemGrants).toEqual([]);
   });
 
+  it("counts only same-day paid bandage receipts through the narrow daily action range", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 700, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
+    world.addPaidBandagePurchase(93, "2026-06-14", new Date("2026-06-14T21:00:00.000Z"));
+    world.addPaidBandagePurchase(5, "2026-06-15", new Date("2026-06-15T09:00:00.000Z"));
+
+    const result = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId, 93);
+
+    expect(result).toMatchObject({
+      state: "preview",
+      purchaseQuantity: 88,
+      purchasedToday: 5,
+      dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+    });
+    expect(world.listForTelegramUserCalls).toBe(0);
+    expect(world.listForTelegramUserInCreatedAtRangeCalls).toEqual([{
+      key: "yeger.bandage.purchase.confirm",
+      createdAtGte: new Date("2026-06-15T00:00:00.000Z"),
+      createdAtLt: new Date("2026-06-16T00:00:00.000Z")
+    }]);
+  });
+
   it("confirms a Yeger bandage purchase token at most once", async () => {
     const world = new FakeWorld();
     world.addCharacter({ gold: 20, classId: "class.ranger" });
@@ -773,6 +796,30 @@ describe("YegerQuestService", () => {
     expect(replay).toMatchObject({ state: "replayed", spentGold: YEGER_RANGER_BANDAGE_PRICE });
     expect(world.character?.gold).toBe(16);
     expect(world.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+  });
+
+  it("ignores previous-day receipts when enforcing the paid bandage confirm quantity limit", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ gold: 700, classId: "class.warrior" });
+    completeBaseYegerQuest(world);
+    world.addPaidBandagePurchase(93, "2026-06-14", new Date("2026-06-14T21:00:00.000Z"));
+    const preview = await world.service().previewBandagePurchaseForTelegramUser(telegramUserId, 93);
+    if (preview.state !== "preview") {
+      throw new Error("Expected preview.");
+    }
+
+    await expect(world.service().confirmBandagePurchaseForTelegramUser(telegramUserId, preview.token))
+      .resolves.toMatchObject({
+        state: "bought",
+        spentGold: YEGER_BANDAGE_PRICE * 93,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 93 }]
+      });
+    await expect(world.service().previewBandagePurchaseForTelegramUser(telegramUserId, 1))
+      .resolves.toMatchObject({
+        state: "daily-limit",
+        purchasedToday: 93,
+        dailyLimit: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      });
   });
 
   it("buys another fixed bundle after an earlier purchase", async () => {
@@ -1134,6 +1181,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   fightOverviewResult: FightLookupResult = { state: "no-character" };
   fightResult: () => ReturnType<FightService["getOrStartPersistentFightForTelegramUser"]> = () =>
     Promise.resolve({ state: "no-character" });
+  listForTelegramUserCalls = 0;
+  listForTelegramUserInCreatedAtRangeCalls: Array<{ key: string; createdAtGte: Date; createdAtLt: Date }> = [];
 
   service(achievements?: AchievementService): YegerQuestService {
     return new YegerQuestService(
@@ -1225,6 +1274,30 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
       rewardGold: reward.rewardGold ?? 0,
       spentGold: 0,
       resultJson: null,
+      createdAt
+    });
+  }
+
+  addPaidBandagePurchase(quantity: number, purchaseDay: string, createdAt: Date): void {
+    if (!this.character) {
+      throw new Error("No character.");
+    }
+
+    this.actions.push({
+      id: `action-${this.actions.length + 1}`,
+      characterId: this.character.id,
+      key: "yeger.bandage.purchase.confirm",
+      localDate: `receipt-${this.actions.length + 1}`,
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: YEGER_BANDAGE_PRICE * quantity,
+      resultJson: {
+        kind: "yeger-bandage-purchase-confirm",
+        purchaseDay,
+        reward: {
+          appliedItemGrants: [{ itemId: "item.responsible-panic-bandage", quantity }]
+        }
+      },
       createdAt
     });
   }
@@ -1356,8 +1429,12 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     };
     const spentGold = input.spentGold ?? 0;
     if (input.quantityLimit) {
+      const dayStart = new Date(`${input.quantityLimit.purchaseDay}T00:00:00.000Z`);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
       const currentQuantity = this.actions
         .filter((existingAction) => existingAction.key === input.quantityLimit?.key)
+        .filter((existingAction) => existingAction.createdAt >= dayStart && existingAction.createdAt < dayEnd)
         .filter((existingAction) => {
           const result = existingAction.resultJson as { kind?: unknown; purchaseDay?: unknown } | null;
 
@@ -1516,11 +1593,28 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     _telegramUserId: bigint,
     input: { key: string }
   ): Promise<DailyActionRecord[] | null> {
+    this.listForTelegramUserCalls += 1;
     if (!this.character) {
       return Promise.resolve(null);
     }
 
     return Promise.resolve(this.actions.filter((action) => action.key === input.key));
+  }
+
+  listForTelegramUserInCreatedAtRange(
+    _telegramUserId: bigint,
+    input: { key: string; createdAtGte: Date; createdAtLt: Date }
+  ): Promise<DailyActionRecord[] | null> {
+    this.listForTelegramUserInCreatedAtRangeCalls.push(input);
+    if (!this.character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(this.actions.filter((action) =>
+      action.key === input.key &&
+      action.createdAt >= input.createdAtGte &&
+      action.createdAt < input.createdAtLt
+    ));
   }
 
   listCompletedByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {

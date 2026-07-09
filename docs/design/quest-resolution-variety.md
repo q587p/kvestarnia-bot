@@ -1,5 +1,7 @@
 # Quest Resolution Variety
 
+`0.3.3` implementation notes: method variety also includes risk-band variety. A five-method help card should not collapse into all-safe labels; representative cards target at most one `майже надійно`, at most two `добрі шанси`, and at least two uncertain rows. Reward profile, complication type, gold cost and intent must support that label. The cellar-mouse scene also has seven additional authored methods with four-grade outcome bodies, while preserving the existing tiny reward envelope and legacy intent compatibility.
+
 ## 1. Проблема
 
 Поточний level 3+ adventure loop добре вирішує вибір **яку** справу взяти: персонаж отримує три deterministic проблеми на 93-хвилинний період, а пул уже вміє підмішувати race/class/title-сцени.

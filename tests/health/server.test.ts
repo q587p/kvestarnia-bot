@@ -78,11 +78,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Характерники навчили Бочку поважати знаки");
-    expect(text).toContain("Старший Брат Бочки отримав нову причину дивитися під ноги");
-    expect(text).toContain("у зборі до Старшого Брата Бочки характерники можуть поставити один знак перед стартом");
-    expect(text).toContain("картка показує тільки кількість підпор");
-    expect(text).toContain("Це не новий щит");
+    expect(text).toContain("Корчмар освіжив справи, обхід і льохові переговори");
+    expect(text).toContain("Стіл зі справами навчився чесніше шепотіти про ризик");
+    expect(text).toContain("обережніші способи виглядають спокійніше");
+    expect(text).toContain("Корчмарський обхід");
+    expect(text).toContain("Це не новий режим і не новий спосіб фармити корчму");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

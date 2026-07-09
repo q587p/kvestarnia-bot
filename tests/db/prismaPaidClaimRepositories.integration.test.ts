@@ -363,6 +363,7 @@ describe("paid Prisma claim repositories", () => {
   });
 
   it("rolls back a paid daily claim when its transaction-local quantity limit is reached", async () => {
+    const purchaseDay = currentUtcIsoDate();
     await seedCharacter(prisma, {
       userId: "user-daily-quantity-limit",
       characterId: "character-daily-quantity-limit",
@@ -378,7 +379,7 @@ describe("paid Prisma claim repositories", () => {
       itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 5 }],
       quantityLimit: {
         key: "yeger.bandage.purchase.confirm",
-        purchaseDay: "2026-06-15",
+        purchaseDay,
         itemId: "item.responsible-panic-bandage",
         resultKind: "yeger-bandage-purchase-confirm",
         quantity: 5,
@@ -386,7 +387,7 @@ describe("paid Prisma claim repositories", () => {
       },
       resultJson: {
         kind: "yeger-bandage-purchase-confirm",
-        purchaseDay: "2026-06-15"
+        purchaseDay
       }
     });
 
@@ -400,7 +401,7 @@ describe("paid Prisma claim repositories", () => {
       itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 93 }],
       quantityLimit: {
         key: "yeger.bandage.purchase.confirm",
-        purchaseDay: "2026-06-15",
+        purchaseDay,
         itemId: "item.responsible-panic-bandage",
         resultKind: "yeger-bandage-purchase-confirm",
         quantity: 93,
@@ -408,7 +409,7 @@ describe("paid Prisma claim repositories", () => {
       },
       resultJson: {
         kind: "yeger-bandage-purchase-confirm",
-        purchaseDay: "2026-06-15"
+        purchaseDay
       }
     })).rejects.toBeInstanceOf(DailyActionQuantityLimitExceededError);
     await expect(
@@ -425,6 +426,129 @@ describe("paid Prisma claim repositories", () => {
         }
       }
     })).resolves.toMatchObject({ quantity: 5 });
+  });
+
+  it("lists daily actions for a key inside a created-at day range", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-action-range",
+      characterId: "character-daily-action-range",
+      telegramUserId: 9016n,
+      gold: 0
+    });
+    await prisma.dailyAction.createMany({
+      data: [
+        {
+          characterId: "character-daily-action-range",
+          key: "yeger.bandage.purchase.confirm",
+          localDate: "old",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-06-14T23:59:00.000Z")
+        },
+        {
+          characterId: "character-daily-action-range",
+          key: "yeger.bandage.purchase.confirm",
+          localDate: "same-day",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-06-15T10:00:00.000Z")
+        },
+        {
+          characterId: "character-daily-action-range",
+          key: "other-key",
+          localDate: "other",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-06-15T10:00:00.000Z")
+        }
+      ]
+    });
+
+    await expect(dailyActions.listForTelegramUserInCreatedAtRange(9016n, {
+      key: "yeger.bandage.purchase.confirm",
+      createdAtGte: new Date("2026-06-15T00:00:00.000Z"),
+      createdAtLt: new Date("2026-06-16T00:00:00.000Z")
+    })).resolves.toMatchObject([
+      { localDate: "same-day" }
+    ]);
+  });
+
+  it("ignores previous-day rows when enforcing transaction-local Yeger purchase quantity limits", async () => {
+    const purchaseDay = currentUtcIsoDate();
+    const previousDay = utcIsoDateOffset(-1);
+    await seedCharacter(prisma, {
+      userId: "user-daily-quantity-limit-day-window",
+      characterId: "character-daily-quantity-limit-day-window",
+      telegramUserId: 9015n,
+      gold: 1000
+    });
+    await prisma.dailyAction.create({
+      data: {
+        characterId: "character-daily-quantity-limit-day-window",
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        localDate: "old-token",
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: YEGER_BANDAGE_PRICE * YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+        createdAt: utcDayAt(previousDay, 21),
+        resultJson: {
+          kind: "yeger-bandage-purchase-confirm",
+          purchaseDay: previousDay,
+          reward: {
+            appliedItemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT }]
+          }
+        }
+      }
+    });
+
+    const today = await dailyActions.claimForTelegramUser(9015n, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: "today-token",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: YEGER_BANDAGE_PRICE * YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+      itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT }],
+      quantityLimit: {
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        purchaseDay,
+        itemId: BANDAGE_ITEM_ID,
+        resultKind: "yeger-bandage-purchase-confirm",
+        quantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
+        maxQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-confirm",
+        purchaseDay
+      }
+    });
+
+    expect(today?.state).toBe("created");
+    await expect(dailyActions.claimForTelegramUser(9015n, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      localDate: "today-over-limit",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: YEGER_BANDAGE_PRICE,
+      itemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 1 }],
+      quantityLimit: {
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+        purchaseDay,
+        itemId: BANDAGE_ITEM_ID,
+        resultKind: "yeger-bandage-purchase-confirm",
+        quantity: 1,
+        maxQuantity: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+      },
+      resultJson: {
+        kind: "yeger-bandage-purchase-confirm",
+        purchaseDay
+      }
+    })).rejects.toBeInstanceOf(DailyActionQuantityLimitExceededError);
+    await expect(prisma.dailyAction.count({
+      where: {
+        characterId: "character-daily-quantity-limit-day-window",
+        key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY
+      }
+    })).resolves.toBe(2);
   });
 
   it("replays canonical cancel when cancel wins before Yeger purchase confirm", async () => {
@@ -1406,7 +1530,7 @@ describe("paid Prisma claim repositories", () => {
     await expect(prisma.characterItem.count({ where: { characterId: "character-cooldown-concurrent" } })).resolves.toBe(1);
   });
 
-  function createYegerService(currentNow = new Date("2026-06-15T10:00:00.000Z")): YegerQuestService {
+  function createYegerService(currentNow = utcDayAt(currentUtcIsoDate(), 10)): YegerQuestService {
     return new YegerQuestService(
       characters,
       dailyActions,
@@ -1509,6 +1633,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE UNIQUE INDEX daily_actions_character_key_date ON daily_actions(character_id, key, local_date)`,
+    `CREATE INDEX daily_actions_character_id_key_created_at_idx ON daily_actions(character_id, key, created_at)`,
     `CREATE TABLE character_items (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       character_id TEXT NOT NULL,
@@ -1629,6 +1754,21 @@ function getYegerDecisionKind(value: unknown): "confirm" | "cancel" | null {
   }
 
   return null;
+}
+
+function currentUtcIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function utcIsoDateOffset(days: number): string {
+  const date = new Date(`${currentUtcIsoDate()}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function utcDayAt(isoDate: string, hour: number): Date {
+  return new Date(`${isoDate}T${String(hour).padStart(2, "0")}:00:00.000Z`);
 }
 
 async function expectCharacterGold(
