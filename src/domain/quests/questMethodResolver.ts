@@ -1,5 +1,6 @@
 import type { CharacterSummary } from "../characters/characterSummary";
 import type { QuestMethodDefinition, QuestResolutionScene } from "../../content/questResolution";
+import { calculateQuestChance } from "./questChecks";
 
 export function resolveQuestMethodsForCharacter(
   scene: QuestResolutionScene,
@@ -42,7 +43,11 @@ export function resolveQuestMethodsForCharacter(
     }
   }
 
-  return ensureRiskyMethod(selected, scene.methods, maxMethods).slice(0, maxMethods);
+  return limitAlmostReliableMethods(
+    ensureRiskyMethod(selected, scene.methods, maxMethods).slice(0, maxMethods),
+    scene.methods,
+    character
+  );
 }
 
 export function findVisibleQuestMethod(
@@ -202,6 +207,43 @@ function replaceLastPersonalMethod(
   return selected;
 }
 
+function limitAlmostReliableMethods(
+  selected: QuestMethodDefinition[],
+  allMethods: readonly QuestMethodDefinition[],
+  character: CharacterSummary
+): QuestMethodDefinition[] {
+  let almostReliableSeen = false;
+  let nextSelected = selected;
+
+  for (let index = 0; index < nextSelected.length; index += 1) {
+    const method = nextSelected[index];
+
+    if (!method || !isAlmostReliableMethod(method, character)) {
+      continue;
+    }
+
+    if (!almostReliableSeen) {
+      almostReliableSeen = true;
+      continue;
+    }
+
+    const withoutMethod = nextSelected.filter((_, candidateIndex) => candidateIndex !== index);
+    const replacement = allMethods.find(
+      (candidate) => !isAlmostReliableMethod(candidate, character) && canAddDistinct(withoutMethod, candidate)
+    );
+
+    if (replacement) {
+      nextSelected = [
+        ...withoutMethod.slice(0, index),
+        replacement,
+        ...withoutMethod.slice(index)
+      ];
+    }
+  }
+
+  return nextSelected;
+}
+
 function isRiskyMethod(method: QuestMethodDefinition): boolean {
   const consequence = method.consequenceByGrade.complication;
 
@@ -211,6 +253,15 @@ function isRiskyMethod(method: QuestMethodDefinition): boolean {
     consequence === "fight-handoff" ||
     consequence === "local-failure"
   );
+}
+
+function isAlmostReliableMethod(method: QuestMethodDefinition, character: CharacterSummary): boolean {
+  return calculateQuestChance({
+    method,
+    stats: character.stats,
+    raceId: character.raceId,
+    classId: character.classId
+  }) >= 80;
 }
 
 function normalizeLabel(label: string): string {
