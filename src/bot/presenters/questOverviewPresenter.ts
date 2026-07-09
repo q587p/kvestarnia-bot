@@ -728,19 +728,29 @@ function getBarrelBeerTutorialOverviewRow(snapshot: QuestHubSnapshot): QuestOver
 }
 
 function getCharkokovalniaOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
-  if (snapshot.itemUpgrades?.state !== "unlock-required") {
+  const itemUpgrades = snapshot.itemUpgrades;
+
+  if (itemUpgrades?.state !== "unlock-required") {
     return null;
   }
 
+  const hasFieldKit = itemUpgrades.fieldKitQuantity > 0;
+
   return {
     id: "charkokovalnia",
-    priority: "available",
-    title: "✨ <b>Доступ до Чароковальні</b> — доступно",
-    body: [
-      "Статус: ельф-маг у задвірку кличе до справи й обіцяє офіційні суперечки манаток.",
-      "<i>Далі:</i> принесіть потрібну аптечку й домовтеся з іскрами.",
-      "<i>Де:</i> задвірок корчми."
-    ].join("\n")
+    priority: "active",
+    title: "✨ <b>Доступ до Чароковальні</b> — потрібна Польова аптечка",
+    body: hasFieldKit
+      ? [
+          "<i>Зроблено:</i> ельф-маг уже попросив Польову аптечку, і вона є в торбі.",
+          "<i>Далі:</i> віднесіть аптечку до Чароковальні й запустіть іскри офіційно.",
+          "<i>Де:</i> задвірок корчми."
+        ].join("\n")
+      : [
+          "<i>Зроблено:</i> ельф-маг уже попросив Польову аптечку для першого запуску.",
+          "<i>Далі:</i> добудьте Польову аптечку; Єгер, як завжди, виглядає так, ніби знає, де її шукати.",
+          "<i>Де:</i> задвірок корчми для Чароковальні; єгерський куток — за підказкою до аптечки."
+        ].join("\n")
   };
 }
 

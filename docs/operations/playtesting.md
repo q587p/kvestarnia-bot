@@ -16,20 +16,22 @@
 8. High-level character with regular `Три справи` ready: press `🗺️ Квести`; verify `🪧 Три справи на найближчий час` appears with `Зроблено`, `Далі`, and `Де` guidance.
 9. Level 4+ character with `Справа не до миші` offered or paused after a roleplay attempt: press `🗺️ Квести`; verify the row appears and names the current stage.
 10. Level 4+ character holding the grownup cellar bottle: press `🗺️ Квести`; verify `Справа не до миші` appears as claimable and points to Shynok turn-in.
-11. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
-12. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
-13. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
-14. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
-15. Problem Quest in progress: verify the row appears with progress and turn-in guidance, including prose casing `спуск до Низу`; completed/reward-claimed Problem Quest disappears.
-16. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with єгерський куток guidance and no direct `До Єгеря` button.
-17. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
-18. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
-19. Buy a Shynok beer round for a nearby recipient; verify the buyer's card first changes to `Корчмар поставив кухлі`, then the recipient receives the separate beer offer with `Випити`.
-20. Before accepting or declining that live offer, reopen Shynok; verify `🍺 Вам пиво!` appears next to `🍹 Напої для себе`, opens the same offer card, and does not drink or decline until an explicit offer button is pressed.
-21. After drinking the tutorial beer while another Shynok/table affair remains available, return to the hall; verify `📋 Стіл зі справами ✅` is shown instead of `📋 Стіл зі справами ⚠️`.
-22. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-23. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
-24. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+11. High-level character with Charkokovalnia unlock pending and no field kit: press `🗺️ Квести`; verify `Доступ до Чароковальні` says the elf-mage asked for `Польова аптечка` and points toward the Yeger hint.
+12. High-level character with Charkokovalnia unlock pending and a field kit in the bag: press `🗺️ Квести`; verify the same row points back to Charkokovalnia turn-in.
+13. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
+14. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
+15. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
+16. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
+17. Problem Quest in progress: verify the row appears with progress and turn-in guidance, including prose casing `спуск до Низу`; completed/reward-claimed Problem Quest disappears.
+18. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with єгерський куток guidance and no direct `До Єгеря` button.
+19. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
+20. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
+21. Buy a Shynok beer round for a nearby recipient; verify the buyer's card first changes to `Корчмар поставив кухлі`, then the recipient receives the separate beer offer with `Випити`.
+22. Before accepting or declining that live offer, reopen Shynok; verify `🍺 Вам пиво!` appears next to `🍹 Напої для себе`, opens the same offer card, and does not drink or decline until an explicit offer button is pressed.
+23. After drinking the tutorial beer while another Shynok/table affair remains available, return to the hall; verify `📋 Стіл зі справами ✅` is shown instead of `📋 Стіл зі справами ⚠️`.
+24. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+25. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+26. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
 

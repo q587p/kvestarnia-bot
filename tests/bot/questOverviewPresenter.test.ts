@@ -194,7 +194,27 @@ describe("quest overview presenter", () => {
         character: highLevel,
         maxLevel: 5,
         progress: barrelProgress(false)
-      },
+      }
+    }));
+
+    expect(rows).toEqual([]);
+  });
+
+  it("shows Charkokovalnia unlock details after the field-kit request is available", () => {
+    const highLevel = characterAtLevel(13);
+    const missingRows = buildQuestOverviewRows(makeSnapshot({
+      character: highLevel,
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 }),
+      itemUpgrades: {
+        state: "unlock-required",
+        character: highLevel,
+        fieldKitQuantity: 0,
+        rewardXp: 13
+      }
+    }));
+    const readyRows = buildQuestOverviewRows(makeSnapshot({
+      character: highLevel,
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 }),
       itemUpgrades: {
         state: "unlock-required",
         character: highLevel,
@@ -203,7 +223,22 @@ describe("quest overview presenter", () => {
       }
     }));
 
-    expect(rows).toEqual([]);
+    expect(missingRows.find((row) => row.id === "charkokovalnia")).toMatchObject({
+      priority: "active",
+      title: "✨ <b>Доступ до Чароковальні</b> — потрібна Польова аптечка"
+    });
+    expect(missingRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
+      "<i>Далі:</i> добудьте Польову аптечку; Єгер, як завжди, виглядає так, ніби знає, де її шукати."
+    );
+    expect(missingRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
+      "єгерський куток — за підказкою до аптечки."
+    );
+    expect(readyRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
+      "<i>Зроблено:</i> ельф-маг уже попросив Польову аптечку, і вона є в торбі."
+    );
+    expect(readyRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
+      "<i>Далі:</i> віднесіть аптечку до Чароковальні й запустіть іскри офіційно."
+    );
   });
 
   it("renders a compact empty state when no active or taken quests exist", () => {
