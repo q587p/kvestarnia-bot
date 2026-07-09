@@ -143,4 +143,6 @@ export const races = [
   }
 ] satisfies RaceContent[];
 
-export const activeRaces = races.filter((race) => race.availableInOnboarding !== false);
+export const activeRaces = (races as readonly RaceContent[]).filter(
+  (race) => race.availableInOnboarding !== false
+);

@@ -719,6 +719,210 @@ describe("party boss reducer", () => {
     })));
   });
 
+  it("spends Kharakternyk ward sign supports as repeated Big Barrel broad-hit charges", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-ward-sign",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 2
+      },
+      participants: [
+        participant("leader", "Р—РЅР°РєР°СЂ", { hp: 160, level: 8, intelligence: 15, classId: "class.kharakternyk" }),
+        participant("ally", "РџС–РґРїРѕСЂР°", { hp: 160, level: 8, intelligence: 10 })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 500,
+        hpMax: 500
+      }
+    };
+
+    for (let turn = 1; turn <= 4; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
+        seed: "big-ward-sign",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" },
+          { characterId: "ally", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 2,
+      usesRemaining: 1,
+      usesMax: 2,
+      mitigationPercent: 45
+    });
+    expect(state.roundLog.at(-1)?.wardSign?.preventedDamage).toBeGreaterThan(0);
+    const firstPreventedDamage = state.roundLog.at(-1)?.wardSign?.preventedDamage ?? 0;
+    expect(state.wardSign).toMatchObject({
+      status: "carried",
+      supportCount: 2,
+      usesRemaining: 1,
+      usesMax: 2,
+      mitigationPercent: 45,
+      preventedDamage: firstPreventedDamage
+    });
+
+    for (let turn = 5; turn <= 8; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:0${turn}:00.000Z`),
+        seed: "big-ward-sign",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" },
+          { characterId: "ally", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 2,
+      usesRemaining: 0,
+      usesMax: 2,
+      mitigationPercent: 45
+    });
+    const secondPreventedDamage = state.roundLog.at(-1)?.wardSign?.preventedDamage ?? 0;
+    expect(state.wardSign).toMatchObject({
+      status: "broken",
+      supportCount: 2,
+      usesRemaining: 0,
+      usesMax: 2,
+      mitigationPercent: 45,
+      preventedDamage: firstPreventedDamage + secondPreventedDamage
+    });
+  });
+
+  it("lets an unsupported Kharakternyk ward sign trigger once", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-ward-sign-solo",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0
+      },
+      participants: [
+        participant("leader", "Знакар", { hp: 160, level: 8, intelligence: 15, classId: "class.kharakternyk" })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        hp: 500,
+        hpMax: 500
+      }
+    };
+
+    for (let turn = 1; turn <= 4; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:1${turn}:00.000Z`),
+        seed: "big-ward-sign-solo",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      mitigationPercent: 25
+    });
+    expect(state.wardSign).toMatchObject({
+      status: "broken",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      mitigationPercent: 25
+    });
+
+    const afterBroken = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:15:00.000Z"),
+      seed: "big-ward-sign-solo",
+      actions: [
+        { characterId: "leader", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(afterBroken.round.wardSign).toBeUndefined();
+  });
+
+  it("spends a Kharakternyk ward activation even when mitigation rounds to zero", () => {
+    let state = createPartyBossState({
+      partySessionId: "big-ward-sign-zero",
+      variant: "big-barrel",
+      leaderCharacterId: "leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0
+      },
+      participants: [
+        participant("leader", "Знакар", { hp: 160, level: 8, intelligence: 15, classId: "class.kharakternyk" })
+      ]
+    });
+    state = {
+      ...state,
+      boss: {
+        ...state.boss,
+        attack: 1,
+        hp: 500,
+        hpMax: 500
+      }
+    };
+
+    for (let turn = 1; turn <= 4; turn += 1) {
+      const resolved = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-06-30T10:2${turn}:00.000Z`),
+        seed: "big-ward-sign-zero",
+        actions: [
+          { characterId: "leader", action: "defend", origin: "manual" }
+        ]
+      });
+      state = resolved.state;
+    }
+
+    expect(state.roundLog.at(-1)?.wardSign).toMatchObject({
+      status: "triggered",
+      supportCount: 0,
+      usesRemaining: 0,
+      usesMax: 1,
+      preventedDamage: 0
+    });
+    expect(state.wardSign).toMatchObject({
+      status: "broken",
+      usesRemaining: 0,
+      preventedDamage: 0
+    });
+  });
+
   it("stays active past the old five-turn proof cap while the boss and a participant are alive", () => {
     let state = createPartyBossState({
       partySessionId: "party-old-cap",

@@ -1196,6 +1196,64 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
   });
 
+  it("freezes Kharakternyk ward sign support from the final Big Barrel roster at start", async () => {
+    await seedCharacter(prisma, "big-ward-leader-user", 5081n, "Р—РЅР°РєР°СЂРєР°", {
+      hp: 80,
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 13,
+      intelligence: 15
+    });
+    await seedCharacter(prisma, "big-ward-support-user", 5082n, "РџС–РґРїРѕСЂР°", {
+      hp: 80,
+      level: 8,
+      manaCurrent: 10,
+      intelligence: 13
+    });
+    await seedCharacter(prisma, "big-ward-left-user", 5083n, "РџС–РґРїРѕСЂР° Р—Р° Р”РІРµСЂРёРјР°", {
+      hp: 80,
+      level: 8,
+      manaCurrent: 10,
+      intelligence: 13
+    });
+    await partyRepository.createForTelegramUser(5081n, {
+      ...partyInput("party-token-big-ward"),
+      periodId: "2026-06-30T10:58",
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5082n, "party-token-big-ward", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5083n, "party-token-big-ward", joinInput());
+    await partyRepository.placeKharakternykWardSign(5081n, "party-token-big-ward", now());
+    await partyRepository.supportKharakternykWardSign(5082n, "party-token-big-ward", now());
+    await partyRepository.supportKharakternykWardSign(5083n, "party-token-big-ward", now());
+    await partyRepository.leaveByTokenForTelegramUser(5083n, "party-token-big-ward", now());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5081n, {
+      partyInviteToken: "party-token-big-ward",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    expect(started.session.state.wardSign).toMatchObject({
+      kind: "kharakternyk",
+      placerCharacterId: "big-ward-leader-user-character",
+      supportCount: 1,
+      supportCap: 7,
+      usesRemaining: 1,
+      usesMax: 1,
+      mitigationPercent: 35,
+      status: "carried"
+    });
+    expect(started.session.state.participants.map((participant) => participant.characterId).sort()).toEqual([
+      "big-ward-leader-user-character",
+      "big-ward-support-user-character"
+    ].sort());
+  });
+
   it("stores participant-specific Big Barrel Brother manatky instead of replaying the solo Barrel bundle", async () => {
     await seedCharacter(prisma, "big-varied-warrior-user", 5011n, "Бочкова Воячка", {
       hp: 80,
@@ -2056,6 +2114,7 @@ async function seedCharacter(
     classId?: string;
     strength?: number;
     dexterity?: number;
+    intelligence?: number;
     equipment?: Array<{ slot: string; itemId: string }>;
   } = {}
 ): Promise<void> {
@@ -2081,7 +2140,7 @@ async function seedCharacter(
           statsJson: {
             strength,
             dexterity,
-            intelligence: 5,
+            intelligence: options.intelligence ?? 5,
             charisma: 5,
             luck: 5
           },

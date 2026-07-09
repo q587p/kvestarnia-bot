@@ -49,7 +49,7 @@ Characters also persist the hidden `Character.path`. New characters derive it fr
 - `she` → `moon`
 - `they` → `boundary`
 
-Combo titles are content-derived from race/class/pronoun and can be expanded without changing the database. The confirmation step does not reveal the title; it appears after character creation and in hero summaries. `race.kharakternyk` remains only as a deprecated compatibility fallback for older local characters; new characters choose `class.kharakternyk`.
+Combo titles are content-derived from race/class/pronoun and can be expanded without changing the database. The confirmation step does not reveal the title; it appears after character creation and in hero summaries. Kharakternyk identity is represented by `class.kharakternyk`.
 
 ## Character Impact Loop
 

@@ -93,6 +93,19 @@ describe("summarizeCharacter", () => {
     });
   });
 
+  it("keeps stored legacy Kharakternyk race characters displayable", () => {
+    const summary = summarizeCharacter(character({
+      raceId: "race.kharakternyk",
+      classId: "class.mage",
+      pronoun: "he",
+      level: 12
+    }));
+
+    expect(summary.raceName).toBe("Козак-характерник");
+    expect(summary.title).toBe("Пригодник місцевого значення");
+    expect(summary.levelBonus.stats.luck).toBeGreaterThan(0);
+  });
+
   it("combines base, level, and equipped item effects once", () => {
     expect(
       summarizeCharacter(character({ level: 3, xp: 25 }), {

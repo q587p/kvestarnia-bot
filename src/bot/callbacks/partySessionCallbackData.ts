@@ -9,6 +9,8 @@ export type PartySessionCallback =
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
   | { type: "readiness"; token: string; readiness: PartyParticipantReadiness }
+  | { type: "ward-place"; token: string }
+  | { type: "ward-support"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-gear"; token: string; turn: number; grantKey: string }
@@ -64,6 +66,14 @@ export function makePartySessionReadinessCallbackData(
   readiness: PartyParticipantReadiness
 ): string {
   return `${PREFIX}:rs:${token}:${readiness === "ready" ? "r" : "w"}`;
+}
+
+export function makePartySessionWardPlaceCallbackData(token: string): string {
+  return `${PREFIX}:wp:${token}`;
+}
+
+export function makePartySessionWardSupportCallbackData(token: string): string {
+  return `${PREFIX}:ws:${token}`;
 }
 
 export function makePartyBossStartCallbackData(token: string): string {
@@ -309,6 +319,14 @@ export function parsePartySessionCallbackData(
       token: tokenOrTarget,
       readiness
     });
+  }
+
+  if (action === "wp" || action === "ws") {
+    if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
+      return err("invalid-token");
+    }
+
+    return ok({ type: action === "wp" ? "ward-place" : "ward-support", token: tokenOrTarget });
   }
 
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {

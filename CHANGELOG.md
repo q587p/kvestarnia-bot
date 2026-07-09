@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.2] - 12026-07-09 - Kharakternyk Ward Signs for Big Barrel Raids
+
+### Added
+- Added `class.kharakternyk` ward signs to Big Barrel Brother recruiting lobbies: an eligible joined Kharakternyk can spend deterministic `8..11` mana from effective Intelligence plus Luck to place one sign before the raid starts.
+- Added one replay-safe support action per joined participant before start. Supporters spend deterministic `5..8` mana from effective Intelligence plus Luck, without a free Kharakternyk support exception.
+- Added durable lobby snapshot storage for ward placement/support without a schema migration, plus final-roster revalidation so left/remorted/absent placers or supporters do not affect the started raid.
+- Added frozen Big Barrel ward mitigation state at boss start with `min(95, 25 + 10 * supportCount)` mitigation, capped at `7` supporters, and remaining activation charges: unsupported signs trigger once, supported signs trigger once per support.
+- Added Big Barrel active-card and battle-journal copy for carried, partially cracked and fully broken ward signs, including remaining supports and the post-resolution prevented damage amount.
+- Added focused reducer, callback-data, keyboard and Prisma repository/integration coverage for placement, support, duplicate replay, final roster freezing and support-charge broad-hit mitigation.
+
+### Changed
+- Big Barrel Brother broad retaliations now carry typed ward-prevention details when a ward sign is active; ordinary boss hits remain unchanged.
+- Kharakternyk ward active-card status now shows the cumulative damage prevented by the sign across the whole fight, while recent actions and journal lines keep the per-trigger prevented damage.
+- Kharakternyk ward zero-prevention activations now avoid awkward `0 шкоди` copy while still spending the appropriate broad-hit activation.
+- The inactive legacy `race.kharakternyk` fallback remains resolvable for existing characters, while new Kharakternyks continue to use `class.kharakternyk`.
+- Big Barrel recruiting cards can show count-only Kharakternyk ward support status and eligible placement/support buttons without exposing hidden support-cost thresholds.
+- Kharakternyk ward placement now uses a session-level compare-and-swap guard before mana spend so simultaneous placers cannot commit two signs or charge the losing placer.
+- Kharakternyk ward support now uses a participant-level compare-and-swap guard before mana spend so simultaneous duplicate support callbacks cannot charge one supporter twice.
+- Big Barrel active cards now stop repeating the auto-defense timer after the viewer has already queued an action for the current turn.
+- Big Barrel active cards and journal pages now hide stale personal cooldown lines after a participant has been knocked out of the raid.
+- Successful ward placement/support callbacks now send the actor a separate confirmation message with the stored mana spend.
+- The Lore Board Kharakternyk entry now mentions the class's visible raid-prep sign behavior.
+
 ## [0.3.1] - 12026-07-09 - Turn-Based Duel Tournaments and Korchma Rewards
 
 ### Added
@@ -927,7 +950,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Passive HP/mana sync now preserves effective resource maxima from remorts and equipped manatky instead of clamping healed/rested characters back to the stored base maxima.
 
 ### Unchanged
-- Deprecated hidden `race.kharakternyk` intentionally has no race ability button; old characters rely on the active `class.kharakternyk` class ability.
+- Kharakternyk identity is class-only through `class.kharakternyk`, with no separate identity ability button.
 - No party/raid runtime, quick-duel formula rewrite, wagers, ratings, tournaments, new monsters, loot/economy/Yeger changes, item expansion, Prisma migration or remort redesign ships in this slice.
 - Critical fumble tracking is scoped to the stored active combat/turn-based-duel JSON in this PR; a durable per-character/per-ability lifetime counter remains a possible future hardening if the mechanic needs to span separate sessions.
 - Doppels keep their existing copied skill AI; their frozen identity/debug state now records the copied class/race ability ids, but they do not use a new race-ability AI policy yet.
@@ -2305,7 +2328,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Characters now persist a hidden `path` metadata field derived from the visible pronoun choice.
 - New characters receive `sun`, `moon`, or `boundary` internally, and the migration backfills existing local rows.
 - Added the active `Бісини` and `Дрантогор` races.
-- Added the `Характерник` class while keeping the old `race.kharakternyk` only as a compatibility fallback.
+- Added the `Характерник` class and moved the character concept fully into class identity.
 - Added a broader set of authored race/class combo titles for character creation summaries.
 - Tests cover hidden path helpers, onboarding validation, Prisma schema shape, active race content, combo titles, and presenter visibility.
 

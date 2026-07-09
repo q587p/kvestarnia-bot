@@ -164,7 +164,7 @@ describe("OnboardingService", () => {
       new FakeCharacterRepository(new FakeUserRepository())
     );
 
-    expect(service.selectRace("she", "race.kharakternyk")).toEqual({
+    expect(service.selectRace("she", "race.not-a-race")).toEqual({
       ok: false,
       error: { type: "invalid-race" }
     });

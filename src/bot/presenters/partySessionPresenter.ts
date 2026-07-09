@@ -496,6 +496,9 @@ export function presentPartyBoss(
     viewerCharacterId: session.status === "active" ? viewer?.characterId ?? null : null,
     targetedCharacterIds
   }));
+  if (big && state.wardSign) {
+    lines.push(presentKharakternykWardBossLine(state.wardSign));
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null));
   }
@@ -546,7 +549,9 @@ function presentPartyBossViewerTurnPrompt(
     ? `<b>${escapeHtml(viewer.name)}</b>, ви плануєте ${presentPartyBossQueuedActionPlan(queuedAction, viewer)}.`
     : `<b>${escapeHtml(viewer.name)}</b>, що робимо?`;
 
-  return `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
+  return queuedAction
+    ? prompt
+    : `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
 }
 
 function findPartyBossQueuedAction(
@@ -622,6 +627,10 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     }
   } else if (round.statusAfter === "active") {
     actionLines.push(`${escapeHtml(session.state.boss.name ?? "Бос")} не завдав шкоди цього ходу.`);
+  }
+
+  if (round.wardSign) {
+    actionLines.push(presentKharakternykWardTriggeredLine(round.wardSign));
   }
 
   return presentBattleJournalPage({
@@ -706,6 +715,13 @@ function presentJournalCooldownLines(
 
   return participants.flatMap((participant) => {
     const resourceSnapshot = resourcesByCharacterId.get(participant.characterId);
+    const activeAfterRound = resourceSnapshot
+      ? resourceSnapshot.status === "active" && resourceSnapshot.hp > 0
+      : participant.status === "active" && participant.resources.hp > 0;
+    if (!activeAfterRound) {
+      return [];
+    }
+
     const cooldowns = resourceSnapshot
       ? resourceSnapshot.cooldowns
       : participant.resources.cooldowns;
@@ -784,7 +800,38 @@ function presentLastRoundLines(
   } else if (round.statusAfter === "active") {
     lines.push(`${escapeHtml(bossName)} не завдав шкоди цього ходу.`);
   }
+  if (round.wardSign) {
+    lines.push(presentKharakternykWardTriggeredLine(round.wardSign));
+  }
   return lines;
+}
+
+function presentKharakternykWardTriggeredLine(
+  wardSign: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["wardSign"]>
+): string {
+  const usesRemaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? 0));
+  const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage));
+  if (preventedDamage <= 0) {
+    if (wardSign.supportCount > 0 && usesRemaining > 0) {
+      return `🧿 Знак характерника частково луснув, але цього разу шкода прослизнула повз нього. Підпор лишилося: ${usesRemaining}.`;
+    }
+
+    if (wardSign.supportCount > 0) {
+      return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього. Підпор не лишилося.";
+    }
+
+    return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.";
+  }
+
+  if (wardSign.supportCount > 0 && usesRemaining > 0) {
+    return `🧿 Знак характерника частково луснув і цього разу забрав на себе ${preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
+  }
+
+  if (wardSign.supportCount > 0) {
+    return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди. Підпор не лишилося.`;
+  }
+
+  return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -851,6 +898,10 @@ export function presentPartySession(
     lines.push(escapeHtml(options.notice), "");
   }
 
+  if (big && session.wardSign) {
+    lines.push(presentKharakternykWardLobbyLine(session), "");
+  }
+
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
@@ -870,6 +921,41 @@ export function presentPartySession(
   }
 
   return lines.join("\n");
+}
+
+function presentKharakternykWardBossLine(
+  wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
+): string {
+  const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage ?? 0));
+  if (wardSign.status === "broken") {
+    return preventedDamage > 0
+      ? `🧿 Знак характерника вже зовсім тріснув і всього забрав на себе ${preventedDamage} шкоди.`
+      : "🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.";
+  }
+
+  if (wardSign.supportCount > 0) {
+    const remaining = Math.max(0, Math.floor(wardSign.usesRemaining ?? wardSign.supportCount));
+    const supportCap = Math.max(wardSign.supportCount, Math.floor(wardSign.supportCap ?? 7));
+    if (wardSign.triggeredTurn) {
+      return preventedDamage > 0
+        ? `🧿 Знак характерника частково тріснув і всього забрав на себе ${preventedDamage} шкоди. Підпор: ${remaining}/${supportCap}.`
+        : `🧿 Знак характерника частково тріснув, але шкода поки прослизає повз нього. Підпор: ${remaining}/${supportCap}.`;
+    }
+
+    return `🧿 Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;
+  }
+
+  return "🧿 Знак характерника тримається.";
+}
+
+function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
+  const supportCount = session.wardSign?.supportCount ?? 0;
+  const supportCap = session.wardSign?.supportCap ?? 7;
+  if (supportCount <= 0) {
+    return "🧿 Знак характерника стоїть біля бочки.";
+  }
+
+  return `🧿 Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
 }
 
 function isBigBarrelParty(session: PartySessionRecord): boolean {
@@ -1265,7 +1351,7 @@ function presentPartyBossActionSubject(
 function presentPartyBossCooldownLines(
   viewer: PartyBossSessionRecord["state"]["participants"][number] | null
 ): string[] {
-  if (!viewer) {
+  if (!viewer || viewer.status !== "active" || viewer.resources.hp <= 0) {
     return [];
   }
 

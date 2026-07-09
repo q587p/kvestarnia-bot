@@ -13,6 +13,7 @@ const achievementDateFormatter = new Intl.DateTimeFormat("en-GB", {
   month: "2-digit",
   year: "numeric"
 });
+const ACHIEVEMENTS_SECTION_LINK = "<i>Персонаж → Ачівки.</i>";
 
 export function presentAchievements(
   view: AchievementListView,
@@ -71,7 +72,7 @@ export function presentAchievementUnlockNotification(unlocks: readonly Achieveme
     const unlock = unlocks[0]!;
     const titleLine = `«${escapeHtml(unlock.title)}»`;
     const titleGrant = unlock.cosmeticTitleGrantId
-      ? "\nТитульний запис додано в Персонаж → Ачівки."
+      ? `\nТитульний запис додано в ${ACHIEVEMENTS_SECTION_LINK}`
       : "";
 
     return `🏅 <b>Нова ачівка!</b>\n${titleLine}${titleGrant}`;
@@ -80,7 +81,7 @@ export function presentAchievementUnlockNotification(unlocks: readonly Achieveme
   return [
     `🏅 <b>Нові ачівки: ${unlocks.length}</b>`,
     ...unlocks.map((unlock) => `✅ ${escapeHtml(unlock.title)}`),
-    "Записи додано в Персонаж → Ачівки."
+    `Записи додано в ${ACHIEVEMENTS_SECTION_LINK}`
   ].join("\n");
 }
 

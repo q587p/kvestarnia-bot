@@ -38,6 +38,138 @@ describe("party session presenter", () => {
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
   });
 
+  it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0,
+        supportCap: 7,
+        mitigationPercent: 25,
+        status: "carried",
+        usesRemaining: 1,
+        usesMax: 1
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника тримається.");
+    expect(text).not.toContain("Підпор: 0/7");
+  });
+
+  it("shows partially cracked Kharakternyk ward support charges on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 2,
+        supportCap: 7,
+        mitigationPercent: 45,
+        status: "carried",
+        usesRemaining: 1,
+        usesMax: 2,
+        triggeredTurn: 4,
+        preventedDamage: 12,
+        affectedCharacterIds: ["leader", "striker"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника частково тріснув і всього забрав на себе 12 шкоди. Підпор: 1/7.");
+  });
+
+  it("shows cumulative Kharakternyk ward damage after final breakage on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 2,
+        supportCap: 7,
+        mitigationPercent: 45,
+        status: "broken",
+        usesRemaining: 0,
+        usesMax: 2,
+        triggeredTurn: 8,
+        preventedDamage: 23,
+        affectedCharacterIds: ["leader", "striker"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув і всього забрав на себе 23 шкоди.");
+  });
+
+  it("avoids zero-damage Kharakternyk ward totals on active cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "leader",
+        supportCount: 0,
+        supportCap: 7,
+        mitigationPercent: 25,
+        status: "broken",
+        usesRemaining: 0,
+        usesMax: 1,
+        triggeredTurn: 4,
+        preventedDamage: 0,
+        affectedCharacterIds: ["leader"]
+      }
+    }));
+
+    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.");
+    expect(text).not.toContain("0 шкоди");
+  });
+
+  it("shows final Kharakternyk ward breakage in recent actions", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 4,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        wardSign: {
+          kind: "kharakternyk",
+          status: "triggered",
+          supportCount: 2,
+          supportCap: 7,
+          usesRemaining: 0,
+          usesMax: 2,
+          mitigationPercent: 45,
+          preventedDamage: 11,
+          affectedCharacterIds: ["leader", "striker"]
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("🧿 Знак характерника луснув зовсім і цього разу забрав на себе 11 шкоди. Підпор не лишилося.");
+  });
+
+  it("avoids zero-damage Kharakternyk ward recent-action lines", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 4,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        wardSign: {
+          kind: "kharakternyk",
+          status: "triggered",
+          supportCount: 0,
+          supportCap: 7,
+          usesRemaining: 0,
+          usesMax: 1,
+          mitigationPercent: 25,
+          preventedDamage: 0,
+          affectedCharacterIds: ["leader"]
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.");
+    expect(text).not.toContain("0 шкоди");
+  });
+
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
     const base = makeBigBossSession({}, {
       queuedActions: [{
@@ -59,6 +191,24 @@ describe("party session presenter", () => {
     expect(defending).toContain("<b>Голова</b>, ви плануєте захищатися.");
     expect(attacking).toContain("<b>Голова</b>, ви плануєте вдарити.");
     expect(attacking).not.toContain("<b>Голова</b>, що робимо?");
+    expect(attacking).not.toContain("Потім Корчма поставить вас у захист.");
+  });
+
+  it("does not repeat the auto-defense timer after the viewer queued a Big Barrel item", () => {
+    const text = presentPartyBoss(makeBigBossSession({}, {
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "item",
+        item: {
+          itemId: "item.field-kit",
+          name: "Польова аптечка"
+        }
+      }]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("<b>Голова</b>, ви плануєте одноразову манатку <i>Польова аптечка</i>.");
+    expect(text).not.toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
   });
 
   it("names queued Big Barrel Brother skill and gear action plans", () => {
@@ -204,6 +354,61 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Рикошетний постріл відсапується");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
     expect(text).not.toContain("Бос отримав:");
+  });
+
+  it("hides stale cooldown notices for knocked-out participants in Big Barrel Brother journal pages", () => {
+    const text = presentPartyBossJournal(makeBigBossSession({
+      turn: 7,
+      roundLog: [{
+        turn: 6,
+        actions: [
+          {
+            characterId: "leader",
+            action: "defend",
+            origin: "timeout",
+            outcome: "defended",
+            damage: 0,
+            manaSpent: 0
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 383,
+        bossRetaliations: [
+          { characterId: "leader", damage: 20, hpAfter: 0 }
+        ],
+        participantsAfter: [
+          {
+            characterId: "leader",
+            status: "knocked-out",
+            hp: 0,
+            hpMax: 60,
+            mana: 19,
+            manaMax: 20,
+            cooldowns: {
+              skill: {
+                id: "technique.class.bureaucramancer.peer-reviewed-strike",
+                remainingTurns: 4
+              }
+            },
+            combatItems: {
+              cooldowns: {
+                "item.dense-bandage": {
+                  itemId: "item.dense-bandage",
+                  remainingTurns: 3
+                }
+              }
+            }
+          },
+          { characterId: "striker", status: "active", hp: 32, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("Голова після ходу: HP 0/60 · мана 19/20 · вибито");
+    expect(text).not.toContain("Голова: 🫁");
+    expect(text).not.toContain("Рецензований удар відсапується");
+    expect(text).not.toContain("Щільний бинт відсапується");
   });
 
   it("names the Big Barrel Brother broad attack in the active battle card", () => {
@@ -525,6 +730,38 @@ describe("party session presenter", () => {
     expect(text).not.toContain("❤️ Ви:");
     expect(text).not.toContain("відсапується");
     expect(text).toContain("Ваша винагорода за рейд:\n<b>+2 XP\n+4 золота</b>");
+  });
+
+  it("hides stale viewer cooldowns after the viewer is knocked out of an active Big Barrel Brother raid", () => {
+    const leader = participant("leader", "Голова");
+    leader.status = "knocked-out";
+    leader.resources = {
+      ...leader.resources,
+      hp: 0,
+      cooldowns: {
+        skill: {
+          id: "technique.class.bureaucramancer.peer-reviewed-strike",
+          remainingTurns: 4
+        }
+      }
+    };
+    leader.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": {
+          itemId: "item.dense-bandage",
+          remainingTurns: 3
+        }
+      }
+    };
+    const text = presentPartyBoss(makeBigBossSession({
+      turn: 7,
+      participants: [leader, participant("striker", "Шкодійка")]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("❤️ Ви: HP 0/60 · мана 20/20 · вибито");
+    expect(text).toContain("Ви вибиті з рейду. Картка лишається для спостереження й оновлення.");
+    expect(text).not.toContain("Рецензований удар відсапується");
+    expect(text).not.toContain("Щільний бинт відсапується");
   });
 
   it("does not claim the Big Barrel Brother focus switched when it stayed on the same participant", () => {

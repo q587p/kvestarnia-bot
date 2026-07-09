@@ -6,6 +6,7 @@ import type {
 } from "../../services/classNoncombatService";
 import type { PriestBlessingRecord } from "../../db/repositories/classNoncombatRepository";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentManaSpentLine } from "./resourcePresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): string {
@@ -111,7 +112,7 @@ export function presentPriestHealResult(result: PriestHealResult): string {
       ? "Жрець приклав ману до себе. Мана трохи обурилась, але виконала обов’язок."
       : `${presentCharacterDisplayName(result.actor)} полікував ${presentCharacterDisplayName(result.target, { boldName: false })}.`,
     `❤️ HP: <b>+${result.action.healAmount}</b> · тепер <b>${result.target.hpCurrent}/${result.target.hpMax}</b>.`,
-    `💫 Мани витрачено: <b>${result.action.manaCost}</b>.`
+    presentManaSpentLine(result.action.manaCost)
   ].join("\n");
 }
 
@@ -137,7 +138,7 @@ export function presentPriestBlessResult(result: PriestBlessResult): string {
     `Стан діє ще: <b>${formatRemaining(result.blessing.expiresAt)}</b>.`,
     `Бонус: <b>+${normalizeBlessingBonus(result.blessing.bonusAmount)} ${presentBlessingStatLabel(result.blessing)}</b>. Видно в персонажі поруч із бафами.`,
     "",
-    `💫 Мани витрачено: <b>${result.action.manaCost}</b>.`
+    presentManaSpentLine(result.action.manaCost)
   ].join("\n");
 }
 

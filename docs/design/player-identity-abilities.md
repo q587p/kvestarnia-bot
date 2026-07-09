@@ -29,12 +29,6 @@
 | Орк-інтелігент | `📚 Рецензований удар` (`ability.race.peer-reviewed-smash`): single enemy, physical/social flavor, 0 мани, 4 cooldown. | Race-specific adventure offers; scholarly argument flavor. | Review/argument social methods, future debate-style control without power creep. |
 | Мольфарська душа | `🧿 Туманний оберіг` (`ability.race.fog-amulet`): all allies including self, ward/mitigation/counter, 1 мана, 4 cooldown. | Race-specific adventure offers; fog/amulet identity. | Group wards when party runtime exists; ritual support and protective social hooks. |
 
-### Deprecated Race
-
-| Раса | Поточний стан | Planned |
-| --- | --- | --- |
-| Козак-характерник (`race.kharakternyk`) | Hidden/deprecated fallback race for old characters. It intentionally has no race button in `0.2.7`. | Active характерник identity lives as `class.kharakternyk`; do not add a second race button unless a migration/compatibility task explicitly asks for it. |
-
 ## Класи
 
 | Клас | Поточна бойова абілка | Поточна соціяльна/контентна роль | Planned |
@@ -47,7 +41,7 @@
 | Вареник-мант | `🥟 Кипляча начинка` (`skill.boiling-filling`): all enemies plus small self/ally fallback heal, spell, 4 мани, 2 cooldown. | Class-specific adventure offers; food/steam/tavern craft flavor. | Food-ish noncombat technique only as a scoped slice; no broad crafting yet. |
 | Бюрокромант | `📄 Форма 13-Б` (`skill.form-thirteen-b`): all enemies plus response reduction, social/control, 4 мани, 3 cooldown. | Class-specific adventure offers; paperwork/authority method flavor. | Forms, permits and queue manipulation as social techniques; keep callbacks server-owned. |
 | Єгер | `🏹 Рикошетний постріл` (`skill.trick-shot`): primary plus splash/all enemies, trick, 1 мана, 2 cooldown. | Yeger hunt/board systems already exist, but class-ranger discounts/free medical supply hooks are narrow item/Yeger mechanics, not a universal profession engine. | Tracking, contracts and outdoor utility in small slices; no group auto-navigation by default. |
-| Козак-характерник | `👁 Степовий косий погляд` (`skill.steppe-side-eye`): all enemies plus control/mitigation, trick, 2 мани, 2 cooldown. | Class-specific adventure offers; steppe/tuman/control flavor. | More характерницькі tricks, ritual/control support, distinct from deprecated `race.kharakternyk`. |
+| Козак-характерник | `👁 Степовий косий погляд` (`skill.steppe-side-eye`): all enemies plus control/mitigation, trick, 2 мани, 2 cooldown. | Class-specific adventure offers; steppe/tuman/control flavor. | More характерницькі tricks, ritual/control support. |
 
 ## Поточні Титули
 
