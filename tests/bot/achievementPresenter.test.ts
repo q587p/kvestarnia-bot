@@ -132,6 +132,22 @@ describe("achievement presenter", () => {
     expect(text).toContain("Нові ачівки: 2");
     expect(text).toContain("✅ Перший поверх амбіцій");
     expect(text).toContain("✅ Манатка дивиться першою");
+    expect(text).toContain("Записи додано в <i>Персонаж → Ачівки.</i>");
+  });
+
+  it("italicizes the achievements section path in title unlock notifications", () => {
+    const text = presentAchievementUnlockNotification([
+      {
+        id: "achievement.item.office-look",
+        title: "На мені це виглядає службово",
+        cosmeticTitleGrantId: "cosmetic-title.office-look",
+        unlockedAt: new Date()
+      }
+    ]);
+
+    expect(text).toContain("Нова ачівка!");
+    expect(text).toContain("«На мені це виглядає службово»");
+    expect(text).toContain("Титульний запис додано в <i>Персонаж → Ачівки.</i>");
   });
 });
 
