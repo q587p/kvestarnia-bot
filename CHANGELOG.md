@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shynok beer-round confirmation now updates the buyer's card to `Корчмар поставив кухлі` before sending the individual `Випити` offer cards, so the shared round is visibly placed before recipients act.
 - Shynok cards now show a `🍺 Вам пиво!` shortcut next to `🍹 Напої для себе` while a live round offer can still be accepted, reopening the same offer card with `Випити` / `Ні, дякую` instead of hiding the cup in chat history.
 - The Korchma hall `📋 Стіл зі справами` marker now lets ready turn-ins such as the Barrel Beer Tutorial `✅` override unrelated available-work `⚠️` markers from Shynok or other table papers.
+- Charkokovalnia unlock markers now turn green when the player already has the `Польова аптечка`, including `Доступ до Чароковальні`, `Надвір`, `У задвірок` and the Charkokovalnia action itself.
 - The quest overview now distinguishes repeat `Льохова справа` availability after the first mouse errand completion, using `не перший спуск` and repeat-attempt next-step copy instead of claiming it is still the first descent.
 - Quest overview problem guidance now uses prose casing for `спуск до Низу`, keeping `Спуск до Низу` for buttons, titles and sentence starts.
 - Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.

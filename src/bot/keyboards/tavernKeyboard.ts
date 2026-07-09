@@ -209,7 +209,13 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
       makePlaceCallbackData("cellar")
     )
     .row()
-    .text("🚪 Надвір", makePlaceCallbackData("front"));
+    .text(
+      decorateButtonLabel(
+        "🚪 Надвір",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.yard")
+      ),
+      makePlaceCallbackData("front")
+    );
 
   if (showNyz) {
     keyboard.text("🪜 Спуск до Низу", makePlaceCallbackData("deep"));

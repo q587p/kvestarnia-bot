@@ -124,13 +124,16 @@ describe("quest marker snapshot", () => {
     > & Partial<Pick<BotServices, "itemUpgrades">>);
 
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
-      "📋 Стіл зі справами ⚠️"
+      "📋 Стіл зі справами ✅"
+    );
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
+      "🚪 Надвір ✅"
     );
     expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard({ questMarkers: snapshot }))).toEqual([
-      "🚪 Зайти в корчму ⚠️"
+      "🚪 Зайти в корчму ✅"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaYardKeyboard({ questMarkers: snapshot }))).toContain(
-      "✨ Чароковальня ⚠️"
+      "✨ Чароковальня ✅"
     );
   });
 

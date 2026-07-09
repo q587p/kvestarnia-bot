@@ -129,24 +129,38 @@ describe("quest button markers", () => {
     ).toBe(QuestMarker.NONE);
   });
 
-  it("marks Charkokovalnia unlock across the table and yard paths only while unlock is pending", () => {
-    const pendingInput = {
+  it("marks Charkokovalnia unlock as ready when the field kit is already owned", () => {
+    const missingKitInput = {
       characterLevel: 5,
       itemUpgrades: {
         state: "unlock-required" as const,
         character: character(),
-        fieldKitQuantity: 1,
+        fieldKitQuantity: 0,
         rewardXp: 13
       }
     };
 
-    expect(resolveQuestMarkerForTarget(pendingInput, "quest.charkokovalnia")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.yard")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(pendingInput, "location.korchma.hall")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "quest.charkokovalnia")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.yard")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.hall")).toBe(QuestMarker.CAN_ACCEPT);
+
+    const readyInput = {
+      ...missingKitInput,
+      itemUpgrades: {
+        ...missingKitInput.itemUpgrades,
+        fieldKitQuantity: 1
+      }
+    };
+
+    expect(resolveQuestMarkerForTarget(readyInput, "quest.charkokovalnia")).toBe(QuestMarker.CAN_TURN_IN);
+    expect(resolveQuestMarkerForTarget(readyInput, "location.korchma.yard")).toBe(QuestMarker.CAN_TURN_IN);
+    expect(resolveQuestMarkerForTarget(readyInput, "location.korchma.quest-table")).toBe(QuestMarker.CAN_TURN_IN);
+    expect(resolveQuestMarkerForTarget(readyInput, "location.korchma.hall")).toBe(QuestMarker.CAN_TURN_IN);
+    expect(resolveQuestMarkerForTarget(readyInput, "menu.quest")).toBe(QuestMarker.CAN_TURN_IN);
 
     const unlockedInput = {
-      ...pendingInput,
+      ...missingKitInput,
       itemUpgrades: {
         state: "ready" as const,
         character: character()

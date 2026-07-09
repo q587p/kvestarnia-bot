@@ -314,11 +314,30 @@ describe("main menu and scene keyboards", () => {
         itemUpgrades: {
           state: "unlock-required",
           character,
-          fieldKitQuantity: 1,
+          fieldKitQuantity: 0,
           rewardXp: 13
         }
       }
     }))).toContainEqual(["✨ Чароковальня ⚠️"]);
+    const readyCharkokovalniaQuestMarkers = {
+      characterLevel: 5,
+      itemUpgrades: {
+        state: "unlock-required" as const,
+        character,
+        fieldKitQuantity: 1,
+        rewardXp: 13
+      }
+    };
+    expect(inlineButtonRows(buildKorchmaYardKeyboard({
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContainEqual(["✨ Чароковальня ✅"]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContain("🚪 Надвір ✅");
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({
+      dailyYard: true,
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContainEqual(["🪣 У задвірок ✅"]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",

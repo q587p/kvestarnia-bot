@@ -17,7 +17,7 @@
 9. Level 4+ character with `Справа не до миші` offered or paused after a roleplay attempt: press `🗺️ Квести`; verify the row appears and names the current stage.
 10. Level 4+ character holding the grownup cellar bottle: press `🗺️ Квести`; verify `Справа не до миші` appears as claimable and points to Shynok turn-in.
 11. High-level character with Charkokovalnia unlock pending and no field kit: press `🗺️ Квести`; verify `Доступ до Чароковальні` says the elf-mage asked for `Польова аптечка` and points toward the Yeger hint.
-12. High-level character with Charkokovalnia unlock pending and a field kit in the bag: press `🗺️ Квести`; verify the same row points back to Charkokovalnia turn-in.
+12. High-level character with Charkokovalnia unlock pending and a field kit in the bag: press `🗺️ Квести`; verify the same row points back to Charkokovalnia turn-in, and the route buttons `Доступ до Чароковальні`, `Надвір`, `У задвірок`, and `Чароковальня` show `✅` instead of `⚠️`.
 13. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
 14. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
 15. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.

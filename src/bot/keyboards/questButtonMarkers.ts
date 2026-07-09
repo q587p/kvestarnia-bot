@@ -121,7 +121,7 @@ export function resolveQuestMarkerForTarget(
     case "quest.daily-korchma-round":
       return getDailyKorchmaRoundMarker(input.dailyKorchmaRound);
     case "quest.charkokovalnia":
-      return input.itemUpgrades?.state === "unlock-required" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
+      return getCharkokovalniaMarker(input.itemUpgrades);
     case "location.korchma.quest-table":
     case "menu.quest":
       return mergeQuestMarkers([
@@ -264,6 +264,16 @@ function getDailyKorchmaRoundMarker(
   }
 
   return QuestMarker.NONE;
+}
+
+function getCharkokovalniaMarker(
+  itemUpgrades: QuestMarkerInput["itemUpgrades"]
+): QuestMarker {
+  if (itemUpgrades?.state !== "unlock-required") {
+    return QuestMarker.NONE;
+  }
+
+  return itemUpgrades.fieldKitQuantity > 0 ? QuestMarker.CAN_TURN_IN : QuestMarker.CAN_ACCEPT;
 }
 
 function getBarrelBeerTutorialMarker(

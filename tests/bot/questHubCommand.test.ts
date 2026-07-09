@@ -138,7 +138,7 @@ describe("quest hub command", () => {
 
     expect(replies[0]?.text).toContain("🗺️ <b>Квести</b>");
     expect(replies[0]?.text).toContain("📋 <b>Перший крок до столу</b> — 0/2");
-    expect(replies[0]?.text).toContain("Далі: зайдіть у Корчму.");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> зайдіть у Корчму.");
     expect(replies[0]?.text).not.toBe("Квести видають усередині.");
     const buttons = (
       replies[0]?.options as {
@@ -169,11 +169,11 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("🌯 <b>Підозріла шаурма</b> — новачкова підозра");
-    expect(replies[0]?.text).toContain("Зроблено: перший шлях до столу пройдено");
-    expect(replies[0]?.text).toContain("Далі: відкрийте підозрілу шаурму");
+    expect(replies[0]?.text).toContain("<i>Зроблено:</i> перший шлях до столу пройдено");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> відкрийте підозрілу шаурму");
     expect(replies[0]?.text).toContain("⚔️ <b>Новачкова сутичка</b> — чекає свідчень");
-    expect(replies[0]?.text).toContain("Зроблено: шаурма ще не дала свідчень");
-    expect(replies[0]?.text).toContain("Далі: спершу розберіться з підозрілою шаурмою");
+    expect(replies[0]?.text).toContain("<i>Зроблено:</i> шаурма ще не дала свідчень");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> спершу розберіться з підозрілою шаурмою");
 
     const buttons = (
       replies[0]?.options as {
@@ -316,7 +316,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons).toContainEqual({
-      text: "✨ Доступ до Чароковальні ⚠️",
+      text: "✨ Доступ до Чароковальні ✅",
       callback_data: makePlaceCallbackData("yard")
     });
   });
