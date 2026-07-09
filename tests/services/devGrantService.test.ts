@@ -16,6 +16,7 @@ import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository"
 import { items } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
+import { CELLAR_MOUSE_ERRAND_KEY } from "../../src/services/cellarErrandService";
 import { DevGrantService } from "../../src/services/devGrantService";
 import { BANDAGE_ITEM_ID, ISKROKAMIN_ITEM_ID, YEGER_FIRST_NOTCH_ITEM_ID } from "../../src/services/itemGrant";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "../../src/services/yegerQuestService";
@@ -479,6 +480,21 @@ describe("DevGrantService", () => {
     expect(repository.calls).toContain(`cooldown-ready:42:${YEGER_TRACKING_COOLDOWN_KEY}`);
   });
 
+  it("resets the cellar mouse errand cooldown for local QA", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+
+    await expect(service.resetCellarMouseCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "cellar-mouse-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    expect(repository.calls).toContain(`cooldown:42:${CELLAR_MOUSE_ERRAND_KEY}`);
+  });
+
   it("resets Priest blessing and Quiet Pocket cooldowns for local QA", async () => {
     const repository = new FakeDevGrantRepository();
     const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
@@ -589,6 +605,7 @@ describe("DevGrantService", () => {
     await expect(service.addItemById(42n, "item.ability.last-page-rapier", 1)).resolves.toEqual({ state: "disabled" });
     await expect(service.addIskrokamin(42n, 1)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetYegerBandageDay(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.resetCellarMouseCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetPriestBlessingCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetQuietPocketCooldown(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resetRogue(42n)).resolves.toEqual({ state: "disabled" });

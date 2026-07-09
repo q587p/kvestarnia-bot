@@ -137,6 +137,10 @@ export function registerDevGrantCommands(
     await handleDevResetYegerTrailCommand(ctx, devGrantService);
   });
 
+  bot.command("dev_reset_cellar_mouse", async (ctx) => {
+    await handleDevResetCellarMouseCommand(ctx, devGrantService);
+  });
+
   bot.command("dev_reset_priest_blessing", async (ctx) => {
     await handleDevResetPriestBlessingCommand(ctx, devGrantService);
   });
@@ -354,6 +358,27 @@ async function handleDevResetYegerTrailCommand(
   }
 
   const result = await devGrantService.resetYegerTrackingCooldown(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevResetCellarMouseCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.resetCellarMouseCooldown(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }

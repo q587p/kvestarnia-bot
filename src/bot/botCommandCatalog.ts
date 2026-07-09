@@ -390,6 +390,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_cellar_mouse",
+    icon: "🐭",
+    description: "скинути cooldown льохової миші локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_priest_blessing",
     icon: "🙏",
     description: "скинути cooldown жрецького благословення локально",

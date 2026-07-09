@@ -12,7 +12,7 @@ Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot
 2. Verify the visible methods use mixed qualitative risk text: no exact percentages, no exact pre-choice reward amounts, no pile of `майже надійно`, and the compact `Памʼятка` appears at the end.
 3. Resolve one calmer method and one risky/generous method across reset periods. Confirm local-failure outcomes still grant `0 XP`, `0 золота`, no item and no fight, while fight-handoff outcomes still route into the existing combat handoff without immediate Adventure reward.
 4. Reset/open `Корчмарський обхід` across several Kyiv days. Confirm each offer still has exactly three scenes, each scene has exactly three action buttons, completed scenes replay frozen outcomes, and final reward turn-in remains explicit at `📋 Стіл зі справами`.
-5. At levels 2-3, open the cellar mouse errand several times after cooldown resets. Confirm varied authored replies, tiny rewards, old/stale hidden method callbacks fail closed, and duplicate taps do not double-pay.
+5. At levels 2-3, open the cellar mouse errand several times after `/dev_reset_cellar_mouse` cooldown resets. Confirm varied authored replies, tiny rewards, old/stale hidden method callbacks fail closed, and duplicate taps do not double-pay.
 6. While in active combat or pending raid state, try the Adventure/cellar entry routes and confirm existing blockers still win before completion.
 
 ## 0.3.2 — Kharakternyk Ward Signs smoke
@@ -924,6 +924,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_add_yeger_line [число]` — у локальному режимі додає єгерські риски на дощечці; без числа додає одну риску.
 - `/dev_reset_yeger_bandage` — у локальному режимі скидає таймер безкоштовного бинта Єгеря для поточного персонажа.
 - `/dev_reset_yeger_trail` — у локальному режимі завершує очікування взятого Єгерського сліду для поточного персонажа.
+- `/dev_reset_cellar_mouse` — у локальному режимі скидає cooldown повторюваної льохової справи миші для поточного персонажа.
 - `/dev_reset_priest_blessing` — у локальному режимі скидає cooldown жрецького благословення/підтримки для поточного персонажа.
 - `/dev_reset_quiet_pocket` — у локальному режимі скидає cooldown злодійської `Тихої кишені` для поточного персонажа.
 - `/dev_reset_rogue` — у локальному режимі скидає cooldown `Тихої кишені` й забуває цілі, які цей злодій уже перевіряв поточного київського дня.

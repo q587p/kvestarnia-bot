@@ -14,6 +14,7 @@ import {
 } from "./itemGrant";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { AchievementService, type AchievementUnlock } from "./achievementService";
+import { CELLAR_MOUSE_ERRAND_KEY } from "./cellarErrandService";
 import { YEGER_RANGER_FREE_BANDAGE_KEY, YEGER_TRACKING_COOLDOWN_KEY } from "./yegerQuestService";
 import {
   YEGER_BANDAGE_PURCHASE_CANCEL_KEY,
@@ -80,6 +81,7 @@ export type DevGrantResult =
       kind:
         | "yeger-bandage-cooldown"
         | "yeger-tracking-cooldown"
+        | "cellar-mouse-cooldown"
         | "priest-blessing-cooldown"
         | "quiet-pocket-cooldown";
       character: CharacterRecord;
@@ -426,6 +428,26 @@ export class DevGrantService {
       ? {
           state: "updated",
           kind: "yeger-tracking-cooldown",
+          character: result.character,
+          cleared: result.cleared
+        }
+      : { state: "no-character" };
+  }
+
+  async resetCellarMouseCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.clearCooldownForTelegramUser(
+      telegramUserId,
+      CELLAR_MOUSE_ERRAND_KEY
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "cellar-mouse-cooldown",
           character: result.character,
           cleared: result.cleared
         }

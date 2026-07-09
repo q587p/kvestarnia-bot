@@ -253,6 +253,7 @@ describe("presence middleware", () => {
     ["/dev_add_iskrokamin 5", "addIskrokamin"],
     ["/dev_add_yeger_line 4", "addYegerLines"],
     ["/dev_reset_yeger_trail", "resetYegerTrackingCooldown"],
+    ["/dev_reset_cellar_mouse", "resetCellarMouseCooldown"],
     ["/dev_reset_priest_blessing", "resetPriestBlessingCooldown"],
     ["/dev_reset_quiet_pocket", "resetQuietPocketCooldown"],
     ["/dev_reset_rogue", "resetRogue"],
@@ -358,6 +359,15 @@ describe("presence middleware", () => {
           return Promise.resolve({
             state: "updated" as const,
             kind: "yeger-tracking-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
+        resetCellarMouseCooldown: () => {
+          calls.push("resetCellarMouseCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "cellar-mouse-cooldown" as const,
             character: characterRecord(),
             cleared: true
           });

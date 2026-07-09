@@ -85,6 +85,7 @@ describe("help presenter", () => {
     expect(resetOnly).not.toContain("🧷 /dev_reset_yeger_bandage");
     expect(resetOnly).not.toContain("/dev_reset_yeger_bandage_day");
     expect(resetOnly).not.toContain("/dev_reset_yeger_trail");
+    expect(resetOnly).not.toContain("/dev_reset_cellar_mouse");
     expect(resetOnly).not.toContain("/dev_reset_priest_blessing");
     expect(resetOnly).not.toContain("/dev_reset_quiet_pocket");
     expect(resetOnly).not.toContain("/dev_reset_rogue");
@@ -110,6 +111,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).not.toContain("/dev_reset_yeger_trail");
+    expect(grantsEnabled).not.toContain("/dev_reset_cellar_mouse");
     expect(grantsEnabled).not.toContain("/dev_reset_priest_blessing");
     expect(grantsEnabled).not.toContain("/dev_reset_quiet_pocket");
     expect(grantsEnabled).not.toContain("/dev_reset_rogue");
@@ -153,6 +155,7 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
     expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
     expect(grantsEnabled).toContain("👣 /dev_reset_yeger_trail");
+    expect(grantsEnabled).toContain("🐭 /dev_reset_cellar_mouse");
     expect(grantsEnabled).toContain("🙏 /dev_reset_priest_blessing");
     expect(grantsEnabled).toContain("🗡️ /dev_reset_quiet_pocket");
     expect(grantsEnabled).toContain("🧤 /dev_reset_rogue");
