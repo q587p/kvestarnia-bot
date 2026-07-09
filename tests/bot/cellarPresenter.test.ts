@@ -1,18 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS,
   presentCellarCooldown,
   presentCellarGrownupQuest,
   presentCellarIntro,
   presentCellarMethodHelp,
   presentCellarGrownupResult,
   presentCellarResult,
+  selectCellarGrownupRoleplayFailureVariant,
   presentCellarStart
 } from "../../src/bot/presenters/cellarPresenter";
 import type {
   CellarErrandLookupResult,
   CellarErrandResult
 } from "../../src/services/cellarErrandService";
-import type { CellarGrownupQuestLookupResult } from "../../src/services/cellarGrownupQuestService";
+import type {
+  CellarGrownupQuestLookupResult,
+  CellarGrownupQuestResult
+} from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
   it("renders cellar intro as a separate scene header", () => {
@@ -211,6 +216,33 @@ describe("cellar presenter", () => {
     expect(text).not.toContain("спробуйте домовитись із мишею");
   });
 
+  it("renders varied grownup mouse roleplay failure copy", () => {
+    const bodies = new Set(CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS.map((variant) => variant.body));
+    const quotes = new Set(CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS.map((variant) => variant.quote));
+    const seenQuotes = new Set<string>();
+
+    expect(CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS).toHaveLength(13);
+    expect(bodies.size).toBe(13);
+    expect(quotes.size).toBe(13);
+
+    for (let index = 0; index < 400; index += 1) {
+      seenQuotes.add(
+        selectCellarGrownupRoleplayFailureVariant({
+          ...grownupRoleplayFailed,
+          availableAt: new Date(grownupRoleplayFailed.availableAt.getTime() + index * 60_000)
+        }).quote
+      );
+    }
+
+    const selected = selectCellarGrownupRoleplayFailureVariant(grownupRoleplayFailed);
+    const text = presentCellarGrownupResult(grownupRoleplayFailed);
+
+    expect(seenQuotes.size).toBe(13);
+    expect(text).toContain(selected.body);
+    expect(text).toContain(selected.quote);
+    expect(text).toContain("Спробувати так само можна за 93 хвилини.");
+  });
+
   it("sends the obtained grownup cellar bottle to the Шинок instead of resolving it in the cellar", () => {
     const lookupText = presentCellarGrownupQuest({
       state: "bottle-obtained",
@@ -317,4 +349,15 @@ const onCooldown: Extract<CellarErrandLookupResult, { state: "on-cooldown" }> = 
   character,
   availableAt: new Date("2026-06-13T10:02:00.000Z"),
   now
+};
+
+const grownupRoleplayFailed: Extract<CellarGrownupQuestResult, { state: "roleplay-failed" }> = {
+  state: "roleplay-failed",
+  character: {
+    ...character,
+    level: 4
+  },
+  availableAt: new Date("2026-06-13T11:33:00.000Z"),
+  now,
+  chance: 0.05
 };

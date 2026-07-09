@@ -192,12 +192,14 @@ export function presentCellarGrownupResult(result: CellarGrownupQuestResult): st
   }
 
   if (result.state === "roleplay-failed") {
+    const variant = selectCellarGrownupRoleplayFailureVariant(result);
+
     return [
       "🐭 Обхід не вдався.",
       "",
-      "Миша подивилася на ваш аргумент, на сирну політику, на стелю — і вибрала стелю.",
+      variant.body,
       "",
-      npcQuote("Миша", "Спроба цікава. В архіві буде під розділом «майже»."),
+      npcQuote("Миша", variant.quote),
       "",
       `Спробувати так само можна за ${formatCooldown(result.availableAt, result.now)}.`
     ].join("\n");
@@ -410,6 +412,87 @@ function formatCooldown(availableAt: Date, now: Date): string {
   const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
 
   return `${minutes} ${pluralize(minutes, "хвилину", "хвилини", "хвилин")}`;
+}
+
+export const CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS = [
+  {
+    body: "Миша подивилася на ваш аргумент, на сирну політику, на стелю — і вибрала стелю.",
+    quote: "Спроба цікава. В архіві буде під розділом «майже»."
+  },
+  {
+    body: "Миша вислухала промову, занотувала дві коми й поставила на них лапку схвалення. Потім закрила зошит.",
+    quote: "Форма гарна. Змісту бракує хвоста."
+  },
+  {
+    body: "Ваш план дійшов до миші, обійшов сирну тарілку і загубився біля слова «довіра».",
+    quote: "Довіра — це коли пломба теж підписує."
+  },
+  {
+    body: "Миша скликала внутрішню нараду з крихтами. Крихти утримались, сир заявив самовідвід.",
+    quote: "Рішення перенесено до появи переконливішого запаху."
+  },
+  {
+    body: "Ви спробували говорити серйозно. Льох у цей момент зробив вигляд, що він просто підвал і нічого не чув.",
+    quote: "Серйозність прийнято. Користі не виявлено."
+  },
+  {
+    body: "Миша перевірила ваш аргумент на міцність, покусала край і повернула без печатки.",
+    quote: "Аргумент їстівний, але не офіційний."
+  },
+  {
+    body: "Ви майже домовились. Потім миша попросила уточнити слово «майже», і все знову стало льохом.",
+    quote: "Уточнення зіпсувало магію. Так завжди."
+  },
+  {
+    body: "Миша розклала вашу пропозицію на три купки: «можливо», «ні» і «смішно, але ні». Найбільша вийшла третя.",
+    quote: "Я поважаю ентузіязм. Він не проходить у двері."
+  },
+  {
+    body: "Ваш дипломатичний тон спрацював на стару бочку. Бочка погодилась мовчки. Миша — ні.",
+    quote: "Бочка легковірна. Я працюю з документами."
+  },
+  {
+    body: "Миша почула слово «компроміс» і швидко сховала під хвіст маленьку табличку «не годувати угодами».",
+    quote: "Компроміс без сиру — це просто шум із планом."
+  },
+  {
+    body: "Ви запропонували чесну розмову. Миша запропонувала чесну паузу й одразу перемогла в переговорах.",
+    quote: "Пауза схвалена одноголосно мною."
+  },
+  {
+    body: "Миша довго дивилася на вас так, ніби зараз відкриє таємницю льоху. Потім відкрила крихту.",
+    quote: "Таємниці пізніше. Крихта зараз."
+  },
+  {
+    body: "Ваш аргумент був майже корчмарським. Саме це, здається, і насторожило мишу.",
+    quote: "Надто схоже на людину з журналом. Поверніться без журналу."
+  }
+] as const;
+
+export function selectCellarGrownupRoleplayFailureVariant(
+  result: Extract<CellarGrownupQuestResult, { state: "roleplay-failed" }>
+): (typeof CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS)[number] {
+  const seed = [
+    result.character.name,
+    result.character.raceId,
+    result.character.classId,
+    result.availableAt.toISOString(),
+    result.now.toISOString()
+  ].join("|");
+
+  const index = hashText(seed) % CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS.length;
+
+  return CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS[index] ?? CELLAR_GROWNUP_ROLEPLAY_FAILURE_VARIANTS[0];
+}
+
+function hashText(value: string): number {
+  let hash = 0;
+
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+
+  return hash;
 }
 
 function presentCellarGrownupOffer(character: CharacterSummary, price: number): string {
