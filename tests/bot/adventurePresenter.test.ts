@@ -290,6 +290,45 @@ describe("adventure presenter", () => {
     expect(presentAdventureProblemMethodHelp(result)).toContain("Домовитися з канцелярським краєм\n<i>Дипломатія полів");
   });
 
+  it("allows one truly safe method-help row to become майже надійно", () => {
+    const carefulCharacter = {
+      ...character,
+      stats: {
+        strength: 99,
+        dexterity: 99,
+        intelligence: 99,
+        charisma: 99,
+        luck: 99
+      }
+    };
+    const paidSafeChoice: AdventureChoice = {
+      id: "barrel",
+      title: "Бочка вимагає оренду",
+      hook: "Бочка вимагає угоду.",
+      client: "Корчмар",
+      problem: "Бочка вимагає оренду.",
+      goal: "Повернути її до тари."
+    };
+    const result: Extract<AdventureProblemResult, { state: "selected" }> = {
+      state: "selected",
+      character: carefulCharacter,
+      offer: {
+        localDate: "2026-06-12",
+        periodToken: "period93",
+        expiresAt: new Date("2026-06-12T11:23:00.000Z"),
+        choices: [paidSafeChoice]
+      },
+      choice: paidSafeChoice,
+      approaches: buildAdventureMethodOptions(paidSafeChoice, carefulCharacter)
+    };
+    const text = presentAdventureProblemMethodHelp(result);
+    const almostReliableRows = text.match(/Майже надійно/gu) ?? [];
+
+    expect(almostReliableRows).toHaveLength(1);
+    expect(text).toContain("Детальніше про способи:");
+    expect(text).toContain("Памʼятка: надійніше");
+  });
+
   it("shows non-complicated reward without level-up text", () => {
     const text = presentAdventureResult(completed(false));
 

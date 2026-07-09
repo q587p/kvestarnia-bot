@@ -9,7 +9,7 @@ import type {
 import { classTechniqueProfiles, raceTechniqueProfiles } from "../../content/questResolution";
 
 export const QUEST_RISK_BAND_CHANCE_CAPS = {
-  safe: 79,
+  safe: 80,
   steady: 65,
   risky: 64,
   wild: 54

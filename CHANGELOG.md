@@ -21,7 +21,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Adventure Choice method-help cards now keep risky/generous/deception/injury/fight/local-failure methods from looking as reliable as paid or modest methods.
-- Standard investigate/negotiate methods are treated as steady rather than safe; paid or modest methods remain the calmer lower-reward band.
+- Standard investigate/negotiate methods are treated as steady rather than safe; paid or modest methods remain the calmer lower-reward band and can still reach one `майже надійно` row when the check is truly favorable.
 - Daily Korchma Round omitted-scene copy now writes `не сьогоднішня катастрофа` with lowercase `не` in runtime cards.
 - Yeger paid-bandage previews now return the successful purchase confirmation card without rebuilding the full Yeger menu context, and paid daily-limit counting uses a `DailyAction(characterId, key, createdAt)` day-window index instead of scanning all historical purchase confirmations.
 - Daily Korchma Round mechanics, rewards, persistence, offer count and completion rules are unchanged.

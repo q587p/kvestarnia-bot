@@ -138,6 +138,7 @@ describe("quest resolution checks", () => {
       .toBe(QUEST_RISK_BAND_CHANCE_CAPS.risky);
     expect(calculateQuestChance({ method: wildMethod, stats: highStats, raceId: character.raceId, classId: character.classId }))
       .toBe(QUEST_RISK_BAND_CHANCE_CAPS.wild);
+    expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.safe)).toBe("майже надійно");
     expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.risky)).toBe("непевно");
     expect(qualitativeQuestChance(QUEST_RISK_BAND_CHANCE_CAPS.wild)).toBe("дуже непевно");
   });
