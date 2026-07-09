@@ -549,7 +549,9 @@ function presentPartyBossViewerTurnPrompt(
     ? `<b>${escapeHtml(viewer.name)}</b>, ви плануєте ${presentPartyBossQueuedActionPlan(queuedAction, viewer)}.`
     : `<b>${escapeHtml(viewer.name)}</b>, що робимо?`;
 
-  return `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
+  return queuedAction
+    ? prompt
+    : `${prompt}\n⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить вас у захист.`;
 }
 
 function findPartyBossQueuedAction(

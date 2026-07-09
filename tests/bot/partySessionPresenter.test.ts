@@ -59,6 +59,24 @@ describe("party session presenter", () => {
     expect(defending).toContain("<b>Голова</b>, ви плануєте захищатися.");
     expect(attacking).toContain("<b>Голова</b>, ви плануєте вдарити.");
     expect(attacking).not.toContain("<b>Голова</b>, що робимо?");
+    expect(attacking).not.toContain("Потім Корчма поставить вас у захист.");
+  });
+
+  it("does not repeat the auto-defense timer after the viewer queued a Big Barrel item", () => {
+    const text = presentPartyBoss(makeBigBossSession({}, {
+      queuedActions: [{
+        characterId: "leader",
+        turn: 1,
+        action: "item",
+        item: {
+          itemId: "item.field-kit",
+          name: "Польова аптечка"
+        }
+      }]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("<b>Голова</b>, ви плануєте одноразову манатку <i>Польова аптечка</i>.");
+    expect(text).not.toContain("⏳ На хід є 23 секунди. Потім Корчма поставить вас у захист.");
   });
 
   it("names queued Big Barrel Brother skill and gear action plans", () => {
