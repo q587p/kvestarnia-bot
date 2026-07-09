@@ -418,7 +418,7 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       body: [
         "Статус: Корчмар має папірці, але ще не впевнений, що ви переживете їхній почерк.",
         `<i>Далі:</i> доростіть до ${FIGHTING_CORNER_MIN_LEVEL} рівня.`,
-        "<i>Де:</i> Корчмар у шинку видасть папірець, коли Спуск до Низу перестане бути передчасною ідеєю."
+        "<i>Де:</i> Корчмар у шинку видасть папірець, коли спуск до Низу перестане бути передчасною ідеєю."
       ].join("\n")
     };
   }
@@ -466,7 +466,7 @@ function getProblemQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRo
       : [
           `<i>Зроблено:</i> ${progress.wins} ${pluralize(progress.wins, "перемогу", "перемоги", "перемог")}.`,
           `<i>Далі:</i> ще ${progress.target - progress.wins} ${pluralize(progress.target - progress.wins, "проблема", "проблеми", "проблем")} у Низу.`,
-          "<i>Де:</i> Спуск до Низу. Здати — Корчмарю в шинку."
+          "<i>Де:</i> спуск до Низу. Здати — Корчмарю в шинку."
         ].join("\n")
   };
 }

@@ -17,7 +17,7 @@
 9. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
 10. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
 11. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
-12. Problem Quest in progress: verify the row appears with progress and turn-in guidance; completed/reward-claimed Problem Quest disappears.
+12. Problem Quest in progress: verify the row appears with progress and turn-in guidance, including prose casing `спуск до Низу`; completed/reward-claimed Problem Quest disappears.
 13. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with єгерський куток guidance and no direct `До Єгеря` button.
 14. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
 15. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.

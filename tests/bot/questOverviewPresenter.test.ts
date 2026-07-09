@@ -355,7 +355,7 @@ describe("quest overview presenter", () => {
     }));
 
     expect(text).toContain("🧾 <b>Тринадцять дрібних проблем</b> — 7/13");
-    expect(text).toContain("<i>Де:</i> Спуск до Низу. Здати — Корчмарю в шинку.");
+    expect(text).toContain("<i>Де:</i> спуск до Низу. Здати — Корчмарю в шинку.");
     expect(text).toContain("🏹 <b>Неспокійні справи 2.0</b> — 7/17");
     expect(text).toContain("<i>Де:</i> єгерський куток показує умови, але полювання лишається через звичайні маршрути.");
     expect(text).not.toContain("До обходу");
