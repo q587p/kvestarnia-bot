@@ -638,9 +638,22 @@ function getTableOnlyBarrelBeerTutorialMarker(input: QuestMarkerInput): QuestMar
     return QuestMarker.NONE;
   }
 
-  return resolveQuestMarkerForTarget(input, "location.korchma.barrel") === QuestMarker.NONE &&
-    resolveQuestMarkerForTarget(input, "location.korchma.bar") === QuestMarker.NONE
+  return getBarrelBeerTutorialLocationMarker(input.barrelBeerTutorial) === QuestMarker.NONE
     ? marker
+    : QuestMarker.NONE;
+}
+
+function getBarrelBeerTutorialLocationMarker(quest: QuestMarkerInput["barrelBeerTutorial"]): QuestMarker {
+  if (quest?.state !== "in-progress") {
+    return QuestMarker.NONE;
+  }
+
+  if (!quest.progress.visitedBarrel || !quest.progress.raidCompleted) {
+    return QuestMarker.CAN_ACCEPT;
+  }
+
+  return !quest.progress.beerRoundOffered || !quest.progress.beerDrunk || !quest.progress.activeBeer
+    ? QuestMarker.CAN_ACCEPT
     : QuestMarker.NONE;
 }
 

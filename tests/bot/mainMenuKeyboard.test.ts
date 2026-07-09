@@ -482,6 +482,40 @@ describe("main menu and scene keyboards", () => {
         buildKorchmaHallKeyboard({
           questMarkers: {
             characterLevel: 4,
+            barrelBeerTutorial: {
+              state: "in-progress",
+              character,
+              progress: {
+                accepted: true,
+                stipendGranted: true,
+                visitedBarrel: true,
+                raidCompleted: true,
+                beerRoundOffered: true,
+                beerDrunk: true,
+                activeBeer: true,
+                currentLocationId: "location.korchma.bar"
+              }
+            },
+            dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260707" },
+            problemQuest: {
+              stageId: "13",
+              title: "Тринадцять дрібних проблем",
+              wins: 0,
+              target: 13,
+              completed: false,
+              rewardClaimed: false,
+              issued: false,
+              branchComplete: false
+            }
+          }
+        })
+      )
+    ).toEqual(expect.arrayContaining(["📋 Стіл зі справами ✅", "🍻 Шинок ⚠️"]));
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 4,
             yeger: {
               state: "offered",
               character,
