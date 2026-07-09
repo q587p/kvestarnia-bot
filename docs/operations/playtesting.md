@@ -14,9 +14,10 @@
 6. Problem Quest in progress: verify the row appears with progress and turn-in guidance; completed/reward-claimed Problem Quest disappears.
 7. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with Єгерський куток guidance and no direct `До Єгеря` button.
 8. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
-9. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
-10. Verify the overview keyboard contains only `📋 До Столу зі справами`, optional `🔎 Оновити`, and `🍺 До зали` / back navigation; no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
-11. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+9. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
+10. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+11. Verify the overview keyboard contains only `📋 До Столу зі справами`, optional `🔎 Оновити`, and `🍺 До зали` / back navigation; no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+12. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
 

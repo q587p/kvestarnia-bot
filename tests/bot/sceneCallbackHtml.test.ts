@@ -1245,9 +1245,39 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
   });
 
-  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+  it("renders Barrel tutorial preview without accepting or granting the stipend", async () => {
+    const acceptForTelegramUser = vi.fn();
+    const getForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "available" as const,
+        character: { ...character, level: 2 },
+        progress: barrelBeerTutorialProgress(false, "location.korchma.quest-table")
+      })
+    );
+
     const calls = await captureApiCalls(
       makeQuestCallbackData("barrel-tutorial"),
+      servicesWith({
+        barrelBeerTutorial: {
+          getForTelegramUser,
+          acceptForTelegramUser
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(getForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    expect(getParseMode(edit?.payload)).toBe("HTML");
+    expect(edit?.payload.text).toContain("Новачкам — аванс на дорогу до Бочки");
+    expect(edit?.payload.text).toContain("Аванс і запис у журналі зʼявляться тільки якщо ти справді візьмеш записку.");
+    expect(edit?.payload.text).not.toContain("<i>Отримано:</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeQuestCallbackData("barrel-tutorial-accept"));
+  });
+
+  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial-accept"),
       servicesWith({
         barrelBeerTutorial: {
           acceptForTelegramUser: () =>
@@ -7280,6 +7310,8 @@ describe("scene callback HTML options", () => {
     });
 
     await captureApiCalls(makeQuestCallbackData("barrel-tutorial"), services);
+    expect(barrelBeerTutorial.acceptForTelegramUser).not.toHaveBeenCalled();
+    await captureApiCalls(makeQuestCallbackData("barrel-tutorial-accept"), services);
     await captureApiCalls(makeTavernCallbackData("raid"), services);
     await vi.advanceTimersByTimeAsync(60_000);
     await captureApiCalls(

@@ -4,6 +4,27 @@ import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData
 import { buildBarrelBeerTutorialKeyboard } from "../../src/bot/keyboards/barrelBeerTutorialKeyboard";
 
 describe("barrel beer tutorial keyboard", () => {
+  it("uses a separate accept callback before granting the starter stipend", () => {
+    const keyboard = buildBarrelBeerTutorialKeyboard({
+      state: "available",
+      character: character(),
+      progress: barrelBeerTutorialProgress()
+    }).inline_keyboard;
+
+    expect(keyboard[0]).toEqual([
+      {
+        text: "🛢️ Взяти записку",
+        callback_data: makeQuestCallbackData("barrel-tutorial-accept")
+      }
+    ]);
+    expect(keyboard[1]).toEqual([
+      {
+        text: "📋 До справ",
+        callback_data: makeQuestCallbackData("list")
+      }
+    ]);
+  });
+
   it("marks the direct Barrel route after accepting the tutorial quest", () => {
     const keyboard = buildBarrelBeerTutorialKeyboard({
       state: "accepted",

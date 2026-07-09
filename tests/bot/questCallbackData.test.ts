@@ -18,6 +18,7 @@ describe("quest callback data", () => {
     "hunt",
     "cellar",
     "barrel-tutorial",
+    "barrel-tutorial-accept",
     "barrel-tutorial-turn-in",
     "problem",
     "problem-next",

@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The persistent `🗺️ Квести` button now opens the compact overview without marking presence at `📋 Стіл зі справами`; `/quest`, the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
 - The overview now hides generic available quests, locked future quests, retired starter rows and completed/reward-claimed rows; those remain the job of `📋 Стіл зі справами` or the archive.
 - Overview buttons are now navigation-only: `📋 До Столу зі справами`, refresh and hall/back navigation. Per-quest places such as `Корчмарський обхід`, `Єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, and the overview does not accept, claim, complete, start fights, start raids or mutate quest progress.
+- The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, outside-Korchma, no-character and stale-callback guards are preserved through the existing command/callback middleware.
 
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh

@@ -12,6 +12,7 @@ export type QuestCallback =
   | "hunt"
   | "cellar"
   | "barrel-tutorial"
+  | "barrel-tutorial-accept"
   | "barrel-tutorial-turn-in"
   | "problem"
   | "problem-next"
@@ -31,6 +32,7 @@ const questCallbacks = new Set<QuestCallback>([
   "hunt",
   "cellar",
   "barrel-tutorial",
+  "barrel-tutorial-accept",
   "barrel-tutorial-turn-in",
   "problem",
   "problem-next",
