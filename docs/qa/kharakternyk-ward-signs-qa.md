@@ -17,6 +17,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 2. Verify the joined Kharakternyk sees `🧿 Поставити знак`.
 3. Tap it once and verify:
    - the card shows a count-only ward sign line;
+   - the actor receives a separate confirmation with `💫 Мани витрачено`;
    - mana drops by the deterministic placement cost (`8..11`, from the base `13` discounted by effective Intelligence plus Luck);
    - the placer does not receive a separate support row.
 4. Tap the old placement button again and verify mana does not drop again.
@@ -35,7 +36,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 
 1. Join the lobby with a non-Kharakternyk.
 2. Tap `✋ Підперти знак` and verify support count increases by one.
-3. Confirm the mana spend is deterministic in the `5..8` range and may be lower with stronger effective Intelligence plus Luck.
+3. Confirm the separate support confirmation shows `💫 Мани витрачено`, and the mana spend is deterministic in the `5..8` range and may be lower with stronger effective Intelligence plus Luck.
 4. Tap duplicate support and verify the support row and mana do not change.
 5. If another Kharakternyk joins, support from that account and verify it uses the same deterministic support-cost range, not a free class exception.
 

@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Kharakternyk ward placement now uses a session-level compare-and-swap guard before mana spend so simultaneous placers cannot commit two signs or charge the losing placer.
 - Big Barrel active cards now stop repeating the auto-defense timer after the viewer has already queued an action for the current turn.
 - Big Barrel active cards and journal pages now hide stale personal cooldown lines after a participant has been knocked out of the raid.
+- Successful ward placement/support callbacks now send the actor a separate confirmation message with the stored mana spend.
 - The Lore Board Kharakternyk entry now mentions the class's visible raid-prep sign behavior.
 
 ## [0.3.1] - 12026-07-09 - Turn-Based Duel Tournaments and Korchma Rewards

@@ -38,6 +38,7 @@ import {
 } from "../presenters/partySessionPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
+import { presentManaSpentLine } from "../presenters/resourcePresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -580,6 +581,12 @@ export async function handlePartySessionCallback(
     });
 
     if (result.state === "updated") {
+      const confirmation = callback.type === "ward-place"
+        ? presentWardPlaceConfirmation(result.session)
+        : presentWardSupportConfirmation(result.session, telegramUserId);
+      if (confirmation) {
+        await ctx.reply(confirmation, HTML_MESSAGE_OPTIONS);
+      }
       await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
     }
     return;
@@ -1192,6 +1199,31 @@ function presentWardSupportCallbackAnswer(
     return "Цей збір уже не приймає підпор.";
   }
   return "Підпор не записався.";
+}
+
+function presentWardPlaceConfirmation(
+  session: Parameters<typeof buildPartySessionKeyboard>[0]
+): string | null {
+  const manaCost = session.wardSign?.manaCost;
+
+  return typeof manaCost === "number"
+    ? `🧿 <b>Ви поставили знак</b>\n\n${presentManaSpentLine(manaCost)}`
+    : null;
+}
+
+function presentWardSupportConfirmation(
+  session: Parameters<typeof buildPartySessionKeyboard>[0],
+  telegramUserId: bigint
+): string | null {
+  const participant = session.participants.find((row) =>
+    row.character.telegramUserId === telegramUserId &&
+    row.status === "joined"
+  );
+  const manaCost = participant?.wardSignSupport?.manaCost;
+
+  return typeof manaCost === "number"
+    ? `✋ <b>Ви підперли знак</b>\n\n${presentManaSpentLine(manaCost)}`
+    : null;
 }
 
 function isJoinedParticipant(

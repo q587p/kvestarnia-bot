@@ -858,6 +858,95 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("v1:party:in:partyABC12");
   });
 
+  it("sends a separate mana-spend confirmation after placing a Kharakternyk ward sign", async () => {
+    const session = {
+      ...makeBigBarrelSessionWithMember(),
+      wardSign: {
+        kind: "kharakternyk" as const,
+        placerCharacterId: "character-42",
+        supportCount: 0,
+        supportCap: 7,
+        manaCost: 9,
+        placedAt: new Date("2026-06-29T15:01:00.000Z")
+      }
+    };
+    const placeKharakternykWardSignForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "ward-place", token: session.inviteToken },
+      serviceWith({ placeKharakternykWardSignForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(placeKharakternykWardSignForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Знак поставлено." });
+    expect(messageText(editMessageText)).toContain("🧿 Знак характерника стоїть біля бочки.");
+    expect(reply).toHaveBeenCalledWith(
+      "🧿 <b>Ви поставили знак</b>\n\n💫 Мани витрачено: <b>9</b>.",
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
+  it("sends a separate mana-spend confirmation after supporting a Kharakternyk ward sign", async () => {
+    const base = makeBigBarrelSessionWithMember();
+    const session = {
+      ...base,
+      wardSign: {
+        kind: "kharakternyk" as const,
+        placerCharacterId: "character-42",
+        supportCount: 1,
+        supportCap: 7,
+        manaCost: 9,
+        placedAt: new Date("2026-06-29T15:01:00.000Z")
+      },
+      participants: base.participants.map((participant) =>
+        participant.character.telegramUserId === 93n
+          ? {
+              ...participant,
+              wardSignSupport: {
+                kind: "kharakternyk" as const,
+                placerCharacterId: "character-42",
+                supporterCharacterId: participant.characterId,
+                manaCost: 6,
+                supportedAt: new Date("2026-06-29T15:02:00.000Z")
+              }
+            }
+          : participant
+      )
+    };
+    const supportKharakternykWardSignForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "ward-support", token: session.inviteToken },
+      serviceWith({ supportKharakternykWardSignForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(supportKharakternykWardSignForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Підпор записано." });
+    expect(messageText(editMessageText)).toContain("🧿 Знак характерника стоїть біля бочки. Підпор: 1/7.");
+    expect(reply).toHaveBeenCalledWith(
+      "✋ <b>Ви підперли знак</b>\n\n💫 Мани витрачено: <b>6</b>.",
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
   it("lets any joined Big Barrel Brother participant rotate invite-card text", async () => {
     const session = {
       ...makeSessionWithMember(),
