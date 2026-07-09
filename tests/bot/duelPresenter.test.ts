@@ -3,6 +3,7 @@ import {
   presentDuelResultShare,
   presentDuelView,
   presentTurnBasedDuel,
+  presentTurnBasedDuelIntro,
   presentTurnBasedDuelJournal
 } from "../../src/bot/presenters/duelPresenter";
 
@@ -20,12 +21,52 @@ describe("duel presenter", () => {
     const challengerText = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
     const targetText = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
 
+    expect(challengerText).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(challengerText).not.toContain("Порада дня:");
     expect(challengerText).toContain("Ваш вибір");
     expect(challengerText).toContain("звичайна атака");
     expect(challengerText).not.toContain("Шкода:");
     expect(targetText).not.toContain("звичайна атака");
     expect(targetText).not.toContain("Шкода:");
     expect(targetText).toContain("записи закритими");
+  });
+
+  it("renders turn-based duel start context as a separate intro with player titles and an italic tip", () => {
+    const result = makeTurnBasedDuelView({
+      participants: {
+        challenger: {
+          characterId: "challenger-character",
+          displayName: "Ліва Рука",
+          activeCosmeticTitle: "Перший рукав протоколу",
+          title: "Людисько-воїн",
+          level: 7,
+          remortCount: 1,
+          hp: 20,
+          hpMax: 24,
+          mana: 8,
+          manaMax: 12
+        },
+        target: {
+          characterId: "target-character",
+          displayName: "Права Рука",
+          title: "Вареникомант межі",
+          level: 4,
+          remortCount: 0,
+          hp: 19,
+          hpMax: 25,
+          mana: 9,
+          manaMax: 13
+        }
+      }
+    });
+
+    const intro = presentTurnBasedDuelIntro(result);
+
+    expect(intro).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(intro).toContain("Перший кухоль: <b>Ліва Рука</b> (<i>«Перший рукав протоколу»</i>) · <i>Людисько-воїн</i> · рівень 7 (реморт: 1)");
+    expect(intro).toContain("Другий кухоль: <b>Права Рука</b> · <i>Вареникомант межі</i> · рівень 4");
+    expect(intro).toContain("<i>Порада дня:");
+    expect(intro).toContain("</i>");
   });
 
   it("reveals round damage after both turn-based choices resolve", () => {

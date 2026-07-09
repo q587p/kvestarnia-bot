@@ -46,6 +46,7 @@ import {
   presentDuelResultShare,
   presentTurnBasedDuelJournal,
   presentTurnBasedDuel,
+  presentTurnBasedDuelIntro,
   presentDuelView
 } from "../presenters/duelPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
@@ -273,9 +274,12 @@ export async function handleDuelCallback(
     }
     await answerCallback();
     if (result.state === "active") {
+      if (result.transitioned) {
+        await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+      }
       await sendTurnBasedDuelCard(ctx, "edit", result, service);
       if (result.transitioned) {
-        await notifyTurnBasedParticipants(ctx, result, service);
+        await notifyTurnBasedParticipants(ctx, result, service, { includeIntro: true });
       }
       return;
     }
@@ -659,11 +663,12 @@ async function sendTurnBasedDuelCard(
 async function notifyTurnBasedParticipants(
   ctx: Context,
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
-  service: DuelChallengeService
+  service: DuelChallengeService,
+  options: { includeIntro?: boolean } = {}
 ): Promise<void> {
   await Promise.all([
-    notifyTurnBasedParticipant(ctx, result, service, "challenger"),
-    notifyTurnBasedParticipant(ctx, result, service, "target")
+    notifyTurnBasedParticipant(ctx, result, service, "challenger", undefined, options),
+    notifyTurnBasedParticipant(ctx, result, service, "target", undefined, options)
   ]);
 }
 
@@ -697,7 +702,8 @@ async function notifyTurnBasedParticipant(
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
   service: DuelChallengeService,
   participantName: "challenger" | "target",
-  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>,
+  options: { includeIntro?: boolean } = {}
 ): Promise<void> {
   const participant = participantName === "challenger"
     ? {
@@ -721,6 +727,10 @@ async function notifyTurnBasedParticipant(
   }
 
   try {
+    if (options.includeIntro) {
+      await ctx.api.sendMessage(Number(chatId), presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+    }
+
     const text = presentTurnBasedDuel(result, { viewerCharacterId: participant.characterId });
     const skillParticipant = getParticipantForSkill(result, participant.characterId);
     const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);

@@ -1589,7 +1589,23 @@ describe("main menu and scene keyboards", () => {
           actingCharacterId: "character-2",
           status: "resolved",
           turn: 6,
-          version: 9
+          version: 9,
+          state: {
+            lastRound: {
+              turn: 5,
+              actions: [
+                {
+                  actorCharacterId: "character-1",
+                  defenderCharacterId: "character-2",
+                  action: "attack",
+                  outcome: "hit",
+                  damage: 3,
+                  manaSpent: 0,
+                  critical: false
+                }
+              ]
+            }
+          }
         }
       }),
       "character-1",
@@ -3548,6 +3564,18 @@ function turnBasedDuelKeyboardResult(
       version?: number;
       state?: {
         pendingActions?: Record<string, unknown>;
+        lastRound?: {
+          turn: number;
+          actions: Array<{
+            actorCharacterId: string;
+            defenderCharacterId: string;
+            action: string;
+            outcome: string;
+            damage: number;
+            manaSpent: number;
+            critical: boolean;
+          }>;
+        };
         participants?: {
           challenger?: ReturnType<typeof turnBasedParticipant>;
           target?: ReturnType<typeof turnBasedParticipant>;
@@ -3565,6 +3593,7 @@ function turnBasedDuelKeyboardResult(
       version: overrides.session?.version ?? 4,
       state: {
         pendingActions: overrides.session?.state?.pendingActions,
+        lastRound: overrides.session?.state?.lastRound,
         participants: {
           challenger: overrides.session?.state?.participants?.challenger ?? turnBasedParticipant("character-1"),
           target: overrides.session?.state?.participants?.target ?? turnBasedParticipant("character-2")

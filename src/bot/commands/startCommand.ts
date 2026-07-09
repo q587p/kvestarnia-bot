@@ -21,7 +21,12 @@ import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { getCombatSkillProfile } from "../../domain/combat";
-import { presentDuelAccept, presentDuelView, presentTurnBasedDuel } from "../presenters/duelPresenter";
+import {
+  presentDuelAccept,
+  presentDuelView,
+  presentTurnBasedDuel,
+  presentTurnBasedDuelIntro
+} from "../presenters/duelPresenter";
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
@@ -113,6 +118,11 @@ export function registerStartCommand(
       }
 
       if (result.state === "active") {
+        if (result.transitioned) {
+          await ctx.reply(presentTurnBasedDuelIntro(result), {
+            parse_mode: "HTML"
+          });
+        }
         const viewerCharacterId = isPrivateChat(ctx)
           ? getTurnBasedDuelViewerCharacterId(player.telegramUserId, result)
           : null;

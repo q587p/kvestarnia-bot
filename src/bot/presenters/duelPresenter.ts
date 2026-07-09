@@ -16,6 +16,7 @@ import {
   DUEL_TURN_BASED_INVITE_MODE_LINE,
   renderDuelInviteTemplate
 } from "../../content/duelInviteFlavor";
+import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
@@ -375,11 +376,6 @@ export function presentTurnBasedDuel(
   const actionLine = presentTurnBasedRoundState(state, viewerSide);
 
   const lines = [
-    "♟️ <b>Покрокова дуель</b>",
-    `${presentDuelFlavorName(result.challenger)} проти ${presentDuelFlavorName(result.target)}.`,
-    "",
-    "Порада дня: робіть вигляд, що це стратегія, навіть якщо це кнопка «Атакувати».",
-    "",
     `♟️ <b>Покрокова дуель: хід ${result.session.turn}</b>`,
     presentDuelVitals(challenger),
     presentDuelVitals(target)
@@ -413,6 +409,22 @@ export function presentTurnBasedDuel(
   );
 
   return lines.join("\n");
+}
+
+export function presentTurnBasedDuelIntro(result: Extract<DuelChallengeView, { state: "active" }>): string {
+  const state = result.session.state;
+  const challenger = state.participants.challenger;
+  const target = state.participants.target;
+  const startTip = presentTurnBasedDuelStartTip(result.challenger, result.session.id);
+
+  return [
+    "♟️ <b>Покрокова дуель</b>",
+    presentTurnBasedDuelIntroParticipant("Перший кухоль", challenger, result.challenger),
+    presentTurnBasedDuelIntroParticipant("Другий кухоль", target, result.target),
+    "",
+    "Бійцівський куток відкриває протокол і робить вигляд, що табурет між вами — це тактична мапа.",
+    ...(startTip ? ["", startTip] : [])
+  ].join("\n");
 }
 
 export function presentDuelResultShare(result: Extract<DuelChallengeView, { state: "resolved" }>): string {
@@ -750,6 +762,36 @@ function presentDuelParticipantInline(character: CharacterSummary): string {
   return `${presentCharacterDisplayName(character)} · ${presentCharacterLevel(character)}`;
 }
 
+function presentTurnBasedDuelIntroParticipant(
+  label: string,
+  participant: {
+    displayName?: string;
+    activeCosmeticTitle?: string | null;
+    title?: string;
+    level?: number;
+    remortCount?: number;
+  },
+  fallback: CharacterSummary
+): string {
+  const activeCosmeticTitle = participant.activeCosmeticTitle ?? fallback.activeCosmeticTitle;
+  const identity = {
+    name: participant.displayName ?? fallback.name,
+    ...(activeCosmeticTitle === undefined ? {} : { activeCosmeticTitle })
+  };
+  const title = participant.title ?? fallback.title;
+  const level =
+    typeof participant.level === "number" && Number.isFinite(participant.level)
+      ? participant.level
+      : fallback.level;
+  const remortCount =
+    typeof participant.remortCount === "number" && Number.isFinite(participant.remortCount)
+      ? participant.remortCount
+      : fallback.remortCount;
+  const remort = remortCount && remortCount > 0 ? ` (реморт: ${remortCount})` : "";
+
+  return `${label}: ${presentCharacterDisplayName(identity)} · <i>${escapeHtml(title)}</i> · рівень ${level}${remort}`;
+}
+
 function presentCharacterLevel(character: CharacterSummary): string {
   const remort = character.remortCount && character.remortCount > 0 ? ` (реморт: ${character.remortCount})` : "";
 
@@ -862,6 +904,16 @@ function presentDuelDrawFlavor(
 
 function presentDuelFlavorName(character: CharacterSummary): string {
   return presentDuelRepeatedName(character);
+}
+
+function presentTurnBasedDuelStartTip(character: CharacterSummary, seed: string): string | null {
+  const flavor = selectCharacterFlavorLine(character, {
+    placement: "raid.prep-hint",
+    scene: "barrel",
+    seed: `battle-start:${seed}`
+  });
+
+  return flavor ? `<i>Порада дня: ${escapeHtml(flavor.text)}</i>` : null;
 }
 
 function presentDuelRepeatedName(character: CharacterSummary): string {

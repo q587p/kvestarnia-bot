@@ -4886,7 +4886,7 @@ describe("scene callback HTML options", () => {
     expect(getActiveTurnBasedForTelegramUser).toHaveBeenCalledWith(42n);
     expect(openForTelegramUser).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
-    expect(String(edit?.payload.text)).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(String(edit?.payload.text)).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
   });
 
   it("keeps main-menu text inside an active training fight", async () => {

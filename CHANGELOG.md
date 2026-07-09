@@ -21,8 +21,9 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - The existing no-reward duel winners board remains available, while tournament cards show points, rank, remaining time, previous winners, pending prize chests and claim buttons only for eligible closed-period rewards.
-- Turn-based duel active cards now use a combat-style layout with a header, short HP names, natural action lines, a 23-second turn hint, and tournament-reward copy instead of claiming duels have no gold/manatky path.
-- Turn-based duel result cards now expose a replay-safe battle journal, and rematch presses send a targeted invite card to the other participant when Telegram delivery is available.
+- Turn-based duel starts now send a separate intro message with both participants' frozen levels/titles and an italic reused battle-start tip, while the active action card stays focused on the current turn.
+- Turn-based duel active cards now use a combat-style layout with a turn header, short HP names, natural action lines, a 23-second turn hint, and tournament-reward copy instead of claiming duels have no gold/manatky path.
+- Turn-based duel result cards now expose the replay-safe battle journal after combat, active duel keyboards keep that journal hidden until the result, and rematch presses send a targeted invite card to the other participant when Telegram delivery is available.
 - Tournament cards convert visible period keys to Holocene display dates, so daily, weekly and monthly player-facing periods show `12026-*` instead of Gregorian storage keys.
 - Inventory, item-detail, Mantok Chest and Charkokovalnia list callbacks now log slow hot-path timings and avoid repeated per-request list filtering, sorting, content scans and Mantok Chest unit expansion, reducing latency pressure on small Render Starter instances without changing player-facing copy, rewards or item outcomes.
 

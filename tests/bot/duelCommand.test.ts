@@ -568,6 +568,48 @@ describe("handleDuelCallback", () => {
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:share:${TOKEN}`);
   });
 
+  it("sends a separate turn-based duel intro when accepting starts active combat", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "active",
+      transitioned: true,
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      acceptForTelegramUser,
+      recordTurnBasedMessageReference
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Перший кухоль: <b>Автор Виклику</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Другий кухоль: <b>Ціль Виклику</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("<i>Порада дня:");
+    expect(messageText(editMessageText)).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(messageText(editMessageText)).not.toContain("Порада дня:");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(sendMessage.mock.calls[1]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+  });
+
   it("does not notify the other quick-duel participant on replayed accept", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({

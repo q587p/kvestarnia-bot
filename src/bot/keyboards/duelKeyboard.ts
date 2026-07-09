@@ -227,12 +227,6 @@ export function buildTurnBasedDuelKeyboard(
     keyboard.text("🏳️ Здатися", makeDuelTurnCallbackData(token, "surrender", session.turn, session.version));
   }
 
-  if (session.state.lastRound) {
-    keyboard
-      .row()
-      .text("📜 Журнал бою", makeDuelJournalCallbackData(token));
-  }
-
   return keyboard.text("🔎 Оновити", makeDuelViewCallbackData(token));
 }
 
