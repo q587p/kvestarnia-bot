@@ -157,16 +157,23 @@ describe("quest overview presenter", () => {
       }
     }));
 
-    expect(rows.map((row) => row.priority)).toEqual(["claimable", "active", "active"]);
-    expect(rows.map((row) => row.id)).toEqual(["daily-korchma-round", "problem-quest", "yeger"]);
+    expect(rows.map((row) => row.priority)).toEqual(["claimable", "active", "active", "active"]);
+    expect(rows.map((row) => row.id)).toEqual(["daily-korchma-round", "problem-quest", "adventure", "yeger"]);
     expect(rows[0]?.title).toContain("2/2");
+    expect(rows.find((row) => row.id === "adventure")).toMatchObject({
+      priority: "active",
+      title: "🪧 <b>Три справи на найближчий час</b> — три проблеми чекають вибору"
+    });
+    expect(rows.find((row) => row.id === "adventure")?.body).toContain(
+      "<i>Далі:</i> оберіть одну справу й метод, коли будете біля столу."
+    );
   });
 
   it("hides locked, generic available, retired and completed-only rows", () => {
     const highLevel = characterAtLevel(13);
     const rows = buildQuestOverviewRows(makeSnapshot({
       character: highLevel,
-      adventure: { state: "ready", character: highLevel, offer: { choices: [] } },
+      adventure: { state: "already-completed", character: highLevel },
       starterAdventure: { state: "level-retired", character: highLevel, maxLevel: 2 },
       fight: {
         state: "persistent-ready",
@@ -337,6 +344,46 @@ describe("quest overview presenter", () => {
     expect(rows.find((row) => row.id === "cellar-grownup")?.priority).toBe("claimable");
     expect(rows.find((row) => row.id === "barrel-beer-tutorial")?.priority).toBe("active");
     expect(rows.map((row) => row.id)).not.toContain("cellar");
+  });
+
+  it("shows available and paused grownup cellar stages in the quest overview", () => {
+    const highLevel = characterAtLevel(13);
+    const offeredRows = buildQuestOverviewRows(makeSnapshot({
+      character: highLevel,
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 }),
+      cellar: { state: "level-retired", character: highLevel, maxLevel: 3, completed: false },
+      cellarGrownup: {
+        state: "offered",
+        character: highLevel,
+        price: 13
+      }
+    }));
+    const pausedRows = buildQuestOverviewRows(makeSnapshot({
+      character: highLevel,
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 }),
+      cellar: { state: "level-retired", character: highLevel, maxLevel: 3, completed: false },
+      cellarGrownup: {
+        state: "roleplay-cooldown",
+        character: highLevel,
+        now: new Date("2026-07-09T12:00:00.000Z"),
+        availableAt: new Date("2026-07-09T12:23:00.000Z")
+      }
+    }));
+
+    expect(offeredRows.find((row) => row.id === "cellar-grownup")).toMatchObject({
+      priority: "active",
+      title: "🐭 <b>Справа не до миші</b> — у льосі є інша справа для старших пригодників"
+    });
+    expect(offeredRows.find((row) => row.id === "cellar-grownup")?.body).toContain(
+      "<i>Зроблено:</i> новачкова миша вже не єдина бюрократія в льосі."
+    );
+    expect(pausedRows.find((row) => row.id === "cellar-grownup")).toMatchObject({
+      priority: "active",
+      title: "🐭 <b>Справа не до миші</b> — пауза"
+    });
+    expect(pausedRows.find((row) => row.id === "cellar-grownup")?.body).toContain(
+      "<i>Зроблено:</i> льохова дипломатія відсапується ще 23 хвилини."
+    );
   });
 
   it("keeps route-button labels out of the text guidance", () => {

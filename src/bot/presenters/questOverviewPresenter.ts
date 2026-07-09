@@ -255,15 +255,15 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
 
 function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
   const adventure = snapshot.adventure;
-  const title = "📋 <b>Три справи</b>";
+  const title = "🪧 <b>Три справи на найближчий час</b>";
 
   if (adventure.state === "ready") {
     return {
       id: "adventure",
-      priority: "available",
-      title: `${title} — доступно`,
+      priority: "active",
+      title: `${title} — три проблеми чекають вибору`,
       body: [
-        "Статус: три папірці лежать і роблять вигляд, що вони вибір долі.",
+        "<i>Зроблено:</i> стіл уже виклав три папірці й удає, що це нейтральна пропозиція.",
         "<i>Далі:</i> оберіть одну справу й метод, коли будете біля столу.",
         "<i>Де:</i> стіл зі справами."
       ].join("\n")
@@ -562,21 +562,28 @@ function getCellarOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | nu
   }
 
   if (grownup) {
+    if (grownup.state === "roleplay-cooldown") {
+      return {
+        id: "cellar-grownup",
+        priority: "active",
+        title: "🐭 <b>Справа не до миші</b> — пауза",
+        body: [
+          `<i>Зроблено:</i> льохова дипломатія відсапується ще ${formatCooldown(grownup.availableAt, grownup.now)}.`,
+          "<i>Далі:</i> дочекайтеся, поки крихти закінчать нараду, або поверніться з дорослішим аргументом.",
+          "<i>Де:</i> льох корчми."
+        ].join("\n")
+      };
+    }
+
     return {
       id: "cellar-grownup",
-      priority: grownup.state === "roleplay-cooldown" ? "locked" : "available",
-      title: "🐭 <b>Справа не до миші</b> — доступно",
-      body: grownup.state === "roleplay-cooldown"
-        ? [
-            `Статус: льохова дипломатія відсапується ще ${formatCooldown(grownup.availableAt, grownup.now)}.`,
-            "<i>Далі:</i> дочекайтеся, поки крихти закінчать нараду.",
-            "<i>Де:</i> льох корчми."
-          ].join("\n")
-        : [
-            "Статус: у льосі є інша справа для старших пригодників, і вона тримає інтонацію.",
-            "<i>Далі:</i> домовтеся з мишею або знайдіть доросліший аргумент.",
-            "<i>Де:</i> льох корчми."
-          ].join("\n")
+      priority: "active",
+      title: "🐭 <b>Справа не до миші</b> — у льосі є інша справа для старших пригодників",
+      body: [
+        "<i>Зроблено:</i> новачкова миша вже не єдина бюрократія в льосі.",
+        "<i>Далі:</i> домовтеся з мишею або знайдіть доросліший аргумент.",
+        "<i>Де:</i> льох корчми."
+      ].join("\n")
     };
   }
 

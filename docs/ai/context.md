@@ -79,6 +79,7 @@ Compatibility/reference copies in `skills/` may exist, but default workflow shou
 - `0.3.4` marker polish: the Korchma hall `📋 Стіл зі справами` button now keeps a ready turn-in `✅` stronger than unrelated available-work `⚠️` markers from Shynok or other table papers.
 - `0.3.4` cellar overview polish: repeat-ready `Льохова справа` carries the cellar errand's prior-completion flag and says `не перший спуск` with repeat-attempt next-step copy instead of calling every ready mouse errand the first descent.
 - `0.3.4` overview copy polish: problem-quest `Де:` guidance uses lowercase `спуск до Низу` in prose, reserving `Спуск до Низу` for buttons, titles and sentence starts.
+- `0.3.4` overview visibility polish: the otherwise-active-only `🗺️ Квести` journal now explicitly shows ready `🪧 Три справи на найближчий час` choices and `Справа не до миші` offered/paused/bottle-turn-in stages, while other generic available untaken rows stay hidden.
 - `docs/tasks/0.3.5-performance-p0-hardening.md` — queued next from the static performance audit: add env-gated structured timing logs, bound `DailyAction` hot-path queries/indexes, make Yeger bandage preview/confirm/cancel cheap, and narrow Daily Korchma step queries to the current day; no implementation has started yet.
 - `docs/tasks/future-deploy-notification-visti.md` — shipped `0.2.19` private deploy/update notification wording as `вісти`, with the latest release title, first narrative paragraph, `/news` archive and channel link.
 
