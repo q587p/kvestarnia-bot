@@ -89,12 +89,18 @@ Default prompt:
 ```text
 Use $kvestarnia-second-codex-readonly.
 
-Review PR #<number> against main.
-Mode: READ ONLY report only.
-Scope: changed files only by default. Inspect direct dependencies only if needed.
-Focus: correctness, regressions, Telegram callbacks, state/session consistency, idempotency, missing tests.
-Output: blockers, important issues, minor issues, missing tests, manual Telegram checks, safe notes. No tutorial.
+PR: #<number>
+Base: main
+Review mode: short
+Task doc: docs/tasks/<version>-<short-slug>.md
+
+Extra focus:
+<optional; delete if not needed>
 ```
+
+Modes: `short` for everyday changed-files review, `default` for medium-risk/release-oriented PRs, and `deep` only for high-risk state, persistence, combat, raids, party sessions, routing, migrations, scheduler, economy, or balance.
+
+For main Codex follow-up after review findings, use `docs/ai/prompts/main-codex-fix-review-findings.md` and paste only blockers, important issues, missing tests, and key edge cases.
 
 Second Codex must not:
 

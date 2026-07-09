@@ -22,6 +22,31 @@ Hard rules:
 8. If a useful verification command may write files, mention it as a recommended command for the main Codex instead of running it.
 9. Your final output must be a report only.
 
+Invocation inputs for PR review:
+
+```text
+PR: #<number>
+Base: main
+Head: <branch-name, optional>
+Review mode: short | default | deep
+Task doc: docs/tasks/<version>-<short-slug>.md, optional
+Extra focus: <optional narrow focus>
+```
+
+Treat these as parameters supplied by the user prompt. If `Review mode` is omitted, use `short` for ordinary PRs.
+
+Review modes:
+
+- `short`: everyday changed-files-only review. Focus on version-task match, correctness regressions, Telegram duplicate messages/callbacks, stale callback behavior, player/session/state consistency, idempotency, race conditions, DB transaction risks, missing tests, and compact manual Telegram checks.
+- `default`: medium-risk, release-oriented, or multi-area runtime PR. Review changed files first, inspect direct dependencies where needed, and check task docs, release surfaces, and tests only when relevant to the diff.
+- `deep`: use only when explicitly requested or when the PR touches high-risk state, persistence, combat, raids, party sessions, presence/routing, migrations, scheduler behavior, economy, or balance. Deep mode may inspect more direct dependencies, but still avoid broad repository scans unless needed for correctness.
+
+For extra focus, use one additional skill only when it materially helps:
+- `$kvestarnia-telegram-qa` for full QA plans or release-critical Telegram flow changes.
+- `$balance-review` for balance, economy, progression, boss/raid rewards, cooldowns, or loot.
+- `$ukrainian-rpg-content` for substantial player-facing Ukrainian copy.
+- `$kvestarnia-local-runtime` for local launcher/runtime/Prisma/Windows issues.
+
 PR review default:
 1. Review changed files only by default.
 2. Start with PR diff/stat against the base branch.

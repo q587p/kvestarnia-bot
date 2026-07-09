@@ -25,6 +25,9 @@ Use this as the durable process note for token-efficient Kvestarnia work.
 - Keep Codex-facing prompts and integration prompts English.
 - Do not paste long Ukrainian style rules into prompts; use `$ukrainian-rpg-content`.
 - Ask reviews to inspect changed files only by default.
+- For second-Codex PR review, pass compact parameters: `PR`, `Base`, `Review mode`, optional `Task doc`, and optional `Extra focus`.
+- Use `Review mode: short` by default; reserve `default` and `deep` for higher-risk PRs.
+- For main-Codex follow-ups after review, use `docs/ai/prompts/main-codex-fix-review-findings.md` and paste only blockers, important issues, missing tests, and key edge cases.
 - Ask final output to be compact and non-tutorial.
 - Follow `docs/ai/CODEX_PROMPT_POLICY.md` before handing off prompt artifacts.
 
