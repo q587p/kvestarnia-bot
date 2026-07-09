@@ -11,6 +11,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 
 - [`mantok-ability-grants-foundation-qa.md`](mantok-ability-grants-foundation-qa.md) — Mantok Ability Grants QA checklist when present in the active branch.
 - [`latest-events-feed-qa.md`](latest-events-feed-qa.md) — latest events feed QA package if present.
+- [`duel-tournaments-qa.md`](duel-tournaments-qa.md) — turn-based duel tournament reward QA checklist and current manual status.
 - [`BIG_BARREL_BROTHER_GROUP_RAID_QA.md`](BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future Big Barrel Brother QA matrix if present.
 
 ## Historical smoke records

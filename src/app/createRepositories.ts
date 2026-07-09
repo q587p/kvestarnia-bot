@@ -11,6 +11,7 @@ import { PrismaCooldownRepository } from "../db/repositories/prismaCooldownRepos
 import { PrismaDailyActionRepository } from "../db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "../db/repositories/prismaDevGrantRepository";
 import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChallengeRepository";
+import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTournamentRepository";
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
@@ -50,6 +51,7 @@ export function createRepositories(prisma: PrismaClient) {
     dailyActions: new PrismaDailyActionRepository(prisma),
     devGrants: new PrismaDevGrantRepository(prisma),
     duelChallenges: new PrismaDuelChallengeRepository(prisma),
+    duelTournaments: new PrismaDuelTournamentRepository(prisma),
     equipment: new PrismaEquipmentRepository(prisma),
     huntContracts: new PrismaHuntContractRepository(prisma),
     inventory: new PrismaInventoryRepository(prisma),

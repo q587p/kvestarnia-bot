@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   INVENTORY_PAGE_SIZE,
+  buildInventoryViewModel,
   getInventoryPageItems,
   presentInventory
 } from "../../src/bot/presenters/inventoryPresenter";
@@ -135,6 +136,30 @@ describe("inventory presenter", () => {
       "item.test-beta",
       "item.test-gamma"
     ]);
+  });
+
+  it("builds one reusable view model for filter, sort, and pagination", () => {
+    const result: InventoryResult = {
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        item("item.test-beta", "Бета", "weapon", undefined, new Date("2026-06-12T10:00:00.000Z")),
+        item("item.test-alpha", "Альфа", "weapon", undefined, new Date("2026-06-13T10:00:00.000Z")),
+        item("item.test-junk", "Квитанція", "junk", undefined, new Date("2026-06-14T10:00:00.000Z"))
+      ]
+    };
+
+    const model = buildInventoryViewModel(result, 7, "weapon", { sort: "name-asc" });
+
+    expect(model.rawItems).toHaveLength(3);
+    expect(model.filteredCount).toBe(2);
+    expect(model.totalPages).toBe(1);
+    expect(model.safePage).toBe(0);
+    expect(model.filteredItems.map((entry) => entry.itemId)).toEqual([
+      "item.test-alpha",
+      "item.test-beta"
+    ]);
+    expect(model.pageItems).toEqual(getInventoryPageItems(result, 7, "weapon", { sort: "name-asc" }));
   });
 
   it("filters inventory by equipment slot", () => {

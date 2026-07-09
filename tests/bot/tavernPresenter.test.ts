@@ -4,6 +4,8 @@ import {
   presentTavernAlreadyRaided,
   presentKorchmaArrivalBoard,
   presentKorchmaBar,
+  presentDuelTournamentBoard,
+  presentDuelTournamentRules,
   presentDuelWinnersBoard,
   presentKorchmaDeepClosed,
   presentKorchmaDeepLevelLocked,
@@ -26,6 +28,7 @@ import {
   presentTavernRoundResult
 } from "../../src/bot/presenters/tavernPresenter";
 import type { TavernRaidResult } from "../../src/services/tavernRaidService";
+import type { DuelTournamentBoard } from "../../src/services/duelTournamentService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PresenceGroup } from "../../src/services/presenceService";
 
@@ -64,6 +67,57 @@ const character: CharacterSummary = {
     }
   }
 };
+
+function makeTournamentBoard(input: {
+  period: DuelTournamentBoard["period"];
+  currentKey: string;
+  previousKey: string;
+  currentLabel: string;
+  previousLabel: string;
+}): DuelTournamentBoard {
+  return {
+    period: input.period,
+    current: {
+      period: input.period,
+      key: input.currentKey,
+      label: input.currentLabel,
+      startsAt: new Date("2026-07-01T21:00:00.000Z"),
+      endsAt: new Date("2026-08-01T21:00:00.000Z")
+    },
+    previous: {
+      period: input.period,
+      key: input.previousKey,
+      label: input.previousLabel,
+      startsAt: new Date("2026-06-01T21:00:00.000Z"),
+      endsAt: new Date("2026-07-01T21:00:00.000Z")
+    },
+    standings: [],
+    previousWinners: [],
+    character: {
+      id: "character-1",
+      userId: "user-1",
+      telegramUserId: 1n,
+      name: "Дара",
+      pronoun: "they",
+      path: "boundary",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 3,
+      xp: 0,
+      gold: 0,
+      hpCurrent: 25,
+      hpMax: 25,
+      manaCurrent: 10,
+      manaMax: 10,
+      statsJson: {}
+    },
+    yourPoints: 0,
+    yourRank: null,
+    remainingMs: 60_000,
+    claim: { state: "unavailable", reason: "not-ended" },
+    pendingRewards: []
+  };
+}
 
 describe("tavern presenter", () => {
   it("formats the korchma name at the front door", () => {
@@ -202,7 +256,7 @@ describe("tavern presenter", () => {
     expect(text).toContain("результат одразу після згоди.");
     expect(text).toContain("♟️ Покрокова дуель");
     expect(text).toContain("гравці таємно обирають дії за раунд.");
-    expect(text).toContain("глянути переможців");
+    expect(text).toContain("глянути турніри й переможців");
   });
 
   it("shows the Nyz descent with its first surface copy", () => {
@@ -254,6 +308,142 @@ describe("tavern presenter", () => {
     });
 
     expect(text).toContain("1. Дара — 11 перемог, 12 нічиїх, 14 поразок");
+  });
+
+  it("shows compact duel tournament standings and claim state without public losses", () => {
+    const text = presentDuelTournamentBoard({
+      period: "day",
+      current: {
+        period: "day",
+        key: "2026-07-08",
+        label: "Денний турнір",
+        startsAt: new Date("2026-07-07T21:00:00.000Z"),
+        endsAt: new Date("2026-07-08T21:00:00.000Z")
+      },
+      previous: {
+        period: "day",
+        key: "2026-07-07",
+        label: "Денний турнір",
+        startsAt: new Date("2026-07-06T21:00:00.000Z"),
+        endsAt: new Date("2026-07-07T21:00:00.000Z")
+      },
+      standings: [{
+        characterId: "character-1",
+        name: "Дара",
+        points: 5,
+        wins: 2,
+        draws: 1,
+        scoredDuels: 3,
+        rank: 1
+      }],
+      previousWinners: [{
+        characterId: "character-2",
+        name: "Нестор",
+        points: 3,
+        wins: 1,
+        draws: 0,
+        scoredDuels: 1,
+        rank: 1
+      }],
+      character: {
+        id: "character-1",
+        userId: "user-1",
+        telegramUserId: 1n,
+        name: "Дара",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 3,
+        xp: 0,
+        gold: 0,
+        hpCurrent: 25,
+        hpMax: 25,
+        manaCurrent: 10,
+        manaMax: 10,
+        statsJson: {}
+      },
+      yourPoints: 5,
+      yourRank: 1,
+      remainingMs: 93 * 60 * 1000,
+      claim: {
+        state: "available",
+        periodKey: "2026-07-07",
+        rank: 1,
+        points: 3,
+        reward: {
+          gold: 3,
+          items: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
+        }
+      },
+      pendingRewards: [{
+        period: "day",
+        periodKey: "2026-07-07",
+        window: {
+          period: "day",
+          key: "2026-07-07",
+          label: "Денний турнір",
+          startsAt: new Date("2026-07-06T21:00:00.000Z"),
+          endsAt: new Date("2026-07-07T21:00:00.000Z")
+        },
+        rank: 1,
+        points: 3,
+        reward: {
+          gold: 3,
+          items: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
+        }
+      }]
+    });
+
+    expect(text).toContain("🏆 Турніри");
+    expect(text).toContain("Період: 12026-07-08");
+    expect(text).toContain("Ваші очки: <b>5</b>, місце 1");
+    expect(text).toContain("1. Дара — 5 оч., 2 перем., 1 ніч.");
+    expect(text).toContain("🎁 <b>На вас чекають нагороди</b>: 1");
+    expect(text).toContain("🥇 Денний турнір — 12026-07-07");
+    expect(text).toContain("Приз: 3 зол., 1 шт. «Бинт відповідальної паніки».");
+    expect(text).toContain("<b>Попередні переможці</b> (12026-07-07):");
+    expect(text).not.toContain("Період: 2026-");
+    expect(text).not.toContain("пораз");
+  });
+
+  it("shows duel tournament week and month period keys as Holocene dates", () => {
+    const weekText = presentDuelTournamentBoard(makeTournamentBoard({
+      period: "week",
+      currentKey: "2026-W28",
+      previousKey: "2026-W27",
+      currentLabel: "Тижневий турнір",
+      previousLabel: "Тижневий турнір"
+    }));
+    const monthText = presentDuelTournamentBoard(makeTournamentBoard({
+      period: "month",
+      currentKey: "2026-07",
+      previousKey: "2026-06",
+      currentLabel: "Місячний турнір",
+      previousLabel: "Місячний турнір"
+    }));
+
+    expect(weekText).toContain("Період: 12026-W28");
+    expect(weekText).toContain("<b>Попередній тижневий турнір</b> (12026-W27)");
+    expect(monthText).toContain("Період: 12026-07");
+    expect(monthText).toContain("<b>Попередній місячний турнір</b> (12026-06)");
+    expect(`${weekText}\n${monthText}`).not.toContain("Період: 2026-");
+  });
+
+  it("explains duel tournament scoring, prizes and claim timing", () => {
+    const text = presentDuelTournamentRules();
+
+    expect(text).toContain("❔ <b>Правила турнірів</b>");
+    expect(text).toContain("Рахуються тільки завершені <b>покрокові дуелі</b>.");
+    expect(text).toContain("перша перемога — <b>3 оч.</b>");
+    expect(text).toContain("друга перемога — <b>1 оч.</b>");
+    expect(text).toContain("третя й далі — <b>0 оч.</b>");
+    expect(text).toContain("перша нічия — <b>1 оч.</b>");
+    expect(text).toContain("день: 42/23/13 зол. + 5/3/1 «Бинт відповідальної паніки»");
+    expect(text).toContain("тиждень: 93/42/23 зол. + 5/3/1 «Щільний бинт»");
+    expect(text).toContain("місяць: 587/93/42 зол. + 3/2/1 «Польова аптечка»");
+    expect(text).toContain("Періоди закриваються за київським часом.");
+    expect(text).toContain("Повторні натискання показують той самий запис і не множать призи.");
   });
 
   it("shows a repeated duel winner cosmetic title only once per board card", () => {

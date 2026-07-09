@@ -22,8 +22,15 @@ import {
 } from "../callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../callbacks/tavernCallbackData";
 import { makeDuelNewCallbackData, makeDuelNewTurnBasedCallbackData } from "../callbacks/duelCallbackData";
+import {
+  makeDuelTournamentClaimCallbackData,
+  makeDuelTournamentOpenCallbackData,
+  makeDuelTournamentRulesCallbackData
+} from "../callbacks/duelTournamentCallbackData";
 import { makeTrainingDoppelgangerCallbackData } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makeYegerOutsideCallbackData } from "../callbacks/yegerCallbackData";
+import type { DuelTournamentPeriod } from "../../domain/duels/duelTournament";
+import type { DuelTournamentClaimState, DuelTournamentPendingReward } from "../../services/duelTournamentService";
 import type { TavernRoundOfferResult, TavernRoundResult } from "../../services/tavernRaidService";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import {
@@ -210,7 +217,11 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
 }
 
 export function buildKorchmaFightingCornerKeyboard(
-  options: { questMarkers?: QuestMarkerInput | null; trainingDoppelgangerAvailable?: boolean } = {}
+  options: {
+    questMarkers?: QuestMarkerInput | null;
+    trainingDoppelgangerAvailable?: boolean;
+    tournamentPendingRewardCount?: number;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -223,9 +234,95 @@ export function buildKorchmaFightingCornerKeyboard(
     .row()
     .text("♟️ Покрокова дуель", makeDuelNewTurnBasedCallbackData())
     .row()
-    .text("🏆 Переможці", makePlaceCallbackData("duel-winners"))
+    .text(formatTournamentEntryLabel(options.tournamentPendingRewardCount), makeDuelTournamentOpenCallbackData("day"))
+    .row()
+    .text("🏅 Переможці", makePlaceCallbackData("duel-winners"))
     .row()
     .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
+}
+
+export function buildDuelTournamentKeyboard(input: {
+  period: DuelTournamentPeriod;
+  claim: DuelTournamentClaimState;
+  pendingRewards?: readonly DuelTournamentPendingReward[];
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text(periodButtonLabel("day", input.period), makeDuelTournamentOpenCallbackData("day"))
+    .text(periodButtonLabel("week", input.period), makeDuelTournamentOpenCallbackData("week"))
+    .text(periodButtonLabel("month", input.period), makeDuelTournamentOpenCallbackData("month"))
+    .row();
+
+  if (input.claim.state === "available") {
+    keyboard.text(
+      "🎁 Забрати скриньку",
+      makeDuelTournamentClaimCallbackData(input.period, input.claim.periodKey)
+    ).row();
+  }
+
+  const shownClaimKey = input.claim.state === "available"
+    ? tournamentClaimKey(input.period, input.claim.periodKey)
+    : null;
+  const otherPendingRewards = (input.pendingRewards ?? [])
+    .filter((reward) => tournamentClaimKey(reward.period, reward.periodKey) !== shownClaimKey);
+
+  for (const reward of otherPendingRewards) {
+    keyboard.text(
+      `🎁 ${periodButtonShortLabel(reward.period)} ${presentTournamentPeriodKey(reward.periodKey)}`,
+      makeDuelTournamentClaimCallbackData(reward.period, reward.periodKey)
+    ).row();
+  }
+
+  return keyboard
+    .text("❔ Правила", makeDuelTournamentRulesCallbackData(input.period))
+    .row()
+    .text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+export function buildDuelTournamentRulesKeyboard(period: DuelTournamentPeriod): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("↩️ До турніру", makeDuelTournamentOpenCallbackData(period))
+    .row()
+    .text("↩️ До Бійцівського кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+function periodButtonLabel(period: DuelTournamentPeriod, current: DuelTournamentPeriod): string {
+  const labels: Record<DuelTournamentPeriod, string> = {
+    day: "День",
+    week: "Тиждень",
+    month: "Місяць"
+  };
+  return period === current ? `• ${labels[period]}` : labels[period];
+}
+
+function periodButtonShortLabel(period: DuelTournamentPeriod): string {
+  const labels: Record<DuelTournamentPeriod, string> = {
+    day: "День",
+    week: "Тиждень",
+    month: "Місяць"
+  };
+  return labels[period];
+}
+
+function formatTournamentEntryLabel(pendingRewardCount: number | undefined): string {
+  if (pendingRewardCount && pendingRewardCount > 0) {
+    return `🏆 Турніри (${pendingRewardCount})`;
+  }
+
+  return "🏆 Турніри";
+}
+
+function presentTournamentPeriodKey(key: string): string {
+  const match = /^(\d{4})(-\d{2}(?:-\d{2})?|-W\d{2})$/.exec(key);
+
+  if (!match) {
+    return key;
+  }
+
+  return `${Number(match[1]) + 10000}${match[2]}`;
+}
+
+function tournamentClaimKey(period: DuelTournamentPeriod, periodKey: string): string {
+  return `${period}:${periodKey}`;
 }
 
 export function buildKorchmaBarKeyboard(

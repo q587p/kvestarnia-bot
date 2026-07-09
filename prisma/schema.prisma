@@ -71,6 +71,7 @@ model Character {
   duelChallengesReceived DuelChallenge[] @relation("DuelTarget")
   duelCombatSessionsAsChallenger DuelCombatSession[] @relation("DuelCombatChallenger")
   duelCombatSessionsAsTarget DuelCombatSession[] @relation("DuelCombatTarget")
+  duelTournamentClaims DuelTournamentClaim[]
   partySessionsLed PartySession[] @relation("PartySessionLeader")
   partyParticipants PartyParticipant[]
   tavernGameSessionsCreated TavernGameSession[] @relation("TavernGameCreator")
@@ -903,6 +904,27 @@ model DuelCombatAction {
   @@unique([sessionId, turn])
   @@index([actorCharacterId])
   @@map("duel_combat_actions")
+}
+
+model DuelTournamentClaim {
+  id              String    @id @default(uuid())
+  characterId     String    @map("character_id")
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  period          String
+  periodKey       String    @map("period_key")
+  points          Int
+  rank            Int
+  rewardGold      Int       @map("reward_gold")
+  rewardItemsJson Json      @map("reward_items_json")
+  resultJson      Json?     @map("result_json")
+  claimedAt       DateTime  @map("claimed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([characterId, period, periodKey])
+  @@index([period, periodKey])
+  @@index([claimedAt])
+  @@map("duel_tournament_claims")
 }
 
 model PartySession {

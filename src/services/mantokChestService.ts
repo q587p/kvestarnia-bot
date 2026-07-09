@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { items } from "../content";
+import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
 import {
   buildMantokChestEligibleStacks,
@@ -7,11 +8,9 @@ import {
   calculateMantokChestItemScore,
   calculateMinimumMantokChestOutputScore,
   countMantokChestEligibleUnits,
-  expandMantokChestStacks,
   MANTOK_CHEST_BATCH_SIZE,
   selectCheapestMantokChestUnits,
-  selectMantokChestOutputItem,
-  summarizeMantokChestUnits
+  selectMantokChestOutputItem
 } from "../domain/mantokChest";
 import type {
   MantokChestRepository,
@@ -356,22 +355,34 @@ export class MantokChestService {
       return buildManualSelectionResult(snapshot, run, input.page);
     }
 
-    const selectedUnits = expandStoredRunItems(run.inputItems, eligibleStacks);
-    const selectedCount = selectedUnits.length;
-    const selectedInStack = run.inputItems.find((item) => item.itemId === stack.itemId)?.quantity ?? 0;
+    const selectedById = new Map(run.inputItems.map((item) => [item.itemId, item.quantity]));
+    const selectedCount = run.inputItems.reduce((sum, item) => sum + item.quantity, 0);
+    const selectedInStack = selectedById.get(stack.itemId) ?? 0;
 
-    const nextUnits =
-      action === "add"
-        ? selectedCount < MANTOK_CHEST_BATCH_SIZE && selectedInStack < stack.quantity
-          ? [...selectedUnits, { itemId: stack.itemId, content: stack.content, score: stack.score }]
-          : selectedUnits
-        : removeOneUnit(selectedUnits, stack.itemId);
+    if (action === "add" && selectedCount < MANTOK_CHEST_BATCH_SIZE && selectedInStack < stack.quantity) {
+      selectedById.set(stack.itemId, selectedInStack + 1);
+    }
+
+    if (action === "remove" && selectedInStack > 0) {
+      const nextQuantity = selectedInStack - 1;
+
+      if (nextQuantity > 0) {
+        selectedById.set(stack.itemId, nextQuantity);
+      } else {
+        selectedById.delete(stack.itemId);
+      }
+    }
+
+    const inputItems = [...selectedById.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([itemId, quantity]) => ({ itemId, quantity }));
+    const nextUnits = expandStoredRunItems(inputItems, eligibleStacks);
     const averageInputScore = calculateMantokChestAverageScore(nextUnits);
     const minimumOutputScore =
       nextUnits.length === 0 ? 0 : calculateMinimumMantokChestOutputScore(averageInputScore);
     const updated = await this.repository.updatePendingRunInputItemsForTelegramUser(telegramUserId, {
       token: input.token,
-      inputItems: summarizeMantokChestUnits(nextUnits),
+      inputItems,
       averageInputScore,
       minimumOutputScore,
       now: this.clock()
@@ -381,7 +392,7 @@ export class MantokChestService {
       return { state: "invalid-token" };
     }
 
-    return buildManualSelectionResult(snapshot, updated, input.page);
+    return buildManualSelectionResult(snapshot, updated, input.page, eligibleStacks);
   }
 
   private selectOutputForRun(
@@ -444,9 +455,10 @@ function getManualEligibleStacks(snapshot: MantokChestSnapshot) {
 function buildManualSelectionResult(
   snapshot: MantokChestSnapshot,
   run: MantokChestRunRecord,
-  requestedPage: number
+  requestedPage: number,
+  sortedStacks?: ReturnType<typeof sortEligibleStacks>
 ): MantokChestManualSelectionResult {
-  const stacks = sortEligibleStacks(getManualEligibleStacks(snapshot));
+  const stacks = sortedStacks ?? sortEligibleStacks(getManualEligibleStacks(snapshot));
   const selectedById = new Map(run.inputItems.map((item) => [item.itemId, item.quantity]));
   const eligibleCount = countMantokChestEligibleUnits(stacks);
   const selectedCount = run.inputItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -504,22 +516,6 @@ function expandStoredRunItems(
   });
 }
 
-function removeOneUnit(
-  units: ReturnType<typeof expandMantokChestStacks>,
-  itemId: string
-): ReturnType<typeof expandMantokChestStacks> {
-  let removed = false;
-
-  return units.filter((unit) => {
-    if (!removed && unit.itemId === itemId) {
-      removed = true;
-      return false;
-    }
-
-    return true;
-  });
-}
-
 function clampPage(page: number, pageCount: number): number {
   if (!Number.isInteger(page) || page < 0) {
     return 0;
@@ -536,7 +532,7 @@ function presentRunItems(
 
   return runItems.map((item) => {
     const eligible = eligibleById.get(item.itemId);
-    const content = eligible?.content ?? items.find((candidate) => candidate.id === item.itemId) ?? {
+    const content = eligible?.content ?? findItemContent(item.itemId) ?? {
       id: item.itemId,
       name: "Невідома манатка",
       description: "Скриня щось виплюнула, але ярлик пішов окремо.",

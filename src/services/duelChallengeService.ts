@@ -36,6 +36,7 @@ import { summarizeAndSyncCharacterResources } from "./characterResourceService";
 import { getEquippedItemContents } from "./equipmentService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { NearbyDuelTargetValidator } from "./presenceService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
@@ -185,6 +186,15 @@ export type DuelInviteRotationResult =
   | { state: "not-pending"; view: DuelChallengeView }
   | { state: "ready"; challenge: DuelChallengeRecord; challenger: CharacterSummary };
 
+export type DuelTurnBasedJournalResult =
+  | { state: "not-found" }
+  | { state: "not-ready" }
+  | {
+      state: "ready";
+      session: DuelCombatSessionRecord;
+      rounds: TurnBasedDuelRoundSummary[];
+    };
+
 export type TurnBasedDuelTurnResult =
   | { state: "no-character" }
   | { state: "not-found" }
@@ -207,7 +217,8 @@ export class DuelChallengeService {
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly nearbyDuelTargets?: NearbyDuelTargetValidator,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -526,6 +537,10 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
+    if (accepted.transitioned) {
+      await this.recordDuelCompletedActivity(accepted.record, now);
+    }
+
     return {
       ...this.viewChallenge(accepted.record, now),
       transitioned: accepted.transitioned
@@ -611,6 +626,29 @@ export class DuelChallengeService {
     const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(inviteToken, telegramUserId);
 
     return session ? this.buildActiveView(session, this.clock()) : { state: "not-found" };
+  }
+
+  async getTurnBasedJournalByToken(inviteToken: string): Promise<DuelTurnBasedJournalResult> {
+    const session = await this.challenges.findTurnBasedByToken(inviteToken);
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    if (session.status === "active") {
+      return { state: "not-ready" };
+    }
+
+    const actions = await this.challenges.listTurnBasedActionsByToken(inviteToken);
+    const rounds = actions
+      .map((action) => parseTurnBasedDuelRoundSummary(action.result))
+      .filter((round): round is TurnBasedDuelRoundSummary => round !== null);
+
+    return {
+      state: "ready",
+      session,
+      rounds
+    };
   }
 
   async resolveTurnBasedActionForTelegramUser(
@@ -734,6 +772,10 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
+    if (updated.status !== "active") {
+      await this.recordDuelCompletedActivity(updated.challenge, now);
+    }
+
     return { state: "updated", session: updated };
   }
 
@@ -802,6 +844,10 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
+    if (updated.status !== "active") {
+      await this.recordDuelCompletedActivity(updated.challenge, now);
+    }
+
     const achievementUnlocksByCharacterId = resolved.resolution === "resolved"
       ? await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now)
       : {};
@@ -847,6 +893,23 @@ export class DuelChallengeService {
     }
 
     return unlocksByCharacterId;
+  }
+
+  private async recordDuelCompletedActivity(challenge: DuelChallengeRecord, occurredAt: Date): Promise<void> {
+    if (!this.activityEvents || challenge.status !== "resolved" || !challenge.target || !challenge.result) {
+      return;
+    }
+
+    await this.activityEvents.recordDuelCompletedSafely({
+      challengeId: challenge.id,
+      mode: challenge.result.mode ?? challenge.mode,
+      challengerCharacterId: challenge.challengerCharacterId,
+      challengerDisplayName: challenge.result.participants?.challenger.displayName ?? challenge.challenger.name,
+      targetCharacterId: challenge.targetCharacterId ?? challenge.target.id,
+      targetDisplayName: challenge.result.participants?.target.displayName ?? challenge.target.name,
+      outcome: challenge.result.outcome,
+      occurredAt
+    });
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {
@@ -1496,4 +1559,85 @@ function getResourceWarning(character: CharacterSummary): DuelResourceWarning | 
   };
 
   return warning.hpBelowMax || warning.manaBelowMax ? warning : null;
+}
+
+function parseTurnBasedDuelRoundSummary(value: unknown): TurnBasedDuelRoundSummary | null {
+  if (!isRecord(value) || typeof value.turn !== "number" || !Array.isArray(value.actions)) {
+    return null;
+  }
+
+  const actions = value.actions
+    .map(parseTurnBasedDuelActionSummary)
+    .filter((action): action is TurnBasedDuelRoundSummary["actions"][number] => action !== null);
+
+  return {
+    turn: Math.max(1, Math.floor(value.turn)),
+    actions
+  };
+}
+
+function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSummary["actions"][number] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.actorCharacterId !== "string" ||
+    typeof value.defenderCharacterId !== "string" ||
+    !isTurnBasedDuelStoredAction(value.action) ||
+    typeof value.outcome !== "string" ||
+    typeof value.damage !== "number" ||
+    typeof value.manaSpent !== "number" ||
+    typeof value.critical !== "boolean"
+  ) {
+    return null;
+  }
+
+  const fumble = parseTurnBasedDuelFumbleSummary(value.fumble);
+
+  return {
+    actorCharacterId: value.actorCharacterId,
+    defenderCharacterId: value.defenderCharacterId,
+    action: value.action,
+    outcome: value.outcome as TurnBasedDuelRoundSummary["actions"][number]["outcome"],
+    damage: Math.max(0, Math.floor(value.damage)),
+    ...(typeof value.healing === "number" ? { healing: Math.max(0, Math.floor(value.healing)) } : {}),
+    ...(typeof value.guard === "number" ? { guard: Math.max(0, Math.floor(value.guard)) } : {}),
+    manaSpent: Math.max(0, Math.floor(value.manaSpent)),
+    critical: value.critical,
+    ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
+    ...(fumble ? { fumble } : {})
+  };
+}
+
+function parseTurnBasedDuelFumbleSummary(
+  value: unknown
+): TurnBasedDuelRoundSummary["actions"][number]["fumble"] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.abilityId !== "string" ||
+    (value.kind !== "self-damage" && value.kind !== "enemy-heal") ||
+    typeof value.line !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    abilityId: value.abilityId,
+    kind: value.kind,
+    line: value.line,
+    ...(typeof value.selfDamage === "number" ? { selfDamage: Math.max(0, Math.floor(value.selfDamage)) } : {}),
+    ...(typeof value.enemyHealing === "number" ? { enemyHealing: Math.max(0, Math.floor(value.enemyHealing)) } : {})
+  };
+}
+
+function isTurnBasedDuelStoredAction(value: unknown): value is TurnBasedDuelRoundSummary["actions"][number]["action"] {
+  return value === "attack" ||
+    value === "defend" ||
+    value === "skill" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "surrender" ||
+    value === "timeout-attack";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

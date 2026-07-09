@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.1] - 12026-07-09 - Turn-Based Duel Tournaments and Korchma Rewards
+
+### Added
+- Added `🏆 Турніри` to the Korchma Fighting Corner with daily, weekly and monthly fixed-period standings for completed turn-based duels.
+- Added deterministic tournament scoring that counts only resolved turn-based duels once and applies bounded repeated-opponent contribution: first win against the same opponent in a period grants full points, the second grants reduced points, later repeated wins grant no tournament points; repeated draws against the same opponent score once.
+- Added replay-safe tournament prize-chest claims with stored reward snapshots and unique character/period/period-key claims.
+- Added bounded unclaimed prize-chest lookback from the tournament screen: 13 closed daily periods, 8 closed weekly periods and 5 closed monthly periods.
+- Added Korchma-funded top-three reward tables for daily, weekly and monthly tournaments, granting bounded gold plus daily `Бинт відповідальної паніки`, weekly `Щільний бинт` and monthly `Польова аптечка` rewards.
+- Added a `❔ Правила` tournament help card that explains scoring, repeated-opponent downweighting, top-three prize tables, and when prize chests become claimable.
+- Added `📜 Хроніки Квестарні` combat rows for completed quick and turn-based duels, emitted once per resolved duel without publishing a loss/shame row.
+- Added `📜 Хроніки Квестарні` important rows for successful tournament reward claims, emitted once per claim and never for tournament losses.
+- Added focused tournament domain, service, callback, presenter and schema coverage for standings, rewards, duplicate callbacks, claim replay, anti-boost scoring, period rollover, duel combat-feed rows and Latest Events integration.
+
+### Changed
+- The existing no-reward duel winners board remains available, while tournament cards show points, rank, remaining time, previous winners, pending prize chests and claim buttons only for eligible closed-period rewards.
+- Turn-based duel starts now send a separate intro message with both participants' frozen levels/titles and an italic reused battle-start tip, while the active action card stays focused on the current turn.
+- Turn-based duel active cards now use a combat-style layout with a turn header, short HP names, natural action lines, a 23-second turn hint, and tournament-reward copy instead of claiming duels have no gold/manatky path.
+- Turn-based duel result cards now expose the replay-safe battle journal after combat, active duel keyboards keep that journal hidden until the result, stale/forged journal callbacks stay closed while combat is active, and rematch presses send a targeted invite card to the other participant when Telegram delivery is available.
+- Closed-period tournament prize chests intentionally remain claimable after remort, because they are period recognition for the same character record rather than current-life combat progress.
+- Tournament cards convert visible period keys to Holocene display dates, so daily, weekly and monthly player-facing periods show `12026-*` instead of Gregorian storage keys.
+- Inventory, item-detail, Mantok Chest and Charkokovalnia list callbacks now log slow hot-path timings and avoid repeated per-request list filtering, sorting, content scans and Mantok Chest unit expansion, reducing latency pressure on small Render Starter instances without changing player-facing copy, rewards or item outcomes.
+
 ## [0.3.0] - 12026-07-08 - Charkokovalnia Item Upgrades MVP
 
 ### Added

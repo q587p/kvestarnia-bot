@@ -173,6 +173,17 @@ function renderEventRow(event: ActivityEventRecord): string {
       const delta = readPayloadNumber(event.payload, "levelDelta") ?? 5;
       return `🛡️ ${time} | ${actor}: перемога. Монстр — «${subject}», перевага рівнів: +${delta}.`;
     }
+    case "duel.completed": {
+      const mode = readPayloadString(event.payload, "mode");
+      const label = mode === "turn-based" ? "покрокова дуель" : "швидка дуель";
+      return `⚔️ ${time} | ${actor} і ${subject}: ${label} завершена. Корчмар записав без публічного сорому.`;
+    }
+    case "duel.tournament_claimed": {
+      const rank = readPayloadNumber(event.payload, "rank") ?? 1;
+      const points = readPayloadNumber(event.payload, "points") ?? 0;
+      const period = presentTournamentPeriod(readPayloadString(event.payload, "period"));
+      return `🏆 ${time} | ${actor}: ${period}, місце ${rank}, ${points} очк. Корчмар підписує нагороду без дуельних боргів.`;
+    }
     default:
       return `📌 ${time} | ${actor}: записано нову подію.`;
   }
@@ -188,6 +199,19 @@ function safeDynamicName(value: string | null | undefined): string {
     ? `${safe.slice(0, MAX_DYNAMIC_NAME_LENGTH - 3)}...`
     : safe;
   return escapeHtml(truncated);
+}
+
+function presentTournamentPeriod(value: string | null): string {
+  switch (value) {
+    case "day":
+      return "денний турнір";
+    case "week":
+      return "тижневий турнір";
+    case "month":
+      return "місячний турнір";
+    default:
+      return "турнір";
+  }
 }
 
 function formatKyivTime(date: Date): string {

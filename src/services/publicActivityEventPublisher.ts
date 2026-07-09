@@ -149,6 +149,66 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordDuelCompletedSafely(input: {
+    challengeId: string;
+    mode: "quick" | "turn-based";
+    challengerCharacterId: string;
+    challengerDisplayName: string;
+    targetCharacterId: string;
+    targetDisplayName: string;
+    outcome: "challenger" | "target" | "draw";
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "duel.completed",
+      category: "combat",
+      severity: "normal",
+      actorCharacterId: input.challengerCharacterId,
+      actorDisplayName: input.challengerDisplayName,
+      relatedCharacterIds: [input.challengerCharacterId, input.targetCharacterId],
+      subjectKind: "duel-opponent",
+      subjectId: input.targetCharacterId,
+      subjectName: input.targetDisplayName,
+      sourceType: "duel-challenge",
+      sourceId: input.challengeId,
+      dedupeKey: `duel.completed:${input.challengeId}`,
+      payload: { mode: input.mode, outcome: input.outcome },
+      occurredAt: input.occurredAt
+    });
+  }
+
+  recordDuelTournamentClaimedSafely(input: {
+    characterId: string;
+    actorDisplayName: string;
+    claimId: string;
+    period: "day" | "week" | "month";
+    periodKey: string;
+    rank: number;
+    points: number;
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "duel.tournament_claimed",
+      category: "combat",
+      severity: "high",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.actorDisplayName,
+      subjectKind: "duel-tournament",
+      subjectId: input.periodKey,
+      subjectName: input.period,
+      sourceType: "duel-tournament-claim",
+      sourceId: input.claimId,
+      dedupeKey: `duel.tournament_claimed:${input.claimId}`,
+      payload: {
+        period: input.period,
+        periodKey: input.periodKey,
+        rank: input.rank,
+        points: input.points
+      },
+      occurredAt: input.occurredAt
+    });
+  }
+
   recordPartyRaidWonSafely(session: PartyBossSessionRecord): Promise<ActivityEventRecord | null> {
     if (session.status !== "won" || session.rulesVersion !== BIG_BARREL_BROTHER_RULES_VERSION) {
       return Promise.resolve(null);

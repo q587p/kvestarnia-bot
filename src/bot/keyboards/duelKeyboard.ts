@@ -17,6 +17,7 @@ import {
   makeDuelDeclineCallbackData,
   makeDuelGearActionCallbackData,
   makeDuelInviteRotateCallbackData,
+  makeDuelJournalCallbackData,
   makeDuelNewCallbackData,
   makeDuelNewTurnBasedCallbackData,
   makeDuelNewTurnBasedRiskCallbackData,
@@ -77,7 +78,7 @@ export function buildDuelInviteShareKeyboard(token: string, templateIndex: numbe
   );
 }
 
-export function buildDuelResultKeyboard(token?: string): InlineKeyboard {
+export function buildDuelResultKeyboard(token?: string, mode?: "quick" | "turn-based"): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (token) {
@@ -85,12 +86,43 @@ export function buildDuelResultKeyboard(token?: string): InlineKeyboard {
       .text("🔁 Реванш", makeDuelRematchCallbackData(token))
       .text("📣 Картка", makeDuelShareCallbackData(token))
       .row();
+
+    if (mode === "turn-based") {
+      keyboard
+        .text("📜 Журнал бою", makeDuelJournalCallbackData(token))
+        .row();
+    }
   }
 
   return keyboard
     .text("🥊 Покликати ще когось", makeDuelNewCallbackData())
     .row()
     .text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
+}
+
+export function buildDuelJournalKeyboard(token: string, requestedPage: number, totalPages: number): InlineKeyboard {
+  const page = Math.min(Math.max(0, Math.floor(requestedPage)), Math.max(0, totalPages - 1));
+  const keyboard = new InlineKeyboard();
+
+  if (totalPages > 1) {
+    if (page > 0) {
+      keyboard
+        .text("⏮️ Початок", makeDuelJournalCallbackData(token, 0))
+        .text("◀️ Назад", makeDuelJournalCallbackData(token, page - 1))
+        .row();
+    }
+
+    keyboard.text(`${page + 1}/${totalPages}`, makeDuelJournalCallbackData(token, page)).row();
+
+    if (page < totalPages - 1) {
+      keyboard
+        .text("Далі ▶️", makeDuelJournalCallbackData(token, page + 1))
+        .text("Кінець ⏭️", makeDuelJournalCallbackData(token, totalPages - 1))
+        .row();
+    }
+  }
+
+  return keyboard.text("↩️ До дуелі", makeDuelViewCallbackData(token));
 }
 
 export function buildDuelCreateResourceWarningKeyboard(mode: "quick" | "turn-based" = "quick"): InlineKeyboard {

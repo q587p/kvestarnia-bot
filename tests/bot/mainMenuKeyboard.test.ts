@@ -75,6 +75,7 @@ import {
 } from "../../src/bot/keyboards/shynokKeyboard";
 import {
   buildEnterKorchmaKeyboard,
+  buildDuelTournamentKeyboard,
   buildKorchmaArrivalBoardKeyboard,
   buildKorchmaBarKeyboard,
   buildKorchmaDeepKeyboard,
@@ -494,13 +495,15 @@ describe("main menu and scene keyboards", () => {
       "🥊 Потренуватися",
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
-      "🏆 Переможці",
+      "🏆 Турніри",
+      "🏅 Переможці",
       "⬅️ До зали"
     ]);
     expect(flatInlineButtonCallbacks(buildKorchmaFightingCornerKeyboard())).toEqual([
       "v1:spar:open",
       "v1:duel:new",
       "v1:duel:new-t",
+      "v1:tour:o:d",
       "v1:place:duel-winners",
       "v1:place:hall"
     ]);
@@ -509,8 +512,60 @@ describe("main menu and scene keyboards", () => {
     }))).toEqual([
       "⚡ Миттєва дуель",
       "♟️ Покрокова дуель",
-      "🏆 Переможці",
+      "🏆 Турніри",
+      "🏅 Переможці",
       "⬅️ До зали"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
+      tournamentPendingRewardCount: 2
+    }))).toContain("🏆 Турніри (2)");
+    expect(flatInlineButtonTexts(buildDuelTournamentKeyboard({
+      period: "day",
+      claim: {
+        state: "available",
+        periodKey: "2026-07-07",
+        rank: 1,
+        points: 3,
+        reward: { gold: 42, items: [] }
+      },
+      pendingRewards: [
+        {
+          period: "day",
+          periodKey: "2026-07-07",
+          window: {
+            period: "day",
+            key: "2026-07-07",
+            label: "Денний турнір",
+            startsAt: new Date("2026-07-06T21:00:00.000Z"),
+            endsAt: new Date("2026-07-07T21:00:00.000Z")
+          },
+          rank: 1,
+          points: 3,
+          reward: { gold: 42, items: [] }
+        },
+        {
+          period: "week",
+          periodKey: "2026-W27",
+          window: {
+            period: "week",
+            key: "2026-W27",
+            label: "Тижневий турнір",
+            startsAt: new Date("2026-06-29T21:00:00.000Z"),
+            endsAt: new Date("2026-07-06T21:00:00.000Z")
+          },
+          rank: 2,
+          points: 1,
+          reward: { gold: 42, items: [] }
+        }
+      ]
+    }))).toEqual([
+      "• День",
+      "Тиждень",
+      "Місяць",
+      "🎁 Забрати скриньку",
+      "🎁 Тиждень 12026-W27",
+      "❔ Правила",
+      "↩️ До Бійцівського кутка"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaFightingCornerKeyboard({
       questMarkers: {
@@ -1535,7 +1590,23 @@ describe("main menu and scene keyboards", () => {
           actingCharacterId: "character-2",
           status: "resolved",
           turn: 6,
-          version: 9
+          version: 9,
+          state: {
+            lastRound: {
+              turn: 5,
+              actions: [
+                {
+                  actorCharacterId: "character-1",
+                  defenderCharacterId: "character-2",
+                  action: "attack",
+                  outcome: "hit",
+                  damage: 3,
+                  manaSpent: 0,
+                  critical: false
+                }
+              ]
+            }
+          }
         }
       }),
       "character-1",
@@ -3494,6 +3565,18 @@ function turnBasedDuelKeyboardResult(
       version?: number;
       state?: {
         pendingActions?: Record<string, unknown>;
+        lastRound?: {
+          turn: number;
+          actions: Array<{
+            actorCharacterId: string;
+            defenderCharacterId: string;
+            action: string;
+            outcome: string;
+            damage: number;
+            manaSpent: number;
+            critical: boolean;
+          }>;
+        };
         participants?: {
           challenger?: ReturnType<typeof turnBasedParticipant>;
           target?: ReturnType<typeof turnBasedParticipant>;
@@ -3511,6 +3594,7 @@ function turnBasedDuelKeyboardResult(
       version: overrides.session?.version ?? 4,
       state: {
         pendingActions: overrides.session?.state?.pendingActions,
+        lastRound: overrides.session?.state?.lastRound,
         participants: {
           challenger: overrides.session?.state?.participants?.challenger ?? turnBasedParticipant("character-1"),
           target: overrides.session?.state?.participants?.target ?? turnBasedParticipant("character-2")

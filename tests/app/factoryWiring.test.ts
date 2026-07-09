@@ -162,7 +162,8 @@ describe("application factory wiring", () => {
         undefined,
         undefined,
         presence,
-        achievements
+        achievements,
+        publicActivityEvents
       )
     `));
     expect(source).toContain(compact(`

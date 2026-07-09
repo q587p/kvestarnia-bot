@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { items } from "../content";
 import type { ItemContent } from "../content/schema";
+import { findItemContent } from "../content/itemLookup";
 import type { ItemUpgradeRepository } from "../db/repositories/itemUpgradeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { getMantokSetForItem } from "../domain/equipment/mantokSetBonuses";
@@ -434,7 +434,7 @@ function presentItem(
 }
 
 function findItem(itemId: string): ItemContent | null {
-  return items.find((item) => item.id === itemId) ?? null;
+  return findItemContent(itemId);
 }
 
 function parseStats(value: unknown) {

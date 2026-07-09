@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   presentDuelResultShare,
   presentDuelView,
-  presentTurnBasedDuel
+  presentTurnBasedDuel,
+  presentTurnBasedDuelIntro,
+  presentTurnBasedDuelJournal
 } from "../../src/bot/presenters/duelPresenter";
 
 describe("duel presenter", () => {
@@ -19,12 +21,52 @@ describe("duel presenter", () => {
     const challengerText = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
     const targetText = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
 
+    expect(challengerText).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(challengerText).not.toContain("Порада дня:");
     expect(challengerText).toContain("Ваш вибір");
     expect(challengerText).toContain("звичайна атака");
     expect(challengerText).not.toContain("Шкода:");
     expect(targetText).not.toContain("звичайна атака");
     expect(targetText).not.toContain("Шкода:");
     expect(targetText).toContain("записи закритими");
+  });
+
+  it("renders turn-based duel start context as a separate intro with player titles and an italic tip", () => {
+    const result = makeTurnBasedDuelView({
+      participants: {
+        challenger: {
+          characterId: "challenger-character",
+          displayName: "Ліва Рука",
+          activeCosmeticTitle: "Перший рукав протоколу",
+          title: "Людисько-воїн",
+          level: 7,
+          remortCount: 1,
+          hp: 20,
+          hpMax: 24,
+          mana: 8,
+          manaMax: 12
+        },
+        target: {
+          characterId: "target-character",
+          displayName: "Права Рука",
+          title: "Вареникомант межі",
+          level: 4,
+          remortCount: 0,
+          hp: 19,
+          hpMax: 25,
+          mana: 9,
+          manaMax: 13
+        }
+      }
+    });
+
+    const intro = presentTurnBasedDuelIntro(result);
+
+    expect(intro).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(intro).toContain("Перший кухоль: <b>Ліва Рука</b> (<i>«Перший рукав протоколу»</i>) · <i>Людисько-воїн</i> · рівень 7 (реморт: 1)");
+    expect(intro).toContain("Другий кухоль: <b>Права Рука</b> · <i>Вареникомант межі</i> · рівень 4");
+    expect(intro).toContain("<i>Порада дня:");
+    expect(intro).toContain("</i>");
   });
 
   it("reveals round damage after both turn-based choices resolve", () => {
@@ -57,10 +99,13 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
 
-    expect(text).toContain("Звичайна атака записана в протокол.");
-    expect(text).toContain("Класова дія записана в протокол.");
-    expect(text).toContain("Шкода: <b>7</b>");
-    expect(text).toContain("Шкода: <b>11</b> · критично");
+    expect(text).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(text).toContain("Ліва Рука атакує влучає на <b>7</b> шкоди.");
+    expect(text).toContain(
+      "Права Рука застосовує 🪓 <i>Силовий замах</i> влучає на <b>11</b> шкоди · критично."
+    );
+    expect(text).toContain("Що робимо?");
+    expect(text).toContain("⏳ На хід є <b>23 с</b>. Потім Корчма поставить вас в атаку.");
   });
 
   it("renders turn-based gear action effects in stored round replays", () => {
@@ -86,8 +131,7 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
 
-    expect(text).toContain("🎒 Дія спорядження ⚕️ <i>Інструкція Асклепія</i> записана в протокол.");
-    expect(text).toContain("Шкода: <b>3</b>.");
+    expect(text).toContain("Ліва Рука застосовує ⚕️ <i>Інструкція Асклепія</i> влучає на <b>3</b> шкоди.");
     expect(text).toContain("Підтримка: HP підросли на <b>4</b>; захист тримає <b>1</b>.");
   });
 
@@ -154,6 +198,9 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "challenger-character" });
 
+    expect(text).toContain("Ліва: HP 20/24 · мана 8/12");
+    expect(text).toContain("Права: HP 19/25 · мана 9/13");
+    expect(text).not.toContain("<b>Ліва Рука</b>: HP");
     expect(text).toContain("🫁 🪓 Силовий замах відсапується: ще 3 ходи.");
     expect(text).not.toContain("🫁 Вміння відсапується");
   });
@@ -268,18 +315,50 @@ describe("duel presenter", () => {
 
     expect(text).toContain("Досвід за дуель:");
     expect(text).toContain("<b>Ліва Рука +7 XP\nПрава Рука +1 XP</b>");
-    expect(text).toContain("Без золота й манаток");
+    expect(text).toContain("Золото й манатки не переходять між гравцями");
     expect(text).not.toContain("Без XP");
     expect(share).toContain("<b>Ліва Рука +7 XP\nПрава Рука +1 XP</b>");
     expect(share).not.toContain("Без XP");
   });
+
+  it("renders a paged turn-based duel journal from stored round summaries", () => {
+    const active = makeTurnBasedDuelView({});
+    const text = presentTurnBasedDuelJournal({
+      state: "ready",
+      session: active.session,
+      rounds: [
+        {
+          turn: 2,
+          actions: [
+            {
+              actorCharacterId: "challenger-character",
+              defenderCharacterId: "target-character",
+              action: "attack",
+              outcome: "hit",
+              damage: 7,
+              manaSpent: 0,
+              critical: false
+            }
+          ]
+        }
+      ]
+    } as never);
+
+    expect(text).toContain("📜 <b>Журнал дуелі</b>");
+    expect(text).toContain("Ліва Рука проти Права Рука.");
+    expect(text).toContain("Хід <b>2</b> · запис 1/1");
+    expect(text).toContain("Ліва: HP 20/24 · мана 8/12");
+    expect(text).toContain("Ліва Рука атакує влучає на <b>7</b> шкоди.");
+  });
 });
+
+type ActiveTurnBasedDuelView = Parameters<typeof presentTurnBasedDuel>[0];
 
 function countOccurrences(text: string, needle: string): number {
   return text.split(needle).length - 1;
 }
 
-function makeTurnBasedDuelView(stateOverrides: Record<string, unknown>) {
+function makeTurnBasedDuelView(stateOverrides: Record<string, unknown>): ActiveTurnBasedDuelView {
   return {
     state: "active",
     challenge: {
@@ -328,5 +407,5 @@ function makeTurnBasedDuelView(stateOverrides: Record<string, unknown>) {
         ...stateOverrides
       }
     }
-  } as never;
+  } as ActiveTurnBasedDuelView;
 }

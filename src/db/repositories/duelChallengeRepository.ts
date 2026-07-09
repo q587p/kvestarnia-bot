@@ -124,6 +124,16 @@ export interface DuelCombatSessionRecord {
   challenge: DuelChallengeRecord;
 }
 
+export interface DuelCombatActionRecord {
+  id: string;
+  sessionId: string;
+  actorCharacterId: string;
+  turn: number;
+  actionKey: TurnBasedDuelAction | "timeout-attack" | "round";
+  result: unknown;
+  createdAt: Date;
+}
+
 export interface ResolvedDuelChallengeRecord extends DuelChallengeRecord {
   status: "resolved";
   resolvedAt: Date;
@@ -235,6 +245,8 @@ export interface DuelChallengeRepository {
   ): Promise<DuelCombatSessionRecord | null>;
 
   findTurnBasedByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null>;
+
+  listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]>;
 
   updateTurnBasedIfActiveVersion(
     sessionId: string,

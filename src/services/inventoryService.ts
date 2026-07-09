@@ -1,5 +1,5 @@
-import { items } from "../content";
 import type { ItemContent } from "../content/schema";
+import { findItemContent } from "../content/itemLookup";
 import { getItemUseEffect } from "../domain/itemUse";
 import type {
   CharacterItemRecord,
@@ -98,7 +98,7 @@ export function calculateInventoryGoldValue(
 }
 
 function enrichItem(row: CharacterItemRecord): InventoryItemSummary {
-  const content = items.find((item) => item.id === row.itemId) ?? {
+  const content = findItemContent(row.itemId) ?? {
     id: row.itemId,
     name: "Невідома манатка",
     description: "Вона є в торбі, але документи ще десь ідуть.",

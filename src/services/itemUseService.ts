@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { items } from "../content";
+import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
 import {
   createItemUseFingerprint,
@@ -122,7 +123,7 @@ export class ItemUseService {
 }
 
 function findUsableItem(itemId: string): ItemContent | null {
-  const item = items.find((candidate) => candidate.id === itemId);
+  const item = findItemContent(itemId);
 
   return item && getItemUseEffect(item) ? item : null;
 }

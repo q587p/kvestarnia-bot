@@ -611,7 +611,9 @@ async function sendCurrentPresenceLocation(
   }
 
   if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
+      ...(services.duelTournaments ? { tournamentService: services.duelTournaments } : {})
+    });
     return;
   }
 

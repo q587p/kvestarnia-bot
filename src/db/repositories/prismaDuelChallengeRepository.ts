@@ -3,6 +3,7 @@ import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
   DuelChallengeStatus,
+  DuelCombatActionRecord,
   DuelCombatSessionRecord,
   DuelCharacterSnapshot,
   DuelMode,
@@ -523,6 +524,24 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return mapDuelCombatSession(session);
   }
 
+  async listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]> {
+    const actions = await this.prisma.duelCombatAction.findMany({
+      where: {
+        session: {
+          duelChallenge: {
+            inviteToken
+          }
+        }
+      },
+      orderBy: [
+        { turn: "asc" },
+        { createdAt: "asc" }
+      ]
+    });
+
+    return actions.map(mapDuelCombatAction);
+  }
+
   async updateTurnBasedIfActiveVersion(
     sessionId: string,
     expectedTurn: number,
@@ -959,6 +978,39 @@ function mapDuelCombatSession(
     updatedAt: record.updatedAt,
     challenge
   };
+}
+
+function mapDuelCombatAction(record: {
+  id: string;
+  sessionId: string;
+  actorCharacterId: string;
+  turn: number;
+  actionKey: string;
+  resultJson: Prisma.JsonValue;
+  createdAt: Date;
+}): DuelCombatActionRecord {
+  return {
+    id: record.id,
+    sessionId: record.sessionId,
+    actorCharacterId: record.actorCharacterId,
+    turn: record.turn,
+    actionKey: parseDuelCombatActionKey(record.actionKey),
+    result: record.resultJson,
+    createdAt: record.createdAt
+  };
+}
+
+function parseDuelCombatActionKey(value: string): DuelCombatActionRecord["actionKey"] {
+  return value === "attack" ||
+    value === "defend" ||
+    value === "skill" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "surrender" ||
+    value === "timeout-attack" ||
+    value === "round"
+    ? value
+    : "round";
 }
 
 function isResolvedDuelChallengeRecord(

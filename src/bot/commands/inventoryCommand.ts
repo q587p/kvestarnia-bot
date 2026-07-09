@@ -7,9 +7,10 @@ import {
   type InventoryFilter
 } from "../inventoryFilter";
 import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
-import { buildInventoryKeyboard } from "../keyboards/inventoryKeyboard";
+import { buildInventoryKeyboardFromViewModel } from "../keyboards/inventoryKeyboard";
+import { elapsedMs, hotPathNow, logSlowHotPathTiming } from "../performanceLogger";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
-import { presentInventory } from "../presenters/inventoryPresenter";
+import { buildInventoryViewModel, presentInventoryViewModel } from "../presenters/inventoryPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 type SendMode = "reply" | "edit";
@@ -39,6 +40,7 @@ export async function sendInventory(
   >,
   sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): Promise<void> {
+  const totalStartedAt = hotPathNow();
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
@@ -46,6 +48,7 @@ export async function sendInventory(
     return;
   }
 
+  const dbStartedAt = hotPathNow();
   const [result, equipment] = await Promise.all([
     inventoryService.listForTelegramUser(telegramUserId),
     equipmentService
@@ -65,24 +68,54 @@ export async function sendInventory(
     equipment?.state === "ready"
       ? new Set(equipment.slots.flatMap((slot) => slot.item ? [slot.item.itemId] : []))
       : null;
+  const dbMs = elapsedMs(dbStartedAt);
+  const computeStartedAt = hotPathNow();
   const inventoryOptions = {
     currentSlotItem,
     equippedItemIds,
     slotCompatibleItemIds,
     sort
   };
-  const text = presentInventory(result, page, filter, inventoryOptions);
+  const model = buildInventoryViewModel(result, page, filter, inventoryOptions);
+  const text = presentInventoryViewModel(model);
+  const replyMarkup = buildInventoryKeyboardFromViewModel(model);
+  const computeMs = elapsedMs(computeStartedAt);
+  const telegramStartedAt = hotPathNow();
 
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildInventoryKeyboard(result, page, filter, inventoryOptions)
+      reply_markup: replyMarkup
+    });
+    logSlowHotPathTiming({
+      route: "inventory.edit",
+      telegramUserId,
+      itemCount: model.rawItems.length,
+      filter,
+      sort,
+      page: model.safePage,
+      dbMs,
+      computeMs,
+      telegramEditMs: elapsedMs(telegramStartedAt),
+      totalMs: elapsedMs(totalStartedAt)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildInventoryKeyboard(result, page, filter, inventoryOptions)
+    reply_markup: replyMarkup
+  });
+  logSlowHotPathTiming({
+    route: "inventory.open",
+    telegramUserId,
+    itemCount: model.rawItems.length,
+    filter,
+    sort,
+    page: model.safePage,
+    dbMs,
+    computeMs,
+    telegramEditMs: elapsedMs(telegramStartedAt),
+    totalMs: elapsedMs(totalStartedAt)
   });
 }

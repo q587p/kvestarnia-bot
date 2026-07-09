@@ -568,6 +568,48 @@ describe("handleDuelCallback", () => {
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:share:${TOKEN}`);
   });
 
+  it("sends a separate turn-based duel intro when accepting starts active combat", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+      state: "active",
+      transitioned: true,
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const service = serviceWith({
+      acceptForTelegramUser,
+      recordTurnBasedMessageReference
+    });
+    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Перший кухоль: <b>Автор Виклику</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Другий кухоль: <b>Ціль Виклику</b>");
+    expect(String(reply.mock.calls[0]?.[0])).toContain("<i>Порада дня:");
+    expect(messageText(editMessageText)).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(messageText(editMessageText)).not.toContain("Порада дня:");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(sendMessage.mock.calls[1]?.[0]).toBe(42);
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+  });
+
   it("does not notify the other quick-duel participant on replayed accept", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
@@ -646,6 +688,7 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("здається");
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:rematch:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:share:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:j:${TOKEN}:0`);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Результат покрокової дуелі");
@@ -653,6 +696,59 @@ describe("handleDuelCallback", () => {
       chatId: 42n,
       messageId: 123
     });
+  });
+
+  it("opens stored turn-based duel journal pages without replaying combat", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = makeTurnBasedSession("resolved", target);
+    const getTurnBasedJournalByToken = vi.fn().mockResolvedValue({
+      state: "ready",
+      session,
+      rounds: [
+        {
+          turn: 2,
+          actions: [
+            {
+              actorCharacterId: "character-42",
+              defenderCharacterId: "character-99",
+              action: "attack",
+              outcome: "hit",
+              damage: 7,
+              manaSpent: 0,
+              critical: false
+            }
+          ]
+        }
+      ]
+    });
+    const service = serviceWith({ getTurnBasedJournalByToken });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, "private");
+
+    await handleDuelCallback(ctx, { type: "journal", token: TOKEN, page: 0 }, service, {
+      presence: createPresence()
+    });
+
+    expect(getTurnBasedJournalByToken).toHaveBeenCalledWith(TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("📜 <b>Журнал дуелі</b>");
+    expect(messageText(editMessageText)).toContain("Автор Виклику атакує влучає на <b>7</b> шкоди.");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
+  });
+
+  it("keeps turn-based duel journals closed while combat is active", async () => {
+    const getTurnBasedJournalByToken = vi.fn().mockResolvedValue({ state: "not-ready" });
+    const service = serviceWith({ getTurnBasedJournalByToken });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, "private");
+
+    await handleDuelCallback(ctx, { type: "journal", token: TOKEN, page: 0 }, service, {
+      presence: createPresence()
+    });
+
+    expect(getTurnBasedJournalByToken).toHaveBeenCalledWith(TOKEN);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Журнал бою буде після завершення дуелі."
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("sends a first gear-action achievement notice to the turn-based duel actor", async () => {
@@ -906,10 +1002,15 @@ describe("handleDuelCallback", () => {
 
   it("creates a rematch invite from a resolved result card", async () => {
     const challenger = makeCharacterSummary("Автор Реваншу");
+    const target = makeCharacter(99n, "Ціль Реваншу");
     const createRematchForTelegramUser = vi.fn().mockResolvedValue({
       state: "pending",
-      challenge: makeChallenge("pending", makeCharacter(99n, "Ціль Реваншу")),
+      challenge: {
+        ...makeChallenge("pending", target),
+        mode: "turn-based"
+      },
       challenger,
+      target: makeCharacterSummary("Ціль Реваншу"),
       challengerResourceWarning: null,
       expiresAt: EXPIRES_AT,
       now: NOW
@@ -918,7 +1019,7 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       createRematchForTelegramUser
     });
-    const { ctx, editMessageText, reply } = createCallbackContext(42);
+    const { ctx, editMessageText, reply, sendMessage } = createCallbackContext(42);
 
     await handleDuelCallback(ctx, { type: "rematch", token: TOKEN }, service, {
       presence: createPresence(markAction),
@@ -935,7 +1036,11 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept:${TOKEN}`);
     expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_${TOKEN}`);
+    expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_turnbased_${TOKEN}`);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(99);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain(`v1:duel:accept:${TOKEN}`);
   });
 
   it("keeps a resolved result card stable when a bystander presses rematch", async () => {
@@ -1119,6 +1224,7 @@ function makeChallenge(
     targetCharacterId: target?.id ?? null,
     contextChatId: -100n,
     inviteToken: TOKEN,
+    mode: "quick",
     status,
     expiresAt: EXPIRES_AT,
     resolvedAt: status === "resolved" ? NOW : null,

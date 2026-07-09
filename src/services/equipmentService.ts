@@ -1,4 +1,4 @@
-import { items } from "../content";
+import { findItemContent } from "../content/itemLookup";
 import { classes } from "../content/classes";
 import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import {
@@ -861,7 +861,7 @@ export function getEquippedItemContents(rows: CharacterEquipmentRecord[]): ItemC
       return [];
     }
 
-    const content = items.find((item) => item.id === row.itemId);
+    const content = findItemContent(row.itemId);
 
     return content ? [content] : [];
   });
@@ -1072,7 +1072,7 @@ function findRowForSlot(
 }
 
 function findKnownItem(row: CharacterItemRecord): ItemContent | null {
-  return items.find((item) => item.id === row.itemId) ?? null;
+  return findItemContent(row.itemId);
 }
 
 function findClassName(classId: string): string {
@@ -1084,7 +1084,7 @@ function findRaceName(raceId: string): string {
 }
 
 function findItemContentForEquipment(itemId: string): ItemContent {
-  return items.find((item) => item.id === itemId) ?? {
+  return findItemContent(itemId) ?? {
     id: itemId,
     name: "Невідома манатка",
     description: "Вона висить на гачку, але документи ще десь ідуть.",

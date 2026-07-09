@@ -540,13 +540,39 @@ describe("tavern command screens", () => {
           [{ text: "🥊 Потренуватися", callback_data: "v1:spar:open" }],
           [{ text: "⚡ Миттєва дуель", callback_data: "v1:duel:new" }],
           [{ text: "♟️ Покрокова дуель", callback_data: "v1:duel:new-t" }],
+          [{ text: "🏆 Турніри", callback_data: "v1:tour:o:d" }],
           [
-            { text: "🏆 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
+            { text: "🏅 Переможці", callback_data: makePlaceCallbackData("duel-winners") }
           ],
           [{ text: "⬅️ До зали ⚠️", callback_data: makePlaceCallbackData("hall") }]
         ]
       }
     });
+  });
+
+  it("marks pending tournament prize chests in the fighting corner", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaFightingCorner(
+      makeContext(replies),
+      readyTavernService({ ...character, level: 3 }),
+      capturingPresenceService(),
+      "reply",
+      {
+        now: dayInKyiv,
+        tournamentService: {
+          countPendingRewardsForTelegramUser: () => Promise.resolve(2)
+        }
+      }
+    );
+
+    expect(replies[0]?.text).toContain("2 турнірні скриньки");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(options.reply_markup.inline_keyboard).toContainEqual([
+      { text: "🏆 Турніри (2)", callback_data: "v1:tour:o:d" }
+    ]);
   });
 
   it("keeps lower-level characters out of the fighting corner surface", async () => {

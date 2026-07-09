@@ -22,10 +22,12 @@ import {
   buildDuelCreateResourceWarningKeyboard,
   buildDuelEntryKeyboard,
   buildDuelInviteShareKeyboard,
+  buildDuelJournalKeyboard,
   buildDuelNavigationKeyboard,
   buildDuelRematchResourceWarningKeyboard,
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard,
+  buildDuelTargetedInviteKeyboard,
   buildTurnBasedDuelKeyboard
 } from "../keyboards/duelKeyboard";
 import { getCombatSkillDisplay } from "../../services/fightService";
@@ -42,7 +44,9 @@ import {
   presentDuelKorchmaGate,
   presentDuelRematch,
   presentDuelResultShare,
+  presentTurnBasedDuelJournal,
   presentTurnBasedDuel,
+  presentTurnBasedDuelIntro,
   presentDuelView
 } from "../presenters/duelPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
@@ -229,15 +233,18 @@ export async function handleDuelCallback(
             ? { state: "create-resource-warning", mode }
           : "result"
     );
-    if (result.state === "pending" && inviteUrl) {
-      const templateIndex = getInitialDuelInviteTemplateIndex(result.challenge.inviteToken);
-      await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl, {
-        templateIndex,
-        mode: result.challenge.mode
-      }), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, templateIndex)
-      });
+    if (result.state === "pending") {
+      if (inviteUrl) {
+        const templateIndex = getInitialDuelInviteTemplateIndex(result.challenge.inviteToken);
+        await ctx.reply(presentDuelInviteShare(result.challenger, inviteUrl, {
+          templateIndex,
+          mode: result.challenge.mode
+        }), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, templateIndex)
+        });
+      }
+      await notifyTargetedRematchInvite(ctx, result, inviteUrl);
     }
     return;
   }
@@ -267,9 +274,12 @@ export async function handleDuelCallback(
     }
     await answerCallback();
     if (result.state === "active") {
+      if (result.transitioned) {
+        await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+      }
       await sendTurnBasedDuelCard(ctx, "edit", result, service);
       if (result.transitioned) {
-        await notifyTurnBasedParticipants(ctx, result, service);
+        await notifyTurnBasedParticipants(ctx, result, service, { includeIntro: true });
       }
       return;
     }
@@ -286,7 +296,7 @@ export async function handleDuelCallback(
             : result.state === "level-gated"
               ? "navigation"
               : result.state === "resolved"
-                ? { state: "result", token: result.challenge.inviteToken }
+                ? { state: "result", token: result.challenge.inviteToken, mode: result.challenge.mode }
                 : "result"
     );
 
@@ -311,7 +321,7 @@ export async function handleDuelCallback(
           ? "Цю дуель уже не можна відкрити з цієї кнопки."
           : presentDuelView(current, { inviteUrl: getInviteUrl(options.botUsername, current) }),
         current.state === "resolved"
-            ? { state: "result", token: current.challenge.inviteToken }
+            ? { state: "result", token: current.challenge.inviteToken, mode: current.challenge.mode }
             : "result"
       );
       return;
@@ -369,7 +379,9 @@ export async function handleDuelCallback(
       ctx,
       "edit",
       presentDuelView(current, { inviteUrl: getInviteUrl(options.botUsername, current) }),
-      current.state === "resolved" ? { state: "result", token: current.challenge.inviteToken } : "result"
+      current.state === "resolved"
+        ? { state: "result", token: current.challenge.inviteToken, mode: current.challenge.mode }
+        : "result"
     );
 
     if (result.state === "updated" && current.state === "resolved") {
@@ -469,6 +481,32 @@ export async function handleDuelCallback(
         reply_markup: buildDuelInviteShareKeyboard(result.challenge.inviteToken, templateIndex)
       });
     }
+    if (result.state === "pending") {
+      await notifyTargetedRematchInvite(ctx, result, inviteUrl);
+    }
+    return;
+  }
+
+  if (callback.type === "journal") {
+    const result = await service.getTurnBasedJournalByToken(callback.token);
+
+    if (result.state === "not-found") {
+      await answerCallback({ text: "Журнал цієї дуелі не знайшовся." });
+      return;
+    }
+
+    if (result.state === "not-ready") {
+      await answerCallback({ text: "Журнал бою буде після завершення дуелі." });
+      return;
+    }
+
+    await answerCallback();
+    await sendText(
+      ctx,
+      "edit",
+      presentTurnBasedDuelJournal(result, callback.page),
+      { state: "journal", token: callback.token, page: callback.page, totalPages: result.rounds.length }
+    );
     return;
   }
 
@@ -500,7 +538,7 @@ export async function handleDuelCallback(
     result.state === "pending"
       ? { state: "pending", result }
       : result.state === "resolved"
-        ? { state: "result", token: result.challenge.inviteToken }
+        ? { state: "result", token: result.challenge.inviteToken, mode: result.challenge.mode }
         : "result"
   );
 }
@@ -533,7 +571,8 @@ async function sendText(
     | { state: "accept-confirmation"; token: string }
     | { state: "resource-warning"; token: string }
     | { state: "rematch-resource-warning"; token: string }
-    | { state: "result"; token?: string }
+    | { state: "result"; token?: string; mode?: "quick" | "turn-based" }
+    | { state: "journal"; token: string; page: number; totalPages: number }
     | { state: "pending"; result: Parameters<typeof buildDuelChallengeKeyboard>[0] }
     | false = false
 ): Promise<void> {
@@ -558,8 +597,10 @@ async function sendText(
                     ? buildDuelAcceptConfirmationKeyboard(keyboard.token)
                     : keyboard.state === "rematch-resource-warning"
                       ? buildDuelRematchResourceWarningKeyboard(keyboard.token)
+                      : keyboard.state === "journal"
+                        ? buildDuelJournalKeyboard(keyboard.token, keyboard.page, keyboard.totalPages)
                       : keyboard.state === "result"
-                        ? buildDuelResultKeyboard(keyboard.token)
+                        ? buildDuelResultKeyboard(keyboard.token, keyboard.mode)
                         : buildDuelChallengeKeyboard(keyboard.result)
         }
       : {})
@@ -627,11 +668,12 @@ async function sendTurnBasedDuelCard(
 async function notifyTurnBasedParticipants(
   ctx: Context,
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
-  service: DuelChallengeService
+  service: DuelChallengeService,
+  options: { includeIntro?: boolean } = {}
 ): Promise<void> {
   await Promise.all([
-    notifyTurnBasedParticipant(ctx, result, service, "challenger"),
-    notifyTurnBasedParticipant(ctx, result, service, "target")
+    notifyTurnBasedParticipant(ctx, result, service, "challenger", undefined, options),
+    notifyTurnBasedParticipant(ctx, result, service, "target", undefined, options)
   ]);
 }
 
@@ -665,7 +707,8 @@ async function notifyTurnBasedParticipant(
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
   service: DuelChallengeService,
   participantName: "challenger" | "target",
-  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>,
+  options: { includeIntro?: boolean } = {}
 ): Promise<void> {
   const participant = participantName === "challenger"
     ? {
@@ -689,6 +732,10 @@ async function notifyTurnBasedParticipant(
   }
 
   try {
+    if (options.includeIntro) {
+      await ctx.api.sendMessage(Number(chatId), presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+    }
+
     const text = presentTurnBasedDuel(result, { viewerCharacterId: participant.characterId });
     const skillParticipant = getParticipantForSkill(result, participant.characterId);
     const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);
@@ -773,6 +820,27 @@ function isDeclinedDuelChallengeView(result: DuelDeclineResult): result is Decli
   return result.state === "declined";
 }
 
+async function notifyTargetedRematchInvite(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "pending" }>,
+  inviteUrl: string | null
+): Promise<void> {
+  const chatId = result.challenge.target?.telegramUserId;
+
+  if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
+    return;
+  }
+
+  try {
+    await ctx.api.sendMessage(Number(chatId), presentDuelView(result, { inviteUrl }), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildDuelTargetedInviteKeyboard(result)
+    });
+  } catch {
+    // Telegram delivery is best-effort; the targeted rematch invite remains canonical.
+  }
+}
+
 async function notifyOtherQuickDuelResultParticipant(
   ctx: Context,
   result: Extract<DuelChallengeView, { state: "resolved" }>
@@ -790,7 +858,7 @@ async function notifyOtherQuickDuelResultParticipant(
   try {
     await ctx.api.sendMessage(Number(chatId), presentDuelView(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken)
+      reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken, result.challenge.mode)
     });
   } catch {
     // Telegram delivery is best-effort; the resolved duel result remains canonical.
@@ -832,7 +900,7 @@ async function notifyOtherTurnBasedResultParticipant(
       text: presentDuelView(result),
       options: {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken)
+        reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken, result.challenge.mode)
       }
     });
 

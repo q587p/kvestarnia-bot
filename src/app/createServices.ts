@@ -16,6 +16,7 @@ import { DevGrantService } from "../services/devGrantService";
 import { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
 import { DevResetService } from "../services/devResetService";
 import { DuelChallengeService } from "../services/duelChallengeService";
+import { DuelTournamentService } from "../services/duelTournamentService";
 import { EquipmentService } from "../services/equipmentService";
 import { FightService } from "../services/fightService";
 import { HeroService } from "../services/heroService";
@@ -144,7 +145,13 @@ export function createServices(
       undefined,
       undefined,
       presence,
-      achievements
+      achievements,
+      publicActivityEvents
+    ),
+    duelTournaments: new DuelTournamentService(
+      repositories.duelTournaments,
+      repositories.duelChallenges,
+      publicActivityEvents
     ),
     equipment: new EquipmentService(
       repositories.equipment,

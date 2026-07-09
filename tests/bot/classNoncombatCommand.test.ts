@@ -402,7 +402,7 @@ describe("class noncombat command", () => {
 
     const [text, options] = firstEditCall(editMessageText);
     expect(text).toContain("♟️ <b>Кишенькова відплата</b>");
-    expect(text).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(text).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
     expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
       "⚔️ Атакувати",
       "🛡 Захищатися",

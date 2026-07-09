@@ -13,6 +13,11 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { DuelLeaderboard, DuelLeaderboardEntry } from "../../services/duelChallengeService";
+import type {
+  DuelTournamentBoard,
+  DuelTournamentClaimResult,
+  DuelTournamentPresentedReward
+} from "../../services/duelTournamentService";
 import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presenceService";
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
 import type { RemortBoard } from "../../db/repositories/remortRepository";
@@ -139,12 +144,15 @@ export function presentKorchmaHall(
 
 export function presentKorchmaFightingCorner(
   _character: CharacterSummary,
-  options: { trainingDoppelgangerAvailable?: boolean } = {}
+  options: { trainingDoppelgangerAvailable?: boolean; tournamentPendingRewardCount?: number } = {}
 ): string {
   void _character;
   const trainingLine = options.trainingDoppelgangerAvailable === false
-    ? "Сумлінного Допельґанґера зараз немає в кутку. Тут лишилися дуелі й дошка переможців."
-    : "Можна потренуватися з Сумлінним Допельґанґером, глянути переможців або кинути дружній виклик іншому пригоднику.";
+    ? "Сумлінного Допельґанґера зараз немає в кутку. Тут лишилися дуелі, турніри й дошка переможців."
+    : "Можна потренуватися з Сумлінним Допельґанґером, глянути турніри й переможців або кинути дружній виклик іншому пригоднику.";
+  const pendingRewardLine = options.tournamentPendingRewardCount && options.tournamentPendingRewardCount > 0
+    ? `🏆 Турніри — Корчмар тримає для вас ${options.tournamentPendingRewardCount} ${formatTournamentChestCount(options.tournamentPendingRewardCount)}.`
+    : "🏆 Турніри — очки тільки за завершені покрокові дуелі; призи платить Корчмар.";
 
   return [
     "🥊 Бійцівський куток",
@@ -155,6 +163,7 @@ export function presentKorchmaFightingCorner(
     "",
     "⚡ Миттєва дуель — результат одразу після згоди.",
     "♟️ Покрокова дуель — гравці таємно обирають дії за раунд.",
+    pendingRewardLine,
     "",
     "Що обираємо?"
   ].join("\n");
@@ -237,6 +246,213 @@ export function presentDuelWinnersBoard(
     "",
     ...presentDuelLeaderboardSection("За місяць", leaderboard.month, shownTitleCharacterIds)
   ].join("\n");
+}
+
+export function presentDuelTournamentBoard(
+  board: DuelTournamentBoard,
+  claimResult?: Extract<DuelTournamentClaimResult, { state: "claimed" | "not-ended" | "not-eligible" }>
+): string {
+  return [
+    "🏆 Турніри",
+    "",
+    presentTournamentNotice(claimResult),
+    ...(claimResult ? [""] : []),
+    `<b>${escapeHtml(board.current.label)}</b>`,
+    `Період: ${escapeHtml(presentTournamentPeriodKey(board.current.key))}`,
+    `Ваші очки: <b>${board.yourPoints}</b>${board.yourRank ? `, місце ${board.yourRank}` : ""}`,
+    `Лишилось: <b>${presentTournamentRemaining(board.remainingMs)}</b>`,
+    "",
+    ...presentTournamentStandings(board.standings),
+    "",
+    ...presentPendingTournamentRewards(board),
+    ...(board.pendingRewards.length > 0 ? [""] : []),
+    ...presentTournamentClaimLine(board),
+    "",
+    ...presentPreviousTournamentWinners(board.previous.label, board.previous.key, board.previousWinners)
+  ].filter((line) => line !== null).join("\n");
+}
+
+export function presentDuelTournamentRules(): string {
+  return [
+    "❔ <b>Правила турнірів</b>",
+    "",
+    "Рахуються тільки завершені <b>покрокові дуелі</b>. Миттєві дуелі, тренування, скасовані й прострочені записи не лізуть у таблицю, навіть якщо дуже хочуть.",
+    "",
+    "<b>Очки за одного суперника в одному періоді</b>:",
+    "• перша перемога — <b>3 оч.</b>;",
+    "• друга перемога — <b>1 оч.</b>;",
+    "• третя й далі — <b>0 оч.</b>;",
+    "• перша нічия — <b>1 оч.</b>, наступні нічиї з тією ж парою — <b>0 оч.</b>.",
+    "",
+    "<b>Призи топ-3</b>:",
+    "• день: 42/23/13 зол. + 5/3/1 «Бинт відповідальної паніки»;",
+    "• тиждень: 93/42/23 зол. + 5/3/1 «Щільний бинт»;",
+    "• місяць: 587/93/42 зол. + 3/2/1 «Польова аптечка».",
+    "",
+    "Періоди закриваються за київським часом. Якщо ви в топі, Корчмар покаже скриньку на цій дошці; заберіть її кнопкою. Повторні натискання показують той самий запис і не множать призи."
+  ].join("\n");
+}
+
+function presentTournamentNotice(
+  claimResult?: Extract<DuelTournamentClaimResult, { state: "claimed" | "not-ended" | "not-eligible" }>
+): string | null {
+  if (!claimResult) {
+    return null;
+  }
+
+  if (claimResult.state === "claimed") {
+    if (!claimResult.created) {
+      return [
+        "🧾 Цю турнірну скриньку вже видано.",
+        "Корчмар показує запис у журналі й дуже просить не хитати печатку."
+      ].join("\n");
+    }
+
+    return [
+      "🎁 Корчмар ставить перед вами турнірну скриньку.",
+      `${presentTournamentPeriodLabel(claimResult.claim.period)} — ${presentTournamentPeriodKey(claimResult.claim.periodKey)}.`,
+      `Місце ${claimResult.claim.rank}, ${claimResult.claim.points} оч.`,
+      `Отримано: ${presentTournamentReward(claimResult.reward)}.`
+    ].join("\n");
+  }
+
+  if (claimResult.state === "not-ended") {
+    return "⏳ Цей турнір ще триває. Корчмар тримає скриньку закритою й дуже собою пишається.";
+  }
+
+  return "🧾 Для цього періоду призу немає. Корчмар перевірив журнал двічі й один раз підозріло.";
+}
+
+function presentPendingTournamentRewards(board: DuelTournamentBoard): string[] {
+  if (board.pendingRewards.length === 0) {
+    return [];
+  }
+
+  return [
+    `🎁 <b>На вас чекають нагороди</b>: ${board.pendingRewards.length}`,
+    "",
+    ...board.pendingRewards.map((reward) =>
+      `${presentRankMedal(reward.rank)} ${presentTournamentPeriodLabel(reward.period)} — ${presentTournamentPeriodKey(reward.periodKey)}`
+    )
+  ];
+}
+
+function presentTournamentStandings(entries: DuelTournamentBoard["standings"]): string[] {
+  if (entries.length === 0) {
+    return ["<b>Поточна таблиця</b>: ще немає очок. Крейда чекає на завершену покрокову дуель."];
+  }
+
+  return [
+    "<b>Поточна таблиця</b>:",
+    ...entries.slice(0, 5).map((entry) =>
+      `${entry.rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — ${entry.points} оч., ${entry.wins} перем., ${entry.draws} ніч.`
+    )
+  ];
+}
+
+function presentTournamentClaimLine(board: DuelTournamentBoard): string[] {
+  if (board.claim.state === "available") {
+    return [
+      `<b>Нагорода доступна</b>: місце ${board.claim.rank}, ${board.claim.points} оч.`,
+      `Приз: ${presentTournamentReward(board.claim.reward)}.`
+    ];
+  }
+
+  if (board.claim.state === "claimed") {
+    return [`<b>Попередній приз</b>: уже забрано (${presentTournamentReward(board.claim.reward)}).`];
+  }
+
+  return ["<b>Нагорода</b>: буде після завершення періоду, якщо ви в топі."];
+}
+
+function presentPreviousTournamentWinners(
+  label: string,
+  key: string,
+  entries: DuelTournamentBoard["previousWinners"]
+): string[] {
+  const displayKey = presentTournamentPeriodKey(key);
+
+  if (entries.length === 0) {
+    return [
+      `<b>Попередній ${escapeHtml(label.toLowerCase())}</b> (${escapeHtml(displayKey)}): переможців ще не записано.`
+    ];
+  }
+
+  return [
+    `<b>Попередні переможці</b> (${escapeHtml(displayKey)}):`,
+    ...entries.map((entry) =>
+      `${entry.rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — ${entry.points} оч.`
+    )
+  ];
+}
+
+function presentTournamentPeriodKey(key: string): string {
+  const match = /^(\d{4})(-\d{2}(?:-\d{2})?|-W\d{2})$/.exec(key);
+
+  if (!match) {
+    return key;
+  }
+
+  return `${Number(match[1]) + 10000}${match[2]}`;
+}
+
+function presentTournamentReward(reward: DuelTournamentPresentedReward): string {
+  const itemParts = reward.items.map((item) => `${item.quantity} шт. «${escapeHtml(item.name)}»`);
+  return [`${reward.gold} зол.`, ...itemParts].join(", ");
+}
+
+function presentTournamentPeriodLabel(period: DuelTournamentBoard["period"]): string {
+  const labels: Record<DuelTournamentBoard["period"], string> = {
+    day: "Денний турнір",
+    week: "Тижневий турнір",
+    month: "Місячний турнір"
+  };
+  return labels[period];
+}
+
+function presentRankMedal(rank: number): string {
+  if (rank === 1) {
+    return "🥇";
+  }
+  if (rank === 2) {
+    return "🥈";
+  }
+  if (rank === 3) {
+    return "🥉";
+  }
+  return "🏅";
+}
+
+function formatTournamentChestCount(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return "турнірних скриньок";
+  }
+  if (last === 1) {
+    return "турнірну скриньку";
+  }
+  if (last >= 2 && last <= 4) {
+    return "турнірні скриньки";
+  }
+  return "турнірних скриньок";
+}
+
+function presentTournamentRemaining(ms: number): string {
+  const totalMinutes = Math.max(0, Math.ceil(ms / 60000));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes - days * 24 * 60) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days} дн. ${hours} год.`;
+  }
+
+  if (hours > 0) {
+    return `${hours} год. ${minutes} хв.`;
+  }
+
+  return `${minutes} хв.`;
 }
 
 function presentRemortCandleHint(character: CharacterSummary): string[] {
