@@ -3,6 +3,7 @@ import type { ItemContent } from "../../src/content/schema";
 import {
   applyItemUpgradeEffect,
   buildItemUpgradeVariantContents,
+  calculateItemUpgradeVariantGoldValue,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
   canAccessItemUpgrades,
@@ -123,9 +124,24 @@ describe("item upgrades", () => {
       description: "Для Чароковальні.\n\nПідсилення +5: сильна магія, Чароковальня просить не лизати іскри.",
       effect: {
         weaponDamage: 9
-      }
+      },
+      goldValue: 600
     });
+    expect(variants.map((item) => item.goldValue)).toEqual([36, 42, 144, 162, 600]);
     expect(getItemDisplayNameWithUpgrade(variants[4]!, 5)).toBe("Тестова пательня +5");
+  });
+
+  it("uses rarity and enhancement to keep cheap high-rarity variants valuable", () => {
+    expect(calculateItemUpgradeVariantGoldValue({
+      baseGoldValue: 5,
+      baseRarity: "common",
+      level: 5
+    })).toBe(600);
+    expect(calculateItemUpgradeVariantGoldValue({
+      baseGoldValue: 172,
+      baseRarity: "epic",
+      level: 5
+    })).toBe(1720);
   });
 
   it("raises upgrade rarity floors without downgrading already rare bases", () => {

@@ -134,6 +134,22 @@ export function getItemDisplayNameWithUpgrade(item: Pick<ItemContent, "name">, l
 }
 
 const rarityOrder: ItemContent["rarity"][] = ["common", "uncommon", "rare", "epic", "legendary"];
+const ITEM_UPGRADE_PRICE_MULTIPLIERS: Record<number, number> = {
+  0: 1,
+  1: 1.7,
+  2: 2.8,
+  3: 4.5,
+  4: 7,
+  5: 10
+};
+const ITEM_UPGRADE_RARITY_VALUE_FLOORS: Record<ItemContent["rarity"], number> = {
+  common: 10,
+  uncommon: 30,
+  rare: 90,
+  epic: 300,
+  legendary: 1200
+};
+const ITEM_UPGRADE_RARITY_VALUE_GROWTH = 0.2;
 
 export function getItemUpgradeRarity(
   baseRarity: ItemContent["rarity"],
@@ -146,6 +162,28 @@ export function getItemUpgradeRarity(
   const floorIndex = rarityOrder.indexOf(rarityFloor);
 
   return rarityOrder[Math.max(baseIndex, floorIndex)] ?? baseRarity;
+}
+
+export function calculateItemUpgradeVariantGoldValue(input: {
+  baseGoldValue?: number | null;
+  baseRarity: ItemContent["rarity"];
+  level: number;
+}): number {
+  const baseValue = Math.max(0, Math.floor(input.baseGoldValue ?? 0));
+  const level = normalizeItemUpgradeLevel(input.level);
+
+  if (level <= 0) {
+    return baseValue;
+  }
+
+  const rarity = getItemUpgradeRarity(input.baseRarity, level);
+  const scaledValue = Math.round(baseValue * (ITEM_UPGRADE_PRICE_MULTIPLIERS[level] ?? 1));
+  const rarityFloor = Math.ceil(
+    (ITEM_UPGRADE_RARITY_VALUE_FLOORS[rarity] ?? ITEM_UPGRADE_RARITY_VALUE_FLOORS.common) *
+      (1 + level * ITEM_UPGRADE_RARITY_VALUE_GROWTH)
+  );
+
+  return Math.max(scaledValue, rarityFloor);
 }
 
 export function getItemUpgradeMagicStrengthLabel(level: number): "слабка магія" | "сильна магія" {
@@ -404,6 +442,11 @@ export function buildItemUpgradeVariantContents(baseItems: readonly ItemContent[
         name: getItemDisplayNameWithUpgrade(base, level),
         description: `${base.description}\n\nПідсилення +${level}: ${getItemUpgradeMagicStrengthLabel(level)}, Чароковальня просить не лизати іскри.`,
         rarity: getItemUpgradeRarity(base.rarity, level),
+        goldValue: calculateItemUpgradeVariantGoldValue({
+          baseGoldValue: base.goldValue,
+          baseRarity: base.rarity,
+          level
+        }),
         ...(effect ? { effect } : {})
       };
     });
