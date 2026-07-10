@@ -3118,6 +3118,11 @@ export class FightService {
       if (!isSettlementCompletionSuccess(stored.outcome)) {
         return null;
       }
+      await this.recordPersistentFightUnderdogWinSafely({
+        session,
+        monster,
+        character
+      });
       return {
         state: "already-claimed",
         reward: {
@@ -3153,19 +3158,10 @@ export class FightService {
       ...withAchievementCombatOutcome(session.state?.status ?? session.status)
     });
     if ((session.state?.status ?? session.status) === "won") {
-      const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(
+      await this.recordPersistentFightUnderdogWinSafely({
         session,
-        monster.level
-      );
-      await this.activityEvents?.recordUnderdogCombatWinSafely({
-        characterId: claim.character.id,
-        actorDisplayName: claim.character.name,
-        combatSessionId: session.id,
-        monsterId: session.monsterId,
-        monsterName: monster.name,
-        monsterLevel: effectiveMonsterLevel,
-        characterLevel: character.level,
-        occurredAt: this.clock()
+        monster,
+        character
       });
     }
 
@@ -3262,6 +3258,13 @@ export class FightService {
       if (!isSettlementCompletionSuccess(stored.outcome)) {
         return null;
       }
+      if (monster) {
+        await this.recordPersistentFightUnderdogWinSafely({
+          session,
+          monster,
+          character
+        });
+      }
       return replay;
     }
 
@@ -3276,19 +3279,27 @@ export class FightService {
         localDate: session.id
       });
 
-      return action
-        ? {
-            state: "already-claimed",
-            reward: {
-              xp: action.rewardXp,
-              gold: action.rewardGold,
-              localDate: session.id,
-              itemGrants: []
-            },
-            levelChange: null,
-            itemReplayUnavailable: true
-          }
-        : null;
+      if (!action) {
+        return null;
+      }
+      if (monster) {
+        await this.recordPersistentFightUnderdogWinSafely({
+          session,
+          monster,
+          character
+        });
+      }
+      return {
+        state: "already-claimed",
+        reward: {
+          xp: action.rewardXp,
+          gold: action.rewardGold,
+          localDate: session.id,
+          itemGrants: []
+        },
+        levelChange: null,
+        itemReplayUnavailable: true
+      };
     }
 
     const expectedLife = await this.resolveSessionExpectedLife(session);
@@ -3346,6 +3357,13 @@ export class FightService {
     if (!isSettlementCompletionSuccess(stored.outcome)) {
       return null;
     }
+    if (monster) {
+      await this.recordPersistentFightUnderdogWinSafely({
+        session: settlementSession,
+        monster,
+        character
+      });
+    }
 
     return {
       state: "already-claimed",
@@ -3358,6 +3376,31 @@ export class FightService {
       levelChange: null,
       itemReplayUnavailable: true
     };
+  }
+
+  private async recordPersistentFightUnderdogWinSafely(input: {
+    session: SoloCombatSessionRecord;
+    monster: MonsterContent;
+    character: CharacterSummary;
+  }): Promise<void> {
+    if ((input.session.state?.status ?? input.session.status) !== "won") {
+      return;
+    }
+
+    const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(
+      input.session,
+      input.monster.level
+    );
+    await this.activityEvents?.recordUnderdogCombatWinSafely({
+      characterId: input.session.characterId,
+      actorDisplayName: input.character.name,
+      combatSessionId: input.session.id,
+      monsterId: input.session.monsterId,
+      monsterName: input.monster.name,
+      monsterLevel: effectiveMonsterLevel,
+      characterLevel: input.character.level,
+      occurredAt: this.clock()
+    });
   }
 
   private async terminalizeZeroHpActiveSession(
