@@ -20,6 +20,7 @@ export interface ClaimCooldownRewardInput {
   hpLoss?: number | HpLossRequest;
   resultJson?: unknown;
   itemGrants?: ItemGrant[];
+  questIskrokaminBonus?: boolean;
   expectedLife?: {
     remortCount: number;
   };

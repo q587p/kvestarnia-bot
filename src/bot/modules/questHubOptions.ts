@@ -11,6 +11,7 @@ export function buildQuestHubCommandOptions(services: BotServices): QuestHubComm
     ...(services.cellarGrownup ? { cellarGrownup: services.cellarGrownup } : {}),
     dailyKorchmaRound: services.dailyKorchmaRound,
     fight: services.fight,
+    firstKorchmaQuest: services.firstKorchmaQuest,
     itemUpgrades: services.itemUpgrades,
     yeger: services.yeger,
     presence: services.presence,

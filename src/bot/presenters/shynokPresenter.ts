@@ -1,5 +1,6 @@
 import type {
   PresentedDrinkDefinition,
+  PresentedRoundOffer,
   PresentedRoundRecipientNotice,
   PresentedShynokDrinkState,
   ShynokDrinkConfirmResult,
@@ -7,6 +8,7 @@ import type {
   ShynokDrinkOrderResult,
   ShynokOverviewResult,
   ShynokRoundConfirmResult,
+  ShynokRoundOfferOpenResult,
   ShynokRoundOfferRespondResult,
   ShynokRoundPreviewResult,
   ShynokSaleConfirmResult,
@@ -203,8 +205,23 @@ export function presentShynokRoundOfferNotification(
   buyerName: string,
   recipient: PresentedRoundRecipientNotice
 ): string {
+  return presentShynokRoundOfferCard(buyerName, recipient.offer);
+}
+
+export function presentShynokRoundOfferOpen(result: ShynokRoundOfferOpenResult): string {
+  if (result.state !== "ready") {
+    return presentShynokGate(result);
+  }
+
+  return presentShynokRoundOfferCard(result.buyerName, result.offer);
+}
+
+function presentShynokRoundOfferCard(
+  buyerName: string,
+  offer: PresentedRoundOffer
+): string {
   return [
-    `${recipient.offer.drink.emoji} <b>${escapeHtml(buyerName)}</b> ставить вам <b>${escapeHtml(recipient.offer.drink.name)}</b>.`,
+    `${offer.drink.emoji} <b>${escapeHtml(buyerName)}</b> ставить вам <b>${escapeHtml(offer.drink.name)}</b>.`,
     "",
     "Можна випити зараз або чемно відмовитися й лишити точність при собі."
   ].join("\n");

@@ -1,6 +1,8 @@
 import { Prisma, type Character, type DailyAction, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { buildQuestIskrokaminBonusGrant } from "../../domain/quests/questIskrokaminBonus";
 import type { CharacterRecord } from "./characterRepository";
+import type { ItemGrant } from "./dailyActionRepository";
 import type {
   BuyCellarCheeseSealResult,
   CellarGrownupFinalEnding,
@@ -140,6 +142,7 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
           };
         }
 
+        const itemGrants = buildCellarGrownupCompletionItemGrants(snapshot.character, input);
         const action = await tx.dailyAction.create({
           data: {
             characterId: snapshot.character.id,
@@ -147,12 +150,24 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             localDate: input.keys.onceLocalDate,
             rewardXp: input.rewardXp,
             rewardGold: input.rewardGold,
-            createdAt: input.now
+            createdAt: input.now,
+            resultJson: {
+              kind: "cellar-grownup-completed",
+              version: 1,
+              ending: input.ending,
+              reward: {
+                appliedItemGrants: serializeItemGrants(itemGrants)
+              }
+            }
           }
         });
 
         if (input.ending === "turn-in") {
           await consumeOneItem(tx, snapshot.character.id, input.keys.bottleItemId);
+        }
+
+        for (const grant of itemGrants) {
+          await upsertItem(tx, snapshot.character.id, grant.itemId, grant.quantity, Number.MAX_SAFE_INTEGER);
         }
 
         const rewarded = await tx.character.update({
@@ -200,6 +215,7 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
             completedAction: action
           },
           ending: input.ending,
+          itemGrants,
           levelChange: {
             oldLevel,
             newLevel,
@@ -387,7 +403,38 @@ async function consumeOneItem(tx: TxClient, characterId: string, itemId: string)
 }
 
 function endingFromCompletedAction(action: DailyAction): CellarGrownupFinalEnding {
+  if (action.resultJson && typeof action.resultJson === "object" && !Array.isArray(action.resultJson)) {
+    const ending = (action.resultJson as { ending?: unknown }).ending;
+
+    if (ending === "turn-in" || ending === "keep") {
+      return ending;
+    }
+  }
+
   return action.rewardGold > 0 ? "turn-in" : "keep";
+}
+
+function buildCellarGrownupCompletionItemGrants(
+  character: CharacterRecord,
+  input: {
+    keys: CellarGrownupQuestRepositoryKeys;
+    ending: CellarGrownupFinalEnding;
+  }
+): ItemGrant[] {
+  const bonus = buildQuestIskrokaminBonusGrant({
+    characterId: character.id,
+    characterLevel: character.level,
+    sourceIdentity: `${input.keys.completionKey}:${input.keys.onceLocalDate}:${input.ending}`
+  });
+
+  return bonus ? [bonus] : [];
+}
+
+function serializeItemGrants(itemGrants: readonly ItemGrant[]): Array<{ itemId: string; quantity: number }> {
+  return itemGrants.map((grant) => ({
+    itemId: grant.itemId,
+    quantity: grant.quantity
+  }));
 }
 
 const remortCountInclude = {

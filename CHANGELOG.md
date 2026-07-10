@@ -7,6 +7,45 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.4] - 12026-07-10 - Quest Overview Route and First Table Step
+
+### Added
+- Added a read-only `🗺️ Квести` overview card for the persistent main-menu quest button, summarizing only active, taken or claimable quest work with progress, completed steps, next-step hints and location/turn-in hints.
+- Added a compact empty state when there are no active/taken/claimable quest rows.
+- Added the first current-life route quest, `Перший крок до столу`: enter Korchma, reach `Стіл зі справами`, then receive a replay-safe +1 XP completion.
+- Added the rewardless first-table-route achievement `achievement.quest.first-korchma`.
+- Added starter follow-up overview rows after the first route quest: `Підозріла шаурма` and `Новачкова сутичка` now explain what is already done, what to do next, and that both continue at `Стіл зі справами`.
+- Added the next starter overview handoff after `Підозріла шаурма` and `Новачкова сутичка`: `Льохова справа` now appears with the same `Зроблено` / `Далі` / `Де` guidance when the cellar mouse quest is ready.
+- Added focused service, presenter, keyboard, marker, command and achievement coverage for active-only overview visibility, hidden locked/generic/completed rows, outside overview access, first-route progress/completion/remort reset, Daily Korchma Round progress and turn-in states, Problem Quest reward-claimed hiding, Yeger progress/turn-in states, HTML escaping, callback size and the absence of per-quest route buttons.
+
+### Changed
+- The persistent `🗺️ Квести` button and `/quest` now open the compact overview from safe states inside or outside Korchma without marking presence at `📋 Стіл зі справами`; the physical Quest Table location, `v1:quest:list` and archive callbacks still open the existing Quest Hub.
+- The overview now hides generic available quests, locked future quests, retired starter rows and completed/reward-claimed rows; those remain the job of `📋 Стіл зі справами` or the archive.
+- The overview now explicitly surfaces ready handoffs that players otherwise missed: `🪧 Три справи на найближчий час` when the regular three-case choice is waiting, `Справа не до миші` for its offered, paused and bottle-turn-in stages, and `Доступ до Чароковальні` with `Польова аптечка` guidance while the unlock is pending.
+- Overview buttons are now navigation-only and minimal: only `📋 До столу зі справами`. Per-quest places such as `Корчмарський обхід`, `єгерський куток`, `льох`, `Бочка`, `шинок`, `Низ` or `задвірок` are mentioned in row text only, the overview does not duplicate the main keyboard's always-available quest or location routes, and it does not accept, claim, start fights or start raids.
+- `📋 До столу зі справами` now routes through the normal place movement callback, so reaching the table can complete the first route quest while leaving the overview itself non-mutating.
+- The available Barrel Beer Tutorial paper now opens a confirmation/details card first; only the explicit `Взяти записку` action grants the 39-gold stipend, writes the accepted quest ledger row and starts the journal route, while pre-accept copy keeps the stipend qualitative.
+- `Льохова справа` now shows 4 character-varied method buttons on the start/help cards instead of filling the screen with all 7 possible cellar methods.
+- Shynok beer-round confirmation now updates the buyer's card to `Корчмар поставив кухлі` before sending the individual `Випити` offer cards, so the shared round is visibly placed before recipients act.
+- Shynok cards now show a `🍺 Вам пиво!` shortcut next to `🍹 Напої для себе` while a live round offer can still be accepted, reopening the same offer card with `Випити` / `Ні, дякую` instead of hiding the cup in chat history.
+- The Korchma hall `📋 Стіл зі справами` marker now lets ready turn-ins such as the Barrel Beer Tutorial `✅` override unrelated available-work `⚠️` markers from Shynok or other table papers.
+- Charkokovalnia unlock markers now turn green when the player already has the `Польова аптечка`, including `Доступ до Чароковальні`, `Надвір`, `У задвірок` and the Charkokovalnia action itself.
+- Level 4+ quest turn-ins can now add a replay-safe `Іскрокамінь` bonus: 1 at 23%, 2 at 13%, or 3 at 5%, covering Adventure, Daily Korchma Round, Yeger, Barrel tutorial, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock reward paths without changing ordinary combat reward rolls.
+- The quest overview now distinguishes repeat `Льохова справа` availability after the first mouse errand completion, using `не перший спуск` and repeat-attempt next-step copy instead of claiming it is still the first descent.
+- The grownup cellar mouse pause and paid-seal keyboard no longer shows the old `Дошка полювання` shortcut; the card now stays focused on buying the seal or returning to the hall.
+- Quest overview problem guidance now uses prose casing for `спуск до Низу`, keeping `Спуск до Низу` for buttons, titles and sentence starts.
+- Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.
+- Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
+
+### Fixed
+- Active solo-combat cards now describe `Натиск Низу` backup enemies as intermittent/softened pressure instead of implying a shorter HP bar, and solo Yeger remort pressure now shows its `Відплата за минулі пригоди` hint from remort `р3`, matching the actual Yeger combat scaling.
+- `📜 Хроніки Квестарні` now records underdog solo-combat wins even when an already-settled persistent fight reward is replayed or recovered later, keeping `⚔️ Бої` from missing valid stronger-monster victories.
+- `📜 Хроніки Квестарні` filter keyboard now marks the currently selected feed with neutral `🔘` instead of `✅`, so `Манатки` and other filters no longer look like completed quest rows.
+- `Перший крок до столу` completion now fails closed at the service layer until the character actually reaches `📋 Стіл зі справами`; opening `🗺️ Квести`, entering Korchma, or replaying from the hall can no longer write the completion row, grant XP, or unlock the achievement early.
+- Fresh Daily Korchma Round reward cards now render quest `Іскрокамінь` bonus grants from the just-created claim response, while replayed cards continue reading the stored `appliedItemGrants` without rerolling or duplicating items.
+- `📜 Хроніки Квестарні` level-up rows now omit the remort-life tag for base-life characters, so `р0` no longer appears after ordinary first-life level gains; positive remort tags such as `(р5)` still appear.
+- Combat action result rows now separate named skills and equipment actions with a colon and no longer insert a stray `і` before `влучає` or `спрацьовує без прямої шкоди`.
+
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
 
 ### Added

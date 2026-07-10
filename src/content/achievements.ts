@@ -39,6 +39,7 @@ export const achievementTriggerTypes = [
   "starter.mimic-shawarma.completed",
   "starter.mimic-shawarma.probe.completed",
   "cellar.mouse.completed",
+  "quest.first-korchma.completed",
   "quest.barrel-beer-tutorial.completed",
   "daily.korchma-round.completed",
   "adventure.choice.strong-success",
@@ -622,6 +623,17 @@ export const achievements = [
     trigger: { type: "problem.quest.completed", threshold: 3 },
     progressTarget: 3,
     cosmeticTitleGrantId: "cosmetic-title.forty-two-stamp-reasons"
+  },
+  {
+    id: "achievement.quest.first-korchma",
+    category: "quests",
+    title: "Стіл таки існує",
+    description: "зайти до Корчми й дійти до Столу зі справами, не вимагаючи карту на серветці.",
+    hidden: false,
+    lockedDescription: "дійти до Столу зі справами.",
+    sortOrder: 64.8,
+    status: "enabled",
+    trigger: { type: "quest.first-korchma.completed", threshold: 1 }
   },
   {
     id: "achievement.quest.mimic-shawarma",

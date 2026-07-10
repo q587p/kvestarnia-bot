@@ -1,5 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
-import type { DailyActionRecord, RewardLevelChange } from "./dailyActionRepository";
+import type { DailyActionRecord, ItemGrant, RewardLevelChange } from "./dailyActionRepository";
 
 export type ItemUpgradeMethod = "npc" | "self";
 
@@ -16,6 +16,12 @@ export interface ItemUpgradeSnapshot {
   character: CharacterRecord;
   items: ItemUpgradeInventoryRow[];
   pities: Array<{ itemId: string; targetLevel: number; failureCount: number }>;
+  unlocked: boolean;
+}
+
+export interface ItemUpgradeQuestSnapshot {
+  character: CharacterRecord;
+  fieldKitQuantity: number;
   unlocked: boolean;
 }
 
@@ -69,12 +75,17 @@ export type ItemUpgradeUnlockResult =
       state: "unlocked" | "already-unlocked";
       character: CharacterRecord;
       rewardXp: number;
+      itemGrants: ItemGrant[];
       action: DailyActionRecord | null;
       levelChange: RewardLevelChange | null;
     };
 
 export interface ItemUpgradeRepository {
   getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeSnapshot | null>;
+  getQuestSnapshotForTelegramUser?(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<ItemUpgradeQuestSnapshot | null>;
   attemptForTelegramUser(
     telegramUserId: bigint,
     input: ItemUpgradeAttemptInput

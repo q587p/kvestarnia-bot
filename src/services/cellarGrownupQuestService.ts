@@ -86,6 +86,7 @@ export interface CellarGrownupBottleReward {
 export interface CellarGrownupReward {
   xp: number;
   gold: number;
+  itemGrants: RewardItemGrant[];
 }
 
 export class CellarGrownupQuestService {
@@ -291,7 +292,10 @@ export class CellarGrownupQuestService {
       state: "completed",
       character: summarizeCharacter(result.snapshot.character),
       ending: result.ending,
-      reward,
+      reward: {
+        ...reward,
+        itemGrants: enrichRewardItemGrants(result.itemGrants ?? [])
+      },
       levelChange: result.levelChange
     };
   }
@@ -417,7 +421,8 @@ export class CellarGrownupQuestService {
     const action = snapshot.completedAction;
     const reward = {
       xp: action?.rewardXp ?? 0,
-      gold: action?.rewardGold ?? 0
+      gold: action?.rewardGold ?? 0,
+      itemGrants: enrichRewardItemGrants(readAppliedItemGrants(action?.resultJson ?? null))
     };
     const ending = endingOverride ?? (reward.gold > 0 ? "turn-in" : "keep");
 
@@ -437,6 +442,35 @@ export class CellarGrownupQuestService {
       reward
     };
   }
+}
+
+function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity: number }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const appliedItemGrants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  if (!Array.isArray(appliedItemGrants)) {
+    return [];
+  }
+
+  return appliedItemGrants.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
 }
 
 function questKeys() {

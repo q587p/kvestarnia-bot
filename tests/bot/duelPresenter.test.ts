@@ -102,7 +102,7 @@ describe("duel presenter", () => {
     expect(text).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
     expect(text).toContain("Ліва Рука атакує влучає на <b>7</b> шкоди.");
     expect(text).toContain(
-      "Права Рука застосовує 🪓 <i>Силовий замах</i> влучає на <b>11</b> шкоди · критично."
+      "Права Рука застосовує 🪓 <i>Силовий замах</i>: влучає на <b>11</b> шкоди · критично."
     );
     expect(text).toContain("Що робимо?");
     expect(text).toContain("⏳ На хід є <b>23 с</b>. Потім Корчма поставить вас в атаку.");
@@ -131,7 +131,7 @@ describe("duel presenter", () => {
 
     const text = presentTurnBasedDuel(result, { viewerCharacterId: "target-character" });
 
-    expect(text).toContain("Ліва Рука застосовує ⚕️ <i>Інструкція Асклепія</i> влучає на <b>3</b> шкоди.");
+    expect(text).toContain("Ліва Рука застосовує ⚕️ <i>Інструкція Асклепія</i>: влучає на <b>3</b> шкоди.");
     expect(text).toContain("Підтримка: HP підросли на <b>4</b>; захист тримає <b>1</b>.");
   });
 

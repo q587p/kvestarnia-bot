@@ -12,19 +12,23 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     | "dailyKorchmaRound"
     | "fight"
     | "yeger"
-  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "itemUpgrades">>
+  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "firstKorchmaQuest" | "itemUpgrades">>
 ): Promise<QuestMarkerInput | null> {
   if (
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
     typeof services.fight?.getFightOverviewForTelegramUser !== "function" ||
     typeof services.fight?.getProblemQuestProgressForTelegramUser !== "function" ||
-    typeof services.yeger?.getForTelegramUser !== "function" ||
+    (
+      typeof services.yeger?.getQuestMarkerForTelegramUser !== "function" &&
+      typeof services.yeger?.getForTelegramUser !== "function"
+    ) ||
     typeof services.cellarErrand?.getForTelegramUser !== "function"
   ) {
     return null;
   }
 
   const barrelBeerTutorialService = services.barrelBeerTutorial;
+  const firstKorchmaQuestService = services.firstKorchmaQuest;
   const itemUpgradesService = services.itemUpgrades;
   const cellarGrownupService = services.cellarGrownup;
 
@@ -33,6 +37,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     starterAdventure,
     fight,
     problemQuest,
+    firstKorchmaQuest,
     yeger,
     cellar,
     barrelBeerTutorial,
@@ -63,10 +68,20 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
           () => services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
-    typeof services.yeger?.getForTelegramUser === "function"
+    typeof firstKorchmaQuestService?.getForTelegramUser === "function"
+      ? optionalQuestMarkerLookup(
+          "first Korchma quest",
+          () => firstKorchmaQuestService.getForTelegramUser(telegramUserId)
+        )
+      : Promise.resolve(null),
+    (
+      typeof services.yeger?.getQuestMarkerForTelegramUser === "function" ||
+      typeof services.yeger?.getForTelegramUser === "function"
+    )
       ? optionalQuestMarkerLookup(
           "yeger",
-          () => services.yeger.getForTelegramUser(telegramUserId)
+          () => services.yeger.getQuestMarkerForTelegramUser?.(telegramUserId)
+            ?? services.yeger.getForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
     typeof services.cellarErrand?.getForTelegramUser === "function"
@@ -87,10 +102,14 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
           () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
-    typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
+    (
+      typeof itemUpgradesService?.getQuestMarkerForTelegramUser === "function" ||
+      typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
+    )
       ? optionalQuestMarkerLookup(
           "item upgrades",
-          () => itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
+          () => itemUpgradesService.getQuestMarkerForTelegramUser?.(telegramUserId)
+            ?? itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null)
   ]);
@@ -108,6 +127,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     starterAdventure,
     fight,
     problemQuest,
+    firstKorchmaQuest,
     yeger,
     cellar,
     barrelBeerTutorial,
@@ -125,6 +145,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     ...(adventure && adventure.state !== "no-character" ? { adventure } : {}),
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     ...(fight && fight.state !== "no-character" ? { fight } : {}),
+    ...(firstKorchmaQuest && firstKorchmaQuest.state !== "no-character" ? { firstKorchmaQuest } : {}),
     ...(problemQuest && problemQuest.state !== "no-character" ? { problemQuest: problemQuest.progress } : {}),
     ...(yeger && yeger.state !== "no-character" ? { yeger } : {}),
     ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),

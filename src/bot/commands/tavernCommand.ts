@@ -14,6 +14,7 @@ import {
 } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import type { PresentedRoundOffer, ShynokService } from "../../services/shynokService";
 import type { DuelTournamentService } from "../../services/duelTournamentService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
@@ -105,6 +106,7 @@ type TavernCommandKeyboard =
       bardPerformance?: boolean;
       tavernGames?: boolean;
       tavernGameTableCount?: number;
+      openRoundOffers?: PresentedRoundOffer[];
       questMarkers?: QuestMarkerInput | null;
     }
   | "front"
@@ -754,7 +756,7 @@ export async function sendKorchmaBar(
   cellarGrownupQuestService?: CellarGrownupQuestService,
   fightService?: FightService,
   tavernGameService?: TavernGameService,
-  options: { questMarkers?: QuestMarkerInput | null } = {}
+  options: { questMarkers?: QuestMarkerInput | null; shynokService?: ShynokService | undefined } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -782,11 +784,17 @@ export async function sendKorchmaBar(
       ? getProblemQuestBarActionFromProgress(problemQuest.progress)
       : undefined;
   const tavernGameOptions = await getTavernGameButtonOptions(tavernGameService);
+  const shynokOverview = options.shynokService
+    ? await options.shynokService.getOverviewForTelegramUser(telegramUserId)
+    : null;
   const barOptions = {
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
     bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
+    ...(shynokOverview?.state === "ready" && shynokOverview.openRoundOffers.length > 0
+      ? { openRoundOffers: shynokOverview.openRoundOffers }
+      : {}),
     ...tavernGameOptions,
     ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers }),
     ...(problemQuestAction ? { problemQuestAction } : {})
@@ -1084,6 +1092,7 @@ async function sendText(
                   ...(keyboard.tavernGameTableCount === undefined
                     ? {}
                     : { tavernGameTableCount: keyboard.tavernGameTableCount }),
+                  ...(keyboard.openRoundOffers === undefined ? {} : { openRoundOffers: keyboard.openRoundOffers }),
                   ...(keyboard.questMarkers === undefined ? {} : { questMarkers: keyboard.questMarkers }),
                   ...(keyboard.problemQuestAction ? { problemQuestAction: keyboard.problemQuestAction } : {})
                 })

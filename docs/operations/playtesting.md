@@ -4,6 +4,39 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.4 — Quest Overview Route smoke
+
+1. New character outside Korchma: press `🗺️ Квести` or `/quest`; verify the compact overview opens, not `Квести видають усередині.`, and `Перший крок до столу` appears as 0/2.
+2. Press `🚪 Зайти в корчму`, then reopen `🗺️ Квести`; verify `Перший крок до столу` appears as 1/2, points to Столу зі справами, and does not complete in the hall.
+3. Press `📋 До столу зі справами`; verify normal place movement opens the old `📋 Стіл зі справами` card, presence moves only on that route, the first route quest completes once with its small XP line, and duplicate table refreshes do not pay again.
+4. After that completion, press `🗺️ Квести`; verify `Підозріла шаурма` and `Новачкова сутичка` appear with `Зроблено`, `Далі`, and `Де` lines, but still only one inline button: `📋 До столу зі справами`.
+5. Complete `Підозріла шаурма` and `Новачкова сутичка`, then press `🗺️ Квести`; verify `Льохова справа` appears with `Зроблено`, `Далі`, and `Де` lines.
+6. Open `Льохова справа` and its `💡 Підказка`; verify the method keyboard shows 4 current-character options, not all possible cellar options.
+7. Complete `Льохова справа`, wait/reset past its cooldown, then press `🗺️ Квести`; verify it says `не перший спуск` and tells the player to try the cellar again.
+8. High-level character with regular `Три справи` ready: press `🗺️ Квести`; verify `🪧 Три справи на найближчий час` appears with `Зроблено`, `Далі`, and `Де` guidance.
+9. Level 4+ character with `Справа не до миші` offered or paused after a roleplay attempt: press `🗺️ Квести`; verify the row appears and names the current stage.
+10. Level 4+ character holding the grownup cellar bottle: press `🗺️ Квести`; verify `Справа не до миші` appears as claimable and points to Shynok turn-in.
+11. High-level character with Charkokovalnia unlock pending and no field kit: press `🗺️ Квести`; verify `Доступ до Чароковальні` says the elf-mage asked for `Польова аптечка` and points toward the Yeger hint.
+12. High-level character with Charkokovalnia unlock pending and a field kit in the bag: press `🗺️ Квести`; verify the same row points back to Charkokovalnia turn-in, and the route buttons `Доступ до Чароковальні`, `Надвір`, `У задвірок`, and `Чароковальня` show `✅` instead of `⚠️`.
+13. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
+14. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
+15. Active Daily Korchma Round at 1/2: verify progress, done-scene text, next-step text and location/turn-in hints.
+16. Daily Korchma Round at 2/2 turn-in-ready: verify the row appears as claimable and explains where to turn in.
+17. Problem Quest in progress: verify the row appears with progress and turn-in guidance, including prose casing `спуск до Низу`; completed/reward-claimed Problem Quest disappears.
+18. Yeger not started: verify no row; Yeger in progress / claimable: verify the row appears with єгерський куток guidance and no direct `До Єгеря` button.
+19. Barrel Beer Tutorial completed, retired or merely available: verify no row; in progress / ready to turn in still appears with text-only table, Бочка, шинок or table turn-in guidance.
+20. From the full Quest Hub, open the available Barrel Beer Tutorial paper; verify it shows a preview/confirmation card, does not grant the stipend or mark the quest accepted yet, and only `🛢️ Взяти записку` grants the accepted result with the 39-gold received line.
+21. Buy a Shynok beer round for a nearby recipient; verify the buyer's card first changes to `Корчмар поставив кухлі`, then the recipient receives the separate beer offer with `Випити`.
+22. Before accepting or declining that live offer, reopen Shynok; verify `🍺 Вам пиво!` appears next to `🍹 Напої для себе`, opens the same offer card, and does not drink or decline until an explicit offer button is pressed.
+23. After drinking the tutorial beer while another Shynok/table affair remains available, return to the hall; verify `📋 Стіл зі справами ✅` is shown instead of `📋 Стіл зі справами ⚠️`.
+24. On a level 4+ character, complete representative Adventure, Daily Korchma Round, Yeger, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock claims; when `Іскрокамінь` appears, verify the fresh result card shows it once, the replayed result card shows the same stored grant, the inventory quantity increased by the shown amount, and replaying the same claim does not reroll or duplicate it. Verify level 3 quest turn-ins do not receive this bonus.
+25. Verify ordinary combat rewards still use their existing loot/bandage/Iskrokamin replacement behavior and are not treated as quest turn-ins by this bonus.
+26. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
+27. Verify the overview keyboard contains only `📋 До столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
+28. Reopen an old overview callback after state changes; verify it routes to current state or fails closed without mutation.
+
+Manual Telegram QA status for the implementation pass: not run in Telegram.
+
 ## 0.3.3 — Quest Variety and Risk Refresh smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
@@ -646,12 +679,14 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 
 ## Стіл зі справами
 
-1. Відкрий `/quest` або кнопку `🗺️ Квести` усередині корчми.
-2. Має відкритися `📋 Стіл зі справами`.
-3. Hub має показувати лише актуальні справи й кнопку `📦 Архів`.
-4. Натисни `📦 Архів`.
-5. Очікування: завершені, retired і locked справи показані окремо, а кнопка `📋 До справ` повертає на активний список.
-6. На новому персонажі 1 рівня закрий підозрілу шаурму й новачкову сутичку, потім відкрий архів: обидві стартові справи мають бути видимі як завершені, а герой має дорости до 2 рівня навіть після реморту.
+1. Відкрий `/quest` або кнопку `🗺️ Квести` надворі чи всередині корчми.
+2. Має відкритися компактний огляд квестів; на новому персонажі перший маршрутний квест веде до Корчми й Столу зі справами.
+3. Натисни `📋 До столу зі справами`.
+4. Має відкритися `📋 Стіл зі справами`; на першому маршруті квест завершується тільки після фактичного входу до столу, один раз і без дубля нагороди при повторному відкритті.
+5. Hub має показувати лише актуальні справи й кнопку `📦 Архів`.
+6. Натисни `📦 Архів`.
+7. Очікування: завершені, retired і locked справи показані окремо, а кнопка `📋 До справ` повертає на активний список.
+8. На новому персонажі 1 рівня закрий підозрілу шаурму й новачкову сутичку, потім відкрий архів: обидві стартові справи мають бути видимі як завершені, а герой має дорости до 2 рівня навіть після реморту.
 
 ## Вибір корчемної пригоди
 

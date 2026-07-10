@@ -142,7 +142,7 @@ describe("quest hub keyboard", () => {
     expect(json).toContain("v1:place:hall");
   });
 
-  it("offers Charkokovalnia access from the quest table while the unlock quest is pending", () => {
+  it("marks Charkokovalnia access as ready from the quest table when the field kit is owned", () => {
     const keyboard = buildQuestHubKeyboard(
       makeInput({
         itemUpgrades: {
@@ -155,7 +155,7 @@ describe("quest hub keyboard", () => {
     );
     const json = JSON.stringify(keyboard);
 
-    expect(json).toContain("✨ Доступ до Чароковальні ⚠️");
+    expect(json).toContain("✨ Доступ до Чароковальні ✅");
     expect(json).toContain("v1:place:yard");
   });
 

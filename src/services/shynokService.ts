@@ -124,6 +124,10 @@ export type ShynokRoundOfferRespondResult =
   | { state: "stale-replacement"; offer: PresentedRoundOffer }
   | { state: "accepted" | "replayed"; offer: PresentedRoundOffer; drink: PresentedShynokDrinkState | null };
 
+export type ShynokRoundOfferOpenResult =
+  | { state: ShynokGateState | "invalid-offer" }
+  | { state: "ready"; buyerName: string; offer: PresentedRoundOffer };
+
 export type ShynokSaleSelectionResult =
   | { state: ShynokGateState }
   | { state: "invalid-token" }
@@ -498,6 +502,27 @@ export class ShynokService {
           drink: presentDrinkState(result.drink)
         };
     }
+  }
+
+  async getOpenRoundOfferForTelegramUser(
+    telegramUserId: bigint,
+    offerId: string
+  ): Promise<ShynokRoundOfferOpenResult> {
+    const gate = await this.checkGate(telegramUserId);
+    if (gate.state !== "ready") {
+      return gate;
+    }
+
+    const result = await this.shynok.findOpenRoundOfferForTelegramUser(telegramUserId, offerId, this.clock());
+    if (!result) {
+      return { state: "invalid-offer" };
+    }
+
+    return {
+      state: "ready",
+      buyerName: result.buyerName,
+      offer: presentRoundOffer(result.offer)
+    };
   }
 
   async startSaleForTelegramUser(

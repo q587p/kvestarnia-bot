@@ -21,12 +21,15 @@ import {
   normalizeItemUpgradeLevel
 } from "../../domain/itemUpgrades";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { buildQuestIskrokaminBonusGrant } from "../../domain/quests/questIskrokaminBonus";
 import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 import type { CharacterRecord } from "./characterRepository";
+import type { ItemGrant } from "./dailyActionRepository";
 import type {
   ItemUpgradeAttemptInput,
   ItemUpgradeAttemptResult,
   ItemUpgradeInventoryRow,
+  ItemUpgradeQuestSnapshot,
   ItemUpgradeRepository,
   ItemUpgradeSnapshot,
   ItemUpgradeUnlockResult
@@ -79,6 +82,27 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         unlocked: Boolean(unlocked)
       };
     });
+  }
+
+  async getQuestSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeQuestSnapshot | null> {
+    const character = await findCharacter(this.prisma, telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    const [unlocked, fieldKit] = await Promise.all([
+      getUnlockAction(this.prisma, character.id),
+      this.prisma.characterItem.findUnique({
+        where: { characterId_itemId: { characterId: character.id, itemId: FIELD_KIT_ITEM_ID } },
+        select: { quantity: true }
+      })
+    ]);
+
+    return {
+      character: toCharacterRecord(character),
+      fieldKitQuantity: fieldKit?.quantity ?? 0,
+      unlocked: Boolean(unlocked)
+    };
   }
 
   async attemptForTelegramUser(
@@ -333,6 +357,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
             state: "already-unlocked",
             character: toCharacterRecord(character),
             rewardXp: existing.rewardXp,
+            itemGrants: readAppliedItemGrants(existing.resultJson),
             action: existing,
             levelChange: null
           };
@@ -350,6 +375,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         }
 
         const rewardXp = getItemUpgradeUnlockRewardXp(character);
+        const itemGrants = buildItemUpgradeUnlockItemGrants(toCharacterRecord(character));
         const action = await tx.dailyAction.create({
           data: {
             characterId: character.id,
@@ -361,13 +387,19 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
             resultJson: {
               kind: "item-upgrade-unlock",
               version: 1,
-              spentItemId: FIELD_KIT_ITEM_ID
+              spentItemId: FIELD_KIT_ITEM_ID,
+              reward: {
+                appliedItemGrants: serializeItemGrants(itemGrants)
+              }
             },
             createdAt: now
           }
         });
 
         await consumeOneItem(tx, character.id, FIELD_KIT_ITEM_ID);
+        for (const grant of itemGrants) {
+          await grantItem(tx, character.id, grant.itemId, grant.quantity);
+        }
         const rewarded = await tx.character.update({
           where: { id: character.id },
           data: { xp: { increment: rewardXp } }
@@ -393,6 +425,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
             ...(character._count ? { _count: character._count } : {})
           }),
           rewardXp,
+          itemGrants,
           action,
           levelChange: {
             oldLevel,
@@ -414,6 +447,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
               state: "already-unlocked",
               character: toCharacterRecord(character),
               rewardXp: existing.rewardXp,
+              itemGrants: readAppliedItemGrants(existing.resultJson),
               action: existing,
               levelChange: null
             }
@@ -478,8 +512,54 @@ function getLevelLockedResult(
       };
 }
 
+function buildItemUpgradeUnlockItemGrants(character: CharacterRecord): ItemGrant[] {
+  const bonus = buildQuestIskrokaminBonusGrant({
+    characterId: character.id,
+    characterLevel: character.level,
+    sourceIdentity: `${ITEM_UPGRADE_UNLOCK_KEY}:${ITEM_UPGRADE_UNLOCK_LOCAL_DATE}`
+  });
+
+  return bonus ? [bonus] : [];
+}
+
+function readAppliedItemGrants(value: unknown): ItemGrant[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const reward = (value as { reward?: unknown }).reward;
+  if (!reward || typeof reward !== "object" || Array.isArray(reward)) {
+    return [];
+  }
+
+  const grants = (reward as { appliedItemGrants?: unknown }).appliedItemGrants;
+  if (!Array.isArray(grants)) {
+    return [];
+  }
+
+  return grants.flatMap((grant) => {
+    if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
+      return [];
+    }
+
+    const itemId = (grant as { itemId?: unknown }).itemId;
+    const quantity = (grant as { quantity?: unknown }).quantity;
+
+    return typeof itemId === "string" && typeof quantity === "number"
+      ? [{ itemId, quantity }]
+      : [];
+  });
+}
+
+function serializeItemGrants(itemGrants: readonly ItemGrant[]): Array<{ itemId: string; quantity: number }> {
+  return itemGrants.map((grant) => ({
+    itemId: grant.itemId,
+    quantity: grant.quantity
+  }));
+}
+
 async function getUnlockAction(
-  tx: Pick<TxClient, "dailyAction">,
+  tx: Pick<TxClient, "dailyAction"> | Pick<PrismaClient, "dailyAction">,
   characterId: string
 ): Promise<DailyAction | null> {
   return tx.dailyAction.findUnique({
@@ -503,6 +583,20 @@ async function consumeOneItem(tx: TxClient, characterId: string, itemId: string)
   }
 
   await tx.characterItem.deleteMany({ where: { characterId, itemId, quantity: { lte: 0 } } });
+}
+
+async function grantItem(tx: TxClient, characterId: string, itemId: string, quantity: number): Promise<void> {
+  const grantQuantity = Math.max(0, Math.floor(quantity));
+
+  if (grantQuantity <= 0) {
+    return;
+  }
+
+  await tx.characterItem.upsert({
+    where: { characterId_itemId: { characterId, itemId } },
+    create: { characterId, itemId, quantity: grantQuantity },
+    update: { quantity: { increment: grantQuantity } }
+  });
 }
 
 async function replaceOneItemId(tx: TxClient, characterId: string, fromItemId: string, toItemId: string): Promise<void> {
@@ -739,7 +833,7 @@ const characterInclude = {
 } satisfies Prisma.CharacterInclude;
 
 async function findCharacter(
-  tx: TxClient,
+  tx: Pick<TxClient, "character"> | Pick<PrismaClient, "character">,
   telegramUserId: bigint
 ): Promise<(Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }) | null> {
   return tx.character.findFirst({

@@ -642,6 +642,22 @@ describe("AchievementService", () => {
     );
   });
 
+  it("unlocks the first Korchma route achievement from its completion event", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "quest.first-korchma.completed",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-09T18:00:00.000Z"),
+      sourceId: "quest-first-korchma"
+    });
+
+    expect(unlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.quest.first-korchma"
+    ]);
+  });
+
   it("unlocks tavern table game milestones from durable completed table rows", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({
@@ -766,6 +782,7 @@ describe("AchievementService", () => {
         "starter.mimic-shawarma.completed": [new Date("2026-06-28T08:56:00.000Z")],
         "starter.mimic-shawarma.probe.completed": [new Date("2026-06-28T08:57:00.000Z")],
         "cellar.mouse.completed": [new Date("2026-06-28T08:58:00.000Z")],
+        "quest.first-korchma.completed": [new Date("2026-06-28T08:58:15.000Z")],
         "quest.barrel-beer-tutorial.completed": [new Date("2026-06-28T08:58:30.000Z")],
         "yeger.trial.completed": [new Date("2026-06-28T08:59:00.000Z")],
         "combat.finished.won.exclude:monster.mimic-shawarma": [new Date("2026-06-28T09:00:00.000Z")],
@@ -879,6 +896,7 @@ describe("AchievementService", () => {
       "achievement.quest.first-problem",
       "achievement.quest.problem-chain.23",
       "achievement.quest.problem-chain.42",
+      "achievement.quest.first-korchma",
       "achievement.quest.mimic-shawarma",
       "achievement.quest.cellar-mouse",
       "achievement.quest.barrel-beer-tutorial",

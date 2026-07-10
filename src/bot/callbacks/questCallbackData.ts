@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type QuestCallback =
+  | "overview"
   | "adventure"
   | "fight"
   | "fight-descend"
@@ -11,6 +12,7 @@ export type QuestCallback =
   | "hunt"
   | "cellar"
   | "barrel-tutorial"
+  | "barrel-tutorial-accept"
   | "barrel-tutorial-turn-in"
   | "problem"
   | "problem-next"
@@ -20,6 +22,7 @@ export type QuestCallbackError = "invalid-version" | "invalid-prefix" | "invalid
 
 const PREFIX = "v1:quest";
 const questCallbacks = new Set<QuestCallback>([
+  "overview",
   "adventure",
   "fight",
   "fight-descend",
@@ -29,6 +32,7 @@ const questCallbacks = new Set<QuestCallback>([
   "hunt",
   "cellar",
   "barrel-tutorial",
+  "barrel-tutorial-accept",
   "barrel-tutorial-turn-in",
   "problem",
   "problem-next",

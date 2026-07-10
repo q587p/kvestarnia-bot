@@ -134,8 +134,6 @@ export function buildCellarGrownupKeyboard(
   keyboard
     .text("🧀 Купити пломбу", makeCellarCallbackData("grownup-buy-seal"))
     .row()
-    .text("🏹 Дошка полювання", makeQuestCallbackData("hunt"))
-    .row()
     .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 
   return keyboard;

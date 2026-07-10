@@ -54,7 +54,8 @@ import {
   makeShynokDoppelgangerModeCallbackData,
   makeShynokGameJoinCallbackData,
   makeShynokKostiDecisionCallbackData,
-  makeShynokRoundConfirmCallbackData
+  makeShynokRoundConfirmCallbackData,
+  makeShynokRoundOfferOpenCallbackData
 } from "../../src/bot/callbacks/shynokCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import {
@@ -641,7 +642,6 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Домовлятися можна буде за 93 хвилини.");
     expect(buttons).toEqual([
       "🧀 Купити пломбу",
-      "🏹 Дошка полювання",
       "⬅️ До зали"
     ]);
     expect(buttons).not.toContain("🐭 Домовитись із мишею");
@@ -1245,9 +1245,39 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makePlaceCallbackData("quest-table"));
   });
 
-  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+  it("renders Barrel tutorial preview without accepting or granting the stipend", async () => {
+    const acceptForTelegramUser = vi.fn();
+    const getForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "available" as const,
+        character: { ...character, level: 2 },
+        progress: barrelBeerTutorialProgress(false, "location.korchma.quest-table")
+      })
+    );
+
     const calls = await captureApiCalls(
       makeQuestCallbackData("barrel-tutorial"),
+      servicesWith({
+        barrelBeerTutorial: {
+          getForTelegramUser,
+          acceptForTelegramUser
+        }
+      })
+    );
+
+    const edit = calls.find((call) => call.method === "editMessageText");
+    expect(getForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    expect(getParseMode(edit?.payload)).toBe("HTML");
+    expect(edit?.payload.text).toContain("Новачкам — аванс на дорогу до Бочки");
+    expect(edit?.payload.text).toContain("Аванс і запис у журналі зʼявляться тільки якщо ти справді візьмеш записку.");
+    expect(edit?.payload.text).not.toContain("<i>Отримано:</i>");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeQuestCallbackData("barrel-tutorial-accept"));
+  });
+
+  it("renders Barrel tutorial accept stipend with an HTML received label", async () => {
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("barrel-tutorial-accept"),
       servicesWith({
         barrelBeerTutorial: {
           acceptForTelegramUser: () =>
@@ -3627,13 +3657,55 @@ describe("scene callback HTML options", () => {
       }),
       { messageResults: true }
     );
+    const confirmMessageIndex = calls.findIndex((call) => call.method === "editMessageText");
+    const recipientMessageIndex = calls.findIndex((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 93
+    );
     const recipientMessage = calls.find((call) =>
       call.method === "sendMessage" && call.payload.chat_id === 93
     );
 
+    expect(confirmMessageIndex).toBeGreaterThanOrEqual(0);
+    expect(recipientMessageIndex).toBeGreaterThan(confirmMessageIndex);
+    expect(String(calls[confirmMessageIndex]?.payload.text)).toContain("Корчмар поставив кухлі");
     expect(String(recipientMessage?.payload.text)).toContain("<b>Мандрівник</b> ставить вам <b>Просте пиво</b>");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:ra:round-offer-93");
     expect(JSON.stringify(recipientMessage?.payload.reply_markup)).toContain("v1:sh:rd:round-offer-93");
+  });
+
+  it("reopens a live Shynok beer offer from the bar shortcut", async () => {
+    const calls = await captureApiCalls(
+      makeShynokRoundOfferOpenCallbackData("12345678-1234-4234-9234-000000000093"),
+      servicesWith({
+        shynok: {
+          getOpenRoundOfferForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              buyerName: "Shannar de Kassal",
+              offer: {
+                id: "12345678-1234-4234-9234-000000000093",
+                expiresAt: new Date("2026-06-24T11:05:00.000Z"),
+                drink: {
+                  key: "drink.simple-beer",
+                  name: "Просте пиво",
+                  emoji: "🍺",
+                  priceGold: 13,
+                  durationMinutes: 23,
+                  recoveryMultiplierBp: 12300,
+                  accuracyPenaltyPp: 5
+                }
+              }
+            })
+        }
+      }),
+      { messageResults: true }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("<b>Shannar de Kassal</b> ставить вам <b>Просте пиво</b>.");
+    expect(String(edit?.payload.text)).toContain("Можна випити зараз або чемно відмовитися");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:ra:12345678-1234-4234-9234-000000000093");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:rd:12345678-1234-4234-9234-000000000093");
   });
 
   it("does not notify round recipients again on replayed Shynok round confirm", async () => {
@@ -7280,6 +7352,8 @@ describe("scene callback HTML options", () => {
     });
 
     await captureApiCalls(makeQuestCallbackData("barrel-tutorial"), services);
+    expect(barrelBeerTutorial.acceptForTelegramUser).not.toHaveBeenCalled();
+    await captureApiCalls(makeQuestCallbackData("barrel-tutorial-accept"), services);
     await captureApiCalls(makeTavernCallbackData("raid"), services);
     await vi.advanceTimersByTimeAsync(60_000);
     await captureApiCalls(

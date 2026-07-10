@@ -2868,6 +2868,86 @@ describe("FightService", () => {
         levelDelta: 5
       }
     });
+
+    const repeated = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      action: "attack"
+    });
+
+    expect(repeated.state).toBe("terminal");
+    expect(activityEvents.records).toHaveLength(1);
+  });
+
+  it("records underdog combat wins when replaying an already-settled reward", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const character = await characters.findByTelegramUserId(telegramUserId);
+    expect(character).not.toBeNull();
+    if (!character) {
+      return;
+    }
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const activityEvents = new FakeActivityEventRepository();
+    const monster = monsters.find((candidate) => candidate.id === "monster.deadline-spider");
+    expect(monster).toBeDefined();
+    if (!monster) {
+      return;
+    }
+    const effectiveMonsterLevel = getLevelForXp(character.xp) + 5;
+    const wonSession = sessions.addSession({
+      ...makeTerminalSession("won", "session-won-underdog-replay", character.id, monster.id, {
+        settlement: "completed"
+      }),
+      reward: {
+        xp: 7,
+        gold: 1,
+        itemGrants: [],
+        claimedAt: fixedClock()
+      }
+    });
+    sessions.addSession({
+      ...wonSession,
+      state: wonSession.state
+        ? {
+            ...wonSession.state,
+            monster: {
+              ...wonSession.state.monster,
+              debugTrace: {
+                ...wonSession.state.monster.debugTrace,
+                baseMonsterLevel: monster.level,
+                effectiveMonsterLevel
+              }
+            }
+          }
+        : wonSession.state
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      activityEvents: new PublicActivityEventPublisher(new ActivityEventService(activityEvents)),
+      rng: new FakeRandomSource([0.1])
+    });
+
+    const replayed = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(replayed.state).toBe("terminal");
+    expect(activityEvents.records).toHaveLength(1);
+    expect(activityEvents.records[0]).toMatchObject({
+      eventType: "combat.underdog_won",
+      sourceId: wonSession.id,
+      subjectId: monster.id,
+      payload: {
+        levelDelta: 5
+      }
+    });
   });
 
   it("keeps below-threshold wins and losses out of activity events", async () => {
@@ -6632,6 +6712,14 @@ class FakeActivityEventRepository implements ActivityEventRepository {
   readonly records: ActivityEventRecord[] = [];
 
   record(input: RecordActivityEventInput): Promise<ActivityEventRecord> {
+    const existing = this.records.find((record) => (
+      input.dedupeKey !== undefined &&
+      record.dedupeKey === input.dedupeKey
+    ));
+    if (existing) {
+      return Promise.resolve(existing);
+    }
+
     const record: ActivityEventRecord = {
       id: `activity-event-${this.records.length + 1}`,
       eventType: input.eventType,

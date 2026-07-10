@@ -89,9 +89,9 @@ describe("Yeger presenter", () => {
     expect(text).toContain("+35 XP\n+120 золота");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
     expect(text).toContain(
-      "Здобуто: <i>Єгерська риска на дощечці</i>\n\nВідкрито: Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
+      "Здобуто: <i>Єгерська риска на дощечці</i>\n\n<i>Відкрито:</i> Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
     );
-    expect(text).toContain("«Неспокійні справи 2.0»");
+    expect(text).toContain("«<b>Неспокійні справи 2.0</b>»");
   });
 
   it("renders the second Yeger board keepsake quantity", () => {

@@ -121,6 +121,9 @@ describe("cellar presenter", () => {
     expect(text).toContain("🧀");
     expect(text).toContain("Миша оцінила командний підхід");
     expect(text).toContain("<i>Метод:</i> cheese-trap");
+    expect(text).toContain("💔 Втрачено здоров’я: 2");
+    expect(text).toContain("❤️‍🩹 Здоров’я: 18/20");
+    expect(text).not.toContain("\nВтрачено здоров’я: 2");
     expect(text).toContain("<i>Отримано:</i>");
     expect(text).toContain("+2 XP\n+1 золота");
     expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
@@ -323,7 +326,10 @@ const ready: Extract<CellarErrandLookupResult, { state: "ready" }> = {
 const completed: Exclude<CellarErrandResult, { state: "no-character" }> = {
   state: "completed",
   action: "cheese-trap",
-  character,
+  character: {
+    ...character,
+    hpCurrent: 18
+  },
   reward: {
     xp: 2,
     gold: 1,
@@ -334,6 +340,12 @@ const completed: Exclude<CellarErrandResult, { state: "no-character" }> = {
         quantity: 1
       }
     ]
+  },
+  hpLoss: {
+    lost: 2,
+    before: 20,
+    after: 18,
+    max: 20
   },
   availableAt: new Date("2026-06-13T10:03:00.000Z"),
   now,

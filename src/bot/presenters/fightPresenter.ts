@@ -928,7 +928,7 @@ function presentThreatPressureLine(
     return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> дійшов до межі ${pressure.levelCap}; зайві рівні Корчма вперла в стелю.`;
   }
 
-  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога тримає коротшу планку здоровʼя.`;
+  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога не тисне щохідно й бʼє мʼякше, доки основний ворог живий.`;
 }
 
 function formatLevelPoints(value: number): string {
@@ -1229,7 +1229,7 @@ function presentTurnSummary(
   if (summary.heroOutcome === "defended") {
     const defenseLine =
       summary.action === "skill" || summary.action === "race" || summary.action === "gear"
-        ? `${presentSkillAction(summary.skillId)} спрацьовує: ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
+        ? `${presentSkillAction(summary.skillId)}: спрацьовує, ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
         : "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.";
 
     return withMonsterBark(summary, [
@@ -1354,7 +1354,9 @@ function presentEnemyHpRows(
 function presentRemortMonsterPressureLines(state: CombatState | null | undefined): string[] {
   const remortCount = state?.life?.remortCount ?? 0;
 
-  if (!state || remortCount <= 3 || normalizeCombatEnemies(state).length > 1) {
+  const visiblePressureFreeRanks = state?.source === "yeger" ? 2 : 3;
+
+  if (!state || remortCount <= visiblePressureFreeRanks || normalizeCombatEnemies(state).length > 1) {
     return [];
   }
 
@@ -1675,6 +1677,8 @@ function presentNotEnoughManaAbility(
 }
 
 function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  const actionLead = presentHeroActionLead(action);
+
   if (summary.fumble) {
     return presentPlayerAbilityFumble(summary.fumble);
   }
@@ -1690,20 +1694,22 @@ function presentHeroActionResult(summary: CombatTurnSummary, action: string): st
       })
       .join("; ");
 
-    return `${action} зачіпає супротивників: ${results}.`;
+    return `${actionLead} зачіпає супротивників: ${results}.`;
   }
 
   if (summary.heroOutcome === "miss") {
-    return `${action} не влучає.`;
+    return `${actionLead} не влучає.`;
   }
 
   if (summary.heroDamage <= 0 && (summary.allyResults?.length ?? 0) > 0) {
-    return `${action} спрацьовує без прямої шкоди.`;
+    return `${actionLead} спрацьовує без прямої шкоди.`;
   }
 
-  const hitAction = action === "Атака" ? action : `${action} і`;
+  return `${actionLead} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
 
-  return `${hitAction} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+function presentHeroActionLead(action: string): string {
+  return action === "Атака" || action === "Відступ" ? action : `${action}:`;
 }
 
 function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {

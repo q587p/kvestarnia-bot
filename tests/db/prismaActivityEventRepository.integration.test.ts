@@ -115,10 +115,17 @@ describe("PrismaActivityEventRepository integration", () => {
       now,
       retentionDays: 93
     });
+    const combat = await repository.listRecent({
+      categories: ["combat", "raid"],
+      pageSize: 5,
+      now,
+      retentionDays: 93
+    });
 
     expect(manatky.events.map((event) => event.dedupeKey)).toEqual(["event-2"]);
     expect(manatky.hasNextPage).toBe(true);
     expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-3", "event-underdog-8"]);
+    expect(combat.events.map((event) => event.dedupeKey)).toEqual(["event-underdog-7", "event-underdog-8"]);
   });
 });
 

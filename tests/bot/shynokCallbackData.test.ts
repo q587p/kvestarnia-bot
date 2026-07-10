@@ -29,6 +29,7 @@ import {
   makeShynokGamesCallbackData,
   makeShynokKostiDecisionCallbackData,
   makeShynokRoundConfirmCallbackData,
+  makeShynokRoundOfferOpenCallbackData,
   makeShynokRoundReplacementConfirmCallbackData,
   makeShynokSaleAddCallbackData,
   makeShynokSaleConfirmCallbackData,
@@ -53,6 +54,10 @@ describe("shynokCallbackData", () => {
     expect(parseShynokCallbackData(makeShynokRoundConfirmCallbackData("fine", token))).toEqual({
       ok: true,
       value: { type: "round-confirm", tier: "fine", token }
+    });
+    expect(parseShynokCallbackData(makeShynokRoundOfferOpenCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "round-offer-open", offerId: token }
     });
     expect(parseShynokCallbackData(makeShynokRoundReplacementConfirmCallbackData(token, "abcdef1234567890"))).toEqual({
       ok: true,

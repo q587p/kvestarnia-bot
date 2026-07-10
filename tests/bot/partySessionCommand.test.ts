@@ -628,7 +628,7 @@ describe("handlePartySessionCallback", () => {
     expect(messageText(editMessageText)).toContain("▪️ Тестова Лідерка після ходу: HP 21/25 · мана 10/10 ← 🎯 ціль боса");
     expect(messageText(editMessageText)).toContain("<b>Останні дії:</b>");
     expect(messageText(editMessageText)).toContain("Атака Тестова Лідерка влучає на 7 шкоди.");
-    expect(messageText(editMessageText)).toContain("Друга Учасниця застосовує 🪨 <i>Низький центр ваги</i> спрацьовує без прямої шкоди.");
+    expect(messageText(editMessageText)).toContain("Друга Учасниця застосовує 🪨 <i>Низький центр ваги</i>: спрацьовує без прямої шкоди.");
   });
 
   it("keeps the boss journal closed while the battle is active", async () => {

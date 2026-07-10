@@ -166,6 +166,10 @@ describe("CellarErrandService", () => {
 
     const first = await service.complete(telegramUserId, "sweep-bravely");
     now = new Date(startedAt.getTime() + CELLAR_MOUSE_ERRAND_COOLDOWN_MS + 1);
+    await expect(service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready",
+      completed: true
+    });
     const second = await service.complete(telegramUserId, "cheese-trap");
 
     expect(second.state).toBe("completed");
@@ -277,6 +281,7 @@ describe("CellarErrandService", () => {
     expect(character).not.toBeNull();
     const methods = buildCellarMethodOptions(summarizeCharacter(character!));
 
+    expect(methods).toHaveLength(4);
     expect(methods.map((method) => method.id)).toContain("bribe-cheese");
     expect(methods.find((method) => method.id === "bribe-cheese")?.callbackKey).toBeDefined();
 

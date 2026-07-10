@@ -18,7 +18,7 @@ export function buildBarrelBeerTutorialKeyboard(result: QuestState): InlineKeybo
   const progress = result.progress;
 
   if (result.state === "available" || result.state === "not-started") {
-    keyboard.text("🛢️ Взяти записку", makeQuestCallbackData("barrel-tutorial")).row();
+    keyboard.text("🛢️ Взяти записку", makeQuestCallbackData("barrel-tutorial-accept")).row();
   } else if (result.state === "turn-in-ready") {
     keyboard.text("✅ Здати Бочку", makeQuestCallbackData("barrel-tutorial-turn-in")).row();
   } else if (!progress.visitedBarrel || !progress.raidCompleted) {

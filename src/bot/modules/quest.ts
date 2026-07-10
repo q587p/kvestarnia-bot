@@ -50,7 +50,8 @@ shouldShowYegerFieldKitHelp
 } from "../commands/yegerFieldKitHelp";
 import {
 registerQuestHubCommand,
-sendQuestHub
+sendQuestHub,
+sendQuestOverview
 } from "../commands/questHubCommand";
 import {
 sendKorchmaBar
@@ -117,6 +118,7 @@ presentDailyKorchmaRoundStep
 } from "../presenters/dailyKorchmaRoundPresenter";
 import {
 presentBarrelBeerTutorialAccept,
+presentBarrelBeerTutorialLookup,
 presentBarrelBeerTutorialTurnIn
 } from "../presenters/barrelBeerTutorialPresenter";
 import {
@@ -366,6 +368,15 @@ async function handleQuestCallback(
 
   await safeAnswerCallbackQuery(ctx);
 
+  if (action === "overview") {
+    await sendQuestOverview(
+      ctx,
+      buildQuestHubCommandOptions(services),
+      "edit"
+    );
+    return;
+  }
+
   if (action === "archive" || action === "list") {
     await sendQuestHub(
       ctx,
@@ -376,13 +387,37 @@ async function handleQuestCallback(
     return;
   }
 
-  if (action === "barrel-tutorial" || action === "barrel-tutorial-turn-in") {
+  if (action === "barrel-tutorial" || action === "barrel-tutorial-accept" || action === "barrel-tutorial-turn-in") {
     if (!telegramUserId) {
       await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
       return;
     }
 
     if (action === "barrel-tutorial") {
+      await markScenePresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: null
+      });
+
+      const result = await services.barrelBeerTutorial.getForTelegramUser(telegramUserId);
+      const replyMarkup =
+        result.state === "no-character" ||
+        result.state === "level-locked" ||
+        result.state === "level-retired" ||
+        result.state === "completed"
+          ? buildBarrelBeerTutorialCompletedKeyboard()
+          : buildBarrelBeerTutorialKeyboard(result);
+
+      await safeEditMessageText(ctx, presentBarrelBeerTutorialLookup(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: replyMarkup
+      });
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
+
+    if (action === "barrel-tutorial-accept") {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
         currentRaidId: null,
@@ -532,7 +567,8 @@ async function handleQuestCallback(
         "edit",
         services.cellarGrownup,
         services.fight,
-        services.tavernGames
+        services.tavernGames,
+        { shynokService: services.shynok }
       );
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;

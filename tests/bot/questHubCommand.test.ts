@@ -4,7 +4,7 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeYegerTurnInCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
-import { sendQuestHub } from "../../src/bot/commands/questHubCommand";
+import { sendQuestHub, sendQuestOverview } from "../../src/bot/commands/questHubCommand";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -14,6 +14,7 @@ import type { CellarErrandService } from "../../src/services/cellarErrandService
 import type { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { FightService } from "../../src/services/fightService";
+import type { FirstKorchmaQuestService } from "../../src/services/firstKorchmaQuestService";
 import type { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type { YegerQuestService } from "../../src/services/yegerQuestService";
@@ -94,6 +95,131 @@ describe("quest hub command", () => {
       currentRaidId: null,
       currentAdventureId: null
     });
+  });
+
+  it("shows the quest overview from the main quest route without moving to the quest table", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
+
+    await sendQuestOverview(makeContext(replies), servicesWith({ presence }), "reply");
+
+    expect(replies[0]?.text).toContain("🗺️ <b>Квести</b>");
+    expect(replies[0]?.text).toContain("🧾 <b>Тринадцять дрібних проблем</b>");
+    expect(replies[0]?.text).toContain("Журнал тільки показує дороги");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons.map((button) => button.callback_data)).toContain(makePlaceCallbackData("quest-table"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("overview"));
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("shows the quest overview outside the korchma with the first route quest", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      insideKorchma: false
+    });
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        presence,
+        firstKorchmaQuest: firstKorchmaQuestService(character, false)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🗺️ <b>Квести</b>");
+    expect(replies[0]?.text).toContain("📋 <b>Перший крок до столу</b> — 0/2");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> зайдіть у Корчму.");
+    expect(replies[0]?.text).not.toBe("Квести видають усередині.");
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toContainEqual({
+      text: "📋 До столу зі справами",
+      callback_data: makePlaceCallbackData("quest-table")
+    });
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
+    expect(buttons.map((button) => button.callback_data)).not.toContain(makeQuestCallbackData("overview"));
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("shows starter quests in the overview after the first route quest is completed", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const levelOneCharacter = characterAtLevel(1);
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        adventure: readyAdventureService(levelOneCharacter),
+        fight: readyFightService(levelOneCharacter),
+        firstKorchmaQuest: firstKorchmaQuestService(levelOneCharacter, true, true)
+      }),
+      "reply"
+    );
+
+    expect(replies[0]?.text).toContain("🌯 <b>Підозріла шаурма</b> — новачкова підозра");
+    expect(replies[0]?.text).toContain("<i>Зроблено:</i> перший шлях до столу пройдено");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> відкрийте підозрілу шаурму");
+    expect(replies[0]?.text).toContain("⚔️ <b>Новачкова сутичка</b> — чекає свідчень");
+    expect(replies[0]?.text).toContain("<i>Зроблено:</i> шаурма ще не дала свідчень");
+    expect(replies[0]?.text).toContain("<i>Далі:</i> спершу розберіться з підозрілою шаурмою");
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+    expect(buttons).toEqual([
+      {
+        text: "📋 До столу зі справами",
+        callback_data: makePlaceCallbackData("quest-table")
+      }
+    ]);
+  });
+
+  it("opens the overview from existing lookups without accepting or claiming quest progress", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const getExistingForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "not-issued" as const,
+        character: characterAtLevel(3),
+        dayToken: "20260709"
+      })
+    );
+    const getForTelegramUser = vi.fn();
+    const completeAdventureApproach = vi.fn();
+
+    await sendQuestOverview(
+      makeContext(replies),
+      servicesWith({
+        adventure: {
+          ...readyAdventureService(characterAtLevel(3)),
+          completeAdventureApproach
+        } as unknown as AdventureService,
+        dailyKorchmaRound: {
+          getExistingForTelegramUser,
+          getForTelegramUser
+        } as unknown as DailyKorchmaRoundService
+      }),
+      "reply"
+    );
+
+    expect(getExistingForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(completeAdventureApproach).not.toHaveBeenCalled();
+    expect(replies[0]?.text).toContain("🧾 <b>Тринадцять дрібних проблем</b>");
+    expect(replies[0]?.text).not.toContain("🧾 <b>Корчмарський обхід</b> — доступно");
   });
 
   it("keeps a hall return when the quest hub is opened from the quest table", async () => {
@@ -190,7 +316,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons).toContainEqual({
-      text: "✨ Доступ до Чароковальні ⚠️",
+      text: "✨ Доступ до Чароковальні ✅",
       callback_data: makePlaceCallbackData("yard")
     });
   });
@@ -306,7 +432,8 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i>");
-    expect(replies[0]?.text).toContain("Новачкам — 39 золота на дорогу до Бочки");
+    expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i> — на столі лежить записка");
+    expect(replies[0]?.text).toContain("Новачкам — аванс на дорогу до Бочки");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
     const buttons = (
       replies[0]?.options as {
@@ -1406,6 +1533,7 @@ function servicesWith(overrides: {
   cellarGrownup?: CellarGrownupQuestService;
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight?: FightService;
+  firstKorchmaQuest?: FirstKorchmaQuestService;
   itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
@@ -1426,6 +1554,7 @@ function servicesWith(overrides: {
     fight:
       overrides.fight ??
       readyFightService(character),
+    firstKorchmaQuest: overrides.firstKorchmaQuest,
     itemUpgrades: overrides.itemUpgrades,
     yeger:
       overrides.yeger ??
@@ -1537,6 +1666,53 @@ function completedBarrelBeerTutorialService(summary: CharacterSummary): BarrelBe
         }
       })
   } as unknown as BarrelBeerTutorialService;
+}
+
+function firstKorchmaQuestService(
+  summary: CharacterSummary,
+  enteredKorchma: boolean,
+  completed = false
+): FirstKorchmaQuestService {
+  return {
+    getForTelegramUser: () =>
+      Promise.resolve(
+        completed
+          ? {
+              state: "completed",
+              character: summary,
+              progress: {
+                enteredKorchma: true,
+                reachedQuestTable: true,
+                currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+              },
+              reward: { xp: 1, gold: 0 }
+            }
+          : {
+              state: "active",
+              character: summary,
+              progress: {
+                enteredKorchma,
+                reachedQuestTable: false,
+                currentLocationId: enteredKorchma
+                  ? PRESENCE_LOCATION_KORCHMA_HALL
+                  : PRESENCE_LOCATION_KORCHMA_FRONT
+              }
+            }
+      ),
+    completeForTelegramUser: () =>
+      Promise.resolve({
+        state: "already-completed",
+        character: summary,
+        progress: {
+          enteredKorchma: true,
+          reachedQuestTable: true,
+          currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+        },
+        reward: { xp: 1, gold: 0 },
+        levelChange: null,
+        achievementUnlocks: []
+      })
+  } as unknown as FirstKorchmaQuestService;
 }
 
 function barrelBeerTutorialProgress(done: boolean) {

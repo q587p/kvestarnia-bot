@@ -37,5 +37,5 @@ function filterButtonLabel(
   filter: LatestEventFilter,
   label: string
 ): string {
-  return currentFilter === filter ? `✅ ${label}` : label;
+  return currentFilter === filter ? `🔘 ${label}` : label;
 }

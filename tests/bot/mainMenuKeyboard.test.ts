@@ -314,11 +314,30 @@ describe("main menu and scene keyboards", () => {
         itemUpgrades: {
           state: "unlock-required",
           character,
-          fieldKitQuantity: 1,
+          fieldKitQuantity: 0,
           rewardXp: 13
         }
       }
     }))).toContainEqual(["✨ Чароковальня ⚠️"]);
+    const readyCharkokovalniaQuestMarkers = {
+      characterLevel: 5,
+      itemUpgrades: {
+        state: "unlock-required" as const,
+        character,
+        fieldKitQuantity: 1,
+        rewardXp: 13
+      }
+    };
+    expect(inlineButtonRows(buildKorchmaYardKeyboard({
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContainEqual(["✨ Чароковальня ✅"]);
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContain("🚪 Надвір ✅");
+    expect(inlineButtonRows(buildKorchmaFrontKeyboard({
+      dailyYard: true,
+      questMarkers: readyCharkokovalniaQuestMarkers
+    }))).toContainEqual(["🪣 У задвірок ✅"]);
     expect(flatInlineButtonTexts(buildKorchmaFrontKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "🚪 Зайти в корчму",
       "📜 Табличка прибулих",
@@ -482,6 +501,40 @@ describe("main menu and scene keyboards", () => {
         buildKorchmaHallKeyboard({
           questMarkers: {
             characterLevel: 4,
+            barrelBeerTutorial: {
+              state: "in-progress",
+              character,
+              progress: {
+                accepted: true,
+                stipendGranted: true,
+                visitedBarrel: true,
+                raidCompleted: true,
+                beerRoundOffered: true,
+                beerDrunk: true,
+                activeBeer: true,
+                currentLocationId: "location.korchma.bar"
+              }
+            },
+            dailyKorchmaRound: { state: "not-issued", character, dayToken: "20260707" },
+            problemQuest: {
+              stageId: "13",
+              title: "Тринадцять дрібних проблем",
+              wins: 0,
+              target: 13,
+              completed: false,
+              rewardClaimed: false,
+              issued: false,
+              branchComplete: false
+            }
+          }
+        })
+      )
+    ).toEqual(expect.arrayContaining(["📋 Стіл зі справами ✅", "🍻 Шинок ⚠️"]));
+    expect(
+      flatInlineButtonTexts(
+        buildKorchmaHallKeyboard({
+          questMarkers: {
+            characterLevel: 4,
             yeger: {
               state: "offered",
               character,
@@ -586,6 +639,28 @@ describe("main menu and scene keyboards", () => {
       "v1:sh:rp:fine",
       "v1:sh:so",
       "v1:place:hall"
+    ]);
+    expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
+      openRoundOffers: [{
+        id: "12345678-1234-4234-9234-000000000093",
+        expiresAt: new Date("2026-06-23T10:05:00.000Z"),
+        drink: {
+          key: "drink.simple-beer",
+          name: "Просте пиво",
+          emoji: "🍺",
+          priceGold: 13,
+          durationMinutes: 23,
+          recoveryMultiplierBp: 12300,
+          accuracyPenaltyPp: 5
+        }
+      }]
+    }))).toEqual([
+      "🍹 Напої для себе",
+      "🍺 Вам пиво!",
+      "🍺 Просте всім",
+      "🍻 Якісне всім",
+      "💰 Продати манатки",
+      "⬅️ До зали"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({ tavernGames: true }))).toContain("🎲 Ігри за столом");
     expect(flatInlineButtonTexts(buildKorchmaBarKeyboard({
@@ -1229,7 +1304,7 @@ describe("main menu and scene keyboards", () => {
 
     const cellarLabels = flatInlineButtonTexts(buildCellarKeyboard(domovyk));
 
-    expect(cellarLabels.slice(0, -2).length).toBeGreaterThanOrEqual(5);
+    expect(cellarLabels.slice(0, -2)).toHaveLength(4);
     expect(cellarLabels).toContain("🪙 Дати миші 1 золоту «на сирний фонд»");
     expect(cellarLabels.join("\n")).not.toMatch(/Оголосити правилом|Витягти доказ|🏷️|Пересічні Пригодники/u);
     expect(cellarLabels.at(-2)).toBe("💡 Підказка");
@@ -2954,7 +3029,6 @@ describe("main menu and scene keyboards", () => {
 
     expect(labels).toEqual([
       "🧀 Купити пломбу",
-      "🏹 Дошка полювання",
       "⬅️ До зали"
     ]);
     expect(labels).not.toContain("🐭 Домовитись із мишею");
@@ -3048,7 +3122,7 @@ describe("main menu and scene keyboards", () => {
       }
     });
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До Столу зі справами", "🍺 До зали"]);
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До столу зі справами", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:c:"))).toBe(false);
   });

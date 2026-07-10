@@ -44,6 +44,7 @@ sendYegerCorner
 import { shouldShowYegerFieldKitHelp } from "../commands/yegerFieldKitHelp";
 import { sendNewsList } from "../commands/newsCommand";
 import {
+sendFirstKorchmaQuestCompletionIfNeeded,
 sendQuestHub
 } from "../commands/questHubCommand";
 import {
@@ -141,6 +142,7 @@ presentShynokDrinkPreview,
 presentShynokGate,
 presentShynokOverview,
 presentShynokRoundConfirm,
+presentShynokRoundOfferOpen,
 presentShynokRoundOfferNotification,
 presentShynokRoundOfferResponse,
 presentShynokRoundPreview,
@@ -798,12 +800,24 @@ async function handleShynokCallback(
     await safeAnswerCallbackQuery(ctx, result.state === "completed"
       ? { text: "Кухлі поставлено.", show_alert: false }
       : { show_alert: result.state !== "replayed" });
-    if (result.state === "completed") {
-      await notifyShynokRoundRecipients(ctx, result);
-    }
     await safeEditMessageText(ctx, presentShynokRoundConfirm(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildShynokRoundResultKeyboard(result, roundResultNavigationOptions)
+    });
+    if (result.state === "completed") {
+      await notifyShynokRoundRecipients(ctx, result);
+    }
+    return;
+  }
+
+  if (action.type === "round-offer-open") {
+    const result = await services.shynok.getOpenRoundOfferForTelegramUser(telegramUserId, action.offerId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentShynokRoundOfferOpen(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: result.state === "ready"
+        ? buildShynokRoundOfferNotificationKeyboard(result.offer.id)
+        : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
   }
@@ -1185,6 +1199,7 @@ async function handlePlaceCallback(
 
   if (action === "hall") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_HALL);
+    await services.firstKorchmaQuest?.markEnteredForTelegramUser(telegramUserId);
     if (await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_HALL, services)) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
@@ -1276,6 +1291,7 @@ async function handlePlaceCallback(
       services.fight,
       services.tavernGames,
       {
+        shynokService: services.shynok,
         ...(questMarkers ? { questMarkers } : {})
       }
     );
@@ -1328,6 +1344,7 @@ async function handlePlaceCallback(
 
   if (action === "quest-table") {
     await sendPlaceMovementNotice(ctx, services.presence, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    await sendFirstKorchmaQuestCompletionIfNeeded(ctx, buildQuestHubCommandOptions(services), telegramUserId);
     if (
       await sendDailyKorchmaRoundSceneAtLocation(ctx, telegramUserId, PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, services)
     ) {

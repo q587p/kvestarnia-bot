@@ -70,6 +70,7 @@ import {
   makeShynokBardPerformanceStartCallbackData,
   makeShynokBardPerformanceTipCallbackData,
   makeShynokOverviewCallbackData,
+  makeShynokRoundOfferOpenCallbackData,
   makeShynokRoundAcceptCallbackData,
   makeShynokRoundConfirmCallbackData,
   makeShynokRoundDeclineCallbackData,
@@ -90,9 +91,20 @@ export function buildShynokOverviewKeyboard(
   result?: ShynokOverviewResult,
   options: { tavernGames?: boolean; tavernGameTableCount?: number; questMarkers?: QuestMarkerInput | null } = {}
 ): InlineKeyboard {
-  const keyboard = new InlineKeyboard()
-    .text("🍹 Напої для себе", makeShynokDrinksCallbackData())
-    .row()
+  const keyboard = new InlineKeyboard();
+  const openRoundOffers = result?.state === "ready" ? result.openRoundOffers : [];
+
+  keyboard.text("🍹 Напої для себе", makeShynokDrinksCallbackData());
+  if (openRoundOffers[0]) {
+    keyboard.text("🍺 Вам пиво!", makeShynokRoundOfferOpenCallbackData(openRoundOffers[0].id));
+  }
+  keyboard.row();
+
+  for (const [index, offer] of openRoundOffers.slice(1).entries()) {
+    keyboard.text(`🍺 Вам пиво! ${index + 2}`, makeShynokRoundOfferOpenCallbackData(offer.id)).row();
+  }
+
+  keyboard
     .text("🍺 Просте всім", makeShynokRoundPreviewCallbackData("simple"))
     .text("🍻 Якісне всім", makeShynokRoundPreviewCallbackData("fine"))
     .row()
@@ -109,15 +121,6 @@ export function buildShynokOverviewKeyboard(
     result.character.level >= 3
   ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
-  }
-
-  if (result?.state === "ready") {
-    for (const offer of result.openRoundOffers) {
-      keyboard
-        .text(`🍺 Випити`, makeShynokRoundAcceptCallbackData(offer.id))
-        .text("Ні, дякую", makeShynokRoundDeclineCallbackData(offer.id))
-        .row();
-    }
   }
 
   return keyboard.text(buildBackToHallLabel(options), makePlaceCallbackData("hall"));

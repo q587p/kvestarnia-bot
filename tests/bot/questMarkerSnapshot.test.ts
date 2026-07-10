@@ -124,13 +124,16 @@ describe("quest marker snapshot", () => {
     > & Partial<Pick<BotServices, "itemUpgrades">>);
 
     expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
-      "📋 Стіл зі справами ⚠️"
+      "📋 Стіл зі справами ✅"
+    );
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
+      "🚪 Надвір ✅"
     );
     expect(flatInlineButtonTexts(buildEnterKorchmaKeyboard({ questMarkers: snapshot }))).toEqual([
-      "🚪 Зайти в корчму ⚠️"
+      "🚪 Зайти в корчму ✅"
     ]);
     expect(flatInlineButtonTexts(buildKorchmaYardKeyboard({ questMarkers: snapshot }))).toContain(
-      "✨ Чароковальня ⚠️"
+      "✨ Чароковальня ✅"
     );
   });
 
@@ -167,6 +170,57 @@ describe("quest marker snapshot", () => {
     expect(snapshot?.itemUpgrades).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("quest marker yeger"), expect.any(Error));
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("quest marker item upgrades"), expect.any(Error));
+  });
+
+  it("prefers lightweight marker-only lookups for expensive quest marker sources", async () => {
+    const yegerFullLookup = vi.fn(() => Promise.resolve({ state: "no-character" }));
+    const itemUpgradeFullLookup = vi.fn(() => Promise.resolve({ state: "no-character" }));
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, {
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      yeger: {
+        getForTelegramUser: yegerFullLookup,
+        getQuestMarkerForTelegramUser: () =>
+          Promise.resolve({
+            state: "offered",
+            character,
+            progress: { wins: 0, target: 5, stageId: "first" }
+          })
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      itemUpgrades: {
+        getUnlockQuestForTelegramUser: itemUpgradeFullLookup,
+        getQuestMarkerForTelegramUser: () =>
+          Promise.resolve({
+            state: "unlock-required",
+            character,
+            fieldKitQuantity: 1,
+            rewardXp: 13
+          })
+      }
+    } as unknown as Pick<
+      BotServices,
+      "adventure" | "cellarErrand" | "cellarGrownup" | "dailyKorchmaRound" | "fight" | "yeger"
+    > & Partial<Pick<BotServices, "itemUpgrades">>);
+
+    expect(flatInlineButtonTexts(buildKorchmaHallKeyboard({ questMarkers: snapshot }))).toContain(
+      "📋 Стіл зі справами ✅"
+    );
+    expect(snapshot?.yeger?.state).toBe("offered");
+    expect(yegerFullLookup).not.toHaveBeenCalled();
+    expect(itemUpgradeFullLookup).not.toHaveBeenCalled();
   });
 });
 
