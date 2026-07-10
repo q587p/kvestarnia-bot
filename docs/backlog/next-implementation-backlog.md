@@ -26,7 +26,8 @@
 11. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
 12. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
 13. **Priority combat expansion:** bounded 3+ enemy solo encounters on the shipped one-/two-enemy foundation; see [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-enemy-combat.md). Do this before broad party-help or real-raid work.
-14. Party combat / real raid MVP with capped contribution-aware rewards.
+14. Monster escape attempts with explicit non-win outcomes, compatible with 3+ enemy encounters.
+15. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
@@ -1301,6 +1302,14 @@ Future task doc: [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-en
 Це піднятий пріоритет для наступного combat slice: один пригодник має отримати bounded encounter із трьома або більше монстрами, а не груповий бій із кількома гравцями. Спочатку потрібні стабільний target selection, повний turn/journal/replay path, коректне завершення лише після останнього монстра та одна encounter-нагорода без автоматичного множення.
 
 Перший production slice має мати явну верхню межу, balance proof і спосіб дістатися до кожної живої цілі в Telegram UI. Групова допомога, party combat, Big Barrel raids і summon/backup-поведінка залишаються окремими наступними задачами.
+
+## Later — Monster Escape Attempts
+
+Future task doc: [0.2.x-monster-escape.md](../tasks/0.2.x-monster-escape.md).
+
+Після 3+ enemy combat окремо додати контрольовану спробу втечі для частини PvE-монстрів: невдала спроба витрачає відповідь монстра й лишає бій активним, успішна має власний outcome, а в multi-enemy encounter прибирає лише конкретного ворога. Якщо тікає останній монстр, це не перемога і не звичайна нагорода.
+
+Потрібні обмежені trigger/attempt rules, детермінований RNG, відмінність від втечі гравця, коректні журнали та replay-safe settlement. Жодної автоматичної XP/gold/loot-нагороди за сам факт втечі без окремого balance-рішення.
 
 ## Later — Summoner Tags and Encounter Follow-ups
 

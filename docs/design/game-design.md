@@ -524,6 +524,7 @@ Rewards and anti-grind:
 - combat variety: guard, cooldowns, monster skills, item tags and one-use manatky;
 - remort-only advanced options after the `0.1.2` MVP;
 - bounded 3+ enemy solo combat expansion on the shipped one-/two-enemy foundation;
+- authored monster escape attempts with explicit non-win outcomes;
 - party combat and real raids after the solo multi-enemy path is balance-tested.
 
 ## Групова активність later
