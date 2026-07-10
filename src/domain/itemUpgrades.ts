@@ -443,7 +443,7 @@ export function buildItemUpgradeVariantContents(baseItems: readonly ItemContent[
         description: `${base.description}\n\nПідсилення +${level}: ${getItemUpgradeMagicStrengthLabel(level)}, Чароковальня просить не лизати іскри.`,
         rarity: getItemUpgradeRarity(base.rarity, level),
         goldValue: calculateItemUpgradeVariantGoldValue({
-          baseGoldValue: base.goldValue,
+          ...(base.goldValue === undefined ? {} : { baseGoldValue: base.goldValue }),
           baseRarity: base.rarity,
           level
         }),
