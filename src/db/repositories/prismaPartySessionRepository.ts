@@ -10,6 +10,10 @@ import type {
   PartyLeaveRepositoryResult,
   PartyParticipantReadiness,
   PartyParticipantRecord,
+  PartyPersonalProtocolFileRepositoryResult,
+  PartyPersonalProtocolRecord,
+  PartyPersonalProtocolSignRepositoryResult,
+  PartyPersonalProtocolSignatureRecord,
   PartyReadinessRepositoryResult,
   PartyWardSignPlaceRepositoryResult,
   PartyWardSignRecord,
@@ -24,6 +28,14 @@ import type {
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
+import {
+  BUREAUCRAMANCER_PROTOCOL_CLASS_ID,
+  BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY,
+  BUREAUCRAMANCER_PROTOCOL_COOLDOWN_MINUTES,
+  BUREAUCRAMANCER_PROTOCOL_KIND,
+  BUREAUCRAMANCER_PROTOCOL_MANA_COST,
+  BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL
+} from "../../services/bureaucramancerProtocol";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -44,6 +56,8 @@ const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
 const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
 const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
 const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
+const BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13B";
+const BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13BSignature";
 
 const partyCharacterInclude = {
   user: {
@@ -702,6 +716,214 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     }
   }
 
+  async fileBureaucramancerPersonalProtocol(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyPersonalProtocolFileRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolFileRepositoryResult> => {
+      await expireTokenIfNeededTx(tx, inviteToken, now);
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
+      }
+
+      if (session.status !== LIVE_STATUS || session.expiresAt <= now) {
+        return { state: session.expiresAt <= now ? "expired" : "not-recruiting", session: mapSession(session) };
+      }
+
+      if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return { state: "not-big-barrel", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && row.status === "joined"
+      );
+      if (!participant || participant.remortCount !== character._count.remorts) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+
+      const existingProtocol = getActivePersonalProtocol(session);
+      if (existingProtocol?.filerCharacterId === character.id) {
+        return { state: "already-filed", session: mapSession(session) };
+      }
+      if (existingProtocol) {
+        return { state: "already-exists", session: mapSession(session) };
+      }
+
+      if (character.classId !== BUREAUCRAMANCER_PROTOCOL_CLASS_ID || character.level < BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL) {
+        return { state: "ineligible", session: mapSession(session) };
+      }
+
+      const activeLease = await tx.activeCombatLease.findUnique({
+        where: { characterId: character.id },
+        select: { id: true }
+      });
+      if (activeLease) {
+        return { state: "blocked", session: mapSession(session) };
+      }
+
+      const cooldown = await tx.characterCooldown.findUnique({
+        where: {
+          characterId_key: {
+            characterId: character.id,
+            key: BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY
+          }
+        },
+        select: { availableAt: true }
+      });
+      if (cooldown && cooldown.availableAt > now) {
+        return { state: "cooldown", availableAt: cooldown.availableAt, now, session: mapSession(session) };
+      }
+
+      if (character.manaCurrent < BUREAUCRAMANCER_PROTOCOL_MANA_COST) {
+        return { state: "not-enough-mana", session: mapSession(session) };
+      }
+
+      const reserved = await reservePersonalProtocolSlot(tx, session);
+      if (reserved !== "reserved") {
+        return resolvePersonalProtocolFileReservationLoss(reserved, character.id, now);
+      }
+
+      const protocolId = buildPersonalProtocolId(session.id);
+      const spent = await tx.character.updateMany({
+        where: {
+          id: character.id,
+          manaCurrent: { gte: BUREAUCRAMANCER_PROTOCOL_MANA_COST }
+        },
+        data: {
+          manaCurrent: { decrement: BUREAUCRAMANCER_PROTOCOL_MANA_COST },
+          manaRegenAt: now
+        }
+      });
+      if (spent.count !== 1) {
+        return { state: "not-enough-mana", session: mapSession(session) };
+      }
+
+      await tx.characterCooldown.upsert({
+        where: {
+          characterId_key: {
+            characterId: character.id,
+            key: BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY
+          }
+        },
+        create: {
+          characterId: character.id,
+          key: BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY,
+          availableAt: addMinutes(now, BUREAUCRAMANCER_PROTOCOL_COOLDOWN_MINUTES),
+          resultJson: {
+            kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+            partySessionId: session.id,
+            protocolId,
+            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST
+          }
+        },
+        update: {
+          availableAt: addMinutes(now, BUREAUCRAMANCER_PROTOCOL_COOLDOWN_MINUTES),
+          resultJson: {
+            kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+            partySessionId: session.id,
+            protocolId,
+            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST
+          }
+        }
+      });
+
+      await tx.partyParticipant.update({
+        where: { id: participant.id },
+        data: {
+          snapshotJson: snapshotWithPersonalProtocol(participant.snapshotJson, {
+            kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+            protocolId,
+            filerCharacterId: character.id,
+            remortCount: character._count.remorts,
+            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST,
+            filedAt: now.toISOString()
+          }, {
+            kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+            protocolId,
+            filerCharacterId: character.id,
+            signerCharacterId: character.id,
+            remortCount: character._count.remorts,
+            signedAt: now.toISOString()
+          })
+        }
+      });
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    });
+  }
+
+  async signBureaucramancerPersonalProtocol(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyPersonalProtocolSignRepositoryResult> {
+    return this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolSignRepositoryResult> => {
+      await expireTokenIfNeededTx(tx, inviteToken, now);
+      const session = await findSessionByToken(tx, inviteToken);
+
+      if (!session) {
+        return { state: "not-found" };
+      }
+
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(session) };
+      }
+
+      if (session.status !== LIVE_STATUS || session.expiresAt <= now) {
+        return { state: session.expiresAt <= now ? "expired" : "not-recruiting", session: mapSession(session) };
+      }
+
+      if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return { state: "not-big-barrel", session: mapSession(session) };
+      }
+
+      const character = await findCharacterByTelegramUser(tx, telegramUserId);
+      if (!character) {
+        return { state: "no-character" };
+      }
+
+      const participant = session.participants.find((row) =>
+        row.characterId === character.id && row.status === "joined"
+      );
+      if (!participant || participant.remortCount !== character._count.remorts) {
+        return { state: "not-member", session: mapSession(session) };
+      }
+
+      const protocol = getActivePersonalProtocol(session);
+      if (!protocol) {
+        return { state: "no-protocol", session: mapSession(session) };
+      }
+
+      const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
+      if (existingSignature?.protocolId === protocol.protocolId) {
+        return { state: "already-signed", session: mapSession(session) };
+      }
+
+      const reserved = await reservePersonalProtocolSignatureSlot(tx, session, participant, character, protocol, now);
+      if (reserved !== "reserved") {
+        return resolvePersonalProtocolSignReservationLoss(reserved, character.id, character._count.remorts);
+      }
+
+      const updated = await findSessionById(tx, session.id);
+      return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    });
+  }
+
   async findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     await this.expireByToken(inviteToken, now);
     const session = await findSessionByToken(this.prisma, inviteToken);
@@ -1057,6 +1279,7 @@ async function terminalizeSessionTx(
 
 function mapSession(row: PartySessionRow): PartySessionRecord {
   const wardSign = mapWardSign(row);
+  const personalProtocol = mapPersonalProtocol(row);
   return {
     id: row.id,
     inviteToken: row.inviteToken,
@@ -1074,7 +1297,8 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     updatedAt: row.updatedAt,
     leader: mapCharacter(row.leader),
     participants: row.participants.map(mapParticipant),
-    ...(wardSign ? { wardSign } : {})
+    ...(wardSign ? { wardSign } : {}),
+    ...(personalProtocol ? { personalProtocol } : {})
   };
 }
 
@@ -1091,6 +1315,22 @@ function mapWardSign(row: PartySessionRow): PartyWardSignRecord | null {
     supportCap: KHARAKTERNYK_WARD_SUPPORT_CAP,
     manaCost: active.manaCost,
     placedAt: new Date(active.placedAt)
+  };
+}
+
+function mapPersonalProtocol(row: PartySessionRow): PartyPersonalProtocolRecord | null {
+  const active = getActivePersonalProtocol(row);
+  if (!active) {
+    return null;
+  }
+
+  return {
+    kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    protocolId: active.protocolId,
+    filerCharacterId: active.filerCharacterId,
+    signatureCount: countActivePersonalProtocolSignatures(row, active.protocolId),
+    manaCost: active.manaCost,
+    filedAt: new Date(active.filedAt)
   };
 }
 
@@ -1190,6 +1430,7 @@ async function findActiveBigBarrelLossCooldown(
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {
   const wardSignSupport = parseWardSupport(row.snapshotJson);
+  const personalProtocolSignature = parsePersonalProtocolSignatureRecord(row.snapshotJson);
   return {
     id: row.id,
     sessionId: row.sessionId,
@@ -1203,6 +1444,7 @@ function mapParticipant(row: PartySessionRow["participants"][number]): PartyPart
     messageId: row.messageId,
     readiness: parseParticipantReadiness(row.snapshotJson),
     ...(wardSignSupport ? { wardSignSupport } : {}),
+    ...(personalProtocolSignature ? { personalProtocolSignature } : {}),
     character: mapCharacter(row.character)
   };
 }
@@ -1276,6 +1518,35 @@ function snapshotWithWardSupport(
   snapshot[KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY] = {
     version: 1,
     ...wardSupport
+  };
+  return snapshot;
+}
+
+function snapshotWithPersonalProtocol(
+  snapshotJson: Prisma.JsonValue | null,
+  protocol: InternalPersonalProtocolSnapshot,
+  signature: InternalPersonalProtocolSignatureSnapshot
+): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotJson);
+  snapshot[BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY] = {
+    version: 1,
+    ...protocol
+  };
+  snapshot[BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY] = {
+    version: 1,
+    ...signature
+  };
+  return snapshot;
+}
+
+function snapshotWithPersonalProtocolSignature(
+  snapshotJson: Prisma.JsonValue | null,
+  signature: InternalPersonalProtocolSignatureSnapshot
+): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotJson);
+  snapshot[BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY] = {
+    version: 1,
+    ...signature
   };
   return snapshot;
 }
@@ -1480,6 +1751,190 @@ function resolveKharakternykWardSupportReservationLoss(
   return { state: "already-supported", session: mapSession(session) };
 }
 
+async function reservePersonalProtocolSlot(
+  tx: TxClient,
+  session: PartySessionRow
+): Promise<"reserved" | PartySessionRow | null> {
+  let candidate: PartySessionRow | null = session;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const reserved = await tx.partySession.updateMany({
+      where: {
+        id: candidate.id,
+        status: LIVE_STATUS,
+        originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+        version: candidate.version
+      },
+      data: {
+        version: { increment: 1 }
+      }
+    });
+    if (reserved.count === 1) {
+      return "reserved";
+    }
+
+    candidate = await findSessionById(tx, candidate.id);
+    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      return candidate;
+    }
+
+    if (getActivePersonalProtocol(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidate;
+}
+
+function resolvePersonalProtocolFileReservationLoss(
+  session: PartySessionRow | null,
+  filerCharacterId: string,
+  now: Date
+): PartyPersonalProtocolFileRepositoryResult {
+  if (!session) {
+    return { state: "not-found" };
+  }
+
+  const terminalState = getTerminalReplayState(session);
+  if (terminalState) {
+    return { state: terminalState, session: mapSession(session) };
+  }
+
+  if (session.status !== LIVE_STATUS || session.expiresAt <= now) {
+    return { state: session.expiresAt <= now ? "expired" : "not-recruiting", session: mapSession(session) };
+  }
+
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return { state: "not-big-barrel", session: mapSession(session) };
+  }
+
+  const existingProtocol = getActivePersonalProtocol(session);
+  if (existingProtocol?.filerCharacterId === filerCharacterId) {
+    return { state: "already-filed", session: mapSession(session) };
+  }
+
+  return { state: "already-exists", session: mapSession(session) };
+}
+
+async function reservePersonalProtocolSignatureSlot(
+  tx: TxClient,
+  session: PartySessionRow,
+  participant: PartySessionRow["participants"][number],
+  character: CharacterRow,
+  protocol: InternalPersonalProtocolSnapshot,
+  now: Date
+): Promise<"reserved" | PartySessionRow | null> {
+  let candidate: PartySessionRow | null = session;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidateParticipant = candidate.participants.find((row) =>
+      row.id === participant.id &&
+      row.characterId === character.id &&
+      row.status === "joined" &&
+      row.remortCount === character._count.remorts
+    );
+    if (!candidateParticipant) {
+      return candidate;
+    }
+
+    const currentProtocol = getActivePersonalProtocol(candidate);
+    if (!currentProtocol || currentProtocol.protocolId !== protocol.protocolId) {
+      return candidate;
+    }
+
+    const existingSignature = parsePersonalProtocolSignature(candidateParticipant.snapshotJson);
+    if (existingSignature?.protocolId === currentProtocol.protocolId) {
+      return candidate;
+    }
+
+    const reserved = await tx.partyParticipant.updateMany({
+      where: {
+        id: candidateParticipant.id,
+        characterId: character.id,
+        status: "joined",
+        remortCount: character._count.remorts,
+        updatedAt: candidateParticipant.updatedAt,
+        session: {
+          id: candidate.id,
+          status: LIVE_STATUS,
+          originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          version: candidate.version
+        }
+      },
+      data: {
+        snapshotJson: snapshotWithPersonalProtocolSignature(candidateParticipant.snapshotJson, {
+          kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+          protocolId: currentProtocol.protocolId,
+          filerCharacterId: currentProtocol.filerCharacterId,
+          signerCharacterId: character.id,
+          remortCount: character._count.remorts,
+          signedAt: now.toISOString()
+        })
+      }
+    });
+    if (reserved.count === 1) {
+      await tx.partySession.update({
+        where: { id: candidate.id },
+        data: {
+          version: { increment: 1 }
+        }
+      });
+      return "reserved";
+    }
+
+    candidate = await findSessionById(tx, candidate.id);
+    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      return candidate;
+    }
+  }
+
+  return candidate;
+}
+
+function resolvePersonalProtocolSignReservationLoss(
+  session: PartySessionRow | null,
+  signerCharacterId: string,
+  signerRemortCount: number
+): PartyPersonalProtocolSignRepositoryResult {
+  if (!session) {
+    return { state: "not-found" };
+  }
+
+  const terminalState = getTerminalReplayState(session);
+  if (terminalState) {
+    return { state: terminalState, session: mapSession(session) };
+  }
+
+  if (session.status !== LIVE_STATUS) {
+    return { state: "not-recruiting", session: mapSession(session) };
+  }
+
+  if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    return { state: "not-big-barrel", session: mapSession(session) };
+  }
+
+  const participant = session.participants.find((row) =>
+    row.characterId === signerCharacterId &&
+    row.status === "joined" &&
+    row.remortCount === signerRemortCount
+  );
+  if (!participant) {
+    return { state: "not-member", session: mapSession(session) };
+  }
+
+  const protocol = getActivePersonalProtocol(session);
+  if (!protocol) {
+    return { state: "no-protocol", session: mapSession(session) };
+  }
+
+  const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
+  if (existingSignature?.protocolId === protocol.protocolId) {
+    return { state: "already-signed", session: mapSession(session) };
+  }
+
+  return { state: "already-signed", session: mapSession(session) };
+}
+
 interface InternalWardSignSnapshot {
   kind: "kharakternyk";
   placerCharacterId: string;
@@ -1495,6 +1950,24 @@ interface InternalWardSupportSnapshot {
   remortCount: number;
   manaCost: number;
   supportedAt: string;
+}
+
+interface InternalPersonalProtocolSnapshot {
+  kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  protocolId: string;
+  filerCharacterId: string;
+  remortCount: number;
+  manaCost: number;
+  filedAt: string;
+}
+
+interface InternalPersonalProtocolSignatureSnapshot {
+  kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterId: string;
+  remortCount: number;
+  signedAt: string;
 }
 
 function getActiveWardSign(row: PartySessionRow): InternalWardSignSnapshot | null {
@@ -1599,6 +2072,110 @@ function parseInternalWardSupport(snapshotJson: Prisma.JsonValue | null): Intern
   };
 }
 
+function getActivePersonalProtocol(row: PartySessionRow): InternalPersonalProtocolSnapshot | null {
+  const joined = row.participants.filter((participant) => participant.status === "joined");
+  for (const participant of joined) {
+    const protocol = parsePersonalProtocol(participant.snapshotJson);
+    if (
+      protocol &&
+      protocol.filerCharacterId === participant.characterId &&
+      protocol.remortCount === participant.remortCount
+    ) {
+      return protocol;
+    }
+  }
+
+  return null;
+}
+
+function countActivePersonalProtocolSignatures(row: PartySessionRow, protocolId: string): number {
+  return row.participants.filter((participant) => {
+    if (participant.status !== "joined") {
+      return false;
+    }
+
+    const signature = parsePersonalProtocolSignature(participant.snapshotJson);
+    return (
+      signature?.protocolId === protocolId &&
+      signature.signerCharacterId === participant.characterId &&
+      signature.remortCount === participant.remortCount
+    );
+  }).length;
+}
+
+function parsePersonalProtocol(snapshotJson: Prisma.JsonValue | null): InternalPersonalProtocolSnapshot | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY);
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND ||
+    typeof value.protocolId !== "string" ||
+    typeof value.filerCharacterId !== "string" ||
+    typeof value.remortCount !== "number" ||
+    typeof value.manaCost !== "number" ||
+    typeof value.filedAt !== "string" ||
+    Number.isNaN(new Date(value.filedAt).getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    protocolId: value.protocolId,
+    filerCharacterId: value.filerCharacterId,
+    remortCount: Math.max(0, Math.floor(value.remortCount)),
+    manaCost: Math.max(0, Math.floor(value.manaCost)),
+    filedAt: value.filedAt
+  };
+}
+
+function parsePersonalProtocolSignatureRecord(snapshotJson: Prisma.JsonValue | null): PartyPersonalProtocolSignatureRecord | null {
+  const signature = parsePersonalProtocolSignature(snapshotJson);
+  if (!signature) {
+    return null;
+  }
+
+  return {
+    kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    protocolId: signature.protocolId,
+    filerCharacterId: signature.filerCharacterId,
+    signerCharacterId: signature.signerCharacterId,
+    signedAt: new Date(signature.signedAt)
+  };
+}
+
+function parsePersonalProtocolSignature(
+  snapshotJson: Prisma.JsonValue | null
+): InternalPersonalProtocolSignatureSnapshot | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY);
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND ||
+    typeof value.protocolId !== "string" ||
+    typeof value.filerCharacterId !== "string" ||
+    typeof value.signerCharacterId !== "string" ||
+    typeof value.remortCount !== "number" ||
+    typeof value.signedAt !== "string" ||
+    Number.isNaN(new Date(value.signedAt).getTime())
+  ) {
+    return null;
+  }
+
+  return {
+    kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    protocolId: value.protocolId,
+    filerCharacterId: value.filerCharacterId,
+    signerCharacterId: value.signerCharacterId,
+    remortCount: Math.max(0, Math.floor(value.remortCount)),
+    signedAt: value.signedAt
+  };
+}
+
 function getSnapshotObject(snapshotJson: Prisma.JsonValue | null, key: string): Record<string, unknown> | null {
   if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
     return null;
@@ -1654,6 +2231,14 @@ function leaderKey(characterId: string): string {
 
 function membershipKey(characterId: string): string {
   return `party-member:${characterId}`;
+}
+
+function buildPersonalProtocolId(sessionId: string): string {
+  return `bureaucramancer-personal-protocol-13b:${sessionId}`;
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + Math.max(0, Math.floor(minutes)) * 60_000);
 }
 
 function isUniqueConflict(error: unknown): boolean {

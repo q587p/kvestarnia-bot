@@ -45,6 +45,7 @@ import { countCharacterRemorts } from "./prismaRemortCount";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
+import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -58,6 +59,8 @@ const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
 const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
 const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
+const BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13B";
+const BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13BSignature";
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
     super(reason);
@@ -222,12 +225,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
+      const personalProtocol = isBigBarrelParty ? buildBureaucramancerPersonalProtocolForStartedParty(joined) : undefined;
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
         ...(wardSign ? { wardSign } : {}),
+        ...(personalProtocol ? { personalProtocol } : {}),
         participants: joined.map((participant) => {
           const combatCharacter = mapCharacterForCombat(participant.character);
           const combatStats = buildPartyBossCombatStats(combatCharacter);
@@ -776,6 +781,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
               input.now
             )
       );
+      if (resolved.round.personalProtocol) {
+        achievementEvents.push({
+          type: "bureaucramancer.protocol.triggered",
+          characterId: resolved.round.personalProtocol.characterId,
+          sourceId: resolved.round.personalProtocol.bossActionId,
+          occurredAt: input.now
+        });
+      }
       if (status !== "active") {
         achievementEvents = [
           ...achievementEvents,
@@ -1461,6 +1474,52 @@ function buildKharakternykWardSignForStartedParty(
   };
 }
 
+function buildBureaucramancerPersonalProtocolForStartedParty(
+  joined: PartyRow["participants"]
+): {
+  kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterIds: string[];
+} | undefined {
+  const filer = joined.find((participant) => {
+    const protocol = parsePersonalProtocolSnapshot(participant.snapshotJson);
+    return (
+      protocol?.filerCharacterId === participant.characterId &&
+      protocol.remortCount === participant.remortCount
+    );
+  });
+  if (!filer) {
+    return undefined;
+  }
+
+  const protocol = parsePersonalProtocolSnapshot(filer.snapshotJson);
+  if (!protocol) {
+    return undefined;
+  }
+
+  const signerCharacterIds = joined.flatMap((participant) => {
+    const signature = parsePersonalProtocolSignatureSnapshot(participant.snapshotJson);
+    return (
+      signature?.protocolId === protocol.protocolId &&
+      signature.filerCharacterId === protocol.filerCharacterId &&
+      signature.signerCharacterId === participant.characterId &&
+      signature.remortCount === participant.remortCount
+    )
+      ? [participant.characterId]
+      : [];
+  });
+
+  return signerCharacterIds.length > 0
+    ? {
+        kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+        protocolId: protocol.protocolId,
+        filerCharacterId: protocol.filerCharacterId,
+        signerCharacterIds: [...new Set(signerCharacterIds)]
+      }
+    : undefined;
+}
+
 function parseWardSignSnapshot(snapshotJson: Prisma.JsonValue | null): {
   placerCharacterId: string;
   remortCount: number;
@@ -1496,6 +1555,55 @@ function parseWardSupportSnapshot(snapshotJson: Prisma.JsonValue | null): {
     ? {
         placerCharacterId: value.placerCharacterId,
         supporterCharacterId: value.supporterCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function parsePersonalProtocolSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  protocolId: string;
+  filerCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY);
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND) {
+    return null;
+  }
+
+  return (
+    typeof value.protocolId === "string" &&
+    typeof value.filerCharacterId === "string" &&
+    typeof value.remortCount === "number"
+  )
+    ? {
+        protocolId: value.protocolId,
+        filerCharacterId: value.filerCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function parsePersonalProtocolSignatureSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY);
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND) {
+    return null;
+  }
+
+  return (
+    typeof value.protocolId === "string" &&
+    typeof value.filerCharacterId === "string" &&
+    typeof value.signerCharacterId === "string" &&
+    typeof value.remortCount === "number"
+  )
+    ? {
+        protocolId: value.protocolId,
+        filerCharacterId: value.filerCharacterId,
+        signerCharacterId: value.signerCharacterId,
         remortCount: Math.max(0, Math.floor(value.remortCount))
       }
     : null;

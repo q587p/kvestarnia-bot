@@ -16,6 +16,7 @@ import type { ItemGrant } from "../../src/db/repositories/dailyActionRepository"
 import { items } from "../../src/content";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import type { AchievementService } from "../../src/services/achievementService";
+import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 import { CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY } from "../../src/services/cellarGrownupQuestService";
 import { CELLAR_MOUSE_ERRAND_KEY } from "../../src/services/cellarErrandService";
 import { DevGrantService } from "../../src/services/devGrantService";
@@ -529,6 +530,26 @@ describe("DevGrantService", () => {
       call.includes("technique.class.rogue.quiet-pocket") &&
       call.includes("social.thief.quiet-pocket")
     )).toBe(true);
+  });
+
+  it("resets Bureaucramancer protocol cooldown for local QA only", async () => {
+    const repository = new FakeDevGrantRepository();
+    const service = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
+    const production = new DevGrantService(repository, "production", true, new FakeRandomSource([0]));
+
+    await expect(service.resetBureaucramancerProtocolCooldown(42n)).resolves.toMatchObject({
+      state: "updated",
+      kind: "bureaucramancer-protocol-cooldown",
+      cleared: true,
+      character: {
+        id: "character-42"
+      }
+    });
+    await expect(production.resetBureaucramancerProtocolCooldown(42n)).resolves.toEqual({
+      state: "disabled"
+    });
+    expect(repository.calls).toContain(`cooldown:42:${BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY}`);
+    expect(repository.calls.filter((call) => call.includes(BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY))).toHaveLength(1);
   });
 
   it("resets Rogue cooldowns and same-day target memory for local QA", async () => {

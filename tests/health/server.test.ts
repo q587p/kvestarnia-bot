@@ -78,11 +78,10 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Корчмар підкрутив невидимі лічильники");
-    expect(text).toContain("не додає нових кнопок чи нагород");
-    expect(text).toContain("Гарячі маршрути мають уважніше рахувати час");
-    expect(text).toContain("Єгер, Корчмарський обхід, Манатки, Бої");
-    expect(text).toContain("менше ритися в архівних папірцях");
+    expect(text).toContain("Бюрокроманти навчили Бочку читати претензії");
+    expect(text).toContain("Протокол 13-Б");
+    expect(text).toContain("без публічного списку й без соромної дошки");
+    expect(text).toContain("персональний бочковий ляпас");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

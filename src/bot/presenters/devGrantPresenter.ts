@@ -133,6 +133,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: «Тиха кишеня» і так без активного cooldown.";
   }
 
+  if (result.kind === "bureaucramancer-protocol-cooldown") {
+    return result.cleared
+      ? "🧪 Dev: Протокол 13-Б знову готовий до локальної перевірки."
+      : "🧪 Dev: Протокол 13-Б і так без активного cooldown.";
+  }
+
   if (result.kind === "rogue-reset") {
     if (result.clearedCooldown || result.deletedAttempts > 0) {
       return [

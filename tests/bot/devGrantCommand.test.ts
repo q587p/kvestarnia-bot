@@ -468,6 +468,9 @@ function fakeDevGrantService(input: {
   resetQuietPocketCooldown: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
+  resetBureaucramancerProtocolCooldown: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
+  >;
   resetRogue: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
@@ -667,6 +670,12 @@ function fakeDevGrantService(input: {
     resetQuietPocketCooldown: vi.fn(() => Promise.resolve({
       state: "updated",
       kind: "quiet-pocket-cooldown",
+      character,
+      cleared: true
+    })),
+    resetBureaucramancerProtocolCooldown: vi.fn(() => Promise.resolve({
+      state: "updated",
+      kind: "bureaucramancer-protocol-cooldown",
       character,
       cleared: true
     })),

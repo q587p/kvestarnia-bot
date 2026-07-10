@@ -1,6 +1,6 @@
 # Bureaucramancer Personal Protocol 13-B
 
-Status: draft design for a future `0.3.x` feature slice.
+Status: shipped in `0.3.6`.
 
 ## Goal
 
@@ -131,7 +131,7 @@ Document this in balance notes if both features exist on the target branch.
 
 ## Persistence and replay
 
-The protocol needs durable server-owned state, either as a narrow table or as a party-session/party-boss extension with replay-safe transition rows.
+The shipped implementation uses existing party-session and party-boss state instead of a schema migration.
 
 Store at least:
 
@@ -156,6 +156,13 @@ All mutations must be replay-safe:
 - stale signatures from non-joined characters do not mutate;
 - a spent signer signature never blocks a second personal attack;
 - terminal/journal replay shows stored trigger rows, not recalculated blocking.
+
+Implementation notes:
+
+- recruiting protocol/signature state lives in `PartyParticipant.snapshotJson`;
+- filer cooldown uses `characterCooldown` key `class.bureaucramancer.personal-protocol-13b.cooldown`;
+- started Big Barrel boss state freezes joined, remort-matching signer ids into `PartyBossState.personalProtocol`;
+- `/dev_reset_bureaucramancer_protocol` clears only the filer cooldown for local QA and stays disabled in production.
 
 ## UI surfaces
 

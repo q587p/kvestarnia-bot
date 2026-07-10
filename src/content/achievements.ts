@@ -55,6 +55,9 @@ export const achievementTriggerTypes = [
   "barrel.raid.claimed",
   "barrel.raid.lost",
   "barrel.raid.bandage-used",
+  "bureaucramancer.protocol.filed",
+  "bureaucramancer.protocol.signed",
+  "bureaucramancer.protocol.triggered",
   "korchma.round.purchased",
   "tavern.game.played",
   "tavern.game.won",
@@ -1382,6 +1385,39 @@ export const achievements = [
     sortOrder: 126.7,
     status: "enabled",
     trigger: { type: "barrel.raid.bandage-used", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.filed",
+    category: "weird",
+    title: "Форма прийняла вас першою",
+    description: "уперше подати Протокол 13-Б перед Бочкою й довести, що папір має щільність.",
+    hidden: false,
+    lockedDescription: "уперше подати Протокол 13-Б перед Бочкою.",
+    sortOrder: 126.72,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.filed", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.signed",
+    category: "weird",
+    title: "Підпис без черги",
+    description: "уперше підписати Протокол 13-Б і перекласти частину болю в архів.",
+    hidden: false,
+    lockedDescription: "уперше підписати Протокол 13-Б.",
+    sortOrder: 126.74,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.signed", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.triggered",
+    category: "weird",
+    title: "Ребра подали апеляцію",
+    description: "уперше побачити, як Протокол 13-Б приймає персональний удар Бочки замість підписанта.",
+    hidden: false,
+    lockedDescription: "уперше витратити захист Протоколу 13-Б у рейді.",
+    sortOrder: 126.76,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.triggered", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

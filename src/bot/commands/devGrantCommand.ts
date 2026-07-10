@@ -149,6 +149,10 @@ export function registerDevGrantCommands(
     await handleDevResetQuietPocketCommand(ctx, devGrantService);
   });
 
+  bot.command("dev_reset_bureaucramancer_protocol", async (ctx) => {
+    await handleDevResetBureaucramancerProtocolCommand(ctx, devGrantService);
+  });
+
   bot.command("dev_reset_rogue", async (ctx) => {
     await handleDevResetRogueCommand(ctx, devGrantService);
   });
@@ -421,6 +425,27 @@ async function handleDevResetQuietPocketCommand(
   }
 
   const result = await devGrantService.resetQuietPocketCooldown(telegramUserId);
+
+  await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevResetBureaucramancerProtocolCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+
+  const result = await devGrantService.resetBureaucramancerProtocolCooldown(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
 }

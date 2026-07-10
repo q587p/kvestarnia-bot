@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
+import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -193,6 +194,79 @@ describe("PrismaPartySessionRepository integration", () => {
       { id: "ward-leader-user-character", manaCurrent: 0 },
       { id: "ward-support-user-character", manaCurrent: 5 }
     ]);
+  });
+
+  it("files and signs Bureaucramancer protocol once without duplicate mana spend", async () => {
+    await seedCharacter(prisma, "protocol-filer-user", 2141n, "Паперяр", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-signer-user", 2142n, "Підписант", {
+      level: 8,
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-outsider-user", 2143n, "Поза Бланком", {
+      level: 8,
+      manaCurrent: 10
+    });
+    await repository.createForTelegramUser(2141n, bigBarrelInput("party-token-protocol"));
+    await repository.joinByTokenForTelegramUser(2142n, "party-token-protocol", joinInput());
+
+    const filed = await repository.fileBureaucramancerPersonalProtocol(2141n, "party-token-protocol", now());
+    const duplicateFile = await repository.fileBureaucramancerPersonalProtocol(2141n, "party-token-protocol", now());
+    const signed = await repository.signBureaucramancerPersonalProtocol(2142n, "party-token-protocol", now());
+    const duplicateSign = await repository.signBureaucramancerPersonalProtocol(2142n, "party-token-protocol", now());
+    const outsiderSign = await repository.signBureaucramancerPersonalProtocol(2143n, "party-token-protocol", now());
+
+    expect(filed.state).toBe("updated");
+    expect(duplicateFile.state).toBe("already-filed");
+    expect(signed.state).toBe("updated");
+    expect(duplicateSign.state).toBe("already-signed");
+    expect(outsiderSign.state).toBe("not-member");
+    expect("session" in signed ? signed.session.personalProtocol : null).toMatchObject({
+      kind: "bureaucramancer-personal-protocol-13b",
+      filerCharacterId: "protocol-filer-user-character",
+      signatureCount: 2,
+      manaCost: 5
+    });
+    expect("session" in signed
+      ? signed.session.participants.find((participant) => participant.character.telegramUserId === 2142n)?.personalProtocolSignature
+      : null).toMatchObject({
+      kind: "bureaucramancer-personal-protocol-13b",
+      filerCharacterId: "protocol-filer-user-character",
+      signerCharacterId: "protocol-signer-user-character"
+    });
+    await expect(prisma.character.findMany({
+      where: {
+        id: {
+          in: [
+            "protocol-filer-user-character",
+            "protocol-signer-user-character",
+            "protocol-outsider-user-character"
+          ]
+        }
+      },
+      orderBy: { id: "asc" },
+      select: { id: true, manaCurrent: true }
+    })).resolves.toEqual([
+      { id: "protocol-filer-user-character", manaCurrent: 5 },
+      { id: "protocol-outsider-user-character", manaCurrent: 10 },
+      { id: "protocol-signer-user-character", manaCurrent: 10 }
+    ]);
+    await expect(prisma.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: "protocol-filer-user-character",
+          key: BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY
+        }
+      },
+      select: { availableAt: true }
+    })).resolves.toEqual({
+      availableAt: new Date(now().getTime() + 93 * 60_000)
+    });
+    await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol", 1);
+    await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
   });
 
   it("commits only one Kharakternyk ward sign when two eligible placers race", async () => {
@@ -915,6 +989,66 @@ function hasKharakternykWardSupportSnapshot(snapshotJson: unknown): boolean {
     typeof wardSupport === "object" &&
     !Array.isArray(wardSupport) &&
     (wardSupport as Record<string, unknown>).kind === "kharakternyk"
+  );
+}
+
+async function expectPersonalProtocolSnapshotCount(
+  prisma: PrismaClient,
+  inviteToken: string,
+  expectedCount: number
+): Promise<void> {
+  const snapshots = await prisma.partyParticipant.findMany({
+    where: {
+      session: {
+        inviteToken
+      }
+    },
+    select: {
+      snapshotJson: true
+    }
+  });
+
+  expect(snapshots.filter((row) => hasPersonalProtocolSnapshot(row.snapshotJson))).toHaveLength(expectedCount);
+}
+
+async function expectPersonalProtocolSignatureSnapshotCount(
+  prisma: PrismaClient,
+  inviteToken: string,
+  expectedCount: number
+): Promise<void> {
+  const snapshots = await prisma.partyParticipant.findMany({
+    where: {
+      session: {
+        inviteToken
+      }
+    },
+    select: {
+      snapshotJson: true
+    }
+  });
+
+  expect(snapshots.filter((row) => hasPersonalProtocolSignatureSnapshot(row.snapshotJson))).toHaveLength(expectedCount);
+}
+
+function hasPersonalProtocolSnapshot(snapshotJson: unknown): boolean {
+  return hasSnapshotKind(snapshotJson, "bureaucramancerPersonalProtocol13B", "bureaucramancer-personal-protocol-13b");
+}
+
+function hasPersonalProtocolSignatureSnapshot(snapshotJson: unknown): boolean {
+  return hasSnapshotKind(snapshotJson, "bureaucramancerPersonalProtocol13BSignature", "bureaucramancer-personal-protocol-13b");
+}
+
+function hasSnapshotKind(snapshotJson: unknown, key: string, kind: string): boolean {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return false;
+  }
+
+  const value = (snapshotJson as Record<string, unknown>)[key];
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).kind === kind
   );
 }
 

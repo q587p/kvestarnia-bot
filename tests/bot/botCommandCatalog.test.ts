@@ -85,6 +85,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_reset_yeger_trail")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_priest_blessing")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_quiet_pocket")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_reset_bureaucramancer_protocol")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_rogue")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_first_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
@@ -202,6 +203,7 @@ describe("bot command catalog", () => {
       "dev_reset_yeger_trail",
       "dev_reset_priest_blessing",
       "dev_reset_quiet_pocket",
+      "dev_reset_bureaucramancer_protocol",
       "dev_reset_rogue",
       "dev_yeger_first_done",
       "dev_yeger_second_done",

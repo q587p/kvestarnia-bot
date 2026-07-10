@@ -232,6 +232,98 @@ describe("party session keyboard", () => {
     }))).not.toContain("✋ Підперти знак");
   });
 
+  it("shows Bureaucramancer protocol filing and signing actions only when eligible", () => {
+    const base = {
+      ...makeSession(),
+      originLocationId: "barrel.big-brother",
+      leader: {
+        ...makeSession().leader,
+        classId: "class.bureaucramancer",
+        level: 3
+      },
+      participants: [
+        {
+          ...makeSession().participants[0]!,
+          character: {
+            ...makeSession().participants[0]!.character,
+            classId: "class.bureaucramancer",
+            level: 3
+          }
+        },
+        {
+          id: "participant-2",
+          sessionId: "party-1",
+          characterId: "character-2",
+          remortCount: 0,
+          status: "joined" as const,
+          joinSource: "nearby" as const,
+          joinedAt: new Date("2026-06-29T15:01:00.000Z"),
+          leftAt: null,
+          chatId: 43n,
+          messageId: 14,
+          character: makeCharacter("character-2", 43n)
+        }
+      ]
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
+      viewerCharacterId: "character-1",
+      includeBossStart: true
+    }))).toContain("📄 Протокол 13-Б");
+    expect(keyboardText(buildPartySessionKeyboard(base, {
+      viewerCharacterId: "character-1",
+      includeBossStart: true
+    }))).toContain("v1:party:pf:partyABC12");
+    expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).not.toContain("📄 Протокол 13-Б");
+
+    const withProtocol = {
+      ...base,
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b" as const,
+        protocolId: "protocol-party-1",
+        filerCharacterId: "character-1",
+        signatureCount: 1,
+        manaCost: 5,
+        filedAt: new Date("2026-06-29T15:02:00.000Z")
+      }
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(withProtocol, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).toContain("✍️ Підписати протокол");
+    expect(keyboardText(buildPartySessionKeyboard(withProtocol, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).toContain("v1:party:ps:partyABC12");
+
+    const signed = {
+      ...withProtocol,
+      participants: withProtocol.participants.map((participant) =>
+        participant.characterId === "character-2"
+          ? {
+              ...participant,
+              personalProtocolSignature: {
+                kind: "bureaucramancer-personal-protocol-13b" as const,
+                protocolId: "protocol-party-1",
+                filerCharacterId: "character-1",
+                signerCharacterId: "character-2",
+                signedAt: new Date("2026-06-29T15:03:00.000Z")
+              }
+            }
+          : participant
+      )
+    };
+
+    expect(inlineButtonTexts(buildPartySessionKeyboard(signed, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).not.toContain("✍️ Підписати протокол");
+  });
+
   it("hides Big Barrel Brother cancel once another participant has joined", () => {
     const session = {
       ...makeSession(),

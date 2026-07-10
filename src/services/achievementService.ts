@@ -718,6 +718,9 @@ function getRecalculationProgress(
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "barrel.raid.bandage-used":
+    case "bureaucramancer.protocol.filed":
+    case "bureaucramancer.protocol.signed":
+    case "bureaucramancer.protocol.triggered":
     case "korchma.round.purchased":
     case "tavern.game.played":
     case "tavern.game.won":
@@ -829,6 +832,9 @@ function getRecalculationOccurredAt(
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "barrel.raid.bandage-used":
+    case "bureaucramancer.protocol.filed":
+    case "bureaucramancer.protocol.signed":
+    case "bureaucramancer.protocol.triggered":
     case "mantok.gear-action.used":
     case "korchma.round.purchased":
     case "tavern.game.played":
@@ -932,6 +938,9 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "barrel.raid.claimed":
     case "barrel.raid.lost":
     case "barrel.raid.bandage-used":
+    case "bureaucramancer.protocol.filed":
+    case "bureaucramancer.protocol.signed":
+    case "bureaucramancer.protocol.triggered":
     case "mantok.gear-action.used":
     case "korchma.round.purchased":
     case "tavern.game.played":

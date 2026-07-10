@@ -242,6 +242,7 @@ describe("presence routing", () => {
     ["dev_reset_yeger_trail", {}],
     ["dev_reset_priest_blessing", {}],
     ["dev_reset_quiet_pocket", {}],
+    ["dev_reset_bureaucramancer_protocol", {}],
     ["dev_reset_rogue", {}],
     ["dev_yeger_first_done", {}],
     ["dev_yeger_second_done", {}],

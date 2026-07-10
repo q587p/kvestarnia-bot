@@ -319,6 +319,9 @@ export function presentPartyBossIntro(
   const big = isBigPartyBossSession(session);
   const participantNames = state.participants.map((participant) => escapeHtml(participant.name)).join(", ");
   const startTip = presentPartyBossStartTip(session, viewerCharacterId);
+  const protocolIntro = state.personalProtocol
+    ? `📄 Протокол 13-Б перейшов у бій. Підписів: ${state.personalProtocol.signatures.length}.`
+    : null;
 
   if (!big) {
     return [
@@ -339,6 +342,7 @@ export function presentPartyBossIntro(
     `👥 Ватага: ${participantNames || "Корчмар рахує пальці"}`,
     `👹 Проти вас: ${escapeHtml(state.boss.name ?? "Старший Брат Бочки")} · рівень ${state.boss.level}`,
     "",
+    ...(protocolIntro ? [protocolIntro, ""] : []),
     ...(startTip ? [startTip] : [])
   ].join("\n");
 }
@@ -499,6 +503,9 @@ export function presentPartyBoss(
   if (big && state.wardSign) {
     lines.push(presentKharakternykWardBossLine(state.wardSign));
   }
+  if (big && state.personalProtocol) {
+    lines.push(presentBureaucramancerProtocolBossLine(state.personalProtocol));
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null));
   }
@@ -622,7 +629,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     } else {
       for (const retaliation of round.bossRetaliations) {
         const name = names.get(retaliation.characterId) ?? "учасник";
-        actionLines.push(`${escapeHtml(session.state.boss.name ?? "Бос")} атакує ${escapeHtml(name)} у відповідь і завдає ${retaliation.damage} шкоди.`);
+        actionLines.push(presentBossRetaliationLine(session.state.boss.name ?? "Бос", name, retaliation, "атакує"));
       }
     }
   } else if (round.statusAfter === "active") {
@@ -631,6 +638,9 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
 
   if (round.wardSign) {
     actionLines.push(presentKharakternykWardTriggeredLine(round.wardSign));
+  }
+  if (round.personalProtocol) {
+    actionLines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
   }
 
   return presentBattleJournalPage({
@@ -794,7 +804,7 @@ function presentLastRoundLines(
     } else {
       for (const retaliation of round.bossRetaliations) {
         const name = byCharacterId.get(retaliation.characterId)?.name ?? "учасника";
-        lines.push(`${escapeHtml(bossName)} атакує ${escapeHtml(name)} у відповідь і завдає ${retaliation.damage} шкоди.`);
+        lines.push(presentBossRetaliationLine(bossName, name, retaliation, "атакує"));
       }
     }
   } else if (round.statusAfter === "active") {
@@ -802,6 +812,9 @@ function presentLastRoundLines(
   }
   if (round.wardSign) {
     lines.push(presentKharakternykWardTriggeredLine(round.wardSign));
+  }
+  if (round.personalProtocol) {
+    lines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
   }
   return lines;
 }
@@ -844,6 +857,28 @@ function presentBigBarrelAoeRetaliationLine(
     .join("; ");
 
   return `Старший Брат Бочки ${verb} ${BIG_BARREL_AOE_ATTACK_LABEL}: ${targets}.`;
+}
+
+function presentBossRetaliationLine(
+  bossName: string,
+  targetName: string,
+  retaliation: PartyBossSessionRecord["state"]["roundLog"][number]["bossRetaliations"][number],
+  verb: "атакує"
+): string {
+  if ((retaliation.protocolPreventedDamage ?? 0) > 0) {
+    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.`;
+  }
+
+  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.`;
+}
+
+function presentBureaucramancerProtocolTriggeredLine(
+  protocol: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["personalProtocol"]>
+): string {
+  return [
+    `📄 Протокол 13-Б спрацьовує: Бочка знаходить персональну претензію й бʼє по паперах замість ребер. Запобігло ${protocol.preventedDamage} шкоди.`,
+    `Підпис витрачено: ${protocol.spentCount}/${protocol.signatureCount}.`
+  ].join("\n");
 }
 
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
@@ -901,6 +936,9 @@ export function presentPartySession(
   if (big && session.wardSign) {
     lines.push(presentKharakternykWardLobbyLine(session), "");
   }
+  if (big && session.personalProtocol) {
+    lines.push(presentBureaucramancerProtocolLobbyLine(session), "");
+  }
 
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");
@@ -948,6 +986,28 @@ function presentKharakternykWardBossLine(
   return "🧿 Знак характерника тримається.";
 }
 
+function presentBureaucramancerProtocolBossLine(
+  protocol: NonNullable<PartyBossSessionRecord["state"]["personalProtocol"]>
+): string {
+  const total = protocol.signatures.length;
+  const spent = protocol.signatures.filter((signature) => signature.status === "spent").length;
+  const unspent = Math.max(0, total - spent);
+  const preventedDamage = protocol.signatures.reduce(
+    (sum, signature) => sum + Math.max(0, Math.floor(signature.preventedDamage ?? 0)),
+    0
+  );
+
+  if (unspent > 0) {
+    return preventedDamage > 0
+      ? `📄 Протокол 13-Б у бою. Невитрачених підписів: ${unspent}/${total}. Уже запобігло: ${preventedDamage} шкоди.`
+      : `📄 Протокол 13-Б у бою. Невитрачених підписів: ${unspent}/${total}.`;
+  }
+
+  return preventedDamage > 0
+    ? `📄 Протокол 13-Б уже витратив усі підписи. Запобігло: ${preventedDamage} шкоди.`
+    : "📄 Протокол 13-Б уже витратив усі підписи.";
+}
+
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
   const supportCount = session.wardSign?.supportCount ?? 0;
   const supportCap = session.wardSign?.supportCap ?? 7;
@@ -956,6 +1016,15 @@ function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
   }
 
   return `🧿 Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
+}
+
+function presentBureaucramancerProtocolLobbyLine(session: PartySessionRecord): string {
+  const signatureCount = Math.max(0, Math.floor(session.personalProtocol?.signatureCount ?? 0));
+  return [
+    "📄 Протокол 13-Б відкрито.",
+    `Підписів: ${signatureCount}.`,
+    "Перший персональний удар Бочки по підписанту піде в папери, а не в ребра."
+  ].join("\n");
 }
 
 function isBigBarrelParty(session: PartySessionRecord): boolean {

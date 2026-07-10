@@ -4,6 +4,29 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.6 — Bureaucramancer Personal Protocol 13-B smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Start a Big Barrel Brother recruiting session with a level 3+ Bureaucramancer.
+2. Verify only the eligible joined Bureaucramancer sees `📄 Протокол 13-Б`.
+3. File protocol with enough mana; verify mana spend, 93-minute cooldown and filer auto-sign.
+4. Try duplicate filing; verify no second mana spend and no duplicate signature.
+5. Join from another account and sign once.
+6. Try duplicate sign; verify count does not increase twice.
+7. Verify the recruiting card shows count only, no signer names.
+8. Start the raid and force/observe a personal boss attack against a signed participant.
+9. Verify the attack is blocked for that signer and trigger copy/stored prevented damage appears.
+10. Verify a later personal attack against the same signer is not blocked.
+11. Verify a personal attack against an unsigned participant is not blocked.
+12. Verify `Бочковий гуркіт` / broad boss action is not blocked by the protocol.
+13. Refresh/replay active and terminal cards; verify no retrigger or recalculation.
+14. Try stale sign after start and terminal state; verify no mutation.
+15. Check performance logs remain quiet unless slow thresholds are hit.
+16. Use `/dev_reset_bureaucramancer_protocol` only in local/dev QA to clear the filing cooldown; verify it is not available in production config.
+
+Manual Telegram QA status for the implementation pass: not run in Telegram.
+
 ## 0.3.5 — Performance P0 Hardening smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
@@ -975,6 +998,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_reset_cellar_mouse` — у локальному режимі скидає cooldown повторюваної льохової справи миші та дорослішої мишачої домовлености для поточного персонажа.
 - `/dev_reset_priest_blessing` — у локальному режимі скидає cooldown жрецького благословення/підтримки для поточного персонажа.
 - `/dev_reset_quiet_pocket` — у локальному режимі скидає cooldown злодійської `Тихої кишені` для поточного персонажа.
+- `/dev_reset_bureaucramancer_protocol` — у локальному режимі скидає cooldown бюрокромантського `Протоколу 13-Б` для поточного персонажа.
 - `/dev_reset_rogue` — у локальному режимі скидає cooldown `Тихої кишені` й забуває цілі, які цей злодій уже перевіряв поточного київського дня.
 - `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
 - `/dev_yeger_second_done` — у локальному режимі доводить другу Єгерську дошку до `17/17` реальними перемогами після зданої першої дошки, лишаючи звичайну здачу квеста.

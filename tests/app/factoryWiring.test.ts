@@ -212,7 +212,7 @@ describe("application factory wiring", () => {
           config.bigBarrelBrotherRaidEnabled,
         devHelpersEnabled: nonProduction,
         bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
-      })
+      }, undefined, achievements)
     `));
     expect(source).toContain(compact(`
       yeger: new YegerQuestService(

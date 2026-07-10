@@ -1254,6 +1254,64 @@ describe("PrismaPartyBossRepository integration", () => {
     ].sort());
   });
 
+  it("freezes Bureaucramancer protocol signers from the final Big Barrel roster at start", async () => {
+    await seedCharacter(prisma, "big-protocol-leader-user", 5084n, "Паперова Голова", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-signer-user", 5085n, "Підписант", {
+      hp: 80,
+      level: 8
+    });
+    await seedCharacter(prisma, "big-protocol-left-user", 5086n, "Підпис За Дверима", {
+      hp: 80,
+      level: 8
+    });
+    await partyRepository.createForTelegramUser(5084n, {
+      ...partyInput("party-token-big-protocol"),
+      periodId: "2026-06-30T10:59",
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5085n, "party-token-big-protocol", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5086n, "party-token-big-protocol", joinInput());
+    await partyRepository.fileBureaucramancerPersonalProtocol(5084n, "party-token-big-protocol", now());
+    await partyRepository.signBureaucramancerPersonalProtocol(5085n, "party-token-big-protocol", now());
+    await partyRepository.signBureaucramancerPersonalProtocol(5086n, "party-token-big-protocol", now());
+    await partyRepository.leaveByTokenForTelegramUser(5086n, "party-token-big-protocol", now());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5084n, {
+      partyInviteToken: "party-token-big-protocol",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    expect(started.session.state.personalProtocol).toMatchObject({
+      kind: "bureaucramancer-personal-protocol-13b",
+      filerCharacterId: "big-protocol-leader-user-character"
+    });
+    expect(started.session.state.personalProtocol?.signatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        characterId: "big-protocol-leader-user-character",
+        status: "unspent"
+      }),
+      expect.objectContaining({
+        characterId: "big-protocol-signer-user-character",
+        status: "unspent"
+      })
+    ]));
+    expect(started.session.state.personalProtocol?.signatures).toHaveLength(2);
+    expect(started.session.state.participants.map((participant) => participant.characterId).sort()).toEqual([
+      "big-protocol-leader-user-character",
+      "big-protocol-signer-user-character"
+    ].sort());
+  });
+
   it("stores participant-specific Big Barrel Brother manatky instead of replaying the solo Barrel bundle", async () => {
     await seedCharacter(prisma, "big-varied-warrior-user", 5011n, "Бочкова Воячка", {
       hp: 80,

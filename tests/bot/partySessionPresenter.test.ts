@@ -170,6 +170,56 @@ describe("party session presenter", () => {
     expect(text).not.toContain("0 шкоди");
   });
 
+  it("replays stored Bureaucramancer protocol trigger lines on Big Barrel Brother cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-party-big",
+        filerCharacterId: "leader",
+        signatures: [{
+          characterId: "leader",
+          status: "spent",
+          triggeredTurn: 1,
+          bossActionId: "big-barrel:1:personal:leader",
+          preventedDamage: 17
+        }, {
+          characterId: "striker",
+          status: "unspent"
+        }]
+      },
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [{
+          characterId: "leader",
+          damage: 0,
+          hpAfter: 60,
+          damageBeforeProtocol: 17,
+          protocolPreventedDamage: 17
+        }],
+        personalProtocol: {
+          kind: "bureaucramancer-personal-protocol-13b",
+          status: "triggered",
+          characterId: "leader",
+          preventedDamage: 17,
+          triggeredTurn: 1,
+          bossActionId: "big-barrel:1:personal:leader",
+          spentCount: 1,
+          signatureCount: 2
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("📄 Протокол 13-Б у бою. Невитрачених підписів: 1/2. Уже запобігло: 17 шкоди.");
+    expect(text).toContain("удар застряг у паперах і завдає 0 шкоди");
+    expect(text).toContain("📄 Протокол 13-Б спрацьовує");
+    expect(text).toContain("Запобігло 17 шкоди.");
+    expect(text).toContain("Підпис витрачено: 1/2.");
+  });
+
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
     const base = makeBigBossSession({}, {
       queuedActions: [{
@@ -998,6 +1048,27 @@ describe("party session presenter", () => {
 
     expect(text).toContain("1. ✅ <b>Голова</b>");
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+  });
+
+  it("shows Bureaucramancer protocol signature count without signer names on recruiting cards", () => {
+    const session = {
+      ...makePartySession(),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b" as const,
+        protocolId: "protocol-party-big",
+        filerCharacterId: "leader",
+        signatureCount: 2,
+        manaCost: 5,
+        filedAt: new Date("2026-06-30T10:01:00.000Z")
+      }
+    };
+
+    const text = presentPartySession(session);
+
+    expect(text).toContain("📄 Протокол 13-Б відкрито.");
+    expect(text).toContain("Підписів: 2.");
+    expect(text).toContain("Перший персональний удар Бочки по підписанту піде в папери, а не в ребра.");
+    expect(text).not.toContain("Підписанти:");
   });
 
   it("explains why Big Barrel Brother joins are ineligible", () => {

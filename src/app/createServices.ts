@@ -209,7 +209,7 @@ export function createServices(
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction,
       bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
-    }),
+    }, undefined, achievements),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     remort: new RemortService(repositories.remorts, undefined, achievements),

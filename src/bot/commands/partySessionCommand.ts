@@ -596,6 +596,80 @@ export async function handlePartySessionCallback(
     return;
   }
 
+  if (callback.type === "protocol-file" || callback.type === "protocol-sign") {
+    const boss = await options.partyBoss?.getByPartyInviteToken(callback.token);
+    if (boss) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: callback.type === "protocol-file"
+          ? "Рейд уже стартував. Нові протоколи не приймаються."
+          : "Рейд уже стартував. Нові підписи не приймаються."
+      });
+      const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, { viewerCharacterId }), {
+        session: boss,
+        viewerCharacterId,
+        partyBoss: options.partyBoss,
+        telegramUserId,
+        includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
+      });
+      return;
+    }
+
+    if (callback.type === "protocol-file") {
+      const result = await service.fileBureaucramancerPersonalProtocolForTelegramUser(telegramUserId, callback.token);
+      await safeAnswerCallbackQuery(ctx, { text: presentProtocolFileCallbackAnswer(result.state) });
+
+      if (!("session" in result)) {
+        await sendText(ctx, "edit", result.state === "no-character"
+          ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
+          : "Ватага не знайшлася.", false);
+        return;
+      }
+
+      const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+      await sendText(ctx, "edit", presentPartyView({ state: "ready", session: result.session }, { inviteUrl }), {
+        session: result.session,
+        inviteUrl,
+        viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+        includeDevExpire: service.areDevHelpersEnabled(),
+        includeBossStart: isBigBarrelParty(result.session)
+      });
+
+      if (result.state === "updated") {
+        await ctx.reply(presentProtocolFileConfirmation(), HTML_MESSAGE_OPTIONS);
+        await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+      }
+      return;
+    }
+
+    const result = await service.signBureaucramancerPersonalProtocolForTelegramUser(telegramUserId, callback.token);
+    await safeAnswerCallbackQuery(ctx, {
+      text: presentProtocolSignCallbackAnswer(result.state)
+    });
+
+    if (!("session" in result)) {
+      await sendText(ctx, "edit", result.state === "no-character"
+        ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
+        : "Ватага не знайшлася.", false);
+      return;
+    }
+
+    const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+    await sendText(ctx, "edit", presentPartyView({ state: "ready", session: result.session }, { inviteUrl }), {
+      session: result.session,
+      inviteUrl,
+      viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+      includeDevExpire: service.areDevHelpersEnabled(),
+      includeBossStart: isBigBarrelParty(result.session)
+    });
+
+    if (result.state === "updated") {
+      await ctx.reply(presentProtocolSignConfirmation(), HTML_MESSAGE_OPTIONS);
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+    }
+    return;
+  }
+
   if (callback.type === "join") {
     const result = await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
       source: "nearby",
@@ -1228,6 +1302,77 @@ function presentWardSupportConfirmation(
   return typeof manaCost === "number"
     ? `✋ <b>Ви підперли знак</b>\n\n${presentManaSpentLine(manaCost)}`
     : null;
+}
+
+function presentProtocolFileCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["fileBureaucramancerPersonalProtocolForTelegramUser"]>>["state"]
+): string {
+  if (state === "updated") {
+    return "Протокол 13-Б подано.";
+  }
+  if (state === "already-filed") {
+    return "Ваш Протокол 13-Б уже відкрито.";
+  }
+  if (state === "already-exists") {
+    return "Протокол 13-Б уже відкрито.";
+  }
+  if (state === "ineligible") {
+    return "Це вміє тільки бюрокромант від 3 рівня.";
+  }
+  if (state === "blocked") {
+    return "Спершу завершіть інший бій.";
+  }
+  if (state === "cooldown") {
+    return "Протокол ще відлежується.";
+  }
+  if (state === "not-enough-mana") {
+    return "Не вистачає мани.";
+  }
+  if (state === "not-member") {
+    return "Спершу треба бути у ватазі.";
+  }
+  if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
+    return "Цей збір уже не приймає протоколи.";
+  }
+  return "Протокол не записався.";
+}
+
+function presentProtocolSignCallbackAnswer(
+  state: Awaited<ReturnType<PartySessionService["signBureaucramancerPersonalProtocolForTelegramUser"]>>["state"]
+): string {
+  if (state === "updated") {
+    return "Підписано.";
+  }
+  if (state === "already-signed") {
+    return "Ваш підпис уже в протоколі.";
+  }
+  if (state === "no-protocol") {
+    return "Протокол ще не відкрито.";
+  }
+  if (state === "not-member") {
+    return "Спершу треба бути у ватазі.";
+  }
+  if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
+    return "Цей збір уже не приймає підписи.";
+  }
+  return "Підпис не записався.";
+}
+
+function presentProtocolFileConfirmation(): string {
+  return [
+    "📄 <b>Протокол 13-Б подано</b>",
+    "",
+    presentManaSpentLine(5),
+    "Ви автоматично підписали власну персональну претензію."
+  ].join("\n");
+}
+
+function presentProtocolSignConfirmation(): string {
+  return [
+    "✍️ <b>Протокол підписано</b>",
+    "",
+    "Перша персональна претензія Бочки піде в папери, а не в ребра."
+  ].join("\n");
 }
 
 function isJoinedParticipant(
