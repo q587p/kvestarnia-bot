@@ -8,6 +8,7 @@ describe("Prisma schema", () => {
 
     expect(schema).toContain("model DailyAction");
     expect(schema).toContain("@@unique([characterId, key, localDate])");
+    expect(schema).toContain("@@index([characterId, key, createdAt], map: \"daily_actions_character_id_key_created_at_idx\")");
     expect(schema).toContain("@map(\"local_date\")");
     expect(schema).toContain("@map(\"reward_xp\")");
     expect(schema).toContain("@map(\"reward_gold\")");

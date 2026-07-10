@@ -677,7 +677,13 @@ export class DailyKorchmaRoundService {
     scenes: readonly DailyKorchmaRoundScene[]
   ): Promise<DailyActionRecord[]> {
     const sceneIds = new Set(scenes.map((scene) => scene.id));
-    const rows = this.dailyActions.listForTelegramUser
+    const rows = this.dailyActions.listForTelegramUserByLocalDatePrefix
+      ? await this.dailyActions.listForTelegramUserByLocalDatePrefix(telegramUserId, {
+          key: DAILY_KORCHMA_ROUND_STEP_KEY,
+          localDatePrefix: `${dayKey}:`,
+          take: 13
+        })
+      : this.dailyActions.listForTelegramUser
       ? await this.dailyActions.listForTelegramUser(telegramUserId, {
           key: DAILY_KORCHMA_ROUND_STEP_KEY
         })

@@ -318,9 +318,15 @@ export class TavernRaidService {
       characterLevel: summarizeCharacter(pending.character).level,
       waitDurationMs: getBarrelRaidWaitDurationMs(pending)
     });
-    const soloRaidHistory = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
-      key: FRIDAY_BARREL_RAID_KEY
+    const hasPriorSoloRaid = await this.dailyActions.existsAnyForTelegramUser?.(telegramUserId, {
+      key: FRIDAY_BARREL_RAID_KEY,
+      localDateNot: periodId
     });
+    const soloRaidHistory = hasPriorSoloRaid === undefined
+      ? await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+          key: FRIDAY_BARREL_RAID_KEY
+        })
+      : null;
     const character = summarizeCharacter(pending.character);
     const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
       key: FRIDAY_BARREL_RAID_KEY,
@@ -334,7 +340,9 @@ export class TavernRaidService {
         luck: character.stats.luck,
         ...(pending.character.classId ? { classId: pending.character.classId } : {}),
         ...(pending.character.raceId ? { raceId: pending.character.raceId } : {}),
-        isFirstSoloRaid: soloRaidHistory
+        isFirstSoloRaid: hasPriorSoloRaid !== undefined
+          ? !hasPriorSoloRaid
+          : soloRaidHistory
           ? soloRaidHistory.every((action) => action.localDate === periodId)
           : false
       })

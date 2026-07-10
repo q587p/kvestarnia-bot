@@ -140,6 +140,33 @@ export interface DailyActionRepository {
     input: { key: string; localDatePrefix: string }
   ): Promise<number | null>;
 
+  existsAnyForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string; localDateNot?: string }
+  ): Promise<boolean | null>;
+
+  listForTelegramUserByLocalDatePrefix?(
+    telegramUserId: bigint,
+    input: { key: string; localDatePrefix: string; take: number }
+  ): Promise<DailyActionRecord[] | null>;
+
+  sumItemGrantQuantityForTelegramUserInCreatedAtRange?(
+    telegramUserId: bigint,
+    input: {
+      key: string;
+      createdAtGte: Date;
+      createdAtLt: Date;
+      resultKind: string;
+      purchaseDay: string;
+      itemId: string;
+      take: number;
+    }
+  ): Promise<{ quantity: number; rowCount: number } | null>;
+
+  /**
+   * Broad historical scan kept for admin/dev compatibility and legacy fallbacks.
+   * Do not use from hot player callback paths when a bounded helper can express the lookup.
+   */
   listForTelegramUser?(
     telegramUserId: bigint,
     input: { key: string }

@@ -1,6 +1,7 @@
 import type { BotServices } from "./botServices";
 import type { QuestMarkerInput } from "./keyboards/questButtonMarkers";
 import { safeOptionalUiLookup } from "./optionalUiLookup";
+import { startPerfSpan } from "./performanceLogger";
 
 export async function buildQuestMarkerSnapshotForTelegramUser(
   telegramUserId: bigint,
@@ -31,6 +32,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   const firstKorchmaQuestService = services.firstKorchmaQuest;
   const itemUpgradesService = services.itemUpgrades;
   const cellarGrownupService = services.cellarGrownup;
+  const perf = startPerfSpan("main-menu.quest-markers", { telegramUserId });
 
   const [
     adventure,
@@ -43,7 +45,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     barrelBeerTutorial,
     dailyKorchmaRound,
     itemUpgrades
-  ] = await Promise.all([
+  ] = await perf.measureDb(() => Promise.all([
     typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
       ? optionalQuestMarkerLookup(
           "adventure offer",
@@ -112,14 +114,14 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
             ?? itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null)
-  ]);
+  ]));
 
   const cellarGrownup =
     cellarGrownupService && cellar?.state === "level-retired"
-      ? await optionalQuestMarkerLookup(
+      ? await perf.measureDb(() => optionalQuestMarkerLookup(
           "cellar grownup",
           () => cellarGrownupService.getForTelegramUser(telegramUserId)
-        )
+        ))
       : null;
 
   const characterLevel = [
@@ -137,10 +139,11 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   ].map(getCharacterLevel).find((level) => level !== undefined);
 
   if (characterLevel === undefined) {
+    perf.end({ resultState: "empty", rowCount: 0 });
     return null;
   }
 
-  return {
+  const snapshot = {
     characterLevel,
     ...(adventure && adventure.state !== "no-character" ? { adventure } : {}),
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
@@ -156,6 +159,12 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
       ? { cellarGrownup }
       : {})
   };
+  perf.end({
+    resultState: "ready",
+    rowCount: Object.keys(snapshot).length - 1
+  });
+
+  return snapshot;
 }
 
 function getCharacterLevel(result: unknown): number | undefined {

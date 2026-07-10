@@ -4,6 +4,19 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.5 — Performance P0 Hardening smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. With default env, exercise `🎒 Манатки`, item detail, Mantok Chest, Charkokovalnia item-upgrade list/preview/attempt, Yeger bandages, Daily Korchma Round, `/fight`, fight turn/reward and `🗺️ Квести`; verify the bot works normally and does not emit sampled perf logs for fast calls.
+2. Set `KVESTARNIA_PERF_SAMPLE_RATE=1` locally or set a very low `KVESTARNIA_PERF_SLOW_MS`; repeat the same routes and verify compact logs include route, Telegram user id, result state/counts where available, and `dbMs` / `computeMs` / `telegramMs` timing buckets without player text, callback tokens or JSON payloads.
+3. In Yeger, preview `93 бинти`, confirm, cancel and replay old confirm/cancel callbacks; verify the successful preview stays on the bandage purchase card, confirm/cancel use the cheap post-result navigation and rewards/limits remain unchanged.
+4. In `Корчмарський обхід`, open overview, scene, scene help, complete an action, claim reward, and replay stale day/life/scene callbacks; verify only the current Kyiv-day steps affect current progress.
+5. Start or reopen ordinary solo combat, resolve a turn and finish a reward path; verify active cards, progress messages, level-up/achievement behavior and stored replay behavior match the previous release.
+6. Review collected logs after at least 20 sampled/slow route calls and use them only to rank the next performance task; this release should not change balance or player-facing rules.
+
+Manual Telegram QA status for the implementation pass: not run in Telegram.
+
 ## 0.3.4 — Quest Overview Route smoke
 
 1. New character outside Korchma: press `🗺️ Квести` or `/quest`; verify the compact overview opens, not `Квести видають усередині.`, and `Перший крок до столу` appears as 0/2.

@@ -78,6 +78,41 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
   });
 
+  it("loads step rows through the current-day prefix only", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const offer = await readyOffer(world);
+    const first = offer.scenes[0]!;
+    await world.daily.claimForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_STEP_KEY,
+      localDate: `2026-06-27:${first.id}`,
+      rewardXp: 0,
+      rewardGold: 0,
+      resultJson: {
+        version: 1,
+        dayToken: "20260627",
+        sceneId: first.id,
+        actionId: first.actions[0]!.id,
+        locationId: first.locationId
+      }
+    });
+    world.daily.prefixListCalls = [];
+
+    const scene = await world.service.openScene(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 0
+    });
+
+    expect(scene).toMatchObject({ state: "scene", alreadyCompleted: false });
+    expect(world.daily.prefixListCalls).toEqual([
+      {
+        key: DAILY_KORCHMA_ROUND_STEP_KEY,
+        localDatePrefix: "2026-06-28:",
+        take: 13
+      }
+    ]);
+    expect(world.daily.broadListCalls).toBe(0);
+  });
+
   it("does not issue a daily offer from overview inspection, scene, action or claim callbacks", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3 }));
 
@@ -603,6 +638,8 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   beforeCreate: ((input: ClaimDailyActionInput) => void) | null = null;
+  broadListCalls = 0;
+  prefixListCalls: Array<{ key: string; localDatePrefix: string; take: number }> = [];
 
   constructor(private readonly world: FakeWorld) {}
 
@@ -622,11 +659,28 @@ class FakeDailyActionRepository implements DailyActionRepository {
   }
 
   listForTelegramUser(id: bigint, input: { key: string }): Promise<DailyActionRecord[] | null> {
+    this.broadListCalls += 1;
     if (id !== telegramUserId || !this.world.character) {
       return Promise.resolve(null);
     }
 
     return Promise.resolve(this.records.filter((record) => record.key === input.key));
+  }
+
+  listForTelegramUserByLocalDatePrefix(
+    id: bigint,
+    input: { key: string; localDatePrefix: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    this.prefixListCalls.push(input);
+    if (id !== telegramUserId || !this.world.character) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(
+      this.records
+        .filter((record) => record.key === input.key && record.localDate.startsWith(input.localDatePrefix))
+        .slice(0, input.take)
+    );
   }
 
   countForTelegramUser(

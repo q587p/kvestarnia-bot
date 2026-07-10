@@ -671,12 +671,17 @@ async function handleItemUpgradeCallback(
   }
 
   if (action.type === "preview") {
-    const result = await services.itemUpgrades.previewForTelegramUser(
+    const timing = startCallbackTiming("item-upgrade.preview", telegramUserId);
+    const result = await timing.measureDb(() => services.itemUpgrades.previewForTelegramUser(
       telegramUserId,
       action.itemId,
       action.method,
       action.donorItemId
-    );
+    ));
+    const rendered = timing.measureCompute(() => ({
+      text: presentItemUpgradePreview(result),
+      replyMarkup: buildItemUpgradePreviewKeyboard(result)
+    }));
 
     await safeAnswerCallbackQuery(ctx, {
       show_alert:
@@ -687,14 +692,18 @@ async function handleItemUpgradeCallback(
         result.state === "level-locked" ||
         result.state === "unlock-required"
     });
-    await safeEditMessageText(ctx, presentItemUpgradePreview(result), {
+    await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildItemUpgradePreviewKeyboard(result)
+      reply_markup: rendered.replyMarkup
+    }));
+    timing.log({
+      itemCount: result.state === "ready" ? result.item.quantity : 0
     });
     return;
   }
 
-  const result = await services.itemUpgrades.attemptForTelegramUser(telegramUserId, {
+  const timing = startCallbackTiming("item-upgrade.attempt", telegramUserId);
+  const result = await timing.measureDb(() => services.itemUpgrades.attemptForTelegramUser(telegramUserId, {
     itemId: action.itemId,
     method: action.method,
     donorItemId: action.donorItemId,
@@ -702,7 +711,11 @@ async function handleItemUpgradeCallback(
     expectedFromLevel: action.expectedFromLevel,
     expectedQuantity: action.expectedQuantity,
     expectedPityFailures: action.expectedPityFailures
-  });
+  }));
+  const rendered = timing.measureCompute(() => ({
+    text: presentItemUpgradeAttempt(result),
+    replyMarkup: buildItemUpgradeResultKeyboard(result.state === "attempted" ? result.item.itemId : action.itemId)
+  }));
 
   await safeAnswerCallbackQuery(
     ctx,
@@ -721,16 +734,19 @@ async function handleItemUpgradeCallback(
             result.state === "unlock-required"
         }
   );
-  await safeEditMessageText(ctx, presentItemUpgradeAttempt(result), {
+  await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUpgradeResultKeyboard(result.state === "attempted" ? result.item.itemId : action.itemId)
-  });
+    reply_markup: rendered.replyMarkup
+  }));
   const achievementText = presentAchievementUnlockNotification(
     result.state === "attempted" ? result.achievementUnlocks ?? [] : []
   );
   if (achievementText) {
-    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    await timing.measureTelegram(() => ctx.reply(achievementText, HTML_MESSAGE_OPTIONS));
   }
+  timing.log({
+    itemCount: result.state === "attempted" ? result.item.quantity : 0
+  });
 }
 
 async function hasCombatUseActionForItemId(

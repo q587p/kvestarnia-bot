@@ -2045,15 +2045,20 @@ export class FightService {
     }
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      const historicalFights = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+      const completed = await this.dailyActions.existsAnyForTelegramUser?.(telegramUserId, {
         key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY
       });
+      const historicalFights = completed === undefined
+        ? await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+            key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+          })
+        : null;
 
       return {
         state: "level-retired",
         character: characterSummary,
         maxLevel: STARTER_ACTIVITY_MAX_LEVEL,
-        completed: Boolean(historicalFights?.length)
+        completed: completed ?? Boolean(historicalFights?.length)
       };
     }
 

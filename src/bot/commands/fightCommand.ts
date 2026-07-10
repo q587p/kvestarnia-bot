@@ -45,6 +45,7 @@ import {
 } from "../presenters/fightPresenter";
 import { presentKorchmaDeepClosed } from "../presenters/tavernPresenter";
 import { presentKorchmaQuestGate } from "../presenters/questHubPresenter";
+import { startPerfSpan } from "../performanceLogger";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
@@ -114,18 +115,20 @@ export async function sendFight(
     }
   }
 
-  const result = options?.difficulty
-    ? await fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+  const perf = startPerfSpan(options?.difficulty ? "fight.start" : "fight.overview", { telegramUserId });
+  const result = await perf.measureDb(() => options?.difficulty
+    ? fightService.getOrStartPersistentFightForTelegramUser(telegramUserId, {
         difficulty: options.difficulty,
         originLocationId: options.originLocationId ?? getDefaultPassageLocationId(options.difficulty),
         ...(options.encounterSeed ? { encounterSeed: options.encounterSeed } : {})
       })
     : typeof fightService.getFightOverviewForTelegramUser === "function"
-      ? await fightService.getFightOverviewForTelegramUser(telegramUserId)
-      : await fightService.getFightForTelegramUser(telegramUserId);
+      ? fightService.getFightOverviewForTelegramUser(telegramUserId)
+      : fightService.getFightForTelegramUser(telegramUserId));
 
   if (result.state === "no-character") {
-    await sendText(ctx, mode, presentFightNoCharacter());
+    await perf.measureTelegram(() => sendText(ctx, mode, presentFightNoCharacter()));
+    perf.end({ resultState: result.state });
     return;
   }
 
@@ -181,13 +184,13 @@ export async function sendFight(
   if (options?.presence) {
     const persistentLocationId = getPersistentPresenceLocationId(result, options);
 
-    await markFightPresence(ctx, options.presence, {
+    await perf.measureDb(() => markFightPresence(ctx, options.presence, {
       persistent:
         result.state === "persistent-ready" ||
         result.state === "persistent-active" ||
         result.state === "persistent-terminal",
       locationId: persistentLocationId
-    });
+    }));
   }
 
   if (result.state === "already-completed") {
@@ -262,7 +265,10 @@ export async function sendFight(
     text: string,
     keyboard: Parameters<typeof sendText>[3] = false
   ): Promise<number | null> {
-    return sendText(ctx, mode, text, keyboard);
+    const messageId = await perf.measureTelegram(() => sendText(ctx, mode, text, keyboard));
+    perf.end({ resultState: result.state });
+
+    return messageId;
   }
 }
 

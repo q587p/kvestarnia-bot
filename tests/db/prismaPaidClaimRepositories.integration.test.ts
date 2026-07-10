@@ -551,6 +551,97 @@ describe("paid Prisma claim repositories", () => {
     })).resolves.toBe(2);
   });
 
+  it("provides bounded DailyAction hot-path helpers", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-daily-action-bounded-hot-paths",
+      characterId: "character-daily-action-bounded-hot-paths",
+      telegramUserId: 9304n,
+      gold: 1000
+    });
+    await prisma.dailyAction.createMany({
+      data: [
+        {
+          characterId: "character-daily-action-bounded-hot-paths",
+          key: "daily.korchma-round.step",
+          localDate: "2026-07-10:scene-old",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-07-10T08:00:00.000Z")
+        },
+        {
+          characterId: "character-daily-action-bounded-hot-paths",
+          key: "daily.korchma-round.step",
+          localDate: "2026-07-11:scene-a",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-07-11T08:00:00.000Z")
+        },
+        {
+          characterId: "character-daily-action-bounded-hot-paths",
+          key: "daily.korchma-round.step",
+          localDate: "2026-07-11:scene-b",
+          rewardXp: 0,
+          rewardGold: 0,
+          createdAt: new Date("2026-07-11T08:01:00.000Z")
+        },
+        {
+          characterId: "character-daily-action-bounded-hot-paths",
+          key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+          localDate: "token-a",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: YEGER_BANDAGE_PRICE * 5,
+          createdAt: new Date("2026-07-11T09:00:00.000Z"),
+          resultJson: {
+            kind: "yeger-bandage-purchase-confirm",
+            purchaseDay: "2026-07-11",
+            reward: {
+              appliedItemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 5 }]
+            }
+          }
+        },
+        {
+          characterId: "character-daily-action-bounded-hot-paths",
+          key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+          localDate: "token-b",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: YEGER_BANDAGE_PRICE * 3,
+          createdAt: new Date("2026-07-11T10:00:00.000Z"),
+          resultJson: {
+            kind: "yeger-bandage-purchase-confirm",
+            purchaseDay: "2026-07-11",
+            reward: {
+              appliedItemGrants: [{ itemId: BANDAGE_ITEM_ID, quantity: 3 }]
+            }
+          }
+        }
+      ]
+    });
+
+    await expect(dailyActions.listForTelegramUserByLocalDatePrefix(9304n, {
+      key: "daily.korchma-round.step",
+      localDatePrefix: "2026-07-11:",
+      take: 13
+    })).resolves.toMatchObject([
+      { localDate: "2026-07-11:scene-a" },
+      { localDate: "2026-07-11:scene-b" }
+    ]);
+    await expect(dailyActions.existsAnyForTelegramUser(9304n, {
+      key: "daily.korchma-round.step",
+      localDateNot: "2026-07-11:scene-a"
+    })).resolves.toBe(true);
+    await expect(dailyActions.sumItemGrantQuantityForTelegramUserInCreatedAtRange(9304n, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      createdAtGte: new Date("2026-07-11T00:00:00.000Z"),
+      createdAtLt: new Date("2026-07-12T00:00:00.000Z"),
+      resultKind: "yeger-bandage-purchase-confirm",
+      purchaseDay: "2026-07-11",
+      itemId: BANDAGE_ITEM_ID,
+      take: 93
+    })).resolves.toEqual({ quantity: 8, rowCount: 2 });
+  });
+
   it("replays canonical cancel when cancel wins before Yeger purchase confirm", async () => {
     await seedCharacter(prisma, {
       userId: "user-yeger-cancel-wins",
