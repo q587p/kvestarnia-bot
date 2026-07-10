@@ -22,6 +22,7 @@ describe("first Korchma quest presenter", () => {
     expect(text).toContain("🌯 <b>Підозріла шаурма</b> — новачкова підозра чекає на столі.");
     expect(text).toContain("⚔️ <b>Новачкова сутичка</b> — підозріла шаурма ще не дала свідчень.");
     expect(text).toContain("+1 XP");
+    expect(text?.indexOf("Отримано:")).toBeLessThan(text?.indexOf("На столі для вас"));
   });
 
   it("stays quiet when the route is not ready", () => {
