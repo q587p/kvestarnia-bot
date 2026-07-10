@@ -32,6 +32,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Charkokovalnia unlock markers now turn green when the player already has the `Польова аптечка`, including `Доступ до Чароковальні`, `Надвір`, `У задвірок` and the Charkokovalnia action itself.
 - Level 4+ quest turn-ins can now add a replay-safe `Іскрокамінь` bonus: 1 at 23%, 2 at 13%, or 3 at 5%, covering Adventure, Daily Korchma Round, Yeger, Barrel tutorial, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock reward paths without changing ordinary combat reward rolls.
 - The quest overview now distinguishes repeat `Льохова справа` availability after the first mouse errand completion, using `не перший спуск` and repeat-attempt next-step copy instead of claiming it is still the first descent.
+- The grownup cellar mouse pause and paid-seal keyboard no longer shows the old `Дошка полювання` shortcut; the card now stays focused on buying the seal or returning to the hall.
 - Quest overview problem guidance now uses prose casing for `спуск до Низу`, keeping `Спуск до Низу` for buttons, titles and sentence starts.
 - Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.

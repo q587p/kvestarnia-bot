@@ -119,6 +119,7 @@ describe("cellar command", () => {
       text: "🧀 Купити пломбу",
       callback_data: "v1:cellar:grownup-buy-seal"
     });
+    expect(buttons.map((button) => button.text)).not.toContain("🏹 Дошка полювання");
     expect(presence.marks[0]).toMatchObject({
       locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
       currentRaidId: null,
