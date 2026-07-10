@@ -525,6 +525,7 @@ Rewards and anti-grind:
 - remort-only advanced options after the `0.1.2` MVP;
 - bounded 3+ enemy solo combat expansion on the shipped one-/two-enemy foundation;
 - authored monster escape attempts with explicit non-win outcomes;
+- soft monster counter-matchups by race, class and action family, with rare telegraphed immunities and alternative paths;
 - party combat and real raids after the solo multi-enemy path is balance-tested.
 
 ## Групова активність later

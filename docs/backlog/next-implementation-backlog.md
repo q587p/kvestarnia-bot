@@ -27,7 +27,8 @@
 12. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
 13. **Priority combat expansion:** bounded 3+ enemy solo encounters on the shipped one-/two-enemy foundation; see [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-enemy-combat.md). Do this before broad party-help or real-raid work.
 14. Monster escape attempts with explicit non-win outcomes, compatible with 3+ enemy encounters.
-15. Party combat / real raid MVP with capped contribution-aware rewards.
+15. Monster counter-matchup profiles: soft race/class pressure plus anti-magic/anti-technical alternatives.
+16. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
@@ -1310,6 +1311,14 @@ Future task doc: [0.2.x-monster-escape.md](../tasks/0.2.x-monster-escape.md).
 Після 3+ enemy combat окремо додати контрольовану спробу втечі для частини PvE-монстрів: невдала спроба витрачає відповідь монстра й лишає бій активним, успішна має власний outcome, а в multi-enemy encounter прибирає лише конкретного ворога. Якщо тікає останній монстр, це не перемога і не звичайна нагорода.
 
 Потрібні обмежені trigger/attempt rules, детермінований RNG, відмінність від втечі гравця, коректні журнали та replay-safe settlement. Жодної автоматичної XP/gold/loot-нагороди за сам факт втечі без окремого balance-рішення.
+
+## Later — Monster Counter-Matchup Profiles
+
+Future task doc: [0.2.x-monster-counter-matchups.md](../tasks/0.2.x-monster-counter-matchups.md).
+
+Для окремих PvE-монстрів додати контр-матчапи за расою, класом і способом бою: суперагресивність проти конкретної раси/класу, антимагічні профілі, які краще долати зброєю та немагічними абілками, і антитехнічні профілі, де сильнішою альтернативою є магія. Це мають бути переважно мʼякі контри, а не невидимі заборони.
+
+Рідкісна майже-повна імунність потребує попередження та bypass/retreat path. Виклик помічника іншої раси чи класу — лише окремий bounded/idempotent follow-up, сумісний із 3+ enemy та summon-планом, без автоматичного party engine.
 
 ## Later — Summoner Tags and Encounter Follow-ups
 
