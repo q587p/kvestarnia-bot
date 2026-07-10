@@ -126,7 +126,7 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
 - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
-- [0.2.x-consumable-manatka-uses.md](0.2.x-consumable-manatka-uses.md) — draft follow-up for giving coffee/tea/beer-style consumable manatky real one-use actions, take-away purchase, and `Разові` visibility without implementing it in `0.2.31`.
+- [0.2.x-consumable-manatka-uses.md](0.2.x-consumable-manatka-uses.md) — draft follow-up for coffee/tea/beer-style consumable manatky, immediate versus take-away purchase, reusable empty bottles and future Mage mana refills, without implementing it in `0.2.31`.
 - [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — archived draft that was activated as `0.2.5`; future non-combat XP needs a separate task.
 
 ## Closeout

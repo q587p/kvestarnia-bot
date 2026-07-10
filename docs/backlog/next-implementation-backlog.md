@@ -450,6 +450,20 @@ Canonical design doc: [SUPPORT_JAR_LIVE_STATUS.md](../operations/support-jar-liv
 - beer result text не каже, що гравець отримав золото;
 - tests cover not-enough, simple threshold, quality threshold, protected/equipped/priceless exclusions, duplicate confirm, and generosity ledger entry.
 
+## Later — Shynok Take-away Bottles and Mage Mana Refill
+
+Future task doc: [0.2.x-consumable-manatka-uses.md](../tasks/0.2.x-consumable-manatka-uses.md).
+
+Extend the existing Shynok drink follow-up with a reusable container loop:
+
+- every supported drink offers two explicit choices: apply it now or buy one sealed take-away bottle for `🎒 Манатки`;
+- only a sealed take-away drink returns one `item.empty-tavern-bottle` after a successful committed use; an immediate cup leaves no reusable bottle;
+- the empty bottle is a stack-based utility item, not equipment and not a hidden proc;
+- a future Mage surface accepts an empty bottle plus a bounded confirmed price/resource cost and returns one `item.mana-bottle`;
+- mana bottles have a bounded, explicitly tested recovery effect and an out-of-combat or tightly limited combat-use boundary, so the loop cannot become free infinite mana;
+- purchase, use, empty-bottle return and Mage refill are all replay-safe and transactional, with no duplicate bottle, mana bottle or cost on stale callbacks;
+- `Разові`, item detail and result cards distinguish `випити зараз`, `взяти пляшку`, `порожня пляшка` and `пляшка з маною` without presenting the future Mage refill as shipped before its task is activated.
+
 ## Later — Шинок Food Buffs
 
 **Objective**
