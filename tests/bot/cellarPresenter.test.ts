@@ -6,6 +6,7 @@ import {
   presentCellarIntro,
   presentCellarMethodHelp,
   presentCellarGrownupResult,
+  presentCellarLevelRetired,
   presentCellarResult,
   selectCellarGrownupRoleplayFailureVariant,
   presentCellarStart
@@ -20,6 +21,25 @@ import type {
 } from "../../src/services/cellarGrownupQuestService";
 
 describe("cellar presenter", () => {
+  it("keeps the hunt board out of retired and grownup cellar copy", () => {
+    const retiredText = presentCellarLevelRetired({
+      state: "level-retired",
+      character,
+      maxLevel: 3,
+      completed: false
+    });
+    const grownupText = presentCellarGrownupQuest({
+      state: "offered",
+      character,
+      price: 240
+    });
+
+    expect(retiredText).not.toContain("/hunt");
+    expect(retiredText).not.toContain("дошка полювання");
+    expect(grownupText).not.toContain("/hunt");
+    expect(grownupText).not.toContain("дошка полювання");
+  });
+
   it("renders cellar intro as a separate scene header", () => {
     const text = presentCellarIntro(ready);
 
