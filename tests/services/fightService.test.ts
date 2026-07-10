@@ -3235,6 +3235,94 @@ describe("FightService", () => {
     expect(rewardRecords).toHaveLength(1);
   });
 
+  it("records the strongest enemy in a two-enemy victory for Chronicles", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 4, xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const activityEvents = new FakeActivityEventRepository();
+    const activityEventService = new ActivityEventService(activityEvents);
+    const baseSession = makeTerminalSession(
+      "won",
+      "session-two-enemy-chronicles-strongest",
+      `character-${telegramUserId.toString()}`,
+      "monster.deadline-spider"
+    );
+    const wonSession = sessions.addSession({
+      ...baseSession,
+      state: {
+        ...baseSession.state!,
+        monster: {
+          ...baseSession.state!.monster,
+          level: 8,
+          debugTrace: {
+            interventionKind: "none",
+            interventionSourceKey: "prypichnyk",
+            baseMonsterLevel: 8,
+            effectiveMonsterLevel: 8
+          }
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            ...baseSession.state!.monster,
+            level: 8,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 8,
+              effectiveMonsterLevel: 8
+            }
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.complaint-lantern",
+            name: "Скаржник із ліхтарем",
+            hp: 0,
+            hpMax: 95,
+            level: 23,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 4,
+              effectiveMonsterLevel: 23
+            }
+          }
+        ]
+      }
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      activityEvents: new PublicActivityEventPublisher(activityEventService),
+      rng: new FakeRandomSource([0.99, 0.99, 0])
+    });
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    expect(activityEvents.records).toHaveLength(1);
+    expect(activityEvents.records[0]).toMatchObject({
+      eventType: "combat.underdog_won",
+      category: "combat",
+      sourceId: wonSession.id,
+      subjectId: "monster.complaint-lantern",
+      payload: { levelDelta: 19 }
+    });
+    await expect(activityEventService.listRecent("cmb")).resolves.toMatchObject({
+      events: [expect.objectContaining({ sourceId: wonSession.id })]
+    });
+    await expect(activityEventService.listRecent("imp")).resolves.toMatchObject({
+      events: [expect.objectContaining({ sourceId: wonSession.id })]
+    });
+  });
+
   it.each(["normal", "yeger", "adventure"] as const)(
     "uses shared variable-gold rewards for %s persistent fight sources",
     async (source) => {

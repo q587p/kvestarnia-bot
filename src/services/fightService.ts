@@ -3392,17 +3392,14 @@ export class FightService {
       return;
     }
 
-    const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(
-      input.session,
-      input.monster.level
-    );
+    const eventMonster = getPersistentFightEventMonster(input.session, input.monster);
     await this.activityEvents?.recordUnderdogCombatWinSafely({
       characterId: input.session.characterId,
       actorDisplayName: input.character.name,
       combatSessionId: input.session.id,
-      monsterId: input.session.monsterId,
-      monsterName: input.monster.name,
-      monsterLevel: effectiveMonsterLevel,
+      monsterId: eventMonster.monster.id,
+      monsterName: eventMonster.monster.name,
+      monsterLevel: eventMonster.effectiveLevel,
       characterLevel: input.character.level,
       occurredAt: this.clock()
     });
@@ -5333,6 +5330,42 @@ function getPersistentFightSessionEncounterMonsterLevel(
     session?.state?.monster.level;
 
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
+}
+
+function getPersistentFightEventMonster(
+  session: Pick<SoloCombatSessionRecord, "state">,
+  fallbackMonster: MonsterContent
+): { monster: MonsterContent; effectiveLevel: number } {
+  const enemies = session.state ? normalizeCombatEnemies(session.state) : [];
+  const eventEnemy = enemies.reduce<CombatEnemyState | undefined>((strongest, enemy) => {
+    if (!strongest) {
+      return enemy;
+    }
+
+    return getCombatEnemyEffectiveLevel(enemy) > getCombatEnemyEffectiveLevel(strongest)
+      ? enemy
+      : strongest;
+  }, undefined);
+  const monster = eventEnemy ? findMonster(eventEnemy.id) : null;
+
+  if (!eventEnemy || !monster) {
+    return {
+      monster: fallbackMonster,
+      effectiveLevel: getPersistentFightSessionEncounterMonsterLevel(session, fallbackMonster.level)
+    };
+  }
+
+  return {
+    monster,
+    effectiveLevel: getCombatEnemyEffectiveLevel(eventEnemy, monster.level)
+  };
+}
+
+function getCombatEnemyEffectiveLevel(enemy: CombatEnemyState, fallbackLevel = 1): number {
+  return Math.max(
+    1,
+    Math.floor(enemy.debugTrace?.effectiveMonsterLevel ?? enemy.level ?? fallbackLevel)
+  );
 }
 
 function getPersistentFightSessionEncounterBaseMonsterLevel(

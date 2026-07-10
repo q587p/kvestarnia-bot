@@ -8,6 +8,7 @@ Keep this file compact. Target: under 250 lines.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
 - Current package version in this repository snapshot: `0.3.6`.
+- Latest-events combat follow-up: persistent two-enemy underdog wins use the strongest stored encounter enemy for the public Chronicle subject and level threshold; reward calculation still uses the original encounter enemy. Regression coverage lives in `tests/services/fightService.test.ts`.
 
 ## Language split
 - Codex-facing workflow docs, task docs, prompts, skills, PR text, commits, and test names should be English when practical.

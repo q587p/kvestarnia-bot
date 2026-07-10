@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Mantok Chest output rarity now follows the five selected input rarities and bounded current LUCK instead of raw score alone; all-epic input stays within epic output, mixed batches settle around their average rarity, and lower-rarity batches get only small upgrade tails.
 - Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
+- Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 
