@@ -89,6 +89,26 @@ describe("latest events presenter", () => {
     expect(text).toContain("Дуелянт: денний турнір, місце 1, 5 очк.");
   });
 
+  it("omits base-life remort tag on level-up rows", () => {
+    const text = presentLatestEventsPage({
+      now: new Date("2026-07-02T12:00:00.000Z"),
+      page: {
+        events: [
+          makeEvent("character.level_reached", "2026-07-02T08:00:00.000Z", {
+            actorDisplayName: "Zerg M",
+            payload: { level: 2, remortCount: 0 }
+          })
+        ],
+        page: 0,
+        pageSize: 15,
+        hasNextPage: false
+      }
+    });
+
+    expect(text).toContain("Zerg M бере 2 рівень!");
+    expect(text).not.toContain("(р0)");
+  });
+
   it("escapes, truncates and falls back for dynamic names", () => {
     const text = presentLatestEventsPage({
       now: new Date("2026-07-02T12:00:00.000Z"),

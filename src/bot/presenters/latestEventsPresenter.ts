@@ -277,7 +277,8 @@ function presentRemortTag(remortCount: number | null): string {
     return "";
   }
 
-  return ` (р${Math.max(0, Math.floor(remortCount))})`;
+  const normalized = Math.max(0, Math.floor(remortCount));
+  return normalized > 0 ? ` (р${normalized})` : "";
 }
 
 function readPayloadString(payload: unknown, key: string): string | null {

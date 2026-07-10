@@ -37,6 +37,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Quest overview guidance labels `Зроблено:`, `Далі:`, and `Де:` now render in italics so compact rows are easier to scan.
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 
+### Fixed
+- `📜 Хроніки Квестарні` level-up rows now omit the remort-life tag for base-life characters, so `р0` no longer appears after ordinary first-life level gains; positive remort tags such as `(р5)` still appear.
+
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
 
 ### Added
