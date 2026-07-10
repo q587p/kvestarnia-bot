@@ -19,6 +19,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Yeger paid-bandage daily-limit checks now stay inside the current-day indexed window and cap the rows inspected for the normal 93-bandage smoke path.
 - Daily Korchma Round step loading now reads only the current Kyiv day prefix with a small cap before applying the existing scene/life validation.
 - Starter completion and Friday Barrel first-solo history checks now use existence probes instead of loading all historical DailyAction rows.
+- Mantok Chest confirm now validates only the selected input item rows, selected equipment state and selected reservation state instead of rebuilding a full inventory snapshot inside the confirm transaction.
+- Mantok Chest timing now counts callback answers in the Telegram bucket, so slow-route logs separate DB work from Telegram API latency more honestly.
 
 ### Fixed
 - Preserved existing rewards, balance, player-facing copy and callback replay behavior while making the P0 routes measurable and bounded for the next live profiling pass.

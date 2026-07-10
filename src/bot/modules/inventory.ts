@@ -915,7 +915,7 @@ async function handleMantokChestCallback(
       replyMarkup: buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(ctx);
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(ctx));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -934,12 +934,12 @@ async function handleMantokChestCallback(
           : buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(
       ctx,
       preview.state === "not-enough-items"
         ? { text: "Скрині треба 5 доступних манаток.", show_alert: true }
         : { show_alert: preview.state === "no-character" }
-    );
+    ));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -965,7 +965,7 @@ async function handleMantokChestCallback(
           : buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(ctx);
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(ctx));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -991,7 +991,7 @@ async function handleMantokChestCallback(
           : buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(ctx);
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(ctx));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -1017,12 +1017,12 @@ async function handleMantokChestCallback(
           : buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(
       ctx,
       selection.state === "selection" && selection.selectedCount === selection.requiredCount
         ? { text: "На виделці рівно 5 манаток." }
         : undefined
-    );
+    ));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -1047,12 +1047,12 @@ async function handleMantokChestCallback(
           : buildMantokChestOverviewKeyboard()
     }));
 
-    await safeAnswerCallbackQuery(
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(
       ctx,
       preview.state === "selection-incomplete"
         ? { text: "Скрині треба рівно 5 манаток.", show_alert: true }
         : { show_alert: preview.state !== "preview-created" }
-    );
+    ));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -1074,10 +1074,10 @@ async function handleMantokChestCallback(
       action.token
     ));
 
-    await safeAnswerCallbackQuery(ctx, {
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(ctx, {
       text: result.state === "cancelled" ? "Скриня відпустила манатки." : presentInvalidCallback(),
       show_alert: result.state !== "cancelled"
-    });
+    }));
 
     const overview = await timing.measureDb(() => services.mantokChest.getOverviewForTelegramUser(telegramUserId));
     const rendered = timing.measureCompute(() => ({
@@ -1097,7 +1097,7 @@ async function handleMantokChestCallback(
     action.token
   ));
 
-  await safeAnswerCallbackQuery(
+  await timing.measureTelegram(() => safeAnswerCallbackQuery(
     ctx,
     result.state === "recycled"
       ? { text: "Скриня хрумкнула." }
@@ -1107,7 +1107,7 @@ async function handleMantokChestCallback(
             result.state === "stale-inputs" ||
             result.state === "expired"
         }
-  );
+  ));
   const outputItem =
     result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
   const rendered = timing.measureCompute(() => ({
