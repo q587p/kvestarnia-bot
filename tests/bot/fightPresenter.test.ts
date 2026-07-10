@@ -346,14 +346,14 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
-  it("shows remort revenge pressure on solo Yeger fights without Nyz wording", () => {
+  it("shows remort revenge pressure from remort three on solo Yeger fights without Nyz wording", () => {
     const result = {
       state: "persistent-active",
       character,
       session: persistentSession({
         source: "yeger",
         life: {
-          remortCount: 7
+          remortCount: 3
         }
       }),
       monster: {
@@ -435,10 +435,10 @@ describe("fight presenter", () => {
     const intro = presentPersistentFightIntro(result);
     const text = presentPersistentFight(result);
 
-    expect(intro).toContain("⚠️ <i>Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.</i>\n📈 <i>Натиск Низу:</i> <b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога тримає коротшу планку здоровʼя.\n\nПроти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
+    expect(intro).toContain("⚠️ <i>Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.</i>\n📈 <i>Натиск Низу:</i> <b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога не тисне щохідно й бʼє мʼякше, доки основний ворог живий.\n\nПроти вас:\n👹 1. <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3\n👹 2. <b>&lt;b&gt;Перший&lt;/b&gt;</b> · рівень 2");
     expect(intro).toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(intro).toContain("Натиск Низу:");
-    expect(intro).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога тримає коротшу планку здоровʼя.");
+    expect(intro).toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога не тисне щохідно й бʼє мʼякше, доки основний ворог живий.");
     expect(intro).toContain("<i>Порада дня:");
     expect(intro).not.toContain("<i>Другий</i>");
     expect(intro).not.toContain("<b>Перший</b>");
@@ -446,7 +446,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Проти вас:");
     expect(text).not.toContain("Хтось у Низу сказав «та він один». Інші сприйняли це як запрошення.");
     expect(text).not.toContain("Натиск Низу:");
-    expect(text).not.toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога тримає коротшу планку здоровʼя.");
+    expect(text).not.toContain("<b>&lt;i&gt;Другий&lt;/i&gt;</b> має +2 рівні — рівень 3 із межі 23; як підмога не тисне щохідно й бʼє мʼякше, доки основний ворог живий.");
     expect(text).not.toContain("Проти вас: <b>&lt;i&gt;Другий&lt;/i&gt;</b> · рівень 3");
     expect(text).toContain("👹 1. Другий: 7/16 ← ціль");
     expect(text).toContain("👹 2. Перший: 0/18");

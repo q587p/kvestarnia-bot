@@ -928,7 +928,7 @@ function presentThreatPressureLine(
     return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> дійшов до межі ${pressure.levelCap}; зайві рівні Корчма вперла в стелю.`;
   }
 
-  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога тримає коротшу планку здоровʼя.`;
+  return `📈 <i>Натиск Низу:</i> <b>${enemyName}</b> має +${appliedLevelBonus} ${formatLevelPoints(appliedLevelBonus)} — рівень ${pressure.boostedEnemyEffectiveLevel} із межі ${pressure.levelCap}; як підмога не тисне щохідно й бʼє мʼякше, доки основний ворог живий.`;
 }
 
 function formatLevelPoints(value: number): string {
@@ -1354,7 +1354,9 @@ function presentEnemyHpRows(
 function presentRemortMonsterPressureLines(state: CombatState | null | undefined): string[] {
   const remortCount = state?.life?.remortCount ?? 0;
 
-  if (!state || remortCount <= 3 || normalizeCombatEnemies(state).length > 1) {
+  const visiblePressureFreeRanks = state?.source === "yeger" ? 2 : 3;
+
+  if (!state || remortCount <= visiblePressureFreeRanks || normalizeCombatEnemies(state).length > 1) {
     return [];
   }
 

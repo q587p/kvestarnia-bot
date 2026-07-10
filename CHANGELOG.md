@@ -38,6 +38,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Existing active combat, turn-based duel, active/pending Big Barrel, active passage-search, no-character and stale-callback guards are preserved through the existing command/callback middleware; outside-Korchma gates remain for the full Quest Hub/list/action routes.
 
 ### Fixed
+- Active solo-combat cards now describe `Натиск Низу` backup enemies as intermittent/softened pressure instead of implying a shorter HP bar, and solo Yeger remort pressure now shows its `Відплата за минулі пригоди` hint from remort `р3`, matching the actual Yeger combat scaling.
 - `📜 Хроніки Квестарні` now records underdog solo-combat wins even when an already-settled persistent fight reward is replayed or recovered later, keeping `⚔️ Бої` from missing valid stronger-monster victories.
 - `📜 Хроніки Квестарні` filter keyboard now marks the currently selected feed with neutral `🔘` instead of `✅`, so `Манатки` and other filters no longer look like completed quest rows.
 - `Перший крок до столу` completion now fails closed at the service layer until the character actually reaches `📋 Стіл зі справами`; opening `🗺️ Квести`, entering Korchma, or replaying from the hall can no longer write the completion row, grant XP, or unlock the achievement early.
