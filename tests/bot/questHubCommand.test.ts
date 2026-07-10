@@ -432,6 +432,7 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i>");
+    expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i> — на столі лежить записка");
     expect(replies[0]?.text).toContain("Новачкам — аванс на дорогу до Бочки");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
     const buttons = (
