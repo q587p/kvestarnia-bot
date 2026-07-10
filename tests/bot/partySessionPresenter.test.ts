@@ -347,7 +347,7 @@ describe("party session presenter", () => {
     expect(text).toContain("▪️ Шкодійка після ходу: HP 53/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("<b>Останні дії:</b>");
     expect(text).toContain("Старший Брат Бочки застосував 🛢️ <i>Бочковий гуркіт</i>: Голова отримує 5 шкоди; Шкодійка отримує 7 шкоди.");
-    expect(text).toContain("Шкодійка застосовує 🏹 <i>Рикошетний постріл</i> і влучає на 13 шкоди.");
+    expect(text).toContain("Шкодійка застосовує 🏹 <i>Рикошетний постріл</i>: влучає на 13 шкоди.");
     expect(text).toContain("<b>Кулдауни та ефекти:</b>");
     expect(text).toContain("Голова: 🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 1 хід.");
     expect(text).toContain("Голова: 🫁 🩹 Щільний бинт відсапується: ще 4 ходи.");
@@ -498,7 +498,7 @@ describe("party session presenter", () => {
       }]
     }), { viewerCharacterId: "leader" });
 
-    expect(text).toContain("Ваше вміння 🌀 <i>Крок крізь Межу</i> і влучає на 10 шкоди.");
+    expect(text).toContain("Ваше вміння 🌀 <i>Крок крізь Межу</i>: влучає на 10 шкоди.");
     expect(text).toContain("Шкодійка: Корчма не дочекалася вибору й поставила в захист: ворогові важче влучити, а удар буде слабшим.");
     expect(text).toContain("Старший Брат Бочки атакує Голова у відповідь і завдає 5 шкоди.");
     expect(text).toContain("🫁 🌀 <i>Крок крізь Межу</i> відсапується: ще 4 ходи.");
@@ -597,8 +597,8 @@ describe("party session presenter", () => {
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
     const journal = presentPartyBossJournal(session, 0);
 
-    expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i> спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
-    expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i> спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
+    expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
+    expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
   });
 
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {

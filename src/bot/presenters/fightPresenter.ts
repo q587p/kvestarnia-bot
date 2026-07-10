@@ -1229,7 +1229,7 @@ function presentTurnSummary(
   if (summary.heroOutcome === "defended") {
     const defenseLine =
       summary.action === "skill" || summary.action === "race" || summary.action === "gear"
-        ? `${presentSkillAction(summary.skillId)} спрацьовує: ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
+        ? `${presentSkillAction(summary.skillId)}: спрацьовує, ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
         : "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.";
 
     return withMonsterBark(summary, [
@@ -1677,6 +1677,8 @@ function presentNotEnoughManaAbility(
 }
 
 function presentHeroActionResult(summary: CombatTurnSummary, action: string): string {
+  const actionLead = presentHeroActionLead(action);
+
   if (summary.fumble) {
     return presentPlayerAbilityFumble(summary.fumble);
   }
@@ -1692,20 +1694,22 @@ function presentHeroActionResult(summary: CombatTurnSummary, action: string): st
       })
       .join("; ");
 
-    return `${action} зачіпає супротивників: ${results}.`;
+    return `${actionLead} зачіпає супротивників: ${results}.`;
   }
 
   if (summary.heroOutcome === "miss") {
-    return `${action} не влучає.`;
+    return `${actionLead} не влучає.`;
   }
 
   if (summary.heroDamage <= 0 && (summary.allyResults?.length ?? 0) > 0) {
-    return `${action} спрацьовує без прямої шкоди.`;
+    return `${actionLead} спрацьовує без прямої шкоди.`;
   }
 
-  const hitAction = action === "Атака" ? action : `${action} і`;
+  return `${actionLead} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+}
 
-  return `${hitAction} влучає${summary.critical ? " критично" : ""} на ${summary.heroDamage} шкоди.`;
+function presentHeroActionLead(action: string): string {
+  return action === "Атака" || action === "Відступ" ? action : `${action}:`;
 }
 
 function presentPlayerAbilityFumble(fumble: NonNullable<CombatTurnSummary["fumble"]>): string {

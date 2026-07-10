@@ -44,6 +44,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `Перший крок до столу` completion now fails closed at the service layer until the character actually reaches `📋 Стіл зі справами`; opening `🗺️ Квести`, entering Korchma, or replaying from the hall can no longer write the completion row, grant XP, or unlock the achievement early.
 - Fresh Daily Korchma Round reward cards now render quest `Іскрокамінь` bonus grants from the just-created claim response, while replayed cards continue reading the stored `appliedItemGrants` without rerolling or duplicating items.
 - `📜 Хроніки Квестарні` level-up rows now omit the remort-life tag for base-life characters, so `р0` no longer appears after ordinary first-life level gains; positive remort tags such as `(р5)` still appear.
+- Combat action result rows now separate named skills and equipment actions with a colon and no longer insert a stray `і` before `влучає` or `спрацьовує без прямої шкоди`.
 
 ## [0.3.3] - 12026-07-09 - Quest Variety and Risk Refresh
 

@@ -664,7 +664,7 @@ function presentTurnBasedActionLine(
     const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
     return [
-      `${actorName} застосовує ${skillLabel} ${hitLine}`,
+      `${actorName} застосовує ${skillLabel}: ${hitLine}`,
       supportLine
     ].filter(Boolean).join("\n");
   }
@@ -685,9 +685,9 @@ function presentTurnBasedActionLine(
         : action.action === "defend"
           ? "стає в захист"
         : action.action === "skill"
-          ? `застосовує ${presentCombatSkillHtml(action.skillId)}`
+          ? `застосовує ${presentCombatSkillHtml(action.skillId)}:`
         : action.action === "race"
-          ? `застосовує ${presentCombatSkillHtml(action.skillId)}`
+          ? `застосовує ${presentCombatSkillHtml(action.skillId)}:`
           : "атакує";
   const hitLine =
     action.fumble

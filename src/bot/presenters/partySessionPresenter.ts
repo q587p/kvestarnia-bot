@@ -1258,7 +1258,6 @@ function presentPartyBossActionLine(
   }
 
   const subject = presentPartyBossActionSubject(action, name, isViewer);
-  const hitSubject = presentPartyBossActionHitSubject(action, subject);
   const support = presentPartyBossActionSupport(action);
 
   switch (action.outcome) {
@@ -1272,30 +1271,21 @@ function presentPartyBossActionLine(
       return `${subject} зривається критично.`;
     case "critical-hit":
       return action.damage > 0
-        ? `${hitSubject} критично влучає на ${action.damage} шкоди.${support}`
+        ? `${subject} критично влучає на ${action.damage} шкоди.${support}`
         : `${subject} критично спрацьовує без прямої шкоди.${support}`;
     case "won":
       return action.damage > 0
-        ? `${hitSubject} влучає на ${action.damage} шкоди й добиває боса.${support}`
+        ? `${subject} влучає на ${action.damage} шкоди й добиває боса.${support}`
         : `${subject} ставить фінальну крапку без прямої шкоди.${support}`;
     case "hit":
       return action.damage > 0
-        ? `${hitSubject} влучає на ${action.damage} шкоди.${support}`
+        ? `${subject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
     default:
       return action.damage > 0
-        ? `${hitSubject} влучає на ${action.damage} шкоди.${support}`
+        ? `${subject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
   }
-}
-
-function presentPartyBossActionHitSubject(
-  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
-  subject: string
-): string {
-  return action.action === "skill" || action.action === "race" || action.action === "gear"
-    ? `${subject} і`
-    : subject;
 }
 
 function presentPartyBossActionSupport(
@@ -1332,13 +1322,13 @@ function presentPartyBossActionSubject(
 
     if (action.action === "gear") {
       return isViewer
-        ? `Ваша дія спорядження ${skillLabel}`
-        : `${name} застосовує ${skillLabel}`;
+        ? `Ваша дія спорядження ${skillLabel}:`
+        : `${name} застосовує ${skillLabel}:`;
     }
 
     return isViewer
-      ? `Ваше вміння ${skillLabel}`
-      : `${name} застосовує ${skillLabel}`;
+      ? `Ваше вміння ${skillLabel}:`
+      : `${name} застосовує ${skillLabel}:`;
   }
 
   if (action.action === "attack") {
