@@ -48,7 +48,7 @@ describe("latest events command", () => {
     expect(reply).toHaveBeenCalledTimes(2);
     expect(reply.mock.calls[0]?.[0]).toContain("Хроніки Квестарні");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain('"parse_mode":"HTML"');
-    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("✅ ⭐ Важливе");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🔘 ⭐ Важливе");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎒 Манатки");
     expect(achievementTracker.trackLatestEventsOpenedByTelegramUserId).toHaveBeenCalledWith(42n);
   });

@@ -15,10 +15,12 @@ describe("latest events keyboard", () => {
       hasNextPage: false
     }));
 
-    expect(important).toContain("✅ ⭐ Важливе");
+    expect(important).toContain("🔘 ⭐ Важливе");
     expect(important).toContain("👥 Пригодники");
-    expect(important).not.toContain("✅ 👥 Пригодники");
-    expect(manatky).toContain("✅ 🎒 Манатки");
+    expect(important).not.toContain("🔘 👥 Пригодники");
+    expect(important).not.toContain("✅ ⭐ Важливе");
+    expect(manatky).toContain("🔘 🎒 Манатки");
+    expect(manatky).not.toContain("✅ 🎒 Манатки");
     expect(manatky).toContain("⭐ Важливе");
   });
 
