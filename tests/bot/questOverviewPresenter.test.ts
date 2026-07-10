@@ -228,7 +228,7 @@ describe("quest overview presenter", () => {
       title: "✨ <b>Доступ до Чароковальні</b> — потрібна Польова аптечка"
     });
     expect(missingRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
-      "<i>Далі:</i> добудьте Польову аптечку; Єгер, як завжди, виглядає так, ніби знає, де її шукати."
+      "<i>Далі:</i> добудьте Польову аптечку; єгер, як завжди, виглядає так, ніби знає, де її шукати."
     );
     expect(missingRows.find((row) => row.id === "charkokovalnia")?.body).toContain(
       "єгерський куток — за підказкою до аптечки."
