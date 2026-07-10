@@ -620,15 +620,20 @@ export class AdventureService {
     }
 
     if (!isWithinActivityMaxLevel(characterSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      const historicalAdventures = await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+      const completed = await this.dailyActions.existsAnyForTelegramUser?.(telegramUserId, {
         key: MIMIC_SHAWARMA_ADVENTURE_KEY
       });
+      const historicalAdventures = completed === undefined
+        ? await this.dailyActions.listForTelegramUser?.(telegramUserId, {
+            key: MIMIC_SHAWARMA_ADVENTURE_KEY
+          })
+        : null;
 
       return {
         state: "level-retired",
         character: characterSummary,
         maxLevel: STARTER_ACTIVITY_MAX_LEVEL,
-        completed: Boolean(historicalAdventures?.length)
+        completed: completed ?? Boolean(historicalAdventures?.length)
       };
     }
 

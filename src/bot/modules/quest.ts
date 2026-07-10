@@ -1,4 +1,3 @@
-import { performance } from "node:perf_hooks";
 import { type Bot,type Context } from "grammy";
 import type {
 FightService,
@@ -91,6 +90,7 @@ import {
 buildYegerHelpKeyboard,
 buildYegerBandagesKeyboard,
 buildYegerBandagePurchaseKeyboard,
+buildYegerBandageTerminalKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerNotchExchangeKeyboard,
@@ -154,6 +154,7 @@ presentYegerTrackingPending,
 presentYegerTrackingStart,
 presentYegerTurnIn
 } from "../presenters/yegerPresenter";
+import { hotPathNow, logPerformanceTiming, startPerfSpan } from "../performanceLogger";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -179,16 +180,18 @@ const YEGER_PERF_SLOW_MS = 250;
 
 interface YegerPerfTrace {
   route: string;
+  telegramUserId: bigint;
   startedAt: number;
   lastAt: number;
   steps: Array<{ step: string; ms: number }>;
 }
 
-function startYegerPerfTrace(route: string): YegerPerfTrace {
-  const now = performance.now();
+function startYegerPerfTrace(route: string, telegramUserId: bigint): YegerPerfTrace {
+  const now = hotPathNow();
 
   return {
     route,
+    telegramUserId,
     startedAt: now,
     lastAt: now,
     steps: []
@@ -196,24 +199,22 @@ function startYegerPerfTrace(route: string): YegerPerfTrace {
 }
 
 function markYegerPerfStep(trace: YegerPerfTrace, step: string): void {
-  const now = performance.now();
+  const now = hotPathNow();
   trace.steps.push({ step, ms: Math.round(now - trace.lastAt) });
   trace.lastAt = now;
 }
 
 function finishYegerPerfTrace(trace: YegerPerfTrace, state: string): void {
-  const totalMs = Math.round(performance.now() - trace.startedAt);
+  const totalMs = Math.round(hotPathNow() - trace.startedAt);
   const debug = process.env.YEGER_PERF_DEBUG === "1" || process.env.YEGER_PERF_DEBUG === "true";
 
-  if (!debug && totalMs < YEGER_PERF_SLOW_MS) {
-    return;
-  }
-
-  console.info("[yeger-perf]", {
-    route: trace.route,
-    state,
+  logPerformanceTiming({
+    route: `yeger.${trace.route}`,
+    telegramUserId: trace.telegramUserId,
+    resultState: state,
+    computeMs: trace.steps.reduce((sum, step) => sum + step.ms, 0),
     totalMs,
-    steps: trace.steps
+    thresholdMs: debug ? 0 : YEGER_PERF_SLOW_MS
   });
 }
 
@@ -275,80 +276,109 @@ async function handleDailyKorchmaRoundCallback(
     return;
   }
 
-  await safeAnswerCallbackQuery(ctx);
+  const perf = startPerfSpan(`daily-korchma-round.${callback.type}`, { telegramUserId });
+
+  await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx));
 
   if (callback.type === "overview") {
-    const result = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
-    await safeEditMessageText(ctx, presentDailyKorchmaRound(result), {
+    const result = await perf.measureDb(() => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId));
+    const rendered = perf.measureCompute(() => ({
+      text: presentDailyKorchmaRound(result),
+      replyMarkup: buildDailyKorchmaRoundOverviewKeyboard(result)
+    }));
+    await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundOverviewKeyboard(result)
-    });
+      reply_markup: rendered.replyMarkup
+    }));
+    perf.end({ resultState: result.state });
     return;
   }
 
   if (callback.type === "start") {
-    const result = await services.dailyKorchmaRound.startForTelegramUser(telegramUserId, callback);
-    await safeEditMessageText(ctx, presentDailyKorchmaRound(result), {
+    const result = await perf.measureDb(() => services.dailyKorchmaRound.startForTelegramUser(telegramUserId, callback));
+    const rendered = perf.measureCompute(() => ({
+      text: presentDailyKorchmaRound(result),
+      replyMarkup: buildDailyKorchmaRoundOverviewKeyboard(result)
+    }));
+    await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundOverviewKeyboard(result)
-    });
+      reply_markup: rendered.replyMarkup
+    }));
+    perf.end({ resultState: result.state });
     return;
   }
 
   if (callback.type === "scene" || callback.type === "scene-help") {
-    const result = await services.dailyKorchmaRound.openScene(telegramUserId, callback);
+    const result = await perf.measureDb(() => services.dailyKorchmaRound.openScene(telegramUserId, callback));
     const mode = callback.type === "scene-help" ? "help" : "compact";
 
     if (result.state === "scene") {
-      await markScenePresence(ctx, services.presence, {
+      await perf.measureDb(() => markScenePresence(ctx, services.presence, {
         locationId: result.scene.locationId,
         currentRaidId: null,
         currentAdventureId: null
-      });
+      }));
     }
 
-    await safeEditMessageText(ctx, presentDailyKorchmaRoundScene(result, { mode }), {
+    const rendered = perf.measureCompute(() => ({
+      text: presentDailyKorchmaRoundScene(result, { mode }),
+      replyMarkup: buildDailyKorchmaRoundSceneKeyboard(result, { mode })
+    }));
+
+    await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundSceneKeyboard(result, { mode })
-    });
+      reply_markup: rendered.replyMarkup
+    }));
 
     if (result.state === "scene") {
-      await refreshMainMenuLocationKeyboard(
+      await perf.measureTelegram(() => refreshMainMenuLocationKeyboard(
         ctx,
         result.scene.locationId === PRESENCE_LOCATION_KORCHMA_YARD
           ? PRESENCE_LOCATION_KORCHMA_YARD
           : result.scene.locationId
-      );
+      ));
     }
+    perf.end({ resultState: result.state });
     return;
   }
 
   if (callback.type === "action") {
-    const result = await services.dailyKorchmaRound.completeStep(telegramUserId, callback);
-    await safeEditMessageText(ctx, presentDailyKorchmaRoundStep(result), {
+    const result = await perf.measureDb(() => services.dailyKorchmaRound.completeStep(telegramUserId, callback));
+    const rendered = perf.measureCompute(() => ({
+      text: presentDailyKorchmaRoundStep(result),
+      replyMarkup: buildDailyKorchmaRoundStepKeyboard(result)
+    }));
+    await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildDailyKorchmaRoundStepKeyboard(result)
-    });
-    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      reply_markup: rendered.replyMarkup
+    }));
+    await perf.measureTelegram(() => refreshCurrentMainMenuLocationKeyboard(ctx, services.presence));
+    perf.end({ resultState: result.state });
     return;
   }
 
-  const result = await services.dailyKorchmaRound.claimReward(telegramUserId, callback);
-  await safeEditMessageText(ctx, presentDailyKorchmaRoundClaim(result), {
+  const result = await perf.measureDb(() => services.dailyKorchmaRound.claimReward(telegramUserId, callback));
+  const rendered = perf.measureCompute(() => ({
+    text: presentDailyKorchmaRoundClaim(result),
+    replyMarkup: buildDailyKorchmaRoundClaimKeyboard(result)
+  }));
+  await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildDailyKorchmaRoundClaimKeyboard(result)
-  });
+    reply_markup: rendered.replyMarkup
+  }));
 
   if (result.state === "reward-claimed" && result.levelChange) {
-    await sendLevelUpCelebration(ctx, {
+    const levelChange = result.levelChange;
+    await perf.measureTelegram(() => sendLevelUpCelebration(ctx, {
       character: result.character,
-      levelChange: result.levelChange
-    });
+      levelChange
+    }));
     const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
     if (achievementText) {
-      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      await perf.measureTelegram(() => ctx.reply(achievementText, HTML_MESSAGE_OPTIONS));
     }
   }
+  perf.end({ resultState: result.state });
 }
 
 async function handleQuestCallback(
@@ -1193,7 +1223,7 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "bandages") {
-    const perf = startYegerPerfTrace("bandages");
+    const perf = startYegerPerfTrace("bandages", telegramUserId);
     await safeAnswerCallbackQuery(ctx);
     markYegerPerfStep(perf, "answer");
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
@@ -1300,7 +1330,7 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "buy-bandage-preview") {
-    const perf = startYegerPerfTrace("buy-bandage-preview");
+    const perf = startYegerPerfTrace("buy-bandage-preview", telegramUserId);
     const result = await services.yeger.previewBandagePurchaseForTelegramUser(
       telegramUserId,
       callback.targetQuantity
@@ -1344,7 +1374,7 @@ async function handleYegerCallback(
   }
 
   if (callback.type === "buy-bandage-confirm" || callback.type === "buy-bandage-cancel") {
-    const perf = startYegerPerfTrace(callback.type);
+    const perf = startYegerPerfTrace(callback.type, telegramUserId);
     const result = callback.type === "buy-bandage-confirm"
       ? await services.yeger.confirmBandagePurchaseForTelegramUser(telegramUserId, callback.token)
       : await services.yeger.cancelBandagePurchaseForTelegramUser(telegramUserId, callback.token);
@@ -1358,6 +1388,23 @@ async function handleYegerCallback(
     markYegerPerfStep(perf, "answer");
     await markYegerCornerPresence(ctx, services.presence);
     markYegerPerfStep(perf, "presence");
+    if (result.state === "bought" || result.state === "replayed" || result.state === "cancelled") {
+      await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerBandageTerminalKeyboard()
+      });
+      markYegerPerfStep(perf, "edit");
+      const achievementText = presentAchievementUnlockNotification(
+        result.state === "bought" ? result.achievementUnlocks ?? [] : []
+      );
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+        markYegerPerfStep(perf, "achievement");
+      }
+      finishYegerPerfTrace(perf, result.state);
+      return;
+    }
+
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
     markYegerPerfStep(perf, "quest");
     const affordablePreview = result.state === "insufficient-gold" ? result.affordablePreview : undefined;
@@ -1378,19 +1425,12 @@ async function handleYegerCallback(
           : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     markYegerPerfStep(perf, "edit");
-    const achievementText = presentAchievementUnlockNotification(
-      result.state === "bought" ? result.achievementUnlocks ?? [] : []
-    );
-    if (achievementText) {
-      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
-      markYegerPerfStep(perf, "achievement");
-    }
     finishYegerPerfTrace(perf, result.state);
     return;
   }
 
   if (callback.type === "free-bandage") {
-    const perf = startYegerPerfTrace("free-bandage");
+    const perf = startYegerPerfTrace("free-bandage", telegramUserId);
     const result = await services.yeger.claimRangerSupplyForTelegramUser(telegramUserId, callback.kind);
     markYegerPerfStep(perf, "claim");
     await safeAnswerCallbackQuery(

@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.5] - 12026-07-10 - Performance P0 Hardening
+
+### Added
+- Added sampled, thresholded performance timing for hot Telegram routes: inventory lists/details, Mantok Chest flows, item upgrades, Yeger bandage callbacks, Daily Korchma Round callbacks, fight overview/turn callbacks, and main-menu quest-marker snapshots.
+- Added compact timing fields for DB, compute, Telegram API and bounded row counts without logging player-facing text, callback tokens, large JSON payloads or chat content.
+- Added focused coverage for disabled-by-default sampling, slow-threshold logging, sanitized payloads, Daily Korchma current-day step loading and the existing DailyAction time index.
+
+### Changed
+- DailyAction hot-path lookups now use bounded purpose-specific repository helpers for current-day prefix rows, historical existence checks and paid item quantity sums.
+- Yeger paid-bandage daily-limit checks now stay inside the current-day indexed window and cap the rows inspected for the normal 93-bandage smoke path.
+- Daily Korchma Round step loading now reads only the current Kyiv day prefix with a small cap before applying the existing scene/life validation.
+- Starter completion and Friday Barrel first-solo history checks now use existence probes instead of loading all historical DailyAction rows.
+- Mantok Chest confirm now validates only the selected input item rows, selected equipment state and selected reservation state instead of rebuilding a full inventory snapshot inside the confirm transaction.
+- Mantok Chest timing now counts callback answers in the Telegram bucket, so slow-route logs separate DB work from Telegram API latency more honestly.
+
+### Fixed
+- Fixed sanitized perf timing payloads so `telegramEditMs` no longer overwrites `telegramMs`.
+- Finished the Yeger paid-bandage confirm/cancel fast path for bought, replayed and cancelled result cards without rebuilding full Yeger menu context.
+- Preserved existing rewards, balance, player-facing copy and callback replay behavior while making the P0 routes measurable and bounded for the next live profiling pass.
+
 ## [0.3.4] - 12026-07-10 - Quest Overview Route and First Table Step
 
 ### Added

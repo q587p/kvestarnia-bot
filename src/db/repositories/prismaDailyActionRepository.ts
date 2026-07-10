@@ -539,6 +539,140 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async existsAnyForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; localDateNot?: string }
+  ): Promise<boolean | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const row = await this.prisma.dailyAction.findFirst({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        ...(input.localDateNot !== undefined
+          ? {
+              localDate: {
+                not: input.localDateNot
+              }
+            }
+          : {})
+      },
+      select: {
+        id: true
+      }
+    });
+
+    return row !== null;
+  }
+
+  async listForTelegramUserByLocalDatePrefix(
+    telegramUserId: bigint,
+    input: { key: string; localDatePrefix: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        localDate: {
+          startsWith: input.localDatePrefix
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      take: Math.max(1, Math.floor(input.take))
+    });
+  }
+
+  async sumItemGrantQuantityForTelegramUserInCreatedAtRange(
+    telegramUserId: bigint,
+    input: {
+      key: string;
+      createdAtGte: Date;
+      createdAtLt: Date;
+      resultKind: string;
+      purchaseDay: string;
+      itemId: string;
+      take: number;
+    }
+  ): Promise<{ quantity: number; rowCount: number } | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    const rows = await this.prisma.dailyAction.findMany({
+      where: {
+        characterId: character.id,
+        key: input.key,
+        createdAt: {
+          gte: input.createdAtGte,
+          lt: input.createdAtLt
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      take: Math.max(1, Math.floor(input.take))
+    });
+
+    return {
+      rowCount: rows.length,
+      quantity: rows.reduce((sum, action) => {
+        if (!isResultKind(action.resultJson, input.resultKind)) {
+          return sum;
+        }
+
+        const purchaseDay = readPurchaseDay(action.resultJson) ?? action.createdAt.toISOString().slice(0, 10);
+        if (purchaseDay !== input.purchaseDay) {
+          return sum;
+        }
+
+        return sum + readItemGrants(action.resultJson)
+          .filter((grant) => grant.itemId === input.itemId)
+          .reduce((grantSum, grant) => grantSum + Math.max(0, Math.floor(grant.quantity)), 0);
+      }, 0)
+    };
+  }
+
   async listForTelegramUser(
     telegramUserId: bigint,
     input: { key: string }

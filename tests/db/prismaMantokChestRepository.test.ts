@@ -65,11 +65,59 @@ describe("PrismaMantokChestRepository", () => {
       outputScore: 19
     });
   });
+
+  it("confirms from only the selected input item rows", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.addInventoryItem("item.cheese-of-procedural-doubt", 42);
+    const repository = new PrismaMantokChestRepository(prisma.client);
+
+    const result = await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput: (): { state: "ok"; itemId: string; score: number } => ({
+        state: "ok",
+        itemId: "item.mantok-result",
+        score: 19
+      })
+    });
+
+    expect(result.state).toBe("recycled");
+    expect(prisma.characterItemFindManyInputs.at(-1)).toMatchObject({
+      where: {
+        characterId: "character-1",
+        itemId: {
+          in: ["item.suspicious-shawarma-wrapper"]
+        }
+      }
+    });
+  });
+
+  it("treats selected equipped items as stale on confirm without spending them", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.equip("item.suspicious-shawarma-wrapper");
+    const repository = new PrismaMantokChestRepository(prisma.client);
+
+    const result = await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput: (snapshot, run) =>
+        snapshot.equippedItemIds.includes(run.inputItems[0].itemId)
+          ? { state: "stale-inputs" }
+          : { state: "ok", itemId: "item.mantok-result", score: 19 }
+    });
+
+    expect(result.state).toBe("stale-inputs");
+    expect(prisma.itemQuantity("item.suspicious-shawarma-wrapper")).toBe(10);
+    expect(prisma.itemQuantity("item.mantok-result")).toBe(0);
+  });
 });
 
 class FakeMantokChestPrisma {
   transferReservations: FakeTransferReservation[] = [];
   disableConcurrencyGate = false;
+  characterItemFindManyInputs: CharacterItemFindManyInput[] = [];
 
   private readonly shared = {
     character: {
@@ -118,6 +166,24 @@ class FakeMantokChestPrisma {
 
   itemQuantity(itemId: string): number {
     return this.shared.items.find((row) => row.itemId === itemId)?.quantity ?? 0;
+  }
+
+  addInventoryItem(itemId: string, quantity: number): void {
+    this.shared.items.push({
+      id: `item-row-${this.shared.items.length + 1}`,
+      characterId: this.shared.character.id,
+      itemId,
+      quantity,
+      createdAt: fixedNow,
+      updatedAt: fixedNow
+    });
+  }
+
+  equip(itemId: string): void {
+    this.shared.equipment.push({
+      characterId: this.shared.character.id,
+      itemId
+    });
   }
 
   private createTx(): FakeMantokChestTx {
@@ -199,11 +265,14 @@ class FakeMantokChestPrisma {
         }
       },
       characterItem: {
-        findMany: async (input: { where: { characterId: string } }) => {
+        findMany: async (input: CharacterItemFindManyInput) => {
           await Promise.resolve();
+          this.characterItemFindManyInputs.push(structuredCloneFindManyInput(input));
 
           return input.where.characterId === this.shared.character.id
-            ? itemsView.map(cloneItem)
+            ? itemsView
+              .filter((row) => !input.where.itemId || input.where.itemId.in.includes(row.itemId))
+              .map(cloneItem)
             : [];
         },
         updateMany: (input: {
@@ -288,10 +357,14 @@ class FakeMantokChestPrisma {
         }
       },
       characterEquipment: {
-        findMany: async (input: { where: { characterId: string } }) => {
+        findMany: async (input: CharacterEquipmentFindManyInput) => {
           await Promise.resolve();
 
-          return input.where.characterId === this.shared.character.id ? equipmentView.map((row) => ({ ...row })) : [];
+          return input.where.characterId === this.shared.character.id
+            ? equipmentView
+              .filter((row) => !input.where.itemId || input.where.itemId.in.includes(row.itemId))
+              .map((row) => ({ ...row }))
+            : [];
         }
       },
       itemTransfer: {
@@ -322,7 +395,7 @@ interface FakeMantokChestTx {
     }) => Promise<{ count: number }>;
   };
   characterItem: {
-    findMany: (input: { where: { characterId: string } }) => Promise<FakeMantokChestItem[]>;
+    findMany: (input: CharacterItemFindManyInput) => Promise<FakeMantokChestItem[]>;
     updateMany: (input: {
       where: { characterId: string; itemId: string; quantity: { gte: number } };
       data: { quantity: { decrement: number } };
@@ -335,7 +408,7 @@ interface FakeMantokChestTx {
     }) => Promise<FakeMantokChestItem>;
   };
   characterEquipment: {
-    findMany: (input: { where: { characterId: string } }) => Promise<Array<{ characterId: string; itemId: string }>>;
+    findMany: (input: CharacterEquipmentFindManyInput) => Promise<Array<{ characterId: string; itemId: string }>>;
   };
   itemTransfer?: {
     findMany: (input: FakeTransferReservationFindManyInput) => Promise<Array<{ itemId: string }>>;
@@ -346,6 +419,24 @@ interface FakeTransferReservation {
   itemId: string;
   status: string;
   expiresAt: Date;
+}
+
+interface CharacterItemFindManyInput {
+  where: {
+    characterId: string;
+    itemId?: {
+      in: string[];
+    };
+  };
+}
+
+interface CharacterEquipmentFindManyInput {
+  where: {
+    characterId: string;
+    itemId?: {
+      in: string[];
+    };
+  };
 }
 
 interface FakeTransferReservationFindManyInput {
@@ -394,6 +485,15 @@ function cloneRun(run: FakeMantokChestRun): FakeMantokChestRun {
 
 function cloneItem(item: FakeMantokChestItem): FakeMantokChestItem {
   return { ...item };
+}
+
+function structuredCloneFindManyInput(input: CharacterItemFindManyInput): CharacterItemFindManyInput {
+  return {
+    where: {
+      characterId: input.where.characterId,
+      ...(input.where.itemId ? { itemId: { in: [...input.where.itemId.in] } } : {})
+    }
+  };
 }
 
 function isReservedByInput(

@@ -1447,6 +1447,20 @@ export class YegerQuestService {
 
   private async countPaidBandagesPurchasedToday(telegramUserId: bigint, purchaseDay: string): Promise<number> {
     const dayBounds = getUtcDayBounds(purchaseDay);
+    const boundedQuantity = await this.dailyActions.sumItemGrantQuantityForTelegramUserInCreatedAtRange?.(telegramUserId, {
+      key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
+      createdAtGte: dayBounds.start,
+      createdAtLt: dayBounds.end,
+      resultKind: "yeger-bandage-purchase-confirm",
+      purchaseDay,
+      itemId: BANDAGE_ITEM_ID,
+      take: YEGER_BANDAGE_PURCHASE_DAILY_LIMIT
+    });
+
+    if (boundedQuantity) {
+      return Math.min(YEGER_BANDAGE_PURCHASE_DAILY_LIMIT, boundedQuantity.quantity);
+    }
+
     const actions = await this.dailyActions.listForTelegramUserInCreatedAtRange?.(telegramUserId, {
       key: YEGER_BANDAGE_PURCHASE_CONFIRM_KEY,
       createdAtGte: dayBounds.start,

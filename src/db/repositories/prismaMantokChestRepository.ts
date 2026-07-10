@@ -188,15 +188,25 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
   ): Promise<MantokChestConfirmResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getSnapshot(tx, telegramUserId, input.now);
+        const character = await tx.character.findFirst({
+          where: {
+            user: {
+              telegramUserId
+            }
+          },
+          select: {
+            id: true,
+            name: true
+          }
+        });
 
-        if (!snapshot) {
+        if (!character) {
           return { state: "no-character" };
         }
 
         const record = await tx.mantokChestRun.findFirst({
           where: {
-            characterId: snapshot.characterId,
+            characterId: character.id,
             token: input.token
           }
         });
@@ -218,6 +228,12 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           return { state: "expired", run };
         }
 
+        const snapshot = await getConfirmationSnapshot(tx, {
+          characterId: character.id,
+          characterDisplayName: character.name,
+          inputItems: run.inputItems,
+          now: input.now
+        });
         const selected = input.selectOutput(snapshot, run);
 
         if (selected.state === "stale-inputs") {
@@ -281,7 +297,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
         for (const item of run.inputItems) {
           const consumed = await tx.characterItem.updateMany({
             where: {
-              characterId: snapshot.characterId,
+              characterId: character.id,
               itemId: item.itemId,
               quantity: {
                 gte: item.quantity
@@ -301,7 +317,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
 
         await tx.characterItem.deleteMany({
           where: {
-            characterId: snapshot.characterId,
+            characterId: character.id,
             quantity: {
               lte: 0
             }
@@ -311,12 +327,12 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
         await tx.characterItem.upsert({
           where: {
             characterId_itemId: {
-              characterId: snapshot.characterId,
+              characterId: character.id,
               itemId: selected.itemId
             }
           },
           create: {
-            characterId: snapshot.characterId,
+            characterId: character.id,
             itemId: selected.itemId,
             quantity: 1
           },
@@ -330,7 +346,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
         return {
           state: "recycled",
           run: claimedRun,
-          characterDisplayName: snapshot.characterDisplayName
+          characterDisplayName: character.name
         };
       });
     } catch (error) {
@@ -368,6 +384,67 @@ class MantokChestStaleInputsError extends Error {
   constructor(readonly run: MantokChestRunRecord) {
     super("Mantok Chest inputs changed during transaction.");
   }
+}
+
+async function getConfirmationSnapshot(
+  tx: TxClient,
+  input: {
+    characterId: string;
+    characterDisplayName: string;
+    inputItems: MantokChestRunItem[];
+    now: Date;
+  }
+): Promise<MantokChestSnapshot> {
+  const inputItemIds = [...new Set(input.inputItems.map((item) => item.itemId))];
+  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
+    tx.characterItem.findMany({
+      where: {
+        characterId: input.characterId,
+        itemId: {
+          in: inputItemIds
+        }
+      },
+      orderBy: [
+        {
+          createdAt: "asc"
+        },
+        {
+          itemId: "asc"
+        }
+      ]
+    }),
+    tx.characterEquipment.findMany({
+      where: {
+        characterId: input.characterId,
+        itemId: {
+          in: inputItemIds
+        }
+      },
+      select: {
+        itemId: true
+      }
+    }),
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: input.characterId,
+      now: input.now
+    }),
+    findActiveItemUseReservedItems(tx, {
+      characterId: input.characterId,
+      now: input.now
+    })
+  ]);
+  const inputItemIdSet = new Set(inputItemIds);
+
+  return {
+    characterId: input.characterId,
+    characterDisplayName: input.characterDisplayName,
+    items: items.map(toCharacterItemRecord),
+    equippedItemIds: equipment.map((row) => row.itemId),
+    reservedItemIds: [
+      ...pendingTransfers.map((row) => row.itemId),
+      ...pendingUses.map((row) => row.itemId)
+    ].filter((itemId) => inputItemIdSet.has(itemId))
+  };
 }
 
 async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Promise<MantokChestSnapshot | null> {

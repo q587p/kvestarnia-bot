@@ -75,6 +75,7 @@ import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
+import { startPerfSpan } from "../performanceLogger";
 import {
 presentKorchmaDeepLevelLocked
 } from "../presenters/tavernPresenter";
@@ -542,75 +543,85 @@ async function handleFightCallback(
   }
 
   if (callback.type === "turn" || callback.type === "item" || callback.type === "gear") {
-    const yegerBefore = await getYegerProgressSnapshot(services.yeger, telegramUserId);
-    const result = callback.type === "turn"
-      ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
+    const perf = startPerfSpan(`fight.${callback.type}`, { telegramUserId });
+    const yegerBefore = await perf.measureDb(() => getYegerProgressSnapshot(services.yeger, telegramUserId));
+    const result = await perf.measureDb(() => callback.type === "turn"
+      ? services.fight.resolvePersistentFightTurn(telegramUserId, {
           sessionId: callback.sessionId,
           turn: callback.turn,
           action: callback.action
         })
       : callback.type === "gear"
-        ? await services.fight.resolvePersistentFightTurn(telegramUserId, {
+        ? services.fight.resolvePersistentFightTurn(telegramUserId, {
             sessionId: callback.sessionId,
             turn: callback.turn,
             action: "gear",
             grantKey: callback.grantKey
           })
-      : await services.fight.resolvePersistentFightItemTurn(telegramUserId, {
+      : services.fight.resolvePersistentFightItemTurn(telegramUserId, {
           sessionId: callback.sessionId,
           turn: callback.turn,
           itemKey: callback.itemKey
-        });
+        }));
 
     if (result.state === "no-character") {
-      await safeAnswerCallbackQuery(ctx);
-      await safeEditMessageText(ctx, presentFightNoCharacter());
+      await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx));
+      await perf.measureTelegram(() => safeEditMessageText(ctx, presentFightNoCharacter()));
+      perf.end({ resultState: result.state });
       return;
     }
 
     if (result.state !== "not-found" && result.state !== "needs-rest") {
-      await markScenePresence(ctx, services.presence, {
+      await perf.measureDb(() => markScenePresence(ctx, services.presence, {
         locationId: resolvePersistentFightPresenceLocation(result.session),
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-      });
+      }));
     }
 
-    const itemUnavailableNotice = callback.type === "item"
-      ? presentPersistentFightItemUnavailableNotice(result)
-      : null;
-    const gearUnavailableNotice = callback.type === "gear"
-      ? presentPersistentFightGearUnavailableNotice(result)
-      : null;
-    const unavailableNotice = itemUnavailableNotice ?? gearUnavailableNotice;
-    await safeAnswerCallbackQuery(ctx, unavailableNotice
-      ? { text: unavailableNotice, show_alert: true }
-      : undefined);
-    await safeEditMessageText(ctx, presentPersistentFightTurn(result), {
-      ...HTML_MESSAGE_OPTIONS,
-      ...(result.state === "not-found" || result.state === "needs-rest"
-        ? {}
-        : {
-            reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
-          })
+    const rendered = perf.measureCompute(() => {
+      const itemUnavailableNotice = callback.type === "item"
+        ? presentPersistentFightItemUnavailableNotice(result)
+        : null;
+      const gearUnavailableNotice = callback.type === "gear"
+        ? presentPersistentFightGearUnavailableNotice(result)
+        : null;
+      const unavailableNotice = itemUnavailableNotice ?? gearUnavailableNotice;
+
+      return {
+        unavailableNotice,
+        text: presentPersistentFightTurn(result),
+        replyMarkup:
+          result.state === "not-found" || result.state === "needs-rest"
+            ? undefined
+            : buildPersistentFightResultKeyboard(result.session, result.character)
+      };
     });
+    await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx, rendered.unavailableNotice
+      ? { text: rendered.unavailableNotice, show_alert: true }
+      : undefined));
+    await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
+      ...HTML_MESSAGE_OPTIONS,
+      ...(rendered.replyMarkup ? { reply_markup: rendered.replyMarkup } : {})
+    }));
     const progressMessage =
       result.state === "updated" && result.session.state?.status === "won"
-        ? await presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore)
+        ? await perf.measureDb(() => presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore))
         : null;
 
     if (progressMessage) {
-      await ctx.reply(progressMessage.text, {
+      await perf.measureTelegram(() => ctx.reply(progressMessage.text, {
         ...HTML_MESSAGE_OPTIONS,
         ...(progressMessage.replyMarkup ? { reply_markup: progressMessage.replyMarkup } : {})
-      });
+      }));
     }
 
-    if (result.state === "updated" && result.fightReward?.levelChange) {
-      await sendLevelUpCelebration(ctx, {
-        levelChange: result.fightReward.levelChange,
+    const levelChange = result.state === "updated" ? result.fightReward?.levelChange : null;
+    if (levelChange) {
+      await perf.measureTelegram(() => sendLevelUpCelebration(ctx, {
+        levelChange,
         character: result.character
-      });
+      }));
     }
     const achievementText = result.state === "updated"
       ? presentAchievementUnlockNotification([
@@ -619,8 +630,13 @@ async function handleFightCallback(
         ])
       : null;
     if (achievementText) {
-      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+      await perf.measureTelegram(() => ctx.reply(achievementText, HTML_MESSAGE_OPTIONS));
     }
+    perf.end({
+      resultState: result.state === "updated" && result.session.state?.status === "won"
+        ? "reward"
+        : result.state
+    });
     return;
   }
 

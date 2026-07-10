@@ -61,6 +61,8 @@ import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackDa
 import {
   makeYegerBandagesCallbackData,
   makeYegerBuyBandageCallbackData,
+  makeYegerCancelBandagePurchaseCallbackData,
+  makeYegerConfirmBandagePurchaseCallbackData,
   makeYegerFieldKitHelpCallbackData,
   makeYegerOpenCallbackData,
   makeYegerTrackCallbackData,
@@ -2150,6 +2152,73 @@ describe("scene callback HTML options", () => {
     expect(getCraftOptionsForTelegramUser).not.toHaveBeenCalled();
     expect(keyboard).toContain(`v1:ygr:bc:${token}`);
     expect(keyboard).toContain(`v1:ygr:bx:${token}`);
+    expect(keyboard).not.toContain(makeYegerBandagesCallbackData());
+  });
+
+  it.each([
+    {
+      name: "bought",
+      callbackData: makeYegerConfirmBandagePurchaseCallbackData("00000000-0000-4000-8000-000000000094"),
+      result: {
+        state: "bought" as const,
+        character,
+        spentGold: 7,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }],
+        achievementUnlocks: []
+      }
+    },
+    {
+      name: "replayed",
+      callbackData: makeYegerConfirmBandagePurchaseCallbackData("00000000-0000-4000-8000-000000000095"),
+      result: {
+        state: "replayed" as const,
+        character,
+        spentGold: 7,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", name: "Бинт відповідальної паніки", quantity: 1 }]
+      }
+    },
+    {
+      name: "cancelled",
+      callbackData: makeYegerCancelBandagePurchaseCallbackData("00000000-0000-4000-8000-000000000096"),
+      result: {
+        state: "cancelled" as const,
+        character
+      }
+    }
+  ])("edits terminal Yeger bandage $name results without fetching the full menu context", async ({ callbackData, result }) => {
+    const confirmBandagePurchaseForTelegramUser = vi.fn(() => Promise.resolve(result));
+    const cancelBandagePurchaseForTelegramUser = vi.fn(() => Promise.resolve(result));
+    const getForTelegramUser = vi.fn(() => Promise.reject(new Error("full Yeger menu lookup should not run")));
+    const getCraftOptionsForTelegramUser = vi.fn(() => Promise.reject(new Error("craft options should not load")));
+    const getUnlockQuestForTelegramUser = vi.fn(() => Promise.reject(new Error("quest markers or field-kit help should not load")));
+    const previewForTelegramUser = vi.fn(() => Promise.reject(new Error("field-kit help should not load")));
+
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        itemCraft: {
+          getCraftOptionsForTelegramUser,
+          previewForTelegramUser
+        },
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser
+        },
+        yeger: {
+          confirmBandagePurchaseForTelegramUser,
+          cancelBandagePurchaseForTelegramUser,
+          getForTelegramUser
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(getForTelegramUser).not.toHaveBeenCalled();
+    expect(getCraftOptionsForTelegramUser).not.toHaveBeenCalled();
+    expect(getUnlockQuestForTelegramUser).not.toHaveBeenCalled();
+    expect(previewForTelegramUser).not.toHaveBeenCalled();
+    expect(keyboard).toContain(makeYegerOpenCallbackData());
+    expect(keyboard).toContain(makePlaceCallbackData("barrel"));
     expect(keyboard).not.toContain(makeYegerBandagesCallbackData());
   });
 
