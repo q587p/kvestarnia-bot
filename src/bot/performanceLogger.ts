@@ -118,7 +118,7 @@ export function sanitizePerfTimingPayload(
     ...(input.dbMs != null ? { dbMs: roundMs(input.dbMs) } : {}),
     ...(input.computeMs != null ? { computeMs: roundMs(input.computeMs) } : {}),
     ...(input.telegramMs != null ? { telegramMs: roundMs(input.telegramMs) } : {}),
-    ...(input.telegramEditMs != null ? { telegramMs: roundMs(input.telegramEditMs) } : {}),
+    ...(input.telegramEditMs != null ? { telegramEditMs: roundMs(input.telegramEditMs) } : {}),
     totalMs: roundMs(input.totalMs)
   };
 }

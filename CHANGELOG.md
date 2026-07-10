@@ -23,6 +23,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Mantok Chest timing now counts callback answers in the Telegram bucket, so slow-route logs separate DB work from Telegram API latency more honestly.
 
 ### Fixed
+- Fixed sanitized perf timing payloads so `telegramEditMs` no longer overwrites `telegramMs`.
+- Finished the Yeger paid-bandage confirm/cancel fast path for bought, replayed and cancelled result cards without rebuilding full Yeger menu context.
 - Preserved existing rewards, balance, player-facing copy and callback replay behavior while making the P0 routes measurable and bounded for the next live profiling pass.
 
 ## [0.3.4] - 12026-07-10 - Quest Overview Route and First Table Step

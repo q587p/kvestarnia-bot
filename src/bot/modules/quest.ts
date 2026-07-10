@@ -90,6 +90,7 @@ import {
 buildYegerHelpKeyboard,
 buildYegerBandagesKeyboard,
 buildYegerBandagePurchaseKeyboard,
+buildYegerBandageTerminalKeyboard,
 buildYegerHuntKeyboard,
 buildYegerKeyboard,
 buildYegerNotchExchangeKeyboard,
@@ -1387,6 +1388,23 @@ async function handleYegerCallback(
     markYegerPerfStep(perf, "answer");
     await markYegerCornerPresence(ctx, services.presence);
     markYegerPerfStep(perf, "presence");
+    if (result.state === "bought" || result.state === "replayed" || result.state === "cancelled") {
+      await safeEditMessageText(ctx, presentYegerBandageBuy(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildYegerBandageTerminalKeyboard()
+      });
+      markYegerPerfStep(perf, "edit");
+      const achievementText = presentAchievementUnlockNotification(
+        result.state === "bought" ? result.achievementUnlocks ?? [] : []
+      );
+      if (achievementText) {
+        await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+        markYegerPerfStep(perf, "achievement");
+      }
+      finishYegerPerfTrace(perf, result.state);
+      return;
+    }
+
     const quest = await services.yeger.getForTelegramUser(telegramUserId);
     markYegerPerfStep(perf, "quest");
     const affordablePreview = result.state === "insufficient-gold" ? result.affordablePreview : undefined;
@@ -1407,13 +1425,6 @@ async function handleYegerCallback(
           : buildYegerBandagesKeyboard(quest, { craftOptions, ...yegerNavigationOptions })
     });
     markYegerPerfStep(perf, "edit");
-    const achievementText = presentAchievementUnlockNotification(
-      result.state === "bought" ? result.achievementUnlocks ?? [] : []
-    );
-    if (achievementText) {
-      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
-      markYegerPerfStep(perf, "achievement");
-    }
     finishYegerPerfTrace(perf, result.state);
     return;
   }

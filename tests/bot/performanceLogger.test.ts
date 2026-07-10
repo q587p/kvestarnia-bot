@@ -78,6 +78,7 @@ describe("performance logger", () => {
       dbMs: 5.04,
       computeMs: 1.94,
       telegramMs: 9.99,
+      telegramEditMs: 3.33,
       totalMs: 16.97
     });
 
@@ -90,6 +91,7 @@ describe("performance logger", () => {
       dbMs: 5,
       computeMs: 1.9,
       telegramMs: 10,
+      telegramEditMs: 3.3,
       totalMs: 17
     });
     expect(Object.keys(payload)).not.toEqual(expect.arrayContaining([

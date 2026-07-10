@@ -206,6 +206,13 @@ export function buildYegerBandagePurchaseKeyboard(
     .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData());
 }
 
+export function buildYegerBandageTerminalKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("⬅️ До єгерського кутка", makeYegerOpenCallbackData())
+    .row()
+    .text("🛢️ До Бочки", makePlaceCallbackData("barrel"));
+}
+
 export function buildYegerTurnInKeyboard(
   result: Exclude<YegerQuestTurnInResult, { state: "no-character" }>,
   options: {
