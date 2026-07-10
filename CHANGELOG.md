@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
+- Priest self-blessing cards now hide `✨ Благословити себе` while the character's own blessing wait is active, while healing and available blessings for other targets remain visible.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

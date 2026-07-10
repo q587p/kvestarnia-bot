@@ -34,14 +34,16 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
         .row();
     }
 
-    keyboard
-      .text("✨ Благословити себе", makePriestBlessCallbackData({
-        targetTelegramUserId: null,
-        actorRemortCount,
-        targetRemortCount: actorRemortCount,
-        page: currentPage
-      }))
-      .row();
+    if (!result.priestSelfBlessAvailableAt) {
+      keyboard
+        .text("✨ Благословити себе", makePriestBlessCallbackData({
+          targetTelegramUserId: null,
+          actorRemortCount,
+          targetRemortCount: actorRemortCount,
+          page: currentPage
+        }))
+        .row();
+    }
 
     for (const target of result.targets) {
       const canHealTarget = canHeal(target);

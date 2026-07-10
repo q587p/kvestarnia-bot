@@ -154,10 +154,12 @@ describe("class noncombat command", () => {
     expect(keyboardTexts(firstEditCall(noMana.editMessageText)[1])).toEqual([]);
   });
 
-  it("keeps Priest action buttons under already-blessed results", async () => {
+  it("keeps available Priest action buttons under already-blessed results", async () => {
     const { ctx, editMessageText, reply, sendMessage } = callbackContext();
     const service = {
-      openForTelegramUser: vi.fn().mockResolvedValue(priestOpenResult()),
+      openForTelegramUser: vi.fn().mockResolvedValue(priestOpenResult({
+        priestSelfBlessAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+      })),
       blessForTelegramUser: vi.fn().mockResolvedValue({
         state: "blocked",
         reason: "already-blessed",
@@ -188,10 +190,8 @@ describe("class noncombat command", () => {
     const [text, options] = firstEditCall(editMessageText);
     expect(text).toContain("На цілі вже тримається благословення");
     expect(options.parse_mode).toBe("HTML");
-    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
-      "⚕️ Полікувати себе",
-      "✨ Благословити себе"
-    ]));
+    expect(keyboardTexts(options)).toEqual(expect.arrayContaining(["⚕️ Полікувати себе", "✨"]));
+    expect(keyboardTexts(options)).not.toContain("✨ Благословити себе");
   });
 
   it("keeps Priest action buttons under blessing cooldown results", async () => {
@@ -641,7 +641,7 @@ function roguePickpocketResult(options: { created: boolean }): RoguePickpocketRe
   };
 }
 
-function priestOpenResult(): ClassNoncombatOpenResult {
+function priestOpenResult(overrides: { priestSelfBlessAvailableAt?: Date | null } = {}): ClassNoncombatOpenResult {
   return {
     state: "ready",
     mode: "priest",
@@ -666,7 +666,7 @@ function priestOpenResult(): ClassNoncombatOpenResult {
     targetPage: 0,
     targetTotalPages: 1,
     priestBlessCooldownAvailableAt: null,
-    priestSelfBlessAvailableAt: null,
+    priestSelfBlessAvailableAt: overrides.priestSelfBlessAvailableAt ?? null,
     roguePickpocketCooldownAvailableAt: null
   };
 }
