@@ -1280,6 +1280,20 @@ The `raid.prep-hint` catalog intentionally contains future-facing role jokes, bu
 - `class.bureaucramancer` and `class.kharakternyk`: their narrow raid mechanics are already shipped through Protocol 13-B and ward signs.
 - Remaining race and race/class lines stay flavor-only until a task names a concrete mechanic; do not convert every raid joke into a system.
 
+## Later — Player Call for Monster Help (2–3 Players)
+
+Future task doc: [0.2.x-player-monster-help.md](../tasks/0.2.x-player-monster-help.md).
+
+Додати вузький opt-in виклик допомоги з активного бою з монстром:
+
+- власник бою бачить `🆘 Покликати на підмогу` й може приватно запросити пригодників поруч;
+- склад — рівно 2–3 людини загалом: власник плюс один або два помічники;
+- кожен помічник сам приймає запрошення, а четвертий учасник отримує відмову без мутації бою;
+- прийняття перевіряє поточну місцину, відсутність бою/дуелі/рейду, remort-життя та сумісність encounter-а;
+- після старту склад, ресурси, монстр і правила раундів заморожуються; вихід, timeout, stale callback і replay мають бути детермінованими;
+- це не зниження рівня монстра через системну `help`-intervention і не Big Barrel raid; нагороди не множаться автоматично й потребують окремого balance/anti-abuse рішення;
+- майбутнє `player`-джерело в `battle-interventions` має лишатися opt-in, capped та ownership-validated.
+
 ## Later — Multi-Enemy Combat and Summoner Tags
 
 **Objective**

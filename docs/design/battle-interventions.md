@@ -249,6 +249,8 @@ Rules:
 - потрібні `maxTotalNegativeDelta` і `maxTotalPositiveDelta`;
 - social help/hinder має мати opt-in, ownership checks, anti-abuse caps і не має давати спосіб фармити чужі бої.
 
+The future player-help slice is intentionally narrower than a raid: one fight owner may invite at most two nearby helpers, each helper must explicitly accept, and the shared roster freezes at 2–3 total participants. This should add participants to a shared encounter rather than silently changing the monster's level or reward multiplier.
+
 ## Implementation slices
 
 ### PR 1 — Docs and pure formulas
@@ -275,6 +277,14 @@ Rules:
 - XP/gold/loot use intervention modifiers.
 - Result summary explains reward shift.
 - Add integration tests for lower/higher rewards.
+
+### Future PR 4 — Opt-in player help
+
+- Add a private owner-to-nearby-player invitation from an eligible active monster fight.
+- Accept at most two helpers, with ownership, presence, combat-lock, remort-life and encounter-type checks.
+- Freeze a 2–3 participant roster and reuse the shared round/journal/replay contract.
+- Keep helper rewards bounded and explicit; no automatic loot multiplication or public matchmaking.
+- Add stale/duplicate/expiry/leave/timeout and fourth-player regression coverage.
 
 For a small MVP, PR 1 and PR 2 can be combined, but do not mix this with a broad combat-engine rewrite.
 

@@ -62,6 +62,7 @@ Recently shipped:
 Near-term next tasks:
 
 - [0.3.x-bard-big-barrel-raid-support.md](0.3.x-bard-big-barrel-raid-support.md) — future narrow Bard Big Barrel Brother support/disruption action, added from the existing raid prep hint; includes the audit of other role promises that still need separate follow-up tasks.
+- [0.2.x-player-monster-help.md](0.2.x-player-monster-help.md) — future opt-in help call from an active monster fight, capped at one owner plus one or two nearby helpers and kept separate from the Big Barrel raid.
 
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
