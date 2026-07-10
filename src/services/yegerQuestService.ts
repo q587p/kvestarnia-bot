@@ -217,6 +217,19 @@ export type YegerQuestLookupResult =
       reward: YegerQuestReward;
     } & YegerRangerBandageLookup & { notchExchange?: YegerNotchExchangeSummary });
 
+export type YegerQuestMarkerLookupResult =
+  | { state: "no-character" }
+  | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
+  | { state: "offered"; character: CharacterSummary; progress: YegerQuestProgress }
+  | { state: "in-progress"; character: CharacterSummary; progress: YegerQuestProgress }
+  | { state: "turn-in-ready"; character: CharacterSummary; progress: YegerQuestProgress }
+  | {
+      state: "completed";
+      character: CharacterSummary;
+      progress: YegerQuestProgress;
+      reward: YegerQuestReward;
+    };
+
 export type YegerQuestStartResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
@@ -454,6 +467,54 @@ export class YegerQuestService {
       tracking: await this.getTrackingSummary(telegramUserId),
       ...withRangerSupplies(rangerSupplies)
     };
+  }
+
+  async getQuestMarkerForTelegramUser(telegramUserId: bigint): Promise<YegerQuestMarkerLookupResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const summary = summarizeCharacter(character);
+
+    if (summary.level < YEGER_UNQUIET_TRIAL_MIN_LEVEL) {
+      return {
+        state: "level-locked",
+        character: summary,
+        requiredLevel: YEGER_UNQUIET_TRIAL_MIN_LEVEL
+      };
+    }
+
+    const stage = await this.getCurrentStage(telegramUserId);
+
+    if (!stage) {
+      return {
+        state: "completed",
+        character: summary,
+        progress: buildYegerQuestProgress(YEGER_UNQUIET_TRIAL_SECOND_STAGE, YEGER_UNQUIET_TRIAL_SECOND_TARGET),
+        reward: buildYegerQuestReward(YEGER_UNQUIET_TRIAL_SECOND_STAGE, { replayUnavailable: true })
+      };
+    }
+
+    const started = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: stage.startedKey,
+      localDate: YEGER_UNQUIET_TRIAL_BUCKET
+    });
+
+    if (!started) {
+      return {
+        state: "offered",
+        character: summary,
+        progress: buildYegerQuestProgress(stage, 0)
+      };
+    }
+
+    const progress = await this.countProgress(telegramUserId, started.createdAt, stage);
+
+    return progress.wins >= stage.target
+      ? { state: "turn-in-ready", character: summary, progress }
+      : { state: "in-progress", character: summary, progress };
   }
 
   async startForTelegramUser(telegramUserId: bigint): Promise<YegerQuestStartResult> {

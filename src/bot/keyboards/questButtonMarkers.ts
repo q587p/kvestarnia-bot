@@ -6,7 +6,7 @@ import type { DailyKorchmaRoundExistingLookupResult } from "../../services/daily
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
-import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
+import type { YegerQuestLookupResult, YegerQuestMarkerLookupResult } from "../../services/yegerQuestService";
 import {
   BESTIARY_MIN_LEVEL,
   FIGHTING_CORNER_MIN_LEVEL,
@@ -59,7 +59,7 @@ export interface QuestMarkerInput {
   fight?: Exclude<FightLookupResult, { state: "no-character" }>;
   firstKorchmaQuest?: Exclude<FirstKorchmaQuestLookupResult, { state: "no-character" }>;
   problemQuest?: ProblemQuestProgress;
-  yeger?: Exclude<YegerQuestLookupResult, { state: "no-character" }>;
+  yeger?: Exclude<YegerQuestLookupResult | YegerQuestMarkerLookupResult, { state: "no-character" }>;
   cellar?: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;

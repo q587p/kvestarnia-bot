@@ -29,6 +29,7 @@ import type {
   ItemUpgradeAttemptInput,
   ItemUpgradeAttemptResult,
   ItemUpgradeInventoryRow,
+  ItemUpgradeQuestSnapshot,
   ItemUpgradeRepository,
   ItemUpgradeSnapshot,
   ItemUpgradeUnlockResult
@@ -81,6 +82,27 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
         unlocked: Boolean(unlocked)
       };
     });
+  }
+
+  async getQuestSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeQuestSnapshot | null> {
+    const character = await findCharacter(this.prisma, telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    const [unlocked, fieldKit] = await Promise.all([
+      getUnlockAction(this.prisma, character.id),
+      this.prisma.characterItem.findUnique({
+        where: { characterId_itemId: { characterId: character.id, itemId: FIELD_KIT_ITEM_ID } },
+        select: { quantity: true }
+      })
+    ]);
+
+    return {
+      character: toCharacterRecord(character),
+      fieldKitQuantity: fieldKit?.quantity ?? 0,
+      unlocked: Boolean(unlocked)
+    };
   }
 
   async attemptForTelegramUser(
@@ -537,7 +559,7 @@ function serializeItemGrants(itemGrants: readonly ItemGrant[]): Array<{ itemId: 
 }
 
 async function getUnlockAction(
-  tx: Pick<TxClient, "dailyAction">,
+  tx: Pick<TxClient, "dailyAction"> | Pick<PrismaClient, "dailyAction">,
   characterId: string
 ): Promise<DailyAction | null> {
   return tx.dailyAction.findUnique({
@@ -811,7 +833,7 @@ const characterInclude = {
 } satisfies Prisma.CharacterInclude;
 
 async function findCharacter(
-  tx: TxClient,
+  tx: Pick<TxClient, "character"> | Pick<PrismaClient, "character">,
   telegramUserId: bigint
 ): Promise<(Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }) | null> {
   return tx.character.findFirst({

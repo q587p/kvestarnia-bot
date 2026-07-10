@@ -18,7 +18,10 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
     typeof services.fight?.getFightOverviewForTelegramUser !== "function" ||
     typeof services.fight?.getProblemQuestProgressForTelegramUser !== "function" ||
-    typeof services.yeger?.getForTelegramUser !== "function" ||
+    (
+      typeof services.yeger?.getQuestMarkerForTelegramUser !== "function" &&
+      typeof services.yeger?.getForTelegramUser !== "function"
+    ) ||
     typeof services.cellarErrand?.getForTelegramUser !== "function"
   ) {
     return null;
@@ -71,10 +74,14 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
           () => firstKorchmaQuestService.getForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
-    typeof services.yeger?.getForTelegramUser === "function"
+    (
+      typeof services.yeger?.getQuestMarkerForTelegramUser === "function" ||
+      typeof services.yeger?.getForTelegramUser === "function"
+    )
       ? optionalQuestMarkerLookup(
           "yeger",
-          () => services.yeger.getForTelegramUser(telegramUserId)
+          () => services.yeger.getQuestMarkerForTelegramUser?.(telegramUserId)
+            ?? services.yeger.getForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
     typeof services.cellarErrand?.getForTelegramUser === "function"
@@ -95,10 +102,14 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
           () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null),
-    typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
+    (
+      typeof itemUpgradesService?.getQuestMarkerForTelegramUser === "function" ||
+      typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
+    )
       ? optionalQuestMarkerLookup(
           "item upgrades",
-          () => itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
+          () => itemUpgradesService.getQuestMarkerForTelegramUser?.(telegramUserId)
+            ?? itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
         )
       : Promise.resolve(null)
   ]);

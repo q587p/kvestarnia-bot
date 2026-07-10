@@ -19,6 +19,12 @@ export interface ItemUpgradeSnapshot {
   unlocked: boolean;
 }
 
+export interface ItemUpgradeQuestSnapshot {
+  character: CharacterRecord;
+  fieldKitQuantity: number;
+  unlocked: boolean;
+}
+
 export interface ItemUpgradeAttemptInput {
   itemId: string;
   donorItemId?: string | null;
@@ -76,6 +82,10 @@ export type ItemUpgradeUnlockResult =
 
 export interface ItemUpgradeRepository {
   getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeSnapshot | null>;
+  getQuestSnapshotForTelegramUser?(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<ItemUpgradeQuestSnapshot | null>;
   attemptForTelegramUser(
     telegramUserId: bigint,
     input: ItemUpgradeAttemptInput

@@ -170,6 +170,38 @@ export class ItemUpgradeService {
     return { state: "ready", character };
   }
 
+  async getQuestMarkerForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeQuestLookupResult> {
+    if (typeof this.repository.getQuestSnapshotForTelegramUser !== "function") {
+      return this.getUnlockQuestForTelegramUser(telegramUserId);
+    }
+
+    const snapshot = await this.repository.getQuestSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(snapshot.character);
+
+    if (!canAccessItemUpgrades(snapshot.character)) {
+      return {
+        state: "level-locked",
+        character,
+        requiredLevel: getItemUpgradeRequiredLevel(snapshot.character)
+      };
+    }
+
+    if (!snapshot.unlocked) {
+      return {
+        state: "unlock-required",
+        character,
+        fieldKitQuantity: snapshot.fieldKitQuantity,
+        rewardXp: getItemUpgradeUnlockRewardXp(snapshot.character)
+      };
+    }
+
+    return { state: "ready", character };
+  }
+
   async previewForTelegramUser(
     telegramUserId: bigint,
     itemId: string,
