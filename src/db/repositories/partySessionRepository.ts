@@ -210,6 +210,7 @@ export type PartyPersonalProtocolFileRepositoryResult =
         | "blocked"
         | "cooldown"
         | "not-enough-mana"
+        | "stale"
         | "cancelled"
         | "expired";
       availableAt?: Date;
@@ -228,6 +229,8 @@ export type PartyPersonalProtocolSignRepositoryResult =
         | "not-recruiting"
         | "not-big-barrel"
         | "no-protocol"
+        | "blocked"
+        | "stale"
         | "cancelled"
         | "expired";
       session: PartySessionRecord;

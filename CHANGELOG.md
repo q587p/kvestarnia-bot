@@ -24,6 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Preserved `0.3.5` bounded hot-path/performance instrumentation patterns: protocol lobby state is stored in party participant snapshots and frozen once at raid start instead of broad per-card recomputation.
 - Protocol mitigation does not affect `Бочковий гуркіт`, broad/all-party attacks, unsigned targets, or later personal attacks after a signer’s protection is spent.
+- Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure; committed session protocols cannot be replaced by a second filing.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

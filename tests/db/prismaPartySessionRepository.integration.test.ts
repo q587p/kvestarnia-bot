@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
+import {
+  PrismaPartySessionRepository,
+  resolvePersonalProtocolSignReservationState
+} from "../../src/db/repositories/prismaPartySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 
@@ -29,6 +32,11 @@ describe("PrismaPartySessionRepository integration", () => {
   afterAll(async () => {
     await prisma?.$disconnect();
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("reports stale instead of already-signed without a matching signature snapshot", () => {
+    expect(resolvePersonalProtocolSignReservationState(null, "protocol-1")).toBe("stale");
+    expect(resolvePersonalProtocolSignReservationState("protocol-1", "protocol-1")).toBe("already-signed");
   });
 
   it("creates one live leader session and replays duplicate create", async () => {
@@ -267,6 +275,204 @@ describe("PrismaPartySessionRepository integration", () => {
     });
     await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol", 1);
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
+  });
+
+  it("keeps one session protocol when the filer leaves and freezes only joined signatures", async () => {
+    await seedCharacter(prisma, "protocol-leader-leaves-user", 9151n, "Ватажок Паперів", {
+      level: 8
+    });
+    await seedCharacter(prisma, "protocol-filer-leaves-user", 9152n, "Паперовий Втікач", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-replacement-user", 9153n, "Запасний Підпис", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+
+    await repository.createForTelegramUser(9151n, bigBarrelInput("party-token-protocol-filer-leaves"));
+    await repository.joinByTokenForTelegramUser(9152n, "party-token-protocol-filer-leaves", joinInput());
+    await repository.joinByTokenForTelegramUser(9153n, "party-token-protocol-filer-leaves", joinInput());
+    const filed = await repository.fileBureaucramancerPersonalProtocol(
+      9152n,
+      "party-token-protocol-filer-leaves",
+      now()
+    );
+    const left = await repository.leaveByTokenForTelegramUser(9152n, "party-token-protocol-filer-leaves", now());
+    const afterLeave = await repository.findByToken("party-token-protocol-filer-leaves", now());
+    const replacementFile = await repository.fileBureaucramancerPersonalProtocol(
+      9153n,
+      "party-token-protocol-filer-leaves",
+      now()
+    );
+    const replacementSign = await repository.signBureaucramancerPersonalProtocol(
+      9153n,
+      "party-token-protocol-filer-leaves",
+      now()
+    );
+
+    expect(filed.state).toBe("updated");
+    expect(left.state).toBe("left");
+    expect(afterLeave?.personalProtocol).toMatchObject({
+      filerCharacterId: "protocol-filer-leaves-user-character",
+      signatureCount: 0
+    });
+    expect(replacementFile.state).toBe("already-exists");
+    expect(replacementSign.state).toBe("updated");
+    expect("session" in replacementSign ? replacementSign.session.personalProtocol : null).toMatchObject({
+      signatureCount: 1
+    });
+    await expect(prisma.character.findUnique({
+      where: { id: "protocol-replacement-user-character" },
+      select: { manaCurrent: true }
+    })).resolves.toEqual({ manaCurrent: 10 });
+  });
+
+  it("blocks active-combat protocol signing without mutating the signature", async () => {
+    await seedCharacter(prisma, "protocol-blocked-leader-user", 9154n, "Паперовий Ватажок", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-blocked-signer-user", 9155n, "Підписант У Бою", {
+      level: 8
+    });
+
+    await repository.createForTelegramUser(9154n, bigBarrelInput("party-token-protocol-blocked"));
+    await repository.joinByTokenForTelegramUser(9155n, "party-token-protocol-blocked", joinInput());
+    await repository.fileBureaucramancerPersonalProtocol(9154n, "party-token-protocol-blocked", now());
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "protocol-blocked-signer-lease",
+        characterId: "protocol-blocked-signer-user-character",
+        kind: "persistent-fight",
+        referenceId: "fight-protocol-blocked"
+      }
+    });
+
+    const blocked = await repository.signBureaucramancerPersonalProtocol(9155n, "party-token-protocol-blocked", now());
+    await prisma.activeCombatLease.delete({ where: { id: "protocol-blocked-signer-lease" } });
+    const signed = await repository.signBureaucramancerPersonalProtocol(9155n, "party-token-protocol-blocked", now());
+
+    expect(blocked.state).toBe("blocked");
+    expect(signed.state).toBe("updated");
+    await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol-blocked", 2);
+  });
+
+  it("replays concurrent duplicate protocol signing without losing the signature", async () => {
+    await seedCharacter(prisma, "protocol-concurrent-leader-user", 9156n, "Паралельний Папір", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-concurrent-signer-user", 9157n, "Паралельний Підпис", {
+      level: 8
+    });
+
+    await repository.createForTelegramUser(9156n, bigBarrelInput("party-token-protocol-concurrent"));
+    await repository.joinByTokenForTelegramUser(9157n, "party-token-protocol-concurrent", joinInput());
+    await repository.fileBureaucramancerPersonalProtocol(9156n, "party-token-protocol-concurrent", now());
+
+    const results = await Promise.all([
+      repository.signBureaucramancerPersonalProtocol(9157n, "party-token-protocol-concurrent", now()),
+      repository.signBureaucramancerPersonalProtocol(9157n, "party-token-protocol-concurrent", now())
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["already-signed", "updated"]);
+    await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol-concurrent", 2);
+  });
+
+  it("commits only one concurrent Bureaucramancer protocol filing", async () => {
+    await seedCharacter(prisma, "protocol-file-race-leader-user", 9160n, "Голова Заяви", {
+      level: 8
+    });
+    await seedCharacter(prisma, "protocol-file-race-one-user", 9161n, "Перший Бюрокромант", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-file-race-two-user", 9162n, "Другий Бюрокромант", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+
+    await repository.createForTelegramUser(9160n, bigBarrelInput("party-token-protocol-file-race"));
+    await repository.joinByTokenForTelegramUser(9161n, "party-token-protocol-file-race", joinInput());
+    await repository.joinByTokenForTelegramUser(9162n, "party-token-protocol-file-race", joinInput());
+
+    const results = await Promise.all([
+      repository.fileBureaucramancerPersonalProtocol(9161n, "party-token-protocol-file-race", now()),
+      repository.fileBureaucramancerPersonalProtocol(9162n, "party-token-protocol-file-race", now())
+    ]);
+    const states = results.map((result) => result.state).sort();
+    const filed = results.find((result) => result.state === "updated");
+    const filedCharacterId = filed && "session" in filed
+      ? filed.session.personalProtocol?.filerCharacterId
+      : undefined;
+
+    expect(states).toEqual(["already-exists", "updated"]);
+    expect(filedCharacterId).toMatch(/^protocol-file-race-(one|two)-user-character$/);
+    await expect(prisma.character.findMany({
+      where: {
+        id: {
+          in: ["protocol-file-race-one-user-character", "protocol-file-race-two-user-character"]
+        }
+      },
+      orderBy: { id: "asc" },
+      select: { id: true, manaCurrent: true }
+    })).resolves.toEqual([
+      {
+        id: "protocol-file-race-one-user-character",
+        manaCurrent: filedCharacterId === "protocol-file-race-one-user-character" ? 5 : 10
+      },
+      {
+        id: "protocol-file-race-two-user-character",
+        manaCurrent: filedCharacterId === "protocol-file-race-two-user-character" ? 5 : 10
+      }
+    ]);
+    await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol-file-race", 1);
+  });
+
+  it("ignores unsupported protocol snapshot versions instead of treating them as active", async () => {
+    await seedCharacter(prisma, "protocol-version-leader-user", 9158n, "Версійний Папір", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-version-signer-user", 9159n, "Версійний Підпис", {
+      level: 8
+    });
+
+    await repository.createForTelegramUser(9158n, bigBarrelInput("party-token-protocol-version"));
+    await repository.joinByTokenForTelegramUser(9159n, "party-token-protocol-version", joinInput());
+    await repository.fileBureaucramancerPersonalProtocol(9158n, "party-token-protocol-version", now());
+    const filer = await prisma.partyParticipant.findFirstOrThrow({
+      where: {
+        session: { inviteToken: "party-token-protocol-version" },
+        characterId: "protocol-version-leader-user-character"
+      },
+      select: { id: true, snapshotJson: true }
+    });
+    const snapshot = JSON.parse(JSON.stringify(filer.snapshotJson)) as Record<string, unknown>;
+    const protocolSnapshot = snapshot.bureaucramancerPersonalProtocol13B;
+    if (!protocolSnapshot || typeof protocolSnapshot !== "object" || Array.isArray(protocolSnapshot)) {
+      throw new Error("Expected protocol snapshot object.");
+    }
+    (protocolSnapshot as Record<string, unknown>).version = 2;
+
+    await prisma.partyParticipant.update({
+      where: { id: filer.id },
+      data: { snapshotJson: snapshot }
+    });
+
+    const session = await repository.findByToken("party-token-protocol-version", now());
+    const sign = await repository.signBureaucramancerPersonalProtocol(9159n, "party-token-protocol-version", now());
+
+    expect(session?.personalProtocol).toBeUndefined();
+    expect(sign.state).toBe("no-protocol");
   });
 
   it("commits only one Kharakternyk ward sign when two eligible placers race", async () => {

@@ -152,6 +152,7 @@ All mutations must be replay-safe:
 
 - duplicate filing callbacks replay the existing protocol or return a session already-has-protocol card;
 - duplicate signing callbacks replay the signed state;
+- a filer leaving before raid start does not create a replacement protocol; the session-owned protocol remains, while only final joined/remort-valid signatures freeze into the fight;
 - stale signatures after raid start do not mutate;
 - stale signatures from non-joined characters do not mutate;
 - a spent signer signature never blocks a second personal attack;

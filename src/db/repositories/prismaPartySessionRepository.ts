@@ -47,6 +47,22 @@ class KharakternykWardSupportManaSpendLostError extends Error {
   }
 }
 
+class PersonalProtocolFilingParticipantChangedError extends Error {
+  constructor(
+    readonly sessionId: string,
+    readonly characterId: string,
+    readonly remortCount: number
+  ) {
+    super("Bureaucramancer personal protocol filer changed after reservation.");
+  }
+}
+
+class PersonalProtocolFilingManaSpendLostError extends Error {
+  constructor(readonly sessionId: string) {
+    super("Bureaucramancer personal protocol mana spend lost after reservation.");
+  }
+}
+
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
@@ -721,7 +737,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     inviteToken: string,
     now: Date
   ): Promise<PartyPersonalProtocolFileRepositoryResult> {
-    return this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolFileRepositoryResult> => {
+    try {
+      return await this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolFileRepositoryResult> => {
       await expireTokenIfNeededTx(tx, inviteToken, now);
       const session = await findSessionByToken(tx, inviteToken);
 
@@ -808,7 +825,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         }
       });
       if (spent.count !== 1) {
-        return { state: "not-enough-mana", session: mapSession(session) };
+        throw new PersonalProtocolFilingManaSpendLostError(session.id);
       }
 
       await tx.characterCooldown.upsert({
@@ -840,8 +857,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         }
       });
 
-      await tx.partyParticipant.update({
-        where: { id: participant.id },
+      const committedParticipant = await tx.partyParticipant.updateMany({
+        where: {
+          id: participant.id,
+          sessionId: session.id,
+          characterId: character.id,
+          status: "joined",
+          remortCount: character._count.remorts,
+          updatedAt: participant.updatedAt
+        },
         data: {
           snapshotJson: snapshotWithPersonalProtocol(participant.snapshotJson, {
             kind: BUREAUCRAMANCER_PROTOCOL_KIND,
@@ -860,10 +884,41 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           })
         }
       });
+      if (committedParticipant.count !== 1) {
+        throw new PersonalProtocolFilingParticipantChangedError(
+          session.id,
+          character.id,
+          character._count.remorts
+        );
+      }
 
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
-    });
+      });
+    } catch (error) {
+      if (error instanceof PersonalProtocolFilingManaSpendLostError) {
+        const session = await findSessionById(this.prisma, error.sessionId);
+        return session ? { state: "not-enough-mana", session: mapSession(session) } : { state: "not-found" };
+      }
+
+      if (error instanceof PersonalProtocolFilingParticipantChangedError) {
+        const session = await findSessionById(this.prisma, error.sessionId);
+        if (!session) {
+          return { state: "not-found" };
+        }
+
+        const participant = session.participants.find((row) =>
+          row.characterId === error.characterId &&
+          row.status === "joined" &&
+          row.remortCount === error.remortCount
+        );
+        return participant
+          ? { state: "stale", session: mapSession(session) }
+          : { state: "not-member", session: mapSession(session) };
+      }
+
+      throw error;
+    }
   }
 
   async signBureaucramancerPersonalProtocol(
@@ -912,6 +967,14 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
       if (existingSignature?.protocolId === protocol.protocolId) {
         return { state: "already-signed", session: mapSession(session) };
+      }
+
+      const activeLease = await tx.activeCombatLease.findUnique({
+        where: { characterId: character.id },
+        select: { id: true }
+      });
+      if (activeLease) {
+        return { state: "blocked", session: mapSession(session) };
       }
 
       const reserved = await reservePersonalProtocolSignatureSlot(tx, session, participant, character, protocol, now);
@@ -1108,6 +1171,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
     });
   }
+}
+
+export function resolvePersonalProtocolSignReservationState(
+  signatureProtocolId: string | null,
+  protocolId: string
+): "already-signed" | "stale" {
+  return signatureProtocolId === protocolId ? "already-signed" : "stale";
 }
 
 async function findCharacterByTelegramUser(
@@ -1928,11 +1998,10 @@ function resolvePersonalProtocolSignReservationLoss(
   }
 
   const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
-  if (existingSignature?.protocolId === protocol.protocolId) {
-    return { state: "already-signed", session: mapSession(session) };
-  }
-
-  return { state: "already-signed", session: mapSession(session) };
+  return {
+    state: resolvePersonalProtocolSignReservationState(existingSignature?.protocolId ?? null, protocol.protocolId),
+    session: mapSession(session)
+  };
 }
 
 interface InternalWardSignSnapshot {
@@ -1954,6 +2023,7 @@ interface InternalWardSupportSnapshot {
 
 interface InternalPersonalProtocolSnapshot {
   kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  version?: 1;
   protocolId: string;
   filerCharacterId: string;
   remortCount: number;
@@ -1963,6 +2033,7 @@ interface InternalPersonalProtocolSnapshot {
 
 interface InternalPersonalProtocolSignatureSnapshot {
   kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  version?: 1;
   protocolId: string;
   filerCharacterId: string;
   signerCharacterId: string;
@@ -2073,13 +2144,13 @@ function parseInternalWardSupport(snapshotJson: Prisma.JsonValue | null): Intern
 }
 
 function getActivePersonalProtocol(row: PartySessionRow): InternalPersonalProtocolSnapshot | null {
-  const joined = row.participants.filter((participant) => participant.status === "joined");
-  for (const participant of joined) {
+  for (const participant of row.participants) {
     const protocol = parsePersonalProtocol(participant.snapshotJson);
     if (
       protocol &&
       protocol.filerCharacterId === participant.characterId &&
-      protocol.remortCount === participant.remortCount
+      protocol.remortCount === participant.remortCount &&
+      participant.character._count.remorts === participant.remortCount
     ) {
       return protocol;
     }
@@ -2111,6 +2182,7 @@ function parsePersonalProtocol(snapshotJson: Prisma.JsonValue | null): InternalP
 
   if (
     value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND ||
+    value.version !== 1 ||
     typeof value.protocolId !== "string" ||
     typeof value.filerCharacterId !== "string" ||
     typeof value.remortCount !== "number" ||
@@ -2123,6 +2195,7 @@ function parsePersonalProtocol(snapshotJson: Prisma.JsonValue | null): InternalP
 
   return {
     kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    version: 1,
     protocolId: value.protocolId,
     filerCharacterId: value.filerCharacterId,
     remortCount: Math.max(0, Math.floor(value.remortCount)),
@@ -2156,6 +2229,7 @@ function parsePersonalProtocolSignature(
 
   if (
     value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND ||
+    value.version !== 1 ||
     typeof value.protocolId !== "string" ||
     typeof value.filerCharacterId !== "string" ||
     typeof value.signerCharacterId !== "string" ||
@@ -2168,6 +2242,7 @@ function parsePersonalProtocolSignature(
 
   return {
     kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+    version: 1,
     protocolId: value.protocolId,
     filerCharacterId: value.filerCharacterId,
     signerCharacterId: value.signerCharacterId,

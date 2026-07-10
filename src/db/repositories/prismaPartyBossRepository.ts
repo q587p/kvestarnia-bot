@@ -225,7 +225,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
-      const personalProtocol = isBigBarrelParty ? buildBureaucramancerPersonalProtocolForStartedParty(joined) : undefined;
+      const personalProtocol = isBigBarrelParty
+        ? buildBureaucramancerPersonalProtocolForStartedParty(party.participants)
+        : undefined;
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
@@ -1475,18 +1477,20 @@ function buildKharakternykWardSignForStartedParty(
 }
 
 function buildBureaucramancerPersonalProtocolForStartedParty(
-  joined: PartyRow["participants"]
+  participants: PartyRow["participants"]
 ): {
   kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
   protocolId: string;
   filerCharacterId: string;
   signerCharacterIds: string[];
 } | undefined {
-  const filer = joined.find((participant) => {
+  const joined = participants.filter((participant) => participant.status === "joined");
+  const filer = participants.find((participant) => {
     const protocol = parsePersonalProtocolSnapshot(participant.snapshotJson);
     return (
       protocol?.filerCharacterId === participant.characterId &&
-      protocol.remortCount === participant.remortCount
+      protocol.remortCount === participant.remortCount &&
+      participant.character._count.remorts === participant.remortCount
     );
   });
   if (!filer) {
@@ -1566,7 +1570,7 @@ function parsePersonalProtocolSnapshot(snapshotJson: Prisma.JsonValue | null): {
   remortCount: number;
 } | null {
   const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY);
-  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND) {
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND || value.version !== 1) {
     return null;
   }
 
@@ -1590,7 +1594,7 @@ function parsePersonalProtocolSignatureSnapshot(snapshotJson: Prisma.JsonValue |
   remortCount: number;
 } | null {
   const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY);
-  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND) {
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND || value.version !== 1) {
     return null;
   }
 

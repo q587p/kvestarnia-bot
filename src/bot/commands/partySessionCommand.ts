@@ -1328,6 +1328,9 @@ function presentProtocolFileCallbackAnswer(
   if (state === "not-enough-mana") {
     return "Не вистачає мани.";
   }
+  if (state === "stale") {
+    return "Картка ватаги змінилася. Оновіть її й спробуйте ще раз.";
+  }
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
   }
@@ -1351,6 +1354,12 @@ function presentProtocolSignCallbackAnswer(
   }
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
+  }
+  if (state === "blocked") {
+    return "Спершу завершіть інший бій.";
+  }
+  if (state === "stale") {
+    return "Картка ватаги змінилася. Оновіть її й спробуйте ще раз.";
   }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає підписи.";
