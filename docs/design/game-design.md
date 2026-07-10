@@ -523,11 +523,11 @@ Rewards and anti-grind:
 - trading/gifting MVP;
 - combat variety: guard, cooldowns, monster skills, item tags and one-use manatky;
 - remort-only advanced options after the `0.1.2` MVP;
-- multi-enemy combat;
-- party combat and real raids.
+- bounded 3+ enemy solo combat expansion on the shipped one-/two-enemy foundation;
+- party combat and real raids after the solo multi-enemy path is balance-tested.
 
 ## Групова активність later
-Справжній груповий рейд лишається важливим напрямом, але тепер це later Phase 2 / Phase 4 slice, а не перший post-closeout крок.
+Справжній груповий рейд лишається важливим напрямом, але спочатку має завершитися bounded 3+ enemy solo combat. Реальний рейд — це later Phase 2 / Phase 4 slice, а не перший post-closeout крок.
 
 Майбутній raid flow:
 - party or group invite;

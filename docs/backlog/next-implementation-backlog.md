@@ -25,7 +25,7 @@
 10. Trading/gifting MVP: one eligible item unit or narrow item-for-item flow.
 11. Combat variety: guard, cooldowns, monster skills, action catalog, item tags and one-use manatky.
 12. Remort follow-ups: remort-only advanced options, richer legacy flavor and social/cosmetic records; the base `/remort` loop is already runtime in `0.1.2`.
-13. Multi-enemy combat.
+13. **Priority combat expansion:** bounded 3+ enemy solo encounters on the shipped one-/two-enemy foundation; see [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-enemy-combat.md). Do this before broad party-help or real-raid work.
 14. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
@@ -1294,15 +1294,23 @@ Future task doc: [0.2.x-player-monster-help.md](../tasks/0.2.x-player-monster-he
 - це не зниження рівня монстра через системну `help`-intervention і не Big Barrel raid; нагороди не множаться автоматично й потребують окремого balance/anti-abuse рішення;
 - майбутнє `player`-джерело в `battle-interventions` має лишатися opt-in, capped та ownership-validated.
 
-## Later — Multi-Enemy Combat and Summoner Tags
+## Priority — Three-or-More Enemy Solo Combat
+
+Future task doc: [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-enemy-combat.md).
+
+Це піднятий пріоритет для наступного combat slice: один пригодник має отримати bounded encounter із трьома або більше монстрами, а не груповий бій із кількома гравцями. Спочатку потрібні стабільний target selection, повний turn/journal/replay path, коректне завершення лише після останнього монстра та одна encounter-нагорода без автоматичного множення.
+
+Перший production slice має мати явну верхню межу, balance proof і спосіб дістатися до кожної живої цілі в Telegram UI. Групова допомога, party combat, Big Barrel raids і summon/backup-поведінка залишаються окремими наступними задачами.
+
+## Later — Summoner Tags and Encounter Follow-ups
 
 **Objective**
-Спроєктувати і потім реалізувати перший обережний бій із кількома противниками, щоб `summoner`-монстри могли кликати допомогу, а майбутні рейди не починали з нуля.
+Після завершення 3+ enemy solo combat спроєктувати наступний обережний encounter follow-up, щоб `summoner`-монстри могли кликати допомогу, а майбутні рейди не починали з нуля.
 
 **Scope**
 
 - додати content-level tag або trait на кшталт `summoner` / `callsBackup`, який не гарантує підмогу, а відкриває контрольований шанс;
-- у solo MVP дозволити максимум одного додаткового ворога, щоб не ламати Telegram UI і баланс;
+- у цьому follow-up дозволити максимум одного додаткового ворога поверх уже перевіреного 3+ enemy combat, щоб не ламати Telegram UI і баланс;
 - визначити ролі підмоги: extra weak attack, shield for main monster, minor heal, distraction або escape pressure;
 - UI має показувати кілька ворогів компактно: головний ворог окремо, підмога одним коротким рядком із HP/станом;
 - rewards не мають автоматично подвоюватися через підмогу; extra enemy може впливати на flavor або малий reward modifier тільки після окремого balance рішення;
