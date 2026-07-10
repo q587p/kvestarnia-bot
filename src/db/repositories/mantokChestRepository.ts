@@ -26,6 +26,7 @@ export interface MantokChestRunRecord {
 export interface MantokChestSnapshot {
   characterId: string;
   characterDisplayName: string;
+  playerLuck?: number;
   items: CharacterItemRecord[];
   equippedItemIds: string[];
   reservedItemIds?: string[];

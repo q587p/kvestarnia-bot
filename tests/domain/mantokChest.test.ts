@@ -5,7 +5,8 @@ import {
   calculateMantokChestItemScore,
   protectedMantokChestItemIds,
   selectCheapestMantokChestUnits,
-  selectMantokChestOutputItem
+  selectMantokChestOutputItem,
+  selectMantokChestOutputRarity
 } from "../../src/domain/mantokChest";
 import { FakeRandomSource } from "../../src/shared/random";
 import {
@@ -161,6 +162,7 @@ describe("Mantok Chest domain", () => {
       selectMantokChestOutputItem({
         items: [input, same, better],
         averageInputScore: calculateMantokChestItemScore(input),
+        inputUnits: units(input),
         inputItemIds: new Set([input.id]),
         rng: new FakeRandomSource([0])
       })?.id
@@ -176,6 +178,7 @@ describe("Mantok Chest domain", () => {
       selectMantokChestOutputItem({
         items: [input, betterInput, betterOther],
         averageInputScore: 40,
+        inputUnits: units(input),
         inputItemIds: new Set([betterInput.id]),
         rng: new FakeRandomSource([0])
       })?.id
@@ -185,12 +188,90 @@ describe("Mantok Chest domain", () => {
       selectMantokChestOutputItem({
         items: [input],
         averageInputScore: 500,
+        inputUnits: units(input),
         inputItemIds: new Set(),
         rng: new FakeRandomSource([0])
       })
     ).toBeNull();
   });
+
+  it("keeps an all-epic batch at epic instead of promoting it to legendary", () => {
+    const inputEpic = item({ id: "item.input-epic", rarity: "epic", goldValue: 10 });
+    const epic = item({ id: "item.epic", rarity: "epic", goldValue: 100 });
+    const legendary = item({ id: "item.legendary", rarity: "legendary", goldValue: 100 });
+
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(inputEpic),
+      playerLuck: 20,
+      rng: new FakeRandomSource([0])
+    })).toBe("epic");
+
+    expect(selectMantokChestOutputItem({
+      items: [inputEpic, epic, legendary],
+      averageInputScore: calculateMantokChestItemScore(inputEpic),
+      inputUnits: units(inputEpic),
+      inputItemIds: new Set([inputEpic.id]),
+      playerLuck: 20,
+      rng: new FakeRandomSource([0, 0])
+    })?.rarity).toBe("epic");
+  });
+
+  it("uses the input rarity mix as the base rarity and scales the upper chance by its count", () => {
+    const epic = item({ id: "item.epic", rarity: "epic" });
+    const rare = item({ id: "item.rare", rarity: "rare" });
+
+    expect(selectMantokChestOutputRarity({
+      inputUnits: [...units(epic, 4), ...units(rare, 1)],
+      playerLuck: 5,
+      rng: new FakeRandomSource([0.79])
+    })).toBe("epic");
+    expect(selectMantokChestOutputRarity({
+      inputUnits: [...units(epic, 4), ...units(rare, 1)],
+      playerLuck: 5,
+      rng: new FakeRandomSource([0.8])
+    })).toBe("rare");
+  });
+
+  it("gives uniform lower-rarity batches a small luck-sensitive upgrade chance", () => {
+    const common = item({ id: "item.common" });
+    const uncommon = item({ id: "item.uncommon", rarity: "uncommon" });
+    const rare = item({ id: "item.rare", rarity: "rare" });
+
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(common),
+      playerLuck: 5,
+      rng: new FakeRandomSource([0.09])
+    })).toBe("common");
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(common),
+      playerLuck: 10,
+      rng: new FakeRandomSource([0.12])
+    })).toBe("uncommon");
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(uncommon),
+      playerLuck: 5,
+      rng: new FakeRandomSource([0.064])
+    })).toBe("epic");
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(rare),
+      playerLuck: 5,
+      rng: new FakeRandomSource([0.04])
+    })).toBe("rare");
+    expect(selectMantokChestOutputRarity({
+      inputUnits: units(rare),
+      playerLuck: 10,
+      rng: new FakeRandomSource([0.08])
+    })).toBe("epic");
+  });
 });
+
+function units(content: ItemContent, quantity = 5) {
+  return Array.from({ length: quantity }, (_, index) => ({
+    itemId: `${content.id}-${index}`,
+    content,
+    score: calculateMantokChestItemScore(content)
+  }));
+}
 
 function item(overrides: Partial<ItemContent>): ItemContent {
   return {

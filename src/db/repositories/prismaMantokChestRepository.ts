@@ -196,7 +196,8 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           },
           select: {
             id: true,
-            name: true
+            name: true,
+            statsJson: true
           }
         });
 
@@ -231,6 +232,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
         const snapshot = await getConfirmationSnapshot(tx, {
           characterId: character.id,
           characterDisplayName: character.name,
+          playerLuck: readPlayerLuck(character.statsJson),
           inputItems: run.inputItems,
           now: input.now
         });
@@ -391,6 +393,7 @@ async function getConfirmationSnapshot(
   input: {
     characterId: string;
     characterDisplayName: string;
+    playerLuck: number;
     inputItems: MantokChestRunItem[];
     now: Date;
   }
@@ -438,6 +441,7 @@ async function getConfirmationSnapshot(
   return {
     characterId: input.characterId,
     characterDisplayName: input.characterDisplayName,
+    playerLuck: input.playerLuck,
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
@@ -456,7 +460,8 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     },
     select: {
       id: true,
-      name: true
+      name: true,
+      statsJson: true
     }
   });
 
@@ -499,6 +504,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
   return {
     characterId: character.id,
     characterDisplayName: character.name,
+    playerLuck: readPlayerLuck(character.statsJson),
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
@@ -567,4 +573,12 @@ function toCharacterItemRecord(record: CharacterItem): CharacterItemRecord {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readPlayerLuck(value: unknown): number {
+  if (!isRecord(value) || typeof value.luck !== "number" || !Number.isFinite(value.luck)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value.luck));
 }
