@@ -3029,7 +3029,6 @@ describe("main menu and scene keyboards", () => {
 
     expect(labels).toEqual([
       "🧀 Купити пломбу",
-      "🏹 Дошка полювання",
       "⬅️ До зали"
     ]);
     expect(labels).not.toContain("🐭 Домовитись із мишею");

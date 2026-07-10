@@ -642,7 +642,6 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("Домовлятися можна буде за 93 хвилини.");
     expect(buttons).toEqual([
       "🧀 Купити пломбу",
-      "🏹 Дошка полювання",
       "⬅️ До зали"
     ]);
     expect(buttons).not.toContain("🐭 Домовитись із мишею");
