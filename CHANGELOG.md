@@ -25,6 +25,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Preserved `0.3.5` bounded hot-path/performance instrumentation patterns: protocol lobby state is stored in party participant snapshots and frozen once at raid start instead of broad per-card recomputation.
 - Protocol mitigation does not affect `Бочковий гуркіт`, broad/all-party attacks, unsigned targets, or later personal attacks after a signer’s protection is spent.
 - Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure; committed session protocols cannot be replaced by a second filing.
+- Mantok Chest output rarity now follows the five selected input rarities and bounded current LUCK instead of raw score alone; all-epic input stays within epic output, mixed batches settle around their average rarity, and lower-rarity batches get only small upgrade tails.
+- Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
+- Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 
