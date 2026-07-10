@@ -27,6 +27,7 @@ describe("item upgrade presenter", () => {
       state: "unlocked",
       character,
       rewardXp: 38,
+      itemGrants: [],
       action: null,
       levelChange: {
         oldLevel: 5,
