@@ -526,6 +526,7 @@ Rewards and anti-grind:
 - bounded 3+ enemy solo combat expansion on the shipped one-/two-enemy foundation;
 - authored monster escape attempts with explicit non-win outcomes;
 - soft monster counter-matchups by race, class and action family, with rare telegraphed immunities and alternative paths;
+- cellar napkin exchange as a bounded sink for the mouse-diplomacy trophy;
 - party combat and real raids after the solo multi-enemy path is balance-tested.
 
 ## Групова активність later

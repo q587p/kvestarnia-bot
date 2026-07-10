@@ -28,7 +28,8 @@
 13. **Priority combat expansion:** bounded 3+ enemy solo encounters on the shipped one-/two-enemy foundation; see [0.2.x-three-plus-enemy-combat.md](../tasks/0.2.x-three-plus-enemy-combat.md). Do this before broad party-help or real-raid work.
 14. Monster escape attempts with explicit non-win outcomes, compatible with 3+ enemy encounters.
 15. Monster counter-matchup profiles: soft race/class pressure plus anti-magic/anti-technical alternatives.
-16. Party combat / real raid MVP with capped contribution-aware rewards.
+16. Cellar napkin exchange: a configured bundle of mouse-diplomacy napkins for cheese or one bounded cellar use.
+17. Party combat / real raid MVP with capped contribution-aware rewards.
 
 Feature tracks start only after smoke and stabilization. Docs-only ideas added around `0.0.30` remain deferred unless they are needed to explain current runtime. Achievements runtime, food/coffee buffs, NPC rankings, expanded equipment, battle interventions, manual Munchkin selection, shops/selling/crafting, item-instance inventory, group raids, guilds, Mini App, and broad combat rewrites are not part of `0.1.0`.
 
@@ -1319,6 +1320,14 @@ Future task doc: [0.2.x-monster-counter-matchups.md](../tasks/0.2.x-monster-coun
 Для окремих PvE-монстрів додати контр-матчапи за расою, класом і способом бою: суперагресивність проти конкретної раси/класу, антимагічні профілі, які краще долати зброєю та немагічними абілками, і антитехнічні профілі, де сильнішою альтернативою є магія. Це мають бути переважно мʼякі контри, а не невидимі заборони.
 
 Рідкісна майже-повна імунність потребує попередження та bypass/retreat path. Виклик помічника іншої раси чи класу — лише окремий bounded/idempotent follow-up, сумісний із 3+ enemy та summon-планом, без автоматичного party engine.
+
+## Later — Cellar Napkin Exchange
+
+Future task doc: [0.2.x-cellar-napkin-exchange.md](../tasks/0.2.x-cellar-napkin-exchange.md).
+
+Дати `Серветці мишачої дипломатії` майбутнє застосування в льосі: стартова пропозиція — обмінювати `3` серветки на один `Кльовий шмат сиру` або інший окремо збалансований льоховий результат. `3` — це кандидат від поточної стопки, а не зашита назавжди кількість.
+
+Обмін має бути лише explicit cellar action із preview/confirm, атомарним списанням рівно потрібної кількости, replay-safe callback-ами й без загального продажу безцінного трофея. Альтернативний другий sink — наприклад дозвіл, жетон або маленька не бойова послуга миші — залишити окремим follow-up.
 
 ## Later — Summoner Tags and Encounter Follow-ups
 

@@ -86,6 +86,7 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.x-three-plus-enemy-combat.md](0.2.x-three-plus-enemy-combat.md) — priority future expansion from the shipped one-/two-enemy foundation to bounded 3+ enemy solo encounters, with explicit target selection and one encounter reward.
 - [0.2.x-monster-escape.md](0.2.x-monster-escape.md) — future bounded PvE monster-escape attempts with explicit terminal reasons, multi-enemy continuation and no automatic victory reward.
 - [0.2.x-monster-counter-matchups.md](0.2.x-monster-counter-matchups.md) — future soft race/class and action-family monster counters, including anti-magic/anti-technical profiles and bounded alternative paths.
+- [0.2.x-cellar-napkin-exchange.md](0.2.x-cellar-napkin-exchange.md) — future cellar-only exchange of a configured napkin bundle, initially proposed as three mouse-diplomacy napkins for one authored cheese result.
 - [0.2.2-architecture-stabilization.md](0.2.2-architecture-stabilization.md) — shipped behavior-preserving architecture stabilization before threat escalation.
 - [0.2.3-threat-escalation.md](0.2.3-threat-escalation.md) — ordinary three-win threat escalation MVP using the existing two-enemy foundation.
 - [0.2.4-item-tags-one-use-manatka.md](0.2.4-item-tags-one-use-manatka.md) — shipped narrow item tag contract, one-use bandage flow and Єгер bandage supply.
