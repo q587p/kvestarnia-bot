@@ -61,6 +61,8 @@ Recently shipped:
 
 Near-term next tasks:
 
+- [0.3.x-bard-big-barrel-raid-support.md](0.3.x-bard-big-barrel-raid-support.md) — future narrow Bard Big Barrel Brother support/disruption action, added from the existing raid prep hint; includes the audit of other role promises that still need separate follow-up tasks.
+
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
 - [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — next P0 performance hardening task from the static audit: instrumentation, bounded `DailyAction` hot-path queries, Yeger bandage fast path, and Daily Korchma Round step-row narrowing before inviting more players.

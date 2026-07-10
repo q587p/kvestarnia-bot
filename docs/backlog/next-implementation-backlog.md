@@ -1251,6 +1251,21 @@ Future hardening, only if needed:
 - combat simulations include no-weapon, one-handed weapon, two-handed weapon, shield, dual-shield, magic-focus, and kick-enabled samples;
 - no hidden full heal/refill, duplicate item spend, or automatic consumable use.
 
+## Later — Big Barrel Role Hooks from Prep Hints
+
+Future task doc: [0.3.x-bard-big-barrel-raid-support.md](../tasks/0.3.x-bard-big-barrel-raid-support.md).
+
+The `raid.prep-hint` catalog intentionally contains future-facing role jokes, but the Big Barrel MVP does not make every promise mechanical. Keep this inventory beside the task docs so a new raid ability is not mistaken for shipped behavior:
+
+- `class.bard`: add one bounded raid-only buff or Big Barrel Brother debuff. This is the next focused slice; do not turn the current hint into a false promise before it ships.
+- `class.warrior`: already tracked by [0.3.x-warrior-raid-taunt.md](../tasks/0.3.x-warrior-raid-taunt.md).
+- `class.priest`: add a separate future party-boss healing action; the current MVP explicitly excludes a healing role.
+- `class.varenyk-mancer` and `race.bisyny`: add separate future control-effect follow-ups, without introducing a broad control framework in the Bard slice.
+- `race.drantohor`: add a future race-specific tank/positioning hook; Warrior taunt does not cover it.
+- `class.mage`, `class.rogue` and `class.ranger`: their current lines describe the ordinary raid-visible class/race action surface, so no extra raid-only task is required from the present wording.
+- `class.bureaucramancer` and `class.kharakternyk`: their narrow raid mechanics are already shipped through Protocol 13-B and ward signs.
+- Remaining race and race/class lines stay flavor-only until a task names a concrete mechanic; do not convert every raid joke into a system.
+
 ## Later — Multi-Enemy Combat and Summoner Tags
 
 **Objective**
