@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   presentDailyKorchmaRound,
+  presentDailyKorchmaRoundClaim,
   presentDailyKorchmaRoundScene
 } from "../../src/bot/presenters/dailyKorchmaRoundPresenter";
 import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 import type {
+  DailyKorchmaRoundClaimResult,
+  DailyKorchmaRoundOffer,
   DailyKorchmaRoundLookupResult,
   DailyKorchmaRoundSceneLookupResult
 } from "../../src/services/dailyKorchmaRoundService";
+import { ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
 
 describe("daily Korchma round presenter", () => {
   it("renders an opt-in card before the daily Korchma round is issued", () => {
@@ -58,51 +62,62 @@ describe("daily Korchma round presenter", () => {
     expect(text).not.toContain("<i>Оберіть одну дію. Вона спрацює тільки тут:</i>");
     expect(text).not.toContain("Подушка додала табурету гідності");
   });
+
+  it("renders quest Iskrokamin grants on reward cards", () => {
+    const text = presentDailyKorchmaRoundClaim(rewardClaimWithIskrokamin());
+
+    expect(text).toContain("<i>Отримано:</i>");
+    expect(text).toContain("Здобуто: <i>Іскрокамінь</i>");
+  });
 });
 
 function turnInReadyRound(): DailyKorchmaRoundLookupResult {
-  const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
-
   return {
     state: "turn-in-ready",
     character: dailyRoundCharacter(),
-    offer: {
-      dayKey: "2026-06-28",
-      dayToken: "20260628",
-      lifeToken: 0,
-      requiredSteps: 2,
-      completedSceneIds,
-      omittedSceneId: "scene.yard.rope",
-      scenes: [
-        {
-          id: completedSceneIds[0],
-          icon: "🍾",
-          title: "Пляшка шепоче інвентаризацію",
-          locationId: "location.korchma.cellar",
-          zone: "interior",
-          hook: "У льосі пляшка шепоче номери.",
-          actions: []
-        },
-        {
-          id: completedSceneIds[1],
-          icon: "🗺️",
-          title: "Мапа чхнула не в той бік",
-          locationId: "location.korchma.ranger_corner",
-          zone: "interior",
-          hook: "У єгерському кутку мапа має думку.",
-          actions: []
-        },
-        {
-          id: "scene.yard.rope",
-          icon: "🪢",
-          title: "Мотузка завʼязала питання",
-          locationId: "location.korchma.yard",
-          zone: "yard",
-          hook: "У задвірку мотузка має думку.",
-          actions: []
-        }
-      ]
-    }
+    offer: dailyRoundOffer()
+  };
+}
+
+function dailyRoundOffer(): DailyKorchmaRoundOffer {
+  const completedSceneIds = ["scene.cellar.inventory-bottle", "scene.yeger.map-sneeze"];
+
+  return {
+    dayKey: "2026-06-28",
+    dayToken: "20260628",
+    lifeToken: 0,
+    requiredSteps: 2,
+    completedSceneIds,
+    omittedSceneId: "scene.yard.rope",
+    scenes: [
+      {
+        id: completedSceneIds[0],
+        icon: "🍾",
+        title: "Пляшка шепоче інвентаризацію",
+        locationId: "location.korchma.cellar",
+        zone: "interior",
+        hook: "У льосі пляшка шепоче номери.",
+        actions: []
+      },
+      {
+        id: completedSceneIds[1],
+        icon: "🗺️",
+        title: "Мапа чхнула не в той бік",
+        locationId: "location.korchma.ranger_corner",
+        zone: "interior",
+        hook: "У єгерському кутку мапа має думку.",
+        actions: []
+      },
+      {
+        id: "scene.yard.rope",
+        icon: "🪢",
+        title: "Мотузка завʼязала питання",
+        locationId: "location.korchma.yard",
+        zone: "yard",
+        hook: "У задвірку мотузка має думку.",
+        actions: []
+      }
+    ]
   };
 }
 
@@ -152,6 +167,28 @@ function stoolScene(): DailyKorchmaRoundSceneLookupResult {
     sceneIndex: 0,
     alreadyCompleted: false,
     locked: false
+  };
+}
+
+function rewardClaimWithIskrokamin(): DailyKorchmaRoundClaimResult {
+  return {
+    state: "reward-claimed",
+    character: dailyRoundCharacter(),
+    offer: dailyRoundOffer(),
+    reward: {
+      xp: 8,
+      gold: 5,
+      localDate: "2026-06-28",
+      itemGrants: [
+        {
+          itemId: ISKROKAMIN_ITEM_ID,
+          name: "Іскрокамінь",
+          quantity: 1
+        }
+      ]
+    },
+    levelChange: null,
+    achievementUnlocks: []
   };
 }
 

@@ -463,7 +463,9 @@ export class DailyKorchmaRoundService {
       state: claim.state === "created" ? "reward-claimed" : "reward-replayed",
       character: summarizeCharacter(claim.character),
       offer: context.offer,
-      reward: buildRewardFromRecord(claim.action),
+      reward: claim.state === "created"
+        ? buildRewardFromClaim(claim.action, claim.itemGrants)
+        : buildRewardFromRecord(claim.action),
       levelChange: claim.state === "created" ? claim.levelChange : null,
       achievementUnlocks
     };
@@ -898,6 +900,18 @@ function buildRewardFromRecord(record: DailyActionRecord): DailyKorchmaRoundRewa
     gold: record.rewardGold,
     localDate: record.localDate,
     itemGrants: enrichRewardItemGrants(readAppliedItemGrants(record.resultJson))
+  };
+}
+
+function buildRewardFromClaim(
+  record: DailyActionRecord,
+  itemGrants: Array<{ itemId: string; quantity: number }>
+): DailyKorchmaRoundReward {
+  return {
+    xp: record.rewardXp,
+    gold: record.rewardGold,
+    localDate: record.localDate,
+    itemGrants: enrichRewardItemGrants(itemGrants)
   };
 }
 

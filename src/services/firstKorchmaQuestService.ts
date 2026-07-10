@@ -39,6 +39,11 @@ export type FirstKorchmaQuestLookupResult =
 export type FirstKorchmaQuestCompletionResult =
   | { state: "no-character" }
   | {
+      state: "not-ready";
+      character: CharacterSummary;
+      progress: FirstKorchmaQuestProgress;
+    }
+  | {
       state: "completed";
       character: CharacterSummary;
       progress: FirstKorchmaQuestProgress;
@@ -140,6 +145,14 @@ export class FirstKorchmaQuestService {
         reward: buildReward(context.completed),
         levelChange: null,
         achievementUnlocks: []
+      };
+    }
+
+    if (!context.progress.reachedQuestTable) {
+      return {
+        state: "not-ready",
+        character,
+        progress: context.progress
       };
     }
 

@@ -23,6 +23,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   getLocationName
 } from "../../src/services/presenceService";
+import { ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
 
 const telegramUserId = 587n;
 const now = new Date("2026-06-28T09:00:00.000Z");
@@ -361,6 +362,56 @@ describe("DailyKorchmaRoundService", () => {
     expect((await world.service.getForTelegramUser(telegramUserId)).state).toBe("completed");
   });
 
+  it("shows fresh and replayed quest Iskrokamin grants without duplicate reward rows", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 4, xp: 13, gold: 23 }));
+    const offer = await readyOffer(world);
+    const [first, second] = offer.scenes;
+
+    world.locationId = first!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 0,
+      actionId: first!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+    world.locationId = second!.locationId;
+    await world.service.completeStep(telegramUserId, {
+      dayToken: offer.dayToken,
+      sceneIndex: 1,
+      actionId: second!.actions[0]!.id,
+      lifeToken: offer.lifeToken
+    });
+
+    world.locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+    const claimed = await world.service.claimReward(telegramUserId, {
+      dayToken: offer.dayToken,
+      lifeToken: offer.lifeToken
+    });
+
+    expect(claimed.state).toBe("reward-claimed");
+    expect(claimed.state === "reward-claimed" ? claimed.reward.itemGrants : []).toEqual([
+      expect.objectContaining({
+        itemId: ISKROKAMIN_ITEM_ID,
+        quantity: 1
+      })
+    ]);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
+
+    const replay = await world.service.claimReward(telegramUserId, {
+      dayToken: offer.dayToken,
+      lifeToken: offer.lifeToken
+    });
+
+    expect(replay.state).toBe("reward-replayed");
+    expect(replay.state === "reward-replayed" ? replay.reward.itemGrants : []).toEqual([
+      expect.objectContaining({
+        itemId: ISKROKAMIN_ITEM_ID,
+        quantity: 1
+      })
+    ]);
+    expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
+  });
+
   it("keeps daily reward spread bounded and deterministic by level", () => {
     const base = {
       characterId: "character-1",
@@ -673,6 +724,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
       xp: this.world.character.xp + input.rewardXp,
       gold: this.world.character.gold + input.rewardGold
     };
+    const appliedItemGrants =
+      input.questIskrokaminBonus === true && this.world.character.level >= 4
+        ? [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]
+        : [];
     const action: DailyActionRecord = {
       id: `daily-action-${this.actions.size + 1}`,
       characterId: this.world.character.id,
@@ -681,7 +736,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
       spentGold: input.spentGold ?? 0,
-      resultJson: input.resultJson ?? null,
+      resultJson: withAppliedItemGrants(input.resultJson ?? null, appliedItemGrants),
       createdAt: now
     };
     this.actions.set(key, action);
@@ -695,7 +750,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
         newLevel: this.world.character.level,
         leveledUp: this.world.character.level > oldLevel
       },
-      itemGrants: [],
+      itemGrants: appliedItemGrants,
       hpLoss: null
     });
   }
@@ -710,6 +765,31 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
     return Promise.resolve(this.actions.delete(keyFor(input)) ? "deleted" : "missing");
   }
+}
+
+function withAppliedItemGrants(
+  resultJson: DailyActionRecord["resultJson"],
+  appliedItemGrants: Array<{ itemId: string; quantity: number }>
+): DailyActionRecord["resultJson"] {
+  if (appliedItemGrants.length === 0) {
+    return resultJson;
+  }
+
+  const base = resultJson && typeof resultJson === "object" && !Array.isArray(resultJson)
+    ? resultJson
+    : {};
+  const reward = (base as { reward?: unknown }).reward;
+  const rewardObject = reward && typeof reward === "object" && !Array.isArray(reward)
+    ? reward
+    : {};
+
+  return {
+    ...base,
+    reward: {
+      ...rewardObject,
+      appliedItemGrants
+    }
+  };
 }
 
 function keyFor(input: { key: string; localDate: string }): string {

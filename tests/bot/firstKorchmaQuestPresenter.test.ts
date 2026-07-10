@@ -23,6 +23,18 @@ describe("first Korchma quest presenter", () => {
     expect(text).toContain("⚔️ <b>Новачкова сутичка</b> — підозріла шаурма ще не дала свідчень.");
     expect(text).toContain("+1 XP");
   });
+
+  it("stays quiet when the route is not ready", () => {
+    expect(presentFirstKorchmaQuestCompletion({
+      state: "not-ready",
+      character,
+      progress: {
+        enteredKorchma: true,
+        reachedQuestTable: false,
+        currentLocationId: "location.korchma.hall"
+      }
+    })).toBeNull();
+  });
 });
 
 const character: CharacterSummary = {

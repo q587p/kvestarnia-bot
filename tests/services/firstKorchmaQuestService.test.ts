@@ -74,6 +74,40 @@ describe("FirstKorchmaQuestService", () => {
     }));
   });
 
+  it("does not complete before the character reaches the quest table", async () => {
+    const trackEventSafely = vi.fn(() => Promise.resolve([]));
+    const achievements = {
+      trackEventSafely
+    } as unknown as AchievementService;
+    const world = new TestWorld();
+    const service = world.service(achievements);
+
+    expect(await service.completeForTelegramUser(42n)).toMatchObject({
+      state: "not-ready",
+      progress: {
+        enteredKorchma: false,
+        reachedQuestTable: false,
+        currentLocationId: "location.korchma.front"
+      }
+    });
+    expect(world.daily.count("quest.first-korchma.completed", "life:0")).toBe(0);
+    expect(world.character.xp).toBe(0);
+
+    world.character.currentLocationId = "location.korchma.hall";
+
+    expect(await service.completeForTelegramUser(42n)).toMatchObject({
+      state: "not-ready",
+      progress: {
+        enteredKorchma: true,
+        reachedQuestTable: false,
+        currentLocationId: "location.korchma.hall"
+      }
+    });
+    expect(world.daily.count("quest.first-korchma.completed", "life:0")).toBe(0);
+    expect(world.character.xp).toBe(0);
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
   it("uses the remort life token so a new life can take the starter route again", async () => {
     const world = new TestWorld();
     world.character.currentLocationId = "location.korchma.quest_table";
@@ -94,6 +128,12 @@ describe("FirstKorchmaQuestService", () => {
     await service.completeForTelegramUser(42n);
 
     expect(world.daily.count("quest.first-korchma.completed", "life:0")).toBe(1);
+    expect(world.daily.count("quest.first-korchma.completed", "life:1")).toBe(0);
+    expect(world.character.xp).toBe(FIRST_KORCHMA_QUEST_REWARD_XP);
+
+    world.character.currentLocationId = "location.korchma.quest_table";
+    await service.completeForTelegramUser(42n);
+
     expect(world.daily.count("quest.first-korchma.completed", "life:1")).toBe(1);
     expect(world.character.xp).toBe(FIRST_KORCHMA_QUEST_REWARD_XP * 2);
   });

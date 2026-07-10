@@ -7,7 +7,7 @@
 ## 0.3.4 — Quest Overview Route smoke
 
 1. New character outside Korchma: press `🗺️ Квести` or `/quest`; verify the compact overview opens, not `Квести видають усередині.`, and `Перший крок до столу` appears as 0/2.
-2. Press `🚪 Зайти в корчму`, then reopen `🗺️ Квести`; verify `Перший крок до столу` appears as 1/2 and points to Столу зі справами.
+2. Press `🚪 Зайти в корчму`, then reopen `🗺️ Квести`; verify `Перший крок до столу` appears as 1/2, points to Столу зі справами, and does not complete in the hall.
 3. Press `📋 До Столу зі справами`; verify normal place movement opens the old `📋 Стіл зі справами` card, presence moves only on that route, the first route quest completes once with its small XP line, and duplicate table refreshes do not pay again.
 4. After that completion, press `🗺️ Квести`; verify `Підозріла шаурма` and `Новачкова сутичка` appear with `Зроблено`, `Далі`, and `Де` lines, but still only one inline button: `📋 До Столу зі справами`.
 5. Complete `Підозріла шаурма` and `Новачкова сутичка`, then press `🗺️ Квести`; verify `Льохова справа` appears with `Зроблено`, `Далі`, and `Де` lines.
@@ -29,7 +29,7 @@
 21. Buy a Shynok beer round for a nearby recipient; verify the buyer's card first changes to `Корчмар поставив кухлі`, then the recipient receives the separate beer offer with `Випити`.
 22. Before accepting or declining that live offer, reopen Shynok; verify `🍺 Вам пиво!` appears next to `🍹 Напої для себе`, opens the same offer card, and does not drink or decline until an explicit offer button is pressed.
 23. After drinking the tutorial beer while another Shynok/table affair remains available, return to the hall; verify `📋 Стіл зі справами ✅` is shown instead of `📋 Стіл зі справами ⚠️`.
-24. On a level 4+ character, complete representative Adventure, Daily Korchma Round, Yeger, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock claims; when `Іскрокамінь` appears, verify the result card shows it once, the inventory quantity increased by the shown amount, and replaying the same claim does not reroll or duplicate it. Verify level 3 quest turn-ins do not receive this bonus.
+24. On a level 4+ character, complete representative Adventure, Daily Korchma Round, Yeger, problem, Hunt Board, cellar mouse, grownup cellar and Charkokovalnia unlock claims; when `Іскрокамінь` appears, verify the fresh result card shows it once, the replayed result card shows the same stored grant, the inventory quantity increased by the shown amount, and replaying the same claim does not reroll or duplicate it. Verify level 3 quest turn-ins do not receive this bonus.
 25. Verify ordinary combat rewards still use their existing loot/bandage/Iskrokamin replacement behavior and are not treated as quest turn-ins by this bonus.
 26. While active solo combat, active turn-based duel, active/pending Big Barrel or active passage search exists, press `🗺️ Квести` and old `v1:quest:overview`; verify existing blockers win.
 27. Verify the overview keyboard contains only `📋 До Столу зі справами`; it should not duplicate the main keyboard's `Квести`, refresh, or `До зали` routes and should still have no `До обходу`, `До Трьох справ`, `До Корчмаря`, `До Низу`, `До Єгеря`, `До льоху`, `До бочки`, `До шинку`, or `До задвірка`.
@@ -682,7 +682,7 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 1. Відкрий `/quest` або кнопку `🗺️ Квести` надворі чи всередині корчми.
 2. Має відкритися компактний огляд квестів; на новому персонажі перший маршрутний квест веде до Корчми й Столу зі справами.
 3. Натисни `📋 До Столу зі справами`.
-4. Має відкритися `📋 Стіл зі справами`; на першому маршруті квест завершується один раз і не дублює нагороду при повторному відкритті.
+4. Має відкритися `📋 Стіл зі справами`; на першому маршруті квест завершується тільки після фактичного входу до столу, один раз і без дубля нагороди при повторному відкритті.
 5. Hub має показувати лише актуальні справи й кнопку `📦 Архів`.
 6. Натисни `📦 Архів`.
 7. Очікування: завершені, retired і locked справи показані окремо, а кнопка `📋 До справ` повертає на активний список.
