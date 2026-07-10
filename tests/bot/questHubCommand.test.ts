@@ -146,7 +146,7 @@ describe("quest hub command", () => {
       }
     ).reply_markup.inline_keyboard.flat();
     expect(buttons).toContainEqual({
-      text: "📋 До Столу зі справами",
+      text: "📋 До столу зі справами",
       callback_data: makePlaceCallbackData("quest-table")
     });
     expect(buttons.map((button) => button.callback_data)).not.toContain(makePlaceCallbackData("hall"));
@@ -182,7 +182,7 @@ describe("quest hub command", () => {
     ).reply_markup.inline_keyboard.flat();
     expect(buttons).toEqual([
       {
-        text: "📋 До Столу зі справами",
+        text: "📋 До столу зі справами",
         callback_data: makePlaceCallbackData("quest-table")
       }
     ]);

@@ -51,7 +51,7 @@ export function buildDailyKorchmaRoundOverviewKeyboard(
 
   if (result.state === "turn-in-ready") {
     return keyboard
-      .text("📋 До Столу зі справами", makePlaceCallbackData("quest-table"))
+      .text("📋 До столу зі справами", makePlaceCallbackData("quest-table"))
       .row()
       .text("🍺 До зали", makePlaceCallbackData("hall"));
   }

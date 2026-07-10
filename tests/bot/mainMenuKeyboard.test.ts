@@ -3122,7 +3122,7 @@ describe("main menu and scene keyboards", () => {
       }
     });
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До Столу зі справами", "🍺 До зали"]);
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["📋 До столу зі справами", "🍺 До зали"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:quest-table", "v1:place:hall"]);
     expect(flatInlineButtonCallbacks(keyboard).some((callback) => callback.startsWith("v1:dkr:c:"))).toBe(false);
   });

@@ -9,7 +9,7 @@ describe("quest overview keyboard", () => {
     const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
-      ["📋 До Столу зі справами"]
+      ["📋 До столу зі справами"]
     ]);
     expect(callbacks(keyboard)).toEqual([
       makePlaceCallbackData("quest-table")
@@ -43,7 +43,7 @@ describe("quest overview keyboard", () => {
     const keyboard = buildQuestOverviewKeyboard();
 
     expect(buttonRows(keyboard)).toEqual([
-      ["📋 До Столу зі справами"]
+      ["📋 До столу зі справами"]
     ]);
   });
 });
