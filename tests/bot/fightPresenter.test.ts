@@ -20,6 +20,7 @@ import {
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { FightResult, PersistentFightTurnResult } from "../../src/services/fightService";
+import { classAbilities } from "../../src/content/playerAbilities";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -346,14 +347,14 @@ describe("fight presenter", () => {
     expect(text).not.toContain("золота</b>");
   });
 
-  it("shows remort revenge pressure from remort three on solo Yeger fights without Nyz wording", () => {
+  it("shows remort revenge pressure from remort two on solo Yeger fights without Nyz wording", () => {
     const result = {
       state: "persistent-active",
       character,
       session: persistentSession({
         source: "yeger",
         life: {
-          remortCount: 3
+          remortCount: 2
         }
       }),
       monster: {
@@ -368,10 +369,14 @@ describe("fight presenter", () => {
     const intro = presentPersistentFightIntro(result);
     const text = presentPersistentFight(result);
 
-    expect(intro).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
-    expect(text).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
+    expect(intro).toContain("🕰️ <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
+    expect(text).toContain("🕰️ <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
     expect(intro).not.toContain("Натиск Низу");
     expect(text).not.toContain("Натиск Низу");
+
+    const kharakternykAbility = classAbilities.find((ability) => ability.classId === "class.kharakternyk");
+    expect(kharakternykAbility?.label).toContain("👁");
+    expect(kharakternykAbility?.label).not.toContain("🧿");
   });
 
   it("marks the reloaded living primary enemy as the target", () => {

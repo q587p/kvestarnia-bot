@@ -1354,7 +1354,7 @@ function presentEnemyHpRows(
 function presentRemortMonsterPressureLines(state: CombatState | null | undefined): string[] {
   const remortCount = state?.life?.remortCount ?? 0;
 
-  const visiblePressureFreeRanks = state?.source === "yeger" ? 2 : 3;
+  const visiblePressureFreeRanks = 1;
 
   if (!state || remortCount <= visiblePressureFreeRanks || normalizeCombatEnemies(state).length > 1) {
     return [];
@@ -1365,7 +1365,7 @@ function presentRemortMonsterPressureLines(state: CombatState | null | undefined
     : "Відлуння минулих пригод";
 
   return [
-    `🧿 <i>${label}:</i> монстр бʼється з поправкою на ремортну памʼять.`
+    `🕰️ <i>${label}:</i> монстр бʼється з поправкою на ремортну памʼять.`
   ];
 }
 

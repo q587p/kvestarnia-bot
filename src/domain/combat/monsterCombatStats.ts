@@ -68,7 +68,7 @@ function buildRemortMonsterStatLevel(
     return level;
   }
 
-  return Math.min(23, level + pressureRank * 4);
+  return Math.min(23, level + pressureRank * 2);
 }
 
 function buildRemortMonsterPressure(
@@ -88,8 +88,8 @@ function buildRemortMonsterPressure(
 
   if (mode === "single") {
     return {
-      hpMax: pressureRank * 4,
-      attack: Math.floor(pressureRank / 2),
+      hpMax: pressureRank * 3 + Math.ceil(pressureRank / 2),
+      attack: Math.ceil(pressureRank / 2),
       armor: 0,
       resist: 0,
       dexterity: 0

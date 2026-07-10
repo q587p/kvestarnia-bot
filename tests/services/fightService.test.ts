@@ -1858,7 +1858,7 @@ describe("FightService", () => {
 
   it("applies remort monster pressure to targeted Yeger fights", async () => {
     const characters = new FakeCharacterRepository();
-    characters.add(telegramUserId, { level: 8, xp: 587, remortCount: 3 });
+    characters.add(telegramUserId, { level: 8, xp: 587, remortCount: 2 });
     const dailyActions = new FakeDailyActionRepository(characters);
     const sessions = new FakeSoloCombatSessionRepository(characters);
     const service = new FightService({
@@ -1881,7 +1881,7 @@ describe("FightService", () => {
 
     expect(started.state).toBe("persistent-active");
     if (started.state === "persistent-active") {
-      expect(started.session.state?.life?.remortCount).toBe(3);
+      expect(started.session.state?.life?.remortCount).toBe(2);
       expect(started.session.state?.monster.id).toBe(baseMonster.id);
       expect(started.session.state?.monster.level).toBe(baseline.level);
       expect(started.session.state?.monster.hpMax).toBeGreaterThan(baseline.hpMax);

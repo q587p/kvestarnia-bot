@@ -305,8 +305,10 @@ describe("combatSimulation", () => {
       });
       const levelAggregate = report.aggregates.find((row) => row.dimension === "level");
 
-      expect(levelAggregate?.winRate).toBeGreaterThanOrEqual(0.5);
-      expect(levelAggregate?.winRate).toBeLessThanOrEqual(0.78);
+      // The bounded balance target is approximately 42–60%; keep a small
+      // Monte Carlo tolerance because this guard intentionally uses 10 runs.
+      expect(levelAggregate?.winRate).toBeGreaterThanOrEqual(0.4);
+      expect(levelAggregate?.winRate).toBeLessThanOrEqual(0.6);
     }
   });
 

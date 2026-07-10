@@ -5193,9 +5193,10 @@ function buildPersistentFightMonsterStatsOptions(input: {
     remortPressureMode: input.remortPressureMode
   };
 
-  return input.source === "yeger"
-    ? { ...options, remortPressureFreeRanks: 2 }
-    : options;
+  return {
+    ...options,
+    remortPressureFreeRanks: input.remortPressureMode === "single" ? 1 : 3
+  };
 }
 
 function mapPersistentFightSourceToAnalyticsSource(

@@ -103,6 +103,8 @@ Final aggregate signal: the 100-run human-ish sweep finished at `84.2%` overall 
 
 `0.2.32` keeps the same pressure formula but applies it to Yeger contracts one remort earlier, so remort `3` hunt monsters no longer stay at base stats. Rewards, loot/drop odds, Yeger progress, authored monster level, remort XP math, item economy and schema remain unchanged.
 
+`0.3.6` follow-up: solo persistent PvE remort revenge starts at remort `2` across all sources. Its bounded single-enemy pressure uses two internal stat levels per pressure rank plus `3 × rank + ceil(rank / 2)` HP and `ceil(rank / 2)` attack; high-remort level-13 simulations land around `44–59%` wins at remorts `5`, `7` and `9`. Two-enemy threat pressure keeps its separate three-free-rank curve.
+
 ### Hit chance
 MVP можна почати без промахів у звичайній атаці або з дуже простим шансом:
 

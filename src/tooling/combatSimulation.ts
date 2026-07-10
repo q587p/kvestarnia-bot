@@ -947,7 +947,8 @@ function buildEncounterEnemies(input: {
 }): MonsterCombatStats[] {
   const primaryStats = deriveMonsterCombatStats(input.primary, {
     remortCount: input.mode === "one-enemy" ? input.remortCount : 0,
-    remortPressureMode: "single"
+    remortPressureMode: "single",
+    remortPressureFreeRanks: 1
   });
 
   if (input.mode === "one-enemy") {
@@ -960,7 +961,8 @@ function buildEncounterEnemies(input: {
 
   return [primaryStats, deriveMonsterCombatStats(second, {
     remortCount: input.remortCount,
-    remortPressureMode: "multi"
+    remortPressureMode: "multi",
+    remortPressureFreeRanks: 3
   })];
 }
 

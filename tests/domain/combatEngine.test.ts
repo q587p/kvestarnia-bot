@@ -2514,30 +2514,56 @@ describe("combat domain engine", () => {
       tags: []
     };
     const base = deriveMonsterCombatStats(monster);
+    const remortOne = deriveMonsterCombatStats(monster, {
+      remortCount: 1,
+      remortPressureMode: "single",
+      remortPressureFreeRanks: 1
+    });
+    const remortTwo = deriveMonsterCombatStats(monster, {
+      remortCount: 2,
+      remortPressureMode: "single",
+      remortPressureFreeRanks: 1
+    });
     const remortThree = deriveMonsterCombatStats(monster, {
       remortCount: 3,
-      remortPressureMode: "single"
+      remortPressureMode: "single",
+      remortPressureFreeRanks: 1
     });
     const soloVeteran = deriveMonsterCombatStats(monster, {
       remortCount: 5,
-      remortPressureMode: "single"
+      remortPressureMode: "single",
+      remortPressureFreeRanks: 1
     });
     const pressureBackup = deriveMonsterCombatStats(monster, {
       remortCount: 9,
       remortPressureMode: "multi"
     });
 
-    expect(remortThree).toMatchObject({
+    expect(remortOne).toMatchObject({
       level: 13,
       hpMax: base.hpMax,
       attack: base.attack,
       armor: base.armor,
       resist: base.resist
     });
+    expect(remortTwo).toMatchObject({
+      level: 13,
+      hpMax: 69,
+      attack: 15,
+      armor: base.armor,
+      resist: base.resist
+    });
+    expect(remortThree).toMatchObject({
+      level: 13,
+      hpMax: 80,
+      attack: 16,
+      armor: 5,
+      resist: 5
+    });
     expect(soloVeteran).toMatchObject({
       level: 13,
-      hpMax: 95,
-      attack: 18,
+      hpMax: 101,
+      attack: 19,
       armor: 5,
       resist: 5
     });

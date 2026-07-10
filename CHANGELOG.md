@@ -29,6 +29,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
+- Solo persistent PvE remort revenge now starts at remort `р2` for every source and uses a stronger bounded HP/attack curve tuned to approximately 42–60% high-remort wins; two-enemy `Натиск Низу` pressure keeps its separate curve.
+- Changed the remort-revenge notice icon to `🕰️`, keeping it distinct from the Kharakternyk `🧿` ward sign and `👁` combat ability.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

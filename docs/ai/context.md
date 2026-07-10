@@ -9,6 +9,7 @@ Keep this file compact. Target: under 250 lines.
 - Bot username target: `@kvestarnia_bot`.
 - Current package version in this repository snapshot: `0.3.6`.
 - Latest-events combat follow-up: persistent two-enemy underdog wins use the strongest stored encounter enemy for the public Chronicle subject and level threshold; reward calculation still uses the original encounter enemy. Regression coverage lives in `tests/services/fightService.test.ts`.
+- Latest remort-pressure follow-up: solo persistent PvE pressure starts at remort `2` for all sources with the bounded stronger single-enemy curve; two-enemy threat pressure keeps its separate multi-enemy curve. The revenge notice uses `🕰️`; Kharakternyk keeps `🧿` for its ward sign and `👁` for its combat ability.
 
 ## Language split
 - Codex-facing workflow docs, task docs, prompts, skills, PR text, commits, and test names should be English when practical.
