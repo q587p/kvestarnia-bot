@@ -31,6 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
 - Solo persistent PvE remort revenge now starts at remort `р2` for every source and uses a stronger bounded HP/attack curve tuned to approximately 42–60% high-remort wins; two-enemy `Натиск Низу` pressure keeps its separate curve.
 - Changed the remort-revenge notice icon to `🕰️`, keeping it distinct from the Kharakternyk `🧿` ward sign and `👁` combat ability.
+- Priest self-blessing cards now hide `✨ Благословити себе` while the character's own blessing wait is active, while healing and available blessings for other targets remain visible.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 
