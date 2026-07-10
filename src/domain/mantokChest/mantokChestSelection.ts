@@ -5,7 +5,9 @@ import {
   calculateMantokChestItemScore,
   calculateMinimumMantokChestOutputScore,
   isProtectedMantokChestItem,
-  MANTOK_CHEST_BATCH_SIZE
+  mantokChestRarityRank,
+  MANTOK_CHEST_BATCH_SIZE,
+  type MantokChestRarity
 } from "./mantokChestScore";
 
 export interface MantokChestStackInput {
@@ -119,9 +121,16 @@ export function selectCheapestMantokChestUnits(
 export function selectMantokChestOutputItem(input: {
   items: readonly ItemContent[];
   averageInputScore: number;
+  inputUnits: readonly MantokChestUnit[];
   inputItemIds: ReadonlySet<string>;
+  playerLuck?: number;
   rng: RandomSource;
 }): ItemContent | null {
+  const targetRarity = selectMantokChestOutputRarity({
+    inputUnits: input.inputUnits,
+    ...(input.playerLuck === undefined ? {} : { playerLuck: input.playerLuck }),
+    rng: input.rng
+  });
   const candidates = input.items.filter(
     (item) => !isProtectedMantokChestItem(item) && calculateMantokChestItemScore(item) > input.averageInputScore
   );
@@ -130,10 +139,58 @@ export function selectMantokChestOutputItem(input: {
     return null;
   }
 
-  const nonInputCandidates = candidates.filter((item) => !input.inputItemIds.has(item.id));
-  const pool = nonInputCandidates.length > 0 ? nonInputCandidates : candidates;
+  const targetRank = mantokChestRarityRank[targetRarity];
+  const targetRarityCandidates = candidates.filter((item) => item.rarity === targetRarity);
+  const boundedCandidates = candidates.filter(
+    (item) => mantokChestRarityRank[item.rarity] <= targetRank
+  );
+  const rarityPool = targetRarityCandidates.length > 0 ? targetRarityCandidates : boundedCandidates;
+  const nonInputCandidates = rarityPool.filter((item) => !input.inputItemIds.has(item.id));
+  const pool = nonInputCandidates.length > 0 ? nonInputCandidates : rarityPool;
 
   return pool[input.rng.nextInt(0, pool.length - 1)] ?? pool[0] ?? null;
+}
+
+const MANTOK_CHEST_RARITIES: readonly MantokChestRarity[] = [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary"
+];
+const MANTOK_CHEST_LUCK_BASELINE = 5;
+const MANTOK_CHEST_MAX_LUCK_BONUS = 0.05;
+const MANTOK_CHEST_MAX_FIRST_UPGRADE_CHANCE = 0.25;
+const MANTOK_CHEST_SECOND_UPGRADE_BASE_CHANCE = 0.005;
+const MANTOK_CHEST_SECOND_UPGRADE_LUCK_FACTOR = 0.1;
+const MANTOK_CHEST_MAX_SECOND_UPGRADE_CHANCE = 0.01;
+
+export function selectMantokChestOutputRarity(input: {
+  inputUnits: readonly MantokChestUnit[];
+  playerLuck?: number;
+  rng: RandomSource;
+}): MantokChestRarity {
+  if (input.inputUnits.length === 0) {
+    return "common";
+  }
+
+  const ranks = input.inputUnits.map((unit) => mantokChestRarityRank[unit.content.rarity]);
+  const firstRank = ranks[0] ?? mantokChestRarityRank.common;
+  const allSameRarity = ranks.every((rank) => rank === firstRank);
+
+  if (allSameRarity) {
+    return selectSameRarityUpgrade(firstRank, input.playerLuck ?? MANTOK_CHEST_LUCK_BASELINE, input.rng);
+  }
+
+  const averageRank = ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length;
+  const lowerRank = Math.floor(averageRank);
+  const upperRank = Math.ceil(averageRank);
+  const fraction = averageRank - lowerRank;
+  const luckBonus = calculateLuckBonus(input.playerLuck ?? MANTOK_CHEST_LUCK_BASELINE);
+  const upperChance = Math.min(1, fraction + luckBonus * (1 - fraction));
+  const selectedRank = input.rng.nextFloat() < upperChance ? upperRank : lowerRank;
+
+  return rarityForRank(selectedRank);
 }
 
 export function expandMantokChestStacks(
@@ -166,4 +223,50 @@ function isConsumableMantokChestItem(item: ItemContent): boolean {
   const tags = item.tags ?? [];
 
   return item.slot === "consumable" || tags.includes("consumable") || tags.includes("one-use");
+}
+
+const SAME_RARITY_UPGRADE_CHANCES: Record<number, number> = {
+  [mantokChestRarityRank.common]: 0.08,
+  [mantokChestRarityRank.uncommon]: 0.06,
+  [mantokChestRarityRank.rare]: 0.04
+};
+
+function selectSameRarityUpgrade(rank: number, playerLuck: number, rng: RandomSource): MantokChestRarity {
+  if (rank >= mantokChestRarityRank.epic) {
+    return rarityForRank(rank);
+  }
+
+  const firstUpgradeChance = Math.min(
+    MANTOK_CHEST_MAX_FIRST_UPGRADE_CHANCE,
+    (SAME_RARITY_UPGRADE_CHANCES[rank] ?? 0) + calculateLuckBonus(playerLuck)
+  );
+  const secondUpgradeChance = rank <= mantokChestRarityRank.uncommon
+    ? Math.min(
+        MANTOK_CHEST_MAX_SECOND_UPGRADE_CHANCE,
+        MANTOK_CHEST_SECOND_UPGRADE_BASE_CHANCE +
+          calculateLuckBonus(playerLuck) * MANTOK_CHEST_SECOND_UPGRADE_LUCK_FACTOR
+      )
+    : 0;
+  const roll = rng.nextFloat();
+
+  if (roll < firstUpgradeChance) {
+    return rarityForRank(rank + 1);
+  }
+
+  if (roll < firstUpgradeChance + secondUpgradeChance) {
+    return rarityForRank(rank + 2);
+  }
+
+  return rarityForRank(rank);
+}
+
+function calculateLuckBonus(playerLuck: number): number {
+  return Math.min(
+    MANTOK_CHEST_MAX_LUCK_BONUS,
+    Math.max(0, Math.floor(playerLuck) - MANTOK_CHEST_LUCK_BASELINE) * 0.01
+  );
+}
+
+function rarityForRank(rank: number): MantokChestRarity {
+  return MANTOK_CHEST_RARITIES[rank - 1] ?? "common";
 }

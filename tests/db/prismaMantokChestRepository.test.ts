@@ -5,6 +5,16 @@ const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-15T07:30:00.000Z");
 
 describe("PrismaMantokChestRepository", () => {
+  it("captures the current player luck in the chest snapshot", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    const repository = new PrismaMantokChestRepository(prisma.client);
+
+    const snapshot = await repository.getSnapshotForTelegramUser(telegramUserId, fixedNow);
+
+    expect(snapshot?.playerLuck).toBe(13);
+  });
+
   it("ignores expired untouched pending gift reservations in snapshots", async () => {
     const prisma = new FakeMantokChestPrisma();
     prisma.disableConcurrencyGate = true;
@@ -123,7 +133,8 @@ class FakeMantokChestPrisma {
     character: {
       id: "character-1",
       name: "Пані Скриня",
-      telegramUserId
+      telegramUserId,
+      statsJson: { luck: 13 }
     },
     items: [
       {
@@ -206,7 +217,11 @@ class FakeMantokChestPrisma {
           }
 
           return input.where.user.telegramUserId === this.shared.character.telegramUserId
-            ? { id: this.shared.character.id, name: this.shared.character.name }
+            ? {
+                id: this.shared.character.id,
+                name: this.shared.character.name,
+                statsJson: this.shared.character.statsJson
+              }
             : null;
         }
       },
