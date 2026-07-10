@@ -135,10 +135,41 @@ describe("PrismaCharacterRepository", () => {
       manaMax: 14
     });
   });
+
+  it("lists partial HP rows with passive recovery anchors for server notifications", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const repository = new PrismaCharacterRepository(prisma.client);
+
+    const candidates = await repository.listPassiveHealthRecoveryCandidates(fixedNow, { limit: 13 });
+
+    expect(prisma.lastFindManyInput).toMatchObject({
+      where: {
+        hpCurrent: {
+          lt: "hpMax-field-ref"
+        },
+        hpRegenAt: {
+          not: null
+        }
+      },
+      orderBy: {
+        hpRegenAt: "asc"
+      },
+      take: 13
+    });
+    expect(candidates).toEqual([
+      {
+        telegramUserId,
+        hpCurrent: 1,
+        hpMax: 20,
+        hpRegenAt: new Date("2026-06-17T09:00:00.000Z")
+      }
+    ]);
+  });
 });
 
 class FakeCharacterPrisma {
   lastFindFirstInput: FakeFindFirstInput | null = null;
+  lastFindManyInput: FakeFindManyInput | null = null;
   lastUpdateManyInput: FakeUpdateManyInput | null = null;
   lastCountCharacterRemortsId: string | null = null;
   transactionCount = 0;
@@ -149,6 +180,9 @@ class FakeCharacterPrisma {
       return callback(this.client);
     },
     character: {
+      fields: {
+        hpMax: "hpMax-field-ref"
+      },
       findFirst: (input: FakeFindFirstInput) => {
         this.lastFindFirstInput = input;
 
@@ -190,6 +224,20 @@ class FakeCharacterPrisma {
             remorts: 2
           }
           });
+      },
+      findMany: (input: FakeFindManyInput) => {
+        this.lastFindManyInput = input;
+
+        return Promise.resolve([
+          {
+            hpCurrent: 1,
+            hpMax: 20,
+            hpRegenAt: new Date("2026-06-17T09:00:00.000Z"),
+            user: {
+              telegramUserId
+            }
+          }
+        ]);
       },
       updateMany: (input: FakeUpdateManyInput) => {
         this.lastUpdateManyInput = input;
@@ -292,6 +340,22 @@ interface FakeFindFirstInput {
     };
   };
   include?: unknown;
+}
+
+interface FakeFindManyInput {
+  where: {
+    hpCurrent: {
+      lt: unknown;
+    };
+    hpRegenAt: {
+      not: null;
+    };
+  };
+  orderBy: {
+    hpRegenAt: "asc";
+  };
+  take: number;
+  select: unknown;
 }
 
 interface FakeUpdateManyInput {

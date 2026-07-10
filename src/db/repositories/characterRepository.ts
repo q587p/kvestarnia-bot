@@ -57,6 +57,13 @@ export interface UpdateCharacterResourcesInput {
   };
 }
 
+export interface PassiveHealthRecoveryCandidate {
+  telegramUserId: bigint;
+  hpCurrent: number;
+  hpMax: number;
+  hpRegenAt: Date | null;
+}
+
 export interface CreateCharacterResult {
   character: CharacterRecord;
   created: boolean;
@@ -69,6 +76,10 @@ export interface CharacterRepository {
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput
   ): Promise<CharacterRecord | null>;
+  listPassiveHealthRecoveryCandidates?(
+    now: Date,
+    options?: { limit?: number }
+  ): Promise<PassiveHealthRecoveryCandidate[]>;
   deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean>;
   createForTelegramUserIfMissing(
     user: TelegramUserProfile,

@@ -4,6 +4,7 @@ import type {
   CharacterRepository,
   CreateCharacterInput,
   CreateCharacterResult,
+  PassiveHealthRecoveryCandidate,
   UpdateCharacterResourcesInput
 } from "./characterRepository";
 import type { TelegramUserProfile } from "./userRepository";
@@ -182,6 +183,43 @@ export class PrismaCharacterRepository implements CharacterRepository {
     });
 
     return toCharacterRecord(updated);
+  }
+
+  async listPassiveHealthRecoveryCandidates(
+    _now: Date,
+    options: { limit?: number } = {}
+  ): Promise<PassiveHealthRecoveryCandidate[]> {
+    const rows = await this.prisma.character.findMany({
+      where: {
+        hpCurrent: {
+          lt: this.prisma.character.fields.hpMax
+        },
+        hpRegenAt: {
+          not: null
+        }
+      },
+      orderBy: {
+        hpRegenAt: "asc"
+      },
+      take: options.limit ?? 100,
+      select: {
+        hpCurrent: true,
+        hpMax: true,
+        hpRegenAt: true,
+        user: {
+          select: {
+            telegramUserId: true
+          }
+        }
+      }
+    });
+
+    return rows.map((row) => ({
+      telegramUserId: row.user.telegramUserId,
+      hpCurrent: row.hpCurrent,
+      hpMax: row.hpMax,
+      hpRegenAt: row.hpRegenAt
+    }));
   }
 
   async createForTelegramUserIfMissing(

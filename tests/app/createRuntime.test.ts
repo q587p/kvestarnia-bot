@@ -37,6 +37,7 @@ describe("createRuntime", () => {
     const bot = botFixture.bot;
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     const passageSearchScheduler = makeScheduler();
     const servicesFixture = makeServices({ passageSearch: true });
     const services = servicesFixture.services;
@@ -48,6 +49,7 @@ describe("createRuntime", () => {
         createBot: vi.fn(() => bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
         startHealthServer: vi.fn(() => ({ close }) as never)
@@ -63,8 +65,10 @@ describe("createRuntime", () => {
     expect(servicesFixture.announceIfNeeded).toHaveBeenCalledWith(bot);
     expect(duelScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.start).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
@@ -78,6 +82,7 @@ describe("createRuntime", () => {
     const botFixture = makeBot();
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
       prisma: { $disconnect: disconnect },
@@ -86,6 +91,7 @@ describe("createRuntime", () => {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
@@ -95,6 +101,7 @@ describe("createRuntime", () => {
     await Promise.all([runtime.stop(), runtime.stop()]);
 
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
@@ -155,6 +162,7 @@ describe("createRuntime", () => {
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const createDuelTurnTimeoutScheduler = vi.fn(() => makeScheduler());
     const createCombatTurnTimeoutScheduler = vi.fn(() => makeScheduler());
+    const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
       prisma: { $disconnect: disconnect },
@@ -163,6 +171,7 @@ describe("createRuntime", () => {
         createBot: vi.fn(() => makeBot().bot),
         createDuelTurnTimeoutScheduler,
         createCombatTurnTimeoutScheduler,
+        createHealthRecoveryNotificationScheduler,
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
@@ -173,6 +182,7 @@ describe("createRuntime", () => {
 
     expect(createDuelTurnTimeoutScheduler).not.toHaveBeenCalled();
     expect(createCombatTurnTimeoutScheduler).toHaveBeenCalledTimes(1);
+    expect(createHealthRecoveryNotificationScheduler).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -202,6 +212,9 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
     equipment: {
       listDueAttunementNotifications: vi.fn(() => Promise.resolve([])),
       markAttunementNotified: vi.fn(() => Promise.resolve(false))
+    },
+    healthRecoveryNotifications: {
+      listDueHpFullNotifications: vi.fn(() => Promise.resolve([]))
     },
     mantokChest: { cleanupExpiredPendingRuns },
     ...(options.passageSearch ? { passageSearch: {} } : {}),
