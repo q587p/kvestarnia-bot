@@ -10,11 +10,12 @@ Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot
 
 1. Start a Big Barrel Brother recruiting session with a level 3+ Bureaucramancer.
 2. Verify only the eligible joined Bureaucramancer sees `📄 Форма 13-А`.
-3. File protocol with enough mana; verify mana spend, 93-minute cooldown and filer auto-sign.
+3. File protocol with enough mana; verify the 5-8 mana spend matches `8 - min(3, floor((level + effective intelligence) / 8))`, the confirmation shows the committed amount, the 93-minute cooldown starts and the filer auto-signs.
 4. Try duplicate filing; verify no second mana spend and no duplicate signature.
+4a. Try filing in another recruiting session while the actor cooldown is active; verify a separate durable message states exactly how many minutes remain and `Протокол ще відлежується` is not shown as the only feedback.
 5. Join from another account and sign once.
 6. Try duplicate sign; verify count does not increase twice.
-7. Verify the recruiting card shows count only, no signer names.
+7. Verify the recruiting cards for all joined accounts, including the leader, update immediately to the same count-only state with no signer names; do not manually refresh first.
 8. Start the raid and force/observe a personal boss attack against a signed participant.
 9. Verify the attack is blocked for that signer and trigger copy/stored prevented damage appears.
 10. Verify a later personal attack against the same signer is not blocked.

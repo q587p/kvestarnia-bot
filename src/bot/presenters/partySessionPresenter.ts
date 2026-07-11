@@ -160,7 +160,7 @@ function presentPartyJoinIneligible(
   return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
 }
 
-function formatRemainingWait(availableAt: Date, now: Date): string {
+export function formatRemainingWait(availableAt: Date, now: Date): string {
   const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
   return `${minutes} ${formatUkrainianMinutes(minutes)}`;
 }

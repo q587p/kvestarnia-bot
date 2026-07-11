@@ -66,7 +66,7 @@ Technique id: technique.class.bureaucramancer.personal-protocol-13b
 Actor class: class.bureaucramancer
 Minimum actor level: 3
 Actor surface: joined participant in live Big Barrel Brother recruiting at the Barrel
-Actor cost: 5 mana
+Actor cost: `8 - min(3, floor((level + effective intelligence) / 8))` mana (final range 5-8)
 Actor cooldown: 93 minutes after successful filing
 Session limit: at most one live personal protocol per Big Barrel recruiting session
 Participant action: sign protocol once per joined participant before raid start

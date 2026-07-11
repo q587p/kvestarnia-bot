@@ -32,6 +32,7 @@ import {
   presentPartyNearbyInviteNotification,
   presentPartyNearbyInviteSent,
   presentPartyInviteShare,
+  formatRemainingWait,
   getInitialBigBarrelInviteTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
   presentPartyView
@@ -39,6 +40,7 @@ import {
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { presentManaSpentLine } from "../presenters/resourcePresenter";
+import { BUREAUCRAMANCER_PROTOCOL_BASE_MANA_COST } from "../../services/bureaucramancerProtocol";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -617,7 +619,10 @@ export async function handlePartySessionCallback(
 
     if (callback.type === "protocol-file") {
       const result = await service.fileBureaucramancerPersonalProtocolForTelegramUser(telegramUserId, callback.token);
-      await safeAnswerCallbackQuery(ctx, { text: presentProtocolFileCallbackAnswer(result.state) });
+      await safeAnswerCallbackQuery(
+        ctx,
+        result.state === "cooldown" ? undefined : { text: presentProtocolFileCallbackAnswer(result.state) }
+      );
 
       if (!("session" in result)) {
         await sendText(ctx, "edit", result.state === "no-character"
@@ -635,9 +640,21 @@ export async function handlePartySessionCallback(
         includeBossStart: isBigBarrelParty(result.session)
       });
 
+      if (result.state === "cooldown") {
+        await ctx.reply(presentProtocolCooldownNotice(result.availableAt, result.now), HTML_MESSAGE_OPTIONS);
+        return;
+      }
+
       if (result.state === "updated") {
-        await ctx.reply(presentProtocolFileConfirmation(), HTML_MESSAGE_OPTIONS);
-        await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+        await ctx.reply(
+          presentProtocolFileConfirmation(
+            result.session.personalProtocol?.manaCost ?? BUREAUCRAMANCER_PROTOCOL_BASE_MANA_COST
+          ),
+          HTML_MESSAGE_OPTIONS
+        );
+        await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service, {
+          includeActor: true
+        });
       }
       return;
     }
@@ -665,7 +682,9 @@ export async function handlePartySessionCallback(
 
     if (result.state === "updated") {
       await ctx.reply(presentProtocolSignConfirmation(), HTML_MESSAGE_OPTIONS);
-      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service, {
+        includeActor: true
+      });
     }
     return;
   }
@@ -1322,9 +1341,6 @@ function presentProtocolFileCallbackAnswer(
   if (state === "blocked") {
     return "Спершу завершіть інший бій.";
   }
-  if (state === "cooldown") {
-    return "Протокол ще відлежується.";
-  }
   if (state === "not-enough-mana") {
     return "Не вистачає мани.";
   }
@@ -1367,12 +1383,20 @@ function presentProtocolSignCallbackAnswer(
   return "Підпис не записався.";
 }
 
-function presentProtocolFileConfirmation(): string {
+function presentProtocolFileConfirmation(manaCost: number): string {
   return [
     "📄 <b>Форму 13-А подано</b>",
     "",
-    presentManaSpentLine(5),
+    presentManaSpentLine(manaCost),
     "Вона відкрила Протокол 13-З. Ви автоматично підписали власну персональну претензію."
+  ].join("\n");
+}
+
+function presentProtocolCooldownNotice(availableAt: Date, now: Date): string {
+  return [
+    "📄 <b>Форму 13-А поки не прийнято</b>",
+    "",
+    `До наступного подання зачекайте ще <b>${formatRemainingWait(availableAt, now)}</b>.`
   ].join("\n");
 }
 

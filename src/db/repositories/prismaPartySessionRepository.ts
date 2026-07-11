@@ -34,7 +34,7 @@ import {
   BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY,
   BUREAUCRAMANCER_PROTOCOL_COOLDOWN_MINUTES,
   BUREAUCRAMANCER_PROTOCOL_KIND,
-  BUREAUCRAMANCER_PROTOCOL_MANA_COST,
+  calculateBureaucramancerProtocolManaCost,
   BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL
 } from "../../services/bureaucramancerProtocol";
 
@@ -805,7 +805,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "cooldown", availableAt: cooldown.availableAt, now, session: mapSession(session) };
       }
 
-      if (character.manaCurrent < BUREAUCRAMANCER_PROTOCOL_MANA_COST) {
+      const manaCost = calculatePersonalProtocolManaCost(character);
+      if (character.manaCurrent < manaCost) {
         return { state: "not-enough-mana", session: mapSession(session) };
       }
 
@@ -818,10 +819,10 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
-          manaCurrent: { gte: BUREAUCRAMANCER_PROTOCOL_MANA_COST }
+          manaCurrent: { gte: manaCost }
         },
         data: {
-          manaCurrent: { decrement: BUREAUCRAMANCER_PROTOCOL_MANA_COST },
+          manaCurrent: { decrement: manaCost },
           manaRegenAt: now
         }
       });
@@ -844,7 +845,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             kind: BUREAUCRAMANCER_PROTOCOL_KIND,
             partySessionId: session.id,
             protocolId,
-            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST
+            manaCost
           }
         },
         update: {
@@ -853,7 +854,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             kind: BUREAUCRAMANCER_PROTOCOL_KIND,
             partySessionId: session.id,
             protocolId,
-            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST
+            manaCost
           }
         }
       });
@@ -873,7 +874,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             protocolId,
             filerCharacterId: character.id,
             remortCount: character._count.remorts,
-            manaCost: BUREAUCRAMANCER_PROTOCOL_MANA_COST,
+            manaCost,
             filedAt: now.toISOString()
           }, {
             kind: BUREAUCRAMANCER_PROTOCOL_KIND,
@@ -2368,6 +2369,18 @@ function matchesPersonalProtocolIdentity(
     candidate?.protocolId === protocol.protocolId &&
     candidate.filerCharacterId === protocol.filerCharacterId
   );
+}
+
+function calculatePersonalProtocolManaCost(character: CharacterRow): number {
+  const stats = buildPartyBossCombatStats({
+    ...mapCharacter(character),
+    equipment: character.equipment
+  });
+
+  return calculateBureaucramancerProtocolManaCost({
+    level: stats.level,
+    intelligence: stats.intelligence
+  });
 }
 
 function buildPersonalProtocolId(sessionId: string): string {

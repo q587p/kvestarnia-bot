@@ -199,6 +199,12 @@ export type PartyPersonalProtocolFileRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | {
+      state: "cooldown";
+      availableAt: Date;
+      now: Date;
+      session: PartySessionRecord;
+    }
+  | {
       state:
         | "updated"
         | "already-filed"
@@ -208,13 +214,10 @@ export type PartyPersonalProtocolFileRepositoryResult =
         | "not-big-barrel"
         | "ineligible"
         | "blocked"
-        | "cooldown"
         | "not-enough-mana"
         | "stale"
         | "cancelled"
         | "expired";
-      availableAt?: Date;
-      now?: Date;
       session: PartySessionRecord;
     };
 

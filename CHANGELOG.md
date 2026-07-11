@@ -13,7 +13,7 @@ Release status: active candidate in PR #158; merge, deploy, and manual Telegram 
 
 ### Added
 - Added `📄 Форма 13-А` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting; a successful filing opens defensive `Протокол 13-З`.
-- Filing costs 5 mana, starts a 93-minute Bureaucramancer cooldown only after committed success, creates at most one protocol per recruiting session, and auto-signs the filer.
+- Filing starts from 8 mana with a bounded 0-3 mana discount from the Bureaucramancer's level plus effective intelligence, starts a 93-minute cooldown only after committed success, creates at most one protocol per recruiting session, and auto-signs the filer.
 - Joined participants can sign the open protocol once for free; recruiting cards show only signature count and never list signer names.
 - Starting the Big Barrel fight freezes the joined signer set into party-boss state. Each signer blocks their first eligible personal/single-target Barrel retaliation against themselves, stores prevented damage/action details, and spends only that signer protection.
 - Added rewardless achievements for first protocol filing, signing, and triggered protection.
@@ -33,6 +33,9 @@ Release status: active candidate in PR #158; merge, deploy, and manual Telegram 
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
 - Priest self-blessing cards now hide `✨ Благословити себе` while the character's own blessing wait is active, while healing and available blessings for other targets remain visible.
 - Quest archive now shows the unavailable `Бочка, або Туди і звідти` tutorial row after a character outlevels it without completing the route.
+- Successful Protocol 13-Z filing/signing now refreshes the actor's stored recruiting card as well as the other joined participant cards, so a leader acting from another card does not keep a stale signature count.
+- Protocol filing confirmation now renders the committed 5-8 mana cost instead of a fixed value.
+- Protocol cooldown callbacks no longer hide behind the vague `Протокол ще відлежується` alert: they send a separate durable message with the canonical remaining wait in minutes.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

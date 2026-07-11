@@ -707,6 +707,94 @@ describe("handlePartySessionCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it("refreshes the stored leader recruiting card after the leader files Protocol 13-Z", async () => {
+    const base = makeBigBarrelSessionWithMember();
+    const session: PartySessionRecord = {
+      ...base,
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-party-1-filing-1",
+        filerCharacterId: base.leaderCharacterId,
+        signatureCount: 1,
+        manaCost: 5,
+        filedAt: new Date("2026-06-29T15:03:00.000Z")
+      },
+      participants: base.participants.map((participant) =>
+        participant.characterId === base.leaderCharacterId
+          ? {
+              ...participant,
+              personalProtocolSignature: {
+                kind: "bureaucramancer-personal-protocol-13b",
+                protocolId: "protocol-party-1-filing-1",
+                filerCharacterId: base.leaderCharacterId,
+                signerCharacterId: base.leaderCharacterId,
+                signedAt: new Date("2026-06-29T15:03:00.000Z")
+              }
+            }
+          : participant
+      )
+    };
+    const fileBureaucramancerPersonalProtocolForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session
+    });
+    const { ctx, editMessageText, apiEditMessageText } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "protocol-file", token: session.inviteToken },
+      serviceWith({ fileBureaucramancerPersonalProtocolForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("📄 Протокол 13-З відкрито. Підписів: 1.");
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      13,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      93,
+      99,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
+  it("sends protocol cooldown remaining time as a separate durable message", async () => {
+    const session = makeBigBarrelSessionWithMember();
+    const now = new Date("2026-06-29T15:00:00.000Z");
+    const availableAt = new Date("2026-06-29T16:32:00.000Z");
+    const fileBureaucramancerPersonalProtocolForTelegramUser = vi.fn().mockResolvedValue({
+      state: "cooldown",
+      availableAt,
+      now,
+      session
+    });
+    const { ctx, answerCallbackQuery, reply } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "protocol-file", token: session.inviteToken },
+      serviceWith({ fileBureaucramancerPersonalProtocolForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("До наступного подання зачекайте ще <b>92 хвилини</b>."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("відлежується");
+  });
+
   it("refreshes the cancelled solo Big Barrel recruiting card after switching into another raid", async () => {
     const session = {
       ...makeSessionWithMember(),

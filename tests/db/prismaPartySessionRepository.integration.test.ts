@@ -211,9 +211,10 @@ describe("PrismaPartySessionRepository integration", () => {
 
   it("files and signs Bureaucramancer protocol once without duplicate mana spend", async () => {
     await seedCharacter(prisma, "protocol-filer-user", 2141n, "Паперяр", {
-      level: 8,
+      level: 3,
       classId: "class.bureaucramancer",
-      manaCurrent: 10
+      manaCurrent: 10,
+      statsJson: { intelligence: 0 }
     });
     await seedCharacter(prisma, "protocol-signer-user", 2142n, "Підписант", {
       level: 8,
@@ -241,7 +242,7 @@ describe("PrismaPartySessionRepository integration", () => {
       kind: "bureaucramancer-personal-protocol-13b",
       filerCharacterId: "protocol-filer-user-character",
       signatureCount: 2,
-      manaCost: 5
+      manaCost: 8
     });
     expect("session" in signed
       ? signed.session.participants.find((participant) => participant.character.telegramUserId === 2142n)?.personalProtocolSignature
@@ -263,7 +264,7 @@ describe("PrismaPartySessionRepository integration", () => {
       orderBy: { id: "asc" },
       select: { id: true, manaCurrent: true }
     })).resolves.toEqual([
-      { id: "protocol-filer-user-character", manaCurrent: 5 },
+      { id: "protocol-filer-user-character", manaCurrent: 2 },
       { id: "protocol-outsider-user-character", manaCurrent: 10 },
       { id: "protocol-signer-user-character", manaCurrent: 10 }
     ]);
@@ -431,11 +432,11 @@ describe("PrismaPartySessionRepository integration", () => {
     })).resolves.toEqual([
       {
         id: "protocol-file-race-one-user-character",
-        manaCurrent: filedCharacterId === "protocol-file-race-one-user-character" ? 5 : 10
+        manaCurrent: filedCharacterId === "protocol-file-race-one-user-character" ? 3 : 10
       },
       {
         id: "protocol-file-race-two-user-character",
-        manaCurrent: filedCharacterId === "protocol-file-race-two-user-character" ? 5 : 10
+        manaCurrent: filedCharacterId === "protocol-file-race-two-user-character" ? 3 : 10
       }
     ]);
     await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol-file-race", 1);
