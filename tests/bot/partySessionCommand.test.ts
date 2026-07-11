@@ -707,6 +707,71 @@ describe("handlePartySessionCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it.each(["active", "completed"] as const)(
+    "renders the canonical %s party card for stale join, leave, and cancel callbacks",
+    async (status) => {
+      const session: PartySessionRecord = {
+        ...makeBigBarrelSessionWithMember(),
+        status,
+        version: 2,
+        activeLeaderKey: status === "active" ? "party-leader:character-42" : null
+      };
+      const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "stale", session });
+      const leaveByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "stale", session });
+      const cancelByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "stale", session });
+      const service = serviceWith({
+        joinByTokenForTelegramUser,
+        leaveByTokenForTelegramUser,
+        cancelByTokenForTelegramUser
+      });
+      const cases = [
+        {
+          callback: { type: "join", token: session.inviteToken } as const,
+          notice: "Стан ватаги змінився раніше за цей запис",
+          expectedCall: () => expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, {
+            source: "nearby",
+            chatId: 42n,
+            messageId: 13
+          })
+        },
+        {
+          callback: { type: "leave", token: session.inviteToken } as const,
+          notice: "Стан ватаги змінився раніше за цей вихід",
+          expectedCall: () => expect(leaveByTokenForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken)
+        },
+        {
+          callback: { type: "cancel", token: session.inviteToken } as const,
+          notice: "Стан ватаги змінився раніше за скасування",
+          expectedCall: () => expect(cancelByTokenForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken)
+        }
+      ];
+
+      for (const testCase of cases) {
+        const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText } = createCallbackContext(42);
+
+        await handlePartySessionCallback(
+          ctx,
+          testCase.callback,
+          service,
+          {
+            presence: {} as PresenceService,
+            botUsername: "kvestarnia_test_bot"
+          }
+        );
+
+        testCase.expectedCall();
+        expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+        expect(messageText(editMessageText)).toContain("Стан: архівний запис");
+        expect(messageText(editMessageText)).toContain(testCase.notice);
+        expect(keyboardJson(editMessageText)).toContain("v1:party:v:partyABC12");
+        expect(keyboardJson(editMessageText)).not.toContain("v1:party:j:partyABC12");
+        expect(keyboardJson(editMessageText)).not.toContain("v1:party:l:partyABC12");
+        expect(keyboardJson(editMessageText)).not.toContain("v1:party:c:partyABC12");
+        expect(apiEditMessageText).not.toHaveBeenCalled();
+      }
+    }
+  );
+
   it("refreshes the stored leader recruiting card after the leader files Protocol 13-Z", async () => {
     const base = makeBigBarrelSessionWithMember();
     const session: PartySessionRecord = {
