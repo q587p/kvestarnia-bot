@@ -535,7 +535,9 @@ export async function handlePartySessionCallback(
     });
 
     if (result.state === "updated") {
-      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service, {
+        ensureLeaderDelivery: true
+      });
     }
     return;
   }
@@ -1096,37 +1098,57 @@ async function notifyPartySessionParticipants(
   actorTelegramUserId: bigint,
   botUsername: string | undefined,
   service: PartySessionService,
-  options: { includeActor?: boolean } = {}
+  options: { includeActor?: boolean; ensureLeaderDelivery?: boolean } = {}
 ): Promise<void> {
   const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
 
   for (const participant of session.participants) {
     if (
       (!options.includeActor && participant.character.telegramUserId === actorTelegramUserId) ||
-      participant.status !== "joined" ||
-      !participant.chatId ||
-      !participant.messageId
+      participant.status !== "joined"
     ) {
       continue;
     }
 
+    const text = presentPartyView({ state: "ready", session }, { inviteUrl });
+    const messageOptions = {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildPartySessionKeyboard(session, {
+        viewerCharacterId: participant.characterId,
+        inviteUrl,
+        includeDevExpire: service.areDevHelpersEnabled(),
+        includeBossStart: isBigBarrelParty(session)
+      })
+    };
+    const ensureDelivery = options.ensureLeaderDelivery && participant.characterId === session.leaderCharacterId;
+
     try {
-      await ctx.api.editMessageText(
-        Number(participant.chatId),
-        participant.messageId,
-        presentPartyView({ state: "ready", session }, { inviteUrl }),
-        {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPartySessionKeyboard(session, {
-            viewerCharacterId: participant.characterId,
-            inviteUrl,
-            includeDevExpire: service.areDevHelpersEnabled(),
-            includeBossStart: isBigBarrelParty(session)
-          })
-        }
-      );
+      if (participant.chatId && participant.messageId) {
+        await ctx.api.editMessageText(Number(participant.chatId), participant.messageId, text, messageOptions);
+        continue;
+      }
     } catch {
-      // Best-effort card refresh; the stored party state remains canonical for manual refresh.
+      if (!ensureDelivery) {
+        continue;
+      }
+    }
+
+    if (!ensureDelivery) {
+      continue;
+    }
+
+    try {
+      const chatId = participant.chatId ?? participant.character.telegramUserId;
+      const message = await ctx.api.sendMessage(Number(chatId), text, messageOptions);
+      if (message.message_id) {
+        await service.recordParticipantMessageReference(
+          participant.character.telegramUserId,
+          session.inviteToken,
+          { chatId, messageId: message.message_id }
+        );
+      }
+    } catch {
+      // Best-effort leader fallback; the stored party state remains canonical for manual refresh.
     }
   }
 }
