@@ -135,8 +135,8 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
 
   if (result.kind === "bureaucramancer-protocol-cooldown") {
     return result.cleared
-      ? "🧪 Dev: Протокол 13-Б знову готовий до локальної перевірки."
-      : "🧪 Dev: Протокол 13-Б і так без активного cooldown.";
+      ? "🧪 Dev: Протокол 13-З знову готовий до локальної перевірки."
+      : "🧪 Dev: Протокол 13-З і так без активного cooldown.";
   }
 
   if (result.kind === "rogue-reset") {

@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable project changes are documented here.
 
@@ -7,10 +7,10 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-B
+## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
 ### Added
-- Added `📄 Протокол 13-Б` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting.
+- Added `📄 Форма 13-А` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting; a successful filing opens defensive `Протокол 13-З`.
 - Filing costs 5 mana, starts a 93-minute Bureaucramancer cooldown only after committed success, creates at most one protocol per recruiting session, and auto-signs the filer.
 - Joined participants can sign the open protocol once for free; recruiting cards show only signature count and never list signer names.
 - Starting the Big Barrel fight freezes the joined signer set into party-boss state. Each signer blocks their first eligible personal/single-target Barrel retaliation against themselves, stores prevented damage/action details, and spends only that signer protection.
@@ -18,7 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added `/dev_reset_bureaucramancer_protocol` for local QA cooldown reset; production config keeps the helper disabled.
 
 ### Changed
-- Big Barrel active cards and journals now replay stored Protocol 13-Б state and trigger lines without recalculating mitigation.
+- Big Barrel active cards and journals now replay stored Protocol 13-З state and trigger lines without recalculating mitigation.
 - Bureaucramancer Lore Board copy now mentions the narrow personal-protocol raid-prep behavior.
 
 ### Fixed

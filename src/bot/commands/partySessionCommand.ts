@@ -1308,13 +1308,13 @@ function presentProtocolFileCallbackAnswer(
   state: Awaited<ReturnType<PartySessionService["fileBureaucramancerPersonalProtocolForTelegramUser"]>>["state"]
 ): string {
   if (state === "updated") {
-    return "Протокол 13-Б подано.";
+    return "Форму 13-А подано.";
   }
   if (state === "already-filed") {
-    return "Ваш Протокол 13-Б уже відкрито.";
+    return "Ваш Протокол 13-З уже відкрито.";
   }
   if (state === "already-exists") {
-    return "Протокол 13-Б уже відкрито.";
+    return "Протокол 13-З уже відкрито.";
   }
   if (state === "ineligible") {
     return "Це вміє тільки бюрокромант від 3 рівня.";
@@ -1369,10 +1369,10 @@ function presentProtocolSignCallbackAnswer(
 
 function presentProtocolFileConfirmation(): string {
   return [
-    "📄 <b>Протокол 13-Б подано</b>",
+    "📄 <b>Форму 13-А подано</b>",
     "",
     presentManaSpentLine(5),
-    "Ви автоматично підписали власну персональну претензію."
+    "Вона відкрила Протокол 13-З. Ви автоматично підписали власну персональну претензію."
   ].join("\n");
 }
 

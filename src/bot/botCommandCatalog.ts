@@ -413,7 +413,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_reset_bureaucramancer_protocol",
     icon: "📄",
-    description: "скинути cooldown Протоколу 13-Б локально",
+    description: "скинути cooldown Протоколу 13-З локально",
     includeInMenu: false,
     devOnly: "grant"
   },

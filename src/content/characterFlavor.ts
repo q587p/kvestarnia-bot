@@ -1069,7 +1069,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     id: "korchma.greeting.class.bureaucramancer",
     placement: "korchma.greeting",
     selector: { classIds: ["class.bureaucramancer"] },
-    text: "Форми 13-Б сьогодні не видаємо. Тільки 13-Б/пінне і то під розпис."
+    text: "Форми 13-А сьогодні не видаємо. Тільки 13-А/пінне і то під розпис."
   },
   {
     id: "korchma.greeting.class.ranger",
@@ -1415,7 +1415,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { classIds: ["class.bureaucramancer"] },
-    text: "Бюрокромантам у повному рейді: без форми 13-Б бочка не має права бути босом. Нагадуйте їй боляче."
+    text: "Бюрокромантам у повному рейді: без форми 13-А бочка не має права бути босом. Нагадуйте їй боляче."
   },
   {
     id: "barrel.raid-hint.class.ranger",
@@ -1674,7 +1674,7 @@ function classRaidTips(): Record<string, string[]> {
     ],
     "class.bureaucramancer": [
       "Піна без інвентарного номера вважається самовільною. Повідомте її суворим тоном.",
-      "Форма 13-Б не зупиняє Бочку, але змушує її булькати з повагою.",
+      "Форма 13-А не зупиняє Бочку, але змушує її булькати з повагою.",
       "Перед рейдом поставте печатку на план. Якщо план втече, печатка лишиться доказом.",
       "Кран не має права ухилятися від аудиту. Навіть якщо дуже блищить.",
       "Найстрашніше для Бочки — не меч, а фраза «згідно з пунктом другим»."

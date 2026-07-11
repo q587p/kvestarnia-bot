@@ -5597,7 +5597,7 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
     case "skill.boiling-filling":
       return { icon: "🥟", name: "Кипляча начинка" };
     case "skill.form-thirteen-b":
-      return { icon: "📎", name: "Форма 13-Б" };
+      return { icon: "📎", name: "Форма 13-А" };
     case "skill.dangerous-couplet":
       return { icon: "🎼", name: "Небезпечний куплет" };
     case "skill.trick-shot":
