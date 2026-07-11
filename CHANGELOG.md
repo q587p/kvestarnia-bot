@@ -25,7 +25,7 @@ Release status: active candidate. Automated validation is complete; refreshed is
 ### Fixed
 - Same-round multi-Warrior conflicts resolve by frozen participant order: exactly one valid Taunt activates, and later candidates fail closed without cooldown.
 - If the taunting Warrior is already unable before target selection or is knocked out by a redirected response, the active Taunt expires without redirecting a later boss attack.
-- Existing guard, armor, equipment support, Protocol 13-З, and Kharakternyk ward processing remain in the current damage pipeline; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
+- A committed Taunt clears guard from an earlier Defend or equipment guard action. Armor, passive equipment effects, Protocol 13-З, and Kharakternyk Ward remain in the normal damage pipeline, and a fresh Defend on a later active-Taunt round may create a new guard normally; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
 - Taunt commits now clear stale Defend/equipment guard even for same-round conflict losers; victory-before-response and early Warrior knockout persist one authoritative expiry state across the terminal card, round summary, and journal.
 - Stored journal next-focus notices now honor the durable active Taunt snapshot, live cards render the active Taunt row once, achievement recalculation recovers committed activations from party-boss action summaries, and timeout resolution preserves its achievement notification.
 

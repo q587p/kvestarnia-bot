@@ -90,7 +90,7 @@ Core actions:
 
 - `⚔️ Атакувати`;
 - current class skill when available;
-- `🛡 Захищатися`;
+- `🧱 Захищатися`;
 - context action such as `🧯 Зірвати нагляд` or `🧹 Розігнати дрібноту` when relevant;
 - `🏳️ Відступити` as an explicit personal forfeit, not a party flee.
 
