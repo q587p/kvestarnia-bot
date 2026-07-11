@@ -95,6 +95,79 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toBe(1);
   });
 
+  it("returns honest stale state when join loses the recruiting version CAS", async () => {
+    const token = "party-token-join-cas-loss";
+    await seedCharacter(prisma, "join-cas-leader-user", 2051n, "Ватажок CAS");
+    await seedCharacter(prisma, "join-cas-member-user", 2052n, "Учасник CAS");
+    await repository.createForTelegramUser(2051n, partyInput(token));
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_join_cas_loss", token, () =>
+      repository.joinByTokenForTelegramUser(2052n, token, joinInput())
+    );
+
+    expect(result.state).toBe("stale");
+    await expectNoMembership(prisma, token, 2052n);
+  });
+
+  it("returns honest stale state when leave loses the recruiting version CAS", async () => {
+    const token = "party-token-leave-cas-loss";
+    await seedCharacter(prisma, "leave-cas-leader-user", 2061n, "Ватажок Виходу");
+    await seedCharacter(prisma, "leave-cas-member-user", 2062n, "Учасник Виходу");
+    await repository.createForTelegramUser(2061n, partyInput(token));
+    await repository.joinByTokenForTelegramUser(2062n, token, joinInput());
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_leave_cas_loss", token, () =>
+      repository.leaveByTokenForTelegramUser(2062n, token, now())
+    );
+
+    expect(result.state).toBe("stale");
+    expect("session" in result
+      ? result.session.participants.find((row) => row.character.telegramUserId === 2062n)?.status
+      : null).toBe("joined");
+  });
+
+  it("returns honest stale state when readiness loses the recruiting version CAS", async () => {
+    const token = "party-token-readiness-cas-loss";
+    await seedCharacter(prisma, "readiness-cas-leader-user", 2071n, "Готовність CAS");
+    await repository.createForTelegramUser(2071n, partyInput(token));
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_readiness_cas_loss", token, () =>
+      repository.setParticipantReadiness(2071n, token, "ready", now())
+    );
+
+    expect(result.state).toBe("stale");
+    expect(readinessByTelegramUser(result)["2071"]).toBe("waiting");
+  });
+
+  it("returns honest stale state when ward support loses the recruiting version CAS", async () => {
+    const token = "party-token-ward-support-cas-loss";
+    await seedCharacter(prisma, "ward-support-cas-leader-user", 2081n, "Знакар CAS", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 13,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await seedCharacter(prisma, "ward-support-cas-member-user", 2082n, "Підпора CAS", {
+      level: 8,
+      manaCurrent: 13,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await repository.createForTelegramUser(2081n, bigBarrelInput(token));
+    await repository.joinByTokenForTelegramUser(2082n, token, joinInput());
+    await repository.placeKharakternykWardSign(2081n, token, now());
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_ward_support_cas_loss", token, () =>
+      repository.supportKharakternykWardSign(2082n, token, now())
+    );
+
+    expect(result.state).toBe("stale");
+    await expectWardSupportSnapshotCount(prisma, token, 0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "ward-support-cas-member-user-character" },
+      select: { manaCurrent: true }
+    })).resolves.toEqual({ manaCurrent: 13 });
+  });
+
   it("switches from own solo Big Barrel recruiting into a selected Big Barrel raid", async () => {
     await seedCharacter(prisma, "switcher-user", 2101n, "Перемикач", { level: 8 });
     await seedCharacter(prisma, "target-leader-user", 2102n, "Ватажок", { level: 8 });
@@ -287,7 +360,7 @@ describe("PrismaPartySessionRepository integration", () => {
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
   });
 
-  it("uses attunement-aware effective intelligence and regenerated mana for protocol cost", async () => {
+  it("uses exact current attunement lookup after more than 13 historical rows for protocol cost", async () => {
     const tuningItemId = "item.mantok.coverage.universal.hat-of-found-shelf";
     const cases = [
       {
@@ -327,7 +400,7 @@ describe("PrismaPartySessionRepository integration", () => {
         statsJson: { intelligence: 3 }
       });
       if (entry.readyAt) {
-        await seedAttuningEquipment(prisma, `${userId}-character`, tuningItemId, entry.readyAt);
+        await seedAttuningEquipment(prisma, `${userId}-character`, tuningItemId, entry.readyAt, 20);
       }
       await repository.createForTelegramUser(entry.telegramUserId, bigBarrelInput(token));
 
@@ -1121,7 +1194,78 @@ describe("PrismaPartySessionRepository integration", () => {
     expect(row).toEqual({ status: "expired", activeLeaderKey: null, version: 3 });
     expect(activeKeys).toBe(0);
   });
+
+  it.each([
+    ["cancel", "simulate_start_wins_cancel", 9101n],
+    ["expire", "simulate_start_wins_expire", 9102n]
+  ] as const)("keeps memberships when raid start wins against stale %s cleanup", async (operation, triggerName, telegramUserId) => {
+    const token = `party-token-start-wins-${operation}`;
+    const userId = `start-wins-${operation}-user`;
+    await seedCharacter(prisma, userId, telegramUserId, `Старт Перемагає ${operation}`);
+    await repository.createForTelegramUser(telegramUserId, partyInput(token));
+
+    await withSimulatedStartWinningTerminalTransition(prisma, triggerName, token, async () => {
+      if (operation === "cancel") {
+        const result = await repository.cancelByTokenForTelegramUser(telegramUserId, token, now());
+        expect(result.state).toBe("stale");
+        expect("session" in result ? result.session.status : null).toBe("active");
+      } else {
+        const result = await repository.forceExpireByToken(token);
+        expect(result?.status).toBe("active");
+      }
+    });
+
+    await expect(prisma.partyParticipant.count({
+      where: {
+        session: { inviteToken: token },
+        activeMembershipKey: { not: null }
+      }
+    })).resolves.toBe(1);
+  });
 });
+
+async function withForcedSessionVersionCasLoss<T>(
+  prisma: PrismaClient,
+  triggerName: string,
+  inviteToken: string,
+  action: () => Promise<T>
+): Promise<T> {
+  const safeTriggerName = triggerName.replace(/[^a-z0-9_]/gi, "_");
+  const safeInviteToken = inviteToken.replace(/'/g, "''");
+  await prisma.$executeRawUnsafe(`CREATE TEMP TRIGGER ${safeTriggerName}
+    BEFORE UPDATE OF version ON party_sessions
+    WHEN OLD.invite_token = '${safeInviteToken}'
+    BEGIN
+      SELECT RAISE(IGNORE);
+    END`);
+  try {
+    return await action();
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${safeTriggerName}`);
+  }
+}
+
+async function withSimulatedStartWinningTerminalTransition<T>(
+  prisma: PrismaClient,
+  triggerName: string,
+  inviteToken: string,
+  action: () => Promise<T>
+): Promise<T> {
+  const safeTriggerName = triggerName.replace(/[^a-z0-9_]/gi, "_");
+  const safeInviteToken = inviteToken.replace(/'/g, "''");
+  await prisma.$executeRawUnsafe(`CREATE TEMP TRIGGER ${safeTriggerName}
+    BEFORE UPDATE OF status ON party_sessions
+    WHEN OLD.invite_token = '${safeInviteToken}' AND NEW.status IN ('cancelled', 'expired')
+    BEGIN
+      UPDATE party_sessions SET status = 'active', version = OLD.version + 1 WHERE id = OLD.id;
+      SELECT RAISE(IGNORE);
+    END`);
+  try {
+    return await action();
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${safeTriggerName}`);
+  }
+}
 
 function now(): Date {
   return new Date("2026-06-29T15:00:00.000Z");
@@ -1222,12 +1366,14 @@ async function seedAttuningEquipment(
   prisma: PrismaClient,
   characterId: string,
   itemId: string,
-  readyAt: Date
+  readyAt: Date,
+  historicalCount = 0
 ): Promise<void> {
   const equipmentUpdatedAt = new Date(now().getTime() - 2 * 60_000);
+  const equipmentId = `${characterId}-head`;
   await prisma.characterEquipment.create({
     data: {
-      id: `${characterId}-head`,
+      id: equipmentId,
       characterId,
       slot: "head",
       itemId,
@@ -1239,7 +1385,7 @@ async function seedAttuningEquipment(
       id: `${characterId}-attunement`,
       characterId,
       key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
-      localDate: "active",
+      localDate: `head:${equipmentId}:${equipmentUpdatedAt.getTime()}`,
       rewardXp: 0,
       rewardGold: 0,
       resultJson: buildEquipmentAttunementPayload({
@@ -1253,6 +1399,19 @@ async function seedAttuningEquipment(
       })
     }
   });
+  for (let index = 0; index < historicalCount; index += 1) {
+    await prisma.dailyAction.create({
+      data: {
+        id: `${characterId}-historical-attunement-${index}`,
+        characterId,
+        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+        localDate: `historical:${index}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { version: 1, status: "cancelled" }
+      }
+    });
+  }
 }
 
 async function expectNoMembership(

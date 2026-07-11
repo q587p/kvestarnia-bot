@@ -1287,13 +1287,7 @@ function buildBigBarrelReward(
 }
 
 async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Promise<void> {
-  await tx.activeCombatLease.deleteMany({
-    where: {
-      kind: PARTY_BOSS_LEASE_KIND,
-      referenceId: partySessionId
-    }
-  });
-  await tx.partySession.updateMany({
+  const transitioned = await tx.partySession.updateMany({
     where: {
       id: partySessionId,
       status: ACTIVE_PARTY_STATUS
@@ -1302,6 +1296,15 @@ async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Prom
       status: "completed",
       activeLeaderKey: null,
       version: { increment: 1 }
+    }
+  });
+  if (transitioned.count !== 1) {
+    return;
+  }
+  await tx.activeCombatLease.deleteMany({
+    where: {
+      kind: PARTY_BOSS_LEASE_KIND,
+      referenceId: partySessionId
     }
   });
   await tx.partyParticipant.updateMany({
@@ -1339,14 +1342,17 @@ async function expireRecruitingPartyIfNeeded(
     !(options.allowBigBarrelExpiredRecruiting === true &&
       party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
   ) {
-    await tx.partySession.update({
-      where: { id: party.id },
+    const transitioned = await tx.partySession.updateMany({
+      where: { id: party.id, status: RECRUITING_PARTY_STATUS },
       data: {
         status: "expired",
         activeLeaderKey: null,
         version: { increment: 1 }
       }
     });
+    if (transitioned.count !== 1) {
+      return;
+    }
     await tx.partyParticipant.updateMany({
       where: {
         sessionId: party.id,

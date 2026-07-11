@@ -39,6 +39,9 @@ Release status: active candidate in PR #158. An earlier-runtime partial Telegram
 - Protocol signing now claims the recruiting session version before its participant signature write in the same transaction. Join/rejoin, leave, readiness, and ward support use the same parent-first gate so raid start cannot freeze a roster/preparation state between participant-first and session-later writes.
 - Deep-link `/start party_<token>` joins now persist the message id returned by Telegram; later filing/signing refreshes both the leader card and that participant card.
 - Protocol filing derives cost from attunement-aware effective Intelligence and applies the canonical passive mana regeneration result before its atomic exact 5-8 mana spend.
+- Protocol INT and Mantok Chest confirmation LUCK now load attunement state by the exact current equipment rows, so more than 13 historical attunement records cannot hide a still-current tuning row. Mantok confirmation also includes an active Priest LUCK blessing in canonical effective LUCK.
+- Join, leave, readiness and ward-support CAS losses now replay a provable canonical result or report an explicit stale state instead of false ineligible, not-member, not-recruiting or already-supported outcomes.
+- Recruiting cancel/expiry cleanup now clears participant membership keys only after its parent terminal transition succeeds, preserving the active roster when raid start wins the race.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

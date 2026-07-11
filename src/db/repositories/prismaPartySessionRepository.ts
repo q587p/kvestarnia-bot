@@ -108,18 +108,6 @@ const partyCharacterInclude = {
 
 const personalProtocolCharacterInclude = {
   ...partyCharacterInclude,
-  dailyActions: {
-    where: {
-      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
-    },
-    orderBy: {
-      createdAt: "desc" as const
-    },
-    take: 13,
-    select: {
-      resultJson: true
-    }
-  },
   drinkState: true
 } satisfies Prisma.CharacterInclude;
 
@@ -325,7 +313,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         const latestParticipant = latest.participants.find((row) => row.characterId === character.id);
         return latest.status === LIVE_STATUS && latestParticipant?.status === "joined"
           ? { state: "already-joined", session: mapSession(latest) }
-          : { state: "ineligible", session: mapSession(latest) };
+          : { state: "stale", session: mapSession(latest) };
       }
 
       if (liveMembership && liveMembership.id !== session.id) {
@@ -415,7 +403,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         );
         return participant
           ? { state: "already-joined", session: mapSession(latest) }
-          : { state: "ineligible", session: mapSession(latest) };
+          : { state: "stale", session: mapSession(latest) };
       }
 
       if (!isUniqueConflict(error)) {
@@ -482,7 +470,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         const latestTerminalState = getTerminalReplayState(latest);
         return latestTerminalState
           ? { state: latestTerminalState, session: mapSession(latest) }
-          : { state: "not-member", session: mapSession(latest) };
+          : { state: "stale", session: mapSession(latest) };
       }
 
       const left = await tx.partyParticipant.updateMany({
@@ -541,7 +529,9 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const terminalState = getTerminalReplayState(latest);
       return terminalState
         ? { state: terminalState, session: mapSession(latest) }
-        : { state: "not-member", session: mapSession(latest) };
+        : latest.participants.some((row) => row.characterId === error.characterId && row.status === "joined")
+          ? { state: "stale", session: mapSession(latest) }
+          : { state: "not-member", session: mapSession(latest) };
     });
   }
 
@@ -574,7 +564,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       await terminalizeSessionTx(tx, session.id, "cancelled");
       const updated = await findSessionById(tx, session.id);
-      return updated ? { state: "cancelled", session: mapSession(updated) } : { state: "not-found" };
+      if (!updated) {
+        return { state: "not-found" };
+      }
+      const updatedTerminalState = getTerminalReplayState(updated);
+      return updatedTerminalState
+        ? { state: updatedTerminalState, session: mapSession(updated) }
+        : { state: "stale", session: mapSession(updated) };
     });
   }
 
@@ -620,9 +616,25 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const claimed = await claimRecruitingSessionVersion(tx, session);
       if (!claimed) {
         const latest = await findSessionById(tx, session.id);
-        return latest
-          ? { state: "not-recruiting", session: mapSession(latest) }
-          : { state: "not-found" };
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        const latestTerminalState = getTerminalReplayState(latest);
+        if (latestTerminalState) {
+          return { state: latestTerminalState, session: mapSession(latest) };
+        }
+        if (latest.status !== LIVE_STATUS) {
+          return { state: "not-recruiting", session: mapSession(latest) };
+        }
+        const latestParticipant = latest.participants.find((row) =>
+          row.characterId === character.id && row.status === "joined"
+        );
+        if (!latestParticipant) {
+          return { state: "not-member", session: mapSession(latest) };
+        }
+        return parseParticipantReadiness(latestParticipant.snapshotJson) === readiness
+          ? { state: "already-set", session: mapSession(latest) }
+          : { state: "stale", session: mapSession(latest) };
       }
 
       const updatedParticipant = await tx.partyParticipant.updateMany({
@@ -663,7 +675,9 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         row.characterId === error.characterId && row.status === "joined"
       );
       return participant
-        ? { state: "already-set", session: mapSession(latest) }
+        ? parseParticipantReadiness(participant.snapshotJson) === readiness
+          ? { state: "already-set", session: mapSession(latest) }
+          : { state: "stale", session: mapSession(latest) }
         : { state: "not-member", session: mapSession(latest) };
     });
   }
@@ -959,7 +973,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       if (!protocolCharacter) {
         return { state: "no-character" };
       }
-      const protocolResources = getPersonalProtocolResources(protocolCharacter, now);
+      const attunementPayloads = await findCurrentEquipmentAttunementPayloads(tx, protocolCharacter);
+      const protocolResources = getPersonalProtocolResources(protocolCharacter, attunementPayloads, now);
       const manaCost = calculateBureaucramancerProtocolManaCost({
         level: protocolResources.summary.level,
         intelligence: protocolResources.summary.stats.intelligence
@@ -1509,7 +1524,7 @@ async function terminalizeSessionTx(
   sessionId: string,
   status: "cancelled" | "expired"
 ): Promise<void> {
-  await tx.partySession.updateMany({
+  const transitioned = await tx.partySession.updateMany({
     where: {
       id: sessionId,
       status: LIVE_STATUS
@@ -1522,6 +1537,9 @@ async function terminalizeSessionTx(
       }
     }
   });
+  if (transitioned.count !== 1) {
+    return;
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId,
@@ -2063,7 +2081,7 @@ function resolveKharakternykWardSupportReservationLoss(
     return { state: "already-supported", session: mapSession(session) };
   }
 
-  return { state: "already-supported", session: mapSession(session) };
+  return { state: "stale", session: mapSession(session) };
 }
 
 async function reservePersonalProtocolSlot(
@@ -2570,8 +2588,11 @@ function matchesPersonalProtocolIdentity(
   );
 }
 
-function getPersonalProtocolResources(character: PersonalProtocolCharacterRow, now: Date) {
-  const actionPayloads = character.dailyActions.map((row) => row.resultJson);
+function getPersonalProtocolResources(
+  character: PersonalProtocolCharacterRow,
+  actionPayloads: readonly (Prisma.JsonValue | null)[],
+  now: Date
+) {
   const equippedItems = character.equipment.flatMap((row) => {
     if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
       return [];
@@ -2604,6 +2625,26 @@ function getPersonalProtocolResources(character: PersonalProtocolCharacterRow, n
   });
 
   return { summary, regeneration };
+}
+
+async function findCurrentEquipmentAttunementPayloads(
+  tx: TxClient,
+  character: Pick<PersonalProtocolCharacterRow, "id" | "equipment">
+): Promise<Array<Prisma.JsonValue | null>> {
+  const localDates = character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
+  if (localDates.length === 0) {
+    return [];
+  }
+
+  const actions = await tx.dailyAction.findMany({
+    where: {
+      characterId: character.id,
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+      localDate: { in: localDates }
+    },
+    select: { resultJson: true }
+  });
+  return actions.map((row) => row.resultJson);
 }
 
 function mapPartyDrinkState(

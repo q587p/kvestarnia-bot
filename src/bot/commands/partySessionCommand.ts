@@ -1227,6 +1227,9 @@ function presentReadinessCallbackAnswer(
   state: Awaited<ReturnType<PartySessionService["setReadinessForTelegramUser"]>>["state"],
   readiness: "ready" | "waiting"
 ): string {
+  if (state === "stale") {
+    return "Стан ватаги змінився. Спробуйте ще раз.";
+  }
   if (state === "updated") {
     return readiness === "ready" ? "Позначено: ви готові." : "Позначено: ще готуєтесь.";
   }
@@ -1284,6 +1287,9 @@ function presentWardPlaceCallbackAnswer(
 function presentWardSupportCallbackAnswer(
   state: Awaited<ReturnType<PartySessionService["supportKharakternykWardSignForTelegramUser"]>>["state"]
 ): string {
+  if (state === "stale") {
+    return "Стан ватаги змінився. Спробуйте підперти знак ще раз.";
+  }
   if (state === "updated") {
     return "Підпор записано.";
   }

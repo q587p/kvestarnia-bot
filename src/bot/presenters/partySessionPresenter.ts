@@ -93,6 +93,13 @@ export function presentPartyJoin(
     return presentPartyJoinIneligible(result);
   }
 
+  if (result.state === "stale") {
+    return presentPartySession(result.session, {
+      inviteUrl: options.inviteUrl,
+      notice: "Стан ватаги змінився раніше за цей запис. Перевірте картку й спробуйте ще раз."
+    });
+  }
+
   if (result.state === "full") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
@@ -203,6 +210,13 @@ export function presentPartyLeave(
     });
   }
 
+  if (result.state === "stale") {
+    return presentPartySession(result.session, {
+      inviteUrl: options.inviteUrl,
+      notice: "Стан ватаги змінився раніше за цей вихід. Перевірте картку й спробуйте ще раз."
+    });
+  }
+
   if (result.state === "expired") {
     return presentPartySession(result.session, {
       notice: "Строк збору минув, тож виходити вже нікуди. Протокол просто закрив двері."
@@ -235,6 +249,13 @@ export function presentPartyCancel(
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
       notice: "Скасувати ватагу може тільки поточний лідер. Протокол суворий, бо стіл уже бачив усе."
+    });
+  }
+
+  if (result.state === "stale") {
+    return presentPartySession(result.session, {
+      inviteUrl: options.inviteUrl,
+      notice: "Стан ватаги змінився раніше за скасування. Показую актуальну картку."
     });
   }
 

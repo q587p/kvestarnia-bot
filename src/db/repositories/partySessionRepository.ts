@@ -132,6 +132,7 @@ export type PartyJoinRepositoryResult =
       cancelledSoloSession?: PartySessionRecord | undefined;
     }
   | { state: "already-joined"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
   | {
@@ -145,19 +146,21 @@ export type PartyLeaveRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "left" | "leader-transferred" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyCancelRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-leader"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyReadinessRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member" | "not-recruiting"; session: PartySessionRecord }
-  | { state: "updated" | "already-set" | "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: "updated" | "already-set" | "stale" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyWardSignPlaceRepositoryResult =
   | { state: "no-character" }
@@ -184,6 +187,7 @@ export type PartyWardSignSupportRepositoryResult =
       state:
         | "updated"
         | "already-supported"
+        | "stale"
         | "not-member"
         | "not-recruiting"
         | "not-big-barrel"

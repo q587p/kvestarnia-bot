@@ -15,13 +15,14 @@ describe("PrismaMantokChestRepository", () => {
     expect(snapshot?.playerLuck).toBe(13);
   });
 
-  it("uses confirmation-time effective luck only after equipment attunement finishes", async () => {
+  it("uses exact current attunement lookup after more than 13 historical rows", async () => {
     const prisma = new FakeMantokChestPrisma();
     prisma.disableConcurrencyGate = true;
     prisma.setLuck(4);
     const luckItemId = "item.mantok.coverage.universal.scarf-of-forehead-duty";
     prisma.equip(luckItemId, "head");
     prisma.setAttunement(luckItemId, "head", new Date(fixedNow.getTime() + 60_000));
+    prisma.addHistoricalAttunements(20);
     const repository = new PrismaMantokChestRepository(prisma.client);
     const observedLuck: number[] = [];
     const selectOutput = (snapshot: { playerLuck?: number }) => {
@@ -41,6 +42,26 @@ describe("PrismaMantokChestRepository", () => {
     });
 
     expect(observedLuck).toEqual([5, 6]);
+  });
+
+  it("includes an active Priest LUCK blessing in confirmation-time effective luck", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.setLuck(4);
+    prisma.setPriestBlessing("luck", 3, new Date(fixedNow.getTime() + 60_000));
+    const repository = new PrismaMantokChestRepository(prisma.client);
+    const observedLuck: number[] = [];
+
+    await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput: (snapshot) => {
+        observedLuck.push(snapshot.playerLuck ?? -1);
+        return { state: "no-output-candidate" as const };
+      }
+    });
+
+    expect(observedLuck).toEqual([8]);
   });
 
   it("ignores expired untouched pending gift reservations in snapshots", async () => {
@@ -186,12 +207,13 @@ class FakeMantokChestPrisma {
       }
     ],
     equipment: [] as Array<{
+      id: string;
       characterId: string;
       slot: string;
       itemId: string;
       updatedAt: Date;
     }>,
-    dailyActions: [] as Array<{ resultJson: unknown }>,
+    dailyActions: [] as Array<{ localDate: string; resultJson: unknown }>,
     run: {
       id: "mantok-run-1",
       characterId: "character-1",
@@ -210,6 +232,7 @@ class FakeMantokChestPrisma {
   };
   private characterFindFirstCount = 0;
   private releaseCharacterFindFirst: (() => void) | null = null;
+  private activePriestBlessing: { bonusStat: string; bonusAmount: number; expiresAt: Date } | null = null;
 
   readonly client = {
     $transaction: async <T>(callback: (tx: FakeMantokChestTx) => Promise<T>) =>
@@ -241,6 +264,7 @@ class FakeMantokChestPrisma {
 
   equip(itemId: string, slot = "head"): void {
     this.shared.equipment.push({
+      id: `${slot}-equipment`,
       characterId: this.shared.character.id,
       slot,
       itemId,
@@ -249,7 +273,12 @@ class FakeMantokChestPrisma {
   }
 
   setAttunement(itemId: string, slot: string, readyAt: Date): void {
+    const equipment = this.shared.equipment.find((row) => row.itemId === itemId && row.slot === slot);
+    if (!equipment) {
+      throw new Error("Equipment row must exist before attunement is seeded.");
+    }
     this.shared.dailyActions = [{
+      localDate: `${slot}:${equipment.id}:${equipment.updatedAt.getTime()}`,
       resultJson: {
         version: 1,
         status: "tuning",
@@ -262,6 +291,19 @@ class FakeMantokChestPrisma {
         readyAt: readyAt.toISOString()
       }
     }];
+  }
+
+  addHistoricalAttunements(count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      this.shared.dailyActions.push({
+        localDate: `historical:${index}`,
+        resultJson: { version: 1, status: "cancelled" }
+      });
+    }
+  }
+
+  setPriestBlessing(bonusStat: string, bonusAmount: number, expiresAt: Date): void {
+    this.activePriestBlessing = { bonusStat, bonusAmount, expiresAt };
   }
 
   private createTx(): FakeMantokChestTx {
@@ -300,11 +342,21 @@ class FakeMantokChestPrisma {
                 manaMax: this.shared.character.manaMax,
                 statsJson: this.shared.character.statsJson,
                 equipment: equipmentView.map((row) => ({ ...row })),
-                dailyActions: this.shared.dailyActions.map((row) => ({ ...row })),
                 _count: { remorts: 0 }
               }
             : null;
         }
+      },
+      dailyAction: {
+        findMany: (input: { where: { characterId: string; localDate: { in: string[] } } }) =>
+          Promise.resolve(input.where.characterId === this.shared.character.id
+            ? this.shared.dailyActions
+              .filter((row) => input.where.localDate.in.includes(row.localDate))
+              .map((row) => ({ resultJson: row.resultJson }))
+            : [])
+      },
+      noncombatPriestBlessing: {
+        findFirst: () => Promise.resolve(this.activePriestBlessing ? { ...this.activePriestBlessing } : null)
       },
       mantokChestRun: {
         findFirst: async (input: { where: { id?: string; characterId?: string; token?: string } }) => {
@@ -476,6 +528,12 @@ class FakeMantokChestPrisma {
 interface FakeMantokChestTx {
   character: {
     findFirst: (input: { where: { user: { telegramUserId: bigint } } }) => Promise<{ id: string; name: string } | null>;
+  };
+  dailyAction: {
+    findMany: (input: { where: { characterId: string; localDate: { in: string[] } } }) => Promise<Array<{ resultJson: unknown }>>;
+  };
+  noncombatPriestBlessing: {
+    findFirst: () => Promise<{ bonusStat: string; bonusAmount: number; expiresAt: Date } | null>;
   };
   mantokChestRun: {
     findFirst: (input: { where: { id?: string; characterId?: string; token?: string } }) => Promise<FakeMantokChestRun | null>;
