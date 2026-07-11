@@ -608,6 +608,23 @@ describe("AchievementService", () => {
     expect(await service.trackEvent(event)).toEqual([]);
   });
 
+  it("recovers Warrior Raid Taunt from the durable recalculation snapshot", async () => {
+    const repo = new FakeAchievementRepository();
+    const activatedAt = new Date("2026-07-11T09:13:00.000Z");
+    repo.recalculationSnapshot = makeRecalculationSnapshot({
+      activityDates: { "warrior.raid-taunt.activated": [activatedAt] }
+    });
+    const service = new AchievementService(repo);
+
+    const result = await service.recalculateForCharacter(
+      "character-warrior",
+      new Date("2026-07-12T09:13:00.000Z")
+    );
+
+    expect(result.unlocks.map((unlock) => unlock.id)).toContain("achievement.warrior.raid-taunt.activated");
+    expect(repo.achievementFor("achievement.warrior.raid-taunt.activated")?.unlockedAt).toEqual(activatedAt);
+  });
+
   it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({

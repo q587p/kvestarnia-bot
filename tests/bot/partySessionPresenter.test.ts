@@ -19,6 +19,7 @@ import {
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
+import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -260,10 +261,12 @@ describe("party session presenter", () => {
     const active = presentPartyBoss(activeSession, { viewerCharacterId: "leader" });
     const journal = presentPartyBossJournal(activeSession, 0);
     expect(active).toContain("🛡️ Увага Бочки: Голова, ще 2 ходи.");
+    expect(active.match(/🛡️ Увага Бочки: Голова, ще 2 ходи\./gu)).toHaveLength(1);
     expect(active).toContain("🫁 🛡️ «На мене!» відсапується: ще 5 ходів.");
     expect(active).toContain("🛢️ <i>Бочковий гуркіт</i> згортається в один удар. Ціль: Голова. Завдано 7 шкоди.");
     expect(journal).not.toContain("Виклик запізнився");
     expect(journal).toContain("увага Бочки переходить туди");
+    expect(journal).toContain("🎯 На наступний хід увага боса незмінна. Ціль: Голова.");
     expect(journal).toContain("🛢️ <i>Бочковий гуркіт</i> згортається в один удар. Ціль: Голова. Завдано 7 шкоди.");
 
     const cooling = presentPartyBoss(makeBigBossSession({
@@ -295,6 +298,30 @@ describe("party session presenter", () => {
       }]
     }));
     expect(expired).toContain("🫥 Виклик згас: Бочка знову дивиться на всю ватагу.");
+    expect(expired).not.toContain("🛡️ Увага Бочки: Голова");
+  });
+
+  it("stops showing reducer-owned Taunt cooldown exactly at the N + 5 boundary", () => {
+    let state = createPartyBossState({
+      partySessionId: "presenter-taunt-boundary",
+      variant: "big-barrel",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      participants: [participant("leader", "Голова")]
+    });
+    state.participants[0]!.resources.hp = 999;
+    state.participants[0]!.resources.hpMax = 999;
+    for (let turn = 1; turn <= 5; turn += 1) {
+      state = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-07-11T10:0${turn}:00.000Z`),
+        seed: "presenter-taunt-boundary",
+        actions: [{ characterId: "leader", action: turn === 1 ? "taunt" : "defend", origin: "manual" }]
+      }).state;
+    }
+
+    expect(state.turn).toBe(6);
+    expect(presentPartyBoss(makeBigBossSession(state), { viewerCharacterId: "leader" }))
+      .not.toContain("«На мене!» відсапується");
   });
 
   it("explains blocked Warrior Taunt callbacks with canonical remaining turns", () => {

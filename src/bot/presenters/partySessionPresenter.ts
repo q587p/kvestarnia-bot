@@ -855,7 +855,8 @@ function presentLastRoundLines(
   if (round.warriorTaunt) {
     lines.push(...presentWarriorRaidTauntRoundLines(
       round.warriorTaunt,
-      new Map(participants.map((participant) => [participant.characterId, participant.name]))
+      new Map(participants.map((participant) => [participant.characterId, participant.name])),
+      { includeActiveStatus: false }
     ));
   }
   return lines;
@@ -931,10 +932,11 @@ function presentBureaucramancerProtocolTriggeredLine(
 
 function presentWarriorRaidTauntRoundLines(
   taunt: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["warriorTaunt"]>,
-  names: Map<string, string>
+  names: Map<string, string>,
+  options: { includeActiveStatus?: boolean } = {}
 ): string[] {
   const lines: string[] = [];
-  if (taunt.redirectedCharacterId && (taunt.bossAttacksRemaining ?? 0) > 0) {
+  if (options.includeActiveStatus !== false && taunt.redirectedCharacterId && (taunt.bossAttacksRemaining ?? 0) > 0) {
     lines.push(
       `🛡️ Увага Бочки: ${escapeHtml(names.get(taunt.redirectedCharacterId) ?? "воїн")}, ще ${formatTurns(taunt.bossAttacksRemaining ?? 0)}.`
     );
@@ -1631,6 +1633,16 @@ function presentNextRetaliationFocusAfterRound(
 ): string | null {
   if (!isBigPartyBossSession(session) || round.statusAfter !== "active") {
     return null;
+  }
+
+  const activeTauntTargetId = round.warriorTaunt?.expiredCharacterId
+    ? null
+    : (round.warriorTaunt?.bossAttacksRemaining ?? 0) > 0
+      ? round.warriorTaunt?.redirectedCharacterId ?? round.warriorTaunt?.activatedCharacterId
+      : null;
+  if (activeTauntTargetId) {
+    const targetName = session.state.participants.find((participant) => participant.characterId === activeTauntTargetId)?.name;
+    return targetName ? `🎯 На наступний хід увага боса незмінна. Ціль: ${escapeHtml(targetName)}.` : null;
   }
 
   if ((round.turn + 1) % 4 === 0) {

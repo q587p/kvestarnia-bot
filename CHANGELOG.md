@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.7] - 12026-07-11 - Warrior Raid Taunt
+## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
 
 Release status: active candidate. Automated validation is complete; refreshed isolated-runtime Telegram QA, merge, and deploy are not proven.
 
@@ -18,7 +18,7 @@ Release status: active candidate. Automated validation is complete; refreshed is
 - Added the rewardless first committed Taunt achievement `achievement.warrior.raid-taunt.activated`.
 
 ### Changed
-- Big Barrel cards and stored journals now show Taunt activation, redirected focused/broad attacks, remaining duration, expiry, and the acting Warrior's exact remaining cooldown.
+- Big Barrel cards and stored journals now show Taunt activation, redirected focused/broad attacks, remaining duration, and expiry; the live acting-Warrior card shows the exact remaining cooldown.
 - Party-boss defend now uses `🧱 Захищатися`, keeping its icon distinct from `🛡️ На мене!` on the same keyboard.
 - Warrior `📖 Перекази` copy now mentions the narrow Big Barrel challenge without changing the ordinary combat ability catalog.
 
@@ -26,6 +26,8 @@ Release status: active candidate. Automated validation is complete; refreshed is
 - Same-round multi-Warrior conflicts resolve by frozen participant order: exactly one valid Taunt activates, and later candidates fail closed without cooldown.
 - If the taunting Warrior is already unable before target selection or is knocked out by a redirected response, the active Taunt expires without redirecting a later boss attack.
 - Existing guard, armor, equipment support, Protocol 13-З, and Kharakternyk ward processing remain in the current damage pipeline; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
+- Taunt commits now clear stale Defend/equipment guard even for same-round conflict losers; victory-before-response and early Warrior knockout persist one authoritative expiry state across the terminal card, round summary, and journal.
+- Stored journal next-focus notices now honor the durable active Taunt snapshot, live cards render the active Taunt row once, achievement recalculation recovers committed activations from party-boss action summaries, and timeout resolution preserves its achievement notification.
 
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 

@@ -646,7 +646,12 @@ describe("party boss reducer", () => {
         characterId: "warrior",
         tauntRedirected: true
       });
-      expect(resolved.round.warriorTaunt?.bossAttacksRemaining).toBe(3 - turn);
+      if (turn < 3) {
+        expect(resolved.round.warriorTaunt?.bossAttacksRemaining).toBe(3 - turn);
+      } else {
+        expect(resolved.round.warriorTaunt).toMatchObject({ expiredCharacterId: "warrior" });
+        expect(resolved.round.warriorTaunt?.bossAttacksRemaining).toBeUndefined();
+      }
       state = resolved.state;
     }
 
@@ -713,6 +718,169 @@ describe("party boss reducer", () => {
     });
   });
 
+  it("applies one broad Kharakternyk ward response to the redirected Taunt target", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-warrior-taunt-ward",
+      variant: "big-barrel",
+      leaderCharacterId: "warrior",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      wardSign: { kind: "kharakternyk", placerCharacterId: "ally", supportCount: 2 },
+      participants: [
+        participant("warrior", "Воїн", { hp: 300, level: 8, classId: "class.warrior" }),
+        participant("ally", "Характерниця", { hp: 300, level: 8, classId: "class.kharakternyk" })
+      ]
+    });
+    state.turn = 4;
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-11T10:04:00.000Z"),
+      seed: "big-warrior-taunt-ward",
+      actions: [
+        { characterId: "warrior", action: "taunt", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(resolved.round.bossRetaliations).toEqual([
+      expect.objectContaining({ characterId: "warrior", tauntOriginalKind: "broad" })
+    ]);
+    expect(resolved.round.wardSign).toMatchObject({
+      affectedCharacterIds: ["warrior"],
+      usesRemaining: 1,
+      usesMax: 2
+    });
+    expect(resolved.round.wardSign?.preventedDamage).toBeGreaterThan(0);
+  });
+
+  it("redirects a focused response into the taunting Protocol 13-Z signer", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-warrior-taunt-protocol",
+      variant: "big-barrel",
+      leaderCharacterId: "ally",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-taunt",
+        filerCharacterId: "ally",
+        signerCharacterIds: ["warrior"]
+      },
+      participants: [
+        participant("ally", "Союзниця", { hp: 300, level: 8, classId: "class.bureaucramancer" }),
+        participant("warrior", "Воїн", { hp: 300, level: 8, classId: "class.warrior" })
+      ]
+    });
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-11T10:01:00.000Z"),
+      seed: "big-warrior-taunt-protocol",
+      actions: [
+        { characterId: "ally", action: "defend", origin: "manual" },
+        { characterId: "warrior", action: "taunt", origin: "manual" }
+      ]
+    });
+
+    expect(resolved.round.bossRetaliations).toEqual([
+      expect.objectContaining({
+        characterId: "warrior",
+        damage: 0,
+        tauntOriginalKind: "focused"
+      })
+    ]);
+    expect(resolved.round.personalProtocol).toMatchObject({ characterId: "warrior", status: "triggered" });
+  });
+
+  it("clears single and double Defend guard when Taunt commits", () => {
+    for (const defendCount of [1, 2]) {
+      let state = createPartyBossState({
+        partySessionId: `big-warrior-taunt-guard-${defendCount}`,
+        variant: "big-barrel",
+        now: new Date("2026-07-11T10:00:00.000Z"),
+        participants: [participant("warrior", "Воїн", { hp: 999, level: 8, classId: "class.warrior" })]
+      });
+      for (let turn = 1; turn <= defendCount; turn += 1) {
+        state = resolvePartyBossRound({
+          state,
+          now: new Date(`2026-07-11T10:0${turn}:00.000Z`),
+          seed: `big-warrior-taunt-guard-${defendCount}`,
+          actions: [{ characterId: "warrior", action: "defend", origin: "manual" }]
+        }).state;
+      }
+      expect(state.participants[0]?.resources.guard?.consecutiveDefends).toBe(defendCount);
+
+      const taunted = resolvePartyBossRound({
+        state,
+        now: new Date("2026-07-11T10:03:00.000Z"),
+        seed: `big-warrior-taunt-guard-${defendCount}`,
+        actions: [{ characterId: "warrior", action: "taunt", origin: "manual" }]
+      });
+      expect(taunted.state.participants[0]?.resources.guard).toBeUndefined();
+    }
+  });
+
+  it("clears an active Taunt when the party wins before the boss response", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-warrior-taunt-victory",
+      variant: "big-barrel",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      participants: [
+        participant("warrior", "Воїн", { hp: 100, level: 8, classId: "class.warrior" }),
+        participant("ally", "Союзниця", { hp: 100, level: 8, strength: 60, classId: "class.mage" })
+      ]
+    });
+    state.boss.hp = 1;
+    state.warriorTaunt = {
+      active: { characterId: "warrior", activatedTurn: 1, bossAttacksRemaining: 2 },
+      cooldowns: { warrior: { availableTurn: 6 } }
+    };
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-11T10:01:00.000Z"),
+      seed: "big-warrior-taunt-victory",
+      actions: [
+        { characterId: "warrior", action: "defend", origin: "manual" },
+        { characterId: "ally", action: "attack", origin: "manual" }
+      ]
+    });
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.state.warriorTaunt?.active).toBeUndefined();
+    expect(resolved.round.bossRetaliations).toEqual([]);
+    expect(resolved.round.warriorTaunt).toEqual({ expiredCharacterId: "warrior" });
+  });
+
+  it("records only authoritative Taunt expiry when an early boss response knocks out the Warrior", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-warrior-taunt-ko",
+      variant: "big-barrel",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      participants: [
+        participant("warrior", "Воїн", { hp: 20, hpCurrent: 1, level: 8, classId: "class.warrior" }),
+        participant("ally", "Союзниця", { hp: 100, level: 8, classId: "class.mage" })
+      ]
+    });
+    state.warriorTaunt = {
+      active: { characterId: "warrior", activatedTurn: 1, bossAttacksRemaining: 3 },
+      cooldowns: { warrior: { availableTurn: 6 } }
+    };
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-11T10:01:00.000Z"),
+      seed: "big-warrior-taunt-ko",
+      actions: [
+        { characterId: "warrior", action: "attack", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(resolved.state.participants[0]?.status).toBe("knocked-out");
+    expect(resolved.round.warriorTaunt).toMatchObject({ expiredCharacterId: "warrior" });
+    expect(resolved.round.warriorTaunt?.bossAttacksRemaining).toBeUndefined();
+  });
+
   it("expires Taunt before target selection when the Warrior is unable to continue", () => {
     const state = createPartyBossState({
       partySessionId: "big-warrior-taunt-unable",
@@ -753,6 +921,8 @@ describe("party boss reducer", () => {
         participant("warrior-b", "Другий", { hp: 300, level: 8, classId: "class.warrior" })
       ]
     });
+    state.participants[0]!.resources.guard = { consecutiveDefends: 2 };
+    state.participants[1]!.resources.guard = { consecutiveDefends: 1, abilityDamageReduction: 7 };
 
     const resolved = resolvePartyBossRound({
       state,
@@ -772,6 +942,7 @@ describe("party boss reducer", () => {
       "warrior-a": { availableTurn: 6 }
     });
     expect(resolved.round.bossRetaliations.map((entry) => entry.characterId)).toEqual(["warrior-a"]);
+    expect(resolved.state.participants.map((entry) => entry.resources.guard)).toEqual([undefined, undefined]);
   });
 
   it("blocks the first focused Big Barrel Brother retaliation once per protocol signer", () => {

@@ -80,7 +80,15 @@ describe("party boss recruiting start scheduler", () => {
     });
     const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({
       state: "resolved",
-      session: resolvedSession
+      session: resolvedSession,
+      achievementUnlocksByCharacterId: {
+        "character-42": [{
+          id: "achievement.warrior.raid-taunt.activated",
+          title: "Голосніше за кришку",
+          cosmeticTitleGrantId: null,
+          unlockedAt: new Date("2026-07-11T10:01:00.000Z")
+        }]
+      }
     });
     const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
     const scheduler = createPartyBossRecruitingStartScheduler(
@@ -106,11 +114,12 @@ describe("party boss recruiting start scheduler", () => {
     await expect(scheduler.tick()).resolves.toBe(1);
 
     expect(resolveDueTimedOutByToken).toHaveBeenCalledWith("partyABC12");
-    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledTimes(3);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Таймер ходу спрацював.");
     expect(sendMessage.mock.calls[0]?.[1]).toContain("🛢️ <b>Бій: 2 хід</b>");
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Останні дії:");
     expect(sendMessage.mock.calls[0]?.[1]).not.toContain("Старший Брат Бочки втрутився");
+    expect(sendMessage.mock.calls.some((call) => String(call[1]).includes("Голосніше за кришку"))).toBe(true);
   });
 });
 

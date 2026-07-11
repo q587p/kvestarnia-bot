@@ -401,6 +401,7 @@ export function resolvePartyBossRound(input: {
     const origin = committed?.origin ?? "timeout";
     if (action === "taunt") {
       participant.resources = tickActorCooldowns(participant.resources);
+      delete participant.resources.guard;
       tickPartyBossCombatItemCooldowns(participant);
       if (origin === "manual") {
         participant.contribution.submittedActions += 1;
@@ -506,8 +507,16 @@ export function resolvePartyBossRound(input: {
     }
   }
 
+  const expiredAfterVictory = next.boss.hp <= 0 ? clearActiveWarriorTaunt(next) : null;
+  if (expiredAfterVictory) {
+    tauntRound.expiredCharacterId = expiredAfterVictory;
+    delete tauntRound.bossAttacksRemaining;
+  }
   const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
   if (retaliationResolution.warriorTaunt) {
+    if (retaliationResolution.warriorTaunt.expiredCharacterId) {
+      delete tauntRound.bossAttacksRemaining;
+    }
     Object.assign(tauntRound, retaliationResolution.warriorTaunt);
   }
   const bossRetaliations = retaliationResolution.retaliations;
@@ -1111,6 +1120,15 @@ function expireUnableWarriorTaunt(state: PartyBossState): string | null {
   return active.characterId;
 }
 
+function clearActiveWarriorTaunt(state: PartyBossState): string | null {
+  const characterId = state.warriorTaunt?.active?.characterId;
+  if (!characterId) {
+    return null;
+  }
+  delete state.warriorTaunt!.active;
+  return characterId;
+}
+
 function resolveWarriorTauntBossAttack(
   state: PartyBossState,
   characterId: string,
@@ -1131,8 +1149,9 @@ function resolveWarriorTauntBossAttack(
   return {
     redirectedCharacterId: characterId,
     redirectedAttackKind,
-    bossAttacksRemaining,
-    ...(expired ? { expiredCharacterId: characterId } : {})
+    ...(expired
+      ? { expiredCharacterId: characterId }
+      : { bossAttacksRemaining })
   };
 }
 

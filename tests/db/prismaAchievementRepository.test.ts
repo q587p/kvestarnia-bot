@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ACHIEVEMENT_RECALCULATION_DAILY_ACTION_KEYS,
   getBigBarrelMedicalPartyBossItemUseDates,
+  getActivatedWarriorTauntDates,
+  getWarriorTauntActionAchievementWhere,
   getEquippedCanonicalSlotCount,
   getPartyBossItemActionAchievementWhere,
   getAdventureChoiceConsequence,
@@ -79,6 +81,23 @@ describe("PrismaAchievementRepository recalculation snapshot", () => {
         }
       }
     ])).toEqual([bandageAt, denseAt, fieldKitAt]);
+  });
+
+  it("derives Warrior Taunt recalculation dates only from committed activation summaries", () => {
+    expect(getWarriorTauntActionAchievementWhere("character-1")).toEqual({
+      actorCharacterId: "character-1",
+      actionKey: "taunt",
+      session: { rulesVersion: "big-barrel-brother-v1" }
+    });
+    const activatedAt = new Date("2026-07-11T10:01:00.000Z");
+    expect(getActivatedWarriorTauntDates([
+      { submittedAt: new Date("2026-07-11T10:00:00.000Z"), resultJson: null },
+      { submittedAt: activatedAt, resultJson: { action: "taunt", outcome: "taunt-activated" } },
+      {
+        submittedAt: new Date("2026-07-11T10:02:00.000Z"),
+        resultJson: { action: "taunt", outcome: "taunt-failed" }
+      }
+    ])).toEqual([activatedAt]);
   });
 
   it("counts a twohand weapon as occupying both hand slots for full-slot achievements", () => {
