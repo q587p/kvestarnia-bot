@@ -115,7 +115,7 @@ export const classAbilities = [
     id: "skill.form-thirteen-b",
     source: "class",
     classId: "class.bureaucramancer",
-    label: "📄 Форма 13-Б",
+    label: "📄 Форма 13-А",
     description: "Кожен ворог отримує форму, де шкода тимчасово виглядає як помилка заповнення.",
     action: "skill",
     primaryTargetScope: "all-enemies",
@@ -128,7 +128,7 @@ export const classAbilities = [
     accuracyBonus: 0.07,
     critBonus: 0,
     monsterDamageReduction: 2,
-    criticalFumbleLine: "Форма 13-Б повернулася з печаткою «сам винен» і службово боляче клацнула по пригоднику.",
+    criticalFumbleLine: "Форма 13-А повернулася з печаткою «сам винен» і службово боляче клацнула по пригоднику.",
     recipe: ["all-enemies-damage", "response-mitigation"],
     tags: ["aoe", "control", "social", "class"]
   },

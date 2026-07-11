@@ -320,7 +320,7 @@ export function presentPartyBossIntro(
   const participantNames = state.participants.map((participant) => escapeHtml(participant.name)).join(", ");
   const startTip = presentPartyBossStartTip(session, viewerCharacterId);
   const protocolIntro = state.personalProtocol
-    ? `📄 Протокол 13-Б перейшов у бій. Підписів: ${state.personalProtocol.signatures.length}.`
+    ? `📄 Протокол 13-З перейшов у бій. Підписів: ${state.personalProtocol.signatures.length}.`
     : null;
 
   if (!big) {
@@ -876,7 +876,7 @@ function presentBureaucramancerProtocolTriggeredLine(
   protocol: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["personalProtocol"]>
 ): string {
   return [
-    `📄 Протокол 13-Б спрацьовує: Бочка знаходить персональну претензію й бʼє по паперах замість ребер. Запобігло ${protocol.preventedDamage} шкоди.`,
+    `📄 Протокол 13-З спрацьовує: Бочка знаходить персональну претензію й бʼє по паперах замість ребер. Запобігло ${protocol.preventedDamage} шкоди.`,
     `Підпис витрачено: ${protocol.spentCount}/${protocol.signatureCount}.`
   ].join("\n");
 }
@@ -999,13 +999,13 @@ function presentBureaucramancerProtocolBossLine(
 
   if (unspent > 0) {
     return preventedDamage > 0
-      ? `📄 Протокол 13-Б у бою. Невитрачених підписів: ${unspent}/${total}. Уже запобігло: ${preventedDamage} шкоди.`
-      : `📄 Протокол 13-Б у бою. Невитрачених підписів: ${unspent}/${total}.`;
+      ? `📄 Протокол 13-З у бою. Невитрачених підписів: ${unspent}/${total}. Уже запобігло: ${preventedDamage} шкоди.`
+      : `📄 Протокол 13-З у бою. Невитрачених підписів: ${unspent}/${total}.`;
   }
 
   return preventedDamage > 0
-    ? `📄 Протокол 13-Б уже витратив усі підписи. Запобігло: ${preventedDamage} шкоди.`
-    : "📄 Протокол 13-Б уже витратив усі підписи.";
+    ? `📄 Протокол 13-З уже витратив усі підписи. Запобігло: ${preventedDamage} шкоди.`
+    : "📄 Протокол 13-З уже витратив усі підписи.";
 }
 
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
@@ -1020,11 +1020,7 @@ function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
 
 function presentBureaucramancerProtocolLobbyLine(session: PartySessionRecord): string {
   const signatureCount = Math.max(0, Math.floor(session.personalProtocol?.signatureCount ?? 0));
-  return [
-    "📄 Протокол 13-Б відкрито.",
-    `Підписів: ${signatureCount}.`,
-    "Перший персональний удар Бочки по підписанту піде в папери, а не в ребра."
-  ].join("\n");
+  return `📄 Протокол 13-З відкрито. Підписів: ${signatureCount}.`;
 }
 
 function isBigBarrelParty(session: PartySessionRecord): boolean {

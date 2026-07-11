@@ -78,7 +78,7 @@ export function buildPartySessionKeyboard(
           keyboard.text("✋ Підперти знак", makePartySessionWardSupportCallbackData(token)).row();
         }
         if (!session.personalProtocol && canFileBureaucramancerProtocol(viewer)) {
-          keyboard.text("📄 Протокол 13-Б", makePartySessionProtocolFileCallbackData(token)).row();
+          keyboard.text("📄 Форма 13-А", makePartySessionProtocolFileCallbackData(token)).row();
         } else if (canSignBureaucramancerProtocol(session, viewer)) {
           keyboard.text("✍️ Підписати протокол", makePartySessionProtocolSignCallbackData(token)).row();
         }

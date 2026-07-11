@@ -6,7 +6,7 @@ Before editing, fetch `origin/main`, inspect the current Big Barrel Brother / pa
 
 Implement `technique.class.bureaucramancer.personal-protocol-13b` only:
 
-- level 3+ `class.bureaucramancer` can open `Протокол 13-Б: персональні претензії` during live Big Barrel Brother recruiting;
+- level 3+ `class.bureaucramancer` can open `Протокол 13-З: персональні претензії` during live Big Barrel Brother recruiting;
 - filing costs 5 mana, starts a 93-minute actor cooldown after successful mutation, creates at most one protocol per recruiting session and auto-signs the filer;
 - joined participants can sign once before raid start;
 - signing is free and public UI shows only signature count, not signer names;

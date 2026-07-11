@@ -1,4 +1,4 @@
-﻿# Next Implementation Backlog після `0.1.0`
+# Next Implementation Backlog після `0.1.0`
 
 ## Current order after `0.1.0`
 
@@ -1280,7 +1280,7 @@ The `raid.prep-hint` catalog intentionally contains future-facing role jokes, bu
 - `class.varenyk-mancer` and `race.bisyny`: add separate future control-effect follow-ups, without introducing a broad control framework in the Bard slice.
 - `race.drantohor`: add a future race-specific tank/positioning hook; Warrior taunt does not cover it.
 - `class.mage`, `class.rogue` and `class.ranger`: their current lines describe the ordinary raid-visible class/race action surface, so no extra raid-only task is required from the present wording.
-- `class.bureaucramancer` and `class.kharakternyk`: their narrow raid mechanics are already shipped through Protocol 13-B and ward signs.
+- `class.bureaucramancer` and `class.kharakternyk`: their narrow raid mechanics are already shipped through Protocol 13-Z and ward signs.
 - Remaining race and race/class lines stay flavor-only until a task names a concrete mechanic; do not convert every raid joke into a system.
 
 ## Later — Player Call for Monster Help (2–3 Players)

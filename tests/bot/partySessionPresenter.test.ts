@@ -213,9 +213,9 @@ describe("party session presenter", () => {
       }]
     }));
 
-    expect(text).toContain("📄 Протокол 13-Б у бою. Невитрачених підписів: 1/2. Уже запобігло: 17 шкоди.");
+    expect(text).toContain("📄 Протокол 13-З у бою. Невитрачених підписів: 1/2. Уже запобігло: 17 шкоди.");
     expect(text).toContain("удар застряг у паперах і завдає 0 шкоди");
-    expect(text).toContain("📄 Протокол 13-Б спрацьовує");
+    expect(text).toContain("📄 Протокол 13-З спрацьовує");
     expect(text).toContain("Запобігло 17 шкоди.");
     expect(text).toContain("Підпис витрачено: 1/2.");
   });
@@ -1065,9 +1065,8 @@ describe("party session presenter", () => {
 
     const text = presentPartySession(session);
 
-    expect(text).toContain("📄 Протокол 13-Б відкрито.");
-    expect(text).toContain("Підписів: 2.");
-    expect(text).toContain("Перший персональний удар Бочки по підписанту піде в папери, а не в ребра.");
+    expect(text).toContain("📄 Протокол 13-З відкрито. Підписів: 2.");
+    expect(text).not.toContain("Перший персональний удар Бочки по підписанту піде в папери, а не в ребра.");
     expect(text).not.toContain("Підписанти:");
   });
 

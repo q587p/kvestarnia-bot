@@ -79,7 +79,7 @@ describe("health server", () => {
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Бюрокроманти навчили Бочку читати претензії");
-    expect(text).toContain("Протокол 13-Б");
+    expect(text).toContain("Протокол 13-З");
     expect(text).toContain("без публічного списку й без соромної дошки");
     expect(text).toContain("персональний бочковий ляпас");
     expect(text).toContain("У грі зараз: 4");

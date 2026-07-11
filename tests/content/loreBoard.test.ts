@@ -143,7 +143,7 @@ describe("lore board content", () => {
     expect(classLoreBody("class-rogue")).toContain("🌘 Тіньовий розтин");
     expect(classLoreBody("class-priest")).toContain("✨ Суворе благословення");
     expect(classLoreBody("class-varenyk-mancer")).toContain("🥟 Кипляча начинка");
-    expect(classLoreBody("class-bureaucramancer")).toContain("📄 Форма 13-Б");
+    expect(classLoreBody("class-bureaucramancer")).toContain("📄 Форма 13-А");
     expect(classLoreBody("class-ranger")).toContain("🏹 Рикошетний постріл");
     expect(classLoreBody("class-kharakternyk")).toContain("👁 Степовий косий погляд");
 

@@ -1,4 +1,4 @@
-# Bureaucramancer Personal Protocol 13-B
+# Bureaucramancer Personal Protocol 13-Z
 
 Status: shipped in `0.3.6`.
 
@@ -6,7 +6,7 @@ Status: shipped in `0.3.6`.
 
 Give `class.bureaucramancer` a narrow social raid-prep identity action that differs from Kharakternyk ward signs.
 
-A Bureaucramancer can open `Протокол 13-Б: персональні претензії` during Big Barrel Brother recruiting. Joined participants may sign the protocol once. Each signature protects that signer from the first personal/single-target boss attack against them in the resulting fight.
+A Bureaucramancer can file `Форма 13-А` during Big Barrel Brother recruiting to open `Протокол 13-З: персональні претензії`. Joined participants may sign the protocol once. Each signature protects that signer from the first personal/single-target boss attack against them in the resulting fight.
 
 ## Role split
 
@@ -27,7 +27,7 @@ The Bureaucramancer does not ward the Barrel. They file personal claims against 
 Bureaucramancer identity is paperwork, authority and control:
 
 - existing class copy: forms, stamps and a very serious look;
-- existing combat skill: `📄 Форма 13-Б`, social/control AoE with response mitigation;
+- existing combat skill: `📄 Форма 13-А`, social/control AoE with response mitigation;
 - existing design vocabulary: forms, permits and queue manipulation; `authority/investigation`.
 
 The non-combat fantasy should be:
@@ -39,7 +39,7 @@ The non-combat fantasy should be:
 Recruiting card excerpt:
 
 ```text
-📄 Протокол 13-Б відкрито
+📄 Протокол 13-З відкрито
 
 Бюрокромант розклав на Бочці форму для майбутніх персональних претензій.
 Підписів: 4/8
@@ -50,13 +50,14 @@ Recruiting card excerpt:
 Participant button:
 
 ```text
+📄 Форма 13-А
 ✍️ Підписати протокол
 ```
 
 Trigger line:
 
 ```text
-📄 Протокол 13-Б став поперек персональної претензії.
+📄 Протокол 13-З став поперек персональної претензії.
 Бочка спробувала оформити удар по підписанту, але документ уже лежав у черзі.
 Перша персональна атака не пройшла.
 ```

@@ -269,7 +269,7 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
       viewerCharacterId: "character-1",
       includeBossStart: true
-    }))).toContain("📄 Протокол 13-Б");
+    }))).toContain("📄 Форма 13-А");
     expect(keyboardText(buildPartySessionKeyboard(base, {
       viewerCharacterId: "character-1",
       includeBossStart: true
@@ -277,7 +277,7 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
       viewerCharacterId: "character-2",
       includeBossStart: true
-    }))).not.toContain("📄 Протокол 13-Б");
+    }))).not.toContain("📄 Форма 13-А");
 
     const withProtocol = {
       ...base,
