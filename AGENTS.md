@@ -171,6 +171,7 @@ Docs-only / presentation changes are not numbered releases:
 
 PR defaults:
 
+- PR bodies must use standard GitHub-flavored Markdown with real newlines and blank lines. Do not use HTML layout or line-break tags such as `<br>` to simulate Markdown structure. When creating or editing a PR with `gh`, prefer `--body-file` so shell escaping cannot corrupt Markdown.
 - Target `main` unless the user explicitly asks for stacked PRs or another base.
 - Ready PRs must target `main` by default and be merge-ready against `main`. If a branch started from another feature branch, rebase or merge it onto current `origin/main` and resolve conflicts before calling the work complete.
 - Stacked PRs are allowed only when the user explicitly asks for a stacked PR or approves a non-main base; mark that clearly in the PR body.
