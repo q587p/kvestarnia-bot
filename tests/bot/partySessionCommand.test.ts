@@ -921,6 +921,112 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
   });
 
+  it("persists a deep-link join card and refreshes it with the leader card after protocol filing", async () => {
+    const joinedSession = makeBigBarrelSessionWithMember();
+    let storedSession = joinedSession;
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session: joinedSession });
+    const recordParticipantMessageReference = vi.fn().mockImplementation((
+      telegramUserId: bigint,
+      _inviteToken: string,
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      storedSession = {
+        ...storedSession,
+        participants: storedSession.participants.map((participant) =>
+          participant.character.telegramUserId === telegramUserId
+            ? { ...participant, ...reference }
+            : participant
+        )
+      };
+      return Promise.resolve(storedSession);
+    });
+    const joinContext = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      joinContext.ctx,
+      serviceWith({ joinByTokenForTelegramUser, recordParticipantMessageReference }),
+      joinedSession.inviteToken,
+      { botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(handled).toBe(true);
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(93n, joinedSession.inviteToken, {
+      chatId: 93n,
+      messageId: 23
+    });
+
+    const protocolSession: PartySessionRecord = {
+      ...storedSession,
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-deep-link-refresh",
+        filerCharacterId: joinedSession.leaderCharacterId,
+        signatureCount: 1,
+        manaCost: 7,
+        filedAt: new Date("2026-06-29T15:04:00.000Z")
+      },
+      participants: storedSession.participants
+    };
+    const fileBureaucramancerPersonalProtocolForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: protocolSession
+    });
+    const filingContext = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      filingContext.ctx,
+      { type: "protocol-file", token: protocolSession.inviteToken },
+      serviceWith({ fileBureaucramancerPersonalProtocolForTelegramUser }),
+      { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(filingContext.apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      13,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(filingContext.apiEditMessageText).toHaveBeenCalledWith(
+      93,
+      23,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+
+    const signedSession: PartySessionRecord = {
+      ...protocolSession,
+      personalProtocol: {
+        ...protocolSession.personalProtocol!,
+        signatureCount: 2
+      }
+    };
+    const signBureaucramancerPersonalProtocolForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: signedSession
+    });
+    const signingContext = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      signingContext.ctx,
+      { type: "protocol-sign", token: signedSession.inviteToken },
+      serviceWith({ signBureaucramancerPersonalProtocolForTelegramUser }),
+      { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(signingContext.apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      13,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 2."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(signingContext.apiEditMessageText).toHaveBeenCalledWith(
+      93,
+      23,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 2."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
   it("sends a forwardable Big Barrel Brother invite card after explicit share press", async () => {
     const session = {
       ...makeSessionWithMember(),

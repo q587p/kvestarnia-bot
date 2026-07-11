@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { items } from "../../src/content";
 import {
+  buildEquipmentAttunementPayload,
   getEquipmentAttunementDurationMs,
   getEquipmentMagicStrength,
+  isEquipmentAttunementPendingForRow,
   MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS,
   MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS,
   STRONG_EQUIPMENT_ATTUNEMENT_MS,
@@ -43,5 +45,35 @@ describe("equipment attunement", () => {
     const base = items.find((item) => item.id === "item.pan-of-persuasion");
 
     expect(base && getEquipmentMagicStrength(base.id)).toBeNull();
+  });
+
+  it("matches the exact equipment row and stops excluding it once ready", () => {
+    const updatedAt = new Date("2026-07-11T08:00:00.000Z");
+    const row = { slot: "head", itemId: "item.pan-of-persuasion.plus-1", updatedAt };
+    const payload = buildEquipmentAttunementPayload({
+      slot: row.slot,
+      itemId: row.itemId,
+      itemName: "Пательня переконання +1",
+      equipmentUpdatedAt: updatedAt,
+      strength: "weak",
+      startedAt: updatedAt,
+      readyAt: new Date("2026-07-11T08:13:00.000Z")
+    });
+
+    expect(isEquipmentAttunementPendingForRow({
+      row,
+      actionPayloads: [payload],
+      now: new Date("2026-07-11T08:12:59.999Z")
+    })).toBe(true);
+    expect(isEquipmentAttunementPendingForRow({
+      row,
+      actionPayloads: [payload],
+      now: new Date("2026-07-11T08:13:00.000Z")
+    })).toBe(false);
+    expect(isEquipmentAttunementPendingForRow({
+      row: { ...row, updatedAt: new Date(updatedAt.getTime() + 1) },
+      actionPayloads: [payload],
+      now: new Date("2026-07-11T08:12:00.000Z")
+    })).toBe(false);
   });
 });

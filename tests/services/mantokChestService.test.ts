@@ -526,14 +526,14 @@ describe("MantokChestService", () => {
     });
   });
 
-  it("keeps five real-catalog a009 inputs retryable when no bounded output exists", async () => {
+  it("completes five real-catalog a009 inputs once across changing RNG, replay, and fresh preview", async () => {
     const repository = new FakeMantokChestRepository(snapshot([
       item("item.loot-v1-a009", 5)
     ]));
     const service = new MantokChestService(
       repository,
       () => fixedNow,
-      new FakeRandomSource([0.99])
+      new FakeRandomSource([0.99, 0.01, 0])
     );
     const preview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
     expect(preview.state).toBe("preview-created");
@@ -543,14 +543,17 @@ describe("MantokChestService", () => {
 
     const first = await service.confirmRecycleForTelegramUser(telegramUserId, preview.run.token);
     const retry = await service.confirmRecycleForTelegramUser(telegramUserId, preview.run.token);
+    const freshPreview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
 
-    expect(first.state).toBe("no-output-candidate");
-    expect(retry.state).toBe("no-output-candidate");
-    expect(repository.completedCount).toBe(0);
-    expect(repository.getRun(preview.run.token)?.status).toBe("pending");
-    expect(repository.getQuantities()).toEqual({
-      "item.loot-v1-a009": 5
-    });
+    expect(first.state).toBe("recycled");
+    expect(retry.state).toBe("replayed");
+    expect(first.state === "recycled" ? first.run.outputItems : null).toEqual(
+      retry.state === "replayed" ? retry.run.outputItems : null
+    );
+    expect(freshPreview.state).toBe("not-enough-items");
+    expect(repository.completedCount).toBe(1);
+    expect(repository.getRun(preview.run.token)?.status).toBe("completed");
+    expect(repository.getQuantities()["item.loot-v1-a009"]).toBeUndefined();
   });
 
   it("does not let another character confirm a foreign token", async () => {

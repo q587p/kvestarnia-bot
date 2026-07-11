@@ -2579,6 +2579,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY,
+      activation_id TEXT NOT NULL,
+      character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE character_remorts (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,

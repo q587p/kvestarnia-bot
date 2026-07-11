@@ -8,6 +8,10 @@ import {
   resolvePersonalProtocolSignReservationState
 } from "../../src/db/repositories/prismaPartySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
+import {
+  buildEquipmentAttunementPayload,
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY
+} from "../../src/domain/equipment/equipmentAttunement";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 
 describe("PrismaPartySessionRepository integration", () => {
@@ -283,6 +287,62 @@ describe("PrismaPartySessionRepository integration", () => {
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
   });
 
+  it("uses attunement-aware effective intelligence and regenerated mana for protocol cost", async () => {
+    const tuningItemId = "item.mantok.coverage.universal.hat-of-found-shelf";
+    const cases = [
+      {
+        suffix: "base",
+        telegramUserId: 2144n,
+        expectedCost: 8,
+        expectedMana: 6,
+        readyAt: null,
+        manaCurrent: 0
+      },
+      {
+        suffix: "tuning",
+        telegramUserId: 2145n,
+        expectedCost: 8,
+        expectedMana: 2,
+        readyAt: new Date(now().getTime() + 60_000),
+        manaCurrent: 10
+      },
+      {
+        suffix: "attuned",
+        telegramUserId: 2146n,
+        expectedCost: 7,
+        expectedMana: 3,
+        readyAt: new Date(now().getTime() - 1_000),
+        manaCurrent: 10
+      }
+    ] as const;
+
+    for (const entry of cases) {
+      const userId = `protocol-cost-${entry.suffix}-user`;
+      const token = `party-token-protocol-cost-${entry.suffix}`;
+      await seedCharacter(prisma, userId, entry.telegramUserId, `Вартість ${entry.suffix}`, {
+        level: 3,
+        classId: "class.bureaucramancer",
+        manaCurrent: entry.manaCurrent,
+        manaRegenAt: entry.manaCurrent === 0 ? new Date(now().getTime() - 13 * 60_000) : null,
+        statsJson: { intelligence: 3 }
+      });
+      if (entry.readyAt) {
+        await seedAttuningEquipment(prisma, `${userId}-character`, tuningItemId, entry.readyAt);
+      }
+      await repository.createForTelegramUser(entry.telegramUserId, bigBarrelInput(token));
+
+      const result = await repository.fileBureaucramancerPersonalProtocol(entry.telegramUserId, token, now());
+      const character = await prisma.character.findUniqueOrThrow({
+        where: { id: `${userId}-character` },
+        select: { manaCurrent: true }
+      });
+
+      expect(result.state).toBe("updated");
+      expect("session" in result ? result.session.personalProtocol?.manaCost : null).toBe(entry.expectedCost);
+      expect(character.manaCurrent).toBe(entry.expectedMana);
+    }
+  });
+
   it("keeps one session protocol when the filer leaves and freezes only joined signatures", async () => {
     await seedCharacter(prisma, "protocol-leader-leaves-user", 9151n, "Ватажок Паперів", {
       level: 8
@@ -388,6 +448,44 @@ describe("PrismaPartySessionRepository integration", () => {
 
     expect(results.map((result) => result.state).sort()).toEqual(["already-signed", "updated"]);
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol-concurrent", 2);
+  });
+
+  it("claims the parent session version before writing a protocol signature", async () => {
+    const token = "party-token-protocol-parent-first";
+    await seedCharacter(prisma, "protocol-parent-first-leader-user", 9163n, "Голова Порядку", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "protocol-parent-first-signer-user", 9164n, "Підпис Порядку", { level: 8 });
+    await repository.createForTelegramUser(9163n, bigBarrelInput(token));
+    await repository.joinByTokenForTelegramUser(9164n, token, joinInput());
+    await repository.fileBureaucramancerPersonalProtocol(9163n, token, now());
+    const sessionBefore = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: token },
+      select: { version: true }
+    });
+
+    await prisma.$executeRawUnsafe(`CREATE TEMP TRIGGER protocol_signature_requires_parent_claim
+      BEFORE UPDATE OF snapshot_json ON party_participants
+      WHEN OLD.character_id = 'protocol-parent-first-signer-user-character'
+        AND (SELECT version FROM party_sessions WHERE id = OLD.session_id) <= ${sessionBefore.version}
+      BEGIN
+        SELECT RAISE(ABORT, 'parent session version must be claimed first');
+      END`);
+    try {
+      const result = await repository.signBureaucramancerPersonalProtocol(9164n, token, now());
+      const sessionAfter = await prisma.partySession.findUniqueOrThrow({
+        where: { inviteToken: token },
+        select: { version: true }
+      });
+
+      expect(result.state).toBe("updated");
+      expect(sessionAfter.version).toBe(sessionBefore.version + 1);
+      await expectPersonalProtocolSignatureSnapshotCount(prisma, token, 2);
+    } finally {
+      await prisma.$executeRawUnsafe("DROP TRIGGER IF EXISTS protocol_signature_requires_parent_claim");
+    }
   });
 
   it("commits only one concurrent Bureaucramancer protocol filing", async () => {
@@ -1020,7 +1118,7 @@ describe("PrismaPartySessionRepository integration", () => {
     expect(created.state).toBe("created");
     expect(expired?.status).toBe("expired");
     expect(duplicate?.status).toBe("expired");
-    expect(row).toEqual({ status: "expired", activeLeaderKey: null, version: 2 });
+    expect(row).toEqual({ status: "expired", activeLeaderKey: null, version: 3 });
     expect(activeKeys).toBe(0);
   });
 });
@@ -1079,6 +1177,7 @@ async function seedCharacter(
     remortCount?: number;
     classId?: string;
     manaCurrent?: number;
+    manaRegenAt?: Date | null;
     statsJson?: Record<string, number>;
   } = {}
 ): Promise<void> {
@@ -1096,6 +1195,7 @@ async function seedCharacter(
           level: options.level ?? 1,
           manaCurrent: options.manaCurrent ?? 10,
           manaMax: Math.max(10, options.manaCurrent ?? 10),
+          manaRegenAt: options.manaRegenAt,
           statsJson: options.statsJson ?? {}
         }
       }
@@ -1116,6 +1216,43 @@ async function seedCharacter(
       }
     });
   }
+}
+
+async function seedAttuningEquipment(
+  prisma: PrismaClient,
+  characterId: string,
+  itemId: string,
+  readyAt: Date
+): Promise<void> {
+  const equipmentUpdatedAt = new Date(now().getTime() - 2 * 60_000);
+  await prisma.characterEquipment.create({
+    data: {
+      id: `${characterId}-head`,
+      characterId,
+      slot: "head",
+      itemId,
+      updatedAt: equipmentUpdatedAt
+    }
+  });
+  await prisma.dailyAction.create({
+    data: {
+      id: `${characterId}-attunement`,
+      characterId,
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+      localDate: "active",
+      rewardXp: 0,
+      rewardGold: 0,
+      resultJson: buildEquipmentAttunementPayload({
+        slot: "head",
+        itemId,
+        itemName: "Капелюх знайденої полиці",
+        equipmentUpdatedAt,
+        strength: "weak",
+        startedAt: equipmentUpdatedAt,
+        readyAt
+      })
+    }
+  });
 }
 
 async function expectNoMembership(
@@ -1318,6 +1455,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL,
       slot TEXT NOT NULL,
       item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY,
+      activation_id TEXT NOT NULL,
+      character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

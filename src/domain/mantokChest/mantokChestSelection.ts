@@ -133,25 +133,45 @@ export function selectMantokChestOutputItem(input: {
     return null;
   }
 
+  const nonInputCandidates = candidates.filter((item) => !input.inputItemIds.has(item.id));
+  const ownershipPool = nonInputCandidates.length > 0 ? nonInputCandidates : candidates;
+
   const targetRarity = selectMantokChestOutputRarity({
     inputUnits: input.inputUnits,
     ...(input.playerLuck === undefined ? {} : { playerLuck: input.playerLuck }),
     rng: input.rng
   });
   const targetRank = mantokChestRarityRank[targetRarity];
-  const boundedCandidates = candidates.filter(
+  const boundedCandidates = ownershipPool.filter(
     (item) => mantokChestRarityRank[item.rarity] <= targetRank
   );
-  if (boundedCandidates.length === 0) {
-    return null;
-  }
-
-  const nonInputCandidates = boundedCandidates.filter((item) => !input.inputItemIds.has(item.id));
-  const ownershipPool = nonInputCandidates.length > 0 ? nonInputCandidates : boundedCandidates;
-  const targetRarityCandidates = ownershipPool.filter((item) => item.rarity === targetRarity);
-  const pool = targetRarityCandidates.length > 0 ? targetRarityCandidates : ownershipPool;
+  const targetRarityCandidates = boundedCandidates.filter((item) => item.rarity === targetRarity);
+  const pool = targetRarityCandidates.length > 0
+    ? targetRarityCandidates
+    : boundedCandidates.length > 0
+      ? boundedCandidates
+      : nearestHigherRarityCandidates(ownershipPool, targetRank);
 
   return pool[input.rng.nextInt(0, pool.length - 1)] ?? null;
+}
+
+function nearestHigherRarityCandidates(
+  candidates: readonly ItemContent[],
+  targetRank: number
+): ItemContent[] {
+  const nearestRank = candidates.reduce<number | null>((nearest, item) => {
+    const rank = mantokChestRarityRank[item.rarity];
+
+    if (rank <= targetRank) {
+      return nearest;
+    }
+
+    return nearest === null || rank < nearest ? rank : nearest;
+  }, null);
+
+  return nearestRank === null
+    ? []
+    : candidates.filter((item) => mantokChestRarityRank[item.rarity] === nearestRank);
 }
 
 const MANTOK_CHEST_RARITIES: readonly MantokChestRarity[] = [

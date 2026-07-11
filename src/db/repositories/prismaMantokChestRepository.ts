@@ -10,6 +10,12 @@ import type {
 } from "./mantokChestRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { items } from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  isEquipmentAttunementPendingForRow
+} from "../../domain/equipment/equipmentAttunement";
 
 type TxClient = Prisma.TransactionClient;
 type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRun"]["findFirst"]>>;
@@ -197,7 +203,28 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           select: {
             id: true,
             name: true,
-            statsJson: true
+            pronoun: true,
+            path: true,
+            raceId: true,
+            classId: true,
+            level: true,
+            xp: true,
+            gold: true,
+            hpCurrent: true,
+            hpMax: true,
+            manaCurrent: true,
+            manaMax: true,
+            statsJson: true,
+            equipment: true,
+            dailyActions: {
+              where: { key: EQUIPMENT_ATTUNEMENT_ACTION_KEY },
+              orderBy: { createdAt: "desc" },
+              take: 13,
+              select: { resultJson: true }
+            },
+            _count: {
+              select: { remorts: true }
+            }
           }
         });
 
@@ -232,7 +259,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
         const snapshot = await getConfirmationSnapshot(tx, {
           characterId: character.id,
           characterDisplayName: character.name,
-          playerLuck: readPlayerLuck(character.statsJson),
+          playerLuck: getConfirmationEffectiveLuck(character, input.now),
           inputItems: run.inputItems,
           now: input.now
         });
@@ -540,6 +567,44 @@ function parseStatus(status: string): MantokChestRunStatus {
   return status === "completed" || status === "cancelled" || status === "expired"
     ? status
     : "pending";
+}
+
+function getConfirmationEffectiveLuck(
+  character: {
+    name: string;
+    pronoun: string;
+    path: string;
+    raceId: string;
+    classId: string;
+    level: number;
+    xp: number;
+    gold: number;
+    hpCurrent: number;
+    hpMax: number;
+    manaCurrent: number;
+    manaMax: number;
+    statsJson: Prisma.JsonValue;
+    equipment: Array<{ slot: string; itemId: string; updatedAt: Date }>;
+    dailyActions: Array<{ resultJson: Prisma.JsonValue | null }>;
+    _count: { remorts: number };
+  },
+  now: Date
+): number {
+  const actionPayloads = character.dailyActions.map((row) => row.resultJson);
+  const equippedItems = character.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
+      return [];
+    }
+
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = summarizeCharacter(character, {
+    equippedItems,
+    remortCount: character._count.remorts
+  });
+
+  return summary.stats.luck;
 }
 
 function parseRunItems(value: unknown): MantokChestRunItem[] {

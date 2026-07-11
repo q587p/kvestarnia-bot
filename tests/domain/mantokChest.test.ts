@@ -195,7 +195,7 @@ describe("Mantok Chest domain", () => {
     ).toBeNull();
   });
 
-  it("returns null without integer RNG when the rarity ceiling leaves no allowed output", () => {
+  it("falls back to the nearest feasible higher rarity when the rolled ceiling has no candidate", () => {
     const commonInput = item({ id: "item.common-input", rarity: "common", goldValue: 1 });
     const rareCandidate = item({ id: "item.rare-candidate", rarity: "rare", goldValue: 100 });
 
@@ -204,8 +204,8 @@ describe("Mantok Chest domain", () => {
       averageInputScore: calculateMantokChestItemScore(commonInput),
       inputUnits: units(commonInput),
       inputItemIds: new Set([commonInput.id]),
-      rng: new FakeRandomSource([0.99])
-    })).toBeNull();
+      rng: new FakeRandomSource([0.99, 0])
+    })?.id).toBe(rareCandidate.id);
   });
 
   it("prefers a non-input lower-rarity candidate over an exact-rarity input candidate", () => {

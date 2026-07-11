@@ -43,6 +43,8 @@
 | Єгер | `🏹 Рикошетний постріл` (`skill.trick-shot`): primary plus splash/all enemies, trick, 1 мана, 2 cooldown. | Yeger hunt/board systems already exist, but class-ranger discounts/free medical supply hooks are narrow item/Yeger mechanics, not a universal profession engine. | Tracking, contracts and outdoor utility in small slices; no group auto-navigation by default. |
 | Козак-характерник | `👁 Степовий косий погляд` (`skill.steppe-side-eye`): all enemies plus control/mitigation, trick, 2 мани, 2 cooldown. | Class-specific adventure offers; steppe/tuman/control flavor. | More характерницькі tricks, ritual/control support. |
 
+`0.3.6` remains an active release candidate. A partial Telegram pass on an earlier runtime found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes require a refreshed-runtime recheck before full manual QA can be claimed.
+
 ## Поточні Титули
 
 Поточний титул виводиться з раси + класу через `getComboTitle(...)`. Ці титули вже є видимим identity-текстом і живлять кілька content hooks:

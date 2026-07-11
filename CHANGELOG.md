@@ -9,7 +9,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
-Release status: active candidate in PR #158; merge, deploy, and manual Telegram QA are not yet proven.
+Release status: active candidate in PR #158. An earlier-runtime partial Telegram pass found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes have not been rechecked in a refreshed runtime. Merge, deploy, and full manual Telegram QA are not proven.
 
 ### Added
 - Added `📄 Форма 13-А` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting; a successful filing opens defensive `Протокол 13-З`.
@@ -27,7 +27,7 @@ Release status: active candidate in PR #158; merge, deploy, and manual Telegram 
 - Preserved `0.3.5` bounded hot-path/performance instrumentation patterns: protocol lobby state is stored in party participant snapshots and frozen once at raid start instead of broad per-card recomputation.
 - Protocol mitigation does not affect `Бочковий гуркіт`, broad/all-party attacks, unsigned targets, or later personal attacks after a signer’s protection is spent.
 - Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure. Each committed filing gets a unique id; signatures match the complete protocol/filer identity; validated same-remort extensions survive leave/rejoin; remort-invalidated or unsupported filings can be replaced without stale signatures counting; raid start CAS-claims the exact recruiting version before canonical roster/ward/protocol freeze.
-- Mantok Chest output rarity follows the five selected input rarities and bounded current LUCK instead of raw score alone; all-epic input stays within epic output, mixed batches settle around their average rarity, and lower-rarity batches get only small upgrade tails. Candidate selection returns the existing no-output result before empty-pool integer RNG, keeps the target rarity as a hard ceiling, prefers non-input items across the full bounded pool, and leaves inputs untouched on retry when no output exists.
+- Mantok Chest output rarity follows the five selected input rarities and bounded confirmation-time effective LUCK, including only attuned equipment. The rolled rarity remains the normal ceiling, but when the global score-improving catalog is non-empty and no candidate exists at or below that ceiling, selection falls forward to the nearest feasible higher rarity and completes once. True no-output remains only for an empty global score-improving pool; global non-input preference, same-token replay, and one-time input consumption remain intact.
 - Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
@@ -36,6 +36,9 @@ Release status: active candidate in PR #158; merge, deploy, and manual Telegram 
 - Successful Protocol 13-Z filing/signing now refreshes the actor's stored recruiting card as well as the other joined participant cards, so a leader acting from another card does not keep a stale signature count.
 - Protocol filing confirmation now renders the committed 5-8 mana cost instead of a fixed value.
 - Protocol cooldown callbacks no longer hide behind the vague `Протокол ще відлежується` alert: they send a separate durable message with the canonical remaining wait in minutes.
+- Protocol signing now claims the recruiting session version before its participant signature write in the same transaction. Join/rejoin, leave, readiness, and ward support use the same parent-first gate so raid start cannot freeze a roster/preparation state between participant-first and session-later writes.
+- Deep-link `/start party_<token>` joins now persist the message id returned by Telegram; later filing/signing refreshes both the leader card and that participant card.
+- Protocol filing derives cost from attunement-aware effective Intelligence and applies the canonical passive mana regeneration result before its atomic exact 5-8 mana spend.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

@@ -29,11 +29,11 @@ Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot
 18. Check performance logs remain quiet unless slow thresholds are hit.
 19. Use `/dev_reset_bureaucramancer_protocol` only in local/dev QA to clear the filing cooldown; verify it is not available in production config.
 
-Manual Telegram QA status for the implementation pass: not run in Telegram.
+Manual Telegram QA status: partial on an earlier runtime. It found a stale leader recruiting card and cooldown feedback that was easy to miss. The current fixes have not been rechecked after `refresh-local-bot.cmd`; full manual Telegram QA remains pending.
 
 ### Retained 0.3.6 fix tracks
 
-1. Feed five seeded `item.loot-v1-a009` units to Mantok Chest; confirm and retry the no-output result, verifying all five remain. In a mixed-rarity batch, verify an eligible non-input lower-rarity output is preferred over recycling an input item and the target rarity ceiling is never exceeded.
+1. Feed five real `item.loot-v1-a009` units to Mantok Chest with effective LUCK 5. Confirm once and verify a score-improving output completes even when the rolled rarity ceiling has no candidate: the nearest feasible higher rarity is used, inputs are consumed once, same-token replay returns the stored result, and a fresh preview cannot reroll the spent inputs. True no-output is allowed only when the global score-improving catalog pool is empty.
 2. Inspect authored Charkokovalnia `+1..+5` variants; visible value should rise with enhancement/rarity, optional base values should remain valid, and generated Loot Expansion pricing should not be rewritten.
 3. Reopen the retired/grownup cellar seal route and a level 3+ starter completion notice; verify there is no stale `/hunt` hint or archived beginner-paper advertisement.
 4. Replay a two-enemy underdog win with a stronger backup enemy; `📜 Хроніки Квестарні` should name the strongest stored enemy while rewards remain unchanged.

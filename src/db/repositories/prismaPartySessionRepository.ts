@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { items } from "../../content";
 import type {
   CreatePartySessionInput,
   JoinPartySessionInput,
@@ -29,6 +30,16 @@ import type {
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  isEquipmentAttunementPendingForRow
+} from "../../domain/equipment/equipmentAttunement";
+import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
+import {
+  buildShynokRecoveryWindows,
+  isShynokDrinkKey
+} from "../../domain/shynokDrinks";
 import {
   BUREAUCRAMANCER_PROTOCOL_CLASS_ID,
   BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY,
@@ -94,6 +105,27 @@ const partyCharacterInclude = {
     }
   }
 } satisfies Prisma.CharacterInclude;
+
+const personalProtocolCharacterInclude = {
+  ...partyCharacterInclude,
+  dailyActions: {
+    where: {
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY
+    },
+    orderBy: {
+      createdAt: "desc" as const
+    },
+    take: 13,
+    select: {
+      resultJson: true
+    }
+  },
+  drinkState: true
+} satisfies Prisma.CharacterInclude;
+
+type PersonalProtocolCharacterRow = Prisma.CharacterGetPayload<{
+  include: typeof personalProtocolCharacterInclude;
+}>;
 
 const partySessionInclude = {
   leader: {
@@ -279,18 +311,39 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       let cancelledSoloSession: PartySessionRecord | null = null;
       const liveMembership = await findLiveMembershipSession(tx, character.id);
       if (liveMembership && liveMembership.id !== session.id) {
-        if (isPersonalBigBarrelRecruitingSession(liveMembership, character.id)) {
-          await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
-          const cancelled = await findSessionById(tx, liveMembership.id);
-          cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
-        } else {
+        if (!isPersonalBigBarrelRecruitingSession(liveMembership, character.id)) {
           return { state: "live-membership", session: mapSession(liveMembership) };
         }
       }
 
+      const claimed = await claimRecruitingSessionVersion(tx, session);
+      if (!claimed) {
+        const latest = await findSessionById(tx, session.id);
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        const latestParticipant = latest.participants.find((row) => row.characterId === character.id);
+        return latest.status === LIVE_STATUS && latestParticipant?.status === "joined"
+          ? { state: "already-joined", session: mapSession(latest) }
+          : { state: "ineligible", session: mapSession(latest) };
+      }
+
+      if (liveMembership && liveMembership.id !== session.id) {
+        await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
+        const cancelled = await findSessionById(tx, liveMembership.id);
+        cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
+      }
+
       if (existing) {
-        await tx.partyParticipant.update({
-          where: { id: existing.id },
+        const rejoined = await tx.partyParticipant.updateMany({
+          where: {
+            id: existing.id,
+            sessionId: session.id,
+            characterId: character.id,
+            status: existing.status,
+            remortCount: existing.remortCount,
+            updatedAt: existing.updatedAt
+          },
           data: {
             status: "joined",
             joinSource: input.joinSource,
@@ -303,6 +356,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             activeMembershipKey: membershipKey(character.id)
           }
         });
+        if (rejoined.count !== 1) {
+          throw new PartyPreparationParticipantChangedError(
+            session.id,
+            character.id,
+            character._count.remorts
+          );
+        }
       } else {
         await tx.partyParticipant.create({
           data: {
@@ -345,6 +405,19 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return session ? { state: "full", session } : { state: "not-found" };
       }
 
+      if (error instanceof PartyPreparationParticipantChangedError) {
+        const latest = await findSessionById(this.prisma, error.sessionId);
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        const participant = latest.participants.find((row) =>
+          row.characterId === error.characterId && row.status === "joined"
+        );
+        return participant
+          ? { state: "already-joined", session: mapSession(latest) }
+          : { state: "ineligible", session: mapSession(latest) };
+      }
+
       if (!isUniqueConflict(error)) {
         throw error;
       }
@@ -372,7 +445,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     inviteToken: string,
     now: Date
   ): Promise<PartyLeaveRepositoryResult> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx): Promise<PartyLeaveRepositoryResult> => {
       await expireTokenIfNeededTx(tx, inviteToken, now);
       const session = await findSessionByToken(tx, inviteToken);
 
@@ -395,25 +468,45 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-member", session: mapSession(session) };
       }
 
-      await tx.partyParticipant.update({
-        where: { id: participant.id },
+      const remaining = session.participants
+        .filter((row) => row.status === "joined" && row.id !== participant.id)
+        .sort((left, right) =>
+          left.joinedAt.getTime() - right.joinedAt.getTime() || left.id.localeCompare(right.id)
+        );
+      const claimed = await claimRecruitingSessionVersion(tx, session);
+      if (!claimed) {
+        const latest = await findSessionById(tx, session.id);
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        const latestTerminalState = getTerminalReplayState(latest);
+        return latestTerminalState
+          ? { state: latestTerminalState, session: mapSession(latest) }
+          : { state: "not-member", session: mapSession(latest) };
+      }
+
+      const left = await tx.partyParticipant.updateMany({
+        where: {
+          id: participant.id,
+          sessionId: session.id,
+          characterId: character.id,
+          status: "joined",
+          remortCount: participant.remortCount,
+          updatedAt: participant.updatedAt
+        },
         data: {
           status: "left",
           leftAt: now,
           activeMembershipKey: null
         }
       });
-
-      const remaining = await tx.partyParticipant.findMany({
-        where: {
-          sessionId: session.id,
-          status: "joined"
-        },
-        orderBy: [
-          { joinedAt: "asc" },
-          { id: "asc" }
-        ]
-      });
+      if (left.count !== 1) {
+        throw new PartyPreparationParticipantChangedError(
+          session.id,
+          character.id,
+          character._count.remorts
+        );
+      }
 
       if (remaining.length === 0) {
         await terminalizeSessionTx(tx, session.id, "cancelled");
@@ -427,8 +520,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           where: { id: session.id },
           data: {
             leaderCharacterId: nextLeader.characterId,
-            activeLeaderKey: leaderKey(nextLeader.characterId),
-            version: { increment: 1 }
+            activeLeaderKey: leaderKey(nextLeader.characterId)
           }
         });
         const updated = await findSessionById(tx, session.id);
@@ -437,6 +529,19 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "left", session: mapSession(updated) } : { state: "not-found" };
+    }).catch(async (error: unknown): Promise<PartyLeaveRepositoryResult> => {
+      if (!(error instanceof PartyPreparationParticipantChangedError)) {
+        throw error;
+      }
+
+      const latest = await findSessionById(this.prisma, error.sessionId);
+      if (!latest) {
+        return { state: "not-found" };
+      }
+      const terminalState = getTerminalReplayState(latest);
+      return terminalState
+        ? { state: terminalState, session: mapSession(latest) }
+        : { state: "not-member", session: mapSession(latest) };
     });
   }
 
@@ -512,21 +617,54 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "already-set", session: mapSession(session) };
       }
 
-      await tx.partyParticipant.update({
-        where: { id: participant.id },
+      const claimed = await claimRecruitingSessionVersion(tx, session);
+      if (!claimed) {
+        const latest = await findSessionById(tx, session.id);
+        return latest
+          ? { state: "not-recruiting", session: mapSession(latest) }
+          : { state: "not-found" };
+      }
+
+      const updatedParticipant = await tx.partyParticipant.updateMany({
+        where: {
+          id: participant.id,
+          sessionId: session.id,
+          characterId: character.id,
+          status: "joined",
+          updatedAt: participant.updatedAt
+        },
         data: {
           snapshotJson: snapshotWithReadiness(participant.snapshotJson, readiness)
         }
       });
-      await tx.partySession.update({
-        where: { id: session.id },
-        data: {
-          version: { increment: 1 }
-        }
-      });
+      if (updatedParticipant.count !== 1) {
+        throw new PartyPreparationParticipantChangedError(
+          session.id,
+          character.id,
+          character._count.remorts
+        );
+      }
 
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    }).catch(async (error: unknown): Promise<PartyReadinessRepositoryResult> => {
+      if (!(error instanceof PartyPreparationParticipantChangedError)) {
+        throw error;
+      }
+
+      const latest = await findSessionById(this.prisma, error.sessionId);
+      if (!latest) {
+        return { state: "not-found" };
+      }
+      if (latest.status !== LIVE_STATUS) {
+        return { state: "not-recruiting", session: mapSession(latest) };
+      }
+      const participant = latest.participants.find((row) =>
+        row.characterId === error.characterId && row.status === "joined"
+      );
+      return participant
+        ? { state: "already-set", session: mapSession(latest) }
+        : { state: "not-member", session: mapSession(latest) };
     });
   }
 
@@ -724,6 +862,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
       });
     } catch (error) {
+      if (error instanceof PartyPreparationParticipantChangedError) {
+        const session = await findSessionById(this.prisma, error.sessionId);
+        return resolveKharakternykWardSupportReservationLoss(
+          session,
+          error.characterId,
+          error.remortCount
+        );
+      }
+
       if (error instanceof KharakternykWardSupportManaSpendLostError) {
         const session = await findSessionById(this.prisma, error.sessionId);
         return session ? { state: "not-enough-mana", session: mapSession(session) } : { state: "not-found" };
@@ -805,8 +952,19 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "cooldown", availableAt: cooldown.availableAt, now, session: mapSession(session) };
       }
 
-      const manaCost = calculatePersonalProtocolManaCost(character);
-      if (character.manaCurrent < manaCost) {
+      const protocolCharacter = await tx.character.findUnique({
+        where: { id: character.id },
+        include: personalProtocolCharacterInclude
+      });
+      if (!protocolCharacter) {
+        return { state: "no-character" };
+      }
+      const protocolResources = getPersonalProtocolResources(protocolCharacter, now);
+      const manaCost = calculateBureaucramancerProtocolManaCost({
+        level: protocolResources.summary.level,
+        intelligence: protocolResources.summary.stats.intelligence
+      });
+      if (protocolResources.regeneration.resources.manaCurrent < manaCost) {
         return { state: "not-enough-mana", session: mapSession(session) };
       }
 
@@ -819,10 +977,12 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const spent = await tx.character.updateMany({
         where: {
           id: character.id,
-          manaCurrent: { gte: manaCost }
+          manaCurrent: protocolCharacter.manaCurrent,
+          manaRegenAt: protocolCharacter.manaRegenAt
         },
         data: {
-          manaCurrent: { decrement: manaCost },
+          manaCurrent: protocolResources.regeneration.resources.manaCurrent - manaCost,
+          manaMax: protocolResources.regeneration.resources.manaMax,
           manaRegenAt: now
         }
       });
@@ -986,6 +1146,17 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
+    }).catch(async (error: unknown): Promise<PartyPersonalProtocolSignRepositoryResult> => {
+      if (!(error instanceof PartyPreparationParticipantChangedError)) {
+        throw error;
+      }
+
+      const latest = await findSessionById(this.prisma, error.sessionId);
+      return resolvePersonalProtocolSignReservationLoss(
+        latest,
+        error.characterId,
+        error.remortCount
+      );
     });
   }
 
@@ -1180,6 +1351,16 @@ export function resolvePersonalProtocolSignReservationState(
   protocol: PersonalProtocolIdentity
 ): "already-signed" | "stale" {
   return matchesPersonalProtocolIdentity(signature, protocol) ? "already-signed" : "stale";
+}
+
+class PartyPreparationParticipantChangedError extends Error {
+  constructor(
+    readonly sessionId: string,
+    readonly characterId: string,
+    readonly remortCount: number
+  ) {
+    super("Party preparation participant changed after parent version claim.");
+  }
 }
 
 export interface PersonalProtocolIdentity {
@@ -1686,6 +1867,28 @@ function parseParticipantReadiness(snapshotJson: Prisma.JsonValue | null): Party
   return "waiting";
 }
 
+async function claimRecruitingSessionVersion(
+  tx: TxClient,
+  session: PartySessionRow,
+  options: { requireBigBarrel?: boolean } = {}
+): Promise<boolean> {
+  const claimed = await tx.partySession.updateMany({
+    where: {
+      id: session.id,
+      status: LIVE_STATUS,
+      version: session.version,
+      ...(options.requireBigBarrel
+        ? { originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID }
+        : {})
+    },
+    data: {
+      version: { increment: 1 }
+    }
+  });
+
+  return claimed.count === 1;
+}
+
 async function reserveKharakternykWardSignSlot(
   tx: TxClient,
   session: PartySessionRow
@@ -1780,6 +1983,15 @@ async function reserveKharakternykWardSupportSlot(
       return candidate;
     }
 
+    const parentClaimed = await claimRecruitingSessionVersion(tx, candidate, { requireBigBarrel: true });
+    if (!parentClaimed) {
+      candidate = await findSessionById(tx, candidate.id);
+      if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return candidate;
+      }
+      continue;
+    }
+
     const reserved = await tx.partyParticipant.updateMany({
       where: {
         id: candidateParticipant.id,
@@ -1787,31 +1999,20 @@ async function reserveKharakternykWardSupportSlot(
         status: "joined",
         remortCount: character._count.remorts,
         updatedAt: candidateParticipant.updatedAt,
-        session: {
-          id: candidate.id,
-          status: LIVE_STATUS,
-          originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
-          version: candidate.version
-        }
+        sessionId: candidate.id
       },
       data: {
         snapshotJson: snapshotWithWardSupport(candidateParticipant.snapshotJson, wardSupport)
       }
     });
     if (reserved.count === 1) {
-      await tx.partySession.update({
-        where: { id: candidate.id },
-        data: {
-          version: { increment: 1 }
-        }
-      });
       return "reserved";
     }
-
-    candidate = await findSessionById(tx, candidate.id);
-    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
-      return candidate;
-    }
+    throw new PartyPreparationParticipantChangedError(
+      candidate.id,
+      character.id,
+      character._count.remorts
+    );
   }
 
   return candidate;
@@ -1961,6 +2162,15 @@ async function reservePersonalProtocolSignatureSlot(
       return candidate;
     }
 
+    const parentClaimed = await claimRecruitingSessionVersion(tx, candidate, { requireBigBarrel: true });
+    if (!parentClaimed) {
+      candidate = await findSessionById(tx, candidate.id);
+      if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+        return candidate;
+      }
+      continue;
+    }
+
     const reserved = await tx.partyParticipant.updateMany({
       where: {
         id: candidateParticipant.id,
@@ -1968,12 +2178,7 @@ async function reservePersonalProtocolSignatureSlot(
         status: "joined",
         remortCount: character._count.remorts,
         updatedAt: candidateParticipant.updatedAt,
-        session: {
-          id: candidate.id,
-          status: LIVE_STATUS,
-          originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
-          version: candidate.version
-        }
+        sessionId: candidate.id
       },
       data: {
         snapshotJson: snapshotWithPersonalProtocolSignature(candidateParticipant.snapshotJson, {
@@ -1987,19 +2192,13 @@ async function reservePersonalProtocolSignatureSlot(
       }
     });
     if (reserved.count === 1) {
-      await tx.partySession.update({
-        where: { id: candidate.id },
-        data: {
-          version: { increment: 1 }
-        }
-      });
       return "reserved";
     }
-
-    candidate = await findSessionById(tx, candidate.id);
-    if (!candidate || candidate.status !== LIVE_STATUS || candidate.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
-      return candidate;
-    }
+    throw new PartyPreparationParticipantChangedError(
+      candidate.id,
+      character.id,
+      character._count.remorts
+    );
   }
 
   return candidate;
@@ -2371,16 +2570,63 @@ function matchesPersonalProtocolIdentity(
   );
 }
 
-function calculatePersonalProtocolManaCost(character: CharacterRow): number {
-  const stats = buildPartyBossCombatStats({
-    ...mapCharacter(character),
-    equipment: character.equipment
+function getPersonalProtocolResources(character: PersonalProtocolCharacterRow, now: Date) {
+  const actionPayloads = character.dailyActions.map((row) => row.resultJson);
+  const equippedItems = character.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
+      return [];
+    }
+
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = summarizeCharacter(mapCharacter(character), {
+    equippedItems,
+    remortCount: character._count.remorts
+  });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: character.hpRegenAt,
+      manaRegenAt: character.manaRegenAt
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now,
+    multiplierWindows: buildShynokRecoveryWindows(mapPartyDrinkState(character.drinkState))
   });
 
-  return calculateBureaucramancerProtocolManaCost({
-    level: stats.level,
-    intelligence: stats.intelligence
-  });
+  return { summary, regeneration };
+}
+
+function mapPartyDrinkState(
+  record: PersonalProtocolCharacterRow["drinkState"]
+): Parameters<typeof buildShynokRecoveryWindows>[0] {
+  if (!record || !isShynokDrinkKey(record.drinkKey)) {
+    return null;
+  }
+
+  const phase = record.phase === "timed" || record.phase === "queued"
+    ? record.phase
+    : null;
+  if (!phase) {
+    return null;
+  }
+
+  return {
+    drinkKey: record.drinkKey,
+    phase,
+    startedAt: record.startedAt,
+    expiresAt: record.expiresAt,
+    metadata: record.metadataJson
+  };
 }
 
 function buildPersonalProtocolId(sessionId: string): string {

@@ -16,6 +16,7 @@ import {
   buildEquipmentAttunementPayload,
   EQUIPMENT_ATTUNEMENT_ACTION_KEY,
   isEquipmentAttunementReady,
+  matchesEquipmentAttunementRow,
   parseEquipmentAttunementPayload,
   type EquipmentAttunementPayload
 } from "../../domain/equipment/equipmentAttunement";
@@ -621,10 +622,7 @@ function findAttunementForRow(
 
     if (
       !payload ||
-      payload.status !== "tuning" ||
-      payload.slot !== row.slot ||
-      payload.itemId !== row.itemId ||
-      payload.equipmentUpdatedAt !== row.updatedAt.toISOString()
+      !matchesEquipmentAttunementRow(payload, row)
     ) {
       continue;
     }

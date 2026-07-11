@@ -15,6 +15,34 @@ describe("PrismaMantokChestRepository", () => {
     expect(snapshot?.playerLuck).toBe(13);
   });
 
+  it("uses confirmation-time effective luck only after equipment attunement finishes", async () => {
+    const prisma = new FakeMantokChestPrisma();
+    prisma.disableConcurrencyGate = true;
+    prisma.setLuck(4);
+    const luckItemId = "item.mantok.coverage.universal.scarf-of-forehead-duty";
+    prisma.equip(luckItemId, "head");
+    prisma.setAttunement(luckItemId, "head", new Date(fixedNow.getTime() + 60_000));
+    const repository = new PrismaMantokChestRepository(prisma.client);
+    const observedLuck: number[] = [];
+    const selectOutput = (snapshot: { playerLuck?: number }) => {
+      observedLuck.push(snapshot.playerLuck ?? -1);
+      return { state: "no-output-candidate" as const };
+    };
+
+    await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput
+    });
+    await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: new Date(fixedNow.getTime() + 2 * 60_000),
+      selectOutput
+    });
+
+    expect(observedLuck).toEqual([5, 6]);
+  });
+
   it("ignores expired untouched pending gift reservations in snapshots", async () => {
     const prisma = new FakeMantokChestPrisma();
     prisma.disableConcurrencyGate = true;
@@ -134,6 +162,17 @@ class FakeMantokChestPrisma {
       id: "character-1",
       name: "Пані Скриня",
       telegramUserId,
+      pronoun: "they",
+      path: "boundary",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 1,
+      xp: 0,
+      gold: 0,
+      hpCurrent: 25,
+      hpMax: 25,
+      manaCurrent: 10,
+      manaMax: 10,
       statsJson: { luck: 13 }
     },
     items: [
@@ -146,7 +185,13 @@ class FakeMantokChestPrisma {
         updatedAt: fixedNow
       }
     ],
-    equipment: [] as Array<{ characterId: string; itemId: string }>,
+    equipment: [] as Array<{
+      characterId: string;
+      slot: string;
+      itemId: string;
+      updatedAt: Date;
+    }>,
+    dailyActions: [] as Array<{ resultJson: unknown }>,
     run: {
       id: "mantok-run-1",
       characterId: "character-1",
@@ -190,11 +235,33 @@ class FakeMantokChestPrisma {
     });
   }
 
-  equip(itemId: string): void {
+  setLuck(luck: number): void {
+    this.shared.character.statsJson = { luck };
+  }
+
+  equip(itemId: string, slot = "head"): void {
     this.shared.equipment.push({
       characterId: this.shared.character.id,
-      itemId
+      slot,
+      itemId,
+      updatedAt: fixedNow
     });
+  }
+
+  setAttunement(itemId: string, slot: string, readyAt: Date): void {
+    this.shared.dailyActions = [{
+      resultJson: {
+        version: 1,
+        status: "tuning",
+        slot,
+        itemId,
+        itemName: itemId,
+        equipmentUpdatedAt: fixedNow.toISOString(),
+        strength: "weak",
+        startedAt: fixedNow.toISOString(),
+        readyAt: readyAt.toISOString()
+      }
+    }];
   }
 
   private createTx(): FakeMantokChestTx {
@@ -220,7 +287,21 @@ class FakeMantokChestPrisma {
             ? {
                 id: this.shared.character.id,
                 name: this.shared.character.name,
-                statsJson: this.shared.character.statsJson
+                pronoun: this.shared.character.pronoun,
+                path: this.shared.character.path,
+                raceId: this.shared.character.raceId,
+                classId: this.shared.character.classId,
+                level: this.shared.character.level,
+                xp: this.shared.character.xp,
+                gold: this.shared.character.gold,
+                hpCurrent: this.shared.character.hpCurrent,
+                hpMax: this.shared.character.hpMax,
+                manaCurrent: this.shared.character.manaCurrent,
+                manaMax: this.shared.character.manaMax,
+                statsJson: this.shared.character.statsJson,
+                equipment: equipmentView.map((row) => ({ ...row })),
+                dailyActions: this.shared.dailyActions.map((row) => ({ ...row })),
+                _count: { remorts: 0 }
               }
             : null;
         }

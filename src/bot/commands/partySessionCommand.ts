@@ -808,7 +808,7 @@ export async function sendPartyJoinFromStartPayload(
   const inviteUrl = "session" in result
     ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
     : null;
-  await ctx.reply(presentPartyJoin(result, { inviteUrl }), {
+  const message = await ctx.reply(presentPartyJoin(result, { inviteUrl }), {
     ...HTML_MESSAGE_OPTIONS,
     ...("session" in result && result.state !== "ineligible"
       ? {
@@ -820,6 +820,16 @@ export async function sendPartyJoinFromStartPayload(
         }
       : {})
   });
+  if (
+    (result.state === "joined" || result.state === "already-joined") &&
+    ctx.chat?.id &&
+    message.message_id
+  ) {
+    await service.recordParticipantMessageReference(telegramUserId, result.session.inviteToken, {
+      chatId: BigInt(ctx.chat.id),
+      messageId: message.message_id
+    });
+  }
   return true;
 }
 
