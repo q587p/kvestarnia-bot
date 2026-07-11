@@ -146,7 +146,10 @@ function canSignBureaucramancerProtocol(
 ): boolean {
   return Boolean(
     session.personalProtocol &&
-    viewer.personalProtocolSignature?.protocolId !== session.personalProtocol.protocolId
+    (
+      viewer.personalProtocolSignature?.protocolId !== session.personalProtocol.protocolId ||
+      viewer.personalProtocolSignature.filerCharacterId !== session.personalProtocol.filerCharacterId
+    )
   );
 }
 

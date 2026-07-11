@@ -35,8 +35,13 @@ describe("PrismaPartySessionRepository integration", () => {
   });
 
   it("reports stale instead of already-signed without a matching signature snapshot", () => {
-    expect(resolvePersonalProtocolSignReservationState(null, "protocol-1")).toBe("stale");
-    expect(resolvePersonalProtocolSignReservationState("protocol-1", "protocol-1")).toBe("already-signed");
+    const protocol = { protocolId: "protocol-1", filerCharacterId: "filer-1" };
+    expect(resolvePersonalProtocolSignReservationState(null, protocol)).toBe("stale");
+    expect(resolvePersonalProtocolSignReservationState(protocol, protocol)).toBe("already-signed");
+    expect(resolvePersonalProtocolSignReservationState(
+      { protocolId: "protocol-1", filerCharacterId: "filer-old" },
+      protocol
+    )).toBe("stale");
   });
 
   it("creates one live leader session and replays duplicate create", async () => {

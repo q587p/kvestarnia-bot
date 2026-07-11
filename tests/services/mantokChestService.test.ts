@@ -526,6 +526,33 @@ describe("MantokChestService", () => {
     });
   });
 
+  it("keeps five real-catalog a009 inputs retryable when no bounded output exists", async () => {
+    const repository = new FakeMantokChestRepository(snapshot([
+      item("item.loot-v1-a009", 5)
+    ]));
+    const service = new MantokChestService(
+      repository,
+      () => fixedNow,
+      new FakeRandomSource([0.99])
+    );
+    const preview = await service.createAutoPickPreviewForTelegramUser(telegramUserId);
+    expect(preview.state).toBe("preview-created");
+    if (preview.state !== "preview-created") {
+      return;
+    }
+
+    const first = await service.confirmRecycleForTelegramUser(telegramUserId, preview.run.token);
+    const retry = await service.confirmRecycleForTelegramUser(telegramUserId, preview.run.token);
+
+    expect(first.state).toBe("no-output-candidate");
+    expect(retry.state).toBe("no-output-candidate");
+    expect(repository.completedCount).toBe(0);
+    expect(repository.getRun(preview.run.token)?.status).toBe("pending");
+    expect(repository.getQuantities()).toEqual({
+      "item.loot-v1-a009": 5
+    });
+  });
+
   it("does not let another character confirm a foreign token", async () => {
     const repository = new FakeMantokChestRepository(snapshot([
       item("item.suspicious-shawarma-wrapper", 5)

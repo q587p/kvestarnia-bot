@@ -1,6 +1,8 @@
+Archived implementation prompt. Do not run; the active contract is `docs/tasks/0.3.6-bureaucramancer-personal-protocol-13b.md`.
+
 Use $kvestarnia-version-task.
 
-Task: implement the narrow Bureaucramancer personal-protocol slice from `docs/tasks/0.3.x-bureaucramancer-personal-protocol.md`.
+Task: implement the narrow Bureaucramancer personal-protocol slice from `docs/tasks/archive/0.3.x-bureaucramancer-personal-protocol.md`.
 
 Before editing, fetch `origin/main`, inspect the current Big Barrel Brother / party-boss recruiting and combat code, and retarget the version number if the active branch already uses this placeholder.
 

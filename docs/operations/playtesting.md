@@ -22,10 +22,22 @@ Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot
 12. Verify `Бочковий гуркіт` / broad boss action is not blocked by the protocol.
 13. Refresh/replay active and terminal cards; verify no retrigger or recalculation.
 14. Try stale sign after start and terminal state; verify no mutation.
-15. Check performance logs remain quiet unless slow thresholds are hit.
-16. Use `/dev_reset_bureaucramancer_protocol` only in local/dev QA to clear the filing cooldown; verify it is not available in production config.
+15. Let the filer leave and rejoin in the same remort life; verify the protocol and filer signature survive, while a competing Bureaucramancer still cannot file.
+16. Let another signer leave and rejoin in the same remort life; verify duplicate signing does not raise the count and raid start freezes that signer once.
+17. Race start against filing/signing from separate clients; verify one committed state freezes and a filing callback that loses to start spends no mana or cooldown.
+18. Check performance logs remain quiet unless slow thresholds are hit.
+19. Use `/dev_reset_bureaucramancer_protocol` only in local/dev QA to clear the filing cooldown; verify it is not available in production config.
 
 Manual Telegram QA status for the implementation pass: not run in Telegram.
+
+### Retained 0.3.6 fix tracks
+
+1. Feed five seeded `item.loot-v1-a009` units to Mantok Chest; confirm and retry the no-output result, verifying all five remain. In a mixed-rarity batch, verify an eligible non-input lower-rarity output is preferred over recycling an input item and the target rarity ceiling is never exceeded.
+2. Inspect authored Charkokovalnia `+1..+5` variants; visible value should rise with enhancement/rarity, optional base values should remain valid, and generated Loot Expansion pricing should not be rewritten.
+3. Reopen the retired/grownup cellar seal route and a level 3+ starter completion notice; verify there is no stale `/hunt` hint or archived beginner-paper advertisement.
+4. Replay a two-enemy underdog win with a stronger backup enemy; `📜 Хроніки Квестарні` should name the strongest stored enemy while rewards remain unchanged.
+5. During the Priest self-blessing wait, reopen `✨ Жрецька поміч`; self-blessing should be hidden while healing and available other-target blessings remain.
+6. Outlevel the unfinished `Бочка, або Туди і звідти` tutorial and open `📦 Архів`; the unavailable row should remain visible.
 
 ## 0.3.5 — Performance P0 Hardening smoke
 

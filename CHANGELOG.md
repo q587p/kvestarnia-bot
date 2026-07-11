@@ -9,6 +9,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
+Release status: active candidate in PR #158; merge, deploy, and manual Telegram QA are not yet proven.
+
 ### Added
 - Added `📄 Форма 13-А` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting; a successful filing opens defensive `Протокол 13-З`.
 - Filing costs 5 mana, starts a 93-minute Bureaucramancer cooldown only after committed success, creates at most one protocol per recruiting session, and auto-signs the filer.
@@ -24,8 +26,8 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Preserved `0.3.5` bounded hot-path/performance instrumentation patterns: protocol lobby state is stored in party participant snapshots and frozen once at raid start instead of broad per-card recomputation.
 - Protocol mitigation does not affect `Бочковий гуркіт`, broad/all-party attacks, unsigned targets, or later personal attacks after a signer’s protection is spent.
-- Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure; committed session protocols cannot be replaced by a second filing.
-- Mantok Chest output rarity now follows the five selected input rarities and bounded current LUCK instead of raw score alone; all-epic input stays within epic output, mixed batches settle around their average rarity, and lower-rarity batches get only small upgrade tails.
+- Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure. Each committed filing gets a unique id; signatures match the complete protocol/filer identity; validated same-remort extensions survive leave/rejoin; remort-invalidated or unsupported filings can be replaced without stale signatures counting; raid start CAS-claims the exact recruiting version before canonical roster/ward/protocol freeze.
+- Mantok Chest output rarity follows the five selected input rarities and bounded current LUCK instead of raw score alone; all-epic input stays within epic output, mixed batches settle around their average rarity, and lower-rarity batches get only small upgrade tails. Candidate selection returns the existing no-output result before empty-pool integer RNG, keeps the target rarity as a hard ceiling, prefers non-input items across the full bounded pool, and leaves inputs untouched on retry when no output exists.
 - Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.

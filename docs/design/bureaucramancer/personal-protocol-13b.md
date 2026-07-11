@@ -1,6 +1,6 @@
 # Bureaucramancer Personal Protocol 13-Z
 
-Status: shipped in `0.3.6`.
+Status: implemented in the active `0.3.6` release candidate; merge, deploy, and manual Telegram QA remain unproven.
 
 ## Goal
 
@@ -39,12 +39,7 @@ The non-combat fantasy should be:
 Recruiting card excerpt:
 
 ```text
-📄 Протокол 13-З відкрито
-
-Бюрокромант розклав на Бочці форму для майбутніх персональних претензій.
-Підписів: 4/8
-
-Перший особистий випад Бочки по кожному підписанту має пройти канцелярію.
+📄 Протокол 13-З відкрито. Підписів: 4.
 ```
 
 Participant button:
@@ -162,8 +157,10 @@ All mutations must be replay-safe:
 Implementation notes:
 
 - recruiting protocol/signature state lives in `PartyParticipant.snapshotJson`;
+- each committed filing gets a unique protocol id, and signatures match the complete protocol id plus filer character id;
+- same-remort rejoin preserves validated protocol/signature extensions, while remort mismatch discards them;
 - filer cooldown uses `characterCooldown` key `class.bureaucramancer.personal-protocol-13b.cooldown`;
-- started Big Barrel boss state freezes joined, remort-matching signer ids into `PartyBossState.personalProtocol`;
+- raid start CAS-claims the exact recruiting version and re-reads canonical party state before freezing joined, remort-matching signer ids into `PartyBossState.personalProtocol`;
 - `/dev_reset_bureaucramancer_protocol` clears only the filer cooldown for local QA and stays disabled in production.
 
 ## UI surfaces

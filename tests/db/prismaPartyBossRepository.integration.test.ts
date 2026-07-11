@@ -1254,20 +1254,26 @@ describe("PrismaPartyBossRepository integration", () => {
     ].sort());
   });
 
-  it("freezes Bureaucramancer protocol signers from the final Big Barrel roster at start", async () => {
+  it("preserves same-life protocol snapshots across rejoin and restart before boss freeze", async () => {
     await seedCharacter(prisma, "big-protocol-leader-user", 5084n, "Паперова Голова", {
+      hp: 80,
+      level: 8
+    });
+    await seedCharacter(prisma, "big-protocol-filer-user", 5085n, "Реєстратор", {
       hp: 80,
       level: 8,
       classId: "class.bureaucramancer",
       manaCurrent: 10
     });
-    await seedCharacter(prisma, "big-protocol-signer-user", 5085n, "Підписант", {
+    await seedCharacter(prisma, "big-protocol-signer-user", 5086n, "Підписант", {
       hp: 80,
       level: 8
     });
-    await seedCharacter(prisma, "big-protocol-left-user", 5086n, "Підпис За Дверима", {
+    await seedCharacter(prisma, "big-protocol-competitor-user", 5087n, "Запасний Реєстратор", {
       hp: 80,
-      level: 8
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
     });
     await partyRepository.createForTelegramUser(5084n, {
       ...partyInput("party-token-big-protocol"),
@@ -1276,10 +1282,56 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     await partyRepository.joinByTokenForTelegramUser(5085n, "party-token-big-protocol", joinInput());
     await partyRepository.joinByTokenForTelegramUser(5086n, "party-token-big-protocol", joinInput());
-    await partyRepository.fileBureaucramancerPersonalProtocol(5084n, "party-token-big-protocol", now());
-    await partyRepository.signBureaucramancerPersonalProtocol(5085n, "party-token-big-protocol", now());
-    await partyRepository.signBureaucramancerPersonalProtocol(5086n, "party-token-big-protocol", now());
-    await partyRepository.leaveByTokenForTelegramUser(5086n, "party-token-big-protocol", now());
+    await partyRepository.joinByTokenForTelegramUser(5087n, "party-token-big-protocol", joinInput());
+    expect((await partyRepository.fileBureaucramancerPersonalProtocol(
+      5085n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("updated");
+    expect((await partyRepository.signBureaucramancerPersonalProtocol(
+      5086n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("updated");
+
+    expect((await partyRepository.leaveByTokenForTelegramUser(
+      5085n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("left");
+    expect((await partyRepository.joinByTokenForTelegramUser(
+      5085n,
+      "party-token-big-protocol",
+      joinInput()
+    )).state).toBe("joined");
+    expect((await partyRepository.fileBureaucramancerPersonalProtocol(
+      5087n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("already-exists");
+
+    expect((await partyRepository.leaveByTokenForTelegramUser(
+      5086n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("left");
+    expect((await partyRepository.joinByTokenForTelegramUser(
+      5086n,
+      "party-token-big-protocol",
+      joinInput()
+    )).state).toBe("joined");
+    expect((await partyRepository.signBureaucramancerPersonalProtocol(
+      5086n,
+      "party-token-big-protocol",
+      now()
+    )).state).toBe("already-signed");
+
+    const restartedRepository = new PrismaPartySessionRepository(prisma);
+    const restartedState = await restartedRepository.findByToken("party-token-big-protocol", now());
+    expect(restartedState?.personalProtocol).toMatchObject({
+      filerCharacterId: "big-protocol-filer-user-character",
+      signatureCount: 2
+    });
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5084n, {
       partyInviteToken: "party-token-big-protocol",
@@ -1293,11 +1345,11 @@ describe("PrismaPartyBossRepository integration", () => {
     }
     expect(started.session.state.personalProtocol).toMatchObject({
       kind: "bureaucramancer-personal-protocol-13b",
-      filerCharacterId: "big-protocol-leader-user-character"
+      filerCharacterId: "big-protocol-filer-user-character"
     });
     expect(started.session.state.personalProtocol?.signatures).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        characterId: "big-protocol-leader-user-character",
+        characterId: "big-protocol-filer-user-character",
         status: "unspent"
       }),
       expect.objectContaining({
@@ -1308,8 +1360,267 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(started.session.state.personalProtocol?.signatures).toHaveLength(2);
     expect(started.session.state.participants.map((participant) => participant.characterId).sort()).toEqual([
       "big-protocol-leader-user-character",
-      "big-protocol-signer-user-character"
+      "big-protocol-filer-user-character",
+      "big-protocol-signer-user-character",
+      "big-protocol-competitor-user-character"
     ].sort());
+  });
+
+  it("replaces a remort-invalidated filing with a new identity and lets old signers sign again", async () => {
+    await seedCharacter(prisma, "big-protocol-remort-leader-user", 5088n, "Ватажок Заміни", {
+      hp: 80,
+      level: 8
+    });
+    await seedCharacter(prisma, "big-protocol-remort-old-filer-user", 5089n, "Старий Реєстратор", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-remort-new-filer-user", 5090n, "Новий Реєстратор", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-remort-signer-user", 5091n, "Повторний Підписант", {
+      hp: 80,
+      level: 8
+    });
+    await partyRepository.createForTelegramUser(5088n, {
+      ...partyInput("party-token-big-protocol-remort"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5089n, "party-token-big-protocol-remort", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5090n, "party-token-big-protocol-remort", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5091n, "party-token-big-protocol-remort", joinInput());
+
+    const oldFiled = await partyRepository.fileBureaucramancerPersonalProtocol(
+      5089n,
+      "party-token-big-protocol-remort",
+      now()
+    );
+    expect(oldFiled.state).toBe("updated");
+    const oldProtocolId = "session" in oldFiled ? oldFiled.session.personalProtocol?.protocolId : undefined;
+    await partyRepository.signBureaucramancerPersonalProtocol(5091n, "party-token-big-protocol-remort", now());
+    await partyRepository.leaveByTokenForTelegramUser(5089n, "party-token-big-protocol-remort", now());
+    await seedRemort(prisma, "big-protocol-remort-old-filer-user-character", 1);
+
+    const replacement = await partyRepository.fileBureaucramancerPersonalProtocol(
+      5090n,
+      "party-token-big-protocol-remort",
+      now()
+    );
+    expect(replacement.state).toBe("updated");
+    const replacementProtocolId = "session" in replacement
+      ? replacement.session.personalProtocol?.protocolId
+      : undefined;
+    expect(replacementProtocolId).toBeTruthy();
+    expect(replacementProtocolId).not.toBe(oldProtocolId);
+    expect((await partyRepository.signBureaucramancerPersonalProtocol(
+      5091n,
+      "party-token-big-protocol-remort",
+      now()
+    )).state).toBe("updated");
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5088n, {
+      partyInviteToken: "party-token-big-protocol-remort",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    expect(started.session.state.personalProtocol).toMatchObject({
+      protocolId: replacementProtocolId,
+      filerCharacterId: "big-protocol-remort-new-filer-user-character"
+    });
+    expect(started.session.state.personalProtocol?.signatures.map((row) => row.characterId).sort()).toEqual([
+      "big-protocol-remort-new-filer-user-character",
+      "big-protocol-remort-signer-user-character"
+    ].sort());
+  });
+
+  it("replaces an unsupported filing snapshot and freezes only re-signed current identities", async () => {
+    await seedCharacter(prisma, "big-protocol-version-leader-user", 5092n, "Ватажок Версій", {
+      hp: 80,
+      level: 8
+    });
+    await seedCharacter(prisma, "big-protocol-version-old-filer-user", 5093n, "Старий Бланк", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-version-new-filer-user", 5094n, "Новий Бланк", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-version-signer-user", 5095n, "Версійний Підпис", {
+      hp: 80,
+      level: 8
+    });
+    await partyRepository.createForTelegramUser(5092n, {
+      ...partyInput("party-token-big-protocol-version-replace"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5093n, "party-token-big-protocol-version-replace", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5094n, "party-token-big-protocol-version-replace", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(5095n, "party-token-big-protocol-version-replace", joinInput());
+    await partyRepository.fileBureaucramancerPersonalProtocol(
+      5093n,
+      "party-token-big-protocol-version-replace",
+      now()
+    );
+    await partyRepository.signBureaucramancerPersonalProtocol(
+      5095n,
+      "party-token-big-protocol-version-replace",
+      now()
+    );
+
+    const oldFiler = await prisma.partyParticipant.findFirstOrThrow({
+      where: {
+        session: { inviteToken: "party-token-big-protocol-version-replace" },
+        characterId: "big-protocol-version-old-filer-user-character"
+      },
+      select: { id: true, snapshotJson: true }
+    });
+    const invalidatedSnapshot = JSON.parse(JSON.stringify(oldFiler.snapshotJson)) as Record<string, unknown>;
+    const invalidatedProtocol = invalidatedSnapshot.bureaucramancerPersonalProtocol13B;
+    if (!invalidatedProtocol || typeof invalidatedProtocol !== "object" || Array.isArray(invalidatedProtocol)) {
+      throw new Error("Expected protocol snapshot object.");
+    }
+    (invalidatedProtocol as Record<string, unknown>).version = 2;
+    await prisma.partyParticipant.update({
+      where: { id: oldFiler.id },
+      data: { snapshotJson: invalidatedSnapshot }
+    });
+
+    const replacement = await partyRepository.fileBureaucramancerPersonalProtocol(
+      5094n,
+      "party-token-big-protocol-version-replace",
+      now()
+    );
+    expect(replacement.state).toBe("updated");
+    expect((await partyRepository.signBureaucramancerPersonalProtocol(
+      5095n,
+      "party-token-big-protocol-version-replace",
+      now()
+    )).state).toBe("updated");
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5092n, {
+      partyInviteToken: "party-token-big-protocol-version-replace",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    expect(started.session.state.personalProtocol).toMatchObject({
+      filerCharacterId: "big-protocol-version-new-filer-user-character"
+    });
+    expect(started.session.state.personalProtocol?.signatures.map((row) => row.characterId).sort()).toEqual([
+      "big-protocol-version-new-filer-user-character",
+      "big-protocol-version-signer-user-character"
+    ].sort());
+  });
+
+  it("CAS-orders raid start against protocol filing without spending on a lost filing", async () => {
+    await seedCharacter(prisma, "big-protocol-start-file-user", 5096n, "Стартовий Реєстратор", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await partyRepository.createForTelegramUser(5096n, {
+      ...partyInput("party-token-big-protocol-start-file"),
+      originLocationId: "barrel.big-brother"
+    });
+
+    const [started, filed] = await Promise.all([
+      bossRepository.startFromRecruitingPartyForTelegramUser(5096n, {
+        partyInviteToken: "party-token-big-protocol-start-file",
+        now: now(),
+        turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      }),
+      partyRepository.fileBureaucramancerPersonalProtocol(
+        5096n,
+        "party-token-big-protocol-start-file",
+        now()
+      )
+    ]);
+
+    expect(started.state).toBe("started");
+    expect(["updated", "not-recruiting"]).toContain(filed.state);
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const mana = await prisma.character.findUniqueOrThrow({
+      where: { id: "big-protocol-start-file-user-character" },
+      select: { manaCurrent: true }
+    });
+    if (filed.state === "updated") {
+      expect(mana.manaCurrent).toBe(5);
+      expect(started.session.state.personalProtocol?.signatures.map((row) => row.characterId)).toEqual([
+        "big-protocol-start-file-user-character"
+      ]);
+    } else {
+      expect(mana.manaCurrent).toBe(10);
+      expect(started.session.state.personalProtocol).toBeUndefined();
+    }
+  });
+
+  it("CAS-orders raid start against signing and freezes only a committed signature", async () => {
+    await seedCharacter(prisma, "big-protocol-start-sign-leader-user", 5097n, "Стартова Голова", {
+      hp: 80,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10
+    });
+    await seedCharacter(prisma, "big-protocol-start-sign-signer-user", 5098n, "Стартовий Підпис", {
+      hp: 80,
+      level: 8
+    });
+    await partyRepository.createForTelegramUser(5097n, {
+      ...partyInput("party-token-big-protocol-start-sign"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(5098n, "party-token-big-protocol-start-sign", joinInput());
+    await partyRepository.fileBureaucramancerPersonalProtocol(
+      5097n,
+      "party-token-big-protocol-start-sign",
+      now()
+    );
+
+    const [started, signed] = await Promise.all([
+      bossRepository.startFromRecruitingPartyForTelegramUser(5097n, {
+        partyInviteToken: "party-token-big-protocol-start-sign",
+        now: now(),
+        turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      }),
+      partyRepository.signBureaucramancerPersonalProtocol(
+        5098n,
+        "party-token-big-protocol-start-sign",
+        now()
+      )
+    ]);
+
+    expect(started.state).toBe("started");
+    expect(["updated", "not-recruiting"]).toContain(signed.state);
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    const frozenSignerIds = started.session.state.personalProtocol?.signatures.map((row) => row.characterId) ?? [];
+    expect(frozenSignerIds).toContain("big-protocol-start-sign-leader-user-character");
+    if (signed.state === "updated") {
+      expect(frozenSignerIds).toContain("big-protocol-start-sign-signer-user-character");
+    } else {
+      expect(frozenSignerIds).not.toContain("big-protocol-start-sign-signer-user-character");
+    }
   });
 
   it("stores participant-specific Big Barrel Brother manatky instead of replaying the solo Barrel bundle", async () => {

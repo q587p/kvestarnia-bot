@@ -195,6 +195,41 @@ describe("Mantok Chest domain", () => {
     ).toBeNull();
   });
 
+  it("returns null without integer RNG when the rarity ceiling leaves no allowed output", () => {
+    const commonInput = item({ id: "item.common-input", rarity: "common", goldValue: 1 });
+    const rareCandidate = item({ id: "item.rare-candidate", rarity: "rare", goldValue: 100 });
+
+    expect(selectMantokChestOutputItem({
+      items: [rareCandidate],
+      averageInputScore: calculateMantokChestItemScore(commonInput),
+      inputUnits: units(commonInput),
+      inputItemIds: new Set([commonInput.id]),
+      rng: new FakeRandomSource([0.99])
+    })).toBeNull();
+  });
+
+  it("prefers a non-input lower-rarity candidate over an exact-rarity input candidate", () => {
+    const rareInput = item({ id: "item.rare-input", rarity: "rare", goldValue: 1 });
+    const exactInputCandidate = item({
+      id: "item.rare-input-upgrade",
+      rarity: "rare",
+      goldValue: 100
+    });
+    const lowerNonInputCandidate = item({
+      id: "item.uncommon-other",
+      rarity: "uncommon",
+      goldValue: 200
+    });
+
+    expect(selectMantokChestOutputItem({
+      items: [exactInputCandidate, lowerNonInputCandidate],
+      averageInputScore: calculateMantokChestItemScore(rareInput),
+      inputUnits: units(rareInput),
+      inputItemIds: new Set([exactInputCandidate.id]),
+      rng: new FakeRandomSource([0.99, 0])
+    })?.id).toBe(lowerNonInputCandidate.id);
+  });
+
   it("keeps an all-epic batch at epic instead of promoting it to legendary", () => {
     const inputEpic = item({ id: "item.input-epic", rarity: "epic", goldValue: 10 });
     const epic = item({ id: "item.epic", rarity: "epic", goldValue: 100 });

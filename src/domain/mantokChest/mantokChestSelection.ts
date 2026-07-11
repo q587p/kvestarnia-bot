@@ -126,29 +126,32 @@ export function selectMantokChestOutputItem(input: {
   playerLuck?: number;
   rng: RandomSource;
 }): ItemContent | null {
+  const candidates = input.items.filter(
+    (item) => !isProtectedMantokChestItem(item) && calculateMantokChestItemScore(item) > input.averageInputScore
+  );
+  if (candidates.length === 0) {
+    return null;
+  }
+
   const targetRarity = selectMantokChestOutputRarity({
     inputUnits: input.inputUnits,
     ...(input.playerLuck === undefined ? {} : { playerLuck: input.playerLuck }),
     rng: input.rng
   });
-  const candidates = input.items.filter(
-    (item) => !isProtectedMantokChestItem(item) && calculateMantokChestItemScore(item) > input.averageInputScore
-  );
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
   const targetRank = mantokChestRarityRank[targetRarity];
-  const targetRarityCandidates = candidates.filter((item) => item.rarity === targetRarity);
   const boundedCandidates = candidates.filter(
     (item) => mantokChestRarityRank[item.rarity] <= targetRank
   );
-  const rarityPool = targetRarityCandidates.length > 0 ? targetRarityCandidates : boundedCandidates;
-  const nonInputCandidates = rarityPool.filter((item) => !input.inputItemIds.has(item.id));
-  const pool = nonInputCandidates.length > 0 ? nonInputCandidates : rarityPool;
+  if (boundedCandidates.length === 0) {
+    return null;
+  }
 
-  return pool[input.rng.nextInt(0, pool.length - 1)] ?? pool[0] ?? null;
+  const nonInputCandidates = boundedCandidates.filter((item) => !input.inputItemIds.has(item.id));
+  const ownershipPool = nonInputCandidates.length > 0 ? nonInputCandidates : boundedCandidates;
+  const targetRarityCandidates = ownershipPool.filter((item) => item.rarity === targetRarity);
+  const pool = targetRarityCandidates.length > 0 ? targetRarityCandidates : ownershipPool;
+
+  return pool[input.rng.nextInt(0, pool.length - 1)] ?? null;
 }
 
 const MANTOK_CHEST_RARITIES: readonly MantokChestRarity[] = [

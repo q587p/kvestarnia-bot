@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   CreatePartySessionInput,
@@ -296,7 +297,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             joinedAt: input.now,
             leftAt: null,
             remortCount: character._count.remorts,
-            snapshotJson: snapshotCharacter(character),
+            snapshotJson: snapshotCharacterForRejoin(character, existing),
             chatId: input.chatId ?? existing.chatId,
             messageId: input.messageId ?? existing.messageId,
             activeMembershipKey: membershipKey(character.id)
@@ -965,7 +966,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
-      if (existingSignature?.protocolId === protocol.protocolId) {
+      if (matchesPersonalProtocolIdentity(existingSignature, protocol)) {
         return { state: "already-signed", session: mapSession(session) };
       }
 
@@ -1174,10 +1175,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 }
 
 export function resolvePersonalProtocolSignReservationState(
-  signatureProtocolId: string | null,
-  protocolId: string
+  signature: PersonalProtocolIdentity | null,
+  protocol: PersonalProtocolIdentity
 ): "already-signed" | "stale" {
-  return signatureProtocolId === protocolId ? "already-signed" : "stale";
+  return matchesPersonalProtocolIdentity(signature, protocol) ? "already-signed" : "stale";
+}
+
+export interface PersonalProtocolIdentity {
+  protocolId: string;
+  filerCharacterId: string;
 }
 
 async function findCharacterByTelegramUser(
@@ -1398,7 +1404,7 @@ function mapPersonalProtocol(row: PartySessionRow): PartyPersonalProtocolRecord 
     kind: BUREAUCRAMANCER_PROTOCOL_KIND,
     protocolId: active.protocolId,
     filerCharacterId: active.filerCharacterId,
-    signatureCount: countActivePersonalProtocolSignatures(row, active.protocolId),
+    signatureCount: countActivePersonalProtocolSignatures(row, active),
     manaCost: active.manaCost,
     filedAt: new Date(active.filedAt)
   };
@@ -1555,6 +1561,43 @@ function snapshotCharacter(character: CharacterRow): Prisma.InputJsonObject {
     remortCount: character._count.remorts,
     raidReadiness: "waiting"
   };
+}
+
+function snapshotCharacterForRejoin(
+  character: CharacterRow,
+  existing: PartySessionRow["participants"][number]
+): Prisma.InputJsonObject {
+  const snapshot = copySnapshot(snapshotCharacter(character) as Prisma.JsonValue);
+  const remortCount = character._count.remorts;
+  if (existing.remortCount !== remortCount) {
+    return snapshot;
+  }
+
+  const protocol = parsePersonalProtocol(existing.snapshotJson);
+  if (
+    protocol &&
+    protocol.filerCharacterId === character.id &&
+    protocol.remortCount === remortCount
+  ) {
+    snapshot[BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY] = {
+      version: 1,
+      ...protocol
+    };
+  }
+
+  const signature = parsePersonalProtocolSignature(existing.snapshotJson);
+  if (
+    signature &&
+    signature.signerCharacterId === character.id &&
+    signature.remortCount === remortCount
+  ) {
+    snapshot[BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY] = {
+      version: 1,
+      ...signature
+    };
+  }
+
+  return snapshot;
 }
 
 function snapshotWithReadiness(
@@ -1908,12 +1951,12 @@ async function reservePersonalProtocolSignatureSlot(
     }
 
     const currentProtocol = getActivePersonalProtocol(candidate);
-    if (!currentProtocol || currentProtocol.protocolId !== protocol.protocolId) {
+    if (!currentProtocol || !matchesPersonalProtocolIdentity(currentProtocol, protocol)) {
       return candidate;
     }
 
     const existingSignature = parsePersonalProtocolSignature(candidateParticipant.snapshotJson);
-    if (existingSignature?.protocolId === currentProtocol.protocolId) {
+    if (matchesPersonalProtocolIdentity(existingSignature, currentProtocol)) {
       return candidate;
     }
 
@@ -1999,7 +2042,7 @@ function resolvePersonalProtocolSignReservationLoss(
 
   const existingSignature = parsePersonalProtocolSignature(participant.snapshotJson);
   return {
-    state: resolvePersonalProtocolSignReservationState(existingSignature?.protocolId ?? null, protocol.protocolId),
+    state: resolvePersonalProtocolSignReservationState(existingSignature, protocol),
     session: mapSession(session)
   };
 }
@@ -2159,15 +2202,24 @@ function getActivePersonalProtocol(row: PartySessionRow): InternalPersonalProtoc
   return null;
 }
 
-function countActivePersonalProtocolSignatures(row: PartySessionRow, protocolId: string): number {
+function countActivePersonalProtocolSignatures(
+  row: PartySessionRow,
+  protocol: InternalPersonalProtocolSnapshot
+): number {
   return row.participants.filter((participant) => {
-    if (participant.status !== "joined") {
+    if (
+      participant.status !== "joined" ||
+      participant.character._count.remorts !== participant.remortCount
+    ) {
       return false;
     }
 
     const signature = parsePersonalProtocolSignature(participant.snapshotJson);
+    if (!signature) {
+      return false;
+    }
     return (
-      signature?.protocolId === protocolId &&
+      matchesPersonalProtocolIdentity(signature, protocol) &&
       signature.signerCharacterId === participant.characterId &&
       signature.remortCount === participant.remortCount
     );
@@ -2308,8 +2360,18 @@ function membershipKey(characterId: string): string {
   return `party-member:${characterId}`;
 }
 
+function matchesPersonalProtocolIdentity(
+  candidate: PersonalProtocolIdentity | null | undefined,
+  protocol: PersonalProtocolIdentity
+): boolean {
+  return (
+    candidate?.protocolId === protocol.protocolId &&
+    candidate.filerCharacterId === protocol.filerCharacterId
+  );
+}
+
 function buildPersonalProtocolId(sessionId: string): string {
-  return `bureaucramancer-personal-protocol-13b:${sessionId}`;
+  return `bureaucramancer-personal-protocol-13b:${sessionId}:${randomUUID()}`;
 }
 
 function addMinutes(date: Date, minutes: number): Date {

@@ -156,73 +156,120 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       await expireRecruitingPartyIfNeeded(tx, input.partyInviteToken, input.now, {
         allowBigBarrelExpiredRecruiting: input.allowExpiredRecruiting === true
       });
-      const party = await tx.partySession.findUnique({
+      const initialParty = await tx.partySession.findUnique({
         where: { inviteToken: input.partyInviteToken },
         include: partyInclude
       });
 
-      if (!party) {
+      if (!initialParty) {
         return { state: "not-found" };
       }
+      let party: PartyRow = initialParty;
 
-      const existingBoss = await tx.partyBossSession.findUnique({
-        where: { partySessionId: party.id },
-        include: partyBossInclude
-      });
+      let claimedParty: PartyRow | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const existingBoss = await tx.partyBossSession.findUnique({
+          where: { partySessionId: party.id },
+          include: partyBossInclude
+        });
 
-      if (existingBoss) {
-        return {
-          state: existingBoss.status === "active" ? "already-active" : "terminal",
-          session: mapSession(existingBoss)
-        };
-      }
-
-      if (party.leaderCharacterId !== character.id) {
-        return { state: "not-leader" };
-      }
-
-      if (
-        party.status === RECRUITING_PARTY_STATUS &&
-        party.expiresAt <= input.now &&
-        !(input.allowExpiredRecruiting === true && party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
-      ) {
-        return { state: "expired" };
-      }
-
-      if (party.status === "expired") {
-        return { state: "expired" };
-      }
-
-      if (party.status !== RECRUITING_PARTY_STATUS) {
-        return { state: "not-recruiting" };
-      }
-
-      const joined = party.participants.filter((participant) => participant.status === "joined");
-      if (joined.length < party.minimumParticipants) {
-        return { state: "too-small" };
-      }
-
-      const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
-      if (isBigBarrelParty && await hasIneligibleBigBarrelParticipant(tx, party, joined, input.now)) {
-        return { state: "ineligible" };
-      }
-
-      const blocker = await tx.activeCombatLease.findFirst({
-        where: {
-          characterId: {
-            in: joined.map((participant) => participant.characterId)
-          }
-        },
-        select: {
-          characterId: true
+        if (existingBoss) {
+          return {
+            state: existingBoss.status === "active" ? "already-active" : "terminal",
+            session: mapSession(existingBoss)
+          };
         }
-      });
-      if (blocker) {
-        const blocked = joined.find((participant) => participant.characterId === blocker.characterId);
-        return blocked
-          ? { state: "blocked", blockerName: blocked.character.name }
-          : { state: "blocked" };
+
+        if (party.leaderCharacterId !== character.id) {
+          return { state: "not-leader" };
+        }
+
+        if (
+          party.status === RECRUITING_PARTY_STATUS &&
+          party.expiresAt <= input.now &&
+          !(input.allowExpiredRecruiting === true && party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+        ) {
+          return { state: "expired" };
+        }
+
+        if (party.status === "expired") {
+          return { state: "expired" };
+        }
+
+        if (party.status !== RECRUITING_PARTY_STATUS) {
+          return { state: "not-recruiting" };
+        }
+
+        const candidateJoined = party.participants.filter((participant) => participant.status === "joined");
+        if (candidateJoined.length < party.minimumParticipants) {
+          return { state: "too-small" };
+        }
+
+        const candidateIsBigBarrel = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+        if (
+          candidateIsBigBarrel &&
+          await hasIneligibleBigBarrelParticipant(tx, party, candidateJoined, input.now)
+        ) {
+          return { state: "ineligible" };
+        }
+
+        const blocker = await tx.activeCombatLease.findFirst({
+          where: {
+            characterId: {
+              in: candidateJoined.map((participant) => participant.characterId)
+            }
+          },
+          select: {
+            characterId: true
+          }
+        });
+        if (blocker) {
+          const blocked = candidateJoined.find((participant) => participant.characterId === blocker.characterId);
+          return blocked
+            ? { state: "blocked", blockerName: blocked.character.name }
+            : { state: "blocked" };
+        }
+
+        const claimed = await tx.partySession.updateMany({
+          where: {
+            id: party.id,
+            status: RECRUITING_PARTY_STATUS,
+            version: party.version
+          },
+          data: {
+            status: ACTIVE_PARTY_STATUS,
+            version: { increment: 1 }
+          }
+        });
+        if (claimed.count === 1) {
+          const canonicalParty = await tx.partySession.findUnique({
+            where: { id: party.id },
+            include: partyInclude
+          });
+          if (!canonicalParty) {
+            throw new Error("Claimed party disappeared before boss-state freeze.");
+          }
+          claimedParty = canonicalParty;
+          break;
+        }
+
+        const latest: PartyRow | null = await tx.partySession.findUnique({
+          where: { id: party.id },
+          include: partyInclude
+        });
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        party = latest;
       }
+
+      if (!claimedParty) {
+        return { state: "blocked" };
+      }
+
+      party = claimedParty;
+      const joined = party.participants.filter((participant) => participant.status === "joined");
+      const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
 
       const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
       const personalProtocol = isBigBarrelParty
@@ -259,14 +306,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           kind: PARTY_BOSS_LEASE_KIND,
           referenceId: party.id
         }))
-      });
-
-      await tx.partySession.update({
-        where: { id: party.id },
-        data: {
-          status: ACTIVE_PARTY_STATUS,
-          version: { increment: 1 }
-        }
       });
 
       const boss = await tx.partyBossSession.create({
@@ -1508,7 +1547,8 @@ function buildBureaucramancerPersonalProtocolForStartedParty(
       signature?.protocolId === protocol.protocolId &&
       signature.filerCharacterId === protocol.filerCharacterId &&
       signature.signerCharacterId === participant.characterId &&
-      signature.remortCount === participant.remortCount
+      signature.remortCount === participant.remortCount &&
+      participant.character._count.remorts === participant.remortCount
     )
       ? [participant.characterId]
       : [];

@@ -322,6 +322,25 @@ describe("party session keyboard", () => {
       viewerCharacterId: "character-2",
       includeBossStart: true
     }))).not.toContain("✍️ Підписати протокол");
+
+    const staleFilerSignature = {
+      ...signed,
+      participants: signed.participants.map((participant) =>
+        participant.characterId === "character-2" && participant.personalProtocolSignature
+          ? {
+              ...participant,
+              personalProtocolSignature: {
+                ...participant.personalProtocolSignature,
+                filerCharacterId: "character-old-filer"
+              }
+            }
+          : participant
+      )
+    };
+    expect(inlineButtonTexts(buildPartySessionKeyboard(staleFilerSignature, {
+      viewerCharacterId: "character-2",
+      includeBossStart: true
+    }))).toContain("✍️ Підписати протокол");
   });
 
   it("hides Big Barrel Brother cancel once another participant has joined", () => {
