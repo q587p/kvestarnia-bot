@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 1,
+  "generatedForDate": "12026-07-10",
+  "timezone": "Europe/Kyiv",
+  "currentLine": {
+    "name": "0.3.x",
+    "theme": "Closed Alpha Readiness",
+    "latestVerifiedMainVersionInAudit": "0.3.5",
+    "activeTaskId": "A01",
+    "note": "0.3.6 Bureaucramancer Personal Protocol is open/current work; merge, deploy and live QA are not assumed by this board."
+  },
+  "statusDefinitions": {
+    "in_progress": "Work is already open/current.",
+    "next": "Ready to activate after dependencies.",
+    "conditional": "Create only when cited evidence justifies it.",
+    "blocked_by_gate": "Do not activate until named gates pass.",
+    "later": "Future horizon; not current implementation permission."
+  },
+  "ownerRoles": [
+    "Maintainer / Product",
+    "Main Codex",
+    "Review Codex",
+    "QA / Playtester",
+    "Ops",
+    "Game & Balance",
+    "Content / UX"
+  ],
+  "tasks": [
+    {
+      "id": "A01",
+      "priority": "P0",
+      "status": "in_progress",
+      "horizon": "now",
+      "line": "0.3.x",
+      "versionTarget": "0.3.6",
+      "title": "Bureaucramancer Personal Protocol",
+      "suggestedOwners": ["Main Codex", "Maintainer / Product"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Task acceptance criteria are satisfied",
+        "Focused persistence, concurrency and party-boss tests pass",
+        "Required full repository check is recorded"
+      ]
+    },
+    {
+      "id": "A02",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "now",
+      "line": "0.3.x",
+      "versionTarget": "0.3.6",
+      "title": "Deep review and fixes before merge",
+      "suggestedOwners": ["Review Codex", "Main Codex"],
+      "dependencies": ["A01"],
+      "acceptanceEvidence": [
+        "No unresolved blocker or important review findings",
+        "Risky in-scope fixes are applied before merge",
+        "Missing regression tests identified by review are present"
+      ]
+    },
+    {
+      "id": "A03",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "next_1_3_days",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Critical 0.3.x Telegram smoke",
+      "suggestedOwners": ["QA / Playtester", "Maintainer / Product"],
+      "dependencies": ["A02"],
+      "acceptanceEvidence": [
+        "Compact smoke record lists environment and tested flows",
+        "Every critical flow has pass, fail or explicit blocker",
+        "Reward replay and stale callback checks are included"
+      ]
+    },
+    {
+      "id": "A04",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "next_1_3_days",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Current-state and canon reconciliation",
+      "suggestedOwners": ["Maintainer / Product", "Content / UX"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "README, product brief, roadmap, task index and Codex context agree on the current line",
+        "Kharakternyk balance contradiction is removed",
+        "Superseded drafts are clearly archived or labeled",
+        "Local Markdown links pass"
+      ]
+    },
+    {
+      "id": "A05",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "next_1_3_days",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Production feature maturity matrix",
+      "suggestedOwners": ["Maintainer / Product", "Ops"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Each flagged feature has implemented, default, production-enabled and manual-QA fields",
+        "The matrix contains no secrets",
+        "Unknown production facts are labeled unknown rather than inferred"
+      ]
+    },
+    {
+      "id": "A06",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "next_1_3_days",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Backup and restore proof",
+      "suggestedOwners": ["Ops", "Maintainer / Product"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Runbook matches the actual production storage target",
+        "A backup is restored into a separate environment or copy",
+        "Owner, verification date and retention decision are recorded"
+      ]
+    },
+    {
+      "id": "A07",
+      "priority": "P0",
+      "status": "next",
+      "horizon": "next_1_3_days",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Post-0.3.5 performance sample",
+      "suggestedOwners": ["Ops", "Main Codex"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Representative sampled or slow route records are collected",
+        "DB, compute and Telegram time are separated where instrumented",
+        "A ranked next-action note is produced without speculative infrastructure changes"
+      ]
+    },
+    {
+      "id": "A08",
+      "priority": "P1",
+      "status": "conditional",
+      "horizon": "next_4_10_days",
+      "line": "0.3.x",
+      "versionTarget": "next verified 0.3.x version",
+      "title": "Measured Alpha Reliability Fix",
+      "suggestedOwners": ["Main Codex", "Review Codex"],
+      "dependencies": ["A02", "A03", "A07"],
+      "acceptanceEvidence": [
+        "The task cites one measured or reproduced root cause",
+        "A regression test covers the defect",
+        "Before and after evidence is recorded"
+      ]
+    },
+    {
+      "id": "A09",
+      "priority": "P1",
+      "status": "next",
+      "horizon": "next_4_10_days",
+      "line": "0.3.x",
+      "versionTarget": "next verified 0.3.x version",
+      "title": "Feedback Inbox MVP",
+      "suggestedOwners": ["Maintainer / Product", "Main Codex"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Feedback is durable and voluntarily submitted",
+        "Read or export access is admin-only and bounded",
+        "Player-facing privacy copy is present",
+        "No XP, gold, items, achievements or public feed entries are granted"
+      ]
+    },
+    {
+      "id": "A10",
+      "priority": "P1",
+      "status": "next",
+      "horizon": "next_4_10_days",
+      "line": "0.3.x",
+      "versionTarget": "next verified 0.3.x version",
+      "title": "Public Front Door Refresh",
+      "suggestedOwners": ["Content / UX", "Main Codex"],
+      "dependencies": ["A04", "A05"],
+      "acceptanceEvidence": [
+        "Site copy matches current default-on and flagged capabilities",
+        "The news channel and play CTA are reachable",
+        "Empty presence and mobile layout are verified",
+        "No unverified production feature is promised"
+      ]
+    },
+    {
+      "id": "A11",
+      "priority": "P1",
+      "status": "next",
+      "horizon": "weeks_2_4",
+      "line": "0.3.x",
+      "versionTarget": "next verified 0.3.x version",
+      "title": "Alpha Funnel Snapshot",
+      "suggestedOwners": ["Maintainer / Product", "Main Codex"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Activation and D1/D7 definitions are documented",
+        "Aggregate solo and social milestones are queryable",
+        "No public personal rows or tiny-cohort identity leaks exist"
+      ]
+    },
+    {
+      "id": "A12",
+      "priority": "P1",
+      "status": "next",
+      "horizon": "weeks_2_4",
+      "line": "0.3.x",
+      "versionTarget": "next verified 0.3.x version",
+      "title": "Economy Health Snapshot",
+      "suggestedOwners": ["Game & Balance", "Main Codex"],
+      "dependencies": [],
+      "acceptanceEvidence": [
+        "Gold, Iskrokamin, medical, upgrade and tournament source or sink categories are documented",
+        "Aggregate balance and flow report is reproducible",
+        "Reporting is separated from reward settlement"
+      ]
+    },
+    {
+      "id": "A13",
+      "priority": "P1",
+      "status": "blocked_by_gate",
+      "horizon": "weeks_2_6",
+      "line": "0.3.x",
+      "versionTarget": null,
+      "title": "Controlled tester waves",
+      "suggestedOwners": ["Maintainer / Product", "QA / Playtester", "Ops"],
+      "dependencies": ["A03", "A06", "A07", "A09"],
+      "acceptanceEvidence": [
+        "Each wave has an observation window and owner",
+        "Blocker and P1 findings are triaged before expansion",
+        "Wave sizes are recorded as actual observations, not assumed by this plan"
+      ]
+    },
+    {
+      "id": "A14",
+      "priority": "P1",
+      "status": "blocked_by_gate",
+      "horizon": "weeks_4_6",
+      "line": "0.3.x",
+      "versionTarget": "0.3.x closeout",
+      "title": "Closed Alpha Readiness closeout",
+      "suggestedOwners": ["Maintainer / Product", "Review Codex"],
+      "dependencies": ["A03", "A04", "A05", "A06", "A07", "A09", "A11", "A12", "A13"],
+      "acceptanceEvidence": [
+        "The 0.3.x exit checklist is signed",
+        "Known risks have owners and next actions",
+        "The next product line is explicitly approved"
+      ]
+    },
+    {
+      "id": "B01",
+      "priority": "P1",
+      "status": "blocked_by_gate",
+      "horizon": "month_2",
+      "line": "0.4.x",
+      "versionTarget": "future verified 0.4.x version",
+      "title": "Raid Role Interaction Contract",
+      "suggestedOwners": ["Game & Balance", "Main Codex"],
+      "dependencies": ["A14"],
+      "acceptanceEvidence": [
+        "Typed personal, broad and mixed scope interaction matrix exists",
+        "Ward, protocol and taunt ordering is characterized",
+        "Simulation fixtures cover small and full rosters"
+      ]
+    },
+    {
+      "id": "B02",
+      "priority": "P1",
+      "status": "later",
+      "horizon": "month_2",
+      "line": "0.4.x",
+      "versionTarget": "future verified 0.4.x version",
+      "title": "Warrior Raid Taunt",
+      "suggestedOwners": ["Game & Balance", "Main Codex"],
+      "dependencies": ["B01"],
+      "acceptanceEvidence": [
+        "Single and multiple Warrior uptime is simulated",
+        "Broad redirect and mitigation ordering is tested",
+        "Deep review has no unresolved important findings"
+      ]
+    },
+    {
+      "id": "B03",
+      "priority": "P2",
+      "status": "conditional",
+      "horizon": "months_2_3",
+      "line": "0.4.x",
+      "versionTarget": "future verified 0.4.x version",
+      "title": "One new group challenge",
+      "suggestedOwners": ["Maintainer / Product", "Game & Balance"],
+      "dependencies": ["B01"],
+      "acceptanceEvidence": [
+        "Product chooses targetable adds or a second objective, not both",
+        "Reward settlement remains single-encounter and replay-safe",
+        "The choice cites raid usage or feedback evidence"
+      ]
+    },
+    {
+      "id": "B04",
+      "priority": "P2",
+      "status": "later",
+      "horizon": "month_3",
+      "line": "0.4.x",
+      "versionTarget": "future verified 0.4.x version",
+      "title": "Party History and Regrouping",
+      "suggestedOwners": ["Maintainer / Product", "Main Codex"],
+      "dependencies": ["A14"],
+      "acceptanceEvidence": [
+        "Recent party selection is bounded and opt-in",
+        "No current location or online status leaks",
+        "No guild rank, tax or shared bank is introduced"
+      ]
+    },
+    {
+      "id": "B05",
+      "priority": "P2",
+      "status": "later",
+      "horizon": "month_3",
+      "line": "0.4.x",
+      "versionTarget": null,
+      "title": "Rogue Heat and Rumor design",
+      "suggestedOwners": ["Maintainer / Product", "Game & Balance"],
+      "dependencies": ["A11"],
+      "acceptanceEvidence": [
+        "The design defines use, consequences, recovery and remort behavior",
+        "Public shame remains out of scope",
+        "No schema task is opened before the loop is approved"
+      ]
+    },
+    {
+      "id": "C01",
+      "priority": "P2",
+      "status": "later",
+      "horizon": "months_3_4",
+      "line": "0.5.x",
+      "versionTarget": "future verified 0.5.x version",
+      "title": "Bestiary Collection MVP",
+      "suggestedOwners": ["Maintainer / Product", "Main Codex"],
+      "dependencies": ["A14"],
+      "acceptanceEvidence": [
+        "Only provable encounter, win or trophy records count",
+        "Collection is private by default",
+        "No power reward or invented history is added"
+      ]
+    },
+    {
+      "id": "C02",
+      "priority": "P2",
+      "status": "blocked_by_gate",
+      "horizon": "months_3_4",
+      "line": "0.5.x",
+      "versionTarget": "future verified 0.5.x version",
+      "title": "Old Altar Gold-only MVP",
+      "suggestedOwners": ["Game & Balance", "Main Codex"],
+      "dependencies": ["A12"],
+      "acceptanceEvidence": [
+        "Economy snapshot supports the sink decision",
+        "Favor is bounded and current-life scoped",
+        "Item offerings and separate grove location remain out of scope"
+      ]
+    },
+    {
+      "id": "C03",
+      "priority": "P2",
+      "status": "later",
+      "horizon": "months_3_4",
+      "line": "0.5.x",
+      "versionTarget": null,
+      "title": "Consumable Use Audit",
+      "suggestedOwners": ["Content / UX", "Game & Balance"],
+      "dependencies": ["A12"],
+      "acceptanceEvidence": [
+        "Every candidate is classified as usable, flavor or misleading",
+        "One narrow implementation family is selected",
+        "A broad shop or crafting rewrite is not silently included"
+      ]
+    },
+    {
+      "id": "C04",
+      "priority": "P2",
+      "status": "blocked_by_gate",
+      "horizon": "month_4",
+      "line": "0.5.x",
+      "versionTarget": "future verified 0.5.x version",
+      "title": "Season Zero",
+      "suggestedOwners": ["Maintainer / Product", "Content / UX"],
+      "dependencies": ["A14"],
+      "acceptanceEvidence": [
+        "One theme and bounded start/end dates are selected",
+        "Rewards are cosmetic or tightly bounded without FOMO-critical power",
+        "A post-season report plan exists"
+      ]
+    },
+    {
+      "id": "C05",
+      "priority": "P3",
+      "status": "blocked_by_gate",
+      "horizon": "after_month_4",
+      "line": "future",
+      "versionTarget": null,
+      "title": "Guild discovery decision",
+      "suggestedOwners": ["Maintainer / Product"],
+      "dependencies": ["B04"],
+      "acceptanceEvidence": [
+        "Repeat-party usage supports a persistent group identity",
+        "Moderation ownership is defined",
+        "Shared reward and abuse risks have a written go or no-go decision"
+      ]
+    }
+  ]
+}

@@ -17,7 +17,7 @@ The docs are organized by reader need and document role. Avoid adding one-off Ma
 | Prepare a Codex task, review prompt or integration prompt | [`ai/README.md`](ai/README.md), [`tasks/README.md`](tasks/README.md) |
 | Find the active versioned slice | [`tasks/README.md`](tasks/README.md) |
 | Find deferred ideas and future slices | [`backlog/README.md`](backlog/README.md) |
-| Read completed phase closeouts or old planning | [`history/README.md`](history/README.md) |
+| Read completed phase closeouts or old planning | [`history/README.md`](history/README.md), [`alpha-roadmap-and-canon/README.md`](alpha-roadmap-and-canon/README.md) |
 | Understand where a new document belongs | [`DOCUMENTATION_STRUCTURE.md`](DOCUMENTATION_STRUCTURE.md) |
 
 ## Category doors
@@ -34,7 +34,7 @@ The docs are organized by reader need and document role. Avoid adding one-off Ma
 - [`backlog/`](backlog/) — deferred mechanics and idea banks that are not active implementation permission.
 - [`history/`](history/) — completed phase records, old planning packages and imported audits.
 - [`phase2/`](phase2/) — cohesive Phase 2 social-combat planning docs that are still useful as a package.
-- [`phase2-roadmap-audit/`](phase2-roadmap-audit/) and [`refactoring-audit/`](refactoring-audit/) — imported audit packages; keep package-local structure intact.
+- [`phase2-roadmap-audit/`](phase2-roadmap-audit/), [`alpha-roadmap-and-canon/`](alpha-roadmap-and-canon/) and [`refactoring-audit/`](refactoring-audit/) — imported audit packages; keep package-local structure intact.
 
 ## Canonical source map
 

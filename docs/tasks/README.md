@@ -43,6 +43,10 @@ Second Codex reviews changed files only by default.
 
 Keep each task doc short. Link to canonical docs instead of copying long sections.
 
+## Planning packages
+
+The imported [`0.3.x Alpha Roadmap and Canon audit`](../alpha-roadmap-and-canon/README.md) contains a proposed readiness board, inactive task drafts, checklists and prompts. Importing that snapshot does not activate its tasks; the current versioned task docs in this directory remain the implementation contracts.
+
 ## Existing records
 
 The shipped `0.0.x` and `0.1.x` versions have compact historical records generated from `CHANGELOG.md`.

@@ -59,7 +59,7 @@ Compatibility/reference copies in `skills/` may exist, but default workflow shou
 - `CHANGELOG.md` — detailed release history.
 - `news.md` — player-facing spoiler-light release news.
 - `docs/refactoring-audit/README.md` — imported refactoring audit package with future task candidates and prompts.
-- `docs/phase2-roadmap-audit/README.md` — imported Phase 2 roadmap audit packages; the `12026-07-07` refresh says to finish active Mantok ability grants, reserve a narrow polish/QA slot if needed, renumber Charkokovalnia after `0.2.30`, then pivot back to social loops.
+- `docs/phase2-roadmap-audit/README.md` and `docs/alpha-roadmap-and-canon/README.md` — imported roadmap/audit packages; the latest `12026-07-10` snapshot proposes a gated `0.3.x` closed-alpha readiness line and remains planning evidence rather than implementation permission.
 - `docs/history/phase2/mvp-release-notes.md`, `docs/history/phase2/mvp-closeout-plan.md`, `docs/history/phase2/closeout-smoke.md`, `docs/history/phase2/deferred-0.2.md` — `0.1.x` Phase 2 MVP closeout summary, smoke gate and `0.2.x` deferred order.
 - `docs/design/daily-korchma-rounds.md`, `docs/tasks/0.2.9-daily-korchma-rounds.md`, `docs/operations/playtesting-daily-korchma-rounds-addendum.md` — shipped daily `Корчмарський обхід` design/task/QA package.
 - `docs/tasks/0.2.13-postal-mantok-delivery.md` — paid postal/courier delivery for bounded packages of eligible manatky to known recipients, plus release-candidate UX polish for compact method cards, Korchma hall wording, onboarding completion message volume, front-door Munchkin visibility and news-board social/postal entry points.

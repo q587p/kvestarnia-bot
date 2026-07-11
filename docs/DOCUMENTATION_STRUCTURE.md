@@ -40,7 +40,7 @@ Kvestarnia docs use a lightweight Diátaxis-inspired shape:
 | `docs/backlog/` | future ideas and deferred scope | the doc is not ready to implement as the next active slice |
 | `docs/history/` | completed phases and old planning | the doc describes a completed phase, old roadmap, imported historical package or superseded direction |
 | `docs/phase2/` | cohesive Phase 2 social-combat package | the doc belongs to the current Phase 2 package and moving it out would make the package harder to review |
-| `docs/phase2-roadmap-audit/`, `docs/refactoring-audit/` | imported audit packages | the package should remain intact until a dedicated cleanup task says otherwise |
+| `docs/phase2-roadmap-audit/`, `docs/alpha-roadmap-and-canon/`, `docs/refactoring-audit/` | imported audit packages | the package should remain intact until a dedicated cleanup task says otherwise |
 
 ## Top-level `docs/` rule
 
@@ -92,6 +92,7 @@ docs/
   README.md
   DOCUMENTATION_STRUCTURE.md
   ai/
+  alpha-roadmap-and-canon/
   architecture/
   backlog/
   balance/

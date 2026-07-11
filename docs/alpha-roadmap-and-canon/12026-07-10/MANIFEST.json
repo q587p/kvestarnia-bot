@@ -1,0 +1,97 @@
+{
+  "artifact": {
+    "name": "kvestarnia-0.3x-alpha-roadmap-and-canon-12026-07-10",
+    "kind": "analysis-and-handoff",
+    "createdAt": "2026-07-10T16:02:47Z",
+    "projectDate": "12026-07-10",
+    "language": {
+      "analysis": "uk",
+      "codexPrompts": "en"
+    }
+  },
+  "sourceSnapshot": {
+    "repository": "q587p/kvestarnia-bot",
+    "branch": "main",
+    "commit": "3c2c594549ae3b52659b9cef161a65cbe2ffcb0b",
+    "packageVersion": "0.3.5",
+    "publicSite": "https://kvestarnia-bot.onrender.com/",
+    "openChanges": [
+      {
+        "number": 158,
+        "head": "codex/0.3.6-bureaucramancer-protocol",
+        "commit": "a5b9a86bc4edbcd9d6b72fce98f6e83f8d8ff482",
+        "statusAtSnapshot": "open, CI green, manual Telegram QA not recorded"
+      },
+      {
+        "number": 159,
+        "head": "hotfix/hp-full-notification",
+        "commit": "0fc99b",
+        "statusAtSnapshot": "draft, CI green, not recommended for merge without durable delivery redesign"
+      }
+    ]
+  },
+  "verification": {
+    "cleanInstall": true,
+    "npmRunCheck": "passed",
+    "unit": {
+      "files": 276,
+      "tests": 3236
+    },
+    "integration": {
+      "files": 20,
+      "tests": 335
+    },
+    "totalTests": 3571,
+    "relativeMarkdownLinks": {
+      "checked": 374,
+      "missing": 0
+    },
+    "npmAuditRuntime": "0 known vulnerabilities with --omit=dev",
+    "npmAuditFull": "5 development-toolchain findings at snapshot; runtime package set unaffected",
+    "manualTelegramQa": "not performed by this audit",
+    "productionBackupRestore": "not verified by this audit",
+    "productionFeatureFlags": "not inferred from repository defaults"
+  },
+  "scope": {
+    "repositoryModified": false,
+    "secretsIncluded": false,
+    "productionDataIncluded": false,
+    "claimsPolicy": "unknown production facts remain explicit evidence gaps"
+  },
+  "files": [
+    "00-README-UA.md",
+    "MANIFEST.json",
+    "analysis/01-executive-audit-UA.md",
+    "analysis/02-current-state-and-open-changes.md",
+    "analysis/03-docs-and-public-site-audit.md",
+    "analysis/04-technical-risk-and-performance.md",
+    "analysis/05-risk-register.md",
+    "checklists/0.3x-exit-criteria.md",
+    "checklists/current-critical-telegram-smoke.md",
+    "checklists/release-scope-control.md",
+    "docs/repo-change-plan.md",
+    "docs/source-of-truth-matrix.md",
+    "prompts/alpha-feedback-and-funnel.md",
+    "prompts/ci-and-documentation-health.md",
+    "prompts/deep-review-current-bureaucramancer.md",
+    "prompts/docs-current-state-reconciliation.md",
+    "prompts/fix-current-bureaucramancer-review-findings.md",
+    "prompts/measured-performance-followup.md",
+    "prompts/performance-evidence-readonly.md",
+    "prompts/production-alpha-safety-gate.md",
+    "prompts/public-front-door-and-readiness.md",
+    "prompts/release-closeout.md",
+    "prompts/telegram-qa-current-bureaucramancer.md",
+    "roadmap/0.3x-closed-alpha-readiness.md",
+    "roadmap/0.4x-and-months-ahead.md",
+    "task-board.json",
+    "task-board.md",
+    "tasks/alpha-feedback-and-funnel.md",
+    "tasks/ci-and-documentation-health.md",
+    "tasks/current-bureaucramancer-release-gate.md",
+    "tasks/docs-current-state-reconciliation.md",
+    "tasks/measured-performance-followup.md",
+    "tasks/production-alpha-safety-gate.md",
+    "tasks/public-front-door-and-readiness.md"
+  ]
+}
