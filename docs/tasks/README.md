@@ -58,13 +58,14 @@ Recently shipped:
 - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — Kharakternyk Big Barrel Brother ward signs with replay-safe mana placement/support, count-only lobby support, final-roster freezing and one-time broad-hit mitigation.
 - [0.3.3-quest-variety-risk-refresh.md](0.3.3-quest-variety-risk-refresh.md) — Adventure Choice risk-band readability, Daily Korchma Round scene expansion, and starter cellar mouse authored reply variety without new rewards, schema, combat or routes.
 - [0.3.4-quest-overview-route.md](0.3.4-quest-overview-route.md) — compact read-only `🗺️ Квести` overview route over existing quest surfaces, keeping `/quest` and `Стіл зі справами` as the full Quest Hub.
+- [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — shipped performance instrumentation and bounded DailyAction/Yeger/Korchma hot paths without player-facing balance changes.
 
-Near-term next tasks:
+Active release candidate and near-term drafts:
 
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
-- [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — next P0 performance hardening task from the static audit: instrumentation, bounded `DailyAction` hot-path queries, Yeger bandage fast path, and Daily Korchma Round step-row narrowing before inviting more players.
-- [0.3.x-bureaucramancer-personal-protocol.md](0.3.x-bureaucramancer-personal-protocol.md) — draft narrow Bureaucramancer personal-protocol raid-prep slice for Big Barrel Brother recruiting: one protocol per session, count-only signatures, and per-signer first personal boss attack protection without broad-attack mitigation.
+- [0.3.6-bureaucramancer-personal-protocol-13b.md](0.3.6-bureaucramancer-personal-protocol-13b.md) — active release candidate for the Bureaucramancer `📄 Форма 13-А` Big Barrel recruiting action that opens `Протокол 13-З`; an earlier-runtime partial Telegram pass found a stale leader card and easy-to-miss cooldown feedback, while the current fixes still need a refreshed-runtime recheck. Merge, deploy, and full manual QA remain unproven.
+- [archive/0.3.x-bureaucramancer-personal-protocol.md](archive/0.3.x-bureaucramancer-personal-protocol.md) — superseded planning draft retained for history; do not implement.
 - [0.3.x-warrior-raid-taunt.md](0.3.x-warrior-raid-taunt.md) — draft narrow Warrior Big Barrel Brother raid taunt slice: a living joined Warrior can spend their queued raid action to redirect personal and broad boss attacks into themselves for exactly three boss responses, with a five-turn cooldown and no generic threat system.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.

@@ -564,6 +564,34 @@ describe("AchievementService", () => {
     expect(second).toEqual([]);
   });
 
+  it("unlocks Bureaucramancer protocol achievements from committed raid-prep and trigger events", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const filed = await service.trackEvent({
+      type: "bureaucramancer.protocol.filed",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-10T09:11:00.000Z"),
+      sourceId: "protocol-1"
+    });
+    const signed = await service.trackEvent({
+      type: "bureaucramancer.protocol.signed",
+      characterId: "character-2",
+      occurredAt: new Date("2026-07-10T09:12:00.000Z"),
+      sourceId: "protocol-1"
+    });
+    const triggered = await service.trackEvent({
+      type: "bureaucramancer.protocol.triggered",
+      characterId: "character-2",
+      occurredAt: new Date("2026-07-10T09:13:00.000Z"),
+      sourceId: "big-barrel:1:personal:character-2"
+    });
+
+    expect(filed.map((unlock) => unlock.id)).toEqual(["achievement.bureaucramancer.protocol.filed"]);
+    expect(signed.map((unlock) => unlock.id)).toEqual(["achievement.bureaucramancer.protocol.signed"]);
+    expect(triggered.map((unlock) => unlock.id)).toEqual(["achievement.bureaucramancer.protocol.triggered"]);
+  });
+
   it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({
@@ -815,6 +843,9 @@ describe("AchievementService", () => {
         "barrel.raid.claimed": [new Date("2026-06-28T10:25:00.000Z")],
         "barrel.raid.lost": [new Date("2026-06-28T10:25:30.000Z")],
         "barrel.raid.bandage-used": [new Date("2026-06-28T10:25:45.000Z")],
+        "bureaucramancer.protocol.filed": [new Date("2026-06-28T10:25:46.000Z")],
+        "bureaucramancer.protocol.signed": [new Date("2026-06-28T10:25:47.000Z")],
+        "bureaucramancer.protocol.triggered": [new Date("2026-06-28T10:25:48.000Z")],
         "korchma.round.purchased": [new Date("2026-06-28T10:26:00.000Z")],
         "item.gift.sent": [new Date("2026-06-28T10:27:00.000Z")],
         "item.gift.received": [new Date("2026-06-28T10:28:00.000Z")],
@@ -934,6 +965,9 @@ describe("AchievementService", () => {
       "achievement.barrel.raid.first",
       "achievement.barrel.raid.first-loss",
       "achievement.barrel.raid.bandage-used",
+      "achievement.bureaucramancer.protocol.filed",
+      "achievement.bureaucramancer.protocol.signed",
+      "achievement.bureaucramancer.protocol.triggered",
       "achievement.korchma.round.first",
       "achievement.item.gift.sent.first",
       "achievement.item.gift.received.first",

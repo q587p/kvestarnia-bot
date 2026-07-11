@@ -240,9 +240,9 @@ export const classTechniqueProfiles: Record<string, QuestTechniqueProfile> = {
     combatSkillId: "skill.boiling-filling"
   },
   "class.bureaucramancer": {
-    label: "форма 13-Б",
-    methodPrefix: "Оформити форму 13-Б на самовільну поведінку",
-    shortButtonLabel: "Оформити форму 13-Б",
+    label: "форма 13-А",
+    methodPrefix: "Оформити форму 13-А на самовільну поведінку",
+    shortButtonLabel: "Оформити форму 13-А",
     techniques: ["authority", "investigation"],
     primaryStat: "intelligence",
     secondaryStat: "charisma",

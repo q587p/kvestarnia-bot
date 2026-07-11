@@ -1624,7 +1624,7 @@ export const korchmaGreetingLines = [
   {
     "id": "korchma.greeting.v2.class.bureaucramancer.01",
     "placement": "korchma.greeting",
-    "text": "Форми 13-Б сьогодні не видаємо. Тільки 13-Б/пінне і то під розпис.",
+    "text": "Форми 13-А сьогодні не видаємо. Тільки 13-А/пінне і то під розпис.",
     "selector": {
       "classIds": [
         "class.bureaucramancer"

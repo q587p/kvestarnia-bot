@@ -1,12 +1,12 @@
-# Bureaucramancer Personal Protocol 13-B
+# Bureaucramancer Personal Protocol 13-Z
 
-Status: draft design for a future `0.3.x` feature slice.
+Status: implemented in the active `0.3.6` release candidate; merge, deploy, and manual Telegram QA remain unproven.
 
 ## Goal
 
 Give `class.bureaucramancer` a narrow social raid-prep identity action that differs from Kharakternyk ward signs.
 
-A Bureaucramancer can open `Протокол 13-Б: персональні претензії` during Big Barrel Brother recruiting. Joined participants may sign the protocol once. Each signature protects that signer from the first personal/single-target boss attack against them in the resulting fight.
+A Bureaucramancer can file `Форма 13-А` during Big Barrel Brother recruiting to open `Протокол 13-З: персональні претензії`. Joined participants may sign the protocol once. Each signature protects that signer from the first personal/single-target boss attack against them in the resulting fight.
 
 ## Role split
 
@@ -27,7 +27,7 @@ The Bureaucramancer does not ward the Barrel. They file personal claims against 
 Bureaucramancer identity is paperwork, authority and control:
 
 - existing class copy: forms, stamps and a very serious look;
-- existing combat skill: `📄 Форма 13-Б`, social/control AoE with response mitigation;
+- existing combat skill: `📄 Форма 13-А`, social/control AoE with response mitigation;
 - existing design vocabulary: forms, permits and queue manipulation; `authority/investigation`.
 
 The non-combat fantasy should be:
@@ -39,24 +39,20 @@ The non-combat fantasy should be:
 Recruiting card excerpt:
 
 ```text
-📄 Протокол 13-Б відкрито
-
-Бюрокромант розклав на Бочці форму для майбутніх персональних претензій.
-Підписів: 4/8
-
-Перший особистий випад Бочки по кожному підписанту має пройти канцелярію.
+📄 Протокол 13-З відкрито. Підписів: 4.
 ```
 
 Participant button:
 
 ```text
+📄 Форма 13-А
 ✍️ Підписати протокол
 ```
 
 Trigger line:
 
 ```text
-📄 Протокол 13-Б став поперек персональної претензії.
+📄 Протокол 13-З став поперек персональної претензії.
 Бочка спробувала оформити удар по підписанту, але документ уже лежав у черзі.
 Перша персональна атака не пройшла.
 ```
@@ -70,7 +66,7 @@ Technique id: technique.class.bureaucramancer.personal-protocol-13b
 Actor class: class.bureaucramancer
 Minimum actor level: 3
 Actor surface: joined participant in live Big Barrel Brother recruiting at the Barrel
-Actor cost: 5 mana
+Actor cost: `8 - min(3, floor((level + effective intelligence) / 8))` mana (final range 5-8)
 Actor cooldown: 93 minutes after successful filing
 Session limit: at most one live personal protocol per Big Barrel recruiting session
 Participant action: sign protocol once per joined participant before raid start
@@ -131,7 +127,7 @@ Document this in balance notes if both features exist on the target branch.
 
 ## Persistence and replay
 
-The protocol needs durable server-owned state, either as a narrow table or as a party-session/party-boss extension with replay-safe transition rows.
+The release-candidate implementation uses existing party-session and party-boss state instead of a schema migration.
 
 Store at least:
 
@@ -152,10 +148,20 @@ All mutations must be replay-safe:
 
 - duplicate filing callbacks replay the existing protocol or return a session already-has-protocol card;
 - duplicate signing callbacks replay the signed state;
+- a filer leaving before raid start does not create a replacement protocol; the session-owned protocol remains, while only final joined/remort-valid signatures freeze into the fight;
 - stale signatures after raid start do not mutate;
 - stale signatures from non-joined characters do not mutate;
 - a spent signer signature never blocks a second personal attack;
 - terminal/journal replay shows stored trigger rows, not recalculated blocking.
+
+Implementation notes:
+
+- recruiting protocol/signature state lives in `PartyParticipant.snapshotJson`;
+- each committed filing gets a unique protocol id, and signatures match the complete protocol id plus filer character id;
+- same-remort rejoin preserves validated protocol/signature extensions, while remort mismatch discards them;
+- filer cooldown uses `characterCooldown` key `class.bureaucramancer.personal-protocol-13b.cooldown`;
+- raid start CAS-claims the exact recruiting version and re-reads canonical party state before freezing joined, remort-matching signer ids into `PartyBossState.personalProtocol`;
+- `/dev_reset_bureaucramancer_protocol` clears only the filer cooldown for local QA and stays disabled in production.
 
 ## UI surfaces
 
@@ -164,7 +170,7 @@ All mutations must be replay-safe:
 - Filing result: short Ukrainian card with mana spend.
 - Signing result: short Ukrainian confirmation; no public signer list.
 - Active fight/journal: show when a participant's personal protocol blocks an attack. Group-visible copy may stay generic; viewer-private cards may name the viewer where the existing combat presenter normally names the target.
-- Lore Board: update Bureaucramancer class entry after runtime ships.
+- Lore Board: the Bureaucramancer class entry is already updated for this release candidate.
 
 ## Non-goals
 

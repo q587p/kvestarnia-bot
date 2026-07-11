@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable project changes are documented here.
 
@@ -6,6 +6,44 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.0.x` for foundation and local playability slices.
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
+
+## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
+
+Release status: active candidate in PR #158. An earlier-runtime partial Telegram pass found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes have not been rechecked in a refreshed runtime. Merge, deploy, and full manual Telegram QA are not proven.
+
+### Added
+- Added `📄 Форма 13-А` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting; a successful filing opens defensive `Протокол 13-З`.
+- Filing starts from 8 mana with a bounded 0-3 mana discount from the Bureaucramancer's level plus effective intelligence, starts a 93-minute cooldown only after committed success, creates at most one protocol per recruiting session, and auto-signs the filer.
+- Joined participants can sign the open protocol once for free; recruiting cards show only signature count and never list signer names.
+- Starting the Big Barrel fight freezes the joined signer set into party-boss state. Each signer blocks their first eligible personal/single-target Barrel retaliation against themselves, stores prevented damage/action details, and spends only that signer protection.
+- Added rewardless achievements for first protocol filing, signing, and triggered protection.
+- Added `/dev_reset_bureaucramancer_protocol` for local QA cooldown reset; production config keeps the helper disabled.
+
+### Changed
+- Big Barrel active cards and journals now replay stored Protocol 13-З state and trigger lines without recalculating mitigation.
+- Bureaucramancer Lore Board copy now mentions the narrow personal-protocol raid-prep behavior.
+
+### Fixed
+- Preserved `0.3.5` bounded hot-path/performance instrumentation patterns: protocol lobby state is stored in party participant snapshots and frozen once at raid start instead of broad per-card recomputation.
+- Protocol mitigation does not affect `Бочковий гуркіт`, broad/all-party attacks, unsigned targets, or later personal attacks after a signer’s protection is spent.
+- Protocol filing and signing now fail closed under participant changes, active combat, repeated CAS contention, unsupported snapshot versions, and filer departure. Each committed filing gets a unique id; signatures match the complete protocol/filer identity; validated same-remort extensions survive leave/rejoin; remort-invalidated or unsupported filings can be replaced without stale signatures counting; raid start CAS-claims the exact recruiting version before canonical roster/ward/protocol freeze.
+- Mantok Chest output rarity follows the five selected input rarities and bounded confirmation-time effective LUCK, including only attuned equipment. The rolled rarity remains the normal ceiling, but when the global score-improving catalog is non-empty and no candidate exists at or below that ceiling, selection falls forward to the nearest feasible higher rarity and completes once. True no-output remains only for an empty global score-improving pool; global non-input preference, same-token replay, and one-time input consumption remain intact.
+- Authored Charkokovalnia `+1…+5` variants now increase gold value with both enhancement and resulting rarity inside a bounded economy envelope; generated Loot Expansion v1 pricing remains source-pack-owned.
+- Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
+- Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
+- Priest self-blessing cards now hide `✨ Благословити себе` while the character's own blessing wait is active, while healing and available blessings for other targets remain visible.
+- Quest archive now shows the unavailable `Бочка, або Туди і звідти` tutorial row after a character outlevels it without completing the route.
+- Successful Protocol 13-Z filing/signing now refreshes the actor's stored recruiting card as well as the other joined participant cards, so a leader acting from another card does not keep a stale signature count.
+- Protocol filing confirmation now renders the committed 5-8 mana cost instead of a fixed value.
+- Protocol cooldown callbacks no longer hide behind the vague `Протокол ще відлежується` alert: they send a separate durable message with the canonical remaining wait in minutes.
+- Protocol signing now claims the recruiting session version before its participant signature write in the same transaction. Join/rejoin, leave, readiness, and ward support use the same parent-first gate so raid start cannot freeze a roster/preparation state between participant-first and session-later writes.
+- Deep-link `/start party_<token>` joins now persist the message id returned by Telegram; later filing/signing refreshes both the leader card and that participant card.
+- Protocol filing derives cost from attunement-aware effective Intelligence and applies the canonical passive mana regeneration result before its atomic exact 5-8 mana spend.
+- Protocol INT and Mantok Chest confirmation LUCK now load attunement state by the exact current equipment rows, so more than 13 historical attunement records cannot hide a still-current tuning row. Mantok confirmation also includes an active Priest LUCK blessing in canonical effective LUCK.
+- Join, leave, readiness and ward-support CAS losses now replay a provable canonical result or report an explicit stale state instead of false ineligible, not-member, not-recruiting or already-supported outcomes.
+- Recruiting cancel/expiry cleanup now clears participant membership keys only after its parent terminal transition succeeds, preserving the active roster when raid start wins the race.
+- Exhausted Protocol filing and Kharakternyk ward-placement CAS retries now return duplicate states only when the canonical protocol or ward exists; otherwise they return stale without spending resources.
+- Canonical participant/leader join, leave and cancel callbacks now return stale after the party has already started or completed instead of misreporting expiry, membership or leadership.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

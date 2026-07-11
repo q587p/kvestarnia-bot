@@ -14,6 +14,8 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionProtocolFileCallbackData,
+  makePartySessionProtocolSignCallbackData,
   makePartySessionReadinessCallbackData,
   makePartySessionShareCallbackData,
   makePartySessionWardPlaceCallbackData,
@@ -86,6 +88,14 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartySessionWardSupportCallbackData(token))).toEqual({
       ok: true,
       value: { type: "ward-support", token }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionProtocolFileCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "protocol-file", token }
+    });
+    expect(parsePartySessionCallbackData(makePartySessionProtocolSignCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "protocol-sign", token }
     });
     expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "skill"))).toEqual({
       ok: true,

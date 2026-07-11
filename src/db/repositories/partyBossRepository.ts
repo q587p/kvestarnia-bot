@@ -43,7 +43,11 @@ export interface PartyBossSessionRecord {
 
 export type PartyBossAchievementEventRecord =
   | {
-      type: "barrel.raid.claimed" | "barrel.raid.lost" | "barrel.raid.bandage-used";
+      type:
+        | "barrel.raid.claimed"
+        | "barrel.raid.lost"
+        | "barrel.raid.bandage-used"
+        | "bureaucramancer.protocol.triggered";
       characterId: string;
       sourceId: string;
       occurredAt: Date;

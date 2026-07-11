@@ -451,6 +451,30 @@ function presentBarrelBeerTutorialRow(
   return `${title} — піна ще тримається. Повертайся до столу, доки ефект пива не вивітрився.`;
 }
 
+function presentBarrelBeerTutorialArchiveRow(
+  quest: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }> | undefined
+): string | null {
+  if (!quest) {
+    return null;
+  }
+
+  const title = `🛢️ <i>${BARREL_BEER_TUTORIAL_TITLE}</i>`;
+
+  if (quest.state === "completed") {
+    return `${title} — виконано; Бочка тепер робить вигляд, що так і планувала.`;
+  }
+
+  if (quest.state === "level-locked") {
+    return `${title} — відкриється з ${quest.requiredLevel} рівня; записка вже пахне піною й відповідальністю.`;
+  }
+
+  if (quest.state === "level-retired") {
+    return `${title} — новачкова справа до ${quest.maxLevel} рівня; у журналі немає сліду виконання.`;
+  }
+
+  return null;
+}
+
 function presentCharkokovalniaUnlockRow(
   itemUpgrades: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }> | undefined
 ): string | null {
@@ -558,9 +582,7 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
     starterFightArchiveRow ? null : presentFightArchiveRow(snapshot.character, snapshot.fight),
     ...presentYegerArchiveRows(snapshot.yeger),
     ...presentCellarArchiveRows(snapshot.cellar, snapshot.cellarGrownup),
-    snapshot.barrelBeerTutorial?.state === "completed"
-      ? `🛢️ <i>${BARREL_BEER_TUTORIAL_TITLE}</i> — виконано; Бочка тепер робить вигляд, що так і планувала.`
-      : null,
+    presentBarrelBeerTutorialArchiveRow(snapshot.barrelBeerTutorial),
     snapshot.dailyKorchmaRound?.state === "completed"
       ? presentDailyKorchmaRoundRow(snapshot.dailyKorchmaRound)
       : null

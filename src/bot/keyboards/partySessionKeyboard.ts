@@ -26,6 +26,8 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionProtocolFileCallbackData,
+  makePartySessionProtocolSignCallbackData,
   makePartySessionReadinessCallbackData,
   makePartySessionWardPlaceCallbackData,
   makePartySessionWardSupportCallbackData,
@@ -74,6 +76,11 @@ export function buildPartySessionKeyboard(
           keyboard.text("🧿 Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
         } else if (canSupportKharakternykWardSign(session, viewer)) {
           keyboard.text("✋ Підперти знак", makePartySessionWardSupportCallbackData(token)).row();
+        }
+        if (!session.personalProtocol && canFileBureaucramancerProtocol(viewer)) {
+          keyboard.text("📄 Форма 13-А", makePartySessionProtocolFileCallbackData(token)).row();
+        } else if (canSignBureaucramancerProtocol(session, viewer)) {
+          keyboard.text("✍️ Підписати протокол", makePartySessionProtocolSignCallbackData(token)).row();
         }
       }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token));
@@ -124,6 +131,25 @@ function canSupportKharakternykWardSign(
     session.wardSign &&
     session.wardSign.placerCharacterId !== viewer.characterId &&
     viewer.wardSignSupport?.placerCharacterId !== session.wardSign.placerCharacterId
+  );
+}
+
+function canFileBureaucramancerProtocol(
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return viewer.character.classId === "class.bureaucramancer" && viewer.character.level >= 3;
+}
+
+function canSignBureaucramancerProtocol(
+  session: PartySessionRecord,
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return Boolean(
+    session.personalProtocol &&
+    (
+      viewer.personalProtocolSignature?.protocolId !== session.personalProtocol.protocolId ||
+      viewer.personalProtocolSignature.filerCharacterId !== session.personalProtocol.filerCharacterId
+    )
   );
 }
 

@@ -42,7 +42,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.class.rogue` | enabled | visible | `character.created class.rogue` | Рахунок зник першим | стати злодієм і лишити таверну з питаннями до бухгалтерії. |
 | `achievement.class.priest` | enabled | visible | `character.created class.priest` | Суворий погляд лікує | стати жерцем і подивитися на нежить так, щоб вона переглянула плани. |
 | `achievement.class.varenyk-mancer` | enabled | visible | `character.created class.varenyk-mancer` | Начинка бачить майбутнє | стати вареник-мантом і дати тісту службові повноваження. |
-| `achievement.class.bureaucramancer` | enabled | visible | `character.created class.bureaucramancer` | Форма 13-Б зітхнула | стати бюрокромантом і налякати хаос правильною печаткою. |
+| `achievement.class.bureaucramancer` | enabled | visible | `character.created class.bureaucramancer` | Форма 13-А зітхнула | стати бюрокромантом і налякати хаос правильною печаткою. |
 | `achievement.class.ranger` | enabled | visible | `character.created class.ranger` | Слід підписав квитанцію | стати єгерем і знати, де ховається остання стріла. |
 | `achievement.class.kharakternyk` | enabled | visible | `character.created class.kharakternyk` | Проблема відвела очі | стати козаком-характерником і дивитися на халепу до її капітуляції. |
 | `achievement.level.2` | enabled | visible | `level.reached >= 2` | Табурет навчився хитатися | досягти 2 рівня й зрозуміти, що табурет під вами теж має амбіції. |

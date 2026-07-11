@@ -1,13 +1,15 @@
+Archived implementation prompt. Do not run; the active contract is `docs/tasks/0.3.6-bureaucramancer-personal-protocol-13b.md`.
+
 Use $kvestarnia-version-task.
 
-Task: implement the narrow Bureaucramancer personal-protocol slice from `docs/tasks/0.3.x-bureaucramancer-personal-protocol.md`.
+Task: implement the narrow Bureaucramancer personal-protocol slice from `docs/tasks/archive/0.3.x-bureaucramancer-personal-protocol.md`.
 
 Before editing, fetch `origin/main`, inspect the current Big Barrel Brother / party-boss recruiting and combat code, and retarget the version number if the active branch already uses this placeholder.
 
 Implement `technique.class.bureaucramancer.personal-protocol-13b` only:
 
-- level 3+ `class.bureaucramancer` can open `Протокол 13-Б: персональні претензії` during live Big Barrel Brother recruiting;
-- filing costs 5 mana, starts a 93-minute actor cooldown after successful mutation, creates at most one protocol per recruiting session and auto-signs the filer;
+- level 3+ `class.bureaucramancer` can open `Протокол 13-З: персональні претензії` during live Big Barrel Brother recruiting;
+- filing costs 5-8 mana under the current superseding task's bounded level/effective-intelligence formula, starts a 93-minute actor cooldown after successful mutation, creates at most one protocol per recruiting session and auto-signs the filer;
 - joined participants can sign once before raid start;
 - signing is free and public UI shows only signature count, not signer names;
 - when the resulting fight starts, carry the signer set into party-boss runtime;

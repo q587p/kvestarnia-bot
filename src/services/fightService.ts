@@ -3392,17 +3392,14 @@ export class FightService {
       return;
     }
 
-    const effectiveMonsterLevel = getPersistentFightSessionEncounterMonsterLevel(
-      input.session,
-      input.monster.level
-    );
+    const eventMonster = getPersistentFightEventMonster(input.session, input.monster);
     await this.activityEvents?.recordUnderdogCombatWinSafely({
       characterId: input.session.characterId,
       actorDisplayName: input.character.name,
       combatSessionId: input.session.id,
-      monsterId: input.session.monsterId,
-      monsterName: input.monster.name,
-      monsterLevel: effectiveMonsterLevel,
+      monsterId: eventMonster.monster.id,
+      monsterName: eventMonster.monster.name,
+      monsterLevel: eventMonster.effectiveLevel,
       characterLevel: input.character.level,
       occurredAt: this.clock()
     });
@@ -5335,6 +5332,42 @@ function getPersistentFightSessionEncounterMonsterLevel(
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }
 
+function getPersistentFightEventMonster(
+  session: Pick<SoloCombatSessionRecord, "state">,
+  fallbackMonster: MonsterContent
+): { monster: MonsterContent; effectiveLevel: number } {
+  const enemies = session.state ? normalizeCombatEnemies(session.state) : [];
+  const eventEnemy = enemies.reduce<CombatEnemyState | undefined>((strongest, enemy) => {
+    if (!strongest) {
+      return enemy;
+    }
+
+    return getCombatEnemyEffectiveLevel(enemy) > getCombatEnemyEffectiveLevel(strongest)
+      ? enemy
+      : strongest;
+  }, undefined);
+  const monster = eventEnemy ? findMonster(eventEnemy.id) : null;
+
+  if (!eventEnemy || !monster) {
+    return {
+      monster: fallbackMonster,
+      effectiveLevel: getPersistentFightSessionEncounterMonsterLevel(session, fallbackMonster.level)
+    };
+  }
+
+  return {
+    monster,
+    effectiveLevel: getCombatEnemyEffectiveLevel(eventEnemy, monster.level)
+  };
+}
+
+function getCombatEnemyEffectiveLevel(enemy: CombatEnemyState, fallbackLevel = 1): number {
+  return Math.max(
+    1,
+    Math.floor(enemy.debugTrace?.effectiveMonsterLevel ?? enemy.level ?? fallbackLevel)
+  );
+}
+
 function getPersistentFightSessionEncounterBaseMonsterLevel(
   session: Pick<SoloCombatSessionRecord, "state"> | undefined,
   fallbackLevel: number
@@ -5564,7 +5597,7 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
     case "skill.boiling-filling":
       return { icon: "🥟", name: "Кипляча начинка" };
     case "skill.form-thirteen-b":
-      return { icon: "📎", name: "Форма 13-Б" };
+      return { icon: "📎", name: "Форма 13-А" };
     case "skill.dangerous-couplet":
       return { icon: "🎼", name: "Небезпечний куплет" };
     case "skill.trick-shot":

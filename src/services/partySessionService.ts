@@ -8,10 +8,13 @@ import type {
   PartyReadinessRepositoryResult,
   PartyWardSignPlaceRepositoryResult,
   PartyWardSignSupportRepositoryResult,
+  PartyPersonalProtocolFileRepositoryResult,
+  PartyPersonalProtocolSignRepositoryResult,
   PartySessionRecord,
   PartySessionRepository
 } from "../db/repositories/partySessionRepository";
 import { systemClock, type Clock } from "../shared/time";
+import type { AchievementService } from "./achievementService";
 
 export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
@@ -29,6 +32,8 @@ export type PartyCancelResult = PartyCancelRepositoryResult;
 export type PartyReadinessResult = PartyReadinessRepositoryResult;
 export type PartyWardSignPlaceResult = PartyWardSignPlaceRepositoryResult;
 export type PartyWardSignSupportResult = PartyWardSignSupportRepositoryResult;
+export type PartyPersonalProtocolFileResult = PartyPersonalProtocolFileRepositoryResult;
+export type PartyPersonalProtocolSignResult = PartyPersonalProtocolSignRepositoryResult;
 
 export interface PartySessionServiceOptions {
   enabled: boolean;
@@ -40,7 +45,8 @@ export class PartySessionService {
   constructor(
     private readonly sessions: PartySessionRepository,
     private readonly options: PartySessionServiceOptions,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -160,6 +166,54 @@ export class PartySessionService {
     }
 
     return this.sessions.supportKharakternykWardSign(telegramUserId, inviteToken, this.clock());
+  }
+
+  async fileBureaucramancerPersonalProtocolForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<PartyPersonalProtocolFileResult> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return { state: "not-found" };
+    }
+
+    const now = this.clock();
+    const result = await this.sessions.fileBureaucramancerPersonalProtocol(telegramUserId, inviteToken, now);
+    if (result.state === "updated") {
+      const participant = result.session.participants.find((row) => row.character.telegramUserId === telegramUserId);
+      if (participant && result.session.personalProtocol) {
+        await this.achievements?.trackEventSafely({
+          type: "bureaucramancer.protocol.filed",
+          characterId: participant.characterId,
+          sourceId: result.session.personalProtocol.protocolId,
+          occurredAt: now
+        });
+      }
+    }
+    return result;
+  }
+
+  async signBureaucramancerPersonalProtocolForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<PartyPersonalProtocolSignResult> {
+    if (!this.isBigBarrelBrotherEnabled()) {
+      return { state: "not-found" };
+    }
+
+    const now = this.clock();
+    const result = await this.sessions.signBureaucramancerPersonalProtocol(telegramUserId, inviteToken, now);
+    if (result.state === "updated") {
+      const participant = result.session.participants.find((row) => row.character.telegramUserId === telegramUserId);
+      if (participant && result.session.personalProtocol) {
+        await this.achievements?.trackEventSafely({
+          type: "bureaucramancer.protocol.signed",
+          characterId: participant.characterId,
+          sourceId: result.session.personalProtocol.protocolId,
+          occurredAt: now
+        });
+      }
+    }
+    return result;
   }
 
   async getByToken(inviteToken: string): Promise<PartyViewResult> {

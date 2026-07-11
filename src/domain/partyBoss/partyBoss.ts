@@ -59,6 +59,7 @@ export interface PartyBossState {
   boss: MonsterCombatStats & { hp: number };
   participants: PartyBossParticipantState[];
   wardSign?: PartyBossWardSignState;
+  personalProtocol?: PartyBossPersonalProtocolState;
   roundLog: PartyBossRoundSummary[];
   startedAt: string;
   completedAt?: string;
@@ -76,6 +77,21 @@ export interface PartyBossWardSignState {
   triggeredTurn?: number;
   preventedDamage?: number;
   affectedCharacterIds?: string[];
+}
+
+export interface PartyBossPersonalProtocolState {
+  kind: "bureaucramancer-personal-protocol-13b";
+  protocolId: string;
+  filerCharacterId: string;
+  signatures: PartyBossPersonalProtocolSignatureState[];
+}
+
+export interface PartyBossPersonalProtocolSignatureState {
+  characterId: string;
+  status: "unspent" | "spent";
+  triggeredTurn?: number;
+  bossActionId?: string;
+  preventedDamage?: number;
 }
 
 export interface PartyBossRoundActionInput {
@@ -107,6 +123,7 @@ export interface PartyBossRoundSummary {
   bossHpAfter: number;
   bossRetaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
+  personalProtocol?: PartyBossPersonalProtocolRoundSummary;
   participantsAfter?: PartyBossParticipantResourceSummary[];
   statusAfter: PartyBossStatus;
 }
@@ -121,6 +138,17 @@ export interface PartyBossWardSignRoundSummary {
   mitigationPercent: number;
   preventedDamage: number;
   affectedCharacterIds: string[];
+}
+
+export interface PartyBossPersonalProtocolRoundSummary {
+  kind: "bureaucramancer-personal-protocol-13b";
+  status: "triggered";
+  characterId: string;
+  preventedDamage: number;
+  triggeredTurn: number;
+  bossActionId: string;
+  spentCount: number;
+  signatureCount: number;
 }
 
 export interface PartyBossParticipantResourceSummary {
@@ -155,6 +183,8 @@ export interface PartyBossRetaliationSummary {
   hpAfter: number;
   damageBeforeWard?: number;
   wardPreventedDamage?: number;
+  damageBeforeProtocol?: number;
+  protocolPreventedDamage?: number;
 }
 
 export interface PartyBossRetaliationPlan {
@@ -203,6 +233,12 @@ export function createPartyBossState(input: {
     placerCharacterId: string;
     supportCount: number;
     supportCap?: number;
+  };
+  personalProtocol?: {
+    kind: "bureaucramancer-personal-protocol-13b";
+    protocolId: string;
+    filerCharacterId: string;
+    signerCharacterIds: string[];
   };
   now: Date;
 }): PartyBossState {
@@ -279,6 +315,19 @@ export function createPartyBossState(input: {
             usesRemaining: Math.max(1, clamp(Math.floor(input.wardSign.supportCount), 0, 7)),
             usesMax: Math.max(1, clamp(Math.floor(input.wardSign.supportCount), 0, 7)),
             status: "carried"
+          }
+        }
+      : {}),
+    ...(isBig && input.personalProtocol && input.personalProtocol.signerCharacterIds.length > 0
+      ? {
+          personalProtocol: {
+            kind: "bureaucramancer-personal-protocol-13b",
+            protocolId: input.personalProtocol.protocolId,
+            filerCharacterId: input.personalProtocol.filerCharacterId,
+            signatures: [...new Set(input.personalProtocol.signerCharacterIds)].map((characterId) => ({
+              characterId,
+              status: "unspent" as const
+            }))
           }
         }
       : {}),
@@ -417,6 +466,7 @@ export function resolvePartyBossRound(input: {
     bossHpAfter: next.boss.hp,
     bossRetaliations,
     ...(retaliationResolution.wardSign ? { wardSign: retaliationResolution.wardSign } : {}),
+    ...(retaliationResolution.personalProtocol ? { personalProtocol: retaliationResolution.personalProtocol } : {}),
     participantsAfter: next.participants.map((participant) => ({
       characterId: participant.characterId,
       status: participant.status,
@@ -563,6 +613,14 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
           }
         }
       : {}),
+    ...(state.personalProtocol
+      ? {
+          personalProtocol: {
+            ...state.personalProtocol,
+            signatures: state.personalProtocol.signatures.map((signature) => ({ ...signature }))
+          }
+        }
+      : {}),
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
@@ -593,6 +651,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       ...(round.wardSign
         ? { wardSign: { ...round.wardSign, affectedCharacterIds: [...round.wardSign.affectedCharacterIds] } }
         : {}),
+      ...(round.personalProtocol ? { personalProtocol: { ...round.personalProtocol } } : {}),
       ...(round.participantsAfter
         ? {
             participantsAfter: round.participantsAfter.map((participant) => ({
@@ -701,16 +760,19 @@ function cloneAbilityCooldowns(
 function applyBossRetaliation(state: PartyBossState): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
+  personalProtocol?: PartyBossPersonalProtocolRoundSummary;
 } {
   const retaliations: PartyBossRetaliationSummary[] = [];
   const big = isBigBarrelBrotherState(state);
   const broadBigRetaliation = big && isBigBarrelBroadRetaliationTurn(state);
   const wardCanTrigger = broadBigRetaliation && state.wardSign?.status === "carried";
+  const personalProtocolCanTrigger = big && !broadBigRetaliation && state.personalProtocol !== undefined;
   const targetIds = big ? getPartyBossRetaliationPlan(state).characterIds : state.participants.map((participant) => participant.characterId);
   const targetIdSet = new Set(targetIds);
   const targets = state.participants.filter((participant) => targetIdSet.has(participant.characterId));
   let wardPreventedDamage = 0;
   const wardAffectedCharacterIds: string[] = [];
+  let personalProtocolRound: PartyBossPersonalProtocolRoundSummary | undefined;
 
   for (const participant of targets) {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
@@ -728,10 +790,34 @@ function applyBossRetaliation(state: PartyBossState): {
     const wardPrevented = wardCanTrigger
       ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
       : 0;
-    const damage = Math.max(0, damageBeforeWard - wardPrevented);
+    const damageAfterWard = Math.max(0, damageBeforeWard - wardPrevented);
+    const signature = personalProtocolCanTrigger
+      ? state.personalProtocol!.signatures.find((entry) =>
+          entry.characterId === participant.characterId && entry.status === "unspent"
+        )
+      : undefined;
+    const protocolPrevented = signature ? damageAfterWard : 0;
+    const damage = signature ? 0 : damageAfterWard;
     if (wardCanTrigger) {
       wardPreventedDamage += wardPrevented;
       wardAffectedCharacterIds.push(participant.characterId);
+    }
+    if (signature && state.personalProtocol) {
+      const bossActionId = `big-barrel:${state.turn}:personal:${participant.characterId}`;
+      signature.status = "spent";
+      signature.triggeredTurn = state.turn;
+      signature.bossActionId = bossActionId;
+      signature.preventedDamage = protocolPrevented;
+      personalProtocolRound = {
+        kind: "bureaucramancer-personal-protocol-13b",
+        status: "triggered",
+        characterId: participant.characterId,
+        preventedDamage: protocolPrevented,
+        triggeredTurn: state.turn,
+        bossActionId,
+        spentCount: state.personalProtocol.signatures.filter((entry) => entry.status === "spent").length,
+        signatureCount: state.personalProtocol.signatures.length
+      };
     }
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
@@ -744,7 +830,8 @@ function applyBossRetaliation(state: PartyBossState): {
       characterId: participant.characterId,
       damage,
       hpAfter: participant.resources.hp,
-      ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {})
+      ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
+      ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {})
     });
   }
 
@@ -764,6 +851,7 @@ function applyBossRetaliation(state: PartyBossState): {
     };
     return {
       retaliations,
+      ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {}),
       wardSign: {
         kind: "kharakternyk",
         status: "triggered",
@@ -778,7 +866,10 @@ function applyBossRetaliation(state: PartyBossState): {
     };
   }
 
-  return { retaliations };
+  return {
+    retaliations,
+    ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {})
+  };
 }
 
 function applyPartyBossGearSupport(

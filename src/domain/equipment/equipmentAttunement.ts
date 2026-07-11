@@ -129,3 +129,29 @@ export function parseEquipmentAttunementPayload(value: unknown): EquipmentAttune
 export function isEquipmentAttunementReady(payload: EquipmentAttunementPayload, now: Date): boolean {
   return Date.parse(payload.readyAt) <= now.getTime();
 }
+
+export function matchesEquipmentAttunementRow(
+  payload: EquipmentAttunementPayload,
+  row: { slot: string; itemId: string; updatedAt: Date }
+): boolean {
+  return payload.status === "tuning" &&
+    payload.slot === row.slot &&
+    payload.itemId === row.itemId &&
+    payload.equipmentUpdatedAt === row.updatedAt.toISOString();
+}
+
+export function isEquipmentAttunementPendingForRow(input: {
+  row: { slot: string; itemId: string; updatedAt: Date };
+  actionPayloads: readonly unknown[];
+  now: Date;
+}): boolean {
+  return input.actionPayloads.some((value) => {
+    const payload = parseEquipmentAttunementPayload(value);
+
+    return Boolean(
+      payload &&
+      matchesEquipmentAttunementRow(payload, input.row) &&
+      !isEquipmentAttunementReady(payload, input.now)
+    );
+  });
+}

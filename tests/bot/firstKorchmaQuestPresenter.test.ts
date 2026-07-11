@@ -3,19 +3,8 @@ import { presentFirstKorchmaQuestCompletion } from "../../src/bot/presenters/fir
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("first Korchma quest presenter", () => {
-  it("announces the next two starter quests after completion", () => {
-    const text = presentFirstKorchmaQuestCompletion({
-      state: "completed",
-      character,
-      progress: {
-        enteredKorchma: true,
-        reachedQuestTable: true,
-        currentLocationId: "location.korchma.quest-table"
-      },
-      reward: { xp: 1, gold: 0 },
-      levelChange: null,
-      achievementUnlocks: []
-    });
+  it("announces the next two starter quests after completion for low-level characters", () => {
+    const text = presentFirstKorchmaQuestCompletion(buildCompletedResult(2));
 
     expect(text).toContain("📋 <b>Справу закрито: Перший крок до столу</b>");
     expect(text).toContain("На столі для вас розгорнулися ще дві справи:");
@@ -23,6 +12,15 @@ describe("first Korchma quest presenter", () => {
     expect(text).toContain("⚔️ <b>Новачкова сутичка</b> — підозріла шаурма ще не дала свідчень.");
     expect(text).toContain("+1 XP");
     expect(text?.indexOf("Отримано:")).toBeLessThan(text?.indexOf("На столі для вас"));
+  });
+
+  it("does not announce archived starter quests for level 3 and above", () => {
+    const text = presentFirstKorchmaQuestCompletion(buildCompletedResult(3));
+
+    expect(text).toContain("+1 XP");
+    expect(text).not.toContain("На столі для вас розгорнулися ще дві справи:");
+    expect(text).not.toContain("Підозріла шаурма");
+    expect(text).not.toContain("Новачкова сутичка");
   });
 
   it("stays quiet when the route is not ready", () => {
@@ -37,6 +35,21 @@ describe("first Korchma quest presenter", () => {
     })).toBeNull();
   });
 });
+
+function buildCompletedResult(level: number) {
+  return {
+    state: "completed" as const,
+    character: { ...character, level },
+    progress: {
+      enteredKorchma: true,
+      reachedQuestTable: true,
+      currentLocationId: "location.korchma.quest-table"
+    },
+    reward: { xp: 1, gold: 0 },
+    levelChange: null,
+    achievementUnlocks: []
+  };
+}
 
 const character: CharacterSummary = {
     name: "Мандрівник",
