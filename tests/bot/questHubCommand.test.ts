@@ -743,12 +743,13 @@ describe("quest hub command", () => {
 
   it("shows completed and unavailable cases in the archive", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const grownCharacter = characterAtLevel(4);
+    const grownCharacter = characterAtLevel(6);
 
     await sendQuestHub(
       makeContext(replies),
       servicesWith({
         adventure: completedAdventureService(grownCharacter),
+        barrelBeerTutorial: barrelBeerTutorialService(grownCharacter),
         fight: {
           getProblemQuestProgressForTelegramUser: () =>
             Promise.resolve({
@@ -794,6 +795,9 @@ describe("quest hub command", () => {
     );
     expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — виконано; миша прийняла аргументи до 3 рівня.");
+    expect(replies[0]?.text).toContain(
+      "🛢️ <i>Бочка, або Туди і звідти</i> — новачкова справа до 5 рівня; у журналі немає сліду виконання."
+    );
     expect(replies[0]?.text).toContain(
       "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );

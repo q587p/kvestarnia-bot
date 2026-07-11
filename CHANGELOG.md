@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.6] - 12026-07-10 - Bureaucramancer Personal Protocol 13-B
+## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-B
 
 ### Added
 - Added `📄 Протокол 13-Б` for level 3+ Bureaucramancers during live Big Barrel Brother recruiting.
@@ -30,6 +30,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Starter completion notices no longer advertise archived follow-up papers to level 3+ characters, and retired/grownup cellar copy no longer points players to `/hunt`.
 - Combat Chronicle rows for underdog wins in two-enemy persistent fights now evaluate the strongest stored encounter enemy, so a high-level backup enemy cannot disappear from `⚔️ Бої` and `⭐ Важливе` after the primary enemy is defeated.
 - Priest self-blessing cards now hide `✨ Благословити себе` while the character's own blessing wait is active, while healing and available blessings for other targets remain visible.
+- Quest archive now shows the unavailable `Бочка, або Туди і звідти` tutorial row after a character outlevels it without completing the route.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 
