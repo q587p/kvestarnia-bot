@@ -44,24 +44,37 @@ describe("PrismaMantokChestRepository", () => {
     expect(observedLuck).toEqual([5, 6]);
   });
 
-  it("includes an active Priest LUCK blessing in confirmation-time effective luck", async () => {
+  it("includes only an active Priest LUCK blessing in confirmation-time effective luck", async () => {
     const prisma = new FakeMantokChestPrisma();
     prisma.disableConcurrencyGate = true;
     prisma.setLuck(4);
-    prisma.setPriestBlessing("luck", 3, new Date(fixedNow.getTime() + 60_000));
     const repository = new PrismaMantokChestRepository(prisma.client);
     const observedLuck: number[] = [];
+    const selectOutput = (snapshot: { playerLuck?: number }) => {
+      observedLuck.push(snapshot.playerLuck ?? -1);
+      return { state: "no-output-candidate" as const };
+    };
 
+    prisma.setPriestBlessing("luck", 3, new Date(fixedNow.getTime() + 60_000));
     await repository.confirmRunForTelegramUser(telegramUserId, {
       token: "mantok-token-1",
       now: fixedNow,
-      selectOutput: (snapshot) => {
-        observedLuck.push(snapshot.playerLuck ?? -1);
-        return { state: "no-output-candidate" as const };
-      }
+      selectOutput
+    });
+    prisma.setPriestBlessing("luck", 3, new Date(fixedNow.getTime() - 1));
+    await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput
+    });
+    prisma.setPriestBlessing("intelligence", 3, new Date(fixedNow.getTime() + 60_000));
+    await repository.confirmRunForTelegramUser(telegramUserId, {
+      token: "mantok-token-1",
+      now: fixedNow,
+      selectOutput
     });
 
-    expect(observedLuck).toEqual([8]);
+    expect(observedLuck).toEqual([8, 5, 5]);
   });
 
   it("ignores expired untouched pending gift reservations in snapshots", async () => {
@@ -232,7 +245,7 @@ class FakeMantokChestPrisma {
   };
   private characterFindFirstCount = 0;
   private releaseCharacterFindFirst: (() => void) | null = null;
-  private activePriestBlessing: { bonusStat: string; bonusAmount: number; expiresAt: Date } | null = null;
+  private activePriestBlessing: FakePriestBlessing | null = null;
 
   readonly client = {
     $transaction: async <T>(callback: (tx: FakeMantokChestTx) => Promise<T>) =>
@@ -303,7 +316,14 @@ class FakeMantokChestPrisma {
   }
 
   setPriestBlessing(bonusStat: string, bonusAmount: number, expiresAt: Date): void {
-    this.activePriestBlessing = { bonusStat, bonusAmount, expiresAt };
+    this.activePriestBlessing = {
+      targetCharacterId: this.shared.character.id,
+      status: "active",
+      bonusStat,
+      bonusAmount,
+      startedAt: fixedNow,
+      expiresAt
+    };
   }
 
   private createTx(): FakeMantokChestTx {
@@ -356,7 +376,21 @@ class FakeMantokChestPrisma {
             : [])
       },
       noncombatPriestBlessing: {
-        findFirst: () => Promise.resolve(this.activePriestBlessing ? { ...this.activePriestBlessing } : null)
+        findFirst: (input: FakePriestBlessingFindFirstInput) => {
+          const blessing = this.activePriestBlessing;
+          return Promise.resolve(
+            blessing &&
+              input.where.targetCharacterId === blessing.targetCharacterId &&
+              input.where.status === blessing.status &&
+              blessing.expiresAt > input.where.expiresAt.gt
+              ? {
+                  bonusStat: blessing.bonusStat,
+                  bonusAmount: blessing.bonusAmount,
+                  expiresAt: blessing.expiresAt
+                }
+              : null
+          );
+        }
       },
       mantokChestRun: {
         findFirst: async (input: { where: { id?: string; characterId?: string; token?: string } }) => {
@@ -533,7 +567,11 @@ interface FakeMantokChestTx {
     findMany: (input: { where: { characterId: string; localDate: { in: string[] } } }) => Promise<Array<{ resultJson: unknown }>>;
   };
   noncombatPriestBlessing: {
-    findFirst: () => Promise<{ bonusStat: string; bonusAmount: number; expiresAt: Date } | null>;
+    findFirst: (input: FakePriestBlessingFindFirstInput) => Promise<{
+      bonusStat: string;
+      bonusAmount: number;
+      expiresAt: Date;
+    } | null>;
   };
   mantokChestRun: {
     findFirst: (input: { where: { id?: string; characterId?: string; token?: string } }) => Promise<FakeMantokChestRun | null>;
@@ -573,6 +611,24 @@ interface FakeTransferReservation {
   itemId: string;
   status: string;
   expiresAt: Date;
+}
+
+interface FakePriestBlessing {
+  targetCharacterId: string;
+  status: "active";
+  bonusStat: string;
+  bonusAmount: number;
+  startedAt: Date;
+  expiresAt: Date;
+}
+
+interface FakePriestBlessingFindFirstInput {
+  where: {
+    targetCharacterId: string;
+    status: string;
+    expiresAt: { gt: Date };
+  };
+  orderBy: { startedAt: "desc" };
 }
 
 interface CharacterItemFindManyInput {

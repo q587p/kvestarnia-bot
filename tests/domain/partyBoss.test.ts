@@ -700,6 +700,45 @@ describe("party boss reducer", () => {
     expect(third.round.personalProtocol).toBeUndefined();
   });
 
+  it("does not block a focused Big Barrel Brother retaliation against an unsigned participant", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-protocol-unsigned",
+      variant: "big-barrel",
+      leaderCharacterId: "unsigned-leader",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-big-protocol-unsigned",
+        filerCharacterId: "signer",
+        signerCharacterIds: ["signer"]
+      },
+      participants: [
+        participant("unsigned-leader", "Без Підпису", { hp: 160, level: 8, strength: 8, dexterity: 8 }),
+        participant("signer", "Підписант", { hp: 160, level: 8, strength: 30, dexterity: 30 })
+      ]
+    });
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "big-protocol-unsigned",
+      actions: [
+        { characterId: "unsigned-leader", action: "defend", origin: "manual" },
+        { characterId: "signer", action: "attack", origin: "manual" }
+      ]
+    });
+
+    expect(resolved.round.bossRetaliations[0]).toMatchObject({
+      characterId: "unsigned-leader"
+    });
+    expect(resolved.round.bossRetaliations[0]?.damage).toBeGreaterThan(0);
+    expect(resolved.round.bossRetaliations[0]?.protocolPreventedDamage).toBeUndefined();
+    expect(resolved.round.personalProtocol).toBeUndefined();
+    expect(resolved.state.personalProtocol?.signatures).toEqual([
+      expect.objectContaining({ characterId: "signer", status: "unspent" })
+    ]);
+  });
+
   it("does not spend Bureaucramancer protocol signatures on broad Big Barrel Brother retaliation", () => {
     const state = createPartyBossState({
       partySessionId: "big-protocol-broad",

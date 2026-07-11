@@ -1366,6 +1366,84 @@ describe("PrismaPartyBossRepository integration", () => {
     ].sort());
   });
 
+  it("persists one Protocol 13-Z trigger and replays stale callbacks without retriggering", async () => {
+    const token = "party-token-big-protocol-trigger-replay";
+    const characterId = "big-protocol-trigger-replay-user-character";
+    await seedCharacter(prisma, "big-protocol-trigger-replay-user", 5099n, "Підписаний Реєстратор", {
+      hp: 160,
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 10,
+      strength: 8,
+      dexterity: 8
+    });
+    await partyRepository.createForTelegramUser(5099n, {
+      ...partyInput(token),
+      periodId: "2026-06-30T10:59:13",
+      originLocationId: "barrel.big-brother"
+    });
+    expect((await partyRepository.fileBureaucramancerPersonalProtocol(5099n, token, now())).state).toBe("updated");
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5099n, {
+      partyInviteToken: token,
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      5099n,
+      token,
+      1,
+      "defend",
+      resolveInput()
+    );
+    expect(resolved.state).toBe("resolved");
+    const resolvedSession = expectPartyBossSession(resolved);
+    const expectedBossActionId = `big-barrel:1:personal:${characterId}`;
+    const storedRoundProtocol = resolvedSession.state.roundLog.at(-1)?.personalProtocol;
+    expect(storedRoundProtocol).toMatchObject({
+      characterId,
+      bossActionId: expectedBossActionId,
+      triggeredTurn: 1,
+      spentCount: 1,
+      signatureCount: 1
+    });
+    expect(storedRoundProtocol?.preventedDamage).toBeGreaterThan(0);
+    expect(resolvedSession.state.personalProtocol?.signatures).toEqual([
+      expect.objectContaining({
+        characterId,
+        status: "spent",
+        bossActionId: expectedBossActionId,
+        triggeredTurn: 1
+      })
+    ]);
+    expect(resolved.achievementEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "bureaucramancer.protocol.triggered",
+        characterId,
+        sourceId: expectedBossActionId
+      })
+    ]));
+
+    const restartedRepository = new PrismaPartyBossRepository(prisma);
+    const reloaded = await restartedRepository.findByPartyInviteToken(token);
+    expect(reloaded?.state.roundLog.at(-1)?.personalProtocol).toEqual(storedRoundProtocol);
+    expect(reloaded?.state.personalProtocol).toEqual(resolvedSession.state.personalProtocol);
+
+    const staleReplay = await restartedRepository.submitActionForTelegramUser(
+      5099n,
+      token,
+      1,
+      "defend",
+      resolveInput()
+    );
+    expect(staleReplay.state).toBe("stale");
+    expect(expectPartyBossSession(staleReplay).state.roundLog.at(-1)?.personalProtocol).toEqual(storedRoundProtocol);
+    expect(expectPartyBossSession(staleReplay).state.personalProtocol).toEqual(resolvedSession.state.personalProtocol);
+    expect(staleReplay.achievementEvents).toBeUndefined();
+  });
+
   it("replaces a remort-invalidated filing with a new identity and lets old signers sign again", async () => {
     await seedCharacter(prisma, "big-protocol-remort-leader-user", 5088n, "Ватажок Заміни", {
       hp: 80,
