@@ -1642,7 +1642,10 @@ describe("PrismaPartyBossRepository integration", () => {
       select: { manaCurrent: true }
     });
     if (filed.state === "updated") {
-      expect(mana.manaCurrent).toBe(5);
+      if (!filed.session.personalProtocol) {
+        throw new Error("Expected the committed protocol receipt after a successful filing");
+      }
+      expect(mana.manaCurrent).toBe(10 - filed.session.personalProtocol.manaCost);
       expect(started.session.state.personalProtocol?.signatures.map((row) => row.characterId)).toEqual([
         "big-protocol-start-file-user-character"
       ]);
