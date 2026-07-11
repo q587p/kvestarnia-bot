@@ -17,11 +17,15 @@ describe("PartyBossService achievements", () => {
     const occurredAt = new Date("2026-07-01T19:00:00.000Z");
     const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockImplementation((event) =>
       Promise.resolve(
-        event.type === "mantok.gear-action.used"
+        event.type === "mantok.gear-action.used" || event.type === "warrior.raid-taunt.activated"
           ? [
               {
-                id: "achievement.mantok.gear-action.first",
-                title: "Манатка натиснула кнопку",
+                id: event.type === "warrior.raid-taunt.activated"
+                  ? "achievement.warrior.raid-taunt.activated"
+                  : "achievement.mantok.gear-action.first",
+                title: event.type === "warrior.raid-taunt.activated"
+                  ? "Увага Бочки"
+                  : "Манатка натиснула кнопку",
                 cosmeticTitleGrantId: null,
                 unlockedAt: occurredAt
               }
@@ -63,6 +67,12 @@ describe("PartyBossService achievements", () => {
           characterId: "character-gear",
           sourceId: "boss-action-3",
           occurredAt
+        },
+        {
+          type: "warrior.raid-taunt.activated",
+          characterId: "character-warrior",
+          sourceId: "boss-action-4",
+          occurredAt
         }
       ]
     };
@@ -78,7 +88,7 @@ describe("PartyBossService achievements", () => {
 
     const tracked = await service.submitActionForTelegramUser(123n, "token-1", 1, "attack");
 
-    expect(trackEventSafely).toHaveBeenCalledTimes(5);
+    expect(trackEventSafely).toHaveBeenCalledTimes(6);
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
       type: "barrel.raid.claimed",
       characterId: "character-leader",
@@ -110,11 +120,25 @@ describe("PartyBossService achievements", () => {
       occurredAt,
       sourceId: "boss-action-3"
     });
+    expect(trackEventSafely).toHaveBeenNthCalledWith(6, {
+      type: "warrior.raid-taunt.activated",
+      characterId: "character-warrior",
+      occurredAt,
+      sourceId: "boss-action-4"
+    });
     expect(tracked.achievementUnlocksByCharacterId).toEqual({
       "character-gear": [
         {
           id: "achievement.mantok.gear-action.first",
           title: "Манатка натиснула кнопку",
+          cosmeticTitleGrantId: null,
+          unlockedAt: occurredAt
+        }
+      ],
+      "character-warrior": [
+        {
+          id: "achievement.warrior.raid-taunt.activated",
+          title: "Увага Бочки",
           cosmeticTitleGrantId: null,
           unlockedAt: occurredAt
         }

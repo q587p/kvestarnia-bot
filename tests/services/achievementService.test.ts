@@ -592,6 +592,22 @@ describe("AchievementService", () => {
     expect(triggered.map((unlock) => unlock.id)).toEqual(["achievement.bureaucramancer.protocol.triggered"]);
   });
 
+  it("unlocks Warrior Raid Taunt only once from its committed activation event", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    const event = {
+      type: "warrior.raid-taunt.activated" as const,
+      characterId: "character-warrior",
+      occurredAt: new Date("2026-07-11T09:13:00.000Z"),
+      sourceId: "boss-session:turn:1:warrior-taunt"
+    };
+
+    expect((await service.trackEvent(event)).map((unlock) => unlock.id)).toEqual([
+      "achievement.warrior.raid-taunt.activated"
+    ]);
+    expect(await service.trackEvent(event)).toEqual([]);
+  });
+
   it("unlocks simple ledger-backed triggers immediately and snapshots their thresholds", async () => {
     const repo = new FakeAchievementRepository();
     repo.recalculationSnapshot = makeRecalculationSnapshot({

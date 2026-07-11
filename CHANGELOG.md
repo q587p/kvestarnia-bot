@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.7] - 12026-07-11 - Warrior Raid Taunt
+
+Release status: active candidate. Automated validation is complete; refreshed isolated-runtime Telegram QA, merge, and deploy are not proven.
+
+### Added
+- Added the Big Barrel Brother-only Warrior action `🛡️ На мене!` (`raid.class.warrior.taunt`) for living joined `class.warrior` participants.
+- A committed Taunt redirects the boss response in its activation round plus the next two boss attack resolutions into that Warrior. Focused attacks stay focused; `Бочковий гуркіт` becomes one normal per-target damage instance against the Warrior instead of hitting the party.
+- Added a five-boss-turn activation cooldown: a Taunt committed on round `N` is available again on round `N + 5`. Overwritten, stale, duplicate, ineligible, blocked, and losing same-round Taunts do not start cooldown.
+- Added the rewardless first committed Taunt achievement `achievement.warrior.raid-taunt.activated`.
+
+### Changed
+- Big Barrel cards and stored journals now show Taunt activation, redirected focused/broad attacks, remaining duration, expiry, and the acting Warrior's exact remaining cooldown.
+- Party-boss defend now uses `🧱 Захищатися`, keeping its icon distinct from `🛡️ На мене!` on the same keyboard.
+- Warrior `📖 Перекази` copy now mentions the narrow Big Barrel challenge without changing the ordinary combat ability catalog.
+
+### Fixed
+- Same-round multi-Warrior conflicts resolve by frozen participant order: exactly one valid Taunt activates, and later candidates fail closed without cooldown.
+- If the taunting Warrior is already unable before target selection or is knocked out by a redirected response, the active Taunt expires without redirecting a later boss attack.
+- Existing guard, armor, equipment support, Protocol 13-З, and Kharakternyk ward processing remain in the current damage pipeline; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
+
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
 Release status: active candidate in PR #158. An earlier-runtime partial Telegram pass found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes have not been rechecked in a refreshed runtime. Merge, deploy, and full manual Telegram QA are not proven.

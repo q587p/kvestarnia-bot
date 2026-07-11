@@ -105,6 +105,140 @@ describe("PrismaPartyBossRepository integration", () => {
     })).toBe(2);
   });
 
+  it("commits only the latest eligible Big Barrel Warrior Taunt and rejects stale or ineligible replays", async () => {
+    await seedCharacter(prisma, "taunt-warrior-user", 1051n, "Воїн Виклику", {
+      hp: 500,
+      level: 8,
+      classId: "class.warrior",
+      strength: 30
+    });
+    await seedCharacter(prisma, "taunt-mage-user", 1052n, "Маг Свідок", {
+      hp: 500,
+      level: 8,
+      classId: "class.mage"
+    });
+    await partyRepository.createForTelegramUser(1051n, {
+      ...partyInput("party-token-warrior-taunt"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(1052n, "party-token-warrior-taunt", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1051n, {
+      partyInviteToken: "party-token-warrior-taunt",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started.state).toBe("started");
+
+    const queued = await bossRepository.submitActionForTelegramUser(
+      1051n,
+      "party-token-warrior-taunt",
+      1,
+      "taunt",
+      resolveInput()
+    );
+    const duplicate = await bossRepository.submitActionForTelegramUser(
+      1051n,
+      "party-token-warrior-taunt",
+      1,
+      "taunt",
+      resolveInput()
+    );
+    const overwritten = await bossRepository.submitActionForTelegramUser(
+      1051n,
+      "party-token-warrior-taunt",
+      1,
+      "attack",
+      resolveInput()
+    );
+    const firstResolved = await bossRepository.submitActionForTelegramUser(
+      1052n,
+      "party-token-warrior-taunt",
+      1,
+      "defend",
+      resolveInput()
+    );
+
+    expect(queued.state).toBe("queued");
+    expect(duplicate.state).toBe("duplicate");
+    expect(overwritten.state).toBe("updated");
+    expect(firstResolved.state).toBe("resolved");
+    expect(expectPartyBossSession(firstResolved).state.roundLog[0]?.warriorTaunt).toBeUndefined();
+    expect(expectPartyBossSession(firstResolved).state.warriorTaunt).toBeUndefined();
+    expect(firstResolved.achievementEvents).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "warrior.raid-taunt.activated" })
+    ]));
+
+    await bossRepository.submitActionForTelegramUser(
+      1051n,
+      "party-token-warrior-taunt",
+      2,
+      "taunt",
+      resolveInput()
+    );
+    const activated = await bossRepository.submitActionForTelegramUser(
+      1052n,
+      "party-token-warrior-taunt",
+      2,
+      "defend",
+      resolveInput()
+    );
+    const activeSession = expectPartyBossSession(activated);
+
+    expect(activated.state).toBe("resolved");
+    expect(activeSession.state.roundLog[1]?.warriorTaunt).toMatchObject({
+      activatedCharacterId: "taunt-warrior-user-character",
+      redirectedCharacterId: "taunt-warrior-user-character",
+      bossAttacksRemaining: 2
+    });
+    expect(activeSession.state.warriorTaunt?.cooldowns).toEqual({
+      "taunt-warrior-user-character": { availableTurn: 7 }
+    });
+    expect(activated.achievementEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "warrior.raid-taunt.activated",
+        characterId: "taunt-warrior-user-character"
+      })
+    ]));
+
+    const stale = await bossRepository.submitActionForTelegramUser(
+      1051n,
+      "party-token-warrior-taunt",
+      2,
+      "taunt",
+      resolveInput()
+    );
+    const mage = await bossRepository.submitActionForTelegramUser(
+      1052n,
+      "party-token-warrior-taunt",
+      activeSession.turn,
+      "taunt",
+      resolveInput()
+    );
+    expect(stale.state).toBe("stale");
+    expect(stale.achievementEvents).toBeUndefined();
+    expect(mage).toMatchObject({ state: "taunt-unavailable", reason: "not-warrior" });
+
+    await seedCharacter(prisma, "proof-taunt-warrior-user", 1053n, "Воїн Проби", {
+      hp: 200,
+      classId: "class.warrior"
+    });
+    await partyRepository.createForTelegramUser(1053n, partyInput("party-token-proof-warrior-taunt"));
+    const proofStarted = await bossRepository.startFromRecruitingPartyForTelegramUser(1053n, {
+      partyInviteToken: "party-token-proof-warrior-taunt",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(proofStarted.state).toBe("started");
+    await expect(bossRepository.submitActionForTelegramUser(
+      1053n,
+      "party-token-proof-warrior-taunt",
+      1,
+      "taunt",
+      resolveInput()
+    )).resolves.toMatchObject({ state: "taunt-unavailable", reason: "not-big-barrel" });
+  });
+
   it("freezes participant resources from effective level and equipment max at boss start", async () => {
     await seedCharacter(prisma, "effective-resources-user", 1101n, "Екіпірована", {
       hpCurrent: 13,

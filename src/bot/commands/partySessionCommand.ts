@@ -203,6 +203,8 @@ export async function handlePartySessionCallback(
       ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
         ? { text: "Дію вже записано." }
+        : result.state === "taunt-unavailable"
+          ? { text: "Бочка зараз не приймає цей виклик." }
         : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)

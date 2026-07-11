@@ -36,7 +36,7 @@ describe("party session keyboard", () => {
       includeDevTimeout: true
     }))).toEqual([
       "🗡️ Вдарити",
-      "🛡 Захищатися",
+      "🧱 Захищатися",
       "🪓 Силовий замах",
       "🧰 Практична імпровізація",
       "🎒 Одноразові манатки",
@@ -57,7 +57,7 @@ describe("party session keyboard", () => {
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "🗡️ Вдарити",
-      "🛡 Захищатися",
+      "🧱 Захищатися",
       "🪓 Силовий замах",
       "🧰 Практична імпровізація",
       "🔎 Оновити"
@@ -75,6 +75,25 @@ describe("party session keyboard", () => {
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
       includeCombatItems: true
     }))).toContain("v1:party:bm:partyABC12:1");
+  });
+
+  it("shows Warrior Taunt only to an eligible living Warrior in Big Barrel combat", () => {
+    const warrior = makeBossSession({}, { bigBarrel: true });
+    expect(inlineButtonTexts(buildPartyBossKeyboard(warrior, "character-1"))).toContain("🛡️ На мене!");
+    expect(keyboardText(buildPartyBossKeyboard(warrior, "character-1"))).toContain("v1:party:ba:partyABC12:1:t");
+
+    const mage = makeBossSession({ classId: "class.mage" }, { bigBarrel: true });
+    expect(inlineButtonTexts(buildPartyBossKeyboard(mage, "character-1"))).not.toContain("🛡️ На мене!");
+    expect(inlineButtonTexts(buildPartyBossKeyboard(makeBossSession(), "character-1"))).not.toContain("🛡️ На мене!");
+
+    const activeTaunt = makeBossSession({}, {
+      bigBarrel: true,
+      warriorTaunt: {
+        active: { characterId: "character-1", activatedTurn: 1, bossAttacksRemaining: 2 },
+        cooldowns: { "character-1": { availableTurn: 6 } }
+      }
+    });
+    expect(inlineButtonTexts(buildPartyBossKeyboard(activeTaunt, "character-1"))).not.toContain("🛡️ На мене!");
   });
 
   it("shows party boss gear actions from equipment grants", () => {
@@ -421,7 +440,7 @@ describe("party session keyboard", () => {
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "🗡️ Вдарити",
-      "🛡 Захищатися",
+      "🧱 Захищатися",
       "🧰 Практична імпровізація",
       "🔎 Оновити"
     ]);
@@ -529,7 +548,12 @@ function makeBossSession(
     equipmentAbilityGrantIds?: string[];
     cooldowns?: NonNullable<PartyBossSessionRecord["state"]["participants"][number]["resources"]["cooldowns"]>;
   } = {},
-  sessionOverrides: { status?: PartyBossSessionRecord["status"]; roundLogLength?: number } = {}
+  sessionOverrides: {
+    status?: PartyBossSessionRecord["status"];
+    roundLogLength?: number;
+    bigBarrel?: boolean;
+    warriorTaunt?: PartyBossSessionRecord["state"]["warriorTaunt"];
+  } = {}
 ): PartyBossSessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
   const participant = makeCharacter("character-1", 42n);
@@ -542,20 +566,20 @@ function makeBossSession(
     status: sessionOverrides.status ?? "active",
     turn: 1,
     version: 1,
-    rulesVersion: "party-boss-proof-v1",
-    bossKey: "party-boss-proof-one",
+    rulesVersion: sessionOverrides.bigBarrel ? "big-barrel-brother-v1" : "party-boss-proof-v1",
+    bossKey: sessionOverrides.bigBarrel ? "big-barrel-brother" : "party-boss-proof-one",
     turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
     completedAt: null,
     result: null,
     participants: [participant],
     state: {
-      rulesVersion: "party-boss-proof-v1",
+      rulesVersion: sessionOverrides.bigBarrel ? "big-barrel-brother-v1" : "party-boss-proof-v1",
       partySessionId: "party-1",
       status: sessionOverrides.status ?? "active",
       turn: 1,
       boss: {
-        monsterId: "party-boss-proof-one",
-        name: "Контрольний Бос",
+        monsterId: sessionOverrides.bigBarrel ? "big-barrel-brother" : "party-boss-proof-one",
+        name: sessionOverrides.bigBarrel ? "Старший Брат Бочки" : "Контрольний Бос",
         level: 3,
         hp: 42,
         hpMax: 42,
@@ -603,6 +627,7 @@ function makeBossSession(
           }
         }
       ],
+      ...(sessionOverrides.warriorTaunt ? { warriorTaunt: sessionOverrides.warriorTaunt } : {}),
       roundLog: Array.from({ length: sessionOverrides.roundLogLength ?? 0 }, (_unused, index) => ({
         turn: index + 1,
         actions: [],

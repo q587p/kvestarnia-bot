@@ -152,6 +152,7 @@ describe("lore board content", () => {
     }
 
     expect(classLoreBody("class-warrior")).toContain("по зброї в кожній руці");
+    expect(classLoreBody("class-warrior")).toContain("🛡️ На мене!");
     expect(classLoreBody("class-mage")).toContain("Чароковальнею");
     expect(classLoreBody("class-bard")).toContain("може виступити");
     expect(classLoreBody("class-rogue")).toContain("Тихою кишенею");

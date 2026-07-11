@@ -33,7 +33,7 @@
 
 | Клас | Поточна бойова абілка | Поточна соціяльна/контентна роль | Planned |
 | --- | --- | --- | --- |
-| Воїн | `🪓 Силовий замах` (`skill.forceful-strike`): single enemy, physical, 0 мани, 1 cooldown. | Class-specific adventure offers; combat-forward title/loot affinity. | Guard/cleave milestone option, tavern challenge social hooks. |
+| Воїн | `🪓 Силовий замах` (`skill.forceful-strike`): single enemy, physical, 0 мани, 1 cooldown. | Class-specific adventure offers; combat-forward title/loot affinity; Big Barrel-only `🛡️ На мене!` redirects three boss responses with an `N + 5` availability gate. | Cleave milestone option, tavern challenge social hooks. |
 | Маг | `🔥 Гаряче закляття` (`skill.hot-spell`): all enemies, spell, 5 мани, 2 cooldown. | Class-specific adventure offers; spell-theory flavor. | Controlled utility magic, puzzle/inspection social tricks, later second spell. |
 | Бард | `🎶 Небезпечний куплет` (`skill.dangerous-couplet`): all enemies plus ally morale/guard metadata, social damage, 4 мани, 3 cooldown. | `0.2.5` Bard Performance: same-location noncombat performance with applause/tips; no XP/items/buffs/achievements/quest progress. | Instruments, broader performance techniques, group morale support after party runtime. |
 | Злодій | `🌘 Тіньовий розтин` (`skill.shadow-cut`): single enemy plus response mitigation, trick, 0 мани, 2 cooldown. | Class-specific adventure offers; stealth/deception method flavor. | Sneak/social bypasses, lock/trap scenes, later evasion milestone. |
@@ -43,7 +43,7 @@
 | Єгер | `🏹 Рикошетний постріл` (`skill.trick-shot`): primary plus splash/all enemies, trick, 1 мана, 2 cooldown. | Yeger hunt/board systems already exist, but class-ranger discounts/free medical supply hooks are narrow item/Yeger mechanics, not a universal profession engine. | Tracking, contracts and outdoor utility in small slices; no group auto-navigation by default. |
 | Козак-характерник | `👁 Степовий косий погляд` (`skill.steppe-side-eye`): all enemies plus control/mitigation, trick, 2 мани, 2 cooldown. | Class-specific adventure offers; steppe/tuman/control flavor. | More характерницькі tricks, ritual/control support. |
 
-`0.3.6` remains an active release candidate. A partial Telegram pass on an earlier runtime found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes require a refreshed-runtime recheck before full manual QA can be claimed.
+`0.3.6` shipped through merged PR #158. Deployment and a refreshed-runtime full Telegram recheck remain separately unproven.
 
 ## Поточні Титули
 

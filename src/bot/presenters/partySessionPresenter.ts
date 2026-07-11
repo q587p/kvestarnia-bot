@@ -427,6 +427,13 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
     });
   }
 
+  if (result.state === "taunt-unavailable") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: presentWarriorRaidTauntUnavailableNotice(result)
+    });
+  }
+
   if (result.state === "queued") {
     const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
@@ -527,8 +534,11 @@ export function presentPartyBoss(
   if (big && state.personalProtocol) {
     lines.push(presentBureaucramancerProtocolBossLine(state.personalProtocol));
   }
+  if (big && state.warriorTaunt?.active) {
+    lines.push(presentWarriorRaidTauntBossLine(state));
+  }
   if (session.status === "active") {
-    lines.push(...presentPartyBossCooldownLines(viewer ?? null));
+    lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
   }
 
   const lastRound = state.roundLog.at(-1);
@@ -615,6 +625,8 @@ function presentPartyBossQueuedActionPlan(
       return action.item
         ? `одноразову манатку <i>${escapeHtml(action.item.name)}</i>`
         : "одноразову манатку";
+    case "taunt":
+      return "гукнути «🛡️ На мене!»";
     default:
       return "дію";
   }
@@ -662,6 +674,9 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   }
   if (round.personalProtocol) {
     actionLines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
+  }
+  if (round.warriorTaunt) {
+    actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
   }
 
   return presentBattleJournalPage({
@@ -837,6 +852,12 @@ function presentLastRoundLines(
   if (round.personalProtocol) {
     lines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
   }
+  if (round.warriorTaunt) {
+    lines.push(...presentWarriorRaidTauntRoundLines(
+      round.warriorTaunt,
+      new Map(participants.map((participant) => [participant.characterId, participant.name]))
+    ));
+  }
   return lines;
 }
 
@@ -886,6 +907,12 @@ function presentBossRetaliationLine(
   retaliation: PartyBossSessionRecord["state"]["roundLog"][number]["bossRetaliations"][number],
   verb: "атакує"
 ): string {
+  if (retaliation.tauntRedirected && retaliation.tauntOriginalKind === "broad") {
+    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.`;
+  }
+  if (retaliation.tauntRedirected) {
+    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.`;
+  }
   if ((retaliation.protocolPreventedDamage ?? 0) > 0) {
     return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.`;
   }
@@ -900,6 +927,22 @@ function presentBureaucramancerProtocolTriggeredLine(
     `📄 Протокол 13-З спрацьовує: Бочка знаходить персональну претензію й бʼє по паперах замість ребер. Запобігло ${protocol.preventedDamage} шкоди.`,
     `Підпис витрачено: ${protocol.spentCount}/${protocol.signatureCount}.`
   ].join("\n");
+}
+
+function presentWarriorRaidTauntRoundLines(
+  taunt: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["warriorTaunt"]>,
+  names: Map<string, string>
+): string[] {
+  const lines: string[] = [];
+  if (taunt.redirectedCharacterId && (taunt.bossAttacksRemaining ?? 0) > 0) {
+    lines.push(
+      `🛡️ Увага Бочки: ${escapeHtml(names.get(taunt.redirectedCharacterId) ?? "воїн")}, ще ${formatTurns(taunt.bossAttacksRemaining ?? 0)}.`
+    );
+  }
+  if (taunt.expiredCharacterId) {
+    lines.push("🫥 Виклик згас: Бочка знову дивиться на всю ватагу.");
+  }
+  return lines;
 }
 
 export function presentPartyNearbyCandidates(snapshot: NearbyDuelCandidatesSnapshot): string {
@@ -1027,6 +1070,30 @@ function presentBureaucramancerProtocolBossLine(
   return preventedDamage > 0
     ? `📄 Протокол 13-З уже витратив усі підписи. Запобігло: ${preventedDamage} шкоди.`
     : "📄 Протокол 13-З уже витратив усі підписи.";
+}
+
+function presentWarriorRaidTauntBossLine(state: PartyBossSessionRecord["state"]): string {
+  const active = state.warriorTaunt?.active;
+  if (!active) {
+    return "";
+  }
+  const name = state.participants.find((participant) => participant.characterId === active.characterId)?.name ?? "воїн";
+  return `🛡️ Увага Бочки: ${escapeHtml(name)}, ще ${formatTurns(active.bossAttacksRemaining)}.`;
+}
+
+function presentWarriorRaidTauntUnavailableNotice(
+  result: Extract<PartyBossActionResult, { state: "taunt-unavailable" }>
+): string {
+  if (result.reason === "cooldown" && result.availableTurn !== undefined) {
+    return `«🛡️ На мене!» ще відсапується: чекати ${formatTurns(Math.max(1, result.availableTurn - result.session.turn))}.`;
+  }
+  if (result.reason === "active-taunt") {
+    return "Бочка вже слухає один виклик. Другий зараз загубиться в гуркоті.";
+  }
+  if (result.reason === "not-warrior") {
+    return "Цей рейдовий виклик слухається лише воїна.";
+  }
+  return "Цей виклик більше не діє. Показую свіжий стан рейду.";
 }
 
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
@@ -1322,6 +1389,17 @@ function presentPartyBossActionLine(
   const isViewer = Boolean(viewerCharacterId && action.characterId === viewerCharacterId);
   const name = escapeHtml(participant?.name ?? "Учасник");
 
+  if (action.outcome === "taunt-activated") {
+    return isViewer
+      ? "Ви гукаєте «🛡️ На мене!» — увага Бочки переходить до вас."
+      : `${name} гукає «🛡️ На мене!» — увага Бочки переходить туди.`;
+  }
+  if (action.outcome === "taunt-failed") {
+    return isViewer
+      ? "Ваш виклик запізнився: Бочка вже обрала, кого слухати."
+      : `${name} гукає до Бочки, але виклик запізнюється.`;
+  }
+
   if (action.outcome === "item-used") {
     const itemName = presentPartyBossItemName(action.itemId, action.itemName ?? "манатку");
     const healing = presentPartyBossItemHealing(action);
@@ -1425,7 +1503,8 @@ function presentPartyBossActionSubject(
 }
 
 function presentPartyBossCooldownLines(
-  viewer: PartyBossSessionRecord["state"]["participants"][number] | null
+  viewer: PartyBossSessionRecord["state"]["participants"][number] | null,
+  state: PartyBossSessionRecord["state"]
 ): string[] {
   if (!viewer || viewer.status !== "active" || viewer.resources.hp <= 0) {
     return [];
@@ -1433,8 +1512,12 @@ function presentPartyBossCooldownLines(
 
   const skillLines = presentCooldownLines(viewer.resources.cooldowns);
   const itemLines = presentItemCooldownLines(viewer.combatItems);
+  const tauntAvailableTurn = state.warriorTaunt?.cooldowns[viewer.characterId]?.availableTurn;
+  const tauntLines = viewer.combatStats.classId === "class.warrior" && tauntAvailableTurn !== undefined && tauntAvailableTurn > state.turn
+    ? [`🫁 🛡️ «На мене!» відсапується: ще ${formatTurns(tauntAvailableTurn - state.turn)}.`]
+    : [];
 
-  return [...skillLines, ...itemLines];
+  return [...skillLines, ...itemLines, ...tauntLines];
 }
 
 function presentItemCooldownLines(

@@ -4,6 +4,23 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.7 — Warrior Raid Taunt smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Start a Big Barrel Brother raid with a living joined Warrior and one non-Warrior.
+2. Verify only the Warrior sees `🛡️ На мене!`; ordinary PvE, training, quick duels and turn-based duels keep their existing actions.
+3. Queue Taunt, replace it with another valid action, and resolve the round; verify Taunt does not activate and no cooldown starts.
+4. Queue Taunt again and resolve; verify it activates before that round's boss response and redirects the response into the Warrior.
+5. Reach a `Бочковий гуркіт` response while Taunt is active; verify only the Warrior takes one normal hit and other participants lose no HP or mana from that response.
+6. Verify the active card and stored journal show activation, redirection, remaining duration and expiry for exactly three boss responses.
+7. Verify the Warrior's durable card states the exact remaining turn wait and permits the next Taunt on activation round `N + 5`.
+8. With two Warriors, queue both in the same round; verify exactly one deterministic activator and no cooldown for the other.
+9. Replay stale/duplicate buttons and try the action from a non-Warrior; verify short Ukrainian failure copy and no state extension.
+10. Knock out the taunting Warrior and verify Taunt expires before any later boss target selection.
+
+Manual Telegram QA status: not run. See [`docs/qa/warrior-raid-taunt-qa.md`](../qa/warrior-raid-taunt-qa.md).
+
 ## 0.3.6 — Bureaucramancer Personal Protocol 13-Z smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
