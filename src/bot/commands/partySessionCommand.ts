@@ -1260,6 +1260,9 @@ function isBigBarrelParty(session: Parameters<typeof buildPartySessionKeyboard>[
 function presentWardPlaceCallbackAnswer(
   state: Awaited<ReturnType<PartySessionService["placeKharakternykWardSignForTelegramUser"]>>["state"]
 ): string {
+  if (state === "stale") {
+    return "Стан ватаги змінився. Спробуйте поставити знак ще раз.";
+  }
   if (state === "updated") {
     return "Знак поставлено.";
   }

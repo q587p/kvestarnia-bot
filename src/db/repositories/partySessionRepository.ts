@@ -170,6 +170,7 @@ export type PartyWardSignPlaceRepositoryResult =
         | "updated"
         | "already-placed"
         | "already-exists"
+        | "stale"
         | "not-member"
         | "not-recruiting"
         | "not-big-barrel"

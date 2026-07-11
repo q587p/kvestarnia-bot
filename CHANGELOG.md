@@ -42,6 +42,8 @@ Release status: active candidate in PR #158. An earlier-runtime partial Telegram
 - Protocol INT and Mantok Chest confirmation LUCK now load attunement state by the exact current equipment rows, so more than 13 historical attunement records cannot hide a still-current tuning row. Mantok confirmation also includes an active Priest LUCK blessing in canonical effective LUCK.
 - Join, leave, readiness and ward-support CAS losses now replay a provable canonical result or report an explicit stale state instead of false ineligible, not-member, not-recruiting or already-supported outcomes.
 - Recruiting cancel/expiry cleanup now clears participant membership keys only after its parent terminal transition succeeds, preserving the active roster when raid start wins the race.
+- Exhausted Protocol filing and Kharakternyk ward-placement CAS retries now return duplicate states only when the canonical protocol or ward exists; otherwise they return stale without spending resources.
+- Canonical participant/leader join, leave and cancel callbacks now return stale after the party has already started or completed instead of misreporting expiry, membership or leadership.
 
 ## [0.3.5] - 12026-07-10 - Performance P0 Hardening
 

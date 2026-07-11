@@ -168,6 +168,91 @@ describe("PrismaPartySessionRepository integration", () => {
     })).resolves.toEqual({ manaCurrent: 13 });
   });
 
+  it("returns stale when Protocol 13-Z filing exhausts CAS retries without a canonical protocol", async () => {
+    const token = "party-token-protocol-file-cas-loss";
+    await seedCharacter(prisma, "protocol-file-cas-user", 2091n, "Реєстратор CAS", {
+      level: 8,
+      classId: "class.bureaucramancer",
+      manaCurrent: 13
+    });
+    await repository.createForTelegramUser(2091n, bigBarrelInput(token));
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_protocol_file_cas_loss", token, () =>
+      repository.fileBureaucramancerPersonalProtocol(2091n, token, now())
+    );
+
+    expect(result.state).toBe("stale");
+    expect("session" in result ? result.session.personalProtocol : null).toBeUndefined();
+    await expectPersonalProtocolSnapshotCount(prisma, token, 0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "protocol-file-cas-user-character" },
+      select: { manaCurrent: true }
+    })).resolves.toEqual({ manaCurrent: 13 });
+    await expect(prisma.characterCooldown.count({
+      where: {
+        characterId: "protocol-file-cas-user-character",
+        key: BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY
+      }
+    })).resolves.toBe(0);
+  });
+
+  it("returns stale when Kharakternyk ward placement exhausts CAS retries without a canonical ward", async () => {
+    const token = "party-token-ward-place-cas-loss";
+    await seedCharacter(prisma, "ward-place-cas-user", 2092n, "Знакар Розбіжности", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 13,
+      statsJson: { intelligence: 13, luck: 13 }
+    });
+    await repository.createForTelegramUser(2092n, bigBarrelInput(token));
+
+    const result = await withForcedSessionVersionCasLoss(prisma, "force_ward_place_cas_loss", token, () =>
+      repository.placeKharakternykWardSign(2092n, token, now())
+    );
+
+    expect(result.state).toBe("stale");
+    expect("session" in result ? result.session.wardSign : null).toBeUndefined();
+    await expectWardSignSnapshotCount(prisma, token, 0);
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "ward-place-cas-user-character" },
+      select: { manaCurrent: true }
+    })).resolves.toEqual({ manaCurrent: 13 });
+  });
+
+  it.each([
+    ["active", 2093n],
+    ["completed", 2094n]
+  ] as const)("returns stale for canonical recruiting callbacks after the party becomes %s", async (status, telegramUserId) => {
+    const token = `party-token-post-start-${status}`;
+    const userId = `post-start-${status}-user`;
+    await seedCharacter(prisma, userId, telegramUserId, `Канонічний ${status}`);
+    await repository.createForTelegramUser(telegramUserId, partyInput(token));
+    await prisma.partySession.update({
+      where: { inviteToken: token },
+      data: {
+        status,
+        ...(status === "completed" ? { activeLeaderKey: null } : {})
+      }
+    });
+    if (status === "completed") {
+      await prisma.partyParticipant.updateMany({
+        where: { session: { inviteToken: token } },
+        data: { activeMembershipKey: null }
+      });
+    }
+
+    const join = await repository.joinByTokenForTelegramUser(telegramUserId, token, joinInput());
+    const leave = await repository.leaveByTokenForTelegramUser(telegramUserId, token, now());
+    const cancel = await repository.cancelByTokenForTelegramUser(telegramUserId, token, now());
+
+    expect(join.state).toBe("stale");
+    expect(leave.state).toBe("stale");
+    expect(cancel.state).toBe("stale");
+    expect("session" in join ? join.session.status : null).toBe(status);
+    expect("session" in leave ? leave.session.status : null).toBe(status);
+    expect("session" in cancel ? cancel.session.status : null).toBe(status);
+  });
+
   it("switches from own solo Big Barrel recruiting into a selected Big Barrel raid", async () => {
     await seedCharacter(prisma, "switcher-user", 2101n, "Перемикач", { level: 8 });
     await seedCharacter(prisma, "target-leader-user", 2102n, "Ватажок", { level: 8 });
@@ -1465,6 +1550,25 @@ function hasKharakternykWardSignSnapshot(snapshotJson: unknown): boolean {
     !Array.isArray(wardSign) &&
     (wardSign as Record<string, unknown>).kind === "kharakternyk"
   );
+}
+
+async function expectWardSignSnapshotCount(
+  prisma: PrismaClient,
+  inviteToken: string,
+  expectedCount: number
+): Promise<void> {
+  const snapshots = await prisma.partyParticipant.findMany({
+    where: {
+      session: {
+        inviteToken
+      }
+    },
+    select: {
+      snapshotJson: true
+    }
+  });
+
+  expect(snapshots.filter((row) => hasKharakternykWardSignSnapshot(row.snapshotJson))).toHaveLength(expectedCount);
 }
 
 async function expectWardSupportSnapshotCount(

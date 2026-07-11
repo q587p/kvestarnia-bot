@@ -1089,6 +1089,30 @@ describe("handlePartySessionCallback", () => {
     );
   });
 
+  it("answers exhausted Kharakternyk ward placement CAS loss as stale", async () => {
+    const session = makeBigBarrelSessionWithMember();
+    const placeKharakternykWardSignForTelegramUser = vi.fn().mockResolvedValue({
+      state: "stale",
+      session
+    });
+    const { ctx, answerCallbackQuery, reply } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "ward-place", token: session.inviteToken },
+      serviceWith({ placeKharakternykWardSignForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Стан ватаги змінився. Спробуйте поставити знак ще раз."
+    });
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it("sends a separate mana-spend confirmation after supporting a Kharakternyk ward sign", async () => {
     const base = makeBigBarrelSessionWithMember();
     const session = {

@@ -127,7 +127,7 @@ Document this in balance notes if both features exist on the target branch.
 
 ## Persistence and replay
 
-The shipped implementation uses existing party-session and party-boss state instead of a schema migration.
+The release-candidate implementation uses existing party-session and party-boss state instead of a schema migration.
 
 Store at least:
 
@@ -170,7 +170,7 @@ Implementation notes:
 - Filing result: short Ukrainian card with mana spend.
 - Signing result: short Ukrainian confirmation; no public signer list.
 - Active fight/journal: show when a participant's personal protocol blocks an attack. Group-visible copy may stay generic; viewer-private cards may name the viewer where the existing combat presenter normally names the target.
-- Lore Board: update Bureaucramancer class entry after runtime ships.
+- Lore Board: the Bureaucramancer class entry is already updated for this release candidate.
 
 ## Non-goals
 

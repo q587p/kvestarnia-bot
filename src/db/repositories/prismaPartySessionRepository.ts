@@ -250,6 +250,14 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: terminalState, session: mapSession(session) };
       }
 
+      if (session.status === "active" || session.status === "completed") {
+        const character = await findCharacterByTelegramUser(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+        return { state: "stale", session: mapSession(session) };
+      }
+
       if (
         session.status !== LIVE_STATUS ||
         (session.expiresAt <= input.now && session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
@@ -452,8 +460,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       const participant = session.participants.find((row) => row.characterId === character.id);
-      if (!participant || participant.status !== "joined" || session.status !== LIVE_STATUS) {
+      if (!participant || participant.status !== "joined") {
         return { state: "not-member", session: mapSession(session) };
+      }
+      if (session.status !== LIVE_STATUS) {
+        return { state: "stale", session: mapSession(session) };
       }
 
       const remaining = session.participants
@@ -558,8 +569,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      if (session.leaderCharacterId !== character.id || session.status !== LIVE_STATUS) {
+      if (session.leaderCharacterId !== character.id) {
         return { state: "not-leader", session: mapSession(session) };
+      }
+      if (session.status !== LIVE_STATUS) {
+        return { state: "stale", session: mapSession(session) };
       }
 
       await terminalizeSessionTx(tx, session.id, "cancelled");
@@ -1968,7 +1982,10 @@ function resolveKharakternykWardSignReservationLoss(
     return { state: "already-placed", session: mapSession(session) };
   }
 
-  return { state: "already-exists", session: mapSession(session) };
+  return {
+    state: existingWard ? "already-exists" : "stale",
+    session: mapSession(session)
+  };
 }
 
 async function reserveKharakternykWardSupportSlot(
@@ -2146,7 +2163,10 @@ function resolvePersonalProtocolFileReservationLoss(
     return { state: "already-filed", session: mapSession(session) };
   }
 
-  return { state: "already-exists", session: mapSession(session) };
+  return {
+    state: existingProtocol ? "already-exists" : "stale",
+    session: mapSession(session)
+  };
 }
 
 async function reservePersonalProtocolSignatureSlot(
