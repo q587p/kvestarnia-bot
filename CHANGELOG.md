@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.7] - 12026-07-13 - Warrior Raid Taunt and Korchma Polish
+## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
 
 Release status: active candidate. An earlier manual pass found stale leader-card delivery; runtime fixes followed, so the latest-head targeted Telegram recheck remains pending. Automated validation is complete; merge and deploy are not proven.
 
