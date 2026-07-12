@@ -4,6 +4,7 @@ import type { PartySessionService } from "../services/partySessionService";
 import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
 import { presentPartyBoss, presentPartyBossIntro } from "./presenters/partySessionPresenter";
+import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -35,18 +36,20 @@ export function createPartyBossRecruitingStartScheduler(
         const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
 
         for (const party of due) {
-          const result = await services.partyBoss.startFromPartyForTelegramUser(
-            party.leader.telegramUserId,
-            party.inviteToken,
-            { allowExpiredRecruiting: true }
-          );
+          processed += await serializePartySessionDelivery(party.inviteToken, async () => {
+            const result = await services.partyBoss.startFromPartyForTelegramUser(
+              party.leader.telegramUserId,
+              party.inviteToken,
+              { allowExpiredRecruiting: true }
+            );
 
-          if (!("session" in result) || result.state !== "started") {
-            continue;
-          }
+            if (!("session" in result) || result.state !== "started") {
+              return 0;
+            }
 
-          processed += 1;
-          await notifyParticipants(bot, services.partyBoss, result.session, "started");
+            await notifyParticipants(bot, services.partyBoss, result.session, "started");
+            return 1;
+          });
         }
       }
 

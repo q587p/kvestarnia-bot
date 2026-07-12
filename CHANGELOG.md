@@ -9,7 +9,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
 
-Release status: active candidate. Automated validation is complete; refreshed isolated-runtime Telegram QA, merge, and deploy are not proven.
+Release status: active candidate. An earlier manual pass found stale leader-card delivery; runtime fixes followed, so the latest-head targeted Telegram recheck remains pending. Automated validation is complete; merge and deploy are not proven.
 
 ### Added
 - Added the Big Barrel Brother-only Warrior action `🛡️ На мене!` (`raid.class.warrior.taunt`) for living joined `class.warrior` participants.
@@ -28,7 +28,7 @@ Release status: active candidate. Automated validation is complete; refreshed is
 - A committed Taunt clears guard from an earlier Defend or equipment guard action. Armor, passive equipment effects, Protocol 13-З, and Kharakternyk Ward remain in the normal damage pipeline, and a fresh Defend on a later active-Taunt round may create a new guard normally; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
 - Taunt commits now clear stale Defend/equipment guard even for same-round conflict losers; victory-before-response and early Warrior knockout persist one authoritative expiry state across the terminal card, round summary, and journal.
 - Stored journal next-focus notices now honor the durable active Taunt snapshot, live cards render the active Taunt row once, achievement recalculation recovers committed activations from party-boss action summaries, and timeout resolution preserves its achievement notification.
-- Big Barrel recruiting changes now refresh the leader's card after another participant changes readiness, Ward support, Protocol signatures, or membership; if the saved leader card is missing or no longer editable, the bot sends one fresh card and stores its new message reference.
+- Big Barrel recruiting changes now refresh the leader's card after another participant changes readiness, Ward placement/support, Protocol filing/signing, or membership. Delivery is serialized per party and rereads canonical party/boss state so reverse-order completions cannot regress the card and recruiting controls cannot return after boss start; `message is not modified` counts as success, transient edit failures do not send replacements, and recognized permanent missing/non-editable references produce at most one fresh stored leader card.
 
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
