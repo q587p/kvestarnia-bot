@@ -396,8 +396,8 @@ describe("handlePartySessionCallback", () => {
     expect(storedLeader?.messageId).toBeTypeOf("number");
   });
 
-  it("renders the latest canonical preparation version when v2 and v3 handlers finish in reverse order", async () => {
-    const base = makeBigBarrelSessionWithMember();
+  it("renders the latest canonical preparation version to three participants when v2 and v3 finish in reverse order", async () => {
+    const base = makeBigBarrelSessionWithTwoMembers();
     const v2 = withParticipantReadiness(base, "character-93", "ready", 2);
     const v3 = withParticipantReadiness(base, "character-93", "waiting", 3);
     let canonical = base;
@@ -443,6 +443,12 @@ describe("handlePartySessionCallback", () => {
     expect(leaderEdits.length).toBeGreaterThan(0);
     expect(leaderEdits.every((text) => text.includes("2. ⏳ <b>Друга Учасниця</b>"))).toBe(true);
     expect(leaderEdits.every((text) => !text.includes("2. ✅ <b>Друга Учасниця</b>"))).toBe(true);
+    const thirdParticipantEdits = [...first.apiEditMessageText.mock.calls, ...second.apiEditMessageText.mock.calls]
+      .filter((call) => call[0] === 587)
+      .map((call) => String(call[2]));
+    expect(thirdParticipantEdits.length).toBeGreaterThan(0);
+    expect(thirdParticipantEdits.every((text) => text.includes("2. ⏳ <b>Друга Учасниця</b>"))).toBe(true);
+    expect(thirdParticipantEdits.every((text) => !text.includes("2. ✅ <b>Друга Учасниця</b>"))).toBe(true);
   });
 
   it("pushes the started boss card to other participants", async () => {
@@ -477,13 +483,14 @@ describe("handlePartySessionCallback", () => {
   });
 
   it("does not publish recruiting controls when a preparation callback finishes after boss start", async () => {
-    const party = makeBigBarrelSessionWithMember();
+    const party = makeBigBarrelSessionWithTwoMembers();
     const boss = makeBossSession();
     const start = deferred<{ state: "started"; session: PartyBossSessionRecord }>();
     let canonicalBoss: PartyBossSessionRecord | null = null;
+    const startFromPartyForTelegramUser = vi.fn().mockImplementation(() => start.promise);
     const partyBoss = partyBossWith({
       areDevHelpersEnabled: () => true,
-      startFromPartyForTelegramUser: vi.fn().mockImplementation(() => start.promise),
+      startFromPartyForTelegramUser,
       getByPartyInviteToken: vi.fn().mockImplementation(() => Promise.resolve(canonicalBoss))
     });
     const updated = withParticipantReadiness(party, "character-93", "ready", 2);
@@ -513,6 +520,90 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(member.editMessageText)).toContain("v1:party:ba");
     expect(keyboardJson(member.editMessageText)).not.toContain("v1:party:r:");
     expect(member.apiEditMessageText).not.toHaveBeenCalledWith(42, 13, expect.anything(), expect.anything());
+    expect(member.apiEditMessageText.mock.calls.some((call) =>
+      call[0] === 587 && JSON.stringify(call[3]).includes("v1:party:rs:")
+    )).toBe(false);
+  });
+
+  it("renders the boss card when view races manual boss start", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    const boss = makeBossSession();
+    const start = deferred<{ state: "started"; session: PartyBossSessionRecord }>();
+    let canonicalBoss: PartyBossSessionRecord | null = null;
+    const startFromPartyForTelegramUser = vi.fn().mockImplementation(() => start.promise);
+    const partyBoss = partyBossWith({
+      areDevHelpersEnabled: () => true,
+      startFromPartyForTelegramUser,
+      getByPartyInviteToken: vi.fn().mockImplementation(() => Promise.resolve(canonicalBoss))
+    });
+    const service = serviceWithCanonicalSession(party, {});
+    const leader = createCallbackContext(42);
+    const viewer = createCallbackContext(93);
+
+    const starting = handlePartySessionCallback(
+      leader.ctx,
+      { type: "boss-start", token: party.inviteToken },
+      service,
+      { presence: {} as PresenceService, partyBoss, botUsername: "kvestarnia_test_bot" }
+    );
+    await vi.waitFor(() => expect(startFromPartyForTelegramUser).toHaveBeenCalledTimes(1));
+    const viewing = handlePartySessionCallback(
+      viewer.ctx,
+      { type: "view", token: party.inviteToken },
+      service,
+      { presence: {} as PresenceService, partyBoss, botUsername: "kvestarnia_test_bot" }
+    );
+    canonicalBoss = boss;
+    start.resolve({ state: "started", session: boss });
+    await Promise.all([starting, viewing]);
+
+    expect(messageText(viewer.editMessageText)).toContain("Контрольний Бос");
+    expect(keyboardJson(viewer.editMessageText)).toContain("v1:party:ba");
+    expect(keyboardJson(viewer.editMessageText)).not.toContain("v1:party:rs:");
+  });
+
+  it("does not persist a recruiting card when deep-link join races manual boss start", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    const boss = makeBossSession();
+    const start = deferred<{ state: "started"; session: PartyBossSessionRecord }>();
+    let canonicalBoss: PartyBossSessionRecord | null = null;
+    const startFromPartyForTelegramUser = vi.fn().mockImplementation(() => start.promise);
+    const partyBoss = partyBossWith({
+      areDevHelpersEnabled: () => true,
+      startFromPartyForTelegramUser,
+      getByPartyInviteToken: vi.fn().mockImplementation(() => Promise.resolve(canonicalBoss))
+    });
+    const recordParticipantMessageReference = vi.fn();
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session: party });
+    const service = serviceWithCanonicalSession(party, {
+      joinByTokenForTelegramUser,
+      recordParticipantMessageReference
+    });
+    const leader = createCallbackContext(42);
+    const joiner = createCallbackContext(93);
+
+    const starting = handlePartySessionCallback(
+      leader.ctx,
+      { type: "boss-start", token: party.inviteToken },
+      service,
+      { presence: {} as PresenceService, partyBoss, botUsername: "kvestarnia_test_bot" }
+    );
+    await vi.waitFor(() => expect(startFromPartyForTelegramUser).toHaveBeenCalledTimes(1));
+    const joining = sendPartyJoinFromStartPayload(
+      joiner.ctx,
+      service,
+      party.inviteToken,
+      { partyBoss, botUsername: "kvestarnia_test_bot" }
+    );
+    await vi.waitFor(() => expect(joinByTokenForTelegramUser).toHaveBeenCalledTimes(1));
+    canonicalBoss = boss;
+    start.resolve({ state: "started", session: boss });
+    await Promise.all([starting, joining]);
+
+    expect(String(joiner.reply.mock.calls[0]?.[0])).toContain("Контрольний Бос");
+    expect(JSON.stringify(joiner.reply.mock.calls[0]?.[1])).toContain("v1:party:ba");
+    expect(JSON.stringify(joiner.reply.mock.calls[0]?.[1])).not.toContain("v1:party:rs:");
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
   });
 
   it("rejects non-Big Barrel Brother boss starts when dev helper mode is disabled", async () => {
@@ -1196,14 +1287,109 @@ describe("handlePartySessionCallback", () => {
 
     expect(messageText(editMessageText)).toContain("📄 Протокол 13-З відкрито. Підписів: 1.");
     expect(apiEditMessageText).toHaveBeenCalledWith(
-      42,
-      13,
+      93,
+      99,
       expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
       expect.objectContaining({ parse_mode: "HTML" })
     );
+  });
+
+  it("keeps leader Protocol v2 and v3 deliveries canonical when the older handler finishes last", async () => {
+    const base = makeBigBarrelSessionWithTwoMembers();
+    const protocol = {
+      kind: "bureaucramancer-personal-protocol-13b" as const,
+      protocolId: "protocol-party-1-leader-race",
+      filerCharacterId: base.leaderCharacterId,
+      manaCost: 5,
+      filedAt: new Date("2026-06-29T15:03:00.000Z")
+    };
+    const v2: PartySessionRecord = {
+      ...base,
+      version: 2,
+      personalProtocol: { ...protocol, signatureCount: 1 }
+    };
+    const v3: PartySessionRecord = {
+      ...v2,
+      version: 3,
+      personalProtocol: { ...protocol, signatureCount: 2 }
+    };
+    let canonical = base;
+    const fileBureaucramancerPersonalProtocolForTelegramUser = vi.fn()
+      .mockImplementationOnce(() => {
+        canonical = v2;
+        return Promise.resolve({ state: "updated", session: v2 });
+      })
+      .mockImplementationOnce(() => {
+        canonical = v3;
+        return Promise.resolve({ state: "updated", session: v3 });
+      });
+    const service = serviceWith({
+      fileBureaucramancerPersonalProtocolForTelegramUser,
+      getByToken: vi.fn().mockImplementation(() => Promise.resolve({ state: "ready", session: canonical }))
+    });
+    const first = createCallbackContext(42);
+    const second = createCallbackContext(42);
+    const delayedOlderAnswer = deferred<boolean>();
+    first.answerCallbackQuery.mockImplementationOnce(() => delayedOlderAnswer.promise);
+
+    const older = handlePartySessionCallback(
+      first.ctx,
+      { type: "protocol-file", token: base.inviteToken },
+      service,
+      { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
+    );
+    await vi.waitFor(() => expect(fileBureaucramancerPersonalProtocolForTelegramUser).toHaveBeenCalledTimes(1));
+    const newer = handlePartySessionCallback(
+      second.ctx,
+      { type: "protocol-file", token: base.inviteToken },
+      service,
+      { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
+    );
+    await newer;
+    delayedOlderAnswer.resolve(true);
+    await older;
+
+    const actorCards = [messageText(first.editMessageText), messageText(second.editMessageText)];
+    expect(actorCards.every((text) => text.includes("Підписів: 2."))).toBe(true);
+    const storedCards = [...first.apiEditMessageText.mock.calls, ...second.apiEditMessageText.mock.calls]
+      .map((call) => String(call[2]));
+    expect(storedCards.length).toBeGreaterThan(0);
+    expect(storedCards.every((text) => text.includes("Підписів: 2."))).toBe(true);
+  });
+
+  it("refreshes the stored leader card when Protocol is filed from a different callback message", async () => {
+    const base = makeBigBarrelSessionWithMember();
+    const session: PartySessionRecord = {
+      ...base,
+      version: 2,
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-party-1-other-leader-card",
+        filerCharacterId: base.leaderCharacterId,
+        signatureCount: 1,
+        manaCost: 5,
+        filedAt: new Date("2026-06-29T15:03:00.000Z")
+      },
+      participants: base.participants.map((participant) =>
+        participant.characterId === base.leaderCharacterId
+          ? { ...participant, messageId: 77 }
+          : participant
+      )
+    };
+    const fileBureaucramancerPersonalProtocolForTelegramUser = vi.fn().mockResolvedValue({ state: "updated", session });
+    const { ctx, editMessageText, apiEditMessageText } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "protocol-file", token: session.inviteToken },
+      serviceWithCanonicalSession(session, { fileBureaucramancerPersonalProtocolForTelegramUser }),
+      { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
+    );
+
+    expect(messageText(editMessageText)).toContain("📄 Протокол 13-З відкрито. Підписів: 1.");
     expect(apiEditMessageText).toHaveBeenCalledWith(
-      93,
-      99,
+      42,
+      77,
       expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
       expect.objectContaining({ parse_mode: "HTML" })
     );
@@ -1331,16 +1517,13 @@ describe("handlePartySessionCallback", () => {
       }
     );
 
-    expect(apiEditMessageText).toHaveBeenCalledTimes(2);
-    expect(apiEditMessageText).toHaveBeenNthCalledWith(
-      1,
+    expect(apiEditMessageText).toHaveBeenCalledWith(
       42,
       13,
       expect.stringContaining("Учасники: 2/8"),
       expect.objectContaining({ parse_mode: "HTML" })
     );
-    expect(apiEditMessageText).toHaveBeenNthCalledWith(
-      2,
+    expect(apiEditMessageText).toHaveBeenCalledWith(
       93,
       77,
       expect.stringContaining("Стан: скасовано"),
@@ -1426,7 +1609,11 @@ describe("handlePartySessionCallback", () => {
 
     const handled = await sendPartyJoinFromStartPayload(
       joinContext.ctx,
-      serviceWith({ joinByTokenForTelegramUser, recordParticipantMessageReference }),
+      serviceWith({
+        joinByTokenForTelegramUser,
+        recordParticipantMessageReference,
+        getByToken: vi.fn().mockImplementation(() => Promise.resolve({ state: "ready", session: storedSession }))
+      }),
       joinedSession.inviteToken,
       { botUsername: "kvestarnia_test_bot" }
     );
@@ -1462,12 +1649,6 @@ describe("handlePartySessionCallback", () => {
       { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
     );
 
-    expect(filingContext.apiEditMessageText).toHaveBeenCalledWith(
-      42,
-      13,
-      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 1."),
-      expect.objectContaining({ parse_mode: "HTML" })
-    );
     expect(filingContext.apiEditMessageText).toHaveBeenCalledWith(
       93,
       23,
@@ -2010,6 +2191,37 @@ function makeBigBarrelSessionWithMember(): PartySessionRecord {
   return {
     ...session,
     originLocationId: "barrel.big-brother"
+  };
+}
+
+function makeBigBarrelSessionWithTwoMembers(): PartySessionRecord {
+  const session = makeBigBarrelSessionWithMember();
+  const member = {
+    ...makeCharacter(),
+    id: "character-587",
+    userId: "user-587",
+    telegramUserId: 587n,
+    name: "Третя Учасниця"
+  };
+
+  return {
+    ...session,
+    participants: [
+      ...session.participants,
+      {
+        id: "participant-587",
+        sessionId: session.id,
+        characterId: member.id,
+        remortCount: 0,
+        status: "joined",
+        joinSource: "nearby",
+        joinedAt: session.createdAt,
+        leftAt: null,
+        chatId: 587n,
+        messageId: 587,
+        character: member
+      }
+    ]
   };
 }
 

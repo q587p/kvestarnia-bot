@@ -18,10 +18,10 @@ Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot
 8. With two Warriors, queue both in the same round; verify exactly one deterministic activator and no cooldown for the other.
 9. Replay stale/duplicate buttons and try the action from a non-Warrior; verify short Ukrainian failure copy and no state extension.
 10. Knock out the taunting Warrior and verify Taunt expires before any later boss target selection.
-11. From separate accounts, commit preparation changes in quick succession and confirm reverse-order Telegram completion cannot regress the leader card.
+11. With at least three participants, commit preparation changes in quick succession and confirm reverse-order Telegram completion cannot regress the leader or ordinary stored participant cards.
 12. Delete the leader card and race two preparation changes; confirm one replacement is sent and later updates keep using its stored reference.
-13. Have the leader leave; confirm the transferred leader receives leader-only controls on the refreshed or replacement card.
-14. Race readiness, Ward, or Protocol preparation against manual/scheduled boss start; confirm no recruiting controls are published after combat starts.
+13. File Protocol as leader from a different callback message than the saved leader card; confirm both update, then have the leader leave and confirm the transferred leader receives leader-only controls.
+14. Race readiness, Ward, Protocol, view, and deep-link join against manual boss start, plus preparation against scheduled start; confirm no recruiting controls or recruiting reference are published after combat starts.
 
 Manual Telegram QA status: an earlier pass found the stale leader recruiting-card problem. Runtime fixes followed; the latest-head targeted recheck and remaining refreshed-runtime checklist are pending. See [`docs/qa/warrior-raid-taunt-qa.md`](../qa/warrior-raid-taunt-qa.md).
 

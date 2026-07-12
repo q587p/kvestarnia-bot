@@ -36,20 +36,20 @@ export function createPartyBossRecruitingStartScheduler(
         const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
 
         for (const party of due) {
-          processed += await serializePartySessionDelivery(party.inviteToken, async () => {
-            const result = await services.partyBoss.startFromPartyForTelegramUser(
+          const result = await serializePartySessionDelivery(party.inviteToken, () =>
+            services.partyBoss.startFromPartyForTelegramUser(
               party.leader.telegramUserId,
               party.inviteToken,
               { allowExpiredRecruiting: true }
-            );
+            )
+          );
 
-            if (!("session" in result) || result.state !== "started") {
-              return 0;
-            }
+          if (!("session" in result) || result.state !== "started") {
+            continue;
+          }
 
-            await notifyParticipants(bot, services.partyBoss, result.session, "started");
-            return 1;
-          });
+          processed += 1;
+          await notifyParticipants(bot, services.partyBoss, result.session, "started");
         }
       }
 
