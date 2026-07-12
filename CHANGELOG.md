@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
+## [0.3.7] - 12026-07-13 - Warrior Raid Taunt and Korchma Polish
 
 Release status: active candidate. An earlier manual pass found stale leader-card delivery; runtime fixes followed, so the latest-head targeted Telegram recheck remains pending. Automated validation is complete; merge and deploy are not proven.
 
@@ -23,6 +23,8 @@ Release status: active candidate. An earlier manual pass found stale leader-card
 - Warrior `📖 Перекази` copy now mentions the narrow Big Barrel challenge without changing the ordinary combat ability catalog.
 
 ### Fixed
+- Extended the unaccepted and unfinished `Бочка, або Туди і звідти` tutorial offer through level 7 inclusive while preserving the existing level-5 XP reward cap and post-accept completion behavior.
+- Changed `Корковий перстень серйозних справ` from `luck +1` to the same-budget `dexterity +1`, keeping `Перстень Пивовладдя` as the distinct `luck +1` starter accessory without changing item sources, value, slot or upgrade rules.
 - Same-round multi-Warrior conflicts resolve by frozen participant order: exactly one valid Taunt activates, and later candidates fail closed without cooldown.
 - If the taunting Warrior is already unable before target selection or is knocked out by a redirected response, the active Taunt expires without redirecting a later boss attack.
 - A committed Taunt clears guard from an earlier Defend or equipment guard action. Armor, passive equipment effects, Protocol 13-З, and Kharakternyk Ward remain in the normal damage pipeline, and a fresh Defend on a later active-Taunt round may create a new guard normally; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.

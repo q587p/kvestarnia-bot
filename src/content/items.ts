@@ -91,7 +91,7 @@ const authoredItemContents = [
     equipmentSlot: "accessory",
     goldValue: 6,
     effect: {
-      luck: 1
+      dexterity: 1
     }
   },
   {

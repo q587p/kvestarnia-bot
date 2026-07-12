@@ -323,7 +323,8 @@ describe("AdventureService", () => {
 
     expect(result.state).toBe("completed");
     if (result.state === "completed") {
-      expect(result.check.effectiveStatsSnapshot.luck).toBe(8);
+      expect(result.check.effectiveStatsSnapshot.dexterity).toBe(8);
+      expect(result.check.effectiveStatsSnapshot.luck).toBe(7);
     }
   });
 

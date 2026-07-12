@@ -410,7 +410,7 @@ Alpha scaling рахується як derived effective values від збере
 - Дії: `cheese-trap`, `sweep-bravely`, `negotiate`.
 - Нагороди маленькі: `+1–2 XP`, `+0–1 золота` і deterministic дрібний лут за дію: сирний сумнів, щетина порядку або серветка дипломатії.
 - У `0.0.14` льохова миша має кілька стартових і outcome-реплік; вибір стабільний від героя/дії, без RNG. Частина outcome-дiйства спеціально реагує на расу, клас і займенники героя, а не лише підставляє generic фразу.
-- У `0.0.15` переговори з мишею також можуть дати `item.cork-ring-of-serious-business` як перший reachable аксесуар; у `0.0.22` він отримує малий `luck +1` effect.
+- У `0.0.15` переговори з мишею також можуть дати `item.cork-ring-of-serious-business` як перший reachable аксесуар; після розведення стартових перснів він має малий `dexterity +1` effect, тоді як `item.persten-pyvovladdia` зберігає `luck +1`.
 - Cooldown: 3 хвилини через persisted `character_cooldowns`, без Redis.
 - Повторний callback під час cooldown не дублює XP/золото й показує coarse час повернення, не точний timestamp.
 - Presence: герой переходить у `location.korchma.cellar`; це відкрита aggregate-місцина для public `/presence`, але public web усе одно показує counts-only без імен.

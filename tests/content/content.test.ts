@@ -144,7 +144,7 @@ describe("content tables", () => {
     });
     expect(items.find((item) => item.id === "item.cork-ring-of-serious-business")).toMatchObject({
       effect: {
-        luck: 1
+        dexterity: 1
       }
     });
     expect(items.find((item) => item.id === "item.persten-pyvovladdia")).toMatchObject({
