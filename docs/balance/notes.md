@@ -340,7 +340,7 @@ item_power_budget = base_by_level + rarity_bonus
 - `item.stamp-of-minor-authority`: `weaponDamage +1`, `intelligence +1`;
 - `item.apron-of-foam-resistance`: `armor +1`, `hpMax +2`;
 - `item.pot-helmet-of-early-access`: `armor +1`;
-- `item.cork-ring-of-serious-business`: `luck +1`;
+- `item.cork-ring-of-serious-business`: `dexterity +1`;
 - `item.badge-of-thirteen-small-problems`: no power effect.
 
 Junk, cosmetics, priceless trophies і quest badges не мають випадкових power effects. Якщо предмет має впливати на combat, його треба явно перевести в supported equippable content і покрити тестом. Поточний content test вимагає `effect` для кожної `weapon`/`armor`/`accessory` манатки, щоб спорядження не виглядало як порожня обіцянка.

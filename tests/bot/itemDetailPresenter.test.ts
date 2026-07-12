@@ -105,7 +105,7 @@ describe("item detail presenter", () => {
           slot: "accessory",
           goldValue: 6,
           effect: {
-            luck: 1
+            dexterity: 1
           }
         }
       })
@@ -115,7 +115,7 @@ describe("item detail presenter", () => {
     expect(armor).toContain("Ефект: <b>+2 HP · +1 до захисту</b>");
     expect(armor).toContain("Манекен випростав плечі");
     expect(accessory).toContain("Категорія: <b>аксесуар</b>");
-    expect(accessory).toContain("Ефект: <b>+1 Вдачі</b>");
+    expect(accessory).toContain("Ефект: <b>+1 Спритности</b>");
     expect(accessory).toContain("Поличка для дрібних дивин обережно блищить");
   });
 
