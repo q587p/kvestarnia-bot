@@ -759,6 +759,36 @@ describe("PrismaPartyBossRepository integration", () => {
       turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     });
     expect(started.state).toBe("started");
+    const startedSession = expectPartyBossSession(started);
+    await prisma.partyBossSession.update({
+      where: { id: startedSession.id },
+      data: {
+        stateJson: {
+          ...startedSession.state,
+          participants: startedSession.state.participants.map((participant) =>
+            participant.characterId === "duplicate-gear-leader-user-character"
+              ? {
+                  ...participant,
+                  resources: {
+                    ...participant.resources,
+                    playerAbilityFumbles: {
+                      version: 1,
+                      abilities: {
+                        "gear.barrel-counter-shield": {
+                          version: 1,
+                          cycle: 0,
+                          usesInCycle: 0,
+                          triggerAt: 13
+                        }
+                      }
+                    }
+                  }
+                }
+              : participant
+          )
+        }
+      }
+    });
 
     const gearAbility = { profile: grant.combat.profile };
     const queued = await bossRepository.submitActionForTelegramUser(
