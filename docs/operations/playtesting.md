@@ -4,6 +4,18 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.8 — Measured Runtime Stability smoke
+
+1. Start without `BOT_TOKEN`; verify `/health` returns `200`, `/ready` returns `503`, and no Telegram bot or scheduler starts.
+2. Start with a failed database probe; verify `/health` remains `200`, `/ready` remains `503`, Telegram polling does not start, and the log contains only an allowlisted error category.
+3. Start normally; verify `/ready` changes to `200` only after grammY `onStart`, then returns to `503` as soon as shutdown begins.
+4. With default perf env, exercise inventory/item detail, `🗺️ Квести`, Yeger, DKR and a fight turn; verify fast calls stay quiet and slow calls contain no Telegram user id, player text, callback data, token, SQL parameter or serialized state.
+5. Force measured DB and Telegram failures locally; verify each span emits exactly one terminal error record with elapsed component time and an allowlisted category, without the raw error message.
+6. Set `RENDER_GIT_COMMIT` / `RENDER_INSTANCE_ID` to valid and invalid local probes; verify only validated values enter payloads.
+7. For a controlled post-deploy window only, set `KVESTARNIA_PERF_SAMPLE_RATE=1`, collect enough fast/slow/error records for real rates, then restore it to `0`.
+
+Manual Telegram QA status: not run. This release changes runtime observability/readiness only and keeps gameplay behavior unchanged.
+
 ## 0.3.7 — Warrior Raid Taunt smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.

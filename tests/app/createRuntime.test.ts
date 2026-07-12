@@ -1,8 +1,10 @@
 import type { Bot } from "grammy";
+import type { PrismaClient } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { createRuntime } from "../../src/app/createRuntime";
 import type { ApplicationServices } from "../../src/app/createServices";
 import type { AppConfig } from "../../src/config/env";
+import type { HealthServerOptions } from "../../src/health/server";
 
 describe("createRuntime", () => {
   it("starts health only when BOT_TOKEN is missing and stops once", async () => {
@@ -12,7 +14,7 @@ describe("createRuntime", () => {
     const servicesFixture = makeServices();
     const runtime = createRuntime({
       config: makeConfig({ botToken: undefined }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services: servicesFixture.services,
       dependencies: {
         createBot,
@@ -20,8 +22,8 @@ describe("createRuntime", () => {
       }
     });
 
-    runtime.start();
-    runtime.start();
+    await runtime.start();
+    await runtime.start();
     await runtime.stop();
     await runtime.stop();
 
@@ -40,9 +42,10 @@ describe("createRuntime", () => {
     const passageSearchScheduler = makeScheduler();
     const servicesFixture = makeServices({ passageSearch: true });
     const services = servicesFixture.services;
+    let readiness: { isReady(): boolean } | undefined;
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token", botUsername: "kvestarnia_bot" }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services,
       dependencies: {
         createBot: vi.fn(() => bot),
@@ -50,12 +53,17 @@ describe("createRuntime", () => {
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
         createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
-        startHealthServer: vi.fn(() => ({ close }) as never)
+        startHealthServer: vi.fn((options: HealthServerOptions) => {
+          readiness = options.readiness;
+          return { close } as never;
+        })
       }
     });
 
-    runtime.start();
+    await runtime.start();
+    expect(readiness?.isReady()).toBe(true);
     await runtime.stop();
+    expect(readiness?.isReady()).toBe(false);
 
     expect(botFixture.start).toHaveBeenCalledTimes(1);
     expect(botFixture.setMyCommands).toHaveBeenCalledTimes(1);
@@ -80,7 +88,7 @@ describe("createRuntime", () => {
     const combatScheduler = makeScheduler();
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
@@ -91,7 +99,7 @@ describe("createRuntime", () => {
       }
     });
 
-    runtime.start();
+    await runtime.start();
     await Promise.all([runtime.stop(), runtime.stop()]);
 
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
@@ -108,7 +116,7 @@ describe("createRuntime", () => {
     const startHealthServer = vi.fn(() => ({ close }) as never);
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot,
@@ -117,7 +125,7 @@ describe("createRuntime", () => {
     });
 
     await runtime.stop();
-    runtime.start();
+    await runtime.start();
 
     expect(startHealthServer).not.toHaveBeenCalled();
     expect(createBot).not.toHaveBeenCalled();
@@ -132,7 +140,7 @@ describe("createRuntime", () => {
     const botFixture = makeBot({ stopError });
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
@@ -143,7 +151,7 @@ describe("createRuntime", () => {
       }
     });
 
-    runtime.start();
+    await runtime.start();
     await expect(runtime.stop()).rejects.toThrow(stopError);
 
     expect(close).toHaveBeenCalledTimes(1);
@@ -157,7 +165,7 @@ describe("createRuntime", () => {
     const createCombatTurnTimeoutScheduler = vi.fn(() => makeScheduler());
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
-      prisma: { $disconnect: disconnect },
+      prisma: makePrisma(disconnect),
       services: makeServices({ duel: false }).services,
       dependencies: {
         createBot: vi.fn(() => makeBot().bot),
@@ -168,11 +176,76 @@ describe("createRuntime", () => {
       }
     });
 
-    runtime.start();
+    await runtime.start();
     await runtime.stop();
 
     expect(createDuelTurnTimeoutScheduler).not.toHaveBeenCalled();
     expect(createCombatTurnTimeoutScheduler).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails readiness closed when the database probe rejects", async () => {
+    const close = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const queryError = Object.assign(new Error("private database path"), { code: "SQLITE_BUSY" });
+    const queryRawUnsafe = vi.fn().mockRejectedValue(queryError);
+    const createBot = vi.fn();
+    let readiness: { isReady(): boolean } | undefined;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect, queryRawUnsafe),
+      services: makeServices().services,
+      dependencies: {
+        createBot,
+        startHealthServer: vi.fn((options: HealthServerOptions) => {
+          readiness = options.readiness;
+          return { close } as never;
+        })
+      }
+    });
+
+    await runtime.start();
+
+    expect(createBot).not.toHaveBeenCalled();
+    expect(readiness?.isReady()).toBe(false);
+    expect(console.error).toHaveBeenCalledWith(
+      "Квестарня: база не пройшла перевірку готовності.",
+      { errorCategory: "database-locked" }
+    );
+    await runtime.stop();
+  });
+
+  it("fails readiness closed when Telegram polling startup rejects", async () => {
+    const close = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const startError = Object.assign(new Error("private Telegram URL"), { name: "HttpError" });
+    const botFixture = makeBot({ startError });
+    let readiness: { isReady(): boolean } | undefined;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => botFixture.bot),
+        createDuelTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        createCombatTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn((options: HealthServerOptions) => {
+          readiness = options.readiness;
+          return { close } as never;
+        })
+      }
+    });
+
+    await runtime.start();
+    await vi.waitFor(() => expect(console.error).toHaveBeenCalledWith(
+      "Квестарня: Telegram polling не запустився або аварійно завершився.",
+      { errorCategory: "telegram-api" }
+    ));
+
+    expect(readiness?.isReady()).toBe(false);
+    await runtime.stop();
   });
 });
 
@@ -213,14 +286,19 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
   return { services, cleanupExpiredPendingRuns, announceIfNeeded };
 }
 
-function makeBot(options: { stopError?: Error } = {}): {
+function makeBot(options: { startError?: Error; stopError?: Error } = {}): {
   bot: Bot;
   setMyCommands: ReturnType<typeof vi.fn>;
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
 } {
   const setMyCommands = vi.fn().mockResolvedValue(undefined);
-  const start = vi.fn().mockResolvedValue(undefined);
+  const start = options.startError
+    ? vi.fn().mockRejectedValue(options.startError)
+    : vi.fn(async (pollingOptions?: Parameters<Bot["start"]>[0]) => {
+        await pollingOptions?.onStart?.({} as never);
+        await new Promise<void>(() => undefined);
+      });
   const stop = options.stopError
     ? vi.fn().mockRejectedValue(options.stopError)
     : vi.fn().mockResolvedValue(undefined);
@@ -233,6 +311,16 @@ function makeBot(options: { stopError?: Error } = {}): {
   } as unknown as Bot;
 
   return { bot, setMyCommands, start, stop };
+}
+
+function makePrisma(
+  disconnect: ReturnType<typeof vi.fn>,
+  queryRawUnsafe: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue([{ ready: 1 }])
+): Pick<PrismaClient, "$disconnect" | "$queryRawUnsafe"> {
+  return {
+    $disconnect: disconnect,
+    $queryRawUnsafe: queryRawUnsafe
+  };
 }
 
 function makeScheduler(): { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> } {

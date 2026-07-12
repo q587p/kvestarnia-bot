@@ -50,6 +50,30 @@ describe("health server", () => {
     expect(response.headers.get("content-type")).toContain("text/plain");
   });
 
+  it("keeps readiness unavailable until the runtime reports ready", async () => {
+    let ready = false;
+    const baseUrl = await listen({
+      readiness: { isReady: () => ready }
+    });
+
+    const unavailable = await fetch(`${baseUrl}/ready`);
+    expect(unavailable.status).toBe(503);
+    await expect(unavailable.text()).resolves.toBe("kvestarnia not ready\n");
+
+    ready = true;
+    const available = await fetch(`${baseUrl}/ready`);
+    expect(available.status).toBe(200);
+    await expect(available.text()).resolves.toBe("kvestarnia ready\n");
+  });
+
+  it("fails readiness closed when no runtime probe is configured", async () => {
+    const baseUrl = await listen();
+
+    const response = await fetch(`${baseUrl}/ready`);
+
+    expect(response.status).toBe(503);
+  });
+
   it("serves the public Kvestarnia home page with latest news and presence links", async () => {
     const baseUrl = await listen(presenceServiceWith(publicPresenceSnapshot));
 
@@ -78,10 +102,10 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Воїн навчився перекрикувати Бочку");
-    expect(text).toContain("🛡️ На мене!");
-    expect(text).toContain("перетягнути увагу Бочки на себе");
-    expect(text).toContain("звичайні бої, тренування й дуелі лишаються без рейдової переклички");
+    expect(text).toContain("Корчма перевірила, чи справді прокинулась");
+    expect(text).toContain("чесніше відрізняти «я вже прокинулась»");
+    expect(text).toContain("невидимі службові лічильники тихіше рахують заминки");
+    expect(text).toContain("звичні бої, квести, манатки й решта кнопок працюють за старими правилами");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
@@ -287,10 +311,11 @@ async function listen(
   options:
     | PresenceService
     | {
-        presence?: PresenceService;
-        supportJarUrl?: string;
-        supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
-      } = {}
+      presence?: PresenceService;
+      supportJarUrl?: string;
+      supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
+      readiness?: { isReady(): boolean };
+    } = {}
 ): Promise<string> {
   const serverOptions =
     "getPublicPresenceLocations" in options ? { presence: options } : options;

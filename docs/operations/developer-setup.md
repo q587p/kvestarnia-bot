@@ -350,6 +350,16 @@ NODE_VERSION=22
 DEPLOY_NOTIFICATIONS_ENABLED=false
 ```
 
+Optional performance telemetry variables may remain unset; the effective defaults are:
+
+```env
+KVESTARNIA_PERF_SAMPLE_RATE=0
+KVESTARNIA_PERF_SLOW_MS=350
+YEGER_PERF_DEBUG=false
+```
+
+`KVESTARNIA_PERF_SAMPLE_RATE` accepts a clamped `0..1` random-sample rate. Slow calls and measured failures are logged independently of that rate. Performance payloads contain route/count/timing/configuration fields and Render's non-secret `RENDER_GIT_COMMIT` / `RENDER_INSTANCE_ID` metadata when valid; they do not contain Telegram user ids, player text, callback data, tokens, SQL parameters or serialized state.
+
 Render сам передає `PORT`. Якщо `PORT` немає, healthcheck server слухає `10000` на `0.0.0.0`.
 
 SQLite файл має лежати на Persistent Disk, змонтованому в `/var/data`. Без persistent disk дані можуть зникати між деплоями.
@@ -390,8 +400,13 @@ npm run db:deploy && npm run start
 
 ```text
 GET /      public Ukrainian Kvestarnia site
-GET /health Render healthcheck, text/plain `kvestarnia ok`
+GET /health process liveness, text/plain `kvestarnia ok`
+GET /ready database + Telegram polling readiness; `503` until both are ready and during shutdown
 ```
+
+For production after `0.3.8`, set Render's Health Check Path to `/ready`. Keep `/health` for process-level diagnostics; a live HTTP process is not sufficient evidence that the database and Telegram polling started.
+
+For a controlled post-deploy measurement window, first verify the deployed commit in the emitted metadata, then temporarily set `KVESTARNIA_PERF_SAMPLE_RATE=1` for at least 60 minutes or until the main routes have at least 100 complete samples. Export logs confidentially, restore the rate to `0`, and publish only sanitized aggregates. Do not commit raw logs.
 
 ```text
 GET /presence Жива Квестарня public presence page

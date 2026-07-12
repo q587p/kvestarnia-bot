@@ -18,4 +18,8 @@ const runtime = createRuntime({
 
 registerSignalShutdown(runtime);
 
-void runtime.start();
+void runtime.start().catch((error) => {
+  console.error("Квестарня: runtime не запустився.", {
+    errorName: error instanceof Error ? error.name : "unknown"
+  });
+});

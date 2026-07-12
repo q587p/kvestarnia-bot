@@ -77,7 +77,7 @@ buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
 import { isInventoryEquipmentSlotFilter } from "../inventoryFilter";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
-import { elapsedMs, hotPathNow, logSlowHotPathTiming } from "../performanceLogger";
+import { elapsedMs, hotPathNow, logSlowHotPathTiming, startPerfSpan } from "../performanceLogger";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentEquipItemResult,
@@ -129,48 +129,19 @@ const HTML_MESSAGE_OPTIONS = {
 };
 
 function startCallbackTiming(route: string, telegramUserId: bigint) {
-  const totalStartedAt = hotPathNow();
-  let dbMs = 0;
-  let computeMs = 0;
-  let telegramEditMs = 0;
+  const span = startPerfSpan(route, { telegramUserId });
 
   return {
-    async measureDb<T>(callback: () => Promise<T>): Promise<T> {
-      const startedAt = hotPathNow();
-      const result = await callback();
-      dbMs += elapsedMs(startedAt);
-
-      return result;
-    },
-    measureCompute<T>(callback: () => T): T {
-      const startedAt = hotPathNow();
-      const result = callback();
-      computeMs += elapsedMs(startedAt);
-
-      return result;
-    },
-    async measureTelegram<T>(callback: () => Promise<T>): Promise<T> {
-      const startedAt = hotPathNow();
-      const result = await callback();
-      telegramEditMs += elapsedMs(startedAt);
-
-      return result;
-    },
+    measureDb: <T>(operation: () => Promise<T>) => span.measureDb(operation),
+    measureCompute: <T>(operation: () => T) => span.measureCompute(operation),
+    measureTelegram: <T>(operation: () => Promise<T>) => span.measureTelegramEdit(operation),
     log(fields: {
       itemCount?: number | null;
       filter?: string | null;
       sort?: string | null;
       page?: number | null;
     } = {}): void {
-      logSlowHotPathTiming({
-        route,
-        telegramUserId,
-        ...fields,
-        dbMs,
-        computeMs,
-        telegramEditMs,
-        totalMs: elapsedMs(totalStartedAt)
-      });
+      span.end(fields);
     }
   };
 }

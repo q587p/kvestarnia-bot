@@ -7,6 +7,21 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.8] - 12026-07-12 - Measured Runtime Stability
+
+### Added
+- Added `/ready` as a fail-closed database and Telegram polling readiness endpoint while preserving `/health` as process liveness.
+- Added validated Render commit/instance attribution plus effective sample-rate and slow-threshold metadata to performance records.
+
+### Changed
+- Performance payloads no longer emit Telegram user ids. Random sampling remains disabled by default, slow calls remain always-on, and measured failures now emit independently of both gates.
+- Shared DB, compute, Telegram and inventory edit spans preserve elapsed failure time, classify errors into a small allowlist and terminate at most once without raw exception details.
+- Runtime scheduler startup now waits for grammY `onStart`; shutdown immediately fails readiness, and database or polling startup failure cannot advertise a ready service.
+
+### Fixed
+- Caught Telegram polling startup/rejection paths that previously floated as an unobserved promise while the HTTP health process could remain live.
+- Documented the effective telemetry defaults and a privacy-safe controlled sampling window derived from 426 sanitized slow-tail events on deployed commit `9b00adc2df26f55a535add76de92a7b44d6fb139`.
+
 ## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
 
 Release status: active candidate. An earlier manual pass found stale leader-card delivery; runtime fixes followed, so the latest-head targeted Telegram recheck remains pending. Automated validation is complete; merge and deploy are not proven.
