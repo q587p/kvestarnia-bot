@@ -2,7 +2,9 @@ import type { Bot } from "grammy";
 import type { PartyBossService } from "../services/partyBossService";
 import type { PartySessionService } from "../services/partySessionService";
 import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
+import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
 import { presentPartyBoss, presentPartyBossIntro } from "./presenters/partySessionPresenter";
+import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -34,10 +36,12 @@ export function createPartyBossRecruitingStartScheduler(
         const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
 
         for (const party of due) {
-          const result = await services.partyBoss.startFromPartyForTelegramUser(
-            party.leader.telegramUserId,
-            party.inviteToken,
-            { allowExpiredRecruiting: true }
+          const result = await serializePartySessionDelivery(party.inviteToken, () =>
+            services.partyBoss.startFromPartyForTelegramUser(
+              party.leader.telegramUserId,
+              party.inviteToken,
+              { allowExpiredRecruiting: true }
+            )
           );
 
           if (!("session" in result) || result.state !== "started") {
@@ -62,7 +66,8 @@ export function createPartyBossRecruitingStartScheduler(
           bot,
           services.partyBoss,
           result.session,
-          result.session.status === "active" ? "timeout" : "terminal"
+          result.session.status === "active" ? "timeout" : "terminal",
+          result.achievementUnlocksByCharacterId
         );
       }
 
@@ -103,7 +108,8 @@ async function notifyParticipants(
   bot: Bot,
   partyBoss: PartyBossService,
   session: Parameters<typeof buildPartyBossKeyboard>[0],
-  reason: "started" | "timeout" | "terminal"
+  reason: "started" | "timeout" | "terminal",
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
 ): Promise<void> {
   await Promise.allSettled(session.participants.map(async (participant) => {
     if (reason === "started") {
@@ -131,6 +137,12 @@ async function notifyParticipants(
         })
       }
     );
+    const achievementText = presentAchievementUnlockNotification(
+      achievementUnlocksByCharacterId?.[participant.id] ?? []
+    );
+    if (achievementText) {
+      await bot.api.sendMessage(Number(participant.telegramUserId), achievementText, HTML_MESSAGE_OPTIONS);
+    }
   }));
 }
 

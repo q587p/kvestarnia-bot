@@ -25,7 +25,7 @@ export type PartySessionCallback =
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
-export type PartyBossCallbackAction = "attack" | "defend" | "skill" | "race";
+export type PartyBossCallbackAction = "attack" | "defend" | "skill" | "race" | "taunt";
 
 export type PartySessionCallbackError =
   | "invalid-version"
@@ -394,6 +394,8 @@ function actionKey(action: PartyBossCallbackAction): string {
       return "s";
     case "race":
       return "r";
+    case "taunt":
+      return "t";
   }
 }
 
@@ -409,6 +411,9 @@ function parseActionKey(value: string): PartyBossCallbackAction | null {
   }
   if (value === "r") {
     return "race";
+  }
+  if (value === "t") {
+    return "taunt";
   }
   return null;
 }

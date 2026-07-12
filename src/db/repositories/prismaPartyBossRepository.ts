@@ -8,6 +8,7 @@ import {
   calculatePartyBossCombatItemHealing,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
+  getWarriorRaidTauntAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
   isMeaningfulBigBarrelParticipant,
@@ -371,6 +372,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
         return { state: "stale", session: mapSession(session) };
+      }
+
+      if (action === "taunt") {
+        const availability = getWarriorRaidTauntAvailability(state, character.id);
+        if (!availability.available) {
+          return {
+            state: "taunt-unavailable",
+            reason: availability.reason,
+            ...(availability.availableTurn !== undefined ? { availableTurn: availability.availableTurn } : {}),
+            session: mapSession(session)
+          };
+        }
       }
 
       if (action === "gear" && options.gearAbility) {
@@ -827,6 +840,14 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           type: "bureaucramancer.protocol.triggered",
           characterId: resolved.round.personalProtocol.characterId,
           sourceId: resolved.round.personalProtocol.bossActionId,
+          occurredAt: input.now
+        });
+      }
+      if (resolved.round.warriorTaunt?.activatedCharacterId) {
+        achievementEvents.push({
+          type: "warrior.raid-taunt.activated",
+          characterId: resolved.round.warriorTaunt.activatedCharacterId,
+          sourceId: `${session.id}:turn:${session.turn}:warrior-taunt`,
           occurredAt: input.now
         });
       }
@@ -1483,7 +1504,9 @@ function parseStatus(value: string): PartyBossSessionStatus {
 }
 
 function parseActionKey(value: string): PartyBossActionKey {
-  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" ? value : "attack";
+  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" || value === "taunt"
+    ? value
+    : "attack";
 }
 
 function buildKharakternykWardSignForStartedParty(

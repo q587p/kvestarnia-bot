@@ -4,6 +4,27 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.7 — Warrior Raid Taunt smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Start a Big Barrel Brother raid with a living joined Warrior and one non-Warrior.
+2. Verify only the Warrior sees `🛡️ На мене!`; ordinary PvE, training, quick duels and turn-based duels keep their existing actions.
+3. Queue Taunt, replace it with another valid action, and resolve the round; verify Taunt does not activate and no cooldown starts.
+4. Queue Taunt again and resolve; verify it activates before that round's boss response and redirects the response into the Warrior.
+5. Reach a `Бочковий гуркіт` response while Taunt is active; verify only the Warrior takes one normal hit and other participants lose no HP or mana from that response.
+6. Verify the active card and stored journal show activation, redirection, remaining duration and expiry for exactly three boss responses.
+7. Verify the Warrior's durable card states the exact remaining turn wait and permits the next Taunt on activation round `N + 5`.
+8. With two Warriors, queue both in the same round; verify exactly one deterministic activator and no cooldown for the other.
+9. Replay stale/duplicate buttons and try the action from a non-Warrior; verify short Ukrainian failure copy and no state extension.
+10. Knock out the taunting Warrior and verify Taunt expires before any later boss target selection.
+11. With at least three participants, commit preparation changes in quick succession and confirm reverse-order Telegram completion cannot regress the leader or ordinary stored participant cards.
+12. Delete the leader card and race two preparation changes; confirm one replacement is sent and later updates keep using its stored reference.
+13. File Protocol as leader from a different callback message than the saved leader card; confirm both update, then have the leader leave and confirm the transferred leader receives leader-only controls.
+14. Race readiness, Ward, Protocol, view, and deep-link join against manual boss start, plus preparation against scheduled start; confirm no recruiting controls or recruiting reference are published after combat starts.
+
+Manual Telegram QA status: an earlier pass found the stale leader recruiting-card problem. Runtime fixes followed; the latest-head targeted recheck and remaining refreshed-runtime checklist are pending. See [`docs/qa/warrior-raid-taunt-qa.md`](../qa/warrior-raid-taunt-qa.md).
+
 ## 0.3.6 — Bureaucramancer Personal Protocol 13-Z smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.

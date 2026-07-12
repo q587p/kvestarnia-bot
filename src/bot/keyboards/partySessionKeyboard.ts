@@ -6,6 +6,7 @@ import {
   getCombatSkillProfile
 } from "../../domain/combat";
 import { getCombatMantokAbilityGrantsByIds } from "../../content";
+import { getWarriorRaidTauntAvailability } from "../../domain/partyBoss/partyBoss";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { PartyBossCombatItemMenuEntry } from "../../services/partyBossService";
@@ -173,8 +174,15 @@ export function buildPartyBossKeyboard(
   if (session.status === "active" && viewerCharacterId && canAct) {
     keyboard
       .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
-      .text("🛡 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
+      .text("🧱 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
       .row();
+
+    if (getWarriorRaidTauntAvailability(session.state, viewer.characterId).available) {
+      keyboard.text(
+        "🛡️ На мене!",
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
+      ).row();
+    }
 
     if (availability?.skill.available !== false) {
       keyboard.text(

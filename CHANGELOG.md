@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.7] - 12026-07-12 - Warrior Raid Taunt
+
+Release status: active candidate. An earlier manual pass found stale leader-card delivery; runtime fixes followed, so the latest-head targeted Telegram recheck remains pending. Automated validation is complete; merge and deploy are not proven.
+
+### Added
+- Added the Big Barrel Brother-only Warrior action `🛡️ На мене!` (`raid.class.warrior.taunt`) for living joined `class.warrior` participants.
+- A committed Taunt redirects the boss response in its activation round plus the next two boss attack resolutions into that Warrior. Focused attacks stay focused; `Бочковий гуркіт` becomes one normal per-target damage instance against the Warrior instead of hitting the party.
+- Added a five-boss-turn activation cooldown: a Taunt committed on round `N` is available again on round `N + 5`. Overwritten, stale, duplicate, ineligible, blocked, and losing same-round Taunts do not start cooldown.
+- Added the rewardless first committed Taunt achievement `achievement.warrior.raid-taunt.activated`.
+
+### Changed
+- Big Barrel cards and stored journals now show Taunt activation, redirected focused/broad attacks, remaining duration, and expiry; the live acting-Warrior card shows the exact remaining cooldown.
+- Party-boss defend now uses `🧱 Захищатися`, keeping its icon distinct from `🛡️ На мене!` on the same keyboard.
+- Warrior `📖 Перекази` copy now mentions the narrow Big Barrel challenge without changing the ordinary combat ability catalog.
+
+### Fixed
+- Same-round multi-Warrior conflicts resolve by frozen participant order: exactly one valid Taunt activates, and later candidates fail closed without cooldown.
+- If the taunting Warrior is already unable before target selection or is knocked out by a redirected response, the active Taunt expires without redirecting a later boss attack.
+- A committed Taunt clears guard from an earlier Defend or equipment guard action. Armor, passive equipment effects, Protocol 13-З, and Kharakternyk Ward remain in the normal damage pipeline, and a fresh Defend on a later active-Taunt round may create a new guard normally; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
+- Taunt commits now clear stale Defend/equipment guard even for same-round conflict losers; victory-before-response and early Warrior knockout persist one authoritative expiry state across the terminal card, round summary, and journal.
+- Stored journal next-focus notices now honor the durable active Taunt snapshot, live cards render the active Taunt row once, achievement recalculation recovers committed activations from party-boss action summaries, and timeout resolution preserves its achievement notification.
+- Big Barrel recruiting publication now sends actor, leader, and ordinary stored participant cards through one per-party boss-first canonical gate for readiness, Ward, Protocol, membership, view, and deep-link paths. Reverse-order completions cannot regress three-participant cards; manual/scheduled start prevents later recruiting controls or references; leader actions refresh a distinct saved leader card; `message is not modified` counts as success, transient failures do not replace cards, recognized permanent leader failures produce at most one replacement, and boss intro/battle fan-out runs after releasing the transition gate.
+
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 
 Release status: active candidate in PR #158. An earlier-runtime partial Telegram pass found a stale leader recruiting card and easy-to-miss cooldown feedback; the fixes have not been rechecked in a refreshed runtime. Merge, deploy, and full manual Telegram QA are not proven.

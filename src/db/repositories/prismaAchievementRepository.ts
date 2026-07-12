@@ -245,6 +245,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
       claimedBarrelRaidActions,
       lostBigBarrelRaids,
       completedPartyBossItemActions,
+      completedWarriorTauntActions,
       korchmaRounds,
       completedTavernGameParticipations,
       completedGiftsSent,
@@ -433,6 +434,11 @@ export class PrismaAchievementRepository implements AchievementRepository {
       }),
       this.prisma.partyBossAction.findMany({
         where: getPartyBossItemActionAchievementWhere(characterId),
+        select: { resultJson: true, submittedAt: true },
+        orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
+      }),
+      this.prisma.partyBossAction.findMany({
+        where: getWarriorTauntActionAchievementWhere(characterId),
         select: { resultJson: true, submittedAt: true },
         orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
       }),
@@ -647,6 +653,7 @@ export class PrismaAchievementRepository implements AchievementRepository {
         .filter((row) => isBigBarrelLossForCharacter(row.stateJson, characterId))
         .map((row) => row.completedAt ?? row.updatedAt),
       "barrel.raid.bandage-used": getBigBarrelMedicalPartyBossItemUseDates(completedPartyBossItemActions),
+      "warrior.raid-taunt.activated": getActivatedWarriorTauntDates(completedWarriorTauntActions),
       "korchma.round.purchased": korchmaRounds.map((row) => row.createdAt),
       "tavern.game.played": completedTavernGameParticipations.map((row) =>
         row.session.completedAt ?? row.completedAt ?? row.session.updatedAt ?? row.updatedAt
@@ -1070,6 +1077,27 @@ function getPartyBossActionItemId(resultJson: Prisma.JsonValue | null): string |
   }
 
   return typeof resultJson.item.id === "string" ? resultJson.item.id : null;
+}
+
+function isActivatedWarriorTauntAction(resultJson: Prisma.JsonValue | null): boolean {
+  return isRecord(resultJson) && resultJson.action === "taunt" && resultJson.outcome === "taunt-activated";
+}
+
+export function getActivatedWarriorTauntDates(
+  rows: Array<{ resultJson: Prisma.JsonValue | null; submittedAt: Date }>
+): Date[] {
+  return rows
+    .filter((row) => isActivatedWarriorTauntAction(row.resultJson))
+    .map((row) => row.submittedAt)
+    .sort(compareDates);
+}
+
+export function getWarriorTauntActionAchievementWhere(characterId: string) {
+  return {
+    actorCharacterId: characterId,
+    actionKey: "taunt",
+    session: { rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION }
+  } as const;
 }
 
 function getPartyBossItemUseDatesByItem(

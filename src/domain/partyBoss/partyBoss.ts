@@ -27,8 +27,11 @@ const BIG_BARREL_BROTHER_AOE_INTERVAL_TURNS = 4;
 const KHARAKTERNYK_WARD_BASE_MITIGATION_PERCENT = 25;
 const KHARAKTERNYK_WARD_SUPPORT_MITIGATION_PERCENT = 10;
 const KHARAKTERNYK_WARD_MAX_MITIGATION_PERCENT = 95;
+export const WARRIOR_RAID_TAUNT_ACTION_ID = "raid.class.warrior.taunt";
+export const WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS = 3;
+export const WARRIOR_RAID_TAUNT_COOLDOWN_TURNS = 5;
 
-export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item";
+export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item" | "taunt";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
@@ -60,6 +63,7 @@ export interface PartyBossState {
   participants: PartyBossParticipantState[];
   wardSign?: PartyBossWardSignState;
   personalProtocol?: PartyBossPersonalProtocolState;
+  warriorTaunt?: PartyBossWarriorTauntState;
   roundLog: PartyBossRoundSummary[];
   startedAt: string;
   completedAt?: string;
@@ -94,6 +98,15 @@ export interface PartyBossPersonalProtocolSignatureState {
   preventedDamage?: number;
 }
 
+export interface PartyBossWarriorTauntState {
+  active?: {
+    characterId: string;
+    activatedTurn: number;
+    bossAttacksRemaining: number;
+  };
+  cooldowns: Record<string, { availableTurn: number }>;
+}
+
 export interface PartyBossRoundActionInput {
   characterId: string;
   action: PartyBossActionKey;
@@ -124,6 +137,7 @@ export interface PartyBossRoundSummary {
   bossRetaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
   personalProtocol?: PartyBossPersonalProtocolRoundSummary;
+  warriorTaunt?: PartyBossWarriorTauntRoundSummary;
   participantsAfter?: PartyBossParticipantResourceSummary[];
   statusAfter: PartyBossStatus;
 }
@@ -151,6 +165,14 @@ export interface PartyBossPersonalProtocolRoundSummary {
   signatureCount: number;
 }
 
+export interface PartyBossWarriorTauntRoundSummary {
+  activatedCharacterId?: string;
+  redirectedCharacterId?: string;
+  redirectedAttackKind?: "focused" | "broad";
+  expiredCharacterId?: string;
+  bossAttacksRemaining?: number;
+}
+
 export interface PartyBossParticipantResourceSummary {
   characterId: string;
   status: PartyBossParticipantStatus;
@@ -166,7 +188,7 @@ export interface PartyBossParticipantActionSummary {
   characterId: string;
   action: PartyBossActionKey;
   origin: "manual" | "timeout";
-  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used";
+  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used" | "taunt-activated" | "taunt-failed";
   damage: number;
   manaSpent: number;
   skillId?: string;
@@ -185,6 +207,8 @@ export interface PartyBossRetaliationSummary {
   wardPreventedDamage?: number;
   damageBeforeProtocol?: number;
   protocolPreventedDamage?: number;
+  tauntRedirected?: boolean;
+  tauntOriginalKind?: "focused" | "broad";
 }
 
 export interface PartyBossRetaliationPlan {
@@ -358,6 +382,10 @@ export function resolvePartyBossRound(input: {
   const submitted = new Map(input.actions.map((action) => [action.characterId, action]));
   const actionSummaries: PartyBossParticipantActionSummary[] = [];
   let bossDamage = 0;
+  const expiredBeforeActions = expireUnableWarriorTaunt(next);
+  const tauntRound: PartyBossWarriorTauntRoundSummary = {
+    ...(expiredBeforeActions ? { expiredCharacterId: expiredBeforeActions } : {})
+  };
 
   const roundParticipants = next.participants.filter(
     (participant) => participant.status === "active" && participant.resources.hp > 0
@@ -371,6 +399,25 @@ export function resolvePartyBossRound(input: {
     const committed = submitted.get(participant.characterId);
     const action = committed?.action ?? "defend";
     const origin = committed?.origin ?? "timeout";
+    if (action === "taunt") {
+      participant.resources = tickActorCooldowns(participant.resources);
+      delete participant.resources.guard;
+      tickPartyBossCombatItemCooldowns(participant);
+      if (origin === "manual") {
+        participant.contribution.submittedActions += 1;
+      } else {
+        participant.contribution.timeoutActions += 1;
+      }
+      actionSummaries.push({
+        characterId: participant.characterId,
+        action,
+        origin,
+        outcome: "taunt-failed",
+        damage: 0,
+        manaSpent: 0
+      });
+      continue;
+    }
     if (action === "item" && committed?.item) {
       const beforeHp = participant.resources.hp;
       const tickedResources = tickActorCooldowns(participant.resources);
@@ -449,7 +496,29 @@ export function resolvePartyBossRound(input: {
     });
   }
 
+  if (next.boss.hp > 0) {
+    const committedTaunt = actionSummaries.find((summary) =>
+      summary.action === "taunt" && tryActivateWarriorRaidTaunt(next, summary.characterId)
+    );
+    if (committedTaunt) {
+      committedTaunt.outcome = "taunt-activated";
+      tauntRound.activatedCharacterId = committedTaunt.characterId;
+      tauntRound.bossAttacksRemaining = WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS;
+    }
+  }
+
+  const expiredAfterVictory = next.boss.hp <= 0 ? clearActiveWarriorTaunt(next) : null;
+  if (expiredAfterVictory) {
+    tauntRound.expiredCharacterId = expiredAfterVictory;
+    delete tauntRound.bossAttacksRemaining;
+  }
   const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
+  if (retaliationResolution.warriorTaunt) {
+    if (retaliationResolution.warriorTaunt.expiredCharacterId) {
+      delete tauntRound.bossAttacksRemaining;
+    }
+    Object.assign(tauntRound, retaliationResolution.warriorTaunt);
+  }
   const bossRetaliations = retaliationResolution.retaliations;
   const livingParticipants = next.participants.filter(
     (participant) => participant.status === "active" && participant.resources.hp > 0
@@ -467,6 +536,7 @@ export function resolvePartyBossRound(input: {
     bossRetaliations,
     ...(retaliationResolution.wardSign ? { wardSign: retaliationResolution.wardSign } : {}),
     ...(retaliationResolution.personalProtocol ? { personalProtocol: retaliationResolution.personalProtocol } : {}),
+    ...(Object.keys(tauntRound).length > 0 ? { warriorTaunt: tauntRound } : {}),
     participantsAfter: next.participants.map((participant) => ({
       characterId: participant.characterId,
       status: participant.status,
@@ -621,6 +691,16 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
           }
         }
       : {}),
+    ...(state.warriorTaunt
+      ? {
+          warriorTaunt: {
+            ...(state.warriorTaunt.active ? { active: { ...state.warriorTaunt.active } } : {}),
+            cooldowns: Object.fromEntries(
+              Object.entries(state.warriorTaunt.cooldowns).map(([characterId, cooldown]) => [characterId, { ...cooldown }])
+            )
+          }
+        }
+      : {}),
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
@@ -652,6 +732,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
         ? { wardSign: { ...round.wardSign, affectedCharacterIds: [...round.wardSign.affectedCharacterIds] } }
         : {}),
       ...(round.personalProtocol ? { personalProtocol: { ...round.personalProtocol } } : {}),
+      ...(round.warriorTaunt ? { warriorTaunt: { ...round.warriorTaunt } } : {}),
       ...(round.participantsAfter
         ? {
             participantsAfter: round.participantsAfter.map((participant) => ({
@@ -761,13 +842,21 @@ function applyBossRetaliation(state: PartyBossState): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
   personalProtocol?: PartyBossPersonalProtocolRoundSummary;
+  warriorTaunt?: PartyBossWarriorTauntRoundSummary;
 } {
   const retaliations: PartyBossRetaliationSummary[] = [];
   const big = isBigBarrelBrotherState(state);
   const broadBigRetaliation = big && isBigBarrelBroadRetaliationTurn(state);
   const wardCanTrigger = broadBigRetaliation && state.wardSign?.status === "carried";
   const personalProtocolCanTrigger = big && !broadBigRetaliation && state.personalProtocol !== undefined;
-  const targetIds = big ? getPartyBossRetaliationPlan(state).characterIds : state.participants.map((participant) => participant.characterId);
+  const originalPlan = big ? getPartyBossRetaliationPlanWithoutTaunt(state) : null;
+  const expiredBeforeTargeting = expireUnableWarriorTaunt(state);
+  const activeTaunt = state.warriorTaunt?.active;
+  const targetIds = activeTaunt
+    ? [activeTaunt.characterId]
+    : big
+      ? (originalPlan?.characterIds ?? [])
+      : state.participants.map((participant) => participant.characterId);
   const targetIdSet = new Set(targetIds);
   const targets = state.participants.filter((participant) => targetIdSet.has(participant.characterId));
   let wardPreventedDamage = 0;
@@ -830,10 +919,19 @@ function applyBossRetaliation(state: PartyBossState): {
       characterId: participant.characterId,
       damage,
       hpAfter: participant.resources.hp,
+      ...(activeTaunt && originalPlan && originalPlan.kind !== "none"
+        ? { tauntRedirected: true, tauntOriginalKind: originalPlan.kind }
+        : {}),
       ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
       ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {})
     });
   }
+
+  const warriorTauntRound = activeTaunt && originalPlan && originalPlan.kind !== "none"
+    ? resolveWarriorTauntBossAttack(state, activeTaunt.characterId, originalPlan.kind)
+    : expiredBeforeTargeting
+      ? { expiredCharacterId: expiredBeforeTargeting }
+      : undefined;
 
   if (wardCanTrigger && state.wardSign && wardAffectedCharacterIds.length > 0) {
     const currentUsesRemaining = Math.max(1, Math.floor(state.wardSign.usesRemaining ?? Math.max(1, state.wardSign.supportCount)));
@@ -852,6 +950,7 @@ function applyBossRetaliation(state: PartyBossState): {
     return {
       retaliations,
       ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {}),
+      ...(warriorTauntRound ? { warriorTaunt: warriorTauntRound } : {}),
       wardSign: {
         kind: "kharakternyk",
         status: "triggered",
@@ -868,7 +967,8 @@ function applyBossRetaliation(state: PartyBossState): {
 
   return {
     retaliations,
-    ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {})
+    ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {}),
+    ...(warriorTauntRound ? { warriorTaunt: warriorTauntRound } : {})
   };
 }
 
@@ -923,6 +1023,24 @@ export function getPartyBossRetaliationPlan(state: PartyBossState): PartyBossRet
     return { kind: "none", characterIds: [] };
   }
 
+  const tauntingWarrior = state.warriorTaunt?.active
+    ? living.find((participant) => participant.characterId === state.warriorTaunt?.active?.characterId)
+    : null;
+  if (tauntingWarrior) {
+    return {
+      kind: isBigBarrelBroadRetaliationTurn(state) ? "broad" : "focused",
+      characterIds: [tauntingWarrior.characterId]
+    };
+  }
+
+  return getPartyBossRetaliationPlanWithoutTaunt(state);
+}
+
+function getPartyBossRetaliationPlanWithoutTaunt(state: PartyBossState): PartyBossRetaliationPlan {
+  const living = state.participants.filter(
+    (participant) => participant.status === "active" && participant.resources.hp > 0
+  );
+
   if (isBigBarrelBroadRetaliationTurn(state)) {
     return { kind: "broad", characterIds: living.map((participant) => participant.characterId) };
   }
@@ -931,6 +1049,110 @@ export function getPartyBossRetaliationPlan(state: PartyBossState): PartyBossRet
   return focused
     ? { kind: "focused", characterIds: [focused.characterId] }
     : { kind: "none", characterIds: [] };
+}
+
+export type WarriorRaidTauntAvailability =
+  | { available: true }
+  | {
+      available: false;
+      reason: "not-big-barrel" | "not-active" | "not-participant" | "not-warrior" | "unable" | "active-taunt" | "cooldown";
+      availableTurn?: number;
+    };
+
+export function getWarriorRaidTauntAvailability(
+  state: PartyBossState,
+  characterId: string
+): WarriorRaidTauntAvailability {
+  if (!isBigBarrelBrotherState(state)) {
+    return { available: false, reason: "not-big-barrel" };
+  }
+  if (state.status !== "active") {
+    return { available: false, reason: "not-active" };
+  }
+  const participant = state.participants.find((entry) => entry.characterId === characterId);
+  if (!participant) {
+    return { available: false, reason: "not-participant" };
+  }
+  if (participant.combatStats.classId !== "class.warrior") {
+    return { available: false, reason: "not-warrior" };
+  }
+  if (participant.status !== "active" || participant.resources.hp <= 0) {
+    return { available: false, reason: "unable" };
+  }
+  if (state.warriorTaunt?.active) {
+    return { available: false, reason: "active-taunt" };
+  }
+  const availableTurn = state.warriorTaunt?.cooldowns[characterId]?.availableTurn;
+  if (availableTurn !== undefined && state.turn < availableTurn) {
+    return { available: false, reason: "cooldown", availableTurn };
+  }
+  return { available: true };
+}
+
+function tryActivateWarriorRaidTaunt(state: PartyBossState, characterId: string): boolean {
+  if (!getWarriorRaidTauntAvailability(state, characterId).available) {
+    return false;
+  }
+  state.warriorTaunt = {
+    active: {
+      characterId,
+      activatedTurn: state.turn,
+      bossAttacksRemaining: WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS
+    },
+    cooldowns: {
+      ...(state.warriorTaunt?.cooldowns ?? {}),
+      [characterId]: { availableTurn: state.turn + WARRIOR_RAID_TAUNT_COOLDOWN_TURNS }
+    }
+  };
+  return true;
+}
+
+function expireUnableWarriorTaunt(state: PartyBossState): string | null {
+  const active = state.warriorTaunt?.active;
+  if (!active) {
+    return null;
+  }
+  const participant = state.participants.find((entry) => entry.characterId === active.characterId);
+  if (participant?.status === "active" && participant.resources.hp > 0) {
+    return null;
+  }
+  delete state.warriorTaunt!.active;
+  return active.characterId;
+}
+
+function clearActiveWarriorTaunt(state: PartyBossState): string | null {
+  const characterId = state.warriorTaunt?.active?.characterId;
+  if (!characterId) {
+    return null;
+  }
+  delete state.warriorTaunt!.active;
+  return characterId;
+}
+
+function resolveWarriorTauntBossAttack(
+  state: PartyBossState,
+  characterId: string,
+  redirectedAttackKind: "focused" | "broad"
+): PartyBossWarriorTauntRoundSummary {
+  const active = state.warriorTaunt?.active;
+  if (!active || active.characterId !== characterId) {
+    return {};
+  }
+  const bossAttacksRemaining = Math.max(0, active.bossAttacksRemaining - 1);
+  const participant = state.participants.find((entry) => entry.characterId === characterId);
+  const expired = bossAttacksRemaining === 0 || participant?.status !== "active" || participant.resources.hp <= 0;
+  if (expired) {
+    delete state.warriorTaunt!.active;
+  } else {
+    active.bossAttacksRemaining = bossAttacksRemaining;
+  }
+  return {
+    redirectedCharacterId: characterId,
+    redirectedAttackKind,
+    ...(expired
+      ? { expiredCharacterId: characterId }
+      : { bossAttacksRemaining })
+  };
 }
 
 function isBigBarrelBroadRetaliationTurn(state: PartyBossState): boolean {

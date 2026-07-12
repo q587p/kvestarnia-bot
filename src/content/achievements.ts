@@ -58,6 +58,7 @@ export const achievementTriggerTypes = [
   "bureaucramancer.protocol.filed",
   "bureaucramancer.protocol.signed",
   "bureaucramancer.protocol.triggered",
+  "warrior.raid-taunt.activated",
   "korchma.round.purchased",
   "tavern.game.played",
   "tavern.game.won",
@@ -1418,6 +1419,17 @@ export const achievements = [
     sortOrder: 126.76,
     status: "enabled",
     trigger: { type: "bureaucramancer.protocol.triggered", threshold: 1 }
+  },
+  {
+    id: "achievement.warrior.raid-taunt.activated",
+    category: "combat",
+    title: "Увага Бочки",
+    description: "уперше гукнути Старшому Братові Бочки «На мене!» й переконати його не сперечатися.",
+    hidden: false,
+    lockedDescription: "уперше перетягнути увагу Старшого Брата Бочки на себе.",
+    sortOrder: 126.78,
+    status: "enabled",
+    trigger: { type: "warrior.raid-taunt.activated", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

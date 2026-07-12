@@ -393,7 +393,7 @@ export class PartyBossService {
             occurredAt: event.occurredAt,
             sourceId: event.sourceId
           });
-      if (event.type === "mantok.gear-action.used") {
+      if (event.type === "mantok.gear-action.used" || event.type === "warrior.raid-taunt.activated") {
         unlocksByCharacterId[event.characterId] = [
           ...(unlocksByCharacterId[event.characterId] ?? []),
           ...eventUnlocks

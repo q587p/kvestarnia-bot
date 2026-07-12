@@ -101,6 +101,10 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "boss-action", token, turn: 42, action: "skill" }
     });
+    expect(parsePartySessionCallbackData(makePartyBossActionCallbackData(token, 42, "taunt"))).toEqual({
+      ok: true,
+      value: { type: "boss-action", token, turn: 42, action: "taunt" }
+    });
     const gearActionData = makePartyBossGearActionCallbackData({
       token,
       turn: 42,
