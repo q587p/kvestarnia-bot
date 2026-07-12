@@ -535,9 +535,7 @@ export async function handlePartySessionCallback(
     });
 
     if (result.state === "updated") {
-      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service, {
-        ensureLeaderDelivery: true
-      });
+      await notifyPartySessionParticipants(ctx, result.session, telegramUserId, options.botUsername, service);
     }
     return;
   }
@@ -1098,7 +1096,7 @@ async function notifyPartySessionParticipants(
   actorTelegramUserId: bigint,
   botUsername: string | undefined,
   service: PartySessionService,
-  options: { includeActor?: boolean; ensureLeaderDelivery?: boolean } = {}
+  options: { includeActor?: boolean } = {}
 ): Promise<void> {
   const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
 
@@ -1120,7 +1118,8 @@ async function notifyPartySessionParticipants(
         includeBossStart: isBigBarrelParty(session)
       })
     };
-    const ensureDelivery = options.ensureLeaderDelivery && participant.characterId === session.leaderCharacterId;
+    const ensureDelivery = participant.characterId === session.leaderCharacterId &&
+      participant.character.telegramUserId !== actorTelegramUserId;
 
     try {
       if (participant.chatId && participant.messageId) {

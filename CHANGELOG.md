@@ -28,7 +28,7 @@ Release status: active candidate. Automated validation is complete; refreshed is
 - A committed Taunt clears guard from an earlier Defend or equipment guard action. Armor, passive equipment effects, Protocol 13-З, and Kharakternyk Ward remain in the normal damage pipeline, and a fresh Defend on a later active-Taunt round may create a new guard normally; rewards, loot, economy, schema, migrations, ordinary PvE, training, quick duels, and turn-based duels are unchanged.
 - Taunt commits now clear stale Defend/equipment guard even for same-round conflict losers; victory-before-response and early Warrior knockout persist one authoritative expiry state across the terminal card, round summary, and journal.
 - Stored journal next-focus notices now honor the durable active Taunt snapshot, live cards render the active Taunt row once, achievement recalculation recovers committed activations from party-boss action summaries, and timeout resolution preserves its achievement notification.
-- Big Barrel readiness changes now refresh the leader's recruiting card from another participant's `Готово` / `Зачекайте` toggle; if the saved leader card is missing or no longer editable, the bot sends one fresh card and stores its new message reference.
+- Big Barrel recruiting changes now refresh the leader's card after another participant changes readiness, Ward support, Protocol signatures, or membership; if the saved leader card is missing or no longer editable, the bot sends one fresh card and stores its new message reference.
 
 ## [0.3.6] - 12026-07-11 - Bureaucramancer Personal Protocol 13-Z
 

@@ -12,7 +12,7 @@ Status: manual Telegram QA not run. Automated focused coverage is complete.
 
 1. Confirm only living joined Warriors see `🛡️ На мене!` in the active Big Barrel fight.
 2. Confirm the raid defend action uses the distinct `🧱 Захищатися` label.
-3. Before the raid starts, toggle `Готово` / `Зачекайте` as a non-leader and confirm the leader's recruiting card updates. Delete or invalidate the old leader card when practical, toggle again, and confirm one fresh leader card arrives and remains refreshable.
+3. Before the raid starts, act as a non-leader and change readiness, support the Ward, sign Protocol 13-Z, and when practical join/leave. Confirm every committed change refreshes the leader's recruiting card. Delete or invalidate the old leader card, change state again, and confirm one fresh leader card arrives and remains refreshable.
 4. Queue Taunt, then replace it with attack or defend before resolution. Confirm the later action commits and Taunt starts neither effect nor cooldown.
 5. Commit Taunt and resolve the activation round. Confirm the boss response redirects into the Warrior immediately.
 6. Defend on one round, then commit Taunt on the next. Confirm the stale Defend guard is cleared before the redirected response, while armor and the normal damage pipeline still apply.

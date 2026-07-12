@@ -1185,12 +1185,18 @@ describe("handlePartySessionCallback", () => {
       state: "updated",
       session: signedSession
     });
+    const recordSignedMessageReference = vi.fn().mockResolvedValue(signedSession);
     const signingContext = createCallbackContext(93);
+    signingContext.apiEditMessageText.mockRejectedValue(new Error("message to edit not found"));
+    signingContext.sendMessage.mockResolvedValue({ message_id: 79 });
 
     await handlePartySessionCallback(
       signingContext.ctx,
       { type: "protocol-sign", token: signedSession.inviteToken },
-      serviceWith({ signBureaucramancerPersonalProtocolForTelegramUser }),
+      serviceWith({
+        signBureaucramancerPersonalProtocolForTelegramUser,
+        recordParticipantMessageReference: recordSignedMessageReference
+      }),
       { presence: {} as PresenceService, botUsername: "kvestarnia_test_bot" }
     );
 
@@ -1206,6 +1212,15 @@ describe("handlePartySessionCallback", () => {
       expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 2."),
       expect.objectContaining({ parse_mode: "HTML" })
     );
+    expect(signingContext.sendMessage).toHaveBeenCalledWith(
+      42,
+      expect.stringContaining("📄 Протокол 13-З відкрито. Підписів: 2."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(recordSignedMessageReference).toHaveBeenCalledWith(42n, signedSession.inviteToken, {
+      chatId: 42n,
+      messageId: 79
+    });
   });
 
   it("sends a forwardable Big Barrel Brother invite card after explicit share press", async () => {
@@ -1323,14 +1338,23 @@ describe("handlePartySessionCallback", () => {
     };
     const supportKharakternykWardSignForTelegramUser = vi.fn().mockResolvedValue({
       state: "updated",
-      session
+      session: {
+        ...session,
+        participants: session.participants.map((participant) =>
+          participant.characterId === session.leaderCharacterId
+            ? { ...participant, chatId: null, messageId: null }
+            : participant
+        )
+      }
     });
-    const { ctx, answerCallbackQuery, editMessageText, reply } = createCallbackContext(93);
+    const recordParticipantMessageReference = vi.fn().mockResolvedValue(session);
+    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext(93);
+    sendMessage.mockResolvedValue({ message_id: 78 });
 
     await handlePartySessionCallback(
       ctx,
       { type: "ward-support", token: session.inviteToken },
-      serviceWith({ supportKharakternykWardSignForTelegramUser }),
+      serviceWith({ supportKharakternykWardSignForTelegramUser, recordParticipantMessageReference }),
       {
         presence: {} as PresenceService,
         botUsername: "kvestarnia_test_bot"
@@ -1344,6 +1368,15 @@ describe("handlePartySessionCallback", () => {
       "✋ <b>Ви підперли знак</b>\n\n💫 Мани витрачено: <b>6</b>.",
       expect.objectContaining({ parse_mode: "HTML" })
     );
+    expect(sendMessage).toHaveBeenCalledWith(
+      42,
+      expect.stringContaining("🧿 Знак характерника стоїть біля бочки. Підпор: 1/7."),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, session.inviteToken, {
+      chatId: 42n,
+      messageId: 78
+    });
   });
 
   it("does not mutate or confirm stale ward support callbacks after the raid starts", async () => {
