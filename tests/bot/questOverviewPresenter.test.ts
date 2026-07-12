@@ -192,7 +192,7 @@ describe("quest overview presenter", () => {
       barrelBeerTutorial: {
         state: "level-retired",
         character: highLevel,
-        maxLevel: 5,
+        maxLevel: 7,
         progress: barrelProgress(false)
       }
     }));

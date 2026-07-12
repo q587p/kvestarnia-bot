@@ -24,8 +24,9 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 export const BARREL_BEER_TUTORIAL_ID = "barrel_or_there_and_back";
 export const BARREL_BEER_TUTORIAL_TITLE = "Бочка, або Туди і звідти";
 export const BARREL_BEER_TUTORIAL_REQUIRED_LEVEL = 2;
-export const BARREL_BEER_TUTORIAL_MAX_LEVEL = 5;
+export const BARREL_BEER_TUTORIAL_MAX_LEVEL = 7;
 export const BARREL_BEER_TUTORIAL_STIPEND_GOLD = 39;
+const BARREL_BEER_TUTORIAL_REWARD_MAX_LEVEL = 5;
 
 const ACCEPTED_KEY = "quest.barrel-beer-tutorial.accepted";
 const VISITED_BARREL_KEY = "quest.barrel-beer-tutorial.visited-barrel";
@@ -529,7 +530,7 @@ export function getBarrelBeerTutorialRewardXp(
 ): number {
   const remortCount = character.remortCount ?? 0;
   const rewardBaseLevel = Math.min(
-    BARREL_BEER_TUTORIAL_MAX_LEVEL,
+    BARREL_BEER_TUTORIAL_REWARD_MAX_LEVEL,
     Math.max(BARREL_BEER_TUTORIAL_REQUIRED_LEVEL, Math.floor(character.level))
   );
   const levelStart = getLevelStartXp(rewardBaseLevel, { remortCount });
