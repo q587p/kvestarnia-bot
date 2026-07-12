@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.8] - 12026-07-12 - Measured Runtime Stability
+## [0.3.8] - 12026-07-13 - Measured Runtime Stability
 
 ### Added
 - Added `/ready` as a fail-closed database and Telegram polling readiness endpoint while preserving `/health` as process liveness.
