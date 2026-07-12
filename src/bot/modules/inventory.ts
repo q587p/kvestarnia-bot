@@ -657,7 +657,7 @@ async function handleItemUpgradeCallback(
       replyMarkup: buildItemUpgradePreviewKeyboard(result)
     }));
 
-    await safeAnswerCallbackQuery(ctx, {
+    await timing.measureTelegram(() => safeAnswerCallbackQuery(ctx, {
       show_alert:
         result.state === "not-owned" ||
         result.state === "not-upgradeable" ||
@@ -665,7 +665,7 @@ async function handleItemUpgradeCallback(
         result.state === "wrong-place" ||
         result.state === "level-locked" ||
         result.state === "unlock-required"
-    });
+    }));
     await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: rendered.replyMarkup
@@ -691,7 +691,7 @@ async function handleItemUpgradeCallback(
     replyMarkup: buildItemUpgradeResultKeyboard(result.state === "attempted" ? result.item.itemId : action.itemId)
   }));
 
-  await safeAnswerCallbackQuery(
+  await timing.measureTelegram(() => safeAnswerCallbackQuery(
     ctx,
     result.state === "attempted"
       ? { text: result.success ? "Підсилено." : "Спроба записана." }
@@ -707,14 +707,14 @@ async function handleItemUpgradeCallback(
             result.state === "level-locked" ||
             result.state === "unlock-required"
         }
-  );
+  ));
   await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: rendered.replyMarkup
   }));
-  const achievementText = presentAchievementUnlockNotification(
+  const achievementText = timing.measureCompute(() => presentAchievementUnlockNotification(
     result.state === "attempted" ? result.achievementUnlocks ?? [] : []
-  );
+  ));
   if (achievementText) {
     await timing.measureTelegram(() => ctx.reply(achievementText, HTML_MESSAGE_OPTIONS));
   }
@@ -865,8 +865,6 @@ async function handleMantokChestCallback(
     return;
   }
 
-  const timing = startCallbackTiming(`mantok-chest.${action.type}`, telegramUserId);
-
   if (action.type === "inventory") {
     await safeAnswerCallbackQuery(ctx);
     await sendInventory(ctx, services.inventory, "edit", 0, null, services.equipment);
@@ -881,6 +879,8 @@ async function handleMantokChestCallback(
     });
     return;
   }
+
+  const timing = startCallbackTiming(`mantok-chest.${action.type}`, telegramUserId);
 
   if (action.type === "open") {
     const overview = await timing.measureDb(() => services.mantokChest.getOverviewForTelegramUser(telegramUserId));
@@ -1082,29 +1082,29 @@ async function handleMantokChestCallback(
             result.state === "expired"
         }
   ));
-  const outputItem =
-    result.state === "recycled" || result.state === "replayed" ? result.outputItem : null;
   const rendered = timing.measureCompute(() => ({
     text: presentMantokChestRecycleResult(result),
-    replyMarkup: buildMantokChestResultKeyboard(outputItem)
+    replyMarkup: buildMantokChestResultKeyboard(
+      result.state === "recycled" || result.state === "replayed" ? result.outputItem : null
+    )
   }));
 
   await timing.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: rendered.replyMarkup
   }));
+  const achievementText = timing.measureCompute(() => presentAchievementUnlockNotification(
+    result.state === "recycled" ? result.achievementUnlocks ?? [] : []
+  ));
+  if (achievementText) {
+    await timing.measureTelegram(() => ctx.reply(achievementText, HTML_MESSAGE_OPTIONS));
+  }
   timing.log({
     itemCount:
       result.state === "recycled" || result.state === "replayed"
         ? result.run.inputItems.reduce((sum, item) => sum + item.quantity, 0)
         : 0
   });
-  const achievementText = presentAchievementUnlockNotification(
-    result.state === "recycled" ? result.achievementUnlocks ?? [] : []
-  );
-  if (achievementText) {
-    await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
-  }
 }
 
 async function handleLevelBarterCallback(

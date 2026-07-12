@@ -34,12 +34,17 @@ import {
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
+import { makeItemUpgradePreviewCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
   makeLevelBarterAutoCallbackData,
   makeLevelBarterOpenCallbackData
 } from "../../src/bot/callbacks/levelBarterCallbackData";
 import { makeLatestEventsListCallbackData } from "../../src/bot/callbacks/latestEventsCallbackData";
+import {
+  makeMantokChestConfirmCallbackData,
+  makeMantokChestInventoryCallbackData
+} from "../../src/bot/callbacks/mantokChestCallbackData";
 import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
@@ -2139,7 +2144,148 @@ describe("scene callback HTML options", () => {
     }));
     expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
     expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
-    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain("42");
+  });
+
+  it("logs one terminal item-upgrade preview record when callback answering fails", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    vi.stubEnv("KVESTARNIA_PERF_SLOW_MS", "999999");
+    const telegramUserId = 9_876_543_210_123;
+    const failure = new Error("private item-upgrade answer failure");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const infoLog = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await expect(captureApiCalls(
+        makeItemUpgradePreviewCallbackData("item.pan-of-persuasion"),
+        servicesWith({
+          itemUpgrades: {
+            previewForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+          }
+        }),
+        { failMethod: "answerCallbackQuery", failure, telegramUserId }
+      ))
+      .rejects.toThrow("Error in middleware: private item-upgrade answer failure");
+
+    const perfCalls = [
+      ...errorLog.mock.calls,
+      ...infoLog.mock.calls,
+      ...warnLog.mock.calls
+    ].filter(([, payload]) => (payload as { route?: unknown } | undefined)?.route === "item-upgrade.preview");
+    expect(perfCalls).toHaveLength(1);
+    expect(perfCalls[0]?.[0]).toBe("Kvestarnia failed perf timing");
+    expect(perfCalls[0]?.[1]).toEqual(expect.objectContaining({
+      route: "item-upgrade.preview",
+      outcome: "error",
+      evidenceKind: "terminal-error",
+      errorComponent: "telegram"
+    }));
+    expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(String(telegramUserId));
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+  });
+
+  it("logs one terminal Mantok confirm record when achievement delivery fails", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    vi.stubEnv("KVESTARNIA_PERF_SLOW_MS", "999999");
+    const telegramUserId = 9_876_543_210_123;
+    const failure = new Error("private Mantok achievement delivery failure");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const infoLog = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const now = new Date("2026-07-12T16:00:00.000Z");
+    const token = "12345678-1234-4234-9234-123456789abc";
+
+    await expect(captureApiCalls(
+        makeMantokChestConfirmCallbackData(token),
+        servicesWith({
+          mantokChest: {
+            confirmRecycleForTelegramUser: () => Promise.resolve({
+              state: "recycled" as const,
+              run: {
+                id: "run-587",
+                characterId: "character-587",
+                token,
+                status: "completed" as const,
+                inputItems: [{ itemId: "item.wet-hero-ticket", quantity: 5 }],
+                outputItems: [{ itemId: "item.pan-of-persuasion", quantity: 1 }],
+                averageInputScore: 13,
+                minimumOutputScore: 23,
+                outputScore: 42,
+                completedAt: now,
+                expiredAt: null,
+                createdAt: now,
+                updatedAt: now
+              },
+              outputItem: {
+                itemId: "item.pan-of-persuasion",
+                quantity: 1,
+                score: 42,
+                manualOnly: false,
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Тестова манатка.",
+                  rarity: "common" as const,
+                  slot: "weapon" as const,
+                  goldValue: 13,
+                  weaponDamage: 1
+                }
+              },
+              achievementUnlocks: [{
+                id: "achievement.mantok.test",
+                title: "Скриня почула",
+                unlockedAt: now
+              }]
+            })
+          }
+        }),
+        { failMethod: "sendMessage", failure, telegramUserId }
+      ))
+      .rejects.toThrow("Error in middleware: private Mantok achievement delivery failure");
+
+    const perfCalls = [
+      ...errorLog.mock.calls,
+      ...infoLog.mock.calls,
+      ...warnLog.mock.calls
+    ].filter(([, payload]) => (payload as { route?: unknown } | undefined)?.route === "mantok-chest.confirm");
+    expect(perfCalls).toHaveLength(1);
+    expect(perfCalls[0]?.[0]).toBe("Kvestarnia failed perf timing");
+    expect(perfCalls[0]?.[1]).toEqual(expect.objectContaining({
+      route: "mantok-chest.confirm",
+      outcome: "error",
+      evidenceKind: "terminal-error",
+      errorComponent: "telegram"
+    }));
+    expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(String(telegramUserId));
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+  });
+
+  it("uses only the inventory edit performance route from Mantok inventory", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    vi.stubEnv("KVESTARNIA_PERF_SLOW_MS", "999999");
+    const infoLog = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const telegramUserId = 9_876_543_210_123;
+
+    await captureApiCalls(
+      makeMantokChestInventoryCallbackData(),
+      servicesWith({
+        inventory: {
+          listForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        },
+        equipment: {
+          getEquipmentForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+        }
+      }),
+      { telegramUserId }
+    );
+
+    const perfRoutes = infoLog.mock.calls
+      .map(([, payload]) => (payload as { route?: unknown } | undefined)?.route)
+      .filter((route): route is string => typeof route === "string");
+    expect(perfRoutes).toEqual(["inventory.edit"]);
+    expect(infoLog.mock.calls[0]?.[1]).not.toHaveProperty("telegramUserId");
+    expect(JSON.stringify(infoLog.mock.calls[0]?.[1])).not.toContain(String(telegramUserId));
   });
 
   it("edits successful Yeger bandage purchase previews without fetching the full menu context", async () => {
@@ -8190,10 +8336,17 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
 async function captureApiCalls(
   callbackData: string,
   services: BotServices,
-  options: { messageResults?: boolean; failSendMessage?: boolean } = {}
+  options: {
+    messageResults?: boolean;
+    failSendMessage?: boolean;
+    failMethod?: string;
+    failure?: Error;
+    telegramUserId?: number;
+  } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
+  const telegramUserId = options.telegramUserId ?? 42;
 
   bot.api.config.use((_prev, method, payload) => {
     calls.push({
@@ -8217,6 +8370,10 @@ async function captureApiCalls(
       return Promise.reject(new Error("send failed"));
     }
 
+    if (options.failMethod === method) {
+      return Promise.reject(options.failure ?? new Error(`forced ${method} failure`));
+    }
+
     if (options.messageResults && method === "sendMessage") {
       return Promise.resolve({
         ok: true,
@@ -8224,7 +8381,7 @@ async function captureApiCalls(
           message_id: calls.length,
           date: 0,
           chat: {
-            id: 42,
+            id: telegramUserId,
             type: "private"
           }
         }
@@ -8244,7 +8401,7 @@ async function captureApiCalls(
     callback_query: {
       id: "callback-1",
       from: {
-        id: 42,
+        id: telegramUserId,
         is_bot: false,
         first_name: "Тест"
       },
@@ -8254,7 +8411,7 @@ async function captureApiCalls(
         message_id: 10,
         date: 0,
         chat: {
-          id: 42,
+          id: telegramUserId,
           type: "private",
           first_name: "Тест"
         },
