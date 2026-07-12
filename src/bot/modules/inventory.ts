@@ -77,7 +77,7 @@ buildMantokChestResultKeyboard
 } from "../keyboards/mantokChestKeyboard";
 import { isInventoryEquipmentSlotFilter } from "../inventoryFilter";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
-import { elapsedMs, hotPathNow, logSlowHotPathTiming, startPerfSpan } from "../performanceLogger";
+import { startPerfSpan } from "../performanceLogger";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
 presentEquipItemResult,
@@ -230,81 +230,84 @@ async function handleItemCallback(
     return;
   }
 
-  const totalStartedAt = hotPathNow();
-  const dbStartedAt = hotPathNow();
-  const result = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
-  const targetSlot = isInventoryEquipmentSlotFilter(action.filter) ? action.filter : null;
-  const canPreviewEquip = result.state === "found" && isEquippableItem(result.item.content);
-  const shouldCheckCraftOptions = result.state === "found" && result.item.itemId === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID;
-  const equipmentPromise = result.state === "found"
-    ? services.equipment.getEquipmentForTelegramUser(telegramUserId)
-    : Promise.resolve({ state: "no-character" as const });
-  const equipPreviewPromise = canPreviewEquip
-    ? services.equipment.previewItemEquipForTelegramUser(telegramUserId, action.itemId, targetSlot)
-    : Promise.resolve(null);
-  const craftOptionsPromise = shouldCheckCraftOptions
-    ? services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, result.item.itemId)
-    : Promise.resolve([]);
-  const [equipment, equipPreview, craftOptions] = await Promise.all([
-    equipmentPromise,
-    equipPreviewPromise,
-    craftOptionsPromise
-  ]);
-  const equippedSlot =
-    equipment.state === "ready"
-      ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
-      : null;
-  const equippedItemIds =
-    equipment.state === "ready"
-      ? [...new Set(equipment.slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))]
-      : [];
-  const itemUse = result.state === "found"
+  const perf = startPerfSpan("item.detail", { telegramUserId });
+  const { result, equipment, equipPreview, craftOptions } = await perf.measureDb(async () => {
+    const itemResult = await services.inventory.getItemForTelegramUser(telegramUserId, action.itemId);
+    const targetSlot = isInventoryEquipmentSlotFilter(action.filter) ? action.filter : null;
+    const canPreviewEquip = itemResult.state === "found" && isEquippableItem(itemResult.item.content);
+    const shouldCheckCraftOptions =
+      itemResult.state === "found" && itemResult.item.itemId === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID;
+    const equipmentPromise = itemResult.state === "found"
+      ? services.equipment.getEquipmentForTelegramUser(telegramUserId)
+      : Promise.resolve({ state: "no-character" as const });
+    const equipPreviewPromise = canPreviewEquip
+      ? services.equipment.previewItemEquipForTelegramUser(telegramUserId, action.itemId, targetSlot)
+      : Promise.resolve(null);
+    const craftOptionsPromise = shouldCheckCraftOptions
+      ? services.itemCraft.getCraftOptionsForTelegramUser(telegramUserId, itemResult.item.itemId)
+      : Promise.resolve([]);
+    const [equipmentResult, previewResult, craftOptionResults] = await Promise.all([
+      equipmentPromise,
+      equipPreviewPromise,
+      craftOptionsPromise
+    ]);
+    return {
+      result: itemResult,
+      equipment: equipmentResult,
+      equipPreview: previewResult,
+      craftOptions: craftOptionResults
+    };
+  });
+  const itemUse = perf.measureCompute(() => result.state === "found"
     ? services.itemUse.getAvailability(result.item.content)
-    : null;
-  const combatUse = result.state === "found" && itemUse?.state === "usable"
-    ? await getCombatUseStateForItem(services, telegramUserId, result.item.content)
-    : null;
-  const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
-  const dbMs = elapsedMs(dbStartedAt);
-  const computeStartedAt = hotPathNow();
-  const text = presentItemDetail(result, {
-    equippedSlot,
-    equipPreview,
-    itemUse,
-    combatUseAvailable: Boolean(combatUse?.action),
-    equippedItemIds
-  });
-  const keyboard = buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
-    canUse,
-    ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
-    craftOptions,
-    equipPreview,
-    sort: action.sort,
-    source: action.source
-  });
-  const computeMs = elapsedMs(computeStartedAt);
+    : null);
+  const combatUse = await perf.measureDb(() => result.state === "found" && itemUse?.state === "usable"
+    ? getCombatUseStateForItem(services, telegramUserId, result.item.content)
+    : Promise.resolve(null));
+  const { text, keyboard } = perf.measureCompute(() => {
+    const equippedSlot =
+      equipment.state === "ready"
+        ? (equipment.slots.find((slot) => slot.item?.itemId === action.itemId)?.slot ?? null)
+        : null;
+    const equippedItemIds =
+      equipment.state === "ready"
+        ? [...new Set(equipment.slots.flatMap((slot) => (slot.item ? [slot.item.itemId] : [])))]
+        : [];
+    const canUse = itemUse?.state === "usable" && !(combatUse?.combatLocked && !combatUse.action);
 
-  await safeAnswerCallbackQuery(ctx);
-  const telegramStartedAt = hotPathNow();
-  await safeEditMessageText(
+    return {
+      text: presentItemDetail(result, {
+        equippedSlot,
+        equipPreview,
+        itemUse,
+        combatUseAvailable: Boolean(combatUse?.action),
+        equippedItemIds
+      }),
+      keyboard: buildItemDetailKeyboard(result, equippedSlot, action.page, action.filter, {
+        canUse,
+        ...(combatUse?.action ? { combatUse: combatUse.action } : {}),
+        craftOptions,
+        equipPreview,
+        sort: action.sort,
+        source: action.source
+      })
+    };
+  });
+
+  await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx));
+  await perf.measureTelegramEdit(() => safeEditMessageText(
     ctx,
     text,
     {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: keyboard
     }
-  );
-  logSlowHotPathTiming({
-    route: "item.detail",
-    telegramUserId,
+  ));
+  perf.end({
     itemCount: result.state === "found" ? result.item.quantity : 0,
     filter: action.filter,
     sort: action.sort,
-    page: action.page,
-    dbMs,
-    computeMs,
-    telegramEditMs: elapsedMs(telegramStartedAt),
-    totalMs: elapsedMs(totalStartedAt)
+    page: action.page
   });
 }
 

@@ -15,8 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Performance payloads no longer emit Telegram user ids. Random sampling remains disabled by default, slow calls remain always-on, and measured failures now emit independently of both gates.
-- Shared DB, compute, Telegram and inventory edit spans preserve elapsed failure time, classify errors into a small allowlist and terminate at most once without raw exception details.
-- Runtime scheduler startup now waits for grammY `onStart`; shutdown immediately fails readiness, and database or polling startup failure cannot advertise a ready service.
+- Shared DB, compute and Telegram spans across every currently instrumented inventory, item-detail, item-upgrade and Yeger route preserve elapsed failure time, classify errors into a small allowlist and terminate at most once without raw exception details.
+- Runtime scheduler startup now waits for grammY `onStart`; scheduler stop is idempotent across shutdown and unexpected polling termination, expected shutdown aborts stay quiet, and database or polling startup failure cannot advertise a ready service.
 
 ### Fixed
 - Caught Telegram polling startup/rejection paths that previously floated as an unobserved promise while the HTTP health process could remain live.

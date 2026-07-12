@@ -66,13 +66,33 @@ export function createRuntime(input: {
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
   const readiness = createRuntimeReadiness();
+  let schedulersStarted = false;
+  let schedulersStopped = false;
 
   const startSchedulers = (): void => {
+    if (schedulersStarted) {
+      return;
+    }
+
+    schedulersStarted = true;
     duelTurnTimeoutScheduler?.start();
     combatTurnTimeoutScheduler?.start();
     equipmentAttunementScheduler?.start();
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
+  };
+
+  const stopSchedulers = (): void => {
+    if (!schedulersStarted || schedulersStopped) {
+      return;
+    }
+
+    schedulersStopped = true;
+    combatTurnTimeoutScheduler?.stop();
+    duelTurnTimeoutScheduler?.stop();
+    equipmentAttunementScheduler?.stop();
+    passageSearchCompletionScheduler?.stop();
+    partyBossRecruitingStartScheduler?.stop();
   };
 
   return {
@@ -164,10 +184,16 @@ export function createRuntime(input: {
       }).then(() => {
         if (state === "started") {
           readiness.markFailed();
+          stopSchedulers();
           console.error("Квестарня: Telegram polling завершився без зупинки runtime.");
         }
       }).catch((error) => {
+        if (state !== "started") {
+          return;
+        }
+
         readiness.markFailed();
+        stopSchedulers();
         console.error("Квестарня: Telegram polling не запустився або аварійно завершився.", {
           errorCategory: classifyPerformanceError(error)
         });
@@ -188,11 +214,7 @@ export function createRuntime(input: {
       stopPromise = (async () => {
         let shutdownError: Error | null = null;
 
-        combatTurnTimeoutScheduler?.stop();
-        duelTurnTimeoutScheduler?.stop();
-        equipmentAttunementScheduler?.stop();
-        passageSearchCompletionScheduler?.stop();
-        partyBossRecruitingStartScheduler?.stop();
+        stopSchedulers();
 
         try {
           if (bot) {

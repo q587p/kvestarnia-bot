@@ -1,12 +1,16 @@
 import type { Bot } from "grammy";
 import type { PrismaClient } from "@prisma/client";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRuntime } from "../../src/app/createRuntime";
 import type { ApplicationServices } from "../../src/app/createServices";
 import type { AppConfig } from "../../src/config/env";
 import type { HealthServerOptions } from "../../src/health/server";
 
 describe("createRuntime", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("starts health only when BOT_TOKEN is missing and stops once", async () => {
     const close = vi.fn();
     const disconnect = vi.fn().mockResolvedValue(undefined);
@@ -220,6 +224,8 @@ describe("createRuntime", () => {
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const startError = Object.assign(new Error("private Telegram URL"), { name: "HttpError" });
     const botFixture = makeBot({ startError });
+    const duelScheduler = makeScheduler();
+    const combatScheduler = makeScheduler();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
@@ -228,8 +234,8 @@ describe("createRuntime", () => {
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
-        createDuelTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
-        createCombatTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
+        createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
           readiness = options.readiness;
@@ -245,7 +251,83 @@ describe("createRuntime", () => {
     ));
 
     expect(readiness?.isReady()).toBe(false);
+    expect(duelScheduler.start).not.toHaveBeenCalled();
+    expect(combatScheduler.start).not.toHaveBeenCalled();
     await runtime.stop();
+    expect(duelScheduler.stop).not.toHaveBeenCalled();
+    expect(combatScheduler.stop).not.toHaveBeenCalled();
+  });
+
+  it("stops started schedulers once when polling rejects after onStart", async () => {
+    const close = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const startError = Object.assign(new Error("private Telegram URL"), { name: "HttpError" });
+    const botFixture = makeBot({ startErrorAfterOnStart: startError });
+    const duelScheduler = makeScheduler();
+    const combatScheduler = makeScheduler();
+    let readiness: { isReady(): boolean } | undefined;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => botFixture.bot),
+        createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
+        createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn((options: HealthServerOptions) => {
+          readiness = options.readiness;
+          return { close } as never;
+        })
+      }
+    });
+
+    await runtime.start();
+    await vi.waitFor(() => expect(readiness?.isReady()).toBe(false));
+
+    expect(duelScheduler.start).toHaveBeenCalledTimes(1);
+    expect(combatScheduler.start).toHaveBeenCalledTimes(1);
+    expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    await runtime.stop();
+    expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a polling abort caused by shutdown as an emergency", async () => {
+    const close = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const pollingAbort = Object.assign(new Error("expected stop abort"), { name: "AbortError" });
+    const botFixture = makeBot({ rejectPendingStartOnStop: pollingAbort });
+    const duelScheduler = makeScheduler();
+    const combatScheduler = makeScheduler();
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => botFixture.bot),
+        createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
+        createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close }) as never)
+      }
+    });
+
+    await runtime.start();
+    await runtime.stop();
+    await Promise.resolve();
+
+    expect(errorLog).not.toHaveBeenCalledWith(
+      "Квестарня: Telegram polling не запустився або аварійно завершився.",
+      expect.anything()
+    );
+    expect(duelScheduler.start).not.toHaveBeenCalled();
+    expect(combatScheduler.start).not.toHaveBeenCalled();
+    expect(duelScheduler.stop).not.toHaveBeenCalled();
+    expect(combatScheduler.stop).not.toHaveBeenCalled();
   });
 });
 
@@ -286,22 +368,46 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
   return { services, cleanupExpiredPendingRuns, announceIfNeeded };
 }
 
-function makeBot(options: { startError?: Error; stopError?: Error } = {}): {
+function makeBot(options: {
+  startError?: Error;
+  startErrorAfterOnStart?: Error;
+  rejectPendingStartOnStop?: Error;
+  stopError?: Error;
+} = {}): {
   bot: Bot;
   setMyCommands: ReturnType<typeof vi.fn>;
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
 } {
   const setMyCommands = vi.fn().mockResolvedValue(undefined);
-  const start = options.startError
-    ? vi.fn().mockRejectedValue(options.startError)
-    : vi.fn(async (pollingOptions?: Parameters<Bot["start"]>[0]) => {
-        await pollingOptions?.onStart?.({} as never);
-        await new Promise<void>(() => undefined);
+  let rejectPendingStart: ((error: Error) => void) | undefined;
+  const start = vi.fn(async (pollingOptions?: Parameters<Bot["start"]>[0]) => {
+    if (options.startError) {
+      throw options.startError;
+    }
+    if (options.rejectPendingStartOnStop) {
+      await new Promise<void>((_resolve, reject) => {
+        rejectPendingStart = reject;
       });
-  const stop = options.stopError
-    ? vi.fn().mockRejectedValue(options.stopError)
-    : vi.fn().mockResolvedValue(undefined);
+      return;
+    }
+
+    await pollingOptions?.onStart?.({} as never);
+    if (options.startErrorAfterOnStart) {
+      throw options.startErrorAfterOnStart;
+    }
+
+    await new Promise<void>(() => undefined);
+  });
+  const stop = vi.fn(() => {
+    if (options.rejectPendingStartOnStop) {
+      rejectPendingStart?.(options.rejectPendingStartOnStop);
+    }
+    if (options.stopError) {
+      return Promise.reject(options.stopError);
+    }
+    return Promise.resolve();
+  });
   const bot = {
     api: {
       setMyCommands

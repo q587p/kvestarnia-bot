@@ -73,6 +73,18 @@ describe("performance logger", () => {
     }));
   });
 
+  it("keeps terminal errors independent of sampling and threshold gates", () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "0");
+
+    expect(shouldLogPerfTiming({
+      route: "inventory.open",
+      totalMs: 1,
+      thresholdMs: 999_999,
+      outcome: "error",
+      errorCategory: "database"
+    }, 1)).toBe(true);
+  });
+
   it("sanitizes payloads to compact route ids, counts, and timings", () => {
     const payload = sanitizePerfTimingPayload({
       route: "daily-korchma-round.scene",

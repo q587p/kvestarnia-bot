@@ -88,6 +88,7 @@ describe("scene callback HTML options", () => {
   afterEach(() => {
     vi.useRealTimers();
     clearMessageFreshnessTracking();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -2108,6 +2109,37 @@ describe("scene callback HTML options", () => {
     expect(getCraftOptionsForTelegramUser).toHaveBeenCalledWith(42n, "item.responsible-panic-bandage");
     expect(keyboard).toContain("v1:craft:p:dense");
     expect(keyboard).toContain("v1:craft:p:kit");
+  });
+
+  it("logs one sanitized terminal record when an instrumented Yeger query fails", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "0");
+    vi.stubEnv("KVESTARNIA_PERF_SLOW_MS", "999999");
+    const failure = Object.assign(new Error("private Yeger database value"), { code: "P2028" });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(captureApiCalls(
+        makeYegerBandagesCallbackData(),
+        servicesWith({
+          yeger: {
+            getForTelegramUser: () => Promise.reject(failure)
+          }
+        })
+      ))
+      .rejects.toThrow("Error in middleware: private Yeger database value");
+
+    const perfCalls = errorLog.mock.calls.filter(([message]) => message === "Kvestarnia failed perf timing");
+    expect(perfCalls).toHaveLength(1);
+    expect(perfCalls[0]?.[1]).toEqual(expect.objectContaining({
+      route: "yeger.bandages",
+      outcome: "error",
+      evidenceKind: "terminal-error",
+      errorCategory: "database",
+      errorComponent: "db",
+      thresholdMs: 250
+    }));
+    expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain("42");
   });
 
   it("edits successful Yeger bandage purchase previews without fetching the full menu context", async () => {

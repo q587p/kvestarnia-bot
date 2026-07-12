@@ -42,10 +42,6 @@ export function elapsedMs(startedAt: number): number {
   return performance.now() - startedAt;
 }
 
-export function logSlowHotPathTiming(input: HotPathTimingInput): void {
-  logPerformanceTiming(input);
-}
-
 export function logPerformanceTiming(input: HotPathTimingInput): void {
   const thresholdMs = input.thresholdMs ?? getSlowPerfThresholdMs();
   const totalMs = input.totalMs;
@@ -170,6 +166,10 @@ export function startPerfSpan(
 }
 
 export function shouldLogPerfTiming(input: HotPathTimingInput, randomValue = Math.random()): boolean {
+  if (input.outcome === "error" || input.errorCategory != null) {
+    return true;
+  }
+
   const thresholdMs = input.thresholdMs ?? getSlowPerfThresholdMs();
   if (input.totalMs >= thresholdMs) {
     return true;
