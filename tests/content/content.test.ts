@@ -310,7 +310,9 @@ describe("content tables", () => {
   });
 
   it("validates the first-rule pink soap as a level-3 tool accessory", () => {
-    expect(items.find((item) => item.id === "item.pink-soap-of-first-rule")).toMatchObject({
+    const soap = items.find((item) => item.id === "item.pink-soap-of-first-rule");
+
+    expect(soap).toMatchObject({
       name: "Рожеве мило першого правила",
       rarity: "common",
       slot: "accessory",
@@ -319,6 +321,7 @@ describe("content tables", () => {
       goldValue: 13,
       effect: { intelligence: 1 }
     });
+    expect(soap?.description).toContain("для корчмаря");
   });
 
   it("rejects equipment slot metadata on unsupported item slots", () => {

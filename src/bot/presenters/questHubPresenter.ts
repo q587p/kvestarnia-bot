@@ -613,7 +613,7 @@ function presentFightingCornerQuestActiveRow(
 
   const title = `📜 <i>${FIGHTING_CORNER_QUEST_TITLE}</i>`;
   if (quest.state === "available") {
-    return `${title} — Корчмар має три правила, олівець і підозріло чистий куток для підпису.`;
+    return `${title} — корчмар має три правила, олівець і підозріло чистий куток для підпису.`;
   }
   if (quest.state === "turn-in-ready") {
     return `${title} — 3/3; поверніться до столу по нагороду.`;

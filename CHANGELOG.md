@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.10] - 12026-07-13 - Fighting Corner Onboarding Quest
+## [0.3.10] - 12026-07-14 - Fighting Corner Onboarding Quest
 
 ### Added
 - Added the level 3+ `Перше правило Бійцівського кутка` quest once per remort life: accept it at the physical Quest Table, complete a settled Doppelganger training, an ordinary resolved quick duel and a terminal turn-based duel with at least one resolved round in any order, then return to the table for a separate claim.

@@ -21,6 +21,8 @@ describe("Fighting Corner quest presenter", () => {
     expect(text).toContain("перешліть посилання-запрошення");
     expect(text).toContain("«👀 Хто поруч» → «Кинути виклик присутнім»");
     expect(text).toContain("обидва бійці заходять добровільно");
+    expect(text).toContain("а корчмар — із журналом");
+    expect(text).not.toContain("за Столом зі справами");
     expect(text).toContain("✅ Потренуватися із Сумлінним Допельґанґером");
     expect(text).toContain("▫️ Завершити миттєву дуель");
   });
@@ -40,7 +42,7 @@ describe("Fighting Corner quest presenter", () => {
     });
 
     expect(text).toContain("3/3");
-    expect(text).toContain("Поверніться до Столу зі справами");
+    expect(text).toContain("Поверніться до столу зі справами");
   });
 
   it("presents the exact stored claim reward on replay", () => {

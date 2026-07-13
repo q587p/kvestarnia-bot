@@ -11,7 +11,7 @@ import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresen
 
 export function presentFightingCornerQuestLookup(result: FightingCornerQuestLookupResult): string {
   if (result.state === "disabled") {
-    return "📜 Цей аркуш ще лежить у Корчмаря під ліктем.";
+    return "📜 Цей аркуш ще лежить у корчмаря під ліктем.";
   }
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Правила без підписанта нервуються.";
@@ -40,7 +40,7 @@ export function presentFightingCornerQuestAccept(result: FightingCornerQuestAcce
     return [
       "📜 <b>Аркуш лишився на столі</b>",
       "",
-      "Цю справу приймають тільки біля фізичного Столу зі справами. Стара кнопка не рахується як особиста присутність."
+      "Цю справу приймають тільки біля фізичного столу зі справами. Стара кнопка не рахується як особиста присутність."
     ].join("\n");
   }
   if (result.state === "already-completed") {
@@ -50,7 +50,7 @@ export function presentFightingCornerQuestAccept(result: FightingCornerQuestAcce
   if ("progress" in result) {
     return presentQuestCard(result.progress, false);
   }
-  return "📜 Аркуш не вдалося прочитати. Спробуйте ще раз за Столом зі справами.";
+  return "📜 Аркуш не вдалося прочитати. Спробуйте ще раз за столом зі справами.";
 }
 
 export function presentFightingCornerQuestClaim(result: FightingCornerQuestClaimResult): string {
@@ -67,11 +67,11 @@ export function presentFightingCornerQuestClaim(result: FightingCornerQuestClaim
     return [
       "🎁 <b>Нагорода не телепортується</b>",
       "",
-      "Поверніться до фізичного Столу зі справами. Корчмар не передає Іскрокамінь через стіни після того випадку з фіранкою."
+      "Поверніться до фізичного столу зі справами. Корчмар не передає Іскрокамінь через стіни після того випадку з фіранкою."
     ].join("\n");
   }
   if (result.state === "not-started") {
-    return "📜 Спершу прийміть «Перше правило Бійцівського кутка» за Столом зі справами.";
+    return "📜 Спершу прийміть «Перше правило Бійцівського кутка» за столом зі справами.";
   }
   if (result.state === "missing-progress") {
     return presentQuestCard(result.progress, false);
@@ -80,7 +80,7 @@ export function presentFightingCornerQuestClaim(result: FightingCornerQuestClaim
   if ("reward" in result) {
     return presentCompleted(result.reward, result.state === "already-completed");
   }
-  return "🎁 Запис про нагороду не вдалося прочитати. Спробуйте ще раз за Столом зі справами.";
+  return "🎁 Запис про нагороду не вдалося прочитати. Спробуйте ще раз за столом зі справами.";
 }
 
 export function presentFightingCornerQuestProgressNotification(
@@ -99,7 +99,7 @@ export function presentFightingCornerQuestProgressNotification(
   if (update.progress.readyToClaim) {
     lines.push(
       "",
-      "Усі три правила перевірено. Поверніться до Столу зі справами: нагороди в кутку не тримають, бо їх там постійно хтось випадково бʼє."
+      "Усі три правила перевірено. Поверніться до столу зі справами: нагороди в кутку не тримають, бо їх там постійно хтось випадково бʼє."
     );
   }
 
@@ -113,16 +113,16 @@ function presentQuestCard(progress: FightingCornerQuestProgress, available: bool
     "На аркуші написано: «Не говорити про Бійцівський куток». Корчмар закреслив «не»: «Говорити. Інакше звідки візьметься другий боєць?»",
     "",
     "Друге правило: перешліть посилання-запрошення іншому гравцеві або відкрийте «👀 Хто поруч» → «Кинути виклик присутнім».",
-    "Третє правило: обидва бійці заходять добровільно, а Корчмар — із журналом. Сорочки, чоботи й манатки не знімають: гігієна Корчми перемогла драматизм.",
+    "Третє правило: обидва бійці заходять добровільно, а корчмар — із журналом. Сорочки, чоботи й манатки не знімають: гігієна Корчми перемогла драматизм.",
     "",
     objectiveLine(progress.trainingCompleted, "Потренуватися із Сумлінним Допельґанґером"),
     objectiveLine(progress.quickDuelCompleted, "Завершити миттєву дуель"),
     objectiveLine(progress.turnBasedDuelCompleted, "Завершити покрокову дуель"),
     "",
     available
-      ? "Прийміть справу тут, за Столом зі справами. Старі бійки заднім числом не переписують."
+      ? "Прийміть справу тут, за столом зі справами. Старі бійки заднім числом не переписують."
       : progress.readyToClaim
-        ? "Усі три правила перевірено. Нагорода чекає тільки за фізичним Столом зі справами."
+        ? "Усі три правила перевірено. Нагорода чекає тільки за фізичним столом зі справами."
         : "Перемога не обовʼязкова. Завершіть три дії в будь-якому порядку."
   ].join("\n");
 }
