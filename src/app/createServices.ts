@@ -97,17 +97,6 @@ export function createServices(
     achievements
   );
 
-  const hero = new HeroService(
-    repositories.characters,
-    repositories.inventory,
-    repositories.equipment,
-    repositories.remorts,
-    repositories.shynok,
-    undefined,
-    achievements,
-    repositories.classNoncombat
-  );
-
   return {
     activityEvents,
     achievements,
@@ -180,8 +169,21 @@ export function createServices(
     ),
     fight,
     firstKorchmaQuest,
-    hero,
-    healthRecoveryNotifications: new HealthRecoveryNotificationService(repositories.characters, hero),
+    hero: new HeroService(
+      repositories.characters,
+      repositories.inventory,
+      repositories.equipment,
+      repositories.remorts,
+      repositories.shynok,
+      undefined,
+      achievements,
+      repositories.classNoncombat
+    ),
+    healthRecoveryNotifications: new HealthRecoveryNotificationService(
+      repositories.hpRecoveryNotifications,
+      config.hpRecoveryNotificationsEnabled,
+      nonProduction
+    ),
     hunt: new HuntService(
       repositories.characters,
       repositories.dailyActions,
@@ -214,7 +216,7 @@ export function createServices(
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction,
       bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
-    }),
+    }, undefined, achievements),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     remort: new RemortService(repositories.remorts, undefined, achievements),

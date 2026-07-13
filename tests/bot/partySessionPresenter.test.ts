@@ -12,12 +12,14 @@ import {
   presentPartyInviteShare,
   presentPartySession,
   presentPartyBoss,
+  presentPartyBossAction,
   presentPartyBossIntro,
   presentPartyBossJournal
 } from "../../src/bot/presenters/partySessionPresenter";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
+import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -168,6 +170,170 @@ describe("party session presenter", () => {
 
     expect(text).toContain("🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.");
     expect(text).not.toContain("0 шкоди");
+  });
+
+  it("replays stored Bureaucramancer protocol trigger lines on Big Barrel Brother cards", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-party-big",
+        filerCharacterId: "leader",
+        signatures: [{
+          characterId: "leader",
+          status: "spent",
+          triggeredTurn: 1,
+          bossActionId: "big-barrel:1:personal:leader",
+          preventedDamage: 17
+        }, {
+          characterId: "striker",
+          status: "unspent"
+        }]
+      },
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [{
+          characterId: "leader",
+          damage: 0,
+          hpAfter: 60,
+          damageBeforeProtocol: 17,
+          protocolPreventedDamage: 17
+        }],
+        personalProtocol: {
+          kind: "bureaucramancer-personal-protocol-13b",
+          status: "triggered",
+          characterId: "leader",
+          preventedDamage: 17,
+          triggeredTurn: 1,
+          bossActionId: "big-barrel:1:personal:leader",
+          spentCount: 1,
+          signatureCount: 2
+        },
+        statusAfter: "active"
+      }]
+    }));
+
+    expect(text).toContain("📄 Протокол 13-З у бою. Невитрачених підписів: 1/2. Уже запобігло: 17 шкоди.");
+    expect(text).toContain("удар застряг у паперах і завдає 0 шкоди");
+    expect(text).toContain("📄 Протокол 13-З спрацьовує");
+    expect(text).toContain("Запобігло 17 шкоди.");
+    expect(text).toContain("Підпис витрачено: 1/2.");
+  });
+
+  it("shows active Warrior Taunt, redirected broad attacks, expiry, and durable cooldown text", () => {
+    const activeSession = makeBigBossSession({
+      turn: 4,
+      warriorTaunt: {
+        active: { characterId: "leader", activatedTurn: 4, bossAttacksRemaining: 2 },
+        cooldowns: { leader: { availableTurn: 9 } }
+      },
+      roundLog: [{
+        turn: 4,
+        actions: [{
+          characterId: "leader",
+          action: "taunt",
+          origin: "manual",
+          outcome: "taunt-activated",
+          damage: 0,
+          manaSpent: 0
+        }],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [{
+          characterId: "leader",
+          damage: 7,
+          hpAfter: 53,
+          tauntRedirected: true,
+          tauntOriginalKind: "broad"
+        }],
+        warriorTaunt: {
+          activatedCharacterId: "leader",
+          redirectedCharacterId: "leader",
+          redirectedAttackKind: "broad",
+          bossAttacksRemaining: 2
+        },
+        statusAfter: "active"
+      }]
+    });
+
+    const active = presentPartyBoss(activeSession, { viewerCharacterId: "leader" });
+    const journal = presentPartyBossJournal(activeSession, 0);
+    expect(active).toContain("🛡️ Увага Бочки: Голова, ще 2 ходи.");
+    expect(active.match(/🛡️ Увага Бочки: Голова, ще 2 ходи\./gu)).toHaveLength(1);
+    expect(active).toContain("🫁 🛡️ «На мене!» відсапується: ще 5 ходів.");
+    expect(active).toContain("🛢️ <i>Бочковий гуркіт</i> згортається в один удар. Ціль: Голова. Завдано 7 шкоди.");
+    expect(journal).not.toContain("Виклик запізнився");
+    expect(journal).toContain("увага Бочки переходить туди");
+    expect(journal).toContain("🎯 На наступний хід увага боса незмінна. Ціль: Голова.");
+    expect(journal).toContain("🛢️ <i>Бочковий гуркіт</i> згортається в один удар. Ціль: Голова. Завдано 7 шкоди.");
+
+    const cooling = presentPartyBoss(makeBigBossSession({
+      turn: 7,
+      warriorTaunt: { cooldowns: { leader: { availableTurn: 9 } } }
+    }), { viewerCharacterId: "leader" });
+    expect(cooling).toContain("🫁 🛡️ «На мене!» відсапується: ще 2 ходи.");
+
+    const expired = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 3,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [{
+          characterId: "leader",
+          damage: 7,
+          hpAfter: 53,
+          tauntRedirected: true,
+          tauntOriginalKind: "focused"
+        }],
+        warriorTaunt: {
+          redirectedCharacterId: "leader",
+          redirectedAttackKind: "focused",
+          expiredCharacterId: "leader",
+          bossAttacksRemaining: 0
+        },
+        statusAfter: "active"
+      }]
+    }));
+    expect(expired).toContain("🫥 Виклик згас: Бочка знову дивиться на всю ватагу.");
+    expect(expired).not.toContain("🛡️ Увага Бочки: Голова");
+  });
+
+  it("stops showing reducer-owned Taunt cooldown exactly at the N + 5 boundary", () => {
+    let state = createPartyBossState({
+      partySessionId: "presenter-taunt-boundary",
+      variant: "big-barrel",
+      now: new Date("2026-07-11T10:00:00.000Z"),
+      participants: [participant("leader", "Голова")]
+    });
+    state.participants[0]!.resources.hp = 999;
+    state.participants[0]!.resources.hpMax = 999;
+    for (let turn = 1; turn <= 5; turn += 1) {
+      state = resolvePartyBossRound({
+        state,
+        now: new Date(`2026-07-11T10:0${turn}:00.000Z`),
+        seed: "presenter-taunt-boundary",
+        actions: [{ characterId: "leader", action: turn === 1 ? "taunt" : "defend", origin: "manual" }]
+      }).state;
+    }
+
+    expect(state.turn).toBe(6);
+    expect(presentPartyBoss(makeBigBossSession(state), { viewerCharacterId: "leader" }))
+      .not.toContain("«На мене!» відсапується");
+  });
+
+  it("explains blocked Warrior Taunt callbacks with canonical remaining turns", () => {
+    const session = makeBigBossSession({ turn: 7 });
+    const text = presentPartyBossAction({
+      state: "taunt-unavailable",
+      reason: "cooldown",
+      availableTurn: 9,
+      session
+    }, "leader");
+
+    expect(text).toContain("«🛡️ На мене!» ще відсапується: чекати 2 ходи.");
   });
 
   it("shows the viewer's queued Big Barrel Brother action plan on the active card", () => {
@@ -998,6 +1164,26 @@ describe("party session presenter", () => {
 
     expect(text).toContain("1. ✅ <b>Голова</b>");
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+  });
+
+  it("shows Bureaucramancer protocol signature count without signer names on recruiting cards", () => {
+    const session = {
+      ...makePartySession(),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b" as const,
+        protocolId: "protocol-party-big",
+        filerCharacterId: "leader",
+        signatureCount: 2,
+        manaCost: 5,
+        filedAt: new Date("2026-06-30T10:01:00.000Z")
+      }
+    };
+
+    const text = presentPartySession(session);
+
+    expect(text).toContain("📄 Протокол 13-З відкрито. Підписів: 2.");
+    expect(text).not.toContain("Перший персональний удар Бочки по підписанту піде в папери, а не в ребра.");
+    expect(text).not.toContain("Підписанти:");
   });
 
   it("explains why Big Barrel Brother joins are ineligible", () => {

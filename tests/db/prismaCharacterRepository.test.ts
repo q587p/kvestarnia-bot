@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 
 const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-17T10:00:00.000Z");
@@ -47,9 +48,11 @@ describe("PrismaCharacterRepository", () => {
 
     expect(prisma.lastUpdateManyInput).toMatchObject({
       where: {
-        user: {
-          telegramUserId
-        }
+        id: "character-1",
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
       },
       data: {
         hpCurrent: 28,
@@ -136,35 +139,30 @@ describe("PrismaCharacterRepository", () => {
     });
   });
 
-  it("lists partial HP rows with passive recovery anchors for server notifications", async () => {
+  it("does not initiate delayed recovery work from an ordinary partial lazy sync", async () => {
     const prisma = new FakeCharacterPrisma();
-    const repository = new PrismaCharacterRepository(prisma.client);
+    const producer = new HpRecoveryNotificationProducer(true);
+    const record = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    const repository = new PrismaCharacterRepository(prisma.client, producer);
 
-    const candidates = await repository.listPassiveHealthRecoveryCandidates(fixedNow, { limit: 13 });
-
-    expect(prisma.lastFindManyInput).toMatchObject({
-      where: {
-        hpCurrent: {
-          lt: "hpMax-field-ref"
-        },
-        hpRegenAt: {
-          not: null
-        }
-      },
-      orderBy: {
-        hpRegenAt: "asc"
-      },
-      take: 13
-    });
-    expect(candidates).toEqual([
-      {
-        telegramUserId,
-        hpCurrent: 1,
-        hpMax: 20,
-        hpRegenAt: new Date("2026-06-17T09:00:00.000Z")
+    await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 29,
+      hpMax: 52,
+      manaCurrent: 14,
+      manaMax: 26,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expected: {
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
       }
-    ]);
+    });
+
+    expect(record).not.toHaveBeenCalled();
   });
+
 });
 
 class FakeCharacterPrisma {

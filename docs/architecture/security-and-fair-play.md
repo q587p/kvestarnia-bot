@@ -15,6 +15,8 @@
 - телефон, email, контакти.
 - токени або персональні дані в логах.
 
+Performance telemetry is not an audit ledger: it must not contain Telegram user ids, usernames, chat ids, player text, callback data, SQL parameters, serialized state or raw exception messages. Use route/count/timing fields, validated deploy metadata and a small allowlist of terminal error categories instead.
+
 ## Секрети
 - Bot token тільки в env/secret manager.
 - `.env` не комітити.

@@ -15,9 +15,13 @@ import {
 } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async findForTelegramUser(
     telegramUserId: bigint,
@@ -248,6 +252,9 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
           remortCount
         });
+        if (hpLoss || newLevel !== oldLevel) {
+          await this.hpRecoveryProducer.record(tx, character.id, new Date(), "recovering");
+        }
         const itemGrants = withQuestIskrokaminBonus(input.itemGrants ?? [], {
           enabled: input.questIskrokaminBonus === true,
           characterId: character.id,

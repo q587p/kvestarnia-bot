@@ -739,13 +739,14 @@ Future korchma progression boards:
 
 ## Observability
 Лоґи:
-- `user_id`, `character_id`, `chat_id` — де доречно.
+- Security/audit events may use `user_id`, `character_id` or `chat_id` only when investigation and retention rules require them.
+- Performance telemetry must stay aggregate-safe: route, allowlisted state/counts, component timings, effective non-secret sampling configuration, deploy commit/instance and allowlisted error category; no player identifiers.
 - action type.
 - idempotency key.
 - latency.
 - помилки валідації.
 
-Не лоґувати токени, приватні повідомлення повністю, персональні дані без потреби.
+Не лоґувати токени, приватні повідомлення повністю, callback data, SQL parameters, serialized state, raw exception details або персональні дані без потреби.
 
 ## Deployment MVP
 Найпростіше:
@@ -753,6 +754,7 @@ Future korchma progression boards:
 - SQLite database file через persistent disk для поточного мінімального setup.
 - Start command: `npm run db:deploy && npm run start`.
 - `db:deploy` first repairs the known failed `0.0.25` migration record if Render has one, then continues with `prisma migrate deploy`.
+- `/health` proves only process liveness; `/ready` stays fail-closed until the database probe and Telegram polling startup succeed and returns to `503` during shutdown.
 - Redis не є обов’язковим, доки немає features для jobs/cache/cooldowns.
 
 Для альфи polling простіший, але webhook краще для стабільності.

@@ -1,52 +1,63 @@
 import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import {
-  createHealthRecoveryNotificationScheduler,
-  presentHealthRecoveryNotification
-} from "../../src/bot/healthRecoveryNotificationScheduler";
+import { createHealthRecoveryNotificationScheduler } from "../../src/bot/healthRecoveryNotificationScheduler";
+import { presentHealthRecoveryNotification } from "../../src/services/healthRecoveryNotificationService";
+
+const emptyMetrics = { due: 0, claimed: 0, sent: 0, retried: 0, suppressed: 0, errors: 0 };
 
 describe("health recovery notification scheduler", () => {
-  it("sends due HP-full notifications from the server tick", async () => {
+  it("uses the 60-second cadence and batch limit 13", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-10T10:00:00.000Z"));
-    const service = {
-      listDueHpFullNotifications: vi.fn(() => Promise.resolve([
-        {
-          telegramUserId: 42n,
-          hpCurrent: 40,
-          hpMax: 40
-        }
-      ]))
-    };
-    const sendMessage = vi.fn(() => Promise.resolve(true));
-    const bot = {
-      api: {
-        sendMessage
-      }
-    } as unknown as Bot;
+    const runBatch = vi.fn().mockResolvedValue(emptyMetrics);
+    const scheduler = createHealthRecoveryNotificationScheduler(
+      { runBatch },
+      { api: {} } as Bot
+    );
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     try {
-      const scheduler = createHealthRecoveryNotificationScheduler(service, bot);
-      const sent = await scheduler.tick();
-
-      expect(sent).toBe(1);
-      expect(service.listDueHpFullNotifications).toHaveBeenCalledWith(
-        new Date("2026-07-10T10:00:00.000Z"),
-        { limit: 50 }
-      );
-      expect(sendMessage).toHaveBeenCalledWith(
-        "42",
-        expect.stringContaining("Здоров'я відновилося повністю"),
-        { parse_mode: "HTML" }
-      );
+      scheduler.start();
+      await Promise.resolve();
+      expect(runBatch).toHaveBeenCalledTimes(1);
+      expect(runBatch).toHaveBeenLastCalledWith(expect.anything(), expect.any(Date), { limit: 13 });
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(runBatch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(runBatch).toHaveBeenCalledTimes(2);
+      await scheduler.stop();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("keeps the player-facing copy compact", () => {
+  it("prevents overlapping ticks and stop drains in-flight work", async () => {
+    let resolve: ((value: typeof emptyMetrics) => void) | undefined;
+    const runBatch = vi.fn(() => new Promise<typeof emptyMetrics>((done) => {
+      resolve = done;
+    }));
+    const scheduler = createHealthRecoveryNotificationScheduler(
+      { runBatch },
+      { api: {} } as Bot,
+      { now: () => new Date("2026-07-13T10:00:00.000Z") }
+    );
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    const first = scheduler.tick();
+    expect(await scheduler.tick()).toEqual(emptyMetrics);
+    const stopped = scheduler.stop();
+    let stopFinished = false;
+    void stopped.then(() => { stopFinished = true; });
+    await Promise.resolve();
+    expect(stopFinished).toBe(false);
+    resolve?.(emptyMetrics);
+    await first;
+    await stopped;
+    expect(runBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the exact compact Ukrainian notice", () => {
     expect(presentHealthRecoveryNotification()).toBe(
-      "❤️ Здоров'я відновилося повністю.\n\nОрганізм подав заявку на продовження пригод і сам її погодив."
+      "❤️ Життя відновилося повністю.\n\nОрганізм подав заявку на продовження пригод і сам її погодив."
     );
   });
 });

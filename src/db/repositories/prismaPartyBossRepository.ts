@@ -8,6 +8,7 @@ import {
   calculatePartyBossCombatItemHealing,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
+  getWarriorRaidTauntAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
   isMeaningfulBigBarrelParticipant,
@@ -45,6 +46,8 @@ import { countCharacterRemorts } from "./prismaRemortCount";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
+import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -58,6 +61,8 @@ const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const KHARAKTERNYK_WARD_SUPPORT_CAP = 7;
 const KHARAKTERNYK_WARD_SIGN_SNAPSHOT_KEY = "kharakternykWardSign";
 const KHARAKTERNYK_WARD_SUPPORT_SNAPSHOT_KEY = "kharakternykWardSupport";
+const BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13B";
+const BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY = "bureaucramancerPersonalProtocol13BSignature";
 class PartyBossItemUseRollback extends Error {
   constructor(readonly reason: Extract<PartyBossActionResult, { state: "item-unavailable" }>["reason"]) {
     super(reason);
@@ -138,7 +143,10 @@ const partyBossInclude = {
 } satisfies Prisma.PartyBossSessionInclude;
 
 export class PrismaPartyBossRepository implements PartyBossRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async startFromRecruitingPartyForTelegramUser(
     telegramUserId: bigint,
@@ -153,81 +161,132 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       await expireRecruitingPartyIfNeeded(tx, input.partyInviteToken, input.now, {
         allowBigBarrelExpiredRecruiting: input.allowExpiredRecruiting === true
       });
-      const party = await tx.partySession.findUnique({
+      const initialParty = await tx.partySession.findUnique({
         where: { inviteToken: input.partyInviteToken },
         include: partyInclude
       });
 
-      if (!party) {
+      if (!initialParty) {
         return { state: "not-found" };
       }
+      let party: PartyRow = initialParty;
 
-      const existingBoss = await tx.partyBossSession.findUnique({
-        where: { partySessionId: party.id },
-        include: partyBossInclude
-      });
+      let claimedParty: PartyRow | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const existingBoss = await tx.partyBossSession.findUnique({
+          where: { partySessionId: party.id },
+          include: partyBossInclude
+        });
 
-      if (existingBoss) {
-        return {
-          state: existingBoss.status === "active" ? "already-active" : "terminal",
-          session: mapSession(existingBoss)
-        };
-      }
-
-      if (party.leaderCharacterId !== character.id) {
-        return { state: "not-leader" };
-      }
-
-      if (
-        party.status === RECRUITING_PARTY_STATUS &&
-        party.expiresAt <= input.now &&
-        !(input.allowExpiredRecruiting === true && party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
-      ) {
-        return { state: "expired" };
-      }
-
-      if (party.status === "expired") {
-        return { state: "expired" };
-      }
-
-      if (party.status !== RECRUITING_PARTY_STATUS) {
-        return { state: "not-recruiting" };
-      }
-
-      const joined = party.participants.filter((participant) => participant.status === "joined");
-      if (joined.length < party.minimumParticipants) {
-        return { state: "too-small" };
-      }
-
-      const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
-      if (isBigBarrelParty && await hasIneligibleBigBarrelParticipant(tx, party, joined, input.now)) {
-        return { state: "ineligible" };
-      }
-
-      const blocker = await tx.activeCombatLease.findFirst({
-        where: {
-          characterId: {
-            in: joined.map((participant) => participant.characterId)
-          }
-        },
-        select: {
-          characterId: true
+        if (existingBoss) {
+          return {
+            state: existingBoss.status === "active" ? "already-active" : "terminal",
+            session: mapSession(existingBoss)
+          };
         }
-      });
-      if (blocker) {
-        const blocked = joined.find((participant) => participant.characterId === blocker.characterId);
-        return blocked
-          ? { state: "blocked", blockerName: blocked.character.name }
-          : { state: "blocked" };
+
+        if (party.leaderCharacterId !== character.id) {
+          return { state: "not-leader" };
+        }
+
+        if (
+          party.status === RECRUITING_PARTY_STATUS &&
+          party.expiresAt <= input.now &&
+          !(input.allowExpiredRecruiting === true && party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+        ) {
+          return { state: "expired" };
+        }
+
+        if (party.status === "expired") {
+          return { state: "expired" };
+        }
+
+        if (party.status !== RECRUITING_PARTY_STATUS) {
+          return { state: "not-recruiting" };
+        }
+
+        const candidateJoined = party.participants.filter((participant) => participant.status === "joined");
+        if (candidateJoined.length < party.minimumParticipants) {
+          return { state: "too-small" };
+        }
+
+        const candidateIsBigBarrel = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+        if (
+          candidateIsBigBarrel &&
+          await hasIneligibleBigBarrelParticipant(tx, party, candidateJoined, input.now)
+        ) {
+          return { state: "ineligible" };
+        }
+
+        const blocker = await tx.activeCombatLease.findFirst({
+          where: {
+            characterId: {
+              in: candidateJoined.map((participant) => participant.characterId)
+            }
+          },
+          select: {
+            characterId: true
+          }
+        });
+        if (blocker) {
+          const blocked = candidateJoined.find((participant) => participant.characterId === blocker.characterId);
+          return blocked
+            ? { state: "blocked", blockerName: blocked.character.name }
+            : { state: "blocked" };
+        }
+
+        const claimed = await tx.partySession.updateMany({
+          where: {
+            id: party.id,
+            status: RECRUITING_PARTY_STATUS,
+            version: party.version
+          },
+          data: {
+            status: ACTIVE_PARTY_STATUS,
+            version: { increment: 1 }
+          }
+        });
+        if (claimed.count === 1) {
+          const canonicalParty = await tx.partySession.findUnique({
+            where: { id: party.id },
+            include: partyInclude
+          });
+          if (!canonicalParty) {
+            throw new Error("Claimed party disappeared before boss-state freeze.");
+          }
+          claimedParty = canonicalParty;
+          break;
+        }
+
+        const latest: PartyRow | null = await tx.partySession.findUnique({
+          where: { id: party.id },
+          include: partyInclude
+        });
+        if (!latest) {
+          return { state: "not-found" };
+        }
+        party = latest;
       }
+
+      if (!claimedParty) {
+        return { state: "blocked" };
+      }
+
+      party = claimedParty;
+      const joined = party.participants.filter((participant) => participant.status === "joined");
+      const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
 
       const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
+      const personalProtocol = isBigBarrelParty
+        ? buildBureaucramancerPersonalProtocolForStartedParty(party.participants)
+        : undefined;
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
         ...(wardSign ? { wardSign } : {}),
+        ...(personalProtocol ? { personalProtocol } : {}),
         participants: joined.map((participant) => {
           const combatCharacter = mapCharacterForCombat(participant.character);
           const combatStats = buildPartyBossCombatStats(combatCharacter);
@@ -252,14 +311,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           kind: PARTY_BOSS_LEASE_KIND,
           referenceId: party.id
         }))
-      });
-
-      await tx.partySession.update({
-        where: { id: party.id },
-        data: {
-          status: ACTIVE_PARTY_STATUS,
-          version: { increment: 1 }
-        }
       });
 
       const boss = await tx.partyBossSession.create({
@@ -325,6 +376,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
         return { state: "stale", session: mapSession(session) };
+      }
+
+      if (action === "taunt") {
+        const availability = getWarriorRaidTauntAvailability(state, character.id);
+        if (!availability.available) {
+          return {
+            state: "taunt-unavailable",
+            reason: availability.reason,
+            ...(availability.availableTurn !== undefined ? { availableTurn: availability.availableTurn } : {}),
+            session: mapSession(session)
+          };
+        }
       }
 
       if (action === "gear" && options.gearAbility) {
@@ -776,10 +839,26 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
               input.now
             )
       );
+      if (resolved.round.personalProtocol) {
+        achievementEvents.push({
+          type: "bureaucramancer.protocol.triggered",
+          characterId: resolved.round.personalProtocol.characterId,
+          sourceId: resolved.round.personalProtocol.bossActionId,
+          occurredAt: input.now
+        });
+      }
+      if (resolved.round.warriorTaunt?.activatedCharacterId) {
+        achievementEvents.push({
+          type: "warrior.raid-taunt.activated",
+          characterId: resolved.round.warriorTaunt.activatedCharacterId,
+          sourceId: `${session.id}:turn:${session.turn}:warrior-taunt`,
+          occurredAt: input.now
+        });
+      }
       if (status !== "active") {
         achievementEvents = [
           ...achievementEvents,
-          ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now)
+          ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now, this.hpRecoveryProducer)
         ];
         await releasePartyBossLocks(tx, session.partySessionId);
       }
@@ -827,7 +906,8 @@ async function settleTerminalPartyBoss(
   tx: TxClient,
   session: PartyBossRow,
   state: PartyBossState,
-  now: Date
+  now: Date,
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<PartyBossAchievementEventRecord[]> {
   const achievementEvents: PartyBossAchievementEventRecord[] = [];
   if (!isBigBarrelBrotherState(state)) {
@@ -857,7 +937,7 @@ async function settleTerminalPartyBoss(
       const appliedLossXp = await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp, {
         partyBossSessionId: session.id,
         partySessionId: session.partySessionId
-      });
+      }, hpRecoveryProducer);
       if (appliedLossXp > 0) {
         attemptXpSnapshots.set(participant.characterId, appliedLossXp);
       }
@@ -873,13 +953,13 @@ async function settleTerminalPartyBoss(
     }
 
     if (!periodId || state.status !== "won") {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
     if (!remortMatches || !isBigBarrelEligible(current.level, remortCount)) {
       if (remortMatches) {
-        await settleBigParticipantResources(tx, participant, now);
+        await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       }
       continue;
     }
@@ -894,13 +974,13 @@ async function settleTerminalPartyBoss(
       }
     });
     if (existing) {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
     const reward = buildBigBarrelReward(state, participant);
     if (!reward.meaningful) {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
@@ -962,6 +1042,12 @@ async function settleTerminalPartyBoss(
         manaRegenAt: now
       }
     });
+    await hpRecoveryProducer.record(
+      tx,
+      participant.characterId,
+      now,
+      participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+    );
     await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
       remortCount
     });
@@ -1106,7 +1192,8 @@ async function hasIneligibleBigBarrelParticipant(
 async function settleBigParticipantResources(
   tx: TxClient,
   participant: PartyBossState["participants"][number],
-  now: Date
+  now: Date,
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<void> {
   await tx.character.updateMany({
     where: {
@@ -1119,6 +1206,12 @@ async function settleBigParticipantResources(
       manaRegenAt: now
     }
   });
+  await hpRecoveryProducer.record(
+    tx,
+    participant.characterId,
+    now,
+    participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+  );
 }
 
 async function settleBigParticipantAttempt(
@@ -1128,11 +1221,12 @@ async function settleBigParticipantAttempt(
   now: Date,
   remortCount: number,
   xp: number,
-  source: { partyBossSessionId: string; partySessionId: string }
+  source: { partyBossSessionId: string; partySessionId: string },
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<number> {
   const safeXp = Math.max(0, Math.floor(xp));
   if (safeXp <= 0) {
-    await settleBigParticipantResources(tx, participant, now);
+    await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
     return 0;
   }
 
@@ -1148,7 +1242,7 @@ async function settleBigParticipantAttempt(
     }
   });
   if (existingCooldown && existingCooldown.availableAt > now) {
-    await settleBigParticipantResources(tx, participant, now);
+    await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
     return 0;
   }
 
@@ -1169,6 +1263,12 @@ async function settleBigParticipantAttempt(
       manaRegenAt: now
     }
   });
+  await hpRecoveryProducer.record(
+    tx,
+    participant.characterId,
+    now,
+    participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+  );
   await tx.characterCooldown.upsert({
     where: {
       characterId_key: {
@@ -1233,13 +1333,7 @@ function buildBigBarrelReward(
 }
 
 async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Promise<void> {
-  await tx.activeCombatLease.deleteMany({
-    where: {
-      kind: PARTY_BOSS_LEASE_KIND,
-      referenceId: partySessionId
-    }
-  });
-  await tx.partySession.updateMany({
+  const transitioned = await tx.partySession.updateMany({
     where: {
       id: partySessionId,
       status: ACTIVE_PARTY_STATUS
@@ -1248,6 +1342,15 @@ async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Prom
       status: "completed",
       activeLeaderKey: null,
       version: { increment: 1 }
+    }
+  });
+  if (transitioned.count !== 1) {
+    return;
+  }
+  await tx.activeCombatLease.deleteMany({
+    where: {
+      kind: PARTY_BOSS_LEASE_KIND,
+      referenceId: partySessionId
     }
   });
   await tx.partyParticipant.updateMany({
@@ -1285,14 +1388,17 @@ async function expireRecruitingPartyIfNeeded(
     !(options.allowBigBarrelExpiredRecruiting === true &&
       party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
   ) {
-    await tx.partySession.update({
-      where: { id: party.id },
+    const transitioned = await tx.partySession.updateMany({
+      where: { id: party.id, status: RECRUITING_PARTY_STATUS },
       data: {
         status: "expired",
         activeLeaderKey: null,
         version: { increment: 1 }
       }
     });
+    if (transitioned.count !== 1) {
+      return;
+    }
     await tx.partyParticipant.updateMany({
       where: {
         sessionId: party.id,
@@ -1423,7 +1529,9 @@ function parseStatus(value: string): PartyBossSessionStatus {
 }
 
 function parseActionKey(value: string): PartyBossActionKey {
-  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" ? value : "attack";
+  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" || value === "taunt"
+    ? value
+    : "attack";
 }
 
 function buildKharakternykWardSignForStartedParty(
@@ -1461,6 +1569,55 @@ function buildKharakternykWardSignForStartedParty(
   };
 }
 
+function buildBureaucramancerPersonalProtocolForStartedParty(
+  participants: PartyRow["participants"]
+): {
+  kind: typeof BUREAUCRAMANCER_PROTOCOL_KIND;
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterIds: string[];
+} | undefined {
+  const joined = participants.filter((participant) => participant.status === "joined");
+  const filer = participants.find((participant) => {
+    const protocol = parsePersonalProtocolSnapshot(participant.snapshotJson);
+    return (
+      protocol?.filerCharacterId === participant.characterId &&
+      protocol.remortCount === participant.remortCount &&
+      participant.character._count.remorts === participant.remortCount
+    );
+  });
+  if (!filer) {
+    return undefined;
+  }
+
+  const protocol = parsePersonalProtocolSnapshot(filer.snapshotJson);
+  if (!protocol) {
+    return undefined;
+  }
+
+  const signerCharacterIds = joined.flatMap((participant) => {
+    const signature = parsePersonalProtocolSignatureSnapshot(participant.snapshotJson);
+    return (
+      signature?.protocolId === protocol.protocolId &&
+      signature.filerCharacterId === protocol.filerCharacterId &&
+      signature.signerCharacterId === participant.characterId &&
+      signature.remortCount === participant.remortCount &&
+      participant.character._count.remorts === participant.remortCount
+    )
+      ? [participant.characterId]
+      : [];
+  });
+
+  return signerCharacterIds.length > 0
+    ? {
+        kind: BUREAUCRAMANCER_PROTOCOL_KIND,
+        protocolId: protocol.protocolId,
+        filerCharacterId: protocol.filerCharacterId,
+        signerCharacterIds: [...new Set(signerCharacterIds)]
+      }
+    : undefined;
+}
+
 function parseWardSignSnapshot(snapshotJson: Prisma.JsonValue | null): {
   placerCharacterId: string;
   remortCount: number;
@@ -1496,6 +1653,55 @@ function parseWardSupportSnapshot(snapshotJson: Prisma.JsonValue | null): {
     ? {
         placerCharacterId: value.placerCharacterId,
         supporterCharacterId: value.supporterCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function parsePersonalProtocolSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  protocolId: string;
+  filerCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SNAPSHOT_KEY);
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND || value.version !== 1) {
+    return null;
+  }
+
+  return (
+    typeof value.protocolId === "string" &&
+    typeof value.filerCharacterId === "string" &&
+    typeof value.remortCount === "number"
+  )
+    ? {
+        protocolId: value.protocolId,
+        filerCharacterId: value.filerCharacterId,
+        remortCount: Math.max(0, Math.floor(value.remortCount))
+      }
+    : null;
+}
+
+function parsePersonalProtocolSignatureSnapshot(snapshotJson: Prisma.JsonValue | null): {
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterId: string;
+  remortCount: number;
+} | null {
+  const value = getSnapshotObject(snapshotJson, BUREAUCRAMANCER_PROTOCOL_SIGNATURE_SNAPSHOT_KEY);
+  if (!value || value.kind !== BUREAUCRAMANCER_PROTOCOL_KIND || value.version !== 1) {
+    return null;
+  }
+
+  return (
+    typeof value.protocolId === "string" &&
+    typeof value.filerCharacterId === "string" &&
+    typeof value.signerCharacterId === "string" &&
+    typeof value.remortCount === "number"
+  )
+    ? {
+        protocolId: value.protocolId,
+        filerCharacterId: value.filerCharacterId,
+        signerCharacterId: value.signerCharacterId,
         remortCount: Math.max(0, Math.floor(value.remortCount))
       }
     : null;

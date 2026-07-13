@@ -55,6 +55,10 @@ export const achievementTriggerTypes = [
   "barrel.raid.claimed",
   "barrel.raid.lost",
   "barrel.raid.bandage-used",
+  "bureaucramancer.protocol.filed",
+  "bureaucramancer.protocol.signed",
+  "bureaucramancer.protocol.triggered",
+  "warrior.raid-taunt.activated",
   "korchma.round.purchased",
   "tavern.game.played",
   "tavern.game.won",
@@ -340,7 +344,7 @@ export const achievements = [
   {
     id: "achievement.class.bureaucramancer",
     category: "onboarding",
-    title: "Форма 13-Б зітхнула",
+    title: "Форма 13-А зітхнула",
     description: "стати бюрокромантом і налякати хаос правильною печаткою.",
     hidden: false,
     lockedDescription: "стати бюрокромантом.",
@@ -1382,6 +1386,50 @@ export const achievements = [
     sortOrder: 126.7,
     status: "enabled",
     trigger: { type: "barrel.raid.bandage-used", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.filed",
+    category: "weird",
+    title: "Форма прийняла вас першою",
+    description: "уперше подати Форму 13-А перед Бочкою й довести, що папір має щільність.",
+    hidden: false,
+    lockedDescription: "уперше подати Форму 13-А перед Бочкою.",
+    sortOrder: 126.72,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.filed", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.signed",
+    category: "weird",
+    title: "Підпис без черги",
+    description: "уперше підписати Протокол 13-З і перекласти частину болю в архів.",
+    hidden: false,
+    lockedDescription: "уперше підписати Протокол 13-З.",
+    sortOrder: 126.74,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.signed", threshold: 1 }
+  },
+  {
+    id: "achievement.bureaucramancer.protocol.triggered",
+    category: "weird",
+    title: "Ребра подали апеляцію",
+    description: "уперше побачити, як Протокол 13-З приймає персональний удар Бочки замість підписанта.",
+    hidden: false,
+    lockedDescription: "уперше витратити захист Протоколу 13-З у рейді.",
+    sortOrder: 126.76,
+    status: "enabled",
+    trigger: { type: "bureaucramancer.protocol.triggered", threshold: 1 }
+  },
+  {
+    id: "achievement.warrior.raid-taunt.activated",
+    category: "combat",
+    title: "Увага Бочки",
+    description: "уперше гукнути Старшому Братові Бочки «На мене!» й переконати його не сперечатися.",
+    hidden: false,
+    lockedDescription: "уперше перетягнути увагу Старшого Брата Бочки на себе.",
+    sortOrder: 126.78,
+    status: "enabled",
+    trigger: { type: "warrior.raid-taunt.activated", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

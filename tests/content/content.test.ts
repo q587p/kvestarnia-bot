@@ -17,6 +17,7 @@ import { monsterBarks, monsterBarkTextByMonsterId } from "../../src/content/mons
 import { monsterContextTraits } from "../../src/content/monsterContext";
 import { monsterContextProfiles, monsterContextTraits } from "../../src/content/monsterContext";
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
+import { getBaseItemIdForUpgradeVariant } from "../../src/domain/itemUpgrades";
 import type { ItemContent } from "../../src/content/schema";
 
 type ItemEffectKey = keyof NonNullable<ItemContent["effect"]>;
@@ -143,7 +144,7 @@ describe("content tables", () => {
     });
     expect(items.find((item) => item.id === "item.cork-ring-of-serious-business")).toMatchObject({
       effect: {
-        luck: 1
+        dexterity: 1
       }
     });
     expect(items.find((item) => item.id === "item.persten-pyvovladdia")).toMatchObject({
@@ -176,6 +177,24 @@ describe("content tables", () => {
       equipmentRequirements: {
         minLevel: 2
       }
+    });
+  });
+
+  it("keeps authored upgrade variants above their base value", () => {
+    const authoredVariants = items.filter((item) => /\.plus-[1-5]$/.test(item.id));
+
+    for (const variant of authoredVariants) {
+      const base = items.find((item) => item.id === getBaseItemIdForUpgradeVariant(variant.id));
+
+      expect(base, `missing base item for ${variant.id}`).toBeDefined();
+      expect(variant.goldValue ?? 0, variant.id).toBeGreaterThan(base?.goldValue ?? 0);
+    }
+
+    expect(Math.max(...authoredVariants.map((item) => item.goldValue ?? 0))).toBeLessThan(10_000);
+
+    expect(items.find((item) => item.id === "item.lid-of-maritime-overthinking.plus-5")).toMatchObject({
+      rarity: "epic",
+      goldValue: 600
     });
   });
 

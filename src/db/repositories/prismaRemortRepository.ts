@@ -25,6 +25,7 @@ import {
   markCombatSettlementForfeitedByRemort,
   type CombatState
 } from "../../domain/combat";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
@@ -35,7 +36,10 @@ const OUTGOING_POSTAL_CUSTODY_REMORT_REASON =
   "Спершу скасуйте відправлений пакунок або дочекайтеся відповіді чи завершення строку. Пошта не пускає манатки між життями.";
 
 export class PrismaRemortRepository implements RemortRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<RemortSnapshot | null> {
     return this.prisma.$transaction(async (tx) => {
@@ -302,6 +306,9 @@ export class PrismaRemortRepository implements RemortRepository {
 
       await resetCurrentLifeStateForRemort(tx, character.id);
       await cancelLivePartySessionsForRemort(tx, character.id, input.now);
+      await this.hpRecoveryProducer.record(tx, character.id, input.now, "suppress", {
+        errorCode: "remort"
+      });
 
       for (const item of validation.keptItems) {
         await tx.characterItem.create({

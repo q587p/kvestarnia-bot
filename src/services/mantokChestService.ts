@@ -416,7 +416,9 @@ export class MantokChestService {
     const output = selectMantokChestOutputItem({
       items,
       averageInputScore,
+      inputUnits: selectedUnits,
       inputItemIds: new Set(run.inputItems.map((item) => item.itemId)),
+      playerLuck: snapshot.playerLuck ?? 5,
       rng: this.rng
     });
 

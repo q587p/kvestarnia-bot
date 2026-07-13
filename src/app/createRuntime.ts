@@ -8,12 +8,14 @@ import { createEquipmentAttunementScheduler } from "../bot/equipmentAttunementSc
 import { createHealthRecoveryNotificationScheduler } from "../bot/healthRecoveryNotificationScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
+import { classifyPerformanceError } from "../bot/performanceLogger";
 import type { AppConfig } from "../config/env";
 import { startHealthServer } from "../health/server";
 import type { ApplicationServices } from "./createServices";
+import { createRuntimeReadiness } from "./runtimeReadiness";
 
 export interface ApplicationRuntime {
-  start(): void;
+  start(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -33,7 +35,7 @@ interface RuntimeDependencies {
 
 export function createRuntime(input: {
   config: AppConfig;
-  prisma: Pick<PrismaClient, "$disconnect">;
+  prisma: Pick<PrismaClient, "$disconnect" | "$queryRawUnsafe">;
   services: ApplicationServices;
   dependencies?: Partial<RuntimeDependencies>;
 }): ApplicationRuntime {
@@ -67,9 +69,47 @@ export function createRuntime(input: {
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
+  const readiness = createRuntimeReadiness();
+  let schedulersStarted = false;
+  let schedulersStopped = false;
+  let schedulersStopPromise: Promise<void> | null = null;
+
+  const startSchedulers = (): void => {
+    if (schedulersStarted) {
+      return;
+    }
+
+    schedulersStarted = true;
+    duelTurnTimeoutScheduler?.start();
+    combatTurnTimeoutScheduler?.start();
+    equipmentAttunementScheduler?.start();
+    healthRecoveryNotificationScheduler?.start();
+    passageSearchCompletionScheduler?.start();
+    partyBossRecruitingStartScheduler?.start();
+  };
+
+  const stopSchedulers = (): Promise<void> => {
+    if (schedulersStopPromise) {
+      return schedulersStopPromise;
+    }
+    if (!schedulersStarted || schedulersStopped) {
+      return Promise.resolve();
+    }
+
+    schedulersStopped = true;
+    schedulersStopPromise = (async () => {
+      combatTurnTimeoutScheduler?.stop();
+      duelTurnTimeoutScheduler?.stop();
+      equipmentAttunementScheduler?.stop();
+      passageSearchCompletionScheduler?.stop();
+      partyBossRecruitingStartScheduler?.stop();
+      await healthRecoveryNotificationScheduler?.stop();
+    })();
+    return schedulersStopPromise;
+  };
 
   return {
-    start() {
+    async start() {
       if (state !== "new") {
         return;
       }
@@ -77,11 +117,27 @@ export function createRuntime(input: {
       state = "started";
       healthServer = dependencies.startHealthServer({
         presence: services.presence,
+        readiness,
         ...supportJarOptions
       });
 
       if (!config.botToken) {
         console.log("Квестарня: BOT_TOKEN не задано, Telegram polling не запускається.");
+        return;
+      }
+
+      try {
+        await prisma.$queryRawUnsafe("SELECT 1");
+        readiness.markDatabaseReady();
+      } catch (error) {
+        readiness.markFailed();
+        console.error("Квестарня: база не пройшла перевірку готовності.", {
+          errorCategory: classifyPerformanceError(error)
+        });
+        return;
+      }
+
+      if (state !== "started") {
         return;
       }
 
@@ -91,7 +147,6 @@ export function createRuntime(input: {
       });
       if (services.duel) {
         duelTurnTimeoutScheduler = dependencies.createDuelTurnTimeoutScheduler(services.duel, bot);
-        duelTurnTimeoutScheduler.start();
       }
       combatTurnTimeoutScheduler = dependencies.createCombatTurnTimeoutScheduler(
         services.trainingDoppelganger
@@ -102,30 +157,27 @@ export function createRuntime(input: {
           : { fight: services.fight },
         bot
       );
-      combatTurnTimeoutScheduler.start();
       equipmentAttunementScheduler = dependencies.createEquipmentAttunementScheduler(
         services.equipment,
         bot
       );
-      equipmentAttunementScheduler.start();
-      healthRecoveryNotificationScheduler = dependencies.createHealthRecoveryNotificationScheduler(
-        services.healthRecoveryNotifications,
-        bot
-      );
-      healthRecoveryNotificationScheduler.start();
+      if (config.hpRecoveryNotificationsEnabled) {
+        healthRecoveryNotificationScheduler = dependencies.createHealthRecoveryNotificationScheduler(
+          services.healthRecoveryNotifications,
+          bot
+        );
+      }
       if (services.passageSearch) {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
           passageSearch: services.passageSearch,
           fight: services.fight
         }, bot);
-        passageSearchCompletionScheduler.start();
       }
       if (services.partySessions && services.partyBoss && services.partyBoss.isEnabled()) {
         partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({
           partySessions: services.partySessions,
           partyBoss: services.partyBoss
         }, bot);
-        partyBossRecruitingStartScheduler.start();
       }
 
       void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
@@ -142,7 +194,29 @@ export function createRuntime(input: {
       });
 
       console.log("Квестарня: бот запускається в polling-режимі.");
-      void bot.start();
+      void bot.start({
+        onStart: () => {
+          startSchedulers();
+          readiness.markPollingReady();
+          console.log("Квестарня: Telegram polling готовий приймати оновлення.");
+        }
+      }).then(() => {
+        if (state === "started") {
+          readiness.markFailed();
+          void stopSchedulers();
+          console.error("Квестарня: Telegram polling завершився без зупинки runtime.");
+        }
+      }).catch((error) => {
+        if (state !== "started") {
+          return;
+        }
+
+        readiness.markFailed();
+        void stopSchedulers();
+        console.error("Квестарня: Telegram polling не запустився або аварійно завершився.", {
+          errorCategory: classifyPerformanceError(error)
+        });
+      });
 
       void services.deployNotifications.announceIfNeeded(bot).catch((error) => {
         console.error("Квестарня: нотифікація про нову версію не відправилась.", error);
@@ -155,15 +229,11 @@ export function createRuntime(input: {
       }
 
       state = state === "new" ? "stopped" : "stopping";
+      readiness.markStopping();
       stopPromise = (async () => {
         let shutdownError: Error | null = null;
 
-        combatTurnTimeoutScheduler?.stop();
-        duelTurnTimeoutScheduler?.stop();
-        equipmentAttunementScheduler?.stop();
-        healthRecoveryNotificationScheduler?.stop();
-        passageSearchCompletionScheduler?.stop();
-        partyBossRecruitingStartScheduler?.stop();
+        await stopSchedulers();
 
         try {
           if (bot) {

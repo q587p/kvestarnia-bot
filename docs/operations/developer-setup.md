@@ -51,6 +51,7 @@ BOT_TOKEN=
 BOT_USERNAME=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
+HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 # SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
 # SUPPORT_JAR_CURRENT_UAH=0
@@ -95,6 +96,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_party` — збирає тимчасову локальну ватагу для перевірки party/session і Big Barrel Brother flows; у production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
+- `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_add_level [число]` — додає вказану кількість рівнів поточному персонажу; без числа додає 1 рівень.
 - `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
 - `/dev_add_gold [число]` — додає вказану кількість золота до 1 000 000; без числа додає 1 золото.
@@ -113,6 +115,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_cellar_mouse` — скидає cooldown повторюваної льохової справи миші та дорослішої мишачої домовлености для поточного персонажа.
 - `/dev_reset_priest_blessing` — скидає локальний cooldown жрецького благословення/підтримки для поточного персонажа.
 - `/dev_reset_quiet_pocket` — скидає локальний cooldown злодійської `Тихої кишені` для поточного персонажа.
+- `/dev_reset_bureaucramancer_protocol` — скидає локальний cooldown бюрокромантського `Протоколу 13-З` для поточного персонажа.
 - `/dev_reset_rogue` — скидає локальний cooldown `Тихої кишені` та поточний київський день цілей, які цей злодій уже пробував обчистити.
 - `/dev_yeger_first_done` — доводить першу Єгерську дошку `Неспокійні справи` до `5/5` реальними terminal win rows; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_yeger_second_done` — доводить другу Єгерську дошку `Неспокійні справи 2.0` до `17/17` реальними terminal win rows після зданої першої дошки; нагороду й досягнення треба забрати звичайною кнопкою здачі.
@@ -349,6 +352,16 @@ NODE_VERSION=22
 DEPLOY_NOTIFICATIONS_ENABLED=false
 ```
 
+Optional performance telemetry variables may remain unset; the effective defaults are:
+
+```env
+KVESTARNIA_PERF_SAMPLE_RATE=0
+KVESTARNIA_PERF_SLOW_MS=350
+YEGER_PERF_DEBUG=false
+```
+
+`KVESTARNIA_PERF_SAMPLE_RATE` accepts a clamped `0..1` random-sample rate. Slow calls and measured failures are logged independently of that rate. Performance payloads contain route/count/timing/configuration fields and Render's non-secret `RENDER_GIT_COMMIT` / `RENDER_INSTANCE_ID` metadata when valid; they do not contain Telegram user ids, player text, callback data, tokens, SQL parameters or serialized state.
+
 Render сам передає `PORT`. Якщо `PORT` немає, healthcheck server слухає `10000` на `0.0.0.0`.
 
 SQLite файл має лежати на Persistent Disk, змонтованому в `/var/data`. Без persistent disk дані можуть зникати між деплоями.
@@ -389,8 +402,13 @@ npm run db:deploy && npm run start
 
 ```text
 GET /      public Ukrainian Kvestarnia site
-GET /health Render healthcheck, text/plain `kvestarnia ok`
+GET /health process liveness, text/plain `kvestarnia ok`
+GET /ready database + Telegram polling readiness; `503` until both are ready and during shutdown
 ```
+
+For production after `0.3.8`, set Render's Health Check Path to `/ready`. Keep `/health` for process-level diagnostics; a live HTTP process is not sufficient evidence that the database and Telegram polling started.
+
+For a controlled post-deploy measurement window, first verify the deployed commit in the emitted metadata, then temporarily set `KVESTARNIA_PERF_SAMPLE_RATE=1` for at least 60 minutes or until the main routes have at least 100 complete samples. Export logs confidentially, restore the rate to `0`, and publish only sanitized aggregates. Do not commit raw logs.
 
 ```text
 GET /presence Жива Квестарня public presence page

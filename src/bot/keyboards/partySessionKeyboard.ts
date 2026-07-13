@@ -6,6 +6,7 @@ import {
   getCombatSkillProfile
 } from "../../domain/combat";
 import { getCombatMantokAbilityGrantsByIds } from "../../content";
+import { getWarriorRaidTauntAvailability } from "../../domain/partyBoss/partyBoss";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { PartyBossSessionRecord } from "../../db/repositories/partyBossRepository";
 import type { PartyBossCombatItemMenuEntry } from "../../services/partyBossService";
@@ -26,6 +27,8 @@ import {
   makePartySessionLeaveCallbackData,
   makePartySessionNearbyInviteCallbackData,
   makePartySessionNearbyOpenCallbackData,
+  makePartySessionProtocolFileCallbackData,
+  makePartySessionProtocolSignCallbackData,
   makePartySessionReadinessCallbackData,
   makePartySessionWardPlaceCallbackData,
   makePartySessionWardSupportCallbackData,
@@ -74,6 +77,11 @@ export function buildPartySessionKeyboard(
           keyboard.text("🧿 Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
         } else if (canSupportKharakternykWardSign(session, viewer)) {
           keyboard.text("✋ Підперти знак", makePartySessionWardSupportCallbackData(token)).row();
+        }
+        if (!session.personalProtocol && canFileBureaucramancerProtocol(viewer)) {
+          keyboard.text("📄 Форма 13-А", makePartySessionProtocolFileCallbackData(token)).row();
+        } else if (canSignBureaucramancerProtocol(session, viewer)) {
+          keyboard.text("✍️ Підписати протокол", makePartySessionProtocolSignCallbackData(token)).row();
         }
       }
       keyboard.text("🚪 Вийти", makePartySessionLeaveCallbackData(token));
@@ -127,6 +135,25 @@ function canSupportKharakternykWardSign(
   );
 }
 
+function canFileBureaucramancerProtocol(
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return viewer.character.classId === "class.bureaucramancer" && viewer.character.level >= 3;
+}
+
+function canSignBureaucramancerProtocol(
+  session: PartySessionRecord,
+  viewer: PartySessionRecord["participants"][number]
+): boolean {
+  return Boolean(
+    session.personalProtocol &&
+    (
+      viewer.personalProtocolSignature?.protocolId !== session.personalProtocol.protocolId ||
+      viewer.personalProtocolSignature.filerCharacterId !== session.personalProtocol.filerCharacterId
+    )
+  );
+}
+
 export function buildPartyBossKeyboard(
   session: PartyBossSessionRecord,
   viewerCharacterId: string | null,
@@ -147,8 +174,15 @@ export function buildPartyBossKeyboard(
   if (session.status === "active" && viewerCharacterId && canAct) {
     keyboard
       .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
-      .text("🛡 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
+      .text("🧱 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
       .row();
+
+    if (getWarriorRaidTauntAvailability(session.state, viewer.characterId).available) {
+      keyboard.text(
+        "🛡️ На мене!",
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
+      ).row();
+    }
 
     if (availability?.skill.available !== false) {
       keyboard.text(

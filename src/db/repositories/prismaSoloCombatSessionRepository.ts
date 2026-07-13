@@ -54,6 +54,7 @@ import type {
   UpdateSoloCombatSessionInput
 } from "./soloCombatSessionRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
@@ -76,7 +77,10 @@ class CombatItemTurnRollback extends Error {
 }
 
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async findActiveByTelegramUserId(
     telegramUserId: bigint
@@ -1077,6 +1081,15 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           session: mapSoloCombatSessionRecord(current)
         };
       }
+
+      await this.hpRecoveryProducer.record(
+        tx,
+        current.characterId,
+        input.appliedAt,
+        input.resources.hpCurrent >= (state?.hero.hpMax ?? Number.POSITIVE_INFINITY)
+          ? "suppress"
+          : "recovering"
+      );
 
       const nextState = markTerminalResourcesAppliedInState(state, input);
       const updated = await tx.soloCombatSession.update({

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { BotServices } from "../../src/bot/botServices";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
 import type {
   ActivityEventPage,
   ActivityEventRecord,
@@ -90,6 +92,95 @@ import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 const telegramUserId = 42n;
 
 describe("FightService", () => {
+  it("shares the character read across its quest marker snapshot", async () => {
+    const combinedCharacters = new FakeCharacterRepository();
+    combinedCharacters.add(telegramUserId, { xp: 7 });
+    const combined = new FightService({
+      characters: combinedCharacters,
+      dailyActions: new FakeDailyActionRepository(combinedCharacters),
+      clock: fixedClock
+    });
+    const separateCharacters = new FakeCharacterRepository();
+    separateCharacters.add(telegramUserId, { xp: 7 });
+    const separate = new FightService({
+      characters: separateCharacters,
+      dailyActions: new FakeDailyActionRepository(separateCharacters),
+      clock: fixedClock
+    });
+
+    const grouped = await combined.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+    await Promise.all([
+      separate.getFightOverviewForTelegramUser(telegramUserId),
+      separate.getProblemQuestProgressForTelegramUser(telegramUserId)
+    ]);
+
+    expect(grouped.fight.status).toBe("fulfilled");
+    expect(grouped.problemQuest.status).toBe("fulfilled");
+    expect(combinedCharacters.findCount).toBe(separateCharacters.findCount - 1);
+  });
+
+  it("recovers Fight siblings through one legacy fallback after a fail-once shared character read", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 7 });
+    characters.failNextFind();
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      clock: fixedClock
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, {
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      fight: service,
+      yeger: { getForTelegramUser: () => Promise.resolve({ state: "no-character" }) },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character: { level: 2 } })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      }
+    } as unknown as BotServices);
+
+    expect(snapshot?.fight).toBeDefined();
+    expect(snapshot?.problemQuest).toBeDefined();
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("quest marker fight snapshot"),
+      expect.any(Error)
+    );
+  });
+
+  it("does not retry an ordinary rejected Fight child and preserves its sibling and unrelated markers", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 7 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    dailyActions.failNextFindForKey(PROBLEM_QUEST_STAGES[0].issueKey);
+    const service = new FightService({ characters, dailyActions, clock: fixedClock });
+    const problemLookup = vi.spyOn(service, "getProblemQuestProgressForTelegramUser");
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, {
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      fight: service,
+      yeger: { getForTelegramUser: () => Promise.resolve({ state: "no-character" }) },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character: { level: 2 } })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      }
+    } as unknown as BotServices);
+
+    expect(snapshot?.fight).toBeDefined();
+    expect(snapshot?.problemQuest).toBeUndefined();
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(problemLookup).toHaveBeenCalledTimes(1);
+  });
+
   it("returns no-character when user has no character", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3233,6 +3324,94 @@ describe("FightService", () => {
       (record) => record.key === PERSISTENT_SOLO_FIGHT_REWARD_KEY
     );
     expect(rewardRecords).toHaveLength(1);
+  });
+
+  it("records the strongest enemy in a two-enemy victory for Chronicles", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level: 4, xp: 45 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const activityEvents = new FakeActivityEventRepository();
+    const activityEventService = new ActivityEventService(activityEvents);
+    const baseSession = makeTerminalSession(
+      "won",
+      "session-two-enemy-chronicles-strongest",
+      `character-${telegramUserId.toString()}`,
+      "monster.deadline-spider"
+    );
+    const wonSession = sessions.addSession({
+      ...baseSession,
+      state: {
+        ...baseSession.state!,
+        monster: {
+          ...baseSession.state!.monster,
+          level: 8,
+          debugTrace: {
+            interventionKind: "none",
+            interventionSourceKey: "prypichnyk",
+            baseMonsterLevel: 8,
+            effectiveMonsterLevel: 8
+          }
+        },
+        enemies: [
+          {
+            enemyId: "enemy:1",
+            ...baseSession.state!.monster,
+            level: 8,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 8,
+              effectiveMonsterLevel: 8
+            }
+          },
+          {
+            enemyId: "enemy:2",
+            id: "monster.complaint-lantern",
+            name: "Скаржник із ліхтарем",
+            hp: 0,
+            hpMax: 95,
+            level: 23,
+            debugTrace: {
+              interventionKind: "none",
+              interventionSourceKey: "prypichnyk",
+              baseMonsterLevel: 4,
+              effectiveMonsterLevel: 23
+            }
+          }
+        ]
+      }
+    });
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      activityEvents: new PublicActivityEventPublisher(activityEventService),
+      rng: new FakeRandomSource([0.99, 0.99, 0])
+    });
+
+    const recovered = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: wonSession.id,
+      turn: wonSession.turn,
+      action: "attack"
+    });
+
+    expect(recovered.state).toBe("terminal");
+    expect(activityEvents.records).toHaveLength(1);
+    expect(activityEvents.records[0]).toMatchObject({
+      eventType: "combat.underdog_won",
+      category: "combat",
+      sourceId: wonSession.id,
+      subjectId: "monster.complaint-lantern",
+      payload: { levelDelta: 19 }
+    });
+    await expect(activityEventService.listRecent("cmb")).resolves.toMatchObject({
+      events: [expect.objectContaining({ sourceId: wonSession.id })]
+    });
+    await expect(activityEventService.listRecent("imp")).resolves.toMatchObject({
+      events: [expect.objectContaining({ sourceId: wonSession.id })]
+    });
   });
 
   it.each(["normal", "yeger", "adventure"] as const)(
@@ -6761,7 +6940,13 @@ class FakeActivityEventRepository implements ActivityEventRepository {
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+  private failFindCount = 0;
+  findCount = 0;
   resourceUpdateCount = 0;
+
+  failNextFind(): void {
+    this.failFindCount += 1;
+  }
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
     const xp = overrides.xp ?? 0;
@@ -6824,6 +7009,11 @@ class FakeCharacterRepository implements CharacterRepository {
   }
 
   findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
+    this.findCount += 1;
+    if (this.failFindCount > 0) {
+      this.failFindCount -= 1;
+      return Promise.reject(new Error("fail-once character read"));
+    }
     return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
   }
 
@@ -6911,6 +7101,7 @@ class FakeCharacterRepository implements CharacterRepository {
 
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
+  private readonly failFindKeys = new Set<string>();
   readonly grantedItems: Array<{ itemId: string; quantity: number }> = [];
   createCount = 0;
 
@@ -6923,10 +7114,17 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return [...this.actions.values()];
   }
 
+  failNextFindForKey(key: string): void {
+    this.failFindKeys.add(key);
+  }
+
   async findForTelegramUser(
     userTelegramId: bigint,
     input: { key: string; localDate: string }
   ): Promise<DailyActionRecord | null> {
+    if (this.failFindKeys.delete(input.key)) {
+      throw new Error(`fail-once daily action read: ${input.key}`);
+    }
     const character = await this.characters.findByTelegramUserId(userTelegramId);
 
     if (!character) {

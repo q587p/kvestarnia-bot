@@ -16,14 +16,19 @@ import {
   buildEquipmentAttunementPayload,
   EQUIPMENT_ATTUNEMENT_ACTION_KEY,
   isEquipmentAttunementReady,
+  matchesEquipmentAttunementRow,
   parseEquipmentAttunementPayload,
   type EquipmentAttunementPayload
 } from "../../domain/equipment/equipmentAttunement";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
 export class PrismaEquipmentRepository implements EquipmentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async listByTelegramUserId(telegramUserId: bigint): Promise<CharacterEquipmentSnapshot | null> {
     const character = await this.prisma.character.findFirst({
@@ -84,7 +89,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
         });
       }
 
-      return tx.characterEquipment.upsert({
+      const row = await tx.characterEquipment.upsert({
         where: {
           characterId_slot: {
             characterId,
@@ -100,6 +105,8 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
           itemId
         }
       });
+      await this.hpRecoveryProducer.record(tx, characterId, new Date(), "recovering");
+      return row;
     });
 
     const record = toRecord(row);
@@ -176,6 +183,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
 
       if (deletedRows.count > 0) {
         await cancelActiveAttunementsForSlot(tx, characterId, slot, new Date());
+        await this.hpRecoveryProducer.record(tx, characterId, new Date(), "recovering");
       }
 
       return deletedRows;
@@ -420,6 +428,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
         });
 
         await maybeCreateAttunement(tx, input, row);
+        await this.hpRecoveryProducer.record(tx, input.characterId, now, "recovering");
 
         return {
           row,
@@ -463,6 +472,7 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
 
       await maybeCreateAttunement(tx, input, row);
+      await this.hpRecoveryProducer.record(tx, input.characterId, now, "recovering");
 
       return {
         row,
@@ -621,10 +631,7 @@ function findAttunementForRow(
 
     if (
       !payload ||
-      payload.status !== "tuning" ||
-      payload.slot !== row.slot ||
-      payload.itemId !== row.itemId ||
-      payload.equipmentUpdatedAt !== row.updatedAt.toISOString()
+      !matchesEquipmentAttunementRow(payload, row)
     ) {
       continue;
     }

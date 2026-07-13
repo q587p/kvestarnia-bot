@@ -3,7 +3,7 @@ import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import { playerFromContext } from "../context";
 import { DEFAULT_INVENTORY_SORT, type InventorySort } from "../inventorySort";
 import { buildItemUpgradeListKeyboard } from "../keyboards/itemUpgradeKeyboard";
-import { elapsedMs, hotPathNow, logSlowHotPathTiming } from "../performanceLogger";
+import { startPerfSpan } from "../performanceLogger";
 import { presentItemUpgradeList } from "../presenters/itemUpgradePresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -18,48 +18,35 @@ export async function sendItemUpgradeList(
   page = 0,
   sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): Promise<void> {
-  const totalStartedAt = hotPathNow();
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-  const dbStartedAt = hotPathNow();
-  const result = telegramUserId
-    ? await itemUpgrades.listForTelegramUser(telegramUserId)
-    : { state: "no-character" as const };
-  const dbMs = elapsedMs(dbStartedAt);
-  const computeStartedAt = hotPathNow();
-  const message = presentItemUpgradeList(result);
-  const options = {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildItemUpgradeListKeyboard(result, page, sort)
-  };
-  const computeMs = elapsedMs(computeStartedAt);
-  const telegramStartedAt = hotPathNow();
+  const perf = startPerfSpan("item-upgrade.list", {
+    telegramUserId: telegramUserId ?? null
+  });
+  const result = await perf.measureDb(() => telegramUserId
+    ? itemUpgrades.listForTelegramUser(telegramUserId)
+    : Promise.resolve({ state: "no-character" as const }));
+  const { message, options } = perf.measureCompute(() => ({
+    message: presentItemUpgradeList(result),
+    options: {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemUpgradeListKeyboard(result, page, sort)
+    }
+  }));
 
   if (mode === "edit") {
-    await safeEditMessageText(ctx, message, options);
-    logSlowHotPathTiming({
-      route: "item-upgrade.list",
-      telegramUserId: telegramUserId ?? null,
+    await perf.measureTelegramEdit(() => safeEditMessageText(ctx, message, options));
+    perf.end({
       itemCount: result.state === "ready" ? result.items.length : 0,
       sort,
-      page,
-      dbMs,
-      computeMs,
-      telegramEditMs: elapsedMs(telegramStartedAt),
-      totalMs: elapsedMs(totalStartedAt)
+      page
     });
     return;
   }
 
-  await ctx.reply(message, options);
-  logSlowHotPathTiming({
-    route: "item-upgrade.list",
-    telegramUserId: telegramUserId ?? null,
+  await perf.measureTelegramEdit(() => ctx.reply(message, options));
+  perf.end({
     itemCount: result.state === "ready" ? result.items.length : 0,
     sort,
-    page,
-    dbMs,
-    computeMs,
-    telegramEditMs: elapsedMs(telegramStartedAt),
-    totalMs: elapsedMs(totalStartedAt)
+    page
   });
 }

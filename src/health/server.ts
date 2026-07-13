@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "http";
+import type { RuntimeReadiness } from "../app/runtimeReadiness";
 import type { SupportJarStatus } from "../config/env";
 import type {
   PresenceService,
@@ -21,6 +22,7 @@ export interface HealthServerOptions {
   presence?: PresenceService;
   supportJarUrl?: string;
   supportJarStatus?: SupportJarStatus;
+  readiness?: Pick<RuntimeReadiness, "isReady">;
 }
 
 export function resolveHealthPort(value: string | number | undefined): number {
@@ -64,6 +66,12 @@ async function handleRequest(
 
   if (pathname === "/health") {
     sendText(response, 200, "kvestarnia ok\n");
+    return;
+  }
+
+  if (pathname === "/ready") {
+    const ready = options.readiness?.isReady() === true;
+    sendText(response, ready ? 200 : 503, ready ? "kvestarnia ready\n" : "kvestarnia not ready\n");
     return;
   }
 

@@ -24,6 +24,7 @@ export interface PartyParticipantRecord {
   messageId: number | null;
   readiness?: PartyParticipantReadiness | undefined;
   wardSignSupport?: PartyWardSignSupportRecord | undefined;
+  personalProtocolSignature?: PartyPersonalProtocolSignatureRecord | undefined;
   character: PartyCharacterSnapshot;
 }
 
@@ -44,6 +45,23 @@ export interface PartyWardSignSupportRecord {
   supportedAt: Date;
 }
 
+export interface PartyPersonalProtocolRecord {
+  kind: "bureaucramancer-personal-protocol-13b";
+  protocolId: string;
+  filerCharacterId: string;
+  signatureCount: number;
+  manaCost: number;
+  filedAt: Date;
+}
+
+export interface PartyPersonalProtocolSignatureRecord {
+  kind: "bureaucramancer-personal-protocol-13b";
+  protocolId: string;
+  filerCharacterId: string;
+  signerCharacterId: string;
+  signedAt: Date;
+}
+
 export interface PartySessionRecord {
   id: string;
   inviteToken: string;
@@ -62,6 +80,7 @@ export interface PartySessionRecord {
   leader: PartyCharacterSnapshot;
   participants: PartyParticipantRecord[];
   wardSign?: PartyWardSignRecord | undefined;
+  personalProtocol?: PartyPersonalProtocolRecord | undefined;
 }
 
 export interface CreatePartySessionInput {
@@ -113,6 +132,7 @@ export type PartyJoinRepositoryResult =
       cancelledSoloSession?: PartySessionRecord | undefined;
     }
   | { state: "already-joined"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
   | {
@@ -126,19 +146,21 @@ export type PartyLeaveRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "left" | "leader-transferred" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyCancelRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-leader"; session: PartySessionRecord }
+  | { state: "stale"; session: PartySessionRecord }
   | { state: "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyReadinessRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member" | "not-recruiting"; session: PartySessionRecord }
-  | { state: "updated" | "already-set" | "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: "updated" | "already-set" | "stale" | "cancelled" | "expired"; session: PartySessionRecord };
 
 export type PartyWardSignPlaceRepositoryResult =
   | { state: "no-character" }
@@ -148,6 +170,7 @@ export type PartyWardSignPlaceRepositoryResult =
         | "updated"
         | "already-placed"
         | "already-exists"
+        | "stale"
         | "not-member"
         | "not-recruiting"
         | "not-big-barrel"
@@ -165,12 +188,57 @@ export type PartyWardSignSupportRepositoryResult =
       state:
         | "updated"
         | "already-supported"
+        | "stale"
         | "not-member"
         | "not-recruiting"
         | "not-big-barrel"
         | "no-sign"
         | "self-support"
         | "not-enough-mana"
+        | "cancelled"
+        | "expired";
+      session: PartySessionRecord;
+    };
+
+export type PartyPersonalProtocolFileRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | {
+      state: "cooldown";
+      availableAt: Date;
+      now: Date;
+      session: PartySessionRecord;
+    }
+  | {
+      state:
+        | "updated"
+        | "already-filed"
+        | "already-exists"
+        | "not-member"
+        | "not-recruiting"
+        | "not-big-barrel"
+        | "ineligible"
+        | "blocked"
+        | "not-enough-mana"
+        | "stale"
+        | "cancelled"
+        | "expired";
+      session: PartySessionRecord;
+    };
+
+export type PartyPersonalProtocolSignRepositoryResult =
+  | { state: "no-character" }
+  | { state: "not-found" }
+  | {
+      state:
+        | "updated"
+        | "already-signed"
+        | "not-member"
+        | "not-recruiting"
+        | "not-big-barrel"
+        | "no-protocol"
+        | "blocked"
+        | "stale"
         | "cancelled"
         | "expired";
       session: PartySessionRecord;
@@ -218,6 +286,18 @@ export interface PartySessionRepository {
     inviteToken: string,
     now: Date
   ): Promise<PartyWardSignSupportRepositoryResult>;
+
+  fileBureaucramancerPersonalProtocol(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyPersonalProtocolFileRepositoryResult>;
+
+  signBureaucramancerPersonalProtocol(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<PartyPersonalProtocolSignRepositoryResult>;
 
   findByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   findLiveRecruitingByTelegramUser(telegramUserId: bigint, now: Date): Promise<PartySessionRecord | null>;

@@ -43,7 +43,12 @@ export interface PartyBossSessionRecord {
 
 export type PartyBossAchievementEventRecord =
   | {
-      type: "barrel.raid.claimed" | "barrel.raid.lost" | "barrel.raid.bandage-used";
+      type:
+        | "barrel.raid.claimed"
+        | "barrel.raid.lost"
+        | "barrel.raid.bandage-used"
+        | "bureaucramancer.protocol.triggered"
+        | "warrior.raid-taunt.activated";
       characterId: string;
       sourceId: string;
       occurredAt: Date;
@@ -86,6 +91,12 @@ export type PartyBossActionResult =
   | {
       state: "gear-unavailable";
       reason: "not-enough-mana" | "skill-on-cooldown";
+      session: PartyBossSessionRecord;
+    }
+  | {
+      state: "taunt-unavailable";
+      reason: "not-big-barrel" | "not-active" | "not-participant" | "not-warrior" | "unable" | "active-taunt" | "cooldown";
+      availableTurn?: number;
       session: PartyBossSessionRecord;
     }
   | {

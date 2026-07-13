@@ -14,6 +14,8 @@ import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChal
 import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTournamentRepository";
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
+import { HpRecoveryNotificationProducer } from "../db/repositories/hpRecoveryNotificationProducer";
+import { PrismaHpRecoveryNotificationRepository } from "../db/repositories/prismaHpRecoveryNotificationRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
 import { PrismaItemCraftRepository } from "../db/repositories/prismaItemCraftRepository";
 import { PrismaItemUseRepository } from "../db/repositories/prismaItemUseRepository";
@@ -36,42 +38,50 @@ import { PrismaTavernGameRepository } from "../db/repositories/prismaTavernGameR
 import { PrismaUserRepository } from "../db/repositories/prismaUserRepository";
 import { PrismaYegerNotchExchangeRepository } from "../db/repositories/prismaYegerNotchExchangeRepository";
 
-export function createRepositories(prisma: PrismaClient) {
+export function createRepositories(
+  prisma: PrismaClient,
+  options: { hpRecoveryNotificationsEnabled?: boolean } = {}
+) {
+  const hpRecoveryProducer = new HpRecoveryNotificationProducer(
+    options.hpRecoveryNotificationsEnabled === true
+  );
+
   return {
     activityEvents: new PrismaActivityEventRepository(prisma),
     achievements: new PrismaAchievementRepository(prisma),
     users: new PrismaUserRepository(prisma),
     bardPerformances: new PrismaBardPerformanceRepository(prisma),
     barrelRaidNotifications: new PrismaBarrelRaidNotificationRepository(prisma),
-    characters: new PrismaCharacterRepository(prisma),
+    characters: new PrismaCharacterRepository(prisma, hpRecoveryProducer),
     cellarGrownupQuests: new PrismaCellarGrownupQuestRepository(prisma),
-    classNoncombat: new PrismaClassNoncombatRepository(prisma),
+    classNoncombat: new PrismaClassNoncombatRepository(prisma, hpRecoveryProducer),
     combatBalanceAnalytics: new PrismaCombatBalanceAnalyticsRepository(prisma),
-    cooldowns: new PrismaCooldownRepository(prisma),
-    dailyActions: new PrismaDailyActionRepository(prisma),
+    cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
+    dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
     devGrants: new PrismaDevGrantRepository(prisma),
     duelChallenges: new PrismaDuelChallengeRepository(prisma),
     duelTournaments: new PrismaDuelTournamentRepository(prisma),
-    equipment: new PrismaEquipmentRepository(prisma),
+    equipment: new PrismaEquipmentRepository(prisma, hpRecoveryProducer),
     huntContracts: new PrismaHuntContractRepository(prisma),
+    hpRecoveryNotifications: new PrismaHpRecoveryNotificationRepository(prisma, hpRecoveryProducer),
     inventory: new PrismaInventoryRepository(prisma),
     itemCraft: new PrismaItemCraftRepository(prisma),
     itemUpgrades: new PrismaItemUpgradeRepository(prisma),
-    itemUse: new PrismaItemUseRepository(prisma),
+    itemUse: new PrismaItemUseRepository(prisma, hpRecoveryProducer),
     itemTransfers: new PrismaItemTransferRepository(prisma),
     levelBarter: new PrismaLevelBarterRepository(prisma),
     levelMilestones: new PrismaLevelMilestoneRepository(prisma),
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
     passageSearches: new PrismaPassageSearchRepository(prisma),
-    partyBossSessions: new PrismaPartyBossRepository(prisma),
+    partyBossSessions: new PrismaPartyBossRepository(prisma, hpRecoveryProducer),
     partySessions: new PrismaPartySessionRepository(prisma),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
-    remorts: new PrismaRemortRepository(prisma),
+    remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma),
-    soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma),
+    soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma, hpRecoveryProducer),
     tavernGames: new PrismaTavernGameRepository(prisma),
     yegerNotchExchange: new PrismaYegerNotchExchangeRepository(prisma)
   };

@@ -11,6 +11,8 @@ export type PartySessionCallback =
   | { type: "readiness"; token: string; readiness: PartyParticipantReadiness }
   | { type: "ward-place"; token: string }
   | { type: "ward-support"; token: string }
+  | { type: "protocol-file"; token: string }
+  | { type: "protocol-sign"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-gear"; token: string; turn: number; grantKey: string }
@@ -23,7 +25,7 @@ export type PartySessionCallback =
   | { type: "nearby-open"; page: number }
   | { type: "nearby-invite"; targetTelegramUserId: bigint; page: number };
 
-export type PartyBossCallbackAction = "attack" | "defend" | "skill" | "race";
+export type PartyBossCallbackAction = "attack" | "defend" | "skill" | "race" | "taunt";
 
 export type PartySessionCallbackError =
   | "invalid-version"
@@ -74,6 +76,14 @@ export function makePartySessionWardPlaceCallbackData(token: string): string {
 
 export function makePartySessionWardSupportCallbackData(token: string): string {
   return `${PREFIX}:ws:${token}`;
+}
+
+export function makePartySessionProtocolFileCallbackData(token: string): string {
+  return `${PREFIX}:pf:${token}`;
+}
+
+export function makePartySessionProtocolSignCallbackData(token: string): string {
+  return `${PREFIX}:ps:${token}`;
 }
 
 export function makePartyBossStartCallbackData(token: string): string {
@@ -321,12 +331,18 @@ export function parsePartySessionCallbackData(
     });
   }
 
-  if (action === "wp" || action === "ws") {
+  if (action === "wp" || action === "ws" || action === "pf" || action === "ps") {
     if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
       return err("invalid-token");
     }
 
-    return ok({ type: action === "wp" ? "ward-place" : "ward-support", token: tokenOrTarget });
+    if (action === "wp") {
+      return ok({ type: "ward-place", token: tokenOrTarget });
+    }
+    if (action === "ws") {
+      return ok({ type: "ward-support", token: tokenOrTarget });
+    }
+    return ok({ type: action === "pf" ? "protocol-file" : "protocol-sign", token: tokenOrTarget });
   }
 
   if (!tokenOrTarget || !TOKEN_PATTERN.test(tokenOrTarget) || page !== undefined) {
@@ -378,6 +394,8 @@ function actionKey(action: PartyBossCallbackAction): string {
       return "s";
     case "race":
       return "r";
+    case "taunt":
+      return "t";
   }
 }
 
@@ -393,6 +411,9 @@ function parseActionKey(value: string): PartyBossCallbackAction | null {
   }
   if (value === "r") {
     return "race";
+  }
+  if (value === "t") {
+    return "taunt";
   }
   return null;
 }

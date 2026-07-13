@@ -10,6 +10,13 @@ import type {
 } from "./mantokChestRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { items } from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import { applyPriestBlessingBonusToSummary } from "../../domain/noncombat/priestBlessingBonus";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  isEquipmentAttunementPendingForRow
+} from "../../domain/equipment/equipmentAttunement";
 
 type TxClient = Prisma.TransactionClient;
 type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRun"]["findFirst"]>>;
@@ -196,7 +203,23 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           },
           select: {
             id: true,
-            name: true
+            name: true,
+            pronoun: true,
+            path: true,
+            raceId: true,
+            classId: true,
+            level: true,
+            xp: true,
+            gold: true,
+            hpCurrent: true,
+            hpMax: true,
+            manaCurrent: true,
+            manaMax: true,
+            statsJson: true,
+            equipment: true,
+            _count: {
+              select: { remorts: true }
+            }
           }
         });
 
@@ -228,9 +251,27 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           return { state: "expired", run };
         }
 
+        const [attunementPayloads, activePriestBlessing] = await Promise.all([
+          findCurrentEquipmentAttunementPayloads(tx, character),
+          tx.noncombatPriestBlessing.findFirst({
+            where: {
+              targetCharacterId: character.id,
+              status: "active",
+              expiresAt: { gt: input.now }
+            },
+            orderBy: { startedAt: "desc" },
+            select: { bonusStat: true, bonusAmount: true, expiresAt: true }
+          })
+        ]);
         const snapshot = await getConfirmationSnapshot(tx, {
           characterId: character.id,
           characterDisplayName: character.name,
+          playerLuck: getConfirmationEffectiveLuck(
+            character,
+            attunementPayloads,
+            activePriestBlessing,
+            input.now
+          ),
           inputItems: run.inputItems,
           now: input.now
         });
@@ -391,6 +432,7 @@ async function getConfirmationSnapshot(
   input: {
     characterId: string;
     characterDisplayName: string;
+    playerLuck: number;
     inputItems: MantokChestRunItem[];
     now: Date;
   }
@@ -438,6 +480,7 @@ async function getConfirmationSnapshot(
   return {
     characterId: input.characterId,
     characterDisplayName: input.characterDisplayName,
+    playerLuck: input.playerLuck,
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
@@ -456,7 +499,8 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     },
     select: {
       id: true,
-      name: true
+      name: true,
+      statsJson: true
     }
   });
 
@@ -499,6 +543,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
   return {
     characterId: character.id,
     characterDisplayName: character.name,
+    playerLuck: readPlayerLuck(character.statsJson),
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
@@ -536,6 +581,64 @@ function parseStatus(status: string): MantokChestRunStatus {
     : "pending";
 }
 
+function getConfirmationEffectiveLuck(
+  character: {
+    name: string;
+    pronoun: string;
+    path: string;
+    raceId: string;
+    classId: string;
+    level: number;
+    xp: number;
+    gold: number;
+    hpCurrent: number;
+    hpMax: number;
+    manaCurrent: number;
+    manaMax: number;
+    statsJson: Prisma.JsonValue;
+    equipment: Array<{ slot: string; itemId: string; updatedAt: Date }>;
+    _count: { remorts: number };
+  },
+  actionPayloads: readonly (Prisma.JsonValue | null)[],
+  activePriestBlessing: { bonusStat: string | null; bonusAmount: number; expiresAt: Date } | null,
+  now: Date
+): number {
+  const equippedItems = character.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
+      return [];
+    }
+
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = applyPriestBlessingBonusToSummary(summarizeCharacter(character, {
+    equippedItems,
+    remortCount: character._count.remorts
+  }), activePriestBlessing, now);
+
+  return summary.stats.luck;
+}
+
+async function findCurrentEquipmentAttunementPayloads(
+  tx: TxClient,
+  character: { id: string; equipment: Array<{ id: string; slot: string; updatedAt: Date }> }
+): Promise<Array<Prisma.JsonValue | null>> {
+  const localDates = character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
+  if (localDates.length === 0) {
+    return [];
+  }
+
+  const actions = await tx.dailyAction.findMany({
+    where: {
+      characterId: character.id,
+      key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+      localDate: { in: localDates }
+    },
+    select: { resultJson: true }
+  });
+  return actions.map((row) => row.resultJson);
+}
+
 function parseRunItems(value: unknown): MantokChestRunItem[] {
   if (!Array.isArray(value)) {
     return [];
@@ -567,4 +670,12 @@ function toCharacterItemRecord(record: CharacterItem): CharacterItemRecord {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readPlayerLuck(value: unknown): number {
+  if (!isRecord(value) || typeof value.luck !== "number" || !Number.isFinite(value.luck)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value.luck));
 }

@@ -256,6 +256,7 @@ describe("presence middleware", () => {
     ["/dev_reset_cellar_mouse", "resetCellarMouseCooldown"],
     ["/dev_reset_priest_blessing", "resetPriestBlessingCooldown"],
     ["/dev_reset_quiet_pocket", "resetQuietPocketCooldown"],
+    ["/dev_reset_bureaucramancer_protocol", "resetBureaucramancerProtocolCooldown"],
     ["/dev_reset_rogue", "resetRogue"],
     ["/dev_yeger_first_done", "completeFirstYegerQuestProgress"],
     ["/dev_yeger_second_done", "completeSecondYegerQuestProgress"]
@@ -399,6 +400,15 @@ describe("presence middleware", () => {
           return Promise.resolve({
             state: "updated" as const,
             kind: "quiet-pocket-cooldown" as const,
+            character: characterRecord(),
+            cleared: true
+          });
+        },
+        resetBureaucramancerProtocolCooldown: () => {
+          calls.push("resetBureaucramancerProtocolCooldown");
+          return Promise.resolve({
+            state: "updated" as const,
+            kind: "bureaucramancer-protocol-cooldown" as const,
             character: characterRecord(),
             cleared: true
           });

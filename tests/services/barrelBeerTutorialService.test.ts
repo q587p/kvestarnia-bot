@@ -27,21 +27,21 @@ const telegramUserId = 4242n;
 const now = new Date("2026-07-06T12:00:00.000Z");
 
 describe("BarrelBeerTutorialService", () => {
-  it("is available only for levels 2 through 5 before acceptance", async () => {
+  it("is available only for levels 2 through 7 before acceptance", async () => {
     const locked = createWorld({ level: 1 });
     await expect(locked.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-locked",
       requiredLevel: 2
     });
 
-    for (const level of [2, 3, 4, 5]) {
+    for (const level of [2, 3, 4, 5, 6, 7]) {
       const available = createWorld({ level });
       await expect(available.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
         state: "available"
       });
     }
 
-    const retired = createWorld({ level: 6 });
+    const retired = createWorld({ level: 8 });
     await expect(retired.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({
       state: "level-retired",
       maxLevel: BARREL_BEER_TUTORIAL_MAX_LEVEL
@@ -264,12 +264,12 @@ describe("BarrelBeerTutorialService", () => {
     });
   });
 
-  it("allows a quest accepted at level 5 to finish after the character reaches level 6", async () => {
-    const world = createWorld({ level: 5, xp: getLevelStartXp(5) });
+  it("allows a quest accepted at level 7 to finish after the character reaches level 8", async () => {
+    const world = createWorld({ level: 7, xp: getLevelStartXp(7) });
 
     await world.service.acceptForTelegramUser(telegramUserId);
-    world.character.level = 6;
-    world.character.xp = getLevelStartXp(6);
+    world.character.level = 8;
+    world.character.xp = getLevelStartXp(8);
     await world.service.markVisitedBarrelForTelegramUser(telegramUserId);
     await world.service.markBarrelRaidCompletedForTelegramUser(telegramUserId);
     await world.service.markBeerRoundOfferedForTelegramUser(telegramUserId);
@@ -328,6 +328,8 @@ describe("BarrelBeerTutorialService", () => {
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 3, xp: getLevelStartXp(3) }))).toBe(8);
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 4, xp: getLevelStartXp(4) }))).toBe(10);
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 5, xp: getLevelStartXp(5) }))).toBe(16);
+    expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 6, xp: getLevelStartXp(6) }))).toBe(16);
+    expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 7, xp: getLevelStartXp(7) }))).toBe(16);
     expect(getBarrelBeerTutorialRewardXp(buildCharacter({ level: 2, xp: getLevelStartXp(2) }))).not.toBe(50);
   });
 

@@ -25,6 +25,17 @@ describe("class noncombat keyboard", () => {
     expect(buttonTexts(keyboard)).toContain("✨ Благословити себе");
   });
 
+  it("hides Priest self-blessing while the self-blessing wait is active", () => {
+    const keyboard = buildClassNoncombatKeyboard(priestOpenResult({}, {
+      priestSelfBlessAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+      targets: [target()]
+    }));
+
+    expect(buttonTexts(keyboard)).not.toContain("✨ Благословити себе");
+    expect(buttonTexts(keyboard)).toContain("✨");
+    expect(buttonTexts(keyboard)).toContain("🔄 Оновити");
+  });
+
   it("hides Priest action buttons when the actor is busy with another active flow", () => {
     const keyboard = buildClassNoncombatKeyboard(priestOpenResult({
       hpCurrent: 13,
@@ -128,6 +139,7 @@ function priestOpenResult(
     targets?: Extract<ClassNoncombatOpenResult, { state: "ready" }>["targets"];
     targetPage?: number;
     targetTotalPages?: number;
+    priestSelfBlessAvailableAt?: Date | null;
   } = {}
 ): ClassNoncombatOpenResult {
   return {
@@ -140,7 +152,7 @@ function priestOpenResult(
     targetPage: options.targetPage ?? 0,
     targetTotalPages: options.targetTotalPages ?? 1,
     priestBlessCooldownAvailableAt: null,
-    priestSelfBlessAvailableAt: null,
+    priestSelfBlessAvailableAt: options.priestSelfBlessAvailableAt ?? null,
     roguePickpocketCooldownAvailableAt: null
   };
 }

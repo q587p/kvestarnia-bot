@@ -58,14 +58,19 @@ Recently shipped:
 - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — Kharakternyk Big Barrel Brother ward signs with replay-safe mana placement/support, count-only lobby support, final-roster freezing and one-time broad-hit mitigation.
 - [0.3.3-quest-variety-risk-refresh.md](0.3.3-quest-variety-risk-refresh.md) — Adventure Choice risk-band readability, Daily Korchma Round scene expansion, and starter cellar mouse authored reply variety without new rewards, schema, combat or routes.
 - [0.3.4-quest-overview-route.md](0.3.4-quest-overview-route.md) — compact read-only `🗺️ Квести` overview route over existing quest surfaces, keeping `/quest` and `Стіл зі справами` as the full Quest Hub.
+- [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — shipped performance instrumentation and bounded DailyAction/Yeger/Korchma hot paths without player-facing balance changes.
 
-Near-term next tasks:
+Active release candidate and near-term drafts:
 
 Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
 
-- [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — next P0 performance hardening task from the static audit: instrumentation, bounded `DailyAction` hot-path queries, Yeger bandage fast path, and Daily Korchma Round step-row narrowing before inviting more players.
-- [0.3.x-bureaucramancer-personal-protocol.md](0.3.x-bureaucramancer-personal-protocol.md) — draft narrow Bureaucramancer personal-protocol raid-prep slice for Big Barrel Brother recruiting: one protocol per session, count-only signatures, and per-signer first personal boss attack protection without broad-attack mitigation.
-- [0.3.x-warrior-raid-taunt.md](0.3.x-warrior-raid-taunt.md) — draft narrow Warrior Big Barrel Brother raid taunt slice: a living joined Warrior can spend their queued raid action to redirect personal and broad boss attacks into themselves for exactly three boss responses, with a five-turn cooldown and no generic threat system.
+- [0.3.6-bureaucramancer-personal-protocol-13b.md](0.3.6-bureaucramancer-personal-protocol-13b.md) — shipped Bureaucramancer `📄 Форма 13-А` Big Barrel recruiting action that opens `Протокол 13-З`; merge is proven by PR #158, while deployment and refreshed full manual QA remain separately unproven.
+- [archive/0.3.x-bureaucramancer-personal-protocol.md](archive/0.3.x-bureaucramancer-personal-protocol.md) — superseded planning draft retained for history; do not implement.
+- [0.3.7-warrior-raid-taunt.md](0.3.7-warrior-raid-taunt.md) — shipped by PR #162: the narrow Warrior Big Barrel Brother raid taunt slice plus its boss-first recruiting-card delivery repair. Any remaining targeted delivery QA belongs to 0.3.7 history rather than the 0.3.8 runtime scope.
+- [0.3.8-measured-runtime-stability.md](0.3.8-measured-runtime-stability.md) — measured runtime follow-up from the sanitized `9b00adc` Render slow-tail window: privacy-safe terminal performance telemetry, deploy attribution and truthful database/Telegram polling readiness without gameplay or speculative route optimization.
+- [0.3.9-quest-marker-snapshot-db-fanout-reduction.md](0.3.9-quest-marker-snapshot-db-fanout-reduction.md) — measured `main-menu.quest-markers` follow-up that groups Adventure and Fight marker reads, reduces primary service-source fan-out from ten to eight, and adds bounded slowest-source attribution without changing player-visible quest behavior.
+- [0.3.10-fighting-corner-onboarding-quest.md](0.3.10-fighting-corner-onboarding-quest.md) — planned once-per-remort-life level 3+ Fighting Corner onboarding quest covering Doppelganger training, quick duels and turn-based duels before a replay-safe Quest Table claim.
+- [0.3.x-varenyk-mancer-sated-support.md](0.3.x-varenyk-mancer-sated-support.md) — later `0.3.x` planning draft after Measured Runtime Stability: level 3+ Varenyk-mancers can feed themselves or an active same-location recipient to create short schema-free `😋 Ситий` HP/mana sustain across lazy out-of-combat minutes and stored combat turns, behind an off-by-default rollout flag.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
 
@@ -106,7 +111,7 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.26-mantok-equipment-slot-coverage.md](0.2.26-mantok-equipment-slot-coverage.md) — authored mantok equipment-slot coverage, identity equip gates and generated logical slot/tag materialization without touching shops, rewards, sinks, Prisma schema or dice/Shynok work.
 - [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md) — replacement for confusing `🎲 Кості` with quick dice poker, 13-turn scorecard poker, compact rules, legacy Kosti refund handling and replay-safe bounded stake settlement.
 - [0.2.28-mantok-set-synergies-foundation.md](0.2.28-mantok-set-synergies-foundation.md) — shipped Mantok set-synergy foundation with 13 stat-only set families, live set progress and additive high-level monster loot.
-- [0.2.29-barrel-beer-tutorial.md](0.2.29-barrel-beer-tutorial.md) — level 2-5 Barrel/beer tutorial quest using existing quest, Barrel raid, Shynok beer and item systems.
+- [0.2.29-barrel-beer-tutorial.md](0.2.29-barrel-beer-tutorial.md) — level 2-7 Barrel/beer tutorial quest using existing quest, Barrel raid, Shynok beer and item systems.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — archived draft activated as [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md).
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.

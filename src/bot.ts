@@ -8,7 +8,9 @@ import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 
 const config = loadConfig();
-const repositories = createRepositories(prisma);
+const repositories = createRepositories(prisma, {
+  hpRecoveryNotificationsEnabled: config.hpRecoveryNotificationsEnabled
+});
 const services = createServices(repositories, config);
 const runtime = createRuntime({
   config,
@@ -18,4 +20,8 @@ const runtime = createRuntime({
 
 registerSignalShutdown(runtime);
 
-void runtime.start();
+void runtime.start().catch((error) => {
+  console.error("Квестарня: runtime не запустився.", {
+    errorName: error instanceof Error ? error.name : "unknown"
+  });
+});

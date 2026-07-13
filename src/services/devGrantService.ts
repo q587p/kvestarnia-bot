@@ -23,6 +23,7 @@ import {
   YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
 } from "./dailyActionKeys";
 import { getKyivDayKey } from "../shared/kyivDate";
+import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "./bureaucramancerProtocol";
 
 const PRIEST_BLESSING_COOLDOWN_KEYS = [
   "technique.class.priest.blessing",
@@ -84,7 +85,8 @@ export type DevGrantResult =
         | "yeger-tracking-cooldown"
         | "cellar-mouse-cooldown"
         | "priest-blessing-cooldown"
-        | "quiet-pocket-cooldown";
+        | "quiet-pocket-cooldown"
+        | "bureaucramancer-protocol-cooldown";
       character: CharacterRecord;
       cleared: boolean;
     }
@@ -412,6 +414,26 @@ export class DevGrantService {
           cleared: result.cleared
         }
         : { state: "no-character" };
+  }
+
+  async resetBureaucramancerProtocolCooldown(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const result = await this.grants.clearCooldownForTelegramUser(
+      telegramUserId,
+      BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY
+    );
+
+    return result
+      ? {
+          state: "updated",
+          kind: "bureaucramancer-protocol-cooldown",
+          character: result.character,
+          cleared: result.cleared
+        }
+      : { state: "no-character" };
   }
 
   async resetYegerTrackingCooldown(telegramUserId: bigint): Promise<DevGrantResult> {

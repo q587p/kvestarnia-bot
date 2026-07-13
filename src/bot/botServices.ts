@@ -16,6 +16,7 @@ import type { EquipmentService } from "../services/equipmentService";
 import type { FightService } from "../services/fightService";
 import type { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import type { HeroService } from "../services/heroService";
+import type { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import type { HuntService } from "../services/huntService";
 import type { InventoryService } from "../services/inventoryService";
 import type { ItemCraftService } from "../services/itemCraftService";
@@ -60,6 +61,7 @@ export interface BotServices {
   partySessions?: PartySessionService;
   playerHints: PlayerHintService;
   hero: HeroService;
+  healthRecoveryNotifications?: HealthRecoveryNotificationService;
   equipment: EquipmentService;
   inventory: InventoryService;
   itemCraft: ItemCraftService;

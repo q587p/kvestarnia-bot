@@ -4,9 +4,9 @@ import type {
   CharacterRepository,
   CreateCharacterInput,
   CreateCharacterResult,
-  PassiveHealthRecoveryCandidate,
   UpdateCharacterResourcesInput
 } from "./characterRepository";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 
@@ -15,7 +15,10 @@ export type SpendGoldForTelegramUserResult =
   | { state: "insufficient"; character: CharacterRecord };
 
 export class PrismaCharacterRepository implements CharacterRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async findByUserId(userId: string): Promise<CharacterRecord | null> {
     const character = await this.prisma.character.findUnique({
@@ -130,6 +133,8 @@ export class PrismaCharacterRepository implements CharacterRepository {
           return null;
         }
 
+        await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
+
         const record = await tx.character.findUnique({
           where: {
             id: character.id
@@ -144,82 +149,63 @@ export class PrismaCharacterRepository implements CharacterRepository {
     }
 
     if (input.expected) {
-      const updated = await this.prisma.character.updateMany({
-        where: {
-          user: {
-            telegramUserId
+      return this.prisma.$transaction(async (tx) => {
+        const updated = await tx.character.updateMany({
+          where: {
+            id: character.id,
+            hpCurrent: input.expected!.hpCurrent,
+            manaCurrent: input.expected!.manaCurrent,
+            ...(input.expected!.hpRegenAt === undefined ? {} : { hpRegenAt: input.expected!.hpRegenAt }),
+            ...(input.expected!.manaRegenAt === undefined
+              ? {}
+              : { manaRegenAt: input.expected!.manaRegenAt })
           },
-          hpCurrent: input.expected.hpCurrent,
-          manaCurrent: input.expected.manaCurrent,
-          ...(input.expected.hpRegenAt === undefined ? {} : { hpRegenAt: input.expected.hpRegenAt }),
-          ...(input.expected.manaRegenAt === undefined
-            ? {}
-            : { manaRegenAt: input.expected.manaRegenAt })
-        },
+          data: {
+            hpCurrent: data.hpCurrent,
+            manaCurrent: data.manaCurrent,
+            hpRegenAt: input.hpRegenAt,
+            manaRegenAt: input.manaRegenAt
+          }
+        });
+        if (updated.count !== 1) {
+          return null;
+        }
+        await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
+        const record = await tx.character.findUnique({
+          where: { id: character.id },
+          include: { ...characterRecordInclude }
+        });
+        return record ? toCharacterRecord(record) : null;
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.character.update({
+        where: { id: character.id },
         data: {
           hpCurrent: data.hpCurrent,
           manaCurrent: data.manaCurrent,
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
-        }
+        },
+        include: { ...characterRecordInclude }
       });
-
-      return updated.count > 0 ? this.findByTelegramUserId(telegramUserId) : null;
-    }
-
-    const updated = await this.prisma.character.update({
-      where: {
-        id: character.id
-      },
-      data: {
-        hpCurrent: data.hpCurrent,
-        manaCurrent: data.manaCurrent,
-        hpRegenAt: input.hpRegenAt,
-        manaRegenAt: input.manaRegenAt
-      },
-      include: {
-        ...characterRecordInclude
-      }
+      await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
+      return toCharacterRecord(updated);
     });
-
-    return toCharacterRecord(updated);
   }
 
-  async listPassiveHealthRecoveryCandidates(
-    _now: Date,
-    options: { limit?: number } = {}
-  ): Promise<PassiveHealthRecoveryCandidate[]> {
-    const rows = await this.prisma.character.findMany({
-      where: {
-        hpCurrent: {
-          lt: this.prisma.character.fields.hpMax
-        },
-        hpRegenAt: {
-          not: null
-        }
-      },
-      orderBy: {
-        hpRegenAt: "asc"
-      },
-      take: options.limit ?? 100,
-      select: {
-        hpCurrent: true,
-        hpMax: true,
-        hpRegenAt: true,
-        user: {
-          select: {
-            telegramUserId: true
-          }
-        }
-      }
-    });
-
-    return rows.map((row) => ({
-      telegramUserId: row.user.telegramUserId,
-      hpCurrent: row.hpCurrent,
-      hpMax: row.hpMax,
-      hpRegenAt: row.hpRegenAt
-    }));
+  private async recordResourceRecovery(
+    tx: Prisma.TransactionClient,
+    characterId: string,
+    input: UpdateCharacterResourcesInput,
+    hpCurrent: number
+  ): Promise<void> {
+    if (input.hpMax !== undefined && hpCurrent >= input.hpMax) {
+      await this.hpRecoveryProducer.record(tx, characterId, input.hpRegenAt, "suppress", {
+        errorCode: "lazy-sync-full"
+      });
+    }
   }
 
   async createForTelegramUserIfMissing(

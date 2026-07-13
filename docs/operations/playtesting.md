@@ -4,6 +4,75 @@
 
 Для технічного запуску дивись [`docs/operations/developer-setup.md`](./developer-setup.md).
 
+## 0.3.8 — Measured Runtime Stability smoke
+
+1. Start without `BOT_TOKEN`; verify `/health` returns `200`, `/ready` returns `503`, and no Telegram bot or scheduler starts.
+2. Start with a failed database probe; verify `/health` remains `200`, `/ready` remains `503`, Telegram polling does not start, and the log contains only an allowlisted error category.
+3. Start normally; verify `/ready` changes to `200` only after grammY `onStart`, then returns to `503` as soon as shutdown begins.
+4. With default perf env, exercise inventory/item detail, `🗺️ Квести`, Yeger, DKR and a fight turn; verify fast calls stay quiet and slow calls contain no Telegram user id, player text, callback data, token, SQL parameter or serialized state.
+5. Force measured DB and Telegram failures locally; verify each span emits exactly one terminal error record with elapsed component time and an allowlisted category, without the raw error message.
+6. Set `RENDER_GIT_COMMIT` / `RENDER_INSTANCE_ID` to valid and invalid local probes; verify only validated values enter payloads.
+7. For a controlled post-deploy window only, set `KVESTARNIA_PERF_SAMPLE_RATE=1`, collect enough fast/slow/error records for real rates, then restore it to `0`.
+
+Manual Telegram QA status: not run. This release changes runtime observability/readiness only and keeps gameplay behavior unchanged.
+
+## 0.3.7 — Warrior Raid Taunt smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Start a Big Barrel Brother raid with a living joined Warrior and one non-Warrior.
+2. Verify only the Warrior sees `🛡️ На мене!`; ordinary PvE, training, quick duels and turn-based duels keep their existing actions.
+3. Queue Taunt, replace it with another valid action, and resolve the round; verify Taunt does not activate and no cooldown starts.
+4. Queue Taunt again and resolve; verify it activates before that round's boss response and redirects the response into the Warrior.
+5. Reach a `Бочковий гуркіт` response while Taunt is active; verify only the Warrior takes one normal hit and other participants lose no HP or mana from that response.
+6. Verify the active card and stored journal show activation, redirection, remaining duration and expiry for exactly three boss responses.
+7. Verify the Warrior's durable card states the exact remaining turn wait and permits the next Taunt on activation round `N + 5`.
+8. With two Warriors, queue both in the same round; verify exactly one deterministic activator and no cooldown for the other.
+9. Replay stale/duplicate buttons and try the action from a non-Warrior; verify short Ukrainian failure copy and no state extension.
+10. Knock out the taunting Warrior and verify Taunt expires before any later boss target selection.
+11. With at least three participants, commit preparation changes in quick succession and confirm reverse-order Telegram completion cannot regress the leader or ordinary stored participant cards.
+12. Delete the leader card and race two preparation changes; confirm one replacement is sent and later updates keep using its stored reference.
+13. File Protocol as leader from a different callback message than the saved leader card; confirm both update, then have the leader leave and confirm the transferred leader receives leader-only controls.
+14. Race readiness, Ward, Protocol, view, and deep-link join against manual boss start, plus preparation against scheduled start; confirm no recruiting controls or recruiting reference are published after combat starts.
+
+Manual Telegram QA status: an earlier pass found the stale leader recruiting-card problem. Runtime fixes followed; the latest-head targeted recheck and remaining refreshed-runtime checklist are pending. See [`docs/qa/warrior-raid-taunt-qa.md`](../qa/warrior-raid-taunt-qa.md).
+
+## 0.3.6 — Bureaucramancer Personal Protocol 13-Z smoke
+
+Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
+
+1. Start a Big Barrel Brother recruiting session with a level 3+ Bureaucramancer.
+2. Verify only the eligible joined Bureaucramancer sees `📄 Форма 13-А`.
+3. File protocol with enough mana; verify the 5-8 mana spend matches `8 - min(3, floor((level + effective intelligence) / 8))`, the confirmation shows the committed amount, the 93-minute cooldown starts and the filer auto-signs.
+4. Try duplicate filing; verify no second mana spend and no duplicate signature.
+4a. Try filing in another recruiting session while the actor cooldown is active; verify a separate durable message states exactly how many minutes remain and `Протокол ще відлежується` is not shown as the only feedback.
+5. Join from another account and sign once.
+6. Try duplicate sign; verify count does not increase twice.
+7. Verify the recruiting cards for all joined accounts, including the leader, update immediately to the same count-only state with no signer names; do not manually refresh first.
+8. Start the raid and force/observe a personal boss attack against a signed participant.
+9. Verify the attack is blocked for that signer and trigger copy/stored prevented damage appears.
+10. Verify a later personal attack against the same signer is not blocked.
+11. Verify a personal attack against an unsigned participant is not blocked.
+12. Verify `Бочковий гуркіт` / broad boss action is not blocked by the protocol.
+13. Refresh/replay active and terminal cards; verify no retrigger or recalculation.
+14. Try stale sign after start and terminal state; verify no mutation.
+15. Let the filer leave and rejoin in the same remort life; verify the protocol and filer signature survive, while a competing Bureaucramancer still cannot file.
+16. Let another signer leave and rejoin in the same remort life; verify duplicate signing does not raise the count and raid start freezes that signer once.
+17. Race start against filing/signing from separate clients; verify one committed state freezes and a filing callback that loses to start spends no mana or cooldown.
+18. Check performance logs remain quiet unless slow thresholds are hit.
+19. Use `/dev_reset_bureaucramancer_protocol` only in local/dev QA to clear the filing cooldown; verify it is not available in production config.
+
+Manual Telegram QA status: partial on an earlier runtime. It found a stale leader recruiting card and cooldown feedback that was easy to miss. The current fixes have not been rechecked after `refresh-local-bot.cmd`; full manual Telegram QA remains pending.
+
+### Retained 0.3.6 fix tracks
+
+1. Feed five real `item.loot-v1-a009` units to Mantok Chest with effective LUCK 5. Confirm once and verify a score-improving output completes even when the rolled rarity ceiling has no candidate: the nearest feasible higher rarity is used, inputs are consumed once, same-token replay returns the stored result, and a fresh preview cannot reroll the spent inputs. True no-output is allowed only when the global score-improving catalog pool is empty.
+2. Inspect authored Charkokovalnia `+1..+5` variants; visible value should rise with enhancement/rarity, optional base values should remain valid, and generated Loot Expansion pricing should not be rewritten.
+3. Reopen the retired/grownup cellar seal route and a level 3+ starter completion notice; verify there is no stale `/hunt` hint or archived beginner-paper advertisement.
+4. Replay a two-enemy underdog win with a stronger backup enemy; `📜 Хроніки Квестарні` should name the strongest stored enemy while rewards remain unchanged.
+5. During the Priest self-blessing wait, reopen `✨ Жрецька поміч`; self-blessing should be hidden while healing and available other-target blessings remain.
+6. Outlevel the unfinished `Бочка, або Туди і звідти` tutorial and open `📦 Архів`; the unavailable row should remain visible.
+
 ## 0.3.5 — Performance P0 Hardening smoke
 
 Before manual Telegram QA, run `refresh-local-bot.cmd` so the isolated local bot snapshot picks up this branch.
@@ -975,6 +1044,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 - `/dev_reset_cellar_mouse` — у локальному режимі скидає cooldown повторюваної льохової справи миші та дорослішої мишачої домовлености для поточного персонажа.
 - `/dev_reset_priest_blessing` — у локальному режимі скидає cooldown жрецького благословення/підтримки для поточного персонажа.
 - `/dev_reset_quiet_pocket` — у локальному режимі скидає cooldown злодійської `Тихої кишені` для поточного персонажа.
+- `/dev_reset_bureaucramancer_protocol` — у локальному режимі скидає cooldown бюрокромантського `Протоколу 13-З` для поточного персонажа.
 - `/dev_reset_rogue` — у локальному режимі скидає cooldown `Тихої кишені` й забуває цілі, які цей злодій уже перевіряв поточного київського дня.
 - `/dev_yeger_first_done` — у локальному режимі доводить першу Єгерську дошку до `5/5` реальними перемогами, лишаючи звичайну здачу квеста.
 - `/dev_yeger_second_done` — у локальному режимі доводить другу Єгерську дошку до `17/17` реальними перемогами після зданої першої дошки, лишаючи звичайну здачу квеста.

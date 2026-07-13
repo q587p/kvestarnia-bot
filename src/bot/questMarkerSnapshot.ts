@@ -1,7 +1,11 @@
 import type { BotServices } from "./botServices";
 import type { QuestMarkerInput } from "./keyboards/questButtonMarkers";
 import { safeOptionalUiLookup } from "./optionalUiLookup";
-import { startPerfSpan } from "./performanceLogger";
+import {
+  hotPathNow,
+  startPerfSpan,
+  type QuestMarkerPerformanceSource
+} from "./performanceLogger";
 
 export async function buildQuestMarkerSnapshotForTelegramUser(
   telegramUserId: bigint,
@@ -33,12 +37,11 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   const itemUpgradesService = services.itemUpgrades;
   const cellarGrownupService = services.cellarGrownup;
   const perf = startPerfSpan("main-menu.quest-markers", { telegramUserId });
+  const attribution = createQuestMarkerDbAttribution();
 
   const [
-    adventure,
-    starterAdventure,
-    fight,
-    problemQuest,
+    adventureMarkers,
+    fightMarkers,
     firstKorchmaQuest,
     yeger,
     cellar,
@@ -46,81 +49,100 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     dailyKorchmaRound,
     itemUpgrades
   ] = await perf.measureDb(() => Promise.all([
-    typeof services.adventure?.getAdventureOfferForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "adventure offer",
-          () => services.adventure.getAdventureOfferForTelegramUser(telegramUserId)
-        )
-      : Promise.resolve(null),
-    typeof services.adventure.getMimicShawarmaForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "starter adventure",
-          () => services.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
-        )
-      : Promise.resolve(null),
-    typeof services.fight?.getFightOverviewForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "fight overview",
-          () => services.fight.getFightOverviewForTelegramUser(telegramUserId)
-        )
-      : Promise.resolve(null),
-    typeof services.fight?.getProblemQuestProgressForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "problem quest",
-          () => services.fight.getProblemQuestProgressForTelegramUser(telegramUserId)
-        )
-      : Promise.resolve(null),
+    attribution.measure(
+      "adventure",
+      () => resolveAdventureQuestMarkers(
+        telegramUserId,
+        services.adventure,
+        (sourceCount) => attribution.addSources(sourceCount)
+      ),
+      typeof services.adventure.getQuestMarkerSnapshotForTelegramUser === "function"
+        ? 1
+        : getLegacyAdventureSourceWeight(services.adventure)
+    ),
+    attribution.measure(
+      "fight",
+      () => resolveFightQuestMarkers(
+        telegramUserId,
+        services.fight,
+        (sourceCount) => attribution.addSources(sourceCount)
+      ),
+      typeof services.fight.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
+    ),
     typeof firstKorchmaQuestService?.getForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "first Korchma quest",
-          () => firstKorchmaQuestService.getForTelegramUser(telegramUserId)
+      ? attribution.measure(
+          "first-korchma",
+          () => optionalQuestMarkerLookup(
+            "first Korchma quest",
+            () => firstKorchmaQuestService.getForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null),
     (
       typeof services.yeger?.getQuestMarkerForTelegramUser === "function" ||
       typeof services.yeger?.getForTelegramUser === "function"
     )
-      ? optionalQuestMarkerLookup(
+      ? attribution.measure(
           "yeger",
-          () => services.yeger.getQuestMarkerForTelegramUser?.(telegramUserId)
-            ?? services.yeger.getForTelegramUser(telegramUserId)
+          () => optionalQuestMarkerLookup(
+            "yeger",
+            () => services.yeger.getQuestMarkerForTelegramUser?.(telegramUserId)
+              ?? services.yeger.getForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null),
     typeof services.cellarErrand?.getForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
+      ? attribution.measure(
           "cellar",
-          () => services.cellarErrand.getForTelegramUser(telegramUserId)
+          () => optionalQuestMarkerLookup(
+            "cellar",
+            () => services.cellarErrand.getForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null),
     typeof barrelBeerTutorialService?.getForTelegramUser === "function"
-      ? optionalQuestMarkerLookup(
-          "barrel beer tutorial",
-          () => barrelBeerTutorialService.getForTelegramUser(telegramUserId)
+      ? attribution.measure(
+          "barrel-beer",
+          () => optionalQuestMarkerLookup(
+            "barrel beer tutorial",
+            () => barrelBeerTutorialService.getForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null),
     services.dailyKorchmaRound
-      ? optionalQuestMarkerLookup(
-          "daily korchma round",
-          () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+      ? attribution.measure(
+          "daily-korchma",
+          () => optionalQuestMarkerLookup(
+            "daily korchma round",
+            () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null),
     (
       typeof itemUpgradesService?.getQuestMarkerForTelegramUser === "function" ||
       typeof itemUpgradesService?.getUnlockQuestForTelegramUser === "function"
     )
-      ? optionalQuestMarkerLookup(
-          "item upgrades",
-          () => itemUpgradesService.getQuestMarkerForTelegramUser?.(telegramUserId)
-            ?? itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
+      ? attribution.measure(
+          "item-upgrades",
+          () => optionalQuestMarkerLookup(
+            "item upgrades",
+            () => itemUpgradesService.getQuestMarkerForTelegramUser?.(telegramUserId)
+              ?? itemUpgradesService.getUnlockQuestForTelegramUser(telegramUserId)
+          )
         )
       : Promise.resolve(null)
   ]));
+  const { adventure, starterAdventure } = adventureMarkers;
+  const { fight, problemQuest } = fightMarkers;
 
   const cellarGrownup =
     cellarGrownupService && cellar?.state === "level-retired"
-      ? await perf.measureDb(() => optionalQuestMarkerLookup(
-          "cellar grownup",
-          () => cellarGrownupService.getForTelegramUser(telegramUserId)
+      ? await perf.measureDb(() => attribution.measure(
+          "cellar-grownup",
+          () => optionalQuestMarkerLookup(
+            "cellar grownup",
+            () => cellarGrownupService.getForTelegramUser(telegramUserId)
+          )
         ))
       : null;
 
@@ -139,7 +161,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   ].map(getCharacterLevel).find((level) => level !== undefined);
 
   if (characterLevel === undefined) {
-    perf.end({ resultState: "empty", rowCount: 0 });
+    perf.end({ resultState: "empty", rowCount: 0, ...attribution.fields() });
     return null;
   }
 
@@ -161,7 +183,8 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   };
   perf.end({
     resultState: "ready",
-    rowCount: Object.keys(snapshot).length - 1
+    rowCount: Object.keys(snapshot).length - 1,
+    ...attribution.fields()
   });
 
   return snapshot;
@@ -182,4 +205,157 @@ function optionalQuestMarkerLookup<T>(
   lookup: () => Promise<T>
 ): Promise<T | null> {
   return safeOptionalUiLookup<T | null>(`quest marker ${label}`, lookup, null);
+}
+
+async function resolveAdventureQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["adventure"],
+  addFallbackSources: (sourceCount: number) => void
+) {
+  if (typeof service.getQuestMarkerSnapshotForTelegramUser === "function") {
+    const grouped = await optionalQuestMarkerLookup(
+      "adventure snapshot",
+      () => service.getQuestMarkerSnapshotForTelegramUser(telegramUserId)
+    );
+
+    if (!grouped) {
+      const sourceWeight = getLegacyAdventureSourceWeight(service);
+      addFallbackSources(sourceWeight);
+      return resolveLegacyAdventureQuestMarkers(telegramUserId, service);
+    }
+
+    const [adventure, starterAdventure] = await Promise.all([
+      resolveSettledQuestMarkerLookup("adventure offer", grouped.adventure),
+      resolveSettledQuestMarkerLookup("starter adventure", grouped.starterAdventure)
+    ]);
+
+    return { adventure, starterAdventure };
+  }
+
+  return resolveLegacyAdventureQuestMarkers(telegramUserId, service);
+}
+
+async function resolveLegacyAdventureQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["adventure"]
+) {
+  const [adventure, starterAdventure] = await Promise.all([
+    optionalQuestMarkerLookup(
+      "adventure offer",
+      () => service.getAdventureOfferForTelegramUser(telegramUserId)
+    ),
+    typeof service.getMimicShawarmaForTelegramUser === "function"
+      ? optionalQuestMarkerLookup(
+          "starter adventure",
+          () => service.getMimicShawarmaForTelegramUser(telegramUserId)
+        )
+      : Promise.resolve(null)
+  ]);
+
+  return { adventure, starterAdventure };
+}
+
+async function resolveFightQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["fight"],
+  addFallbackSources: (sourceCount: number) => void
+) {
+  if (typeof service.getQuestMarkerSnapshotForTelegramUser === "function") {
+    const grouped = await optionalQuestMarkerLookup(
+      "fight snapshot",
+      () => service.getQuestMarkerSnapshotForTelegramUser(telegramUserId)
+    );
+
+    if (!grouped) {
+      addFallbackSources(2);
+      return resolveLegacyFightQuestMarkers(telegramUserId, service);
+    }
+
+    const [fight, problemQuest] = await Promise.all([
+      resolveSettledQuestMarkerLookup("fight overview", grouped.fight),
+      resolveSettledQuestMarkerLookup("problem quest", grouped.problemQuest)
+    ]);
+
+    return { fight, problemQuest };
+  }
+
+  return resolveLegacyFightQuestMarkers(telegramUserId, service);
+}
+
+async function resolveLegacyFightQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["fight"]
+) {
+  const [fight, problemQuest] = await Promise.all([
+    optionalQuestMarkerLookup(
+      "fight overview",
+      () => service.getFightOverviewForTelegramUser(telegramUserId)
+    ),
+    optionalQuestMarkerLookup(
+      "problem quest",
+      () => service.getProblemQuestProgressForTelegramUser(telegramUserId)
+    )
+  ]);
+
+  return { fight, problemQuest };
+}
+
+function getLegacyAdventureSourceWeight(service: BotServices["adventure"]): number {
+  return 1 + (typeof service.getMimicShawarmaForTelegramUser === "function" ? 1 : 0);
+}
+
+function resolveSettledQuestMarkerLookup<T>(
+  label: string,
+  result: PromiseSettledResult<T>
+): Promise<T | null> {
+  if (result.status === "fulfilled") {
+    return Promise.resolve(result.value);
+  }
+
+  const error = result.reason instanceof Error
+    ? result.reason
+    : new Error("Optional quest marker lookup failed with a non-Error reason.");
+
+  return optionalQuestMarkerLookup(label, () => Promise.reject(error));
+}
+
+export function createQuestMarkerDbAttribution(now: () => number = hotPathNow) {
+  let sourceCount = 0;
+  let slowestSource: QuestMarkerPerformanceSource | null = null;
+  let slowestSourceMs = 0;
+
+  return {
+    addSources(sourceWeight: number): void {
+      sourceCount += sourceWeight;
+    },
+    async measure<T>(
+      source: QuestMarkerPerformanceSource,
+      lookup: () => Promise<T>,
+      sourceWeight = 1
+    ): Promise<T> {
+      sourceCount += sourceWeight;
+      const startedAt = now();
+
+      try {
+        return await lookup();
+      } finally {
+        const durationMs = now() - startedAt;
+        if (durationMs > slowestSourceMs) {
+          slowestSource = source;
+          slowestSourceMs = durationMs;
+        }
+      }
+    },
+    fields() {
+      return {
+        questMarkerSourceCount: sourceCount,
+        ...(slowestSource === null
+          ? {}
+          : {
+              questMarkerSlowestSource: slowestSource,
+              questMarkerSlowestSourceMs: slowestSourceMs
+            })
+      };
+    }
+  };
 }

@@ -414,19 +414,19 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).not.toContain("Бочка, або Туди і звідти");
   });
 
-  it("shows the Barrel beer tutorial at level two next to cellar content", async () => {
+  it("shows the Barrel beer tutorial at level seven when it is still available", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const levelTwoCharacter = characterAtLevel(2);
+    const levelSevenCharacter = characterAtLevel(7);
 
     await sendQuestHub(
       makeContext(replies),
       servicesWith({
-        adventure: readyAdventureService(levelTwoCharacter),
-        barrelBeerTutorial: barrelBeerTutorialService(levelTwoCharacter),
-        fight: readyFightService(levelTwoCharacter),
-        yeger: readyYegerService(levelTwoCharacter),
-        cellarErrand: readyCellarService(levelTwoCharacter),
-        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelTwoCharacter)
+        adventure: readyAdventureService(levelSevenCharacter),
+        barrelBeerTutorial: barrelBeerTutorialService(levelSevenCharacter),
+        fight: readyFightService(levelSevenCharacter),
+        yeger: readyYegerService(levelSevenCharacter),
+        cellarErrand: readyCellarService(levelSevenCharacter),
+        dailyKorchmaRound: lockedDailyKorchmaRoundService(levelSevenCharacter)
       }),
       "reply"
     );
@@ -434,7 +434,9 @@ describe("quest hub command", () => {
     expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i>");
     expect(replies[0]?.text).toContain("🛢️ <i>Бочка, або Туди і звідти</i> — на столі лежить записка");
     expect(replies[0]?.text).toContain("Новачкам — аванс на дорогу до Бочки");
-    expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — миша приймає аргументи.");
+    expect(replies[0]?.text).toContain(
+      "🐭 <i>Справа не до миші</i> — у льосі є інша справа для старших пригодників."
+    );
     const buttons = (
       replies[0]?.options as {
         reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
@@ -446,7 +448,7 @@ describe("quest hub command", () => {
         callback_data: makeQuestCallbackData("barrel-tutorial")
       },
       {
-        text: "🧹 У льох ⚠️",
+        text: "🧹 У льох",
         callback_data: makeQuestCallbackData("cellar")
       }
     ]));
@@ -743,12 +745,13 @@ describe("quest hub command", () => {
 
   it("shows completed and unavailable cases in the archive", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
-    const grownCharacter = characterAtLevel(4);
+    const grownCharacter = characterAtLevel(8);
 
     await sendQuestHub(
       makeContext(replies),
       servicesWith({
         adventure: completedAdventureService(grownCharacter),
+        barrelBeerTutorial: barrelBeerTutorialService(grownCharacter),
         fight: {
           getProblemQuestProgressForTelegramUser: () =>
             Promise.resolve({
@@ -794,6 +797,9 @@ describe("quest hub command", () => {
     );
     expect(replies[0]?.text).toContain("🏹 <i>Неспокійні справи</i> — виконано; Єгер удає, що не пишається.");
     expect(replies[0]?.text).toContain("🧹 <i>Льохова справа</i> — виконано; миша прийняла аргументи до 3 рівня.");
+    expect(replies[0]?.text).toContain(
+      "🛢️ <i>Бочка, або Туди і звідти</i> — новачкова справа до 7 рівня; у журналі немає сліду виконання."
+    );
     expect(replies[0]?.text).toContain(
       "🐭 <i>Справа не до миші</i> — дорослу льохову справу вже закрито; пляшка стоїть у журналі й тихо булькає."
     );
@@ -1431,21 +1437,25 @@ describe("quest hub command", () => {
   });
 });
 
-function characterAtLevel(level: 1 | 2 | 3 | 4 | 13): CharacterSummary {
+function characterAtLevel(level: 1 | 2 | 3 | 4 | 7 | 8 | 13): CharacterSummary {
   const xpByLevel = {
     1: 0,
     2: 10,
     3: 25,
     4: 45,
+    7: 160,
+    8: 225,
     13: 1300
-  } satisfies Record<1 | 2 | 3 | 4 | 13, number>;
+  } satisfies Record<1 | 2 | 3 | 4 | 7 | 8 | 13, number>;
   const nextByLevel = {
     1: 10,
     2: 25,
     3: 45,
     4: 70,
+    7: 225,
+    8: 305,
     13: null
-  } satisfies Record<1 | 2 | 3 | 4 | 13, number | null>;
+  } satisfies Record<1 | 2 | 3 | 4 | 7 | 8 | 13, number | null>;
   const nextLevelXp = nextByLevel[level];
 
   return {
@@ -1636,11 +1646,11 @@ function barrelBeerTutorialService(summary: CharacterSummary): BarrelBeerTutoria
               character: summary,
               requiredLevel: 2
             }
-          : summary.level > 5
+          : summary.level > 7
             ? {
                 state: "level-retired",
                 character: summary,
-                maxLevel: 5,
+                maxLevel: 7,
                 progress: barrelBeerTutorialProgress(false)
               }
           : {
