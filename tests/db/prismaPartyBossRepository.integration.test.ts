@@ -11,6 +11,8 @@ import type {
   PartyBossSessionRecord
 } from "../../src/db/repositories/partyBossRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
+import { getLevelStartXp } from "../../src/domain/progression/level";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -38,7 +40,7 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     await createMinimalSchema(prisma);
     partyRepository = new PrismaPartySessionRepository(prisma);
-    bossRepository = new PrismaPartyBossRepository(prisma);
+    bossRepository = new PrismaPartyBossRepository(prisma, new HpRecoveryNotificationProducer(true));
   }, 60_000);
 
   afterAll(async () => {
@@ -1281,6 +1283,7 @@ describe("PrismaPartyBossRepository integration", () => {
     await seedCharacter(prisma, "big-leader-user", 5001n, "Старша Лідерка", {
       hp: 80,
       level: 8,
+      xp: getLevelStartXp(9) - 1,
       strength: 24,
       dexterity: 24
     });
@@ -1358,6 +1361,13 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     })).toBe(1);
     expect(await prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: latest.partySessionId } })).toBe(0);
+    expect(await prisma.hpRecoveryNotification.findUnique({
+      where: { characterId: "big-leader-user-character" }
+    })).toMatchObject({ status: "waiting" });
+    expect(await prisma.character.findUnique({
+      where: { id: "big-leader-user-character" },
+      select: { level: true }
+    })).toEqual({ level: 9 });
   });
 
   it("freezes Kharakternyk ward sign support from the final Big Barrel roster at start", async () => {
@@ -2005,6 +2015,7 @@ describe("PrismaPartyBossRepository integration", () => {
     await seedCharacter(prisma, "big-loss-xp-user", 5061n, "Смілива Програвальниця", {
       hp: 1,
       level: 8,
+      xp: getLevelStartXp(9) - 1,
       strength: 8,
       dexterity: 8
     });
@@ -2057,6 +2068,9 @@ describe("PrismaPartyBossRepository integration", () => {
     });
 
     expect(latest.status).toBe("lost");
+    expect(await prisma.hpRecoveryNotification.findUnique({
+      where: { characterId: "big-loss-xp-user-character" }
+    })).toMatchObject({ status: "waiting" });
     expect(resolved.achievementEvents).toEqual([
       {
         type: "barrel.raid.lost",
@@ -2066,6 +2080,10 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     ]);
     expect(character?.xp).toBeGreaterThan(0);
+    expect(await prisma.character.findUnique({
+      where: { id: "big-loss-xp-user-character" },
+      select: { level: true }
+    })).toEqual({ level: 9 });
     expect(character?.gold).toBe(0);
     await expect(prisma.characterCooldown.findUnique({
       where: {
@@ -2724,6 +2742,7 @@ async function seedCharacter(
     manaCurrent?: number;
     manaMax?: number;
     level?: number;
+    xp?: number;
     raceId?: string;
     classId?: string;
     strength?: number;
@@ -2747,6 +2766,7 @@ async function seedCharacter(
           raceId: options.raceId ?? "race.human-ish",
           classId: options.classId ?? "class.warrior",
           level: options.level ?? 3,
+          xp: options.xp ?? 0,
           hpCurrent: options.hpCurrent ?? hp,
           hpMax: options.hpMax ?? hp,
           manaCurrent: options.manaCurrent ?? 10,
@@ -2821,6 +2841,26 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       mana_regen_at DATETIME,
       active_cosmetic_title_grant_id TEXT,
       stats_json JSONB NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE hp_recovery_notifications (
+      id TEXT NOT NULL PRIMARY KEY,
+      character_id TEXT NOT NULL UNIQUE,
+      generation INTEGER NOT NULL DEFAULT 1,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      source_hp_current INTEGER NOT NULL,
+      source_hp_max INTEGER NOT NULL,
+      source_hp_regen_at DATETIME,
+      source_fingerprint TEXT,
+      status TEXT NOT NULL DEFAULT 'waiting',
+      next_attempt_at DATETIME NOT NULL,
+      processing_started_at DATETIME,
+      ready_at DATETIME,
+      sent_at DATETIME,
+      suppressed_at DATETIME,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

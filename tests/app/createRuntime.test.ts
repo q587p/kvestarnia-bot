@@ -127,6 +127,40 @@ describe("createRuntime", () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
+  it("does not let a delayed grammY onStart restart schedulers after shutdown", async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const scheduler = makeScheduler();
+    let pollingOptions: Parameters<Bot["start"]>[0] | undefined;
+    const bot = {
+      api: { setMyCommands: vi.fn().mockResolvedValue(undefined) },
+      start: vi.fn((options: Parameters<Bot["start"]>[0]) => {
+        pollingOptions = options;
+        return new Promise<void>(() => undefined);
+      }),
+      stop: vi.fn().mockResolvedValue(undefined)
+    } as unknown as Bot;
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => bot),
+        createCombatTurnTimeoutScheduler: vi.fn(() => scheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => scheduler),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close: vi.fn() }) as never)
+      }
+    });
+
+    await runtime.start();
+    await runtime.stop();
+    await pollingOptions?.onStart?.({} as never);
+
+    expect(scheduler.start).not.toHaveBeenCalled();
+    expect(scheduler.stop).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it("does not start resources after stop before start", async () => {
     const close = vi.fn();
     const disconnect = vi.fn().mockResolvedValue(undefined);

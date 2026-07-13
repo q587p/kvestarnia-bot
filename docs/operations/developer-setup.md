@@ -59,6 +59,18 @@ DEV_GRANT_COMMANDS_ENABLED=false
 # SUPPORT_JAR_STATUS_UPDATED_AT=2026-06-16
 ```
 
+### HP recovery notification rollout
+
+Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before any production enablement:
+
+1. Restore a production-shaped SQLite copy into an isolated workspace, run `npx prisma migrate deploy`, `npx prisma validate`, and the focused HP recovery repository/service tests against it. Do not point manual QA at the live database.
+2. Refresh the isolated local bot with the flag enabled, run `/dev_hp_recovery_due`, and verify the task-doc scenarios with a maintainer test account. This QA is a maintainer step; a passing automated suite is not a claim that Telegram QA happened.
+3. Enable one controlled production window. Watch only aggregate scheduler logs: tick duration and due/claimed/sent/retried/suppressed/error counts. Logs must not include Telegram ids or player data.
+4. Abort and turn the flag off on any duplicate notice, any three consecutive ticks with `errors > 0`, or any three consecutive full batches (`due = 13`) without backlog reduction. Flag-off stops both producers and the scheduler; it does not scan or mutate the queue.
+5. Re-enable only after diagnosing the aggregate signal. Nonterminal rows with no queue progress for more than 24 hours are suppressed when they next become due, so days-old work cannot send after a later re-enable. Ambiguous stale `sending` rows are suppressed and never resent.
+
+Rollback is flag-only after the additive migration: keep the schema in place, set `HP_RECOVERY_NOTIFICATIONS_ENABLED=false`, restart normally, and leave stale-row handling to the bounded due path.
+
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
 
 `BOT_USERNAME` optional. Якщо він заданий, `/duel` invite links генеруються як `https://t.me/<BOT_USERNAME>?start=duel_<token>`. Тримай dev/prod ботів окремо: локально можна ставити `kvestarnia_dev_bot`, production має використовувати реальний `kvestarnia_bot`. Значення пишеться без `@`.

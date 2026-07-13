@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  ClaimedHpRecoveryNotification,
-  HpRecoveryNotificationRepository,
-  HpRecoverySnapshot
+import {
+  buildHpRecoveryStateFingerprint,
+  type ClaimedHpRecoveryNotification,
+  type HpRecoveryNotificationRepository,
+  type HpRecoverySnapshot
 } from "../../src/db/repositories/hpRecoveryNotificationRepository";
 import { buildEquipmentAttunementPayload } from "../../src/domain/equipment/equipmentAttunement";
 import { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
@@ -30,20 +31,7 @@ describe("HealthRecoveryNotificationService", () => {
         equipment("chest", "item.set.barrel-brother.cuirass"),
         equipment("legs", "item.set.barrel-brother.greaves")
       ]
-    }, 35],
-    ["tuning equipment is not active", {
-      hpCurrent: 24,
-      equipment: [equipment("chest", "item.apron-of-foam-resistance")],
-      attunementPayloads: [buildEquipmentAttunementPayload({
-        slot: "chest",
-        itemId: "item.apron-of-foam-resistance",
-        itemName: "apron",
-        equipmentUpdatedAt: oldAnchor,
-        strength: "weak",
-        startedAt: oldAnchor,
-        readyAt: new Date("2026-07-13T10:05:00.000Z")
-      })]
-    }, 25]
+    }, 35]
   ])("uses canonical effective max HP for %s", async (_label, overrides, expectedHpMax) => {
     const snapshot = makeSnapshot(overrides);
     const fixture = makeRepository([makeCheckingRow(snapshot)], [snapshot]);
@@ -56,6 +44,68 @@ describe("HealthRecoveryNotificationService", () => {
       effectiveHpMax: expectedHpMax
     }));
     expect(metrics.sent).toBe(1);
+  });
+
+  it("keeps a base-full row waiting until an HP-affecting attunement becomes active", async () => {
+    const readyAt = new Date("2026-07-13T10:05:00.000Z");
+    const snapshot = makeSnapshot({
+      hpCurrent: 25,
+      equipment: [equipment("chest", "item.apron-of-foam-resistance")],
+      attunementActions: [{
+        createdAt: now,
+        resultJson: buildEquipmentAttunementPayload({
+          slot: "chest",
+          itemId: "item.apron-of-foam-resistance",
+          itemName: "apron",
+          equipmentUpdatedAt: oldAnchor,
+          strength: "weak",
+          startedAt: now,
+          readyAt
+        })
+      }]
+    });
+    const fixture = makeRepository([makeCheckingRow(snapshot)], [snapshot]);
+
+    await new HealthRecoveryNotificationService(fixture.repository, true, false)
+      .runBatch({ sendMessage: vi.fn() }, now);
+
+    expect(fixture.rebase).toHaveBeenCalledWith(expect.objectContaining({ nextAttemptAt: readyAt }));
+    expect(fixture.suppressChecking).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["HP item", [equipment("chest", "item.apron-of-foam-resistance")]],
+    ["HP set bonus", [
+      equipment("chest", "item.set.barrel-brother.cuirass"),
+      equipment("legs", "item.set.barrel-brother.greaves")
+    ]]
+  ])("rebases a persisted row after restart when a pending %s becomes active", async (_label, equipped) => {
+    const snapshot = makeSnapshot({ hpCurrent: 25, equipment: equipped });
+    const row = { ...makeCheckingRow(snapshot), sourceFingerprint: "pending-before-restart" };
+    const fixture = makeRepository([row], [snapshot]);
+
+    await new HealthRecoveryNotificationService(fixture.repository, true, false)
+      .runBatch({ sendMessage: vi.fn() }, now);
+
+    expect(fixture.rebase).toHaveBeenCalled();
+    expect(fixture.suppressChecking).not.toHaveBeenCalled();
+    expect(fixture.markReady).not.toHaveBeenCalled();
+  });
+
+  it("suppresses the old attunement generation when the item was unequipped or replaced before readiness", async () => {
+    const original = makeSnapshot({
+      hpCurrent: 25,
+      equipment: [equipment("chest", "item.apron-of-foam-resistance")]
+    });
+    const current = makeSnapshot({ hpCurrent: 25, equipment: [] });
+    const fixture = makeRepository([makeCheckingRow(original)], [current]);
+
+    await new HealthRecoveryNotificationService(fixture.repository, true, false)
+      .runBatch({ sendMessage: vi.fn() }, now);
+
+    expect(fixture.suppressChecking).toHaveBeenCalledWith(expect.objectContaining({
+      errorCode: "already-full"
+    }));
   });
 
   it.each([
@@ -139,6 +189,7 @@ describe("HealthRecoveryNotificationService", () => {
     ["success", null, "markSent"],
     ["definite retryable failure", { error_code: 429 }, "retrySending"],
     ["permanent blocked failure", { error_code: 403 }, "suppressSending"],
+    ["ambiguous Telegram 5xx", { error_code: 500 }, "ambiguous"],
     ["ambiguous send crash", new Error("socket outcome unknown"), "ambiguous"]
   ])("applies at-most-once delivery semantics for %s", async (_label, error, expected) => {
     const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now });
@@ -161,6 +212,60 @@ describe("HealthRecoveryNotificationService", () => {
     } else {
       expect(fixture[expected as "markSent"]).toHaveBeenCalled();
     }
+  });
+
+  it("respects Telegram retry_after for a definite 429", async () => {
+    const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now });
+    const fixture = makeRepository([makeReadyRow(snapshot)], [snapshot]);
+    const service = new HealthRecoveryNotificationService(fixture.repository, true, false);
+
+    await service.runBatch({
+      sendMessage: vi.fn().mockRejectedValue({ error_code: 429, parameters: { retry_after: 587 } })
+    }, now);
+
+    expect(fixture.retrySending).toHaveBeenCalledWith(
+      "character",
+      1,
+      new Date(now.getTime() + 587_000),
+      "telegram-retryable"
+    );
+  });
+
+  it("suppresses a ready retry after the player interacted with a recovered-state card", async () => {
+    const interactedAt = new Date(now.getTime() + 1_000);
+    const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now, lastActionAt: interactedAt });
+    const row = makeReadyRow(snapshot);
+    row.readyAt = now;
+    const fixture = makeRepository([row], [snapshot]);
+    const sender = { sendMessage: vi.fn() };
+
+    const metrics = await new HealthRecoveryNotificationService(fixture.repository, true, false)
+      .runBatch(sender, interactedAt);
+
+    expect(metrics.suppressed).toBe(1);
+    expect(fixture.suppressReady).toHaveBeenCalledWith(
+      "character",
+      1,
+      interactedAt,
+      "active-after-ready"
+    );
+    expect(sender.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["stale rollout row", { updatedAt: new Date(now.getTime() - 24 * 60 * 60_000 - 1) }],
+    ["attempt-exhausted row", { attemptCount: 13 }]
+  ])("suppresses a %s without occupying delivery forever", async (_label, rowOverrides) => {
+    const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now });
+    const row = { ...makeReadyRow(snapshot), ...rowOverrides };
+    const fixture = makeRepository([row], [snapshot]);
+    const sender = { sendMessage: vi.fn() };
+
+    const metrics = await new HealthRecoveryNotificationService(fixture.repository, true, false)
+      .runBatch(sender, now);
+
+    expect(metrics.suppressed).toBe(1);
+    expect(sender.sendMessage).not.toHaveBeenCalled();
   });
 
   it("isolates one bad row and continues the batch", async () => {
@@ -205,8 +310,16 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
   const claimDue = vi.fn().mockResolvedValue(rows);
   const loadSnapshots = vi.fn().mockResolvedValue(snapshots);
   const rebase = vi.fn<HpRecoveryNotificationRepository["rebase"]>().mockResolvedValue(true);
-  const suppress = vi.fn().mockResolvedValue(true);
-  const markReady = vi.fn().mockResolvedValue(true);
+  const suppressChecking = vi.fn().mockResolvedValue(true);
+  const suppressReady = vi.fn().mockResolvedValue(true);
+  const markReady = vi.fn<HpRecoveryNotificationRepository["markReady"]>().mockImplementation((input) => {
+    const snapshot = snapshots.find((candidate) => candidate.characterId === input.characterId);
+    if (snapshot) {
+      snapshot.hpCurrent = input.effectiveHpMax;
+      snapshot.hpRegenAt = input.readyAt;
+    }
+    return Promise.resolve(true);
+  });
   const claimReadyForSending = vi.fn().mockResolvedValue(true);
   const markSent = vi.fn().mockResolvedValue(true);
   const retrySending = vi.fn().mockResolvedValue(true);
@@ -218,7 +331,8 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     claimDue,
     loadSnapshots,
     rebase,
-    suppress,
+    suppressChecking,
+    suppressReady,
     markReady,
     claimReadyForSending,
     markSent,
@@ -231,7 +345,8 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     claimDue,
     loadSnapshots,
     rebase,
-    suppress,
+    suppressChecking,
+    suppressReady,
     markReady,
     claimReadyForSending,
     markSent,
@@ -245,6 +360,7 @@ function makeSnapshot(overrides: Partial<HpRecoverySnapshot> = {}): HpRecoverySn
   return {
     characterId: "character",
     telegramUserId: 42n,
+    lastActionAt: null,
     pronoun: "they",
     path: "boundary",
     raceId: "race.human",
@@ -258,7 +374,7 @@ function makeSnapshot(overrides: Partial<HpRecoverySnapshot> = {}): HpRecoverySn
     remortCount: 0,
     activeCombatLease: null,
     equipment: [],
-    attunementPayloads: [],
+    attunementActions: [],
     recoveryDrink: null,
     ...overrides
   };
@@ -281,7 +397,10 @@ function makeCheckingRow(snapshot: HpRecoverySnapshot): ClaimedHpRecoveryNotific
     suppressedAt: null,
     attemptCount: 1,
     lastErrorCode: null,
-    claim: "checking"
+    createdAt: oldAnchor,
+    updatedAt: now,
+    claim: "checking",
+    claimStartedAt: now
   };
 }
 
@@ -291,10 +410,12 @@ function makeReadyRow(snapshot: HpRecoverySnapshot): ClaimedHpRecoveryNotificati
     remortCount: snapshot.remortCount,
     sourceHpCurrent: snapshot.hpCurrent,
     sourceHpRegenAt: snapshot.hpRegenAt,
+    sourceFingerprint: buildHpRecoveryStateFingerprint(snapshot, now),
     status: "ready",
     processingStartedAt: null,
     readyAt: now,
-    claim: "ready"
+    claim: "ready",
+    claimStartedAt: null
   };
 }
 

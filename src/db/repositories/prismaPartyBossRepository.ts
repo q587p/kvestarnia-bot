@@ -1046,7 +1046,7 @@ async function settleTerminalPartyBoss(
       tx,
       participant.characterId,
       now,
-      participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+      "recovering"
     );
     await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
       remortCount
@@ -1210,7 +1210,7 @@ async function settleBigParticipantResources(
     tx,
     participant.characterId,
     now,
-    participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+    "recovering"
   );
 }
 
@@ -1267,7 +1267,7 @@ async function settleBigParticipantAttempt(
     tx,
     participant.characterId,
     now,
-    participant.resources.hp >= participant.resources.hpMax ? "suppress" : "recovering"
+    "recovering"
   );
   await tx.characterCooldown.upsert({
     where: {

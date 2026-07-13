@@ -31,6 +31,7 @@ import {
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -48,7 +49,10 @@ class StaleDrinkActivationRollback extends Error {
 }
 
 export class PrismaShynokRepository implements ShynokRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getAccessSnapshotForTelegramUser(telegramUserId: bigint): Promise<ShynokAccessSnapshot | null> {
     const character = await this.prisma.character.findFirst({
@@ -230,6 +234,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (!(await settleResourcesBeforeDrinkReplacement(tx, character, replacement.previous, input.now, order.remortCount))) {
         return { state: "invalid-token" };
       }
+      await this.hpRecoveryProducer.record(tx, character.id, input.now, "recovering");
 
       const claimed = await tx.korchmaDrinkOrder.updateMany({
         where: {
@@ -293,6 +298,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (!drink) {
         throw new StaleDrinkActivationRollback("self", order);
       }
+      await this.hpRecoveryProducer.record(tx, character.id, input.now, "recovering");
       const result = withDrinkActivationSnapshot(input.result, drink, order.priceGold, "self");
 
       const completed = mapDrinkOrder(await tx.korchmaDrinkOrder.update({
@@ -627,6 +633,7 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (!(await settleResourcesBeforeDrinkReplacement(tx, character, replacement.previous, input.now, offer.remortCount))) {
         return { state: "stale-replacement", offer };
       }
+      await this.hpRecoveryProducer.record(tx, character.id, input.now, "recovering");
 
       return acceptRoundOffer(tx, {
         offer,
@@ -634,7 +641,8 @@ export class PrismaShynokRepository implements ShynokRepository {
         remortCount: offer.remortCount,
         now: input.now,
         result: input.result,
-        previousDrink: replacement.previous
+        previousDrink: replacement.previous,
+        hpRecoveryProducer: this.hpRecoveryProducer
       });
       });
     } catch (error) {
@@ -1574,6 +1582,7 @@ async function acceptRoundOffer(
     now: Date;
     result: unknown;
     previousDrink: ShynokDrinkStateRecord | null;
+    hpRecoveryProducer: HpRecoveryNotificationProducer;
   }
 ): Promise<ShynokRespondRoundOfferResult> {
   const accepted = await setRoundOfferStatus(tx, input.offer.id, "accepted", input.now, input.result);
@@ -1593,6 +1602,7 @@ async function acceptRoundOffer(
   if (!drink) {
     throw new StaleDrinkActivationRollback("round", input.offer);
   }
+  await input.hpRecoveryProducer.record(tx, input.characterId, input.now, "recovering");
   const result = withDrinkActivationSnapshot(input.result, drink, 0, "round");
   const acceptedWithReplay = mapRoundRecipient(await tx.korchmaRoundRecipient.update({
     where: { id: accepted.id },

@@ -182,7 +182,8 @@ export function createServices(
     healthRecoveryNotifications: new HealthRecoveryNotificationService(
       repositories.hpRecoveryNotifications,
       config.hpRecoveryNotificationsEnabled,
-      nonProduction
+      nonProduction,
+      () => new Date()
     ),
     hunt: new HuntService(
       repositories.characters,

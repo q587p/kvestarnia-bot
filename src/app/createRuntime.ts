@@ -74,9 +74,9 @@ export function createRuntime(input: {
   let schedulersStopped = false;
   let schedulersStopPromise: Promise<void> | null = null;
 
-  const startSchedulers = (): void => {
-    if (schedulersStarted) {
-      return;
+  const startSchedulers = (): boolean => {
+    if (state !== "started" || schedulersStarted || schedulersStopped) {
+      return false;
     }
 
     schedulersStarted = true;
@@ -86,17 +86,18 @@ export function createRuntime(input: {
     healthRecoveryNotificationScheduler?.start();
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
+    return true;
   };
 
   const stopSchedulers = (): Promise<void> => {
     if (schedulersStopPromise) {
       return schedulersStopPromise;
     }
-    if (!schedulersStarted || schedulersStopped) {
-      return Promise.resolve();
-    }
-
     schedulersStopped = true;
+    if (!schedulersStarted) {
+      schedulersStopPromise = Promise.resolve();
+      return schedulersStopPromise;
+    }
     schedulersStopPromise = (async () => {
       combatTurnTimeoutScheduler?.stop();
       duelTurnTimeoutScheduler?.stop();
@@ -196,9 +197,10 @@ export function createRuntime(input: {
       console.log("Квестарня: бот запускається в polling-режимі.");
       void bot.start({
         onStart: () => {
-          startSchedulers();
-          readiness.markPollingReady();
-          console.log("Квестарня: Telegram polling готовий приймати оновлення.");
+          if (startSchedulers()) {
+            readiness.markPollingReady();
+            console.log("Квестарня: Telegram polling готовий приймати оновлення.");
+          }
         }
       }).then(() => {
         if (state === "started") {

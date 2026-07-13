@@ -36,6 +36,7 @@ import type {
 } from "./itemUpgradeRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -48,7 +49,10 @@ const ATTEMPT_CLAIM_KIND = "item-upgrade-attempt-claim";
 class StaleSnapshotRollbackError extends Error {}
 
 export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeSnapshot | null> {
     return this.prisma.$transaction(async (tx) => {
@@ -281,6 +285,9 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
           }),
           getPityFailureCount(tx, character.id, input.itemId, targetLevel)
         ]);
+        if (success && equipped.has(input.itemId)) {
+          await this.hpRecoveryProducer.record(tx, character.id, input.now, "recovering");
+        }
 
         return {
           state: "attempted",
@@ -416,6 +423,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
                 data: { level: newLevel }
               });
         await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, { remortCount });
+        await this.hpRecoveryProducer.record(tx, character.id, now, "recovering");
 
         return {
           state: "unlocked",

@@ -15,11 +15,15 @@ import type {
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
 export class PrismaLevelBarterRepository implements LevelBarterRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<LevelBarterSnapshot | null> {
     return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId, now));
@@ -151,6 +155,7 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           input.now,
           { remortCount: snapshot.remortCount }
         );
+        await this.hpRecoveryProducer.record(tx, snapshot.character.id, input.now, "recovering");
 
         await tx.levelBarterExchange.update({
           where: {
