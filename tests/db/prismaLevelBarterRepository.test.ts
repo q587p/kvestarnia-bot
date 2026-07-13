@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaLevelBarterRepository } from "../../src/db/repositories/prismaLevelBarterRepository";
 
 const telegramUserId = 42n;
@@ -63,6 +64,37 @@ describe("PrismaLevelBarterRepository", () => {
     expect(prisma.gold).toBe(0);
     expect(prisma.itemQuantity("item.pan-of-persuasion")).toBe(1);
     expect(prisma.characterLevel).toBe(4);
+  });
+
+  it("records successful level and XP settlement through the shared producer", async () => {
+    const prisma = new FakeLevelBarterPrisma();
+    prisma.setGold(1);
+    const producer = new HpRecoveryNotificationProducer(true);
+    const record = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    const repository = new PrismaLevelBarterRepository(prisma.client, producer);
+
+    await expect(repository.confirmAutoExchangeForTelegramUser(telegramUserId, {
+      expectedToken: "level-barter-token-producer",
+      now: fixedNow,
+      createPlan: () => ({
+        state: "ready",
+        plan: {
+          token: "level-barter-token-producer",
+          items: [{ itemId: "item.pan-of-persuasion", quantity: 1 }],
+          goldSpent: 1,
+          levelBefore: 4,
+          levelAfter: 4,
+          xpBefore: 48,
+          xpAfter: 49,
+          xpCarry: 49,
+          itemTotalValue: 999,
+          selectedTotalValue: 1000,
+          overpay: 0
+        }
+      })
+    })).resolves.toMatchObject({ state: "exchanged" });
+
+    expect(record).toHaveBeenCalledWith(expect.any(Object), "character-1", fixedNow, "recovering");
   });
 });
 
@@ -133,6 +165,10 @@ class FakeLevelBarterPrisma {
 
   get characterLevel(): number {
     return this.state.character.level;
+  }
+
+  setGold(gold: number): void {
+    this.state.character.gold = gold;
   }
 
   exchange(token: string): FakeLevelBarterExchange | null {

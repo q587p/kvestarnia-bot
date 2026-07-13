@@ -13,11 +13,15 @@ import type {
 } from "./cellarGrownupQuestRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
 export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getSnapshotForTelegramUser(
     telegramUserId: bigint,
@@ -201,6 +205,7 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
         await recordLevelMilestones(tx, snapshot.character.id, oldLevel, newLevel, undefined, {
           remortCount
         });
+        await this.hpRecoveryProducer.record(tx, snapshot.character.id, input.now, "recovering");
 
         const updated = await getSnapshot(tx, telegramUserId, input.keys);
 

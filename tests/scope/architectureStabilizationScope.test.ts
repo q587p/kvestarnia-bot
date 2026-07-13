@@ -28,6 +28,7 @@ const expectedCommandRegistrationCalls = [
   "registerStartCommand",
   "registerHeroCommand",
   "registerDevGrantCommands",
+  "registerDevHpRecoveryCommand",
   "registerDevResetCommand",
   "registerRestartCommand",
   "registerRemortCommand",
@@ -65,6 +66,7 @@ const expectedCommandAliasInventory = [
   "dev_finish_attunements",
   "dev_heal",
   "dev_help",
+  "dev_hp_recovery_due",
   "dev_party",
   "dev_raid_reset",
   "dev_raid_stop",
@@ -144,7 +146,8 @@ describe("0.2.2 architecture stabilization scope", () => {
   it("keeps src/bot.ts delegated to application factories", () => {
     const source = read("src/bot.ts");
 
-    expect(source).toContain("createRepositories(prisma)");
+    expect(source).toContain("createRepositories(prisma, {");
+    expect(source).toContain("hpRecoveryNotificationsEnabled: config.hpRecoveryNotificationsEnabled");
     expect(source).toContain("createServices(repositories, config)");
     expect(source).toContain("createRuntime({");
     expect(source).not.toMatch(/db\/repositories|services\//);

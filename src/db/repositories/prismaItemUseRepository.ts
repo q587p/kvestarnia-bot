@@ -25,11 +25,15 @@ import {
 } from "./itemUseRepository";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
 export class PrismaItemUseRepository implements ItemUseRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async createPreviewForTelegramUser(
     telegramUserId: bigint,
@@ -319,6 +323,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
               manaRegenAt: settlement.resources.manaRegenAt
             }
           });
+          await this.hpRecoveryProducer.record(tx, character.id, input.now, "suppress");
           const full = await setTerminalOrder(tx, order.id, "completed", input.now, {
             ...preview,
             kind: "full-hp",
@@ -374,6 +379,12 @@ export class PrismaItemUseRepository implements ItemUseRepository {
             manaRegenAt: settlement.resources.manaRegenAt
           }
         });
+        await this.hpRecoveryProducer.record(
+          tx,
+          character.id,
+          input.now,
+          preview.hpAfter >= preview.hpMax ? "suppress" : "recovering"
+        );
 
         const completed = await setTerminalOrder(tx, order.id, "completed", input.now, {
           ...preview,
@@ -590,6 +601,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
               manaRegenAt: restore.settlement.resources.manaRegenAt
             }
           });
+          await this.hpRecoveryProducer.record(tx, character.id, input.now, "suppress");
           const updated = await tx.character.findUniqueOrThrow({
             where: { id: character.id },
             include: characterInclude

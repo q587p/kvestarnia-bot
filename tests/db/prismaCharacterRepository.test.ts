@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 
 const telegramUserId = 42n;
 const fixedNow = new Date("2026-06-17T10:00:00.000Z");
@@ -47,9 +48,11 @@ describe("PrismaCharacterRepository", () => {
 
     expect(prisma.lastUpdateManyInput).toMatchObject({
       where: {
-        user: {
-          telegramUserId
-        }
+        user: { telegramUserId },
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
       },
       data: {
         hpCurrent: 28,
@@ -135,10 +138,69 @@ describe("PrismaCharacterRepository", () => {
       manaMax: 14
     });
   });
+
+  it("does not initiate delayed recovery work from an ordinary partial lazy sync", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const producer = new HpRecoveryNotificationProducer(true);
+    const record = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    const repository = new PrismaCharacterRepository(prisma.client, producer);
+
+    await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 29,
+      hpMax: 52,
+      manaCurrent: 14,
+      manaMax: 26,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expected: {
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+    expect(prisma.transactionCount).toBe(0);
+
+    expect(record).not.toHaveBeenCalled();
+    expect(prisma.transactionCount).toBe(0);
+  });
+
+  it("uses one transaction when an enabled full lazy sync must suppress the queue atomically", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const producer = new HpRecoveryNotificationProducer(true);
+    const record = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    const repository = new PrismaCharacterRepository(prisma.client, producer);
+
+    await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 52,
+      hpMax: 52,
+      manaCurrent: 14,
+      manaMax: 26,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expected: {
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(prisma.transactionCount).toBe(1);
+    expect(record).toHaveBeenCalledWith(
+      prisma.client,
+      "character-1",
+      new Date("2026-06-17T10:05:00.000Z"),
+      "suppress",
+      { errorCode: "lazy-sync-full" }
+    );
+  });
+
 });
 
 class FakeCharacterPrisma {
   lastFindFirstInput: FakeFindFirstInput | null = null;
+  lastFindManyInput: FakeFindManyInput | null = null;
   lastUpdateManyInput: FakeUpdateManyInput | null = null;
   lastCountCharacterRemortsId: string | null = null;
   transactionCount = 0;
@@ -149,6 +211,9 @@ class FakeCharacterPrisma {
       return callback(this.client);
     },
     character: {
+      fields: {
+        hpMax: "hpMax-field-ref"
+      },
       findFirst: (input: FakeFindFirstInput) => {
         this.lastFindFirstInput = input;
 
@@ -190,6 +255,20 @@ class FakeCharacterPrisma {
             remorts: 2
           }
           });
+      },
+      findMany: (input: FakeFindManyInput) => {
+        this.lastFindManyInput = input;
+
+        return Promise.resolve([
+          {
+            hpCurrent: 1,
+            hpMax: 20,
+            hpRegenAt: new Date("2026-06-17T09:00:00.000Z"),
+            user: {
+              telegramUserId
+            }
+          }
+        ]);
       },
       updateMany: (input: FakeUpdateManyInput) => {
         this.lastUpdateManyInput = input;
@@ -292,6 +371,22 @@ interface FakeFindFirstInput {
     };
   };
   include?: unknown;
+}
+
+interface FakeFindManyInput {
+  where: {
+    hpCurrent: {
+      lt: unknown;
+    };
+    hpRegenAt: {
+      not: null;
+    };
+  };
+  orderBy: {
+    hpRegenAt: "asc";
+  };
+  take: number;
+  select: unknown;
 }
 
 interface FakeUpdateManyInput {

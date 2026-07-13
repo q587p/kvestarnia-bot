@@ -12,11 +12,15 @@ import type {
 import type { HpLossAudit, ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
 export class PrismaCooldownRepository implements CooldownRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async findForTelegramUser(
     telegramUserId: bigint,
@@ -330,6 +334,9 @@ export class PrismaCooldownRepository implements CooldownRepository {
     await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
       remortCount
     });
+    if (hpLoss || newLevel !== oldLevel) {
+      await this.hpRecoveryProducer.record(tx, character.id, input.now, "recovering");
+    }
     const itemGrants = withQuestIskrokaminBonus(input.itemGrants ?? [], {
       enabled: input.questIskrokaminBonus === true,
       characterId: character.id,

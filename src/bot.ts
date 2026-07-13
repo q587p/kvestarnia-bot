@@ -8,7 +8,9 @@ import { loadConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 
 const config = loadConfig();
-const repositories = createRepositories(prisma);
+const repositories = createRepositories(prisma, {
+  hpRecoveryNotificationsEnabled: config.hpRecoveryNotificationsEnabled
+});
 const services = createServices(repositories, config);
 const runtime = createRuntime({
   config,

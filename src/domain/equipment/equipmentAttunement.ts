@@ -7,6 +7,7 @@ export const WEAK_EQUIPMENT_ATTUNEMENT_MS = 13 * 60 * 1000;
 export const STRONG_EQUIPMENT_ATTUNEMENT_MS = 42 * 60 * 1000;
 export const MAGE_WEAK_EQUIPMENT_ATTUNEMENT_MS = 5 * 60 * 1000;
 export const MAGE_STRONG_EQUIPMENT_ATTUNEMENT_MS = 23 * 60 * 1000;
+export const MAX_EQUIPMENT_ATTUNEMENT_MS = STRONG_EQUIPMENT_ATTUNEMENT_MS;
 
 export type EquipmentMagicStrength = "weak" | "strong";
 export type EquipmentAttunementState = "tuning" | "attuned";

@@ -2,8 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ItemContent } from "../../src/content/schema";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaShynokRepository } from "../../src/db/repositories/prismaShynokRepository";
 import {
   buildMantokSaleBasket,
@@ -15,6 +16,7 @@ describe("PrismaShynokRepository integration", () => {
   let dir: string;
   let prisma: PrismaClient;
   let repository: PrismaShynokRepository;
+  let producerRecord: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-shynok-repo-"));
@@ -27,10 +29,13 @@ describe("PrismaShynokRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaShynokRepository(prisma);
+    const producer = new HpRecoveryNotificationProducer(true);
+    producerRecord = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    repository = new PrismaShynokRepository(prisma, producer);
   }, 60_000);
 
   beforeEach(async () => {
+    producerRecord.mockClear();
     await prisma.korchmaRoundRecipient.deleteMany();
     await prisma.korchmaRoundPurchase.deleteMany();
     await prisma.korchmaDrinkOrder.deleteMany();
@@ -76,6 +81,12 @@ describe("PrismaShynokRepository integration", () => {
     await expect(prisma.characterDrinkState.findUnique({
       where: { characterId: "character-recipient" }
     })).resolves.toMatchObject({ drinkKey: "drink.simple-beer", sourceType: "round" });
+    expect(producerRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      "character-recipient",
+      now(),
+      "recovering"
+    );
   });
 
   it.each([

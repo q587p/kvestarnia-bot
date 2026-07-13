@@ -27,6 +27,7 @@ import {
   sendBestiarySpecialGated
 } from "../commands/bestiaryCommand";
 import { registerDevGrantCommands } from "../commands/devGrantCommand";
+import { registerDevHpRecoveryCommand } from "../commands/devHpRecoveryCommand";
 import { registerDevResetCommand } from "../commands/devResetCommand";
 import { registerHeroCommand } from "../commands/heroCommand";
 import { sendHero } from "../commands/heroCommand";
@@ -109,6 +110,9 @@ export function registerCharacterBotModule(
   });
   if (services.devGrant?.isEnabled()) {
     registerDevGrantCommands(bot, services.devGrant, services.equipment);
+  }
+  if (services.healthRecoveryNotifications) {
+    registerDevHpRecoveryCommand(bot, services.healthRecoveryNotifications);
   }
   registerDevResetCommand(
     bot,

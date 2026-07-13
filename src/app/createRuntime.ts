@@ -5,6 +5,7 @@ import { createCombatTurnTimeoutScheduler } from "../bot/combatTurnTimeoutSchedu
 import { createBot } from "../bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
 import { createEquipmentAttunementScheduler } from "../bot/equipmentAttunementScheduler";
+import { createHealthRecoveryNotificationScheduler } from "../bot/healthRecoveryNotificationScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
 import { classifyPerformanceError } from "../bot/performanceLogger";
@@ -25,6 +26,7 @@ interface RuntimeDependencies {
   createCombatTurnTimeoutScheduler: typeof createCombatTurnTimeoutScheduler;
   createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
   createEquipmentAttunementScheduler: typeof createEquipmentAttunementScheduler;
+  createHealthRecoveryNotificationScheduler: typeof createHealthRecoveryNotificationScheduler;
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
@@ -43,6 +45,7 @@ export function createRuntime(input: {
     createCombatTurnTimeoutScheduler,
     createDuelTurnTimeoutScheduler,
     createEquipmentAttunementScheduler,
+    createHealthRecoveryNotificationScheduler,
     createPassageSearchCompletionScheduler,
     createPartyBossRecruitingStartScheduler,
     getTelegramMenuCommands,
@@ -62,37 +65,48 @@ export function createRuntime(input: {
   let healthServer: ReturnType<typeof startHealthServer> | null = null;
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
   let equipmentAttunementScheduler: ReturnType<typeof createEquipmentAttunementScheduler> | null = null;
+  let healthRecoveryNotificationScheduler: ReturnType<typeof createHealthRecoveryNotificationScheduler> | null = null;
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
   const readiness = createRuntimeReadiness();
   let schedulersStarted = false;
   let schedulersStopped = false;
+  let schedulersStopPromise: Promise<void> | null = null;
 
-  const startSchedulers = (): void => {
-    if (schedulersStarted) {
-      return;
+  const startSchedulers = (): boolean => {
+    if (state !== "started" || schedulersStarted || schedulersStopped) {
+      return false;
     }
 
     schedulersStarted = true;
     duelTurnTimeoutScheduler?.start();
     combatTurnTimeoutScheduler?.start();
     equipmentAttunementScheduler?.start();
+    healthRecoveryNotificationScheduler?.start();
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
+    return true;
   };
 
-  const stopSchedulers = (): void => {
-    if (!schedulersStarted || schedulersStopped) {
-      return;
+  const stopSchedulers = (): Promise<void> => {
+    if (schedulersStopPromise) {
+      return schedulersStopPromise;
     }
-
     schedulersStopped = true;
-    combatTurnTimeoutScheduler?.stop();
-    duelTurnTimeoutScheduler?.stop();
-    equipmentAttunementScheduler?.stop();
-    passageSearchCompletionScheduler?.stop();
-    partyBossRecruitingStartScheduler?.stop();
+    if (!schedulersStarted) {
+      schedulersStopPromise = Promise.resolve();
+      return schedulersStopPromise;
+    }
+    schedulersStopPromise = (async () => {
+      combatTurnTimeoutScheduler?.stop();
+      duelTurnTimeoutScheduler?.stop();
+      equipmentAttunementScheduler?.stop();
+      passageSearchCompletionScheduler?.stop();
+      partyBossRecruitingStartScheduler?.stop();
+      await healthRecoveryNotificationScheduler?.stop();
+    })();
+    return schedulersStopPromise;
   };
 
   return {
@@ -148,6 +162,12 @@ export function createRuntime(input: {
         services.equipment,
         bot
       );
+      if (config.hpRecoveryNotificationsEnabled) {
+        healthRecoveryNotificationScheduler = dependencies.createHealthRecoveryNotificationScheduler(
+          services.healthRecoveryNotifications,
+          bot
+        );
+      }
       if (services.passageSearch) {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
           passageSearch: services.passageSearch,
@@ -177,14 +197,15 @@ export function createRuntime(input: {
       console.log("Квестарня: бот запускається в polling-режимі.");
       void bot.start({
         onStart: () => {
-          startSchedulers();
-          readiness.markPollingReady();
-          console.log("Квестарня: Telegram polling готовий приймати оновлення.");
+          if (startSchedulers()) {
+            readiness.markPollingReady();
+            console.log("Квестарня: Telegram polling готовий приймати оновлення.");
+          }
         }
       }).then(() => {
         if (state === "started") {
           readiness.markFailed();
-          stopSchedulers();
+          void stopSchedulers();
           console.error("Квестарня: Telegram polling завершився без зупинки runtime.");
         }
       }).catch((error) => {
@@ -193,7 +214,7 @@ export function createRuntime(input: {
         }
 
         readiness.markFailed();
-        stopSchedulers();
+        void stopSchedulers();
         console.error("Квестарня: Telegram polling не запустився або аварійно завершився.", {
           errorCategory: classifyPerformanceError(error)
         });
@@ -214,7 +235,7 @@ export function createRuntime(input: {
       stopPromise = (async () => {
         let shutdownError: Error | null = null;
 
-        stopSchedulers();
+        await stopSchedulers();
 
         try {
           if (bot) {

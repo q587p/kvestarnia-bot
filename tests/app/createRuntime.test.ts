@@ -15,13 +15,15 @@ describe("createRuntime", () => {
     const close = vi.fn();
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const createBot = vi.fn();
+    const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
     const servicesFixture = makeServices();
     const runtime = createRuntime({
-      config: makeConfig({ botToken: undefined }),
+      config: makeConfig({ botToken: undefined, hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: servicesFixture.services,
       dependencies: {
         createBot,
+        createHealthRecoveryNotificationScheduler,
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
     });
@@ -32,6 +34,7 @@ describe("createRuntime", () => {
     await runtime.stop();
 
     expect(createBot).not.toHaveBeenCalled();
+    expect(createHealthRecoveryNotificationScheduler).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
@@ -43,18 +46,24 @@ describe("createRuntime", () => {
     const bot = botFixture.bot;
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     const passageSearchScheduler = makeScheduler();
     const servicesFixture = makeServices({ passageSearch: true });
     const services = servicesFixture.services;
     let readiness: { isReady(): boolean } | undefined;
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token", botUsername: "kvestarnia_bot" }),
+      config: makeConfig({
+        botToken: "token",
+        botUsername: "kvestarnia_bot",
+        hpRecoveryNotificationsEnabled: true
+      }),
       prisma: makePrisma(disconnect),
       services,
       dependencies: {
         createBot: vi.fn(() => bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
@@ -75,8 +84,10 @@ describe("createRuntime", () => {
     expect(servicesFixture.announceIfNeeded).toHaveBeenCalledWith(bot);
     expect(duelScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.start).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
@@ -90,14 +101,16 @@ describe("createRuntime", () => {
     const botFixture = makeBot();
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
@@ -107,9 +120,44 @@ describe("createRuntime", () => {
     await Promise.all([runtime.stop(), runtime.stop()]);
 
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a delayed grammY onStart restart schedulers after shutdown", async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const scheduler = makeScheduler();
+    let pollingOptions: Parameters<Bot["start"]>[0] | undefined;
+    const bot = {
+      api: { setMyCommands: vi.fn().mockResolvedValue(undefined) },
+      start: vi.fn((options: Parameters<Bot["start"]>[0]) => {
+        pollingOptions = options;
+        return new Promise<void>(() => undefined);
+      }),
+      stop: vi.fn().mockResolvedValue(undefined)
+    } as unknown as Bot;
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => bot),
+        createCombatTurnTimeoutScheduler: vi.fn(() => scheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => scheduler),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close: vi.fn() }) as never)
+      }
+    });
+
+    await runtime.start();
+    await runtime.stop();
+    await pollingOptions?.onStart?.({} as never);
+
+    expect(scheduler.start).not.toHaveBeenCalled();
+    expect(scheduler.stop).not.toHaveBeenCalled();
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
@@ -119,7 +167,7 @@ describe("createRuntime", () => {
     const createBot = vi.fn();
     const startHealthServer = vi.fn(() => ({ close }) as never);
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
@@ -167,14 +215,16 @@ describe("createRuntime", () => {
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const createDuelTurnTimeoutScheduler = vi.fn(() => makeScheduler());
     const createCombatTurnTimeoutScheduler = vi.fn(() => makeScheduler());
+    const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices({ duel: false }).services,
       dependencies: {
         createBot: vi.fn(() => makeBot().bot),
         createDuelTurnTimeoutScheduler,
         createCombatTurnTimeoutScheduler,
+        createHealthRecoveryNotificationScheduler,
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn(() => ({ close }) as never)
       }
@@ -185,6 +235,29 @@ describe("createRuntime", () => {
 
     expect(createDuelTurnTimeoutScheduler).not.toHaveBeenCalled();
     expect(createCombatTurnTimeoutScheduler).toHaveBeenCalledTimes(1);
+    expect(createHealthRecoveryNotificationScheduler).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not construct or start HP recovery work when the rollout flag is off", async () => {
+    const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: false }),
+      prisma: makePrisma(vi.fn().mockResolvedValue(undefined)),
+      services: makeServices().services,
+      dependencies: {
+        createBot: vi.fn(() => makeBot().bot),
+        createDuelTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        createCombatTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        createHealthRecoveryNotificationScheduler,
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close: vi.fn() }) as never)
+      }
+    });
+
+    await runtime.start();
+    await runtime.stop();
+
+    expect(createHealthRecoveryNotificationScheduler).not.toHaveBeenCalled();
   });
 
   it("fails readiness closed when the database probe rejects", async () => {
@@ -193,14 +266,16 @@ describe("createRuntime", () => {
     const queryError = Object.assign(new Error("private database path"), { code: "SQLITE_BUSY" });
     const queryRawUnsafe = vi.fn().mockRejectedValue(queryError);
     const createBot = vi.fn();
+    const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect, queryRawUnsafe),
       services: makeServices().services,
       dependencies: {
         createBot,
+        createHealthRecoveryNotificationScheduler,
         startHealthServer: vi.fn((options: HealthServerOptions) => {
           readiness = options.readiness;
           return { close } as never;
@@ -211,6 +286,7 @@ describe("createRuntime", () => {
     await runtime.start();
 
     expect(createBot).not.toHaveBeenCalled();
+    expect(createHealthRecoveryNotificationScheduler).not.toHaveBeenCalled();
     expect(readiness?.isReady()).toBe(false);
     expect(console.error).toHaveBeenCalledWith(
       "Квестарня: база не пройшла перевірку готовності.",
@@ -226,16 +302,18 @@ describe("createRuntime", () => {
     const botFixture = makeBot({ startError });
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
           readiness = options.readiness;
@@ -253,9 +331,11 @@ describe("createRuntime", () => {
     expect(readiness?.isReady()).toBe(false);
     expect(duelScheduler.start).not.toHaveBeenCalled();
     expect(combatScheduler.start).not.toHaveBeenCalled();
+    expect(healthRecoveryScheduler.start).not.toHaveBeenCalled();
     await runtime.stop();
     expect(duelScheduler.stop).not.toHaveBeenCalled();
     expect(combatScheduler.stop).not.toHaveBeenCalled();
+    expect(healthRecoveryScheduler.stop).not.toHaveBeenCalled();
   });
 
   it("stops started schedulers once when polling rejects after onStart", async () => {
@@ -265,16 +345,18 @@ describe("createRuntime", () => {
     const botFixture = makeBot({ startErrorAfterOnStart: startError });
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const healthRecoveryScheduler = makeScheduler();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
-      config: makeConfig({ botToken: "token" }),
+      config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         getTelegramMenuCommands: vi.fn(() => []),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
           readiness = options.readiness;
@@ -288,11 +370,14 @@ describe("createRuntime", () => {
 
     expect(duelScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.start).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     await runtime.stop();
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
   });
 
   it("does not report a polling abort caused by shutdown as an emergency", async () => {
@@ -338,6 +423,7 @@ function makeConfig(overrides: Partial<AppConfig>): AppConfig {
     deployNotificationsEnabled: false,
     devGrantCommandsEnabled: false,
     combatBalanceAnalyticsEnabled: false,
+    hpRecoveryNotificationsEnabled: false,
     ...overrides
   };
 }
@@ -357,6 +443,16 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
     equipment: {
       listDueAttunementNotifications: vi.fn(() => Promise.resolve([])),
       markAttunementNotified: vi.fn(() => Promise.resolve(false))
+    },
+    healthRecoveryNotifications: {
+      runBatch: vi.fn(() => Promise.resolve({
+        due: 0,
+        claimed: 0,
+        sent: 0,
+        retried: 0,
+        suppressed: 0,
+        errors: 0
+      }))
     },
     mantokChest: { cleanupExpiredPendingRuns },
     ...(options.passageSearch ? { passageSearch: {} } : {}),

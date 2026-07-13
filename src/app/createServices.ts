@@ -21,6 +21,7 @@ import { EquipmentService } from "../services/equipmentService";
 import { FightService } from "../services/fightService";
 import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import { HeroService } from "../services/heroService";
+import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
 import { ItemCraftService } from "../services/itemCraftService";
@@ -47,6 +48,7 @@ import type { ApplicationRepositories } from "./createRepositories";
 
 export interface ApplicationServices extends BotServices {
   deployNotifications: DeployNotificationService;
+  healthRecoveryNotifications: HealthRecoveryNotificationService;
 }
 
 export function createServices(
@@ -176,6 +178,12 @@ export function createServices(
       undefined,
       achievements,
       repositories.classNoncombat
+    ),
+    healthRecoveryNotifications: new HealthRecoveryNotificationService(
+      repositories.hpRecoveryNotifications,
+      config.hpRecoveryNotificationsEnabled,
+      nonProduction,
+      () => new Date()
     ),
     hunt: new HuntService(
       repositories.characters,

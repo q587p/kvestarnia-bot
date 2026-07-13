@@ -2,7 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
 import { FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import {
@@ -24,6 +25,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
   let dir: string;
   let prisma: PrismaClient;
   let repository: PrismaItemUpgradeRepository;
+  let producerRecord: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-item-upgrade-repo-"));
@@ -35,10 +37,13 @@ describe("PrismaItemUpgradeRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaItemUpgradeRepository(prisma);
+    const producer = new HpRecoveryNotificationProducer(true);
+    producerRecord = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    repository = new PrismaItemUpgradeRepository(prisma, producer);
   }, 60_000);
 
   beforeEach(async () => {
+    producerRecord.mockClear();
     await prisma.dailyAction.deleteMany();
     await prisma.characterEquipment.deleteMany();
     await prisma.characterItem.deleteMany();
@@ -95,6 +100,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
     await expectCharacterResources({ gold: 950, manaCurrent: 80 });
     await expectEquippedItem(panPlusOneItemId);
+    expect(producerRecord).toHaveBeenCalledWith(expect.anything(), characterId, now(), "recovering");
 
     await expect(repository.attemptForTelegramUser(telegramUserId, {
       itemId: panItemId,
@@ -363,6 +369,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
         }
       });
     await expectItemQuantity(FIELD_KIT_ITEM_ID, 0);
+    expect(producerRecord).toHaveBeenCalledWith(expect.anything(), characterId, now(), "recovering");
 
     await expect(repository.attemptForTelegramUser(telegramUserId, {
       itemId: panItemId,

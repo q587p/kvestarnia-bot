@@ -31,6 +31,7 @@ import type {
   RoguePickpocketRepositoryResult,
   RogueRetaliationClaimResult
 } from "./classNoncombatRepository";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -39,7 +40,10 @@ const ROGUE_CLASS_ID = "class.rogue";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async getSnapshotForTelegramUser(
     telegramUserId: bigint,
@@ -181,6 +185,12 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         if (mutated.count !== 1) {
           throw new ResourceRaceError();
         }
+        await this.hpRecoveryProducer.record(
+          tx,
+          target.id,
+          input.now,
+          hpAfter >= targetEffectiveHpMax ? "suppress" : "recovering"
+        );
 
         const action = await tx.noncombatPriestAidAction.create({
           data: {
@@ -453,6 +463,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             data: { hpCurrent: 0, hpRegenAt: input.now }
           });
           actorHpAfter = 0;
+          await this.hpRecoveryProducer.record(tx, actor.id, input.now, "recovering");
         }
 
         const attempt = await tx.noncombatRoguePickpocketAttempt.create({

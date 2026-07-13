@@ -47,6 +47,7 @@ import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -142,7 +143,10 @@ const partyBossInclude = {
 } satisfies Prisma.PartyBossSessionInclude;
 
 export class PrismaPartyBossRepository implements PartyBossRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async startFromRecruitingPartyForTelegramUser(
     telegramUserId: bigint,
@@ -854,7 +858,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       if (status !== "active") {
         achievementEvents = [
           ...achievementEvents,
-          ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now)
+          ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now, this.hpRecoveryProducer)
         ];
         await releasePartyBossLocks(tx, session.partySessionId);
       }
@@ -902,7 +906,8 @@ async function settleTerminalPartyBoss(
   tx: TxClient,
   session: PartyBossRow,
   state: PartyBossState,
-  now: Date
+  now: Date,
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<PartyBossAchievementEventRecord[]> {
   const achievementEvents: PartyBossAchievementEventRecord[] = [];
   if (!isBigBarrelBrotherState(state)) {
@@ -932,7 +937,7 @@ async function settleTerminalPartyBoss(
       const appliedLossXp = await settleBigParticipantAttempt(tx, current, participant, now, remortCount, lossXp, {
         partyBossSessionId: session.id,
         partySessionId: session.partySessionId
-      });
+      }, hpRecoveryProducer);
       if (appliedLossXp > 0) {
         attemptXpSnapshots.set(participant.characterId, appliedLossXp);
       }
@@ -948,13 +953,13 @@ async function settleTerminalPartyBoss(
     }
 
     if (!periodId || state.status !== "won") {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
     if (!remortMatches || !isBigBarrelEligible(current.level, remortCount)) {
       if (remortMatches) {
-        await settleBigParticipantResources(tx, participant, now);
+        await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       }
       continue;
     }
@@ -969,13 +974,13 @@ async function settleTerminalPartyBoss(
       }
     });
     if (existing) {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
     const reward = buildBigBarrelReward(state, participant);
     if (!reward.meaningful) {
-      await settleBigParticipantResources(tx, participant, now);
+      await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
       continue;
     }
 
@@ -1037,6 +1042,12 @@ async function settleTerminalPartyBoss(
         manaRegenAt: now
       }
     });
+    await hpRecoveryProducer.record(
+      tx,
+      participant.characterId,
+      now,
+      "recovering"
+    );
     await recordLevelMilestones(tx, participant.characterId, oldLevel, newLevel, undefined, {
       remortCount
     });
@@ -1181,7 +1192,8 @@ async function hasIneligibleBigBarrelParticipant(
 async function settleBigParticipantResources(
   tx: TxClient,
   participant: PartyBossState["participants"][number],
-  now: Date
+  now: Date,
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<void> {
   await tx.character.updateMany({
     where: {
@@ -1194,6 +1206,12 @@ async function settleBigParticipantResources(
       manaRegenAt: now
     }
   });
+  await hpRecoveryProducer.record(
+    tx,
+    participant.characterId,
+    now,
+    "recovering"
+  );
 }
 
 async function settleBigParticipantAttempt(
@@ -1203,11 +1221,12 @@ async function settleBigParticipantAttempt(
   now: Date,
   remortCount: number,
   xp: number,
-  source: { partyBossSessionId: string; partySessionId: string }
+  source: { partyBossSessionId: string; partySessionId: string },
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<number> {
   const safeXp = Math.max(0, Math.floor(xp));
   if (safeXp <= 0) {
-    await settleBigParticipantResources(tx, participant, now);
+    await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
     return 0;
   }
 
@@ -1223,7 +1242,7 @@ async function settleBigParticipantAttempt(
     }
   });
   if (existingCooldown && existingCooldown.availableAt > now) {
-    await settleBigParticipantResources(tx, participant, now);
+    await settleBigParticipantResources(tx, participant, now, hpRecoveryProducer);
     return 0;
   }
 
@@ -1244,6 +1263,12 @@ async function settleBigParticipantAttempt(
       manaRegenAt: now
     }
   });
+  await hpRecoveryProducer.record(
+    tx,
+    participant.characterId,
+    now,
+    "recovering"
+  );
   await tx.characterCooldown.upsert({
     where: {
       characterId_key: {

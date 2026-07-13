@@ -23,6 +23,7 @@ import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
@@ -30,7 +31,10 @@ type DuelCombatSessionWithChallenge =
   | null;
 
 export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+  ) {}
 
   async createOpenForTelegramUser(
     telegramUserId: bigint,
@@ -624,8 +628,20 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           });
 
           if (challengeUpdate.count === 1 && input.result?.xpRewards) {
-            await awardTurnBasedDuelXp(tx, current.challengerCharacterId, input.result.xpRewards.challenger);
-            await awardTurnBasedDuelXp(tx, current.targetCharacterId, input.result.xpRewards.target);
+            await awardTurnBasedDuelXp(
+              tx,
+              current.challengerCharacterId,
+              input.result.xpRewards.challenger,
+              input.now,
+              this.hpRecoveryProducer
+            );
+            await awardTurnBasedDuelXp(
+              tx,
+              current.targetCharacterId,
+              input.result.xpRewards.target,
+              input.now,
+              this.hpRecoveryProducer
+            );
           }
 
           await tx.activeCombatLease.deleteMany({
@@ -827,7 +843,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 async function awardTurnBasedDuelXp(
   tx: Prisma.TransactionClient,
   characterId: string,
-  xpReward: number
+  xpReward: number,
+  now: Date,
+  hpRecoveryProducer: HpRecoveryNotificationProducer
 ): Promise<void> {
   const amount = Math.max(0, Math.floor(xpReward));
 
@@ -874,6 +892,7 @@ async function awardTurnBasedDuelXp(
   await recordLevelMilestones(tx, character.id, oldLevel, newLevel, undefined, {
     remortCount
   });
+  await hpRecoveryProducer.record(tx, character.id, now, "recovering");
 }
 
 async function findChallengeByToken(prisma: PrismaClient, inviteToken: string) {

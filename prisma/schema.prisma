@@ -79,6 +79,7 @@ model Character {
   partyBossActions PartyBossAction[]
   partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
   activeCombatLease ActiveCombatLease?
+  hpRecoveryNotification HpRecoveryNotification?
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")
@@ -293,6 +294,32 @@ model ActiveCombatLease {
 
   @@index([kind, referenceId])
   @@map("active_combat_leases")
+}
+
+model HpRecoveryNotification {
+  id                  String    @id @default(uuid())
+  characterId         String    @unique @map("character_id")
+  character           Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  generation          Int       @default(1)
+  remortCount         Int       @default(0) @map("remort_count")
+  sourceHpCurrent     Int       @map("source_hp_current")
+  sourceHpMax         Int       @map("source_hp_max")
+  sourceHpRegenAt     DateTime? @map("source_hp_regen_at")
+  sourceFingerprint   String?   @map("source_fingerprint")
+  status              String    @default("waiting")
+  nextAttemptAt       DateTime  @map("next_attempt_at")
+  processingStartedAt DateTime? @map("processing_started_at")
+  readyAt             DateTime? @map("ready_at")
+  sentAt              DateTime? @map("sent_at")
+  suppressedAt        DateTime? @map("suppressed_at")
+  attemptCount        Int       @default(0) @map("attempt_count")
+  lastErrorCode       String?   @map("last_error_code")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, nextAttemptAt, updatedAt, id], map: "hp_recovery_notifications_status_next_attempt_at_idx")
+  @@index([status, processingStartedAt, updatedAt, id], map: "hp_recovery_notifications_status_processing_started_at_idx")
+  @@map("hp_recovery_notifications")
 }
 
 model CharacterEquipment {
