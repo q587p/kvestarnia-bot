@@ -51,13 +51,21 @@ describe("Fighting Corner quest presenter", () => {
       reward: {
         xp: 11,
         gold: 37,
-        itemGrants: [{ itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 2 }]
+        itemGrants: [
+          {
+            itemId: "item.pink-soap-of-first-rule",
+            name: "Рожеве мило першого правила",
+            quantity: 1
+          },
+          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 2 }
+        ]
       },
       levelChange: null
     } satisfies FightingCornerQuestClaimResult;
     const text = presentFightingCornerQuestClaim(result);
 
     expect(text).toContain("Нагорода та сама");
+    expect(text).toContain("Рожеве мило першого правила відтепер числиться інструментом");
     expect(text).toContain("11 XP");
     expect(text).toContain("37");
     expect(text).toContain("Іскрокамінь ×2");

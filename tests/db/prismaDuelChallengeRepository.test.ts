@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
 
 describe("PrismaDuelChallengeRepository", () => {
+  it("uses a bounded existence lookup for resolved turn-based round actions", async () => {
+    const queries: unknown[] = [];
+    const repository = new PrismaDuelChallengeRepository({
+      duelCombatAction: {
+        findFirst: (query: unknown) => {
+          queries.push(query);
+          return Promise.resolve({ id: "action-1" });
+        }
+      }
+    } as unknown as ConstructorParameters<typeof PrismaDuelChallengeRepository>[0]);
+
+    await expect(repository.hasResolvedTurnBasedRoundByToken("duel-token")).resolves.toBe(true);
+    expect(queries).toEqual([{
+      where: {
+        actionKey: { in: ["round", "timeout-attack"] },
+        session: { duelChallenge: { inviteToken: "duel-token" } }
+      },
+      select: { id: true }
+    }]);
+  });
+
   it("parses new duel result snapshots while keeping old result JSON readable", async () => {
     const prisma = new FakeDuelPrisma([
       makeResolvedChallenge("new-json", {

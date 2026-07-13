@@ -14,8 +14,11 @@ import { getLevelStartXp, LEVEL_XP_THRESHOLDS } from "../domain/progression/leve
 import {
   enrichRewardItemGrants,
   ISKROKAMIN_ITEM_ID,
+  PINK_SOAP_OF_FIRST_RULE_ITEM_ID,
+  starterEquipmentGrant,
   type RewardItemGrant
 } from "./itemGrant";
+import { systemClock, type Clock } from "../shared/time";
 import {
   normalizePresenceLocationId,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
@@ -109,8 +112,13 @@ export class FightingCornerQuestService {
     private readonly characters: CharacterRepository,
     private readonly dailyActions: DailyActionRepository,
     private readonly rogueRetaliations: Pick<ClassNoncombatRepository, "isRogueRetaliationDuelInviteToken">,
-    private readonly options: { enabled: boolean; devHelpersEnabled: boolean }
+    private readonly options: { enabled: boolean; devHelpersEnabled: boolean },
+    private readonly clock: Clock = systemClock
   ) {}
+
+  isEnabled(): boolean {
+    return this.options.enabled;
+  }
 
   isDevHelperEnabled(): boolean {
     return this.options.devHelpersEnabled;
@@ -194,8 +202,9 @@ export class FightingCornerQuestService {
       expectedLife: { remortCount: context.character.remortCount ?? 0 },
       resultJson: {
         kind: "fighting-corner-quest-accepted",
-        version: 1,
-        questId: FIGHTING_CORNER_QUEST_ID
+        version: 2,
+        questId: FIGHTING_CORNER_QUEST_ID,
+        acceptedAt: this.clock().toISOString()
       }
     });
 
@@ -260,7 +269,10 @@ export class FightingCornerQuestService {
       localDate: context.lifeToken,
       rewardXp,
       rewardGold,
-      itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }],
+      itemGrants: [
+        starterEquipmentGrant(PINK_SOAP_OF_FIRST_RULE_ITEM_ID),
+        { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+      ],
       questIskrokaminBonus: true,
       expectedLife: { remortCount: context.character.remortCount ?? 0 },
       resultJson: {
@@ -412,12 +424,14 @@ export class FightingCornerQuestService {
     try {
       const context = await this.getContext(input.telegramUserId);
       const accepted = context?.actions.get(FIGHTING_CORNER_QUEST_KEYS.accepted);
+      const acceptedAt = accepted ? readAcceptedAt(accepted.resultJson) : null;
       if (
         !context ||
         !accepted ||
+        !acceptedAt ||
         context.actions.has(FIGHTING_CORNER_QUEST_KEYS.completed) ||
         context.actions.has(input.key) ||
-        accepted.createdAt > input.occurredAt ||
+        input.occurredAt.getTime() <= acceptedAt.getTime() ||
         (input.expectedRemortCount !== undefined &&
           (context.character.remortCount ?? 0) !== input.expectedRemortCount)
       ) {
@@ -572,6 +586,13 @@ function parseStoredDate(value: unknown): Date | null {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function readAcceptedAt(value: unknown): Date | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return parseStoredDate((value as { acceptedAt?: unknown }).acceptedAt);
 }
 
 function buildLifeToken(remortCount: number): string {

@@ -546,6 +546,18 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return actions.map(mapDuelCombatAction);
   }
 
+  async hasResolvedTurnBasedRoundByToken(inviteToken: string): Promise<boolean> {
+    const action = await this.prisma.duelCombatAction.findFirst({
+      where: {
+        actionKey: { in: ["round", "timeout-attack"] },
+        session: { duelChallenge: { inviteToken } }
+      },
+      select: { id: true }
+    });
+
+    return action !== null;
+  }
+
   async updateTurnBasedIfActiveVersion(
     sessionId: string,
     expectedTurn: number,

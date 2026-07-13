@@ -326,7 +326,7 @@ describe("DevGrantService", () => {
       amount: 2,
       itemGrants: [
         {
-          itemId: "item.mantok.coverage.universal.measuring-spoon",
+          itemId: "item.pink-soap-of-first-rule",
           quantity: 2
         }
       ]
@@ -345,7 +345,7 @@ describe("DevGrantService", () => {
     });
 
     expect(repository.calls).toContain(
-      "items:42:item.mantok.coverage.universal.measuring-spoon:1,item.mantok.coverage.universal.measuring-spoon:1"
+      "items:42:item.pink-soap-of-first-rule:1,item.pink-soap-of-first-rule:1"
     );
     expect(repository.calls).toContain("items:42:item.mantok.coverage.universal.receipt-spear:1");
   });

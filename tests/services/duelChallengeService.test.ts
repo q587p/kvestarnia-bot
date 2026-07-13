@@ -234,7 +234,10 @@ describe("DuelChallengeService", () => {
         currentLocationId: "location.korchma.fighting_corner"
       }
     }]));
-    const service = buildService(world, fixedNow, undefined, undefined, undefined, { recordResolvedDuelSafely });
+    const service = buildService(world, fixedNow, undefined, undefined, undefined, {
+      isEnabled: () => true,
+      recordResolvedDuelSafely
+    });
     const created = await service.createOpenChallengeForTelegramUser(1n);
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
@@ -254,6 +257,144 @@ describe("DuelChallengeService", () => {
     const replay = await service.getByToken(created.challenge.inviteToken);
     expect(replay).toMatchObject({ state: "resolved" });
     expect(recordResolvedDuelSafely).toHaveBeenCalledTimes(2);
+  });
+
+  it("records a player-resolved turn-based round for both participants and repairs one missed follow-up on replay", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const quest = new FakeFightingCornerQuestIntegration(true, new Set([2n]));
+    const service = buildService(world, fixedNow, undefined, undefined, undefined, quest);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+    if (created.state !== "pending") throw new Error("Expected pending turn-based invite.");
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    if (accepted.state !== "active") throw new Error("Expected active turn-based duel.");
+
+    setSessionHitPoints(world, accepted.session.id, 1);
+    const firstActor = accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
+    const secondActor = firstActor === 1n ? 2n : 1n;
+    await service.resolveTurnBasedActionForTelegramUser(firstActor, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "attack"
+    });
+    const terminal = await service.resolveTurnBasedActionForTelegramUser(secondActor, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "attack"
+    });
+
+    expect(terminal).toMatchObject({
+      state: "updated",
+      session: { status: "resolved" },
+      questProgressUpdates: [{ telegramUserId: 1n, objective: "turn-based-duel" }]
+    });
+    expect(world.resolvedRoundLookupCount).toBe(1);
+    expect(world.fullJournalLookupCount).toBe(0);
+
+    const repaired = await service.getByToken(created.challenge.inviteToken);
+    expect(repaired).toMatchObject({
+      state: "resolved",
+      questProgressUpdates: [{ telegramUserId: 2n, objective: "turn-based-duel" }]
+    });
+    const replay = await service.getByToken(created.challenge.inviteToken);
+    expect(replay).toMatchObject({ state: "resolved" });
+    expect(replay).not.toHaveProperty("questProgressUpdates");
+    expect(quest.recorded).toEqual(new Set([1n, 2n]));
+  });
+
+  it("records a timeout-attack terminal round through the bounded repository lookup", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const quest = new FakeFightingCornerQuestIntegration();
+    const startService = buildService(world, fixedNow, undefined, undefined, undefined, quest);
+    const created = await startService.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+    if (created.state !== "pending") throw new Error("Expected pending turn-based invite.");
+    const accepted = await startService.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    if (accepted.state !== "active") throw new Error("Expected active turn-based duel.");
+
+    setSessionHitPoints(world, accepted.session.id, 1);
+    const dueSession = world.sessions.get(accepted.session.id)!;
+    const timeoutService = buildService(
+      world,
+      () => dueSession.turnExpiresAt,
+      undefined,
+      undefined,
+      undefined,
+      quest
+    );
+    const terminal = await timeoutService.resolveDueTurnBasedSession(dueSession);
+
+    expect(terminal).toMatchObject({
+      state: "updated",
+      session: { status: "resolved" },
+      questProgressUpdates: [
+        { telegramUserId: 1n, objective: "turn-based-duel" },
+        { telegramUserId: 2n, objective: "turn-based-duel" }
+      ]
+    });
+    expect(world.resolvedRoundLookupCount).toBe(1);
+    expect(world.fullJournalLookupCount).toBe(0);
+  });
+
+  it("rejects a resolved challenge without a stored round and performs no journal lookup while disabled", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const quest = new FakeFightingCornerQuestIntegration();
+    const service = buildService(world, fixedNow, undefined, undefined, undefined, quest);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+    if (created.state !== "pending") throw new Error("Expected pending turn-based invite.");
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    if (accepted.state !== "active") throw new Error("Expected active turn-based duel.");
+
+    const surrendered = await service.resolveTurnBasedActionForTelegramUser(2n, {
+      inviteToken: created.challenge.inviteToken,
+      expectedTurn: accepted.session.turn,
+      expectedVersion: accepted.session.version,
+      action: "surrender"
+    });
+    expect(surrendered).toMatchObject({ state: "updated", session: { status: "forfeited" } });
+    expect(surrendered).not.toHaveProperty("questProgressUpdates");
+    expect(quest.recorded.size).toBe(0);
+    expect(world.resolvedRoundLookupCount).toBe(1);
+
+    world.resolvedRoundLookupCount = 0;
+    world.fullJournalLookupCount = 0;
+    const disabledService = buildService(
+      world,
+      fixedNow,
+      undefined,
+      undefined,
+      undefined,
+      new FakeFightingCornerQuestIntegration(false)
+    );
+    await expect(disabledService.getByToken(created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "resolved"
+    });
+    expect(world.resolvedRoundLookupCount).toBe(0);
+    expect(world.fullJournalLookupCount).toBe(0);
   });
 
   it("checks accept resource warnings against the accepting hero, not the challenger", async () => {
@@ -1921,6 +2062,70 @@ class FakeDuelActivityEvents {
   }
 }
 
+class FakeFightingCornerQuestIntegration {
+  readonly recorded = new Set<bigint>();
+
+  constructor(
+    private readonly enabled = true,
+    private readonly failOnceFor = new Set<bigint>()
+  ) {}
+
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  recordResolvedDuelSafely(
+    challenge: DuelChallengeRecord,
+    options: { hasResolvedRound?: boolean } = {}
+  ): Promise<Array<{
+    telegramUserId: bigint;
+    objective: "turn-based-duel";
+    progress: {
+      accepted: boolean;
+      trainingCompleted: boolean;
+      quickDuelCompleted: boolean;
+      turnBasedDuelCompleted: boolean;
+      completedObjectives: number;
+      requiredObjectives: 3;
+      readyToClaim: boolean;
+      currentLocationId: string | null;
+    };
+  }>> {
+    if (!this.enabled || challenge.status !== "resolved" || options.hasResolvedRound !== true || !challenge.target) {
+      return Promise.resolve([]);
+    }
+
+    const participantIds = [challenge.challenger.telegramUserId, challenge.target.telegramUserId];
+    return Promise.resolve(participantIds.flatMap((telegramUserId) => {
+      if (this.failOnceFor.delete(telegramUserId) || this.recorded.has(telegramUserId)) {
+        return [];
+      }
+      this.recorded.add(telegramUserId);
+      return [{
+        telegramUserId,
+        objective: "turn-based-duel" as const,
+        progress: {
+          accepted: true,
+          trainingCompleted: false,
+          quickDuelCompleted: false,
+          turnBasedDuelCompleted: true,
+          completedObjectives: 1,
+          requiredObjectives: 3 as const,
+          readyToClaim: false,
+          currentLocationId: "location.korchma.fighting_corner"
+        }
+      }];
+    }));
+  }
+}
+
+function setSessionHitPoints(world: FakeDuelWorld, sessionId: string, hp: number): void {
+  const session = world.sessions.get(sessionId);
+  if (!session) throw new Error("Expected stored turn-based session.");
+  session.state.participants.challenger.hp = hp;
+  session.state.participants.target.hp = hp;
+}
+
 class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly characters = new Map<bigint, DuelCharacterSnapshot>();
   readonly challenges = new Map<string, DuelChallengeRecord>();
@@ -1932,6 +2137,8 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   failNextResourceUpdate = false;
   failNextTurnUpdateWithConcurrentOpponentChoice = false;
   turnUpdateAttempts = 0;
+  resolvedRoundLookupCount = 0;
+  fullJournalLookupCount = 0;
 
   addCharacter(
     telegramUserId: bigint,
@@ -2318,6 +2525,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   }
 
   listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]> {
+    this.fullJournalLookupCount += 1;
     const session = [...this.sessions.values()].find(
       (entry) => entry.challenge.inviteToken === inviteToken
     );
@@ -2327,6 +2535,15 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     }
 
     return Promise.resolve([...(this.turnActions.get(session.id) ?? [])]);
+  }
+
+  hasResolvedTurnBasedRoundByToken(inviteToken: string): Promise<boolean> {
+    this.resolvedRoundLookupCount += 1;
+    const session = [...this.sessions.values()].find(
+      (entry) => entry.challenge.inviteToken === inviteToken
+    );
+    return Promise.resolve((session ? this.turnActions.get(session.id) ?? [] : [])
+      .some((action) => action.actionKey === "round" || action.actionKey === "timeout-attack"));
   }
 
   updateTurnBasedIfActiveVersion(

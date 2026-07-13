@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { Context } from "grammy";
+import { sendTrainingDoppelganger } from "../../src/bot/commands/trainingDoppelgangerCommand";
 import type {
   CharacterRecord,
   CharacterRepository,
@@ -47,6 +49,7 @@ import {
   TRAINING_DOPPELGANGER_COOLDOWN_KEY,
   TRAINING_DOPPELGANGER_REWARD_KEY
 } from "../../src/services/trainingDoppelgangerService";
+import type { PresenceService } from "../../src/services/presenceService";
 
 const telegramUserId = 42n;
 const fixedNow = () => new Date("2026-06-17T09:30:00.000Z");
@@ -395,6 +398,76 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.actions.size).toBe(1);
     expect(world.cooldowns.size).toBe(1);
     expect(world.sessions.get(started.session.id)?.reward).toBeDefined();
+  });
+
+  it("records a lazily settled terminal session exactly once through repeated shared command recovery", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.1, 0.1, 0.1]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: { ...started.session.state.monster, hp: 1 },
+        turnExpiresAt: new Date("2026-06-17T09:29:59.000Z").toISOString()
+      }
+    });
+
+    const seen = new Set<string>();
+    let recordCalls = 0;
+    const fightingCornerQuest = {
+      recordTrainingSessionSafely: (_telegramUserId: bigint, session: SoloCombatSessionRecord) => {
+        recordCalls += 1;
+        if (seen.has(session.id)) return Promise.resolve([]);
+        seen.add(session.id);
+        return Promise.resolve([{
+          telegramUserId,
+          objective: "training" as const,
+          progress: {
+            accepted: true,
+            trainingCompleted: true,
+            quickDuelCompleted: false,
+            turnBasedDuelCompleted: false,
+            completedObjectives: 1,
+            requiredObjectives: 3 as const,
+            readyToClaim: false,
+            currentLocationId: "location.korchma.fighting_corner"
+          }
+        }]);
+      }
+    };
+    const replies: string[] = [];
+    const ctx = {
+      from: { id: Number(telegramUserId), first_name: "Тестовий" },
+      reply: (text: string) => {
+        replies.push(text);
+        return Promise.resolve({ message_id: replies.length });
+      }
+    } as unknown as Context;
+    const presence = {
+      markAction: () => Promise.resolve(undefined)
+    } as unknown as PresenceService;
+
+    await sendTrainingDoppelganger(ctx, service, "reply", {
+      presence,
+      fightingCornerQuest,
+      now: fixedNow
+    });
+    await sendTrainingDoppelganger(ctx, service, "reply", {
+      presence,
+      fightingCornerQuest,
+      now: fixedNow
+    });
+
+    expect(recordCalls).toBe(1);
+    expect(seen).toEqual(new Set([started.session.id]));
+    expect(replies.filter((text) => text.includes("Зараховано тренування із Сумлінним Допельґанґером")))
+      .toHaveLength(1);
+    expect(world.actions.size).toBe(1);
   });
 
   it("claims a training reward when scheduled timeout auto-loses", async () => {

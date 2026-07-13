@@ -160,38 +160,44 @@ export async function buildQuestHubSnapshot(
     return null;
   }
 
-  const starterAdventure =
+  const [
+    starterAdventure,
+    fightLookups,
+    firstKorchmaQuest,
+    starterFight,
+    yeger,
+    cellar,
+    barrelBeerTutorial,
+    dailyKorchmaRound,
+    itemUpgrades
+  ] = await Promise.all([
     typeof options.adventure.getMimicShawarmaForTelegramUser === "function"
-      ? await options.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
-      : null;
-
-  const fight = await options.fight.getFightOverviewForTelegramUser(telegramUserId);
-  const firstKorchmaQuest = options.firstKorchmaQuest
-    ? await options.firstKorchmaQuest.getForTelegramUser(telegramUserId)
-    : null;
-  const fightingCornerQuest = options.fightingCornerQuest
-    ? await options.fightingCornerQuest.getForTelegramUser(telegramUserId)
-    : null;
-  const starterFight =
+      ? options.adventure.getMimicShawarmaForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    getQuestHubFightLookups(telegramUserId, options),
+    options.firstKorchmaQuest
+      ? options.firstKorchmaQuest.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
     typeof options.fight.getMimicShawarmaForTelegramUser === "function"
-      ? await options.fight.getMimicShawarmaForTelegramUser(telegramUserId)
-      : null;
-  const problemQuest = await options.fight.getProblemQuestProgressForTelegramUser(telegramUserId);
-  const yeger = await options.yeger.getForTelegramUser(telegramUserId);
-  const cellar = await options.cellarErrand.getForTelegramUser(telegramUserId);
-  const barrelBeerTutorial = options.barrelBeerTutorial
-    ? await options.barrelBeerTutorial.getForTelegramUser(telegramUserId)
-    : null;
+      ? options.fight.getMimicShawarmaForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    options.yeger.getForTelegramUser(telegramUserId),
+    options.cellarErrand.getForTelegramUser(telegramUserId),
+    options.barrelBeerTutorial
+      ? options.barrelBeerTutorial.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    options.dailyKorchmaRound
+      ? options.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+      : Promise.resolve(null),
+    options.itemUpgrades
+      ? options.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId)
+      : Promise.resolve(null)
+  ]);
+  const { fight, problemQuest, fightingCornerQuest } = fightLookups;
   const cellarGrownup =
     cellar.state === "level-retired" && options.cellarGrownup
       ? await options.cellarGrownup.getForTelegramUser(telegramUserId)
       : null;
-  const dailyKorchmaRound = options.dailyKorchmaRound
-    ? await options.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
-    : null;
-  const itemUpgrades = options.itemUpgrades
-    ? await options.itemUpgrades.getUnlockQuestForTelegramUser(telegramUserId)
-    : null;
 
   if (
     fight.state === "no-character" ||
@@ -228,6 +234,42 @@ export async function buildQuestHubSnapshot(
       ? { cellarGrownup }
       : {})
   };
+}
+
+async function getQuestHubFightLookups(
+  telegramUserId: bigint,
+  options: QuestHubCommandOptions
+): Promise<{
+  fight: Awaited<ReturnType<FightService["getFightOverviewForTelegramUser"]>>;
+  problemQuest: Awaited<ReturnType<FightService["getProblemQuestProgressForTelegramUser"]>>;
+  fightingCornerQuest: Awaited<ReturnType<FightingCornerQuestService["getForTelegramUser"]>> | null;
+}> {
+  if (typeof options.fight.getQuestMarkerSnapshotForTelegramUser === "function") {
+    const snapshot = await options.fight.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+    return {
+      fight: unwrapSettled(snapshot.fight),
+      problemQuest: unwrapSettled(snapshot.problemQuest),
+      fightingCornerQuest: options.fightingCornerQuest && snapshot.fightingCornerQuest
+        ? unwrapSettled(snapshot.fightingCornerQuest)
+        : null
+    };
+  }
+
+  const [fight, problemQuest, fightingCornerQuest] = await Promise.all([
+    options.fight.getFightOverviewForTelegramUser(telegramUserId),
+    options.fight.getProblemQuestProgressForTelegramUser(telegramUserId),
+    options.fightingCornerQuest
+      ? options.fightingCornerQuest.getForTelegramUser(telegramUserId)
+      : Promise.resolve(null)
+  ]);
+  return { fight, problemQuest, fightingCornerQuest };
+}
+
+function unwrapSettled<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === "rejected") {
+    throw result.reason;
+  }
+  return result.value;
 }
 
 export async function sendFirstKorchmaQuestCompletionIfNeeded(

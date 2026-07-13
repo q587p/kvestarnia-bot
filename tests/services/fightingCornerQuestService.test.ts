@@ -9,7 +9,10 @@ import type {
 } from "../../src/db/repositories/dailyActionRepository";
 import type { DuelChallengeRecord } from "../../src/db/repositories/duelChallengeRepository";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
-import { ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
+import {
+  ISKROKAMIN_ITEM_ID,
+  PINK_SOAP_OF_FIRST_RULE_ITEM_ID
+} from "../../src/services/itemGrant";
 import {
   FIGHTING_CORNER_QUEST_KEYS,
   FightingCornerQuestService,
@@ -17,10 +20,23 @@ import {
   getFightingCornerQuestRewardXp
 } from "../../src/services/fightingCornerQuestService";
 
-const ACCEPTED_AT = new Date("2026-07-13T18:00:00.000Z");
+const ACCEPTED_AT = new Date("2026-07-13T18:00:00.123Z");
 const RESOLVED_AT = new Date("2026-07-13T18:13:00.000Z");
 
 describe("FightingCornerQuestService", () => {
+  it("loads current-life state through one bounded read of the five exact quest keys", async () => {
+    const world = new TestWorld();
+
+    await world.service().getForTelegramUser(42n);
+
+    expect(world.daily.listLookups).toEqual([{
+      characterId: "character-1",
+      keys: Object.values(FIGHTING_CORNER_QUEST_KEYS),
+      localDate: "life:0",
+      take: 5
+    }]);
+  });
+
   it("unlocks at level 3 without retiring at high levels and requires the physical Quest Table", async () => {
     const world = new TestWorld();
     world.character.level = 2;
@@ -54,6 +70,22 @@ describe("FightingCornerQuestService", () => {
     const updates = await service.recordTrainingSessionSafely(42n, trainingSession({ status: "lost" }));
     expect(updates).toMatchObject([{ objective: "training", progress: { completedObjectives: 1 } }]);
     expect(await service.recordTrainingSessionSafely(42n, trainingSession({ status: "won" }))).toEqual([]);
+  });
+
+  it.each([
+    ["before", "2026-07-13T18:00:00.122Z", false],
+    ["equal", "2026-07-13T18:00:00.123Z", false],
+    ["after", "2026-07-13T18:00:00.124Z", true]
+  ] as const)("enforces the strict post-accept boundary for an event %s acceptance", async (_label, completedAt, counts) => {
+    const world = new TestWorld();
+    await world.accept();
+
+    const updates = await world.service().recordTrainingSessionSafely(
+      42n,
+      trainingSession({ completedAt })
+    );
+
+    expect(updates.length > 0).toBe(counts);
   });
 
   it("credits an ordinary resolved quick duel to both current-life participants but excludes retaliation", async () => {
@@ -119,6 +151,26 @@ describe("FightingCornerQuestService", () => {
     expect(await service.claimForTelegramUser(42n)).toMatchObject({ state: "completed" });
   });
 
+  it("grants and replays the exact level 3 soap and Iskrokamin reward", async () => {
+    const world = new TestWorld();
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+
+    const first = await world.service().claimForTelegramUser(42n);
+    const replay = await world.service().claimForTelegramUser(42n);
+
+    expect(first).toMatchObject({
+      state: "completed",
+      reward: {
+        itemGrants: [
+          { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+          { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+        ]
+      }
+    });
+    expect(replay).toMatchObject({ state: "already-completed", reward: first.state === "completed" ? first.reward : {} });
+  });
+
   it("stores and replays the exact reward, including the canonical level 4+ Iskrokamin bonus", async () => {
     const world = new TestWorld();
     world.character.level = 4;
@@ -134,12 +186,18 @@ describe("FightingCornerQuestService", () => {
       reward: {
         xp: getFightingCornerQuestRewardXp({ level: 4, remortCount: 0 }),
         gold: 37,
-        itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 2 }]
+        itemGrants: [
+          { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+          { itemId: ISKROKAMIN_ITEM_ID, quantity: 2 }
+        ]
       }
     });
     expect(replay).toMatchObject({ state: "already-completed", reward: first.state === "completed" ? first.reward : {} });
     expect(world.daily.count(FIGHTING_CORNER_QUEST_KEYS.completed, "life:0", 42n)).toBe(1);
-    expect(world.grantedItems).toEqual([{ itemId: ISKROKAMIN_ITEM_ID, quantity: 2 }]);
+    expect(world.grantedItems).toEqual([
+      { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+      { itemId: ISKROKAMIN_ITEM_ID, quantity: 2 }
+    ]);
   });
 
   it("serializes concurrent claims so XP, gold and items are granted once", async () => {
@@ -155,7 +213,50 @@ describe("FightingCornerQuestService", () => {
     expect(results.map((result) => result.state).sort()).toEqual(["already-completed", "completed"]);
     expect(world.character.xp).toBe(getFightingCornerQuestRewardXp(world.character));
     expect(world.character.gold).toBe(getFightingCornerQuestRewardGold(world.character.level));
+    expect(world.grantedItems).toEqual([
+      { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+      { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+    ]);
+  });
+
+  it("omits a pre-owned soap from both applied and replayed grants", async () => {
+    const world = new TestWorld();
+    world.preown(PINK_SOAP_OF_FIRST_RULE_ITEM_ID);
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+
+    const first = await world.service().claimForTelegramUser(42n);
+    const replay = await world.service().claimForTelegramUser(42n);
+
+    expect(first).toMatchObject({
+      state: "completed",
+      reward: { itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }] }
+    });
+    expect(replay).toMatchObject({
+      state: "already-completed",
+      reward: { itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }] }
+    });
     expect(world.grantedItems).toEqual([{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]);
+  });
+
+  it("allows a new remort-life quest while the max-owned cap prevents soap stacking", async () => {
+    const world = new TestWorld();
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+    await world.service().claimForTelegramUser(42n);
+
+    world.character.remortCount = 1;
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+    const nextLife = await world.service().claimForTelegramUser(42n);
+
+    expect(nextLife).toMatchObject({
+      state: "completed",
+      reward: { itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }] }
+    });
+    expect(world.grantedItems.filter((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID))
+      .toEqual([{ itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 }]);
+    expect(world.daily.count(FIGHTING_CORNER_QUEST_KEYS.completed, "life:1", 42n)).toBe(1);
   });
 
   it("isolates every stage by remort life and rejects results settled for an older life", async () => {
@@ -222,8 +323,9 @@ class TestWorld {
   readonly target = makeCharacter("character-2", 84n);
   readonly characters = new Map<bigint, CharacterRecord>([[42n, this.character], [84n, this.target]]);
   readonly grantedItems: ItemGrant[] = [];
+  readonly ownedItems = new Map<string, number>();
   readonly retaliationTokens = new Set<string>();
-  readonly daily = new TestDailyActionRepository(this.characters, this.grantedItems);
+  readonly daily = new TestDailyActionRepository(this.characters, this.grantedItems, this.ownedItems);
 
   service(options: { enabled?: boolean; devHelpersEnabled?: boolean } = {}): FightingCornerQuestService {
     return new FightingCornerQuestService(
@@ -237,8 +339,13 @@ class TestWorld {
       {
         enabled: options.enabled ?? true,
         devHelpersEnabled: options.devHelpersEnabled ?? true
-      }
+      },
+      () => ACCEPTED_AT
     );
+  }
+
+  preown(itemId: string, quantity = 1): void {
+    this.ownedItems.set(itemId, quantity);
   }
 
   async accept(telegramUserId = 42n): Promise<void> {
@@ -250,7 +357,10 @@ class TestWorld {
 
   async completeObjectives(): Promise<void> {
     await this.accept(42n);
-    await this.service().recordTrainingSessionSafely(42n, trainingSession({ status: "won" }));
+    await this.service().recordTrainingSessionSafely(42n, trainingSession({
+      status: "won",
+      remortCount: this.character.remortCount ?? 0
+    }));
     await this.service().recordResolvedDuelSafely(duel(this));
     await this.service().recordResolvedDuelSafely(duel(this, { mode: "turn-based" }), { hasResolvedRound: true });
   }
@@ -258,11 +368,18 @@ class TestWorld {
 
 class TestDailyActionRepository implements DailyActionRepository {
   private readonly rows = new Map<string, DailyActionRecord>();
+  readonly listLookups: Array<{
+    characterId: string;
+    keys: readonly string[];
+    localDate: string;
+    take: number;
+  }> = [];
   failClaims = false;
 
   constructor(
     private readonly characters: Map<bigint, CharacterRecord>,
-    private readonly grantedItems: ItemGrant[]
+    private readonly grantedItems: ItemGrant[],
+    private readonly ownedItems: Map<string, number>
   ) {}
 
   findForTelegramUser(telegramUserId: bigint, input: { key: string; localDate: string }): Promise<DailyActionRecord | null> {
@@ -273,6 +390,7 @@ class TestDailyActionRepository implements DailyActionRepository {
     characterId: string,
     input: { keys: readonly string[]; localDate: string; take: number }
   ): Promise<DailyActionRecord[]> {
+    this.listLookups.push({ characterId, ...input });
     return Promise.resolve([...this.rows.values()]
       .filter((row) => row.characterId === characterId && row.localDate === input.localDate && input.keys.includes(row.key))
       .slice(0, input.take));
@@ -297,7 +415,15 @@ class TestDailyActionRepository implements DailyActionRepository {
       itemGrants.push({ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 });
     }
     const mergedItemGrants = [...itemGrants.reduce((map, grant) => {
-      map.set(grant.itemId, (map.get(grant.itemId) ?? 0) + grant.quantity);
+      const owned = this.ownedItems.get(grant.itemId) ?? 0;
+      const quantity = grant.maxOwnedQuantity === undefined
+        ? grant.quantity
+        : Math.max(0, Math.min(grant.quantity, grant.maxOwnedQuantity - owned));
+      if (quantity <= 0) {
+        return map;
+      }
+      this.ownedItems.set(grant.itemId, owned + quantity);
+      map.set(grant.itemId, (map.get(grant.itemId) ?? 0) + quantity);
       return map;
     }, new Map<string, number>())].map(([itemId, quantity]) => ({ itemId, quantity }));
     const base = input.resultJson && typeof input.resultJson === "object" && !Array.isArray(input.resultJson)

@@ -15,11 +15,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Added explicit production-off rollout flags for the quest and its non-production-only helper.
 
 ### Rewards
-- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold and one guaranteed `Іскрокамінь`, plus the existing canonical level 4+ quest Iskrokamin bonus.
+- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold, the max-one starter tool `Рожеве мило першого правила` and one guaranteed `Іскрокамінь`, plus the existing canonical level 4+ quest Iskrokamin bonus. Already-owned soap is not duplicated or shown as applied.
 - Exact XP, gold and applied item grants are stored and replayed; duplicate/concurrent claims cannot reroll or duplicate them.
 
 ### Compatibility
-- Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. The quest marker shares the existing grouped Fight marker source, so the optimized primary source fan-out remains eight.
+- Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. Acceptance uses a stored millisecond timestamp and requires strictly later objectives. The quest marker remains within the eight-source grouped Fight snapshot while adding one actual bounded ledger query when enabled; Quest Hub reuses that snapshot instead of repeating the three Fight-family reads.
+- Turn-based resolution uses a bounded round-existence query only when the feature is enabled; lazy terminal Doppelganger command/callback recovery now runs the same idempotent progress hook as direct settlement.
 - Training/duel settlement remains primary and quest progress/Telegram delivery is idempotent best effort. Normal training, quick-duel and turn-based rewards, tournament scoring/prizes, combat outcomes and lore text are unchanged.
 
 ## [0.3.9] - 12026-07-13 - Quest Marker Snapshot DB Fan-out Reduction

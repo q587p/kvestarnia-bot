@@ -128,7 +128,8 @@ export function registerCombatBotModule(
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      fightingCornerQuest: services.fightingCornerQuest
     });
     registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
@@ -355,6 +356,7 @@ async function handleTrainingDoppelgangerCallback(
   await sendTrainingDoppelganger(ctx, services.trainingDoppelganger, "edit", {
     presence: services.presence,
     tavernRaid: services.tavern,
+    fightingCornerQuest: services.fightingCornerQuest,
     requireKorchmaInterior: true,
     ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });

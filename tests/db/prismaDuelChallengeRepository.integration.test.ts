@@ -454,6 +454,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         turn: 1
       }
     })).resolves.toBe(1);
+    await expect(repository.hasResolvedTurnBasedRoundByToken("terminal-race")).resolves.toBe(true);
     await expect(prisma.activeCombatLease.count({
       where: {
         kind: "turn-based-duel",

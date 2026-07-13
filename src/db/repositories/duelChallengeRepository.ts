@@ -248,6 +248,8 @@ export interface DuelChallengeRepository {
 
   listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]>;
 
+  hasResolvedTurnBasedRoundByToken(inviteToken: string): Promise<boolean>;
+
   updateTurnBasedIfActiveVersion(
     sessionId: string,
     expectedTurn: number,

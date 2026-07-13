@@ -225,7 +225,10 @@ export class DuelChallengeService {
     private readonly nearbyDuelTargets?: NearbyDuelTargetValidator,
     private readonly achievements?: AchievementService,
     private readonly activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">,
-    private readonly fightingCornerQuest?: Pick<FightingCornerQuestService, "recordResolvedDuelSafely">
+    private readonly fightingCornerQuest?: Pick<
+      FightingCornerQuestService,
+      "isEnabled" | "recordResolvedDuelSafely"
+    >
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -938,14 +941,17 @@ export class DuelChallengeService {
   private async recordFightingCornerQuestProgressSafely(
     challenge: DuelChallengeRecord
   ): Promise<FightingCornerQuestProgressUpdate[]> {
-    if (!this.fightingCornerQuest || challenge.status !== "resolved") {
+    if (
+      !this.fightingCornerQuest ||
+      !this.fightingCornerQuest.isEnabled() ||
+      challenge.status !== "resolved"
+    ) {
       return [];
     }
 
     try {
       const hasResolvedRound = challenge.mode === "turn-based"
-        ? (await this.challenges.listTurnBasedActionsByToken(challenge.inviteToken))
-          .some((action) => action.actionKey === "round" || action.actionKey === "timeout-attack")
+        ? await this.challenges.hasResolvedTurnBasedRoundByToken(challenge.inviteToken)
         : undefined;
 
       return this.fightingCornerQuest.recordResolvedDuelSafely(challenge, {
