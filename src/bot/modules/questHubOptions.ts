@@ -12,6 +12,7 @@ export function buildQuestHubCommandOptions(services: BotServices): QuestHubComm
     dailyKorchmaRound: services.dailyKorchmaRound,
     fight: services.fight,
     firstKorchmaQuest: services.firstKorchmaQuest,
+    fightingCornerQuest: services.fightingCornerQuest,
     itemUpgrades: services.itemUpgrades,
     yeger: services.yeger,
     presence: services.presence,

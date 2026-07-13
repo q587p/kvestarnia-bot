@@ -151,11 +151,12 @@ export function createRuntime(input: {
       }
       combatTurnTimeoutScheduler = dependencies.createCombatTurnTimeoutScheduler(
         services.trainingDoppelganger
-          ? {
-              fight: services.fight,
-              trainingDoppelganger: services.trainingDoppelganger
-            }
-          : { fight: services.fight },
+            ? {
+                fight: services.fight,
+                fightingCornerQuest: services.fightingCornerQuest,
+                trainingDoppelganger: services.trainingDoppelganger
+              }
+            : { fight: services.fight, fightingCornerQuest: services.fightingCornerQuest },
         bot
       );
       equipmentAttunementScheduler = dependencies.createEquipmentAttunementScheduler(

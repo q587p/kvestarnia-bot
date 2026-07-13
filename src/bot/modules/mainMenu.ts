@@ -163,7 +163,8 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
-      includeTavernGames: services.tavernGames?.isEnabled() ?? false
+      includeTavernGames: services.tavernGames?.isEnabled() ?? false,
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });
@@ -182,7 +183,8 @@ export function registerMainMenuKeyboard(
     await ctx.reply(presentDevHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false
+      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
     }), {
       reply_markup: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
     });

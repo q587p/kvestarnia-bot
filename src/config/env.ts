@@ -44,6 +44,8 @@ export const configSchema = z.object({
   bigBarrelBrotherRaidEnabled: z.boolean().default(false),
   combatBalanceAnalyticsEnabled: z.boolean().default(false),
   hpRecoveryNotificationsEnabled: z.boolean().default(false),
+  fightingCornerOnboardingQuestEnabled: z.boolean().default(false),
+  fightingCornerOnboardingQuestDevHelpersEnabled: z.boolean().default(false),
   tavernGamesEnabled: z.boolean().default(false),
   tavernGameTavleiEnabled: z.boolean().default(false),
   tavernGameKostiEnabled: z.boolean().default(false),
@@ -68,6 +70,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     bigBarrelBrotherRaidEnabled: parseBoolean(env.BIG_BARREL_BROTHER_RAID_ENABLED),
     combatBalanceAnalyticsEnabled: parseBoolean(env.COMBAT_BALANCE_ANALYTICS_ENABLED),
     hpRecoveryNotificationsEnabled: parseBoolean(env.HP_RECOVERY_NOTIFICATIONS_ENABLED),
+    fightingCornerOnboardingQuestEnabled: parseBoolean(env.FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED),
+    fightingCornerOnboardingQuestDevHelpersEnabled: parseBoolean(
+      env.FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED
+    ),
     tavernGamesEnabled: parseBoolean(env.TAVERN_GAMES_ENABLED),
     tavernGameTavleiEnabled: parseBoolean(env.TAVERN_GAME_TAVLEI_ENABLED),
     tavernGameKostiEnabled: parseBoolean(env.TAVERN_GAME_KOSTI_ENABLED),

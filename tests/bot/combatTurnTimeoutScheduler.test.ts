@@ -328,6 +328,51 @@ describe("combat turn timeout scheduler", () => {
       messageId: 590
     });
   });
+
+  it("keeps terminal training settled when the best-effort quest notification fails", async () => {
+    const dueSession = trainingSession();
+    const session = terminalTrainingSession();
+    const training = {
+      listDueTrainingTurns: vi.fn(() => Promise.resolve([dueSession])),
+      resolveDueTrainingTurn: vi.fn(() => Promise.resolve({
+        state: "terminal",
+        telegramUserId: 42n,
+        character,
+        doppelganger: trainingDoppelganger(),
+        session,
+        reward: null
+      } satisfies TrainingDoppelgangerTimeoutResult)),
+      recordTrainingDoppelgangerMessageReference: vi.fn(() => Promise.resolve())
+    };
+    const recordTrainingSessionSafely = vi.fn(() => Promise.resolve([{
+      telegramUserId: 42n,
+      objective: "training" as const,
+      progress: {
+        accepted: true,
+        trainingCompleted: true,
+        quickDuelCompleted: false,
+        turnBasedDuelCompleted: false,
+        completedObjectives: 1,
+        requiredObjectives: 3 as const,
+        readyToClaim: false,
+        currentLocationId: "location.korchma.fighting_corner"
+      }
+    }]));
+    const sendMessage = vi.fn(() => Promise.reject(new Error("Telegram unavailable")));
+    const { bot } = fakeBot({ sendMessage });
+    const scheduler = createCombatTurnTimeoutScheduler({
+      fight: { listDuePersistentFightTurns: vi.fn(() => Promise.resolve([])) } as unknown as FightService,
+      trainingDoppelganger: training as unknown as TrainingDoppelgangerService,
+      fightingCornerQuest: { recordTrainingSessionSafely } as never
+    }, bot, { intervalMs: 60_000 });
+
+    scheduler.start();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    scheduler.stop();
+
+    expect(training.resolveDueTrainingTurn).toHaveBeenCalledWith(dueSession);
+    expect(recordTrainingSessionSafely).toHaveBeenCalledWith(42n, session);
+  });
 });
 
 type EditMessageTextCall = [
@@ -430,6 +475,12 @@ function terminalPersistentSession(): DueSoloCombatSessionRecord {
   const state: CombatState = {
     ...session.state!,
     status: "won",
+    completedAt: "2026-06-20T00:00:23.000Z",
+    settlement: {
+      ...session.state!.settlement!,
+      status: "completed",
+      settledAt: "2026-06-20T00:00:23.000Z"
+    },
     turn: 3,
     monster: {
       ...session.state!.monster,
@@ -478,6 +529,12 @@ function terminalTrainingSession(): DueSoloCombatSessionRecord {
   const state: CombatState = {
     ...session.state!,
     status: "won",
+    completedAt: "2026-06-20T00:00:23.000Z",
+    settlement: {
+      ...session.state!.settlement!,
+      status: "completed",
+      settledAt: "2026-06-20T00:00:23.000Z"
+    },
     turn: 3,
     monster: {
       ...session.state!.monster,

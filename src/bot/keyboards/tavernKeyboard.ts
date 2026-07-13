@@ -172,7 +172,13 @@ export function buildKorchmaHallKeyboard(options: { characterLevel?: number; que
   }
 
   if (showFightingCorner) {
-    keyboard.text("🥊 Бійцівський куток", makePlaceCallbackData("fighting-corner"));
+    keyboard.text(
+      decorateButtonLabel(
+        "🥊 Бійцівський куток",
+        resolveQuestMarkerForTarget(options.questMarkers ?? undefined, "location.korchma.fighting-corner")
+      ),
+      makePlaceCallbackData("fighting-corner")
+    );
   }
 
   keyboard.text(
@@ -232,6 +238,10 @@ export function buildKorchmaFightingCornerKeyboard(
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  if (options.questMarkers?.fightingCornerQuest?.state === "turn-in-ready") {
+    keyboard.text("✅ До Столу по нагороду", makePlaceCallbackData("quest-table")).row();
+  }
 
   if (options.trainingDoppelgangerAvailable !== false) {
     keyboard.text("🥊 Потренуватися", makeTrainingDoppelgangerCallbackData()).row();

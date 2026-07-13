@@ -4,7 +4,7 @@ import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import { makeBestiaryListCallbackData } from "../../src/bot/callbacks/bestiaryCallbackData";
 import { makeYegerTurnInCallbackData } from "../../src/bot/callbacks/yegerCallbackData";
-import { sendQuestHub, sendQuestOverview } from "../../src/bot/commands/questHubCommand";
+import { buildQuestHubSnapshot, sendQuestHub, sendQuestOverview } from "../../src/bot/commands/questHubCommand";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -15,6 +15,7 @@ import type { CellarGrownupQuestService } from "../../src/services/cellarGrownup
 import type { DailyKorchmaRoundService } from "../../src/services/dailyKorchmaRoundService";
 import type { FightService } from "../../src/services/fightService";
 import type { FirstKorchmaQuestService } from "../../src/services/firstKorchmaQuestService";
+import type { FightingCornerQuestService } from "../../src/services/fightingCornerQuestService";
 import type { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 import type { TavernRaidService } from "../../src/services/tavernRaidService";
 import type { YegerQuestService } from "../../src/services/yegerQuestService";
@@ -26,6 +27,57 @@ import {
 } from "../../src/services/presenceService";
 
 describe("quest hub command", () => {
+  it("reuses the grouped fight marker snapshot instead of duplicating character and quest reads", async () => {
+    const baseFight = readyFightService(character);
+    const grouped = vi.fn(() => Promise.resolve({
+      fight: { status: "fulfilled" as const, value: {
+        state: "persistent-ready" as const,
+        character,
+        questProgress: questProgress(0)
+      } },
+      problemQuest: { status: "fulfilled" as const, value: {
+        state: "ready" as const,
+        character,
+        progress: questProgress(0),
+        archive: []
+      } },
+      fightingCornerQuest: { status: "fulfilled" as const, value: {
+        state: "available" as const,
+        character,
+        progress: {
+          accepted: false,
+          trainingCompleted: false,
+          quickDuelCompleted: false,
+          turnBasedDuelCompleted: false,
+          completedObjectives: 0,
+          requiredObjectives: 3 as const,
+          readyToClaim: false,
+          currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+        }
+      } }
+    }));
+    const directFight = vi.fn(() => Promise.reject(new Error("duplicate fight read")));
+    const directProblem = vi.fn(() => Promise.reject(new Error("duplicate problem read")));
+    const directCorner = vi.fn(() => Promise.reject(new Error("duplicate corner read")));
+    const fight = {
+      ...baseFight,
+      getQuestMarkerSnapshotForTelegramUser: grouped,
+      getFightOverviewForTelegramUser: directFight,
+      getProblemQuestProgressForTelegramUser: directProblem
+    } as unknown as FightService;
+    const fightingCornerQuest = {
+      getForTelegramUser: directCorner
+    } as unknown as FightingCornerQuestService;
+
+    const snapshot = await buildQuestHubSnapshot(42n, servicesWith({ fight, fightingCornerQuest }));
+
+    expect(snapshot?.fightingCornerQuest).toMatchObject({ state: "available" });
+    expect(grouped).toHaveBeenCalledTimes(1);
+    expect(directFight).not.toHaveBeenCalled();
+    expect(directProblem).not.toHaveBeenCalled();
+    expect(directCorner).not.toHaveBeenCalled();
+  });
+
   it("asks outside players to enter instead of moving them to the quest table", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
@@ -1544,6 +1596,7 @@ function servicesWith(overrides: {
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight?: FightService;
   firstKorchmaQuest?: FirstKorchmaQuestService;
+  fightingCornerQuest?: FightingCornerQuestService;
   itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger?: YegerQuestService;
   presence?: CapturingPresenceService;
@@ -1565,6 +1618,7 @@ function servicesWith(overrides: {
       overrides.fight ??
       readyFightService(character),
     firstKorchmaQuest: overrides.firstKorchmaQuest,
+    fightingCornerQuest: overrides.fightingCornerQuest,
     itemUpgrades: overrides.itemUpgrades,
     yeger:
       overrides.yeger ??

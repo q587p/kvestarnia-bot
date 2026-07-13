@@ -8,6 +8,7 @@ import { PrismaCharacterRepository } from "../../src/db/repositories/prismaChara
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import { DailyActionQuantityLimitExceededError } from "../../src/db/repositories/dailyActionRepository";
+import { buildQuestIskrokaminBonusGrant } from "../../src/domain/quests/questIskrokaminBonus";
 import {
   YEGER_BANDAGE_PRICE,
   YEGER_BANDAGE_PURCHASE_DAILY_LIMIT,
@@ -15,10 +16,20 @@ import {
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YegerQuestService
 } from "../../src/services/yegerQuestService";
-import { BANDAGE_ITEM_ID } from "../../src/services/itemGrant";
+import {
+  BANDAGE_ITEM_ID,
+  ISKROKAMIN_ITEM_ID,
+  PINK_SOAP_OF_FIRST_RULE_ITEM_ID,
+  starterEquipmentGrant
+} from "../../src/services/itemGrant";
 import { YEGER_BANDAGE_PURCHASE_CONFIRM_KEY } from "../../src/services/dailyActionKeys";
 import type { FightService } from "../../src/services/fightService";
 import type { SoloCombatSessionRepository } from "../../src/db/repositories/soloCombatSessionRepository";
+import {
+  FIGHTING_CORNER_QUEST_KEYS,
+  FightingCornerQuestService
+} from "../../src/services/fightingCornerQuestService";
+import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 
 describe("paid Prisma claim repositories", () => {
   let dir: string;
@@ -360,6 +371,215 @@ describe("paid Prisma claim repositories", () => {
     ).resolves.toMatchObject({ xp: 7, gold: 4 });
     await expect(prisma.dailyAction.count({ where: { characterId: "character-daily-concurrent" } })).resolves.toBe(1);
     await expect(prisma.characterItem.count({ where: { characterId: "character-daily-concurrent" } })).resolves.toBe(1);
+  });
+
+  it.each([
+    { name: "no bonus", characterId: "bonus-0", telegramUserId: 9400n, level: 4, bonus: 0 },
+    { name: "+1 bonus", characterId: "character-1", telegramUserId: 9401n, level: 4, bonus: 1 },
+    { name: "larger +3 bonus", characterId: "bonus-60", telegramUserId: 9402n, level: 4, bonus: 3 },
+    { name: "level 3 gate", characterId: "bonus-60-level-3", telegramUserId: 9403n, level: 3, bonus: 0 }
+  ])("stores one canonical Iskrokamin grant for $name", async ({ characterId, telegramUserId, level, bonus }) => {
+    await seedCharacter(prisma, {
+      userId: `user-${characterId}`,
+      characterId,
+      telegramUserId,
+      gold: 0,
+      level
+    });
+    const key = "quest.fighting-corner.completed";
+    const localDate = "life:0";
+
+    expect(buildQuestIskrokaminBonusGrant({
+      characterId,
+      characterLevel: level,
+      sourceIdentity: `${key}:${localDate}`
+    })?.quantity ?? 0).toBe(bonus);
+
+    const first = await dailyActions.claimForTelegramUser(telegramUserId, {
+      key,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: [
+        starterEquipmentGrant(PINK_SOAP_OF_FIRST_RULE_ITEM_ID),
+        { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+      ],
+      questIskrokaminBonus: true,
+      resultJson: { reward: { itemGrants: [] } }
+    });
+    const action = await prisma.dailyAction.findUniqueOrThrow({
+      where: { characterId_key_localDate: { characterId, key, localDate } }
+    });
+    const stored = action.resultJson as {
+      reward: { appliedItemGrants: Array<{ itemId: string; quantity: number }> };
+    };
+
+    expect(first).toMatchObject({
+      state: "created",
+      itemGrants: [
+        { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+        { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 + bonus }
+      ]
+    });
+    expect(stored.reward.appliedItemGrants).toEqual([
+      { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+      { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 + bonus }
+    ]);
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: ISKROKAMIN_ITEM_ID } }
+    })).resolves.toMatchObject({ quantity: 1 + bonus });
+    await expect(dailyActions.claimForTelegramUser(telegramUserId, {
+      key,
+      localDate,
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 93 }],
+      questIskrokaminBonus: true
+    })).resolves.toMatchObject({ state: "existing", itemGrants: [] });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: ISKROKAMIN_ITEM_ID } }
+    })).resolves.toMatchObject({ quantity: 1 + bonus });
+  });
+
+  it("omits a pre-owned soap while retaining the canonical Iskrokamin grant", async () => {
+    const characterId = "bonus-0-preowned-soap";
+    const telegramUserId = 9404n;
+    await seedCharacter(prisma, {
+      userId: "user-bonus-0-preowned-soap",
+      characterId,
+      telegramUserId,
+      gold: 0,
+      level: 3
+    });
+    await prisma.characterItem.create({
+      data: { characterId, itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 }
+    });
+
+    const result = await dailyActions.claimForTelegramUser(telegramUserId, {
+      key: "quest.fighting-corner.completed",
+      localDate: "life:0",
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: [
+        starterEquipmentGrant(PINK_SOAP_OF_FIRST_RULE_ITEM_ID),
+        { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+      ],
+      questIskrokaminBonus: true
+    });
+
+    expect(result).toMatchObject({
+      state: "created",
+      itemGrants: [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]
+    });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID } }
+    })).resolves.toMatchObject({ quantity: 1 });
+  });
+
+  it("serializes a concurrent Fighting Corner reward into one canonical inventory total", async () => {
+    const characterId = "bonus-1";
+    const telegramUserId = 9405n;
+    await seedCharacter(prisma, {
+      userId: "user-bonus-1",
+      characterId,
+      telegramUserId,
+      gold: 0,
+      level: 4
+    });
+    const input = {
+      key: "quest.fighting-corner.completed",
+      localDate: "life:0",
+      rewardXp: 0,
+      rewardGold: 0,
+      itemGrants: [
+        starterEquipmentGrant(PINK_SOAP_OF_FIRST_RULE_ITEM_ID),
+        { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+      ],
+      questIskrokaminBonus: true
+    };
+
+    const results = await Promise.all([
+      dailyActions.claimForTelegramUser(telegramUserId, input),
+      dailyActions.claimForTelegramUser(telegramUserId, input)
+    ]);
+    const bonus = buildQuestIskrokaminBonusGrant({
+      characterId,
+      characterLevel: 4,
+      sourceIdentity: `${input.key}:${input.localDate}`
+    })?.quantity ?? 0;
+
+    expect(results.map((result) => result?.state).sort()).toEqual(["created", "existing"]);
+    await expect(prisma.dailyAction.count({ where: { characterId, key: input.key } })).resolves.toBe(1);
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: ISKROKAMIN_ITEM_ID } }
+    })).resolves.toMatchObject({ quantity: 1 + bonus });
+    const action = await prisma.dailyAction.findFirstOrThrow({ where: { characterId, key: input.key } });
+    expect((action.resultJson as {
+      reward: { appliedItemGrants: Array<{ itemId: string; quantity: number }> };
+    }).reward.appliedItemGrants.filter((grant) => grant.itemId === ISKROKAMIN_ITEM_ID)).toEqual([
+      { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 + bonus }
+    ]);
+  });
+
+  it("replays the exact real Fighting Corner grant list with one Iskrokamin total", async () => {
+    const characterId = "character-fighting-corner-replay";
+    const telegramUserId = 9406n;
+    await seedCharacter(prisma, {
+      userId: "user-fighting-corner-replay",
+      characterId,
+      telegramUserId,
+      gold: 0,
+      level: 4
+    });
+    await prisma.user.update({
+      where: { id: "user-fighting-corner-replay" },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE }
+    });
+    await prisma.dailyAction.createMany({
+      data: [
+        FIGHTING_CORNER_QUEST_KEYS.accepted,
+        FIGHTING_CORNER_QUEST_KEYS.training,
+        FIGHTING_CORNER_QUEST_KEYS.quickDuel,
+        FIGHTING_CORNER_QUEST_KEYS.turnBasedDuel
+      ].map((key) => ({
+        characterId,
+        key,
+        localDate: "life:0",
+        rewardXp: 0,
+        rewardGold: 0
+      }))
+    });
+    const service = new FightingCornerQuestService(
+      characters,
+      dailyActions,
+      { isRogueRetaliationDuelInviteToken: () => Promise.resolve(false) },
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-07-13T18:13:00.123Z")
+    );
+
+    const first = await service.claimForTelegramUser(telegramUserId);
+    const replay = await service.claimForTelegramUser(telegramUserId);
+
+    expect(first.state).toBe("completed");
+    expect(replay.state).toBe("already-completed");
+    if (first.state !== "completed" || replay.state !== "already-completed") {
+      throw new Error("Expected a completed Fighting Corner claim and exact replay.");
+    }
+    expect(replay.reward).toEqual(first.reward);
+    const iskrokaminGrants = first.reward.itemGrants.filter(
+      (grant) => grant.itemId === ISKROKAMIN_ITEM_ID
+    );
+    expect(iskrokaminGrants).toHaveLength(1);
+    expect(iskrokaminGrants[0]?.quantity ?? 0).toBeGreaterThan(0);
+    const iskrokaminTotal = first.reward.itemGrants.find(
+      (grant) => grant.itemId === ISKROKAMIN_ITEM_ID
+    )?.quantity ?? 0;
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: ISKROKAMIN_ITEM_ID } }
+    })).resolves.toMatchObject({ quantity: iskrokaminTotal });
+    await expect(prisma.dailyAction.count({
+      where: { characterId, key: FIGHTING_CORNER_QUEST_KEYS.completed, localDate: "life:0" }
+    })).resolves.toBe(1);
   });
 
   it("rolls back a paid daily claim when its transaction-local quantity limit is reached", async () => {
@@ -1770,6 +1990,7 @@ async function seedCharacter(
     gold: number;
     hpCurrent?: number;
     hpMax?: number;
+    level?: number;
   }
 ): Promise<void> {
   await prisma.user.create({
@@ -1785,7 +2006,7 @@ async function seedCharacter(
       name: "Мандрівник",
       raceId: "race.human-ish",
       classId: "class.warrior",
-      level: 1,
+      level: input.level ?? 1,
       xp: 0,
       gold: input.gold,
       hpCurrent: input.hpCurrent ?? 25,

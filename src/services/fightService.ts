@@ -140,6 +140,10 @@ import {
 } from "./fight/problemQuest";
 import type { AchievementService, AchievementSimpleEventType, AchievementUnlock } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
+import type {
+  FightingCornerQuestLookupResult,
+  FightingCornerQuestService
+} from "./fightingCornerQuestService";
 
 export { MIMIC_SHAWARMA_COMBAT_PROBE_KEY } from "./dailyActionKeys";
 
@@ -269,6 +273,7 @@ export type ProblemQuestProgressLookupResult =
 export interface FightQuestMarkerSnapshot {
   fight: PromiseSettledResult<FightLookupResult>;
   problemQuest: PromiseSettledResult<ProblemQuestProgressLookupResult>;
+  fightingCornerQuest?: PromiseSettledResult<FightingCornerQuestLookupResult>;
 }
 
 export type FightLookupResult =
@@ -549,6 +554,7 @@ export interface FightServiceDependencies {
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
   achievements?: AchievementService;
   activityEvents?: PublicActivityEventPublisher;
+  fightingCornerQuest?: Pick<FightingCornerQuestService, "getForTelegramUser">;
 }
 
 export class FightService {
@@ -563,6 +569,7 @@ export class FightService {
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
   private readonly achievements: AchievementService | undefined;
   private readonly activityEvents: PublicActivityEventPublisher | undefined;
+  private readonly fightingCornerQuest: Pick<FightingCornerQuestService, "getForTelegramUser"> | undefined;
 
   constructor({
     characters,
@@ -575,7 +582,8 @@ export class FightService {
     pendingPassageEncounters,
     shynok,
     achievements,
-    activityEvents
+    activityEvents,
+    fightingCornerQuest
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -588,6 +596,7 @@ export class FightService {
     this.shynok = shynok;
     this.achievements = achievements;
     this.activityEvents = activityEvents;
+    this.fightingCornerQuest = fightingCornerQuest;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -1634,16 +1643,26 @@ export class FightService {
     if (!character) {
       return {
         fight: { status: "fulfilled", value: { state: "no-character" } },
-        problemQuest: { status: "fulfilled", value: { state: "no-character" } }
+        problemQuest: { status: "fulfilled", value: { state: "no-character" } },
+        ...(this.fightingCornerQuest
+          ? { fightingCornerQuest: { status: "fulfilled", value: { state: "no-character" } } }
+          : {})
       };
     }
 
-    const [fight, problemQuest] = await Promise.allSettled([
+    const [fight, problemQuest, fightingCornerQuest] = await Promise.allSettled([
       this.getFightOverviewForTelegramUser(telegramUserId, { character }),
-      this.getProblemQuestProgressForTelegramUser(telegramUserId, { character })
+      this.getProblemQuestProgressForTelegramUser(telegramUserId, { character }),
+      this.fightingCornerQuest
+        ? this.fightingCornerQuest.getForTelegramUser(telegramUserId, { character })
+        : Promise.resolve({ state: "disabled" } as const)
     ]);
 
-    return { fight, problemQuest };
+    return {
+      fight,
+      problemQuest,
+      ...(this.fightingCornerQuest ? { fightingCornerQuest } : {})
+    };
   }
 
   async getFightForTelegramUser(

@@ -37,6 +37,10 @@ import { getEquippedItemContents } from "./equipmentService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { NearbyDuelTargetValidator } from "./presenceService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
+import type {
+  FightingCornerQuestProgressUpdate,
+  FightingCornerQuestService
+} from "./fightingCornerQuestService";
 
 export const DUEL_INVITE_MIN_LEVEL = 3;
 const DUEL_INVITE_TTL_MS = 13 * 60 * 1000;
@@ -100,6 +104,7 @@ export type DuelChallengeView =
       target: CharacterSummary;
       result: NonNullable<DuelChallengeRecord["result"]>;
       transitioned?: boolean;
+      questProgressUpdates?: FightingCornerQuestProgressUpdate[];
     }
   | {
       state: "expired" | "cancelled" | "declined";
@@ -208,6 +213,7 @@ export type TurnBasedDuelTurnResult =
       state: "updated";
       session: DuelCombatSessionRecord;
       achievementUnlocksByCharacterId?: Record<string, AchievementUnlock[]>;
+      questProgressUpdates?: FightingCornerQuestProgressUpdate[];
     };
 
 export class DuelChallengeService {
@@ -218,7 +224,11 @@ export class DuelChallengeService {
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly nearbyDuelTargets?: NearbyDuelTargetValidator,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">
+    private readonly activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">,
+    private readonly fightingCornerQuest?: Pick<
+      FightingCornerQuestService,
+      "isEnabled" | "recordResolvedDuelSafely"
+    >
   ) {}
 
   async createOpenChallengeForTelegramUser(
@@ -541,9 +551,12 @@ export class DuelChallengeService {
       await this.recordDuelCompletedActivity(accepted.record, now);
     }
 
+    const questProgressUpdates = await this.recordFightingCornerQuestProgressSafely(accepted.record);
+
     return {
       ...this.viewChallenge(accepted.record, now),
-      transitioned: accepted.transitioned
+      transitioned: accepted.transitioned,
+      ...(questProgressUpdates.length > 0 ? { questProgressUpdates } : {})
     };
   }
 
@@ -776,7 +789,15 @@ export class DuelChallengeService {
       await this.recordDuelCompletedActivity(updated.challenge, now);
     }
 
-    return { state: "updated", session: updated };
+    const questProgressUpdates = updated.status !== "active"
+      ? await this.recordFightingCornerQuestProgressSafely(updated.challenge)
+      : [];
+
+    return {
+      state: "updated",
+      session: updated,
+      ...(questProgressUpdates.length > 0 ? { questProgressUpdates } : {})
+    };
   }
 
   private async tryResolveTurnBasedAction(
@@ -848,6 +869,10 @@ export class DuelChallengeService {
       await this.recordDuelCompletedActivity(updated.challenge, now);
     }
 
+    const questProgressUpdates = updated.status !== "active"
+      ? await this.recordFightingCornerQuestProgressSafely(updated.challenge)
+      : [];
+
     const achievementUnlocksByCharacterId = resolved.resolution === "resolved"
       ? await this.trackCommittedTurnBasedGearActions(updated, resolved.round, now)
       : {};
@@ -855,7 +880,8 @@ export class DuelChallengeService {
     return {
       state: "updated",
       session: updated,
-      ...(Object.keys(achievementUnlocksByCharacterId).length > 0 ? { achievementUnlocksByCharacterId } : {})
+      ...(Object.keys(achievementUnlocksByCharacterId).length > 0 ? { achievementUnlocksByCharacterId } : {}),
+      ...(questProgressUpdates.length > 0 ? { questProgressUpdates } : {})
     };
   }
 
@@ -910,6 +936,31 @@ export class DuelChallengeService {
       outcome: challenge.result.outcome,
       occurredAt
     });
+  }
+
+  private async recordFightingCornerQuestProgressSafely(
+    challenge: DuelChallengeRecord
+  ): Promise<FightingCornerQuestProgressUpdate[]> {
+    if (
+      !this.fightingCornerQuest ||
+      !this.fightingCornerQuest.isEnabled() ||
+      challenge.status !== "resolved"
+    ) {
+      return [];
+    }
+
+    try {
+      const hasResolvedRound = challenge.mode === "turn-based"
+        ? await this.challenges.hasResolvedTurnBasedRoundByToken(challenge.inviteToken)
+        : undefined;
+
+      return this.fightingCornerQuest.recordResolvedDuelSafely(challenge, {
+        ...(hasResolvedRound === undefined ? {} : { hasResolvedRound })
+      });
+    } catch (error) {
+      console.warn("Kvestarnia: Fighting Corner duel progress recovery failed.", error);
+      return [];
+    }
   }
 
   async listDueTurnBasedSessions(): Promise<DuelCombatSessionRecord[]> {
@@ -1062,7 +1113,16 @@ export class DuelChallengeService {
       }
     }
 
-    return this.viewChallenge(challenge, now);
+    const view = this.viewChallenge(challenge, now);
+    if (view.state !== "resolved") {
+      return view;
+    }
+
+    const questProgressUpdates = await this.recordFightingCornerQuestProgressSafely(challenge);
+    return {
+      ...view,
+      ...(questProgressUpdates.length > 0 ? { questProgressUpdates } : {})
+    };
   }
 
   private buildActiveView(

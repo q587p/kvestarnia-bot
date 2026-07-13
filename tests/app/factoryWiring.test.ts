@@ -141,7 +141,8 @@ describe("application factory wiring", () => {
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,
         achievements,
-        activityEvents: publicActivityEvents
+        activityEvents: publicActivityEvents,
+        fightingCornerQuest
       });
     `));
     expect(source).toContain(compact(`
@@ -163,7 +164,8 @@ describe("application factory wiring", () => {
         undefined,
         presence,
         achievements,
-        publicActivityEvents
+        publicActivityEvents,
+        fightingCornerQuest
       )
     `));
     expect(source).toContain(compact(`
@@ -178,6 +180,17 @@ describe("application factory wiring", () => {
         {},
         repositories.duelChallenges,
         combatBalanceAnalytics
+      )
+    `));
+    expect(source).toContain(compact(`
+      const fightingCornerQuest = new FightingCornerQuestService(
+        repositories.characters,
+        repositories.dailyActions,
+        repositories.classNoncombat,
+        {
+          enabled: nonProduction || config.fightingCornerOnboardingQuestEnabled,
+          devHelpersEnabled: nonProduction && config.fightingCornerOnboardingQuestDevHelpersEnabled
+        }
       )
     `));
     expect(source).toContain(compact(`
@@ -241,6 +254,17 @@ describe("application factory wiring", () => {
     expect(services.partySessions.areDevHelpersEnabled()).toBe(false);
     expect(services.partyBoss.isEnabled()).toBe(true);
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
+  });
+
+  it("does not let the Fighting Corner helper flag enable reset mutation in production", async () => {
+    const services = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      fightingCornerOnboardingQuestEnabled: true,
+      fightingCornerOnboardingQuestDevHelpersEnabled: true
+    }));
+
+    expect(services.fightingCornerQuest.isDevHelperEnabled()).toBe(false);
+    await expect(services.fightingCornerQuest.resetCurrentLifeForTelegramUser(42n)).resolves.toBe("disabled");
   });
 });
 

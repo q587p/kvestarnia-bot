@@ -3,6 +3,7 @@ import type { DevResetService } from "../../services/devResetService";
 import type { DevGrantService } from "../../services/devGrantService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import type { FightingCornerQuestService } from "../../services/fightingCornerQuestService";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
 
@@ -17,6 +18,7 @@ export function registerHelpCommand(
   options: HelpCommandOptions & {
     partySessionService?: Pick<PartySessionService, "areDevHelpersEnabled"> | undefined;
     tavernGameService?: Pick<TavernGameService, "isEnabled"> | undefined;
+    fightingCornerQuestService?: Pick<FightingCornerQuestService, "isDevHelperEnabled"> | undefined;
   } = {}
 ): void {
   bot.command("help", async (ctx) => {
@@ -24,7 +26,8 @@ export function registerHelpCommand(
       includeDevReset: devResetService.isEnabled(),
       includeDevGrant: devGrantService?.isEnabled() ?? false,
       includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false,
-      includeTavernGames: options.tavernGameService?.isEnabled() ?? false
+      includeTavernGames: options.tavernGameService?.isEnabled() ?? false,
+      includeFightingCornerQuest: options.fightingCornerQuestService?.isDevHelperEnabled() ?? false
     }), {
       reply_markup: options.buildMainMenuKeyboard
         ? await options.buildMainMenuKeyboard(ctx)
@@ -36,7 +39,8 @@ export function registerHelpCommand(
     await ctx.reply(presentDevHelp({
       includeDevReset: devResetService.isEnabled(),
       includeDevGrant: devGrantService?.isEnabled() ?? false,
-      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false
+      includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false,
+      includeFightingCornerQuest: options.fightingCornerQuestService?.isDevHelperEnabled() ?? false
     }));
   });
 }

@@ -1106,6 +1106,48 @@ describe("handleDuelCallback", () => {
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });
 
+  it("keeps a recovered duel result usable when quest notification delivery fails", async () => {
+    const getByToken = vi.fn().mockResolvedValue(makeResolvedQuickView([
+      questProgressUpdate(42n)
+    ]));
+    const service = serviceWith({ getByToken });
+    const { ctx, sendMessage } = createCallbackContext(42);
+    sendMessage.mockRejectedValue(new Error("Telegram unavailable"));
+
+    await expect(handleDuelCallback(ctx, { type: "view", token: TOKEN }, service, {
+      presence: createPresence()
+    })).resolves.toBeUndefined();
+
+    expect(getByToken).toHaveBeenCalledWith(TOKEN);
+    expect(sendMessage).toHaveBeenCalledWith(
+      42,
+      expect.stringContaining("Зараховано миттєву дуель"),
+      { parse_mode: "HTML" }
+    );
+  });
+
+  it("notifies both duel participants once and does not resend on idempotent result replay", async () => {
+    const getByToken = vi.fn()
+      .mockResolvedValueOnce(makeResolvedQuickView([
+        questProgressUpdate(42n),
+        questProgressUpdate(99n)
+      ]))
+      .mockResolvedValueOnce(makeResolvedQuickView());
+    const service = serviceWith({ getByToken });
+    const { ctx, sendMessage } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "view", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+    await handleDuelCallback(ctx, { type: "view", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
+    expect(sendMessage.mock.calls[1]?.[0]).toBe(99);
+  });
+
   it("replays expired cards as terminal result cards", async () => {
     const getByToken = vi.fn().mockResolvedValue({
       state: "expired",
@@ -1200,6 +1242,43 @@ function createPresence(
 
 function serviceWith(methods: Partial<DuelChallengeService>): DuelChallengeService {
   return methods as DuelChallengeService;
+}
+
+function makeResolvedQuickView(questProgressUpdates: unknown[] = []): unknown {
+  const target = makeCharacter(99n, "Ціль Виклику");
+  return {
+    state: "resolved",
+    challenge: makeChallenge("resolved", target),
+    challenger: makeCharacterSummary("Автор Виклику"),
+    target: makeCharacterSummary("Ціль Виклику"),
+    result: {
+      outcome: "target",
+      winnerCharacterId: "character-99",
+      loserCharacterId: "character-42",
+      challengerScore: 7,
+      targetScore: 9,
+      swing: 0,
+      flavorKey: "paperwork-stall"
+    },
+    ...(questProgressUpdates.length > 0 ? { questProgressUpdates } : {})
+  };
+}
+
+function questProgressUpdate(telegramUserId: bigint): unknown {
+  return {
+    telegramUserId,
+    objective: "quick-duel",
+    progress: {
+      accepted: true,
+      trainingCompleted: false,
+      quickDuelCompleted: true,
+      turnBasedDuelCompleted: false,
+      completedObjectives: 1,
+      requiredObjectives: 3,
+      readyToClaim: false,
+      currentLocationId: "location.korchma.fighting_corner"
+    }
+  };
 }
 
 function keyboardJson(editMessageText: ReturnType<typeof vi.fn>): string {

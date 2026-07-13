@@ -75,6 +75,7 @@ import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
+import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { startPerfSpan } from "../performanceLogger";
 import {
 presentKorchmaDeepLevelLocked
@@ -127,7 +128,8 @@ export function registerCombatBotModule(
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
       presence: services.presence,
-      tavernRaid: services.tavern
+      tavernRaid: services.tavern,
+      fightingCornerQuest: services.fightingCornerQuest
     });
     registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
@@ -211,7 +213,7 @@ function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServ
   });
 }
 
-async function handleTrainingDoppelgangerCallback(
+export async function handleTrainingDoppelgangerCallback(
   ctx: Context,
   callback: TrainingDoppelgangerCallback,
   services: BotServices
@@ -253,6 +255,13 @@ async function handleTrainingDoppelgangerCallback(
       return;
     }
 
+    const questProgressUpdates = result.state !== "not-found" && services.fightingCornerQuest
+      ? await services.fightingCornerQuest.recordTrainingSessionSafely(
+          telegramUserId,
+          result.session
+        )
+      : [];
+
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
@@ -270,6 +279,7 @@ async function handleTrainingDoppelgangerCallback(
             reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
           })
     });
+    await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
   }
 
@@ -303,6 +313,13 @@ async function handleTrainingDoppelgangerCallback(
       });
     }
 
+    const questProgressUpdates = services.fightingCornerQuest
+      ? await services.fightingCornerQuest.recordTrainingSessionSafely(
+          telegramUserId,
+          result.session
+        )
+      : [];
+
     await safeAnswerCallbackQuery(ctx);
 
     if (callback.type === "journal") {
@@ -310,6 +327,7 @@ async function handleTrainingDoppelgangerCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
       });
+      await notifyTrainingQuestProgress(ctx, questProgressUpdates);
       return;
     }
 
@@ -333,6 +351,7 @@ async function handleTrainingDoppelgangerCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
     });
+    await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
   }
 
@@ -340,9 +359,23 @@ async function handleTrainingDoppelgangerCallback(
   await sendTrainingDoppelganger(ctx, services.trainingDoppelganger, "edit", {
     presence: services.presence,
     tavernRaid: services.tavern,
+    fightingCornerQuest: services.fightingCornerQuest,
     requireKorchmaInterior: true,
     ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });
+}
+
+async function notifyTrainingQuestProgress(
+  ctx: Context,
+  updates: Awaited<ReturnType<BotServices["fightingCornerQuest"]["recordTrainingSessionSafely"]>>
+): Promise<void> {
+  for (const update of updates) {
+    try {
+      await ctx.reply(presentFightingCornerQuestProgressNotification(update), HTML_MESSAGE_OPTIONS);
+    } catch {
+      // Quest progress is durable; Telegram delivery remains best-effort.
+    }
+  }
 }
 
 async function handleFightCallback(

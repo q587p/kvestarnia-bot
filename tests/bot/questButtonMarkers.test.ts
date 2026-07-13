@@ -62,6 +62,47 @@ describe("quest button markers", () => {
     ).toBe(QuestMarker.CAN_TURN_IN);
   });
 
+  it("routes the Fighting Corner onboarding marker from acceptance through turn-in", () => {
+    const progress = {
+      accepted: false,
+      trainingCompleted: false,
+      quickDuelCompleted: false,
+      turnBasedDuelCompleted: false,
+      completedObjectives: 0,
+      requiredObjectives: 3 as const,
+      readyToClaim: false,
+      currentLocationId: "location.korchma.quest_table"
+    };
+    const available = {
+      characterLevel: 3,
+      fightingCornerQuest: { state: "available" as const, character: character(), progress }
+    };
+    expect(resolveQuestMarkerForTarget(available, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(available, "location.korchma.fighting-corner")).toBe(QuestMarker.NONE);
+
+    const active = {
+      ...available,
+      fightingCornerQuest: {
+        state: "in-progress" as const,
+        character: character(),
+        progress: { ...progress, accepted: true }
+      }
+    };
+    expect(resolveQuestMarkerForTarget(active, "location.korchma.fighting-corner")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(active, "location.korchma.quest-table")).toBe(QuestMarker.NONE);
+
+    const ready = {
+      ...active,
+      fightingCornerQuest: {
+        state: "turn-in-ready" as const,
+        character: character(),
+        progress: { ...progress, accepted: true, completedObjectives: 3, readyToClaim: true }
+      }
+    };
+    expect(resolveQuestMarkerForTarget(ready, "location.korchma.quest-table")).toBe(QuestMarker.CAN_TURN_IN);
+    expect(resolveQuestMarkerForTarget(ready, "location.korchma.hall")).toBe(QuestMarker.CAN_TURN_IN);
+  });
+
   it("marks the first Korchma route until the quest table is reached", () => {
     const input = {
       characterLevel: 1,

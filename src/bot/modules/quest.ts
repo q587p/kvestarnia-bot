@@ -78,6 +78,7 @@ import {
 buildBarrelBeerTutorialCompletedKeyboard,
 buildBarrelBeerTutorialKeyboard
 } from "../keyboards/barrelBeerTutorialKeyboard";
+import { buildFightingCornerQuestKeyboard } from "../keyboards/fightingCornerQuestKeyboard";
 import {
 buildPersistentFightResultKeyboard
 } from "../keyboards/fightKeyboard";
@@ -121,6 +122,11 @@ presentBarrelBeerTutorialAccept,
 presentBarrelBeerTutorialLookup,
 presentBarrelBeerTutorialTurnIn
 } from "../presenters/barrelBeerTutorialPresenter";
+import {
+presentFightingCornerQuestAccept,
+presentFightingCornerQuestClaim,
+presentFightingCornerQuestLookup
+} from "../presenters/fightingCornerQuestPresenter";
 import {
 presentFightLevelRetired,
 presentFightMonsterRest,
@@ -212,6 +218,7 @@ export function registerQuestBotModule(
     resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services)
   });
   registerQuestHubCommand(bot, buildQuestHubCommandOptions(services));
+  registerFightingCornerQuestDevHelper(bot, services);
 
   registerParsedCallbackRoute(bot, /^v[12]:adv:/, parseAdventureCallbackData, async (ctx, callback) => {
     await handleAdventureCallback(ctx, callback, services);
@@ -231,6 +238,30 @@ export function registerQuestBotModule(
 
   registerParsedCallbackRoute(bot, /^v1:ygr:/, parseYegerCallbackData, async (ctx, callback) => {
     await handleYegerCallback(ctx, callback, services);
+  });
+}
+
+export function registerFightingCornerQuestDevHelper(bot: Bot, services: BotServices): void {
+  if (!services.fightingCornerQuest?.isDevHelperEnabled()) {
+    return;
+  }
+
+  bot.command("dev_reset_fighting_corner_quest", async (ctx) => {
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (!telegramUserId) {
+      await ctx.reply("Квестарня не впізнала пригодника.");
+      return;
+    }
+
+    const result = await services.fightingCornerQuest.resetCurrentLifeForTelegramUser(telegramUserId);
+    if (result === "reset") {
+      await ctx.reply("📜 Поточне життя справи Бійцівського кутка скинуто локально.");
+      return;
+    }
+
+    await ctx.reply(result === "no-character"
+      ? "Спершу створіть пригодника через /start."
+      : "Локальне скидання справи Бійцівського кутка недоступне.");
   });
 }
 
@@ -388,6 +419,50 @@ async function handleQuestCallback(
       "edit",
       action === "archive" ? "archive" : "active"
     );
+    return;
+  }
+
+  if (
+    action === "fighting-corner-onboarding" ||
+    action === "fighting-corner-onboarding-accept" ||
+    action === "fighting-corner-onboarding-claim"
+  ) {
+    if (!telegramUserId) {
+      await safeEditMessageText(ctx, presentInvalidCallback(), HTML_MESSAGE_OPTIONS);
+      return;
+    }
+
+    if (action === "fighting-corner-onboarding") {
+      const result = await services.fightingCornerQuest.getForTelegramUser(telegramUserId);
+      await safeEditMessageText(ctx, presentFightingCornerQuestLookup(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildFightingCornerQuestKeyboard(result)
+      });
+      return;
+    }
+
+    if (action === "fighting-corner-onboarding-accept") {
+      const result = await services.fightingCornerQuest.acceptForTelegramUser(telegramUserId);
+      await safeEditMessageText(ctx, presentFightingCornerQuestAccept(result), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildFightingCornerQuestKeyboard(result)
+      });
+      await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
+      return;
+    }
+
+    const result = await services.fightingCornerQuest.claimForTelegramUser(telegramUserId);
+    await safeEditMessageText(ctx, presentFightingCornerQuestClaim(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildFightingCornerQuestKeyboard(result)
+    });
+    if (result.state === "completed" && result.levelChange?.leveledUp) {
+      await sendLevelUpCelebration(ctx, {
+        character: result.character,
+        levelChange: result.levelChange
+      });
+    }
+    await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
 

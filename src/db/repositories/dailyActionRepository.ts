@@ -25,6 +25,25 @@ export interface ItemGrant {
   maxOwnedQuantity?: number;
 }
 
+export function canonicalizeAppliedItemGrants(
+  grants: readonly Pick<ItemGrant, "itemId" | "quantity">[]
+): ItemGrant[] {
+  const quantitiesByItemId = new Map<string, number>();
+
+  for (const grant of grants) {
+    const quantity = Math.max(0, Math.floor(grant.quantity));
+    if (!grant.itemId || quantity <= 0) {
+      continue;
+    }
+    quantitiesByItemId.set(
+      grant.itemId,
+      (quantitiesByItemId.get(grant.itemId) ?? 0) + quantity
+    );
+  }
+
+  return [...quantitiesByItemId].map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
 export interface HpLossAudit {
   before: number;
   max: number;
@@ -149,6 +168,11 @@ export interface DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDatePrefix: string; take: number }
   ): Promise<DailyActionRecord[] | null>;
+
+  listForCharacterByKeys?(
+    characterId: string,
+    input: { keys: readonly string[]; localDate: string; take: number }
+  ): Promise<DailyActionRecord[]>;
 
   sumItemGrantQuantityForTelegramUserInCreatedAtRange?(
     telegramUserId: bigint,

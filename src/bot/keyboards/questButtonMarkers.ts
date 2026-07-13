@@ -5,6 +5,7 @@ import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownu
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
+import type { FightingCornerQuestLookupResult } from "../../services/fightingCornerQuestService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import type { YegerQuestLookupResult, YegerQuestMarkerLookupResult } from "../../services/yegerQuestService";
 import {
@@ -18,6 +19,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
@@ -35,6 +37,7 @@ export type QuestMarkerTarget =
   | "menu.quest"
   | "location.korchma.hall"
   | "location.korchma.front"
+  | "location.korchma.fighting-corner"
   | "location.korchma.yard"
   | "location.korchma.quest-table"
   | "location.korchma.bar"
@@ -50,7 +53,8 @@ export type QuestMarkerTarget =
   | "quest.cellar-grownup"
   | "quest.barrel-beer-tutorial"
   | "quest.daily-korchma-round"
-  | "quest.charkokovalnia";
+  | "quest.charkokovalnia"
+  | "quest.fighting-corner-onboarding";
 
 export interface QuestMarkerInput {
   characterLevel?: number;
@@ -65,6 +69,7 @@ export interface QuestMarkerInput {
   barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
   itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
+  fightingCornerQuest?: Exclude<FightingCornerQuestLookupResult, { state: "no-character" | "disabled" }>;
 }
 
 const MARKER_SUFFIX: Record<QuestMarker, string> = {
@@ -122,6 +127,8 @@ export function resolveQuestMarkerForTarget(
       return getDailyKorchmaRoundMarker(input.dailyKorchmaRound);
     case "quest.charkokovalnia":
       return getCharkokovalniaMarker(input.itemUpgrades);
+    case "quest.fighting-corner-onboarding":
+      return getFightingCornerOnboardingMarker(input.fightingCornerQuest);
     case "location.korchma.quest-table":
     case "menu.quest":
       return mergeQuestMarkers([
@@ -134,8 +141,13 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "quest.cellar-grownup"),
         resolveQuestMarkerForTarget(input, "quest.barrel-beer-tutorial"),
         resolveQuestMarkerForTarget(input, "quest.daily-korchma-round"),
-        resolveQuestMarkerForTarget(input, "quest.charkokovalnia")
+        resolveQuestMarkerForTarget(input, "quest.charkokovalnia"),
+        resolveQuestMarkerForTarget(input, "quest.fighting-corner-onboarding")
       ]);
+    case "location.korchma.fighting-corner":
+      return input.fightingCornerQuest?.state === "in-progress"
+        ? QuestMarker.CAN_ACCEPT
+        : QuestMarker.NONE;
     case "location.korchma.bar":
       return mergeQuestMarkers([
         resolveQuestMarkerForTarget(input, "quest.problem"),
@@ -165,7 +177,8 @@ export function resolveQuestMarkerForTarget(
         resolveQuestMarkerForTarget(input, "location.korchma.barrel"),
         resolveQuestMarkerForTarget(input, "location.korchma.cellar"),
         resolveQuestMarkerForTarget(input, "location.korchma.ranger-corner"),
-        resolveQuestMarkerForTarget(input, "location.korchma.yard")
+        resolveQuestMarkerForTarget(input, "location.korchma.yard"),
+        resolveQuestMarkerForTarget(input, "location.korchma.fighting-corner")
       ]);
   }
 }
@@ -183,6 +196,8 @@ export function resolveQuestMarkerForPresenceLocation(
       return resolveQuestMarkerForTarget(input, "location.korchma.hall");
     case PRESENCE_LOCATION_KORCHMA_FRONT:
       return resolveQuestMarkerForTarget(input, "location.korchma.front");
+    case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
+      return resolveQuestMarkerForTarget(input, "location.korchma.fighting-corner");
     case PRESENCE_LOCATION_KORCHMA_YARD:
       return resolveQuestMarkerForTarget(input, "location.korchma.yard");
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
@@ -198,6 +213,15 @@ export function resolveQuestMarkerForPresenceLocation(
     default:
       return QuestMarker.NONE;
   }
+}
+
+function getFightingCornerOnboardingMarker(
+  quest: QuestMarkerInput["fightingCornerQuest"]
+): QuestMarker {
+  if (quest?.state === "turn-in-ready") {
+    return QuestMarker.CAN_TURN_IN;
+  }
+  return quest?.state === "available" ? QuestMarker.CAN_ACCEPT : QuestMarker.NONE;
 }
 
 function getYegerMarker(

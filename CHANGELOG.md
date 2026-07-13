@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.10] - 12026-07-14 - Fighting Corner Onboarding Quest
+
+### Added
+- Added the level 3+ `Перше правило Бійцівського кутка` quest once per remort life: accept it at the physical Quest Table, complete a settled Doppelganger training, an ordinary resolved quick duel and a terminal turn-based duel with at least one resolved round in any order, then return to the table for a separate claim.
+- Added active/claimable Quest Hub and `🗺️ Квести` rows, current-life archive replay, Quest Table/Fighting Corner markers, Fighting Corner progress, best-effort progress notices, forwardable/nearby duel guidance and local `/dev_reset_fighting_corner_quest` QA support.
+- Added explicit production-off rollout flags for the quest and its non-production-only helper.
+
+### Rewards
+- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold, the starter tool `Рожеве мило першого правила` and one guaranteed `Іскрокамінь`, plus the existing deterministic `0..3` level 4+ quest Iskrokamin bonus. The exact base soap is not duplicated or shown as applied while currently owned; if it is absent, a later remort life may grant the base item again.
+- Exact XP, gold and post-cap applied item grants are stored and replayed; equal applied item ids are coalesced into one summed row, older duplicate stored rows normalize on replay, and duplicate/concurrent claims cannot reroll or duplicate them.
+
+### Compatibility
+- Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. Acceptance uses a stored millisecond timestamp and requires strictly later objectives. The quest marker remains within the eight-source grouped Fight snapshot while adding one actual bounded ledger query when enabled; Quest Hub reuses that snapshot instead of repeating the three Fight-family reads.
+- Turn-based resolution uses a bounded round-existence query only when the feature is enabled; lazy terminal Doppelganger command, turn, mode, view and battle-journal recovery now runs the same idempotent progress hook as direct settlement before Telegram rendering.
+- Training/duel settlement remains primary and quest progress/Telegram delivery is idempotent best effort. Normal training, quick-duel and turn-based rewards, tournament scoring/prizes, combat outcomes and lore text are unchanged.
+
 ## [0.3.9] - 12026-07-13 - Quest Marker Snapshot DB Fan-out Reduction
 
 ### Added

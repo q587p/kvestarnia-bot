@@ -133,7 +133,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
       : Promise.resolve(null)
   ]));
   const { adventure, starterAdventure } = adventureMarkers;
-  const { fight, problemQuest } = fightMarkers;
+  const { fight, problemQuest, fightingCornerQuest } = fightMarkers;
 
   const cellarGrownup =
     cellarGrownupService && cellar?.state === "level-retired"
@@ -151,6 +151,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     starterAdventure,
     fight,
     problemQuest,
+    fightingCornerQuest,
     firstKorchmaQuest,
     yeger,
     cellar,
@@ -172,6 +173,11 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     ...(fight && fight.state !== "no-character" ? { fight } : {}),
     ...(firstKorchmaQuest && firstKorchmaQuest.state !== "no-character" ? { firstKorchmaQuest } : {}),
     ...(problemQuest && problemQuest.state !== "no-character" ? { problemQuest: problemQuest.progress } : {}),
+    ...(fightingCornerQuest &&
+      fightingCornerQuest.state !== "no-character" &&
+      fightingCornerQuest.state !== "disabled"
+      ? { fightingCornerQuest }
+      : {}),
     ...(yeger && yeger.state !== "no-character" ? { yeger } : {}),
     ...(cellar && cellar.state !== "no-character" ? { cellar } : {}),
     ...(barrelBeerTutorial && barrelBeerTutorial.state !== "no-character" ? { barrelBeerTutorial } : {}),
@@ -271,12 +277,15 @@ async function resolveFightQuestMarkers(
       return resolveLegacyFightQuestMarkers(telegramUserId, service);
     }
 
-    const [fight, problemQuest] = await Promise.all([
+    const [fight, problemQuest, fightingCornerQuest] = await Promise.all([
       resolveSettledQuestMarkerLookup("fight overview", grouped.fight),
-      resolveSettledQuestMarkerLookup("problem quest", grouped.problemQuest)
+      resolveSettledQuestMarkerLookup("problem quest", grouped.problemQuest),
+      grouped.fightingCornerQuest
+        ? resolveSettledQuestMarkerLookup("fighting corner quest", grouped.fightingCornerQuest)
+        : Promise.resolve(null)
     ]);
 
-    return { fight, problemQuest };
+    return { fight, problemQuest, fightingCornerQuest };
   }
 
   return resolveLegacyFightQuestMarkers(telegramUserId, service);
@@ -297,7 +306,7 @@ async function resolveLegacyFightQuestMarkers(
     )
   ]);
 
-  return { fight, problemQuest };
+  return { fight, problemQuest, fightingCornerQuest: null };
 }
 
 function getLegacyAdventureSourceWeight(service: BotServices["adventure"]): number {

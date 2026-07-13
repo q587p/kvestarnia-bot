@@ -244,6 +244,23 @@ describe("quest marker snapshot", () => {
       problemQuest: {
         status: "fulfilled" as const,
         value: { state: "ready" as const, character, progress: { wins: 0, target: 13 }, archive: [] }
+      },
+      fightingCornerQuest: {
+        status: "fulfilled" as const,
+        value: {
+          state: "available" as const,
+          character,
+          progress: {
+            accepted: false,
+            trainingCompleted: false,
+            quickDuelCompleted: false,
+            turnBasedDuelCompleted: false,
+            completedObjectives: 0,
+            requiredObjectives: 3 as const,
+            readyToClaim: false,
+            currentLocationId: "location.korchma.quest_table"
+          }
+        }
       }
     }));
 
@@ -281,6 +298,7 @@ describe("quest marker snapshot", () => {
     } as unknown as BotServices);
 
     expect(snapshot?.adventure?.state).toBe("ready");
+    expect(snapshot?.fightingCornerQuest?.state).toBe("available");
     expect(snapshot?.starterAdventure).toBeUndefined();
     expect(adventureSnapshot).toHaveBeenCalledTimes(1);
     expect(fightSnapshot).toHaveBeenCalledTimes(1);

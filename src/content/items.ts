@@ -9,6 +9,17 @@ import { buildItemUpgradeVariantContents } from "../domain/itemUpgrades";
 
 const authoredItemContents = [
   {
+    id: "item.pink-soap-of-first-rule",
+    name: "Рожеве мило першого правила",
+    description: "Зварене в підвалі з інгредієнтів, про які перше правило радить не питати. Для бійця — сувенір, для миловара — інструмент, для корчмаря — остання надія відмити куток.",
+    rarity: "common",
+    slot: "accessory",
+    equipmentSlot: "tool",
+    equipmentRequirements: { minLevel: 3 },
+    goldValue: 13,
+    effect: { intelligence: 1 }
+  },
+  {
     id: "item.pan-of-persuasion",
     name: "Пательня переконання",
     description: "Важкий аргумент для легких суперечок.",

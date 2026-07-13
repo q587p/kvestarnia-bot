@@ -13,6 +13,7 @@ import type {
   KorchmaRoundLeaderboardEntry
 } from "../../db/repositories/korchmaRoundPurchaseRepository";
 import type { DuelLeaderboard, DuelLeaderboardEntry } from "../../services/duelChallengeService";
+import type { FightingCornerQuestLookupResult } from "../../services/fightingCornerQuestService";
 import type {
   DuelTournamentBoard,
   DuelTournamentClaimResult,
@@ -144,7 +145,11 @@ export function presentKorchmaHall(
 
 export function presentKorchmaFightingCorner(
   _character: CharacterSummary,
-  options: { trainingDoppelgangerAvailable?: boolean; tournamentPendingRewardCount?: number } = {}
+  options: {
+    fightingCornerQuest?: Exclude<FightingCornerQuestLookupResult, { state: "disabled" | "no-character" }>;
+    trainingDoppelgangerAvailable?: boolean;
+    tournamentPendingRewardCount?: number;
+  } = {}
 ): string {
   void _character;
   const trainingLine = options.trainingDoppelgangerAvailable === false
@@ -153,6 +158,7 @@ export function presentKorchmaFightingCorner(
   const pendingRewardLine = options.tournamentPendingRewardCount && options.tournamentPendingRewardCount > 0
     ? `🏆 Турніри — Корчмар тримає для вас ${options.tournamentPendingRewardCount} ${formatTournamentChestCount(options.tournamentPendingRewardCount)}.`
     : "🏆 Турніри — очки тільки за завершені покрокові дуелі; призи платить Корчмар.";
+  const questLine = presentFightingCornerQuestLine(options.fightingCornerQuest);
 
   return [
     "🥊 Бійцівський куток",
@@ -164,9 +170,25 @@ export function presentKorchmaFightingCorner(
     "⚡ Миттєва дуель — результат одразу після згоди.",
     "♟️ Покрокова дуель — гравці таємно обирають дії за раунд.",
     pendingRewardLine,
+    ...(questLine ? ["", questLine] : []),
     "",
     "Що обираємо?"
   ].join("\n");
+}
+
+function presentFightingCornerQuestLine(
+  quest: Exclude<FightingCornerQuestLookupResult, { state: "disabled" | "no-character" }> | undefined
+): string | null {
+  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+    return null;
+  }
+  if (quest.state === "available") {
+    return "📜 «Перше правило Бійцівського кутка» можна прийняти за столом зі справами.";
+  }
+  if (quest.state === "turn-in-ready") {
+    return "✅ «Перше правило Бійцівського кутка»: 3/3. Поверніться до столу зі справами по нагороду.";
+  }
+  return `📜 «Перше правило Бійцівського кутка»: ${quest.progress.completedObjectives}/3.`;
 }
 
 export function presentKorchmaFightingCornerLevelLocked(

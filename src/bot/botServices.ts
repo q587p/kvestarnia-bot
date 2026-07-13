@@ -15,6 +15,7 @@ import type { DuelTournamentService } from "../services/duelTournamentService";
 import type { EquipmentService } from "../services/equipmentService";
 import type { FightService } from "../services/fightService";
 import type { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
+import type { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import type { HeroService } from "../services/heroService";
 import type { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import type { HuntService } from "../services/huntService";
@@ -53,6 +54,7 @@ export interface BotServices {
   dailyKorchmaRound: DailyKorchmaRoundService;
   fight: FightService;
   firstKorchmaQuest: FirstKorchmaQuestService;
+  fightingCornerQuest: FightingCornerQuestService;
   hunt: HuntService;
   yeger: YegerQuestService;
   onboarding: OnboardingService;

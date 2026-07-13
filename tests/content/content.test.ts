@@ -309,6 +309,21 @@ describe("content tables", () => {
     });
   });
 
+  it("validates the first-rule pink soap as a level-3 tool accessory", () => {
+    const soap = items.find((item) => item.id === "item.pink-soap-of-first-rule");
+
+    expect(soap).toMatchObject({
+      name: "Рожеве мило першого правила",
+      rarity: "common",
+      slot: "accessory",
+      equipmentSlot: "tool",
+      equipmentRequirements: { minLevel: 3 },
+      goldValue: 13,
+      effect: { intelligence: 1 }
+    });
+    expect(soap?.description).toContain("для корчмаря");
+  });
+
   it("rejects equipment slot metadata on unsupported item slots", () => {
     expect(() =>
       itemSchema.parse({

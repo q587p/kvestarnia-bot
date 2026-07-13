@@ -4,6 +4,7 @@ import type {
   TrainingDoppelgangerStartMode
 } from "../../services/trainingDoppelgangerService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
+import type { FightingCornerQuestService } from "../../services/fightingCornerQuestService";
 import {
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
@@ -29,6 +30,7 @@ import {
   presentTrainingDoppelgangerNoCharacter
 } from "../presenters/trainingDoppelgangerPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
@@ -36,6 +38,7 @@ type ReplyOptions = Parameters<Context["reply"]>[1];
 export interface TrainingDoppelgangerCommandOptions {
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
+  fightingCornerQuest?: Pick<FightingCornerQuestService, "recordTrainingSessionSafely">;
   now?: () => Date;
 }
 
@@ -130,8 +133,8 @@ export async function sendTrainingDoppelganger(
     return;
   }
 
-  await markTrainingPresence(ctx, options.presence);
   if (result.state === "active") {
+    await markTrainingPresence(ctx, options.presence);
     await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
     const messageId = await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
       type: "session",
@@ -142,12 +145,24 @@ export async function sendTrainingDoppelganger(
     return;
   }
 
+  const questProgressUpdates = await options.fightingCornerQuest?.recordTrainingSessionSafely(
+    telegramUserId,
+    result.session
+  ) ?? [];
+  await markTrainingPresence(ctx, options.presence);
   const messageId = await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     type: "session",
     session: result.session,
     character: result.character
   });
   await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
+  for (const update of questProgressUpdates) {
+    try {
+      await ctx.reply(presentFightingCornerQuestProgressNotification(update), { parse_mode: "HTML" });
+    } catch (error) {
+      console.warn("Kvestarnia: Fighting Corner training progress notification failed.", error);
+    }
+  }
 }
 
 async function recordTrainingMessage(

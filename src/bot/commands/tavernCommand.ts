@@ -577,6 +577,9 @@ export async function sendKorchmaFightingCorner(
     ctx,
     mode,
     presentKorchmaFightingCorner(result.character, {
+      ...(options.questMarkers?.fightingCornerQuest === undefined
+        ? {}
+        : { fightingCornerQuest: options.questMarkers.fightingCornerQuest }),
       trainingDoppelgangerAvailable,
       ...(tournamentPendingRewardCount === undefined ? {} : { tournamentPendingRewardCount })
     }),

@@ -2,6 +2,29 @@ import { describe, expect, it, vi } from "vitest";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 
 describe("PrismaDailyActionRepository bounded helpers", () => {
+  it("loads all current-life quest keys through one capped query", async () => {
+    const prisma = createPrismaMock({ manyDailyActions: [] });
+    const repository = new PrismaDailyActionRepository(prisma.client);
+    const keys = ["quest.accepted", "quest.training", "quest.completed"];
+
+    await repository.listForCharacterByKeys("character-quest", {
+      keys,
+      localDate: "life:2",
+      take: 5
+    });
+
+    expect(prisma.dailyAction.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.dailyAction.findMany).toHaveBeenCalledWith({
+      where: {
+        characterId: "character-quest",
+        key: { in: keys },
+        localDate: "life:2"
+      },
+      orderBy: { createdAt: "asc" },
+      take: 3
+    });
+  });
+
   it("probes existing keyed history without loading action rows", async () => {
     const prisma = createPrismaMock({
       character: { id: "character-1" },
@@ -132,7 +155,7 @@ describe("PrismaDailyActionRepository bounded helpers", () => {
 });
 
 function createPrismaMock(input: {
-  character: { id: string } | null;
+  character?: { id: string } | null;
   firstDailyAction?: { id: string } | null;
   manyDailyActions?: unknown[];
 }) {
