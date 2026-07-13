@@ -4,7 +4,7 @@ export interface BotCommandCatalogEntry {
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party";
+  devOnly?: "reset" | "grant" | "party" | "fighting-corner";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -460,6 +460,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_fighting_corner_quest",
+    icon: "📜",
+    description: "скинути поточне життя справи Бійцівського кутка локально",
+    includeInMenu: false,
+    devOnly: "fighting-corner"
+  },
+  {
     command: "dev_reset_doppelganger",
     icon: "🪞",
     description: "скинути cooldown Допельґанґера локально",
@@ -473,6 +480,7 @@ export interface DevCommandVisibility {
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
   includeTavernGames?: boolean;
+  includeFightingCornerQuest?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -485,6 +493,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "reset") {
       return normalized.includeDevReset;
+    }
+
+    if (entry.devOnly === "fighting-corner") {
+      return normalized.includeFightingCornerQuest;
     }
 
     return entry.devOnly === "grant"
@@ -513,7 +525,8 @@ function normalizeDevCommandVisibility(
       includeDevReset: visibility,
       includeDevGrant: visibility,
       includePartySessions: visibility,
-      includeTavernGames: visibility
+      includeTavernGames: visibility,
+      includeFightingCornerQuest: visibility
     };
   }
 
@@ -521,6 +534,7 @@ function normalizeDevCommandVisibility(
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
-    includeTavernGames: visibility.includeTavernGames ?? false
+    includeTavernGames: visibility.includeTavernGames ?? false,
+    includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false
   };
 }

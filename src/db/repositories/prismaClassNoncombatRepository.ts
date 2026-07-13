@@ -40,6 +40,15 @@ const ROGUE_CLASS_ID = "class.rogue";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
+  async isRogueRetaliationDuelInviteToken(inviteToken: string): Promise<boolean> {
+    const row = await this.prisma.noncombatRoguePickpocketAttempt.findFirst({
+      where: { retaliationDuelInviteToken: inviteToken },
+      select: { id: true }
+    });
+
+    return row !== null;
+  }
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)

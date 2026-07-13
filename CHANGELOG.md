@@ -7,6 +7,21 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.10] - 12026-07-13 - Fighting Corner Onboarding Quest
+
+### Added
+- Added the level 3+ `Перше правило Бійцівського кутка` quest once per remort life: accept it at the physical Quest Table, complete a settled Doppelganger training, an ordinary resolved quick duel and a terminal turn-based duel with at least one resolved round in any order, then return to the table for a separate claim.
+- Added active/claimable Quest Hub and `🗺️ Квести` rows, current-life archive replay, Quest Table/Fighting Corner markers, Fighting Corner progress, best-effort progress notices, forwardable/nearby duel guidance and local `/dev_reset_fighting_corner_quest` QA support.
+- Added explicit production-off rollout flags for the quest and its non-production-only helper.
+
+### Rewards
+- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold and one guaranteed `Іскрокамінь`, plus the existing canonical level 4+ quest Iskrokamin bonus.
+- Exact XP, gold and applied item grants are stored and replayed; duplicate/concurrent claims cannot reroll or duplicate them.
+
+### Compatibility
+- Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. The quest marker shares the existing grouped Fight marker source, so the optimized primary source fan-out remains eight.
+- Training/duel settlement remains primary and quest progress/Telegram delivery is idempotent best effort. Normal training, quick-duel and turn-based rewards, tournament scoring/prizes, combat outcomes and lore text are unchanged.
+
 ## [0.3.9] - 12026-07-13 - Quest Marker Snapshot DB Fan-out Reduction
 
 ### Added

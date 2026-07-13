@@ -454,6 +454,10 @@ Balance rules:
 
 Do not expose the exact fumble contract, seed, trigger position or authored punchlines in player-facing pre-action copy or `news.md` by default.
 
+## 0.3.10 Fighting Corner onboarding reward
+
+`Перше правило Бійцівського кутка` is once per remort life and never requires victory. At the separate Quest Table claim, XP is `min(42, max(5, ceil(remortAdjustedCurrentLevelBandWidth * 0.42)))`; max level reuses the last finite band. Gold is `min(93, 13 + level * 6)`. The claim guarantees one `item.iskrokamin` and enables the existing level 4+ canonical quest Iskrokamin bonus. The exact applied reward is stored and replayed, so the quest is an onboarding grant rather than a repeatable duel/training faucet; underlying rewards and tournament scoring remain unchanged.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

@@ -14,6 +14,9 @@ export type QuestCallback =
   | "barrel-tutorial"
   | "barrel-tutorial-accept"
   | "barrel-tutorial-turn-in"
+  | "fighting-corner-onboarding"
+  | "fighting-corner-onboarding-accept"
+  | "fighting-corner-onboarding-claim"
   | "problem"
   | "problem-next"
   | "archive"
@@ -34,6 +37,9 @@ const questCallbacks = new Set<QuestCallback>([
   "barrel-tutorial",
   "barrel-tutorial-accept",
   "barrel-tutorial-turn-in",
+  "fighting-corner-onboarding",
+  "fighting-corner-onboarding-accept",
+  "fighting-corner-onboarding-claim",
   "problem",
   "problem-next",
   "archive",

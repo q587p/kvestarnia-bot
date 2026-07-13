@@ -20,6 +20,7 @@ import { DuelTournamentService } from "../services/duelTournamentService";
 import { EquipmentService } from "../services/equipmentService";
 import { FightService } from "../services/fightService";
 import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
+import { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import { HeroService } from "../services/heroService";
 import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
@@ -63,6 +64,15 @@ export function createServices(
     repositories.combatBalanceAnalytics,
     { enabled: config.combatBalanceAnalyticsEnabled }
   );
+  const fightingCornerQuest = new FightingCornerQuestService(
+    repositories.characters,
+    repositories.dailyActions,
+    repositories.classNoncombat,
+    {
+      enabled: nonProduction || config.fightingCornerOnboardingQuestEnabled,
+      devHelpersEnabled: nonProduction && config.fightingCornerOnboardingQuestDevHelpersEnabled
+    }
+  );
   const fight = new FightService({
     characters: repositories.characters,
     dailyActions: repositories.dailyActions,
@@ -72,7 +82,8 @@ export function createServices(
     pendingPassageEncounters: repositories.pendingPassageEncounters,
     shynok: repositories.shynok,
     achievements,
-    activityEvents: publicActivityEvents
+    activityEvents: publicActivityEvents,
+    fightingCornerQuest
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -154,7 +165,8 @@ export function createServices(
       undefined,
       presence,
       achievements,
-      publicActivityEvents
+      publicActivityEvents,
+      fightingCornerQuest
     ),
     duelTournaments: new DuelTournamentService(
       repositories.duelTournaments,
@@ -169,6 +181,7 @@ export function createServices(
     ),
     fight,
     firstKorchmaQuest,
+    fightingCornerQuest,
     hero: new HeroService(
       repositories.characters,
       repositories.inventory,

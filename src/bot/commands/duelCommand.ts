@@ -32,6 +32,7 @@ import {
 } from "../keyboards/duelKeyboard";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { getCombatSkillProfile } from "../../domain/combat";
+import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
   presentDuelAccept,
@@ -303,6 +304,9 @@ export async function handleDuelCallback(
     if (result.state === "resolved" && result.transitioned) {
       await notifyOtherQuickDuelResultParticipant(ctx, result);
     }
+    if (result.state === "resolved") {
+      await notifyFightingCornerQuestProgress(ctx, result.questProgressUpdates ?? []);
+    }
     return;
   }
 
@@ -393,6 +397,7 @@ export async function handleDuelCallback(
         service,
         result.achievementUnlocksByCharacterId
       );
+      await notifyFightingCornerQuestProgress(ctx, result.questProgressUpdates ?? []);
     }
     return;
   }
@@ -541,6 +546,26 @@ export async function handleDuelCallback(
         ? { state: "result", token: result.challenge.inviteToken, mode: result.challenge.mode }
         : "result"
   );
+  if (result.state === "resolved") {
+    await notifyFightingCornerQuestProgress(ctx, result.questProgressUpdates ?? []);
+  }
+}
+
+async function notifyFightingCornerQuestProgress(
+  ctx: Context,
+  updates: NonNullable<Extract<DuelChallengeView, { state: "resolved" }>["questProgressUpdates"]>
+): Promise<void> {
+  await Promise.all(updates.map(async (update) => {
+    try {
+      await ctx.api.sendMessage(
+        Number(update.telegramUserId),
+        presentFightingCornerQuestProgressNotification(update),
+        HTML_MESSAGE_OPTIONS
+      );
+    } catch {
+      // Quest progress is durable; Telegram delivery remains best-effort.
+    }
+  }));
 }
 
 async function markDuelPresence(ctx: Context, presence: PresenceService): Promise<void> {

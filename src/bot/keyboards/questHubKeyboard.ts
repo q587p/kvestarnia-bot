@@ -8,6 +8,7 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import type { FightingCornerQuestLookupResult } from "../../services/fightingCornerQuestService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import type { YegerQuestLookupResult } from "../../services/yegerQuestService";
 import {
@@ -49,6 +50,7 @@ export interface QuestHubKeyboardInput {
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
   itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
+  fightingCornerQuest?: Exclude<FightingCornerQuestLookupResult, { state: "no-character" | "disabled" }>;
 }
 
 export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeyboard {
@@ -147,6 +149,7 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   }
 
   addBarrelBeerTutorialButton(keyboard, input);
+  addFightingCornerQuestButton(keyboard, input);
   addCharkokovalniaUnlockButton(keyboard, input);
 
   if (
@@ -184,6 +187,31 @@ export function buildQuestHubKeyboard(input: QuestHubKeyboardInput): InlineKeybo
   keyboard.text(buildBackToHallLabel(input), makePlaceCallbackData("hall"));
 
   return keyboard;
+}
+
+function addFightingCornerQuestButton(keyboard: InlineKeyboard, input: QuestHubKeyboardInput): void {
+  const quest = input.fightingCornerQuest;
+  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+    return;
+  }
+
+  if (quest.state === "available") {
+    keyboard.text(
+      decorateButtonLabel("📜 Перше правило Бійцівського кутка", resolveQuestMarkerForTarget(input, "quest.fighting-corner-onboarding")),
+      makeQuestCallbackData("fighting-corner-onboarding")
+    ).row();
+    return;
+  }
+
+  if (quest.state === "turn-in-ready") {
+    keyboard.text(
+      decorateButtonLabel("🎁 Здати три правила", resolveQuestMarkerForTarget(input, "quest.fighting-corner-onboarding")),
+      makeQuestCallbackData("fighting-corner-onboarding-claim")
+    ).row();
+    return;
+  }
+
+  keyboard.text("🥊 До Бійцівського кутка", makePlaceCallbackData("fighting-corner")).row();
 }
 
 function buildBackToHallLabel(input: QuestHubKeyboardInput): string {
@@ -371,6 +399,9 @@ function hasReadyQuestAction(input: QuestHubKeyboardInput): boolean {
     input.barrelBeerTutorial?.state === "available" ||
     input.barrelBeerTutorial?.state === "in-progress" ||
     input.barrelBeerTutorial?.state === "turn-in-ready" ||
+    input.fightingCornerQuest?.state === "available" ||
+    input.fightingCornerQuest?.state === "in-progress" ||
+    input.fightingCornerQuest?.state === "turn-in-ready" ||
     input.itemUpgrades?.state === "unlock-required" ||
     input.dailyKorchmaRound?.state === "not-issued" ||
     input.dailyKorchmaRound?.state === "ready" ||

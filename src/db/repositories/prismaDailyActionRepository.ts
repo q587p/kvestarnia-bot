@@ -619,6 +619,27 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async listForCharacterByKeys(
+    characterId: string,
+    input: { keys: readonly string[]; localDate: string; take: number }
+  ): Promise<DailyActionRecord[]> {
+    const keys = [...new Set(input.keys)].filter((key) => key.length > 0);
+
+    if (keys.length === 0) {
+      return [];
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId,
+        key: { in: keys },
+        localDate: input.localDate
+      },
+      orderBy: { createdAt: "asc" },
+      take: Math.max(1, Math.min(keys.length, Math.floor(input.take)))
+    });
+  }
+
   async sumItemGrantQuantityForTelegramUserInCreatedAtRange(
     telegramUserId: bigint,
     input: {

@@ -163,6 +163,20 @@ describe("loadConfig", () => {
     expect(config.combatBalanceAnalyticsEnabled).toBe(true);
   });
 
+  it("keeps the Fighting Corner quest production rollout and dev helper flags explicit", () => {
+    const disabled = loadConfig(validEnv);
+    const enabled = loadConfig({
+      ...validEnv,
+      FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED: "true",
+      FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED: "true"
+    });
+
+    expect(disabled.fightingCornerOnboardingQuestEnabled).toBe(false);
+    expect(disabled.fightingCornerOnboardingQuestDevHelpersEnabled).toBe(false);
+    expect(enabled.fightingCornerOnboardingQuestEnabled).toBe(true);
+    expect(enabled.fightingCornerOnboardingQuestDevHelpersEnabled).toBe(true);
+  });
+
   it("can enable party session foundation explicitly", () => {
     const config = loadConfig({
       ...validEnv,

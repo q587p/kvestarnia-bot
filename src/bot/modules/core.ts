@@ -57,6 +57,7 @@ export function registerCoreBotModule(
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     partySessionService: services.partySessions,
     tavernGameService: services.tavernGames,
+    fightingCornerQuestService: services.fightingCornerQuest,
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
       includeAdmin: shouldIncludeAdminMainMenu(services)
     })

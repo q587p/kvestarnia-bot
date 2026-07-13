@@ -8,6 +8,10 @@ import type { CellarErrandLookupResult } from "../../services/cellarErrandServic
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
+import {
+  FIGHTING_CORNER_QUEST_TITLE,
+  type FightingCornerQuestLookupResult
+} from "../../services/fightingCornerQuestService";
 import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
 import type { ItemUpgradeQuestLookupResult } from "../../services/itemUpgradeService";
 import {
@@ -27,6 +31,7 @@ export interface QuestHubSnapshot {
   character: CharacterSummary;
   currentLocationId?: string | null;
   firstKorchmaQuest?: Exclude<FirstKorchmaQuestLookupResult, { state: "no-character" }>;
+  fightingCornerQuest?: Exclude<FightingCornerQuestLookupResult, { state: "no-character" | "disabled" }>;
   adventure: Exclude<AdventureLookupResult, { state: "no-character" }>;
   starterAdventure?: Exclude<MimicShawarmaLookupResult, { state: "no-character" }>;
   fight: Exclude<FightLookupResult, { state: "no-character" }>;
@@ -541,6 +546,7 @@ function getQuestHubActiveRows(snapshot: QuestHubSnapshot): string[] {
     snapshot.firstKorchmaQuest?.state === "active"
       ? presentFirstKorchmaQuestRow(snapshot.firstKorchmaQuest)
       : null,
+    presentFightingCornerQuestActiveRow(snapshot.fightingCornerQuest),
     snapshot.adventure.state === "ready" ||
     (snapshot.adventure.state === "level-locked" &&
       snapshot.character.level <= STARTER_ACTIVITY_MAX_LEVEL &&
@@ -573,6 +579,9 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
     snapshot.firstKorchmaQuest?.state === "completed"
       ? presentFirstKorchmaQuestRow(snapshot.firstKorchmaQuest)
       : null,
+    snapshot.fightingCornerQuest?.state === "completed"
+      ? `📜 <i>${FIGHTING_CORNER_QUEST_TITLE}</i> — виконано в цьому житті; три правила лежать в архіві й удають, що не знайомі.`
+      : null,
     ...presentAdventureArchiveRows(snapshot.adventure, snapshot.starterAdventure),
     !meetsActivityLevel(snapshot.character.level, FIGHTING_CORNER_MIN_LEVEL)
       ? presentProblemQuestRow(snapshot.character, snapshot.problemQuest, snapshot.fight)
@@ -593,6 +602,23 @@ function getQuestHubArchiveRows(snapshot: QuestHubSnapshot): string[] {
   }
 
   return ["Архів поки порожній. Навіть пил ще не встиг оформити вступний внесок."];
+}
+
+function presentFightingCornerQuestActiveRow(
+  quest: QuestHubSnapshot["fightingCornerQuest"]
+): string | null {
+  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+    return null;
+  }
+
+  const title = `📜 <i>${FIGHTING_CORNER_QUEST_TITLE}</i>`;
+  if (quest.state === "available") {
+    return `${title} — Корчмар має три правила, олівець і підозріло чистий куток для підпису.`;
+  }
+  if (quest.state === "turn-in-ready") {
+    return `${title} — 3/3; поверніться до столу по нагороду.`;
+  }
+  return `${title} — ${quest.progress.completedObjectives}/3 правил перевірено; продовжуйте в Бійцівському кутку.`;
 }
 
 function isPresent(row: string | null): row is string {
@@ -645,6 +671,9 @@ function hasReadyQuestAction(snapshot: QuestHubSnapshot): boolean {
     snapshot.barrelBeerTutorial?.state === "available" ||
     snapshot.barrelBeerTutorial?.state === "in-progress" ||
     snapshot.barrelBeerTutorial?.state === "turn-in-ready" ||
+    snapshot.fightingCornerQuest?.state === "available" ||
+    snapshot.fightingCornerQuest?.state === "in-progress" ||
+    snapshot.fightingCornerQuest?.state === "turn-in-ready" ||
     snapshot.itemUpgrades?.state === "unlock-required" ||
     snapshot.dailyKorchmaRound?.state === "ready" ||
     snapshot.dailyKorchmaRound?.state === "turn-in-ready"

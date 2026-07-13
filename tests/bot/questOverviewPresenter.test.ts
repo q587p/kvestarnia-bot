@@ -7,6 +7,47 @@ import type { QuestHubSnapshot } from "../../src/bot/presenters/questHubPresente
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("quest overview presenter", () => {
+  it("shows Fighting Corner acceptance, progress and Quest Table claim guidance", () => {
+    const baseProgress = {
+      accepted: false,
+      trainingCompleted: false,
+      quickDuelCompleted: false,
+      turnBasedDuelCompleted: false,
+      completedObjectives: 0,
+      requiredObjectives: 3 as const,
+      readyToClaim: false,
+      currentLocationId: "location.korchma.quest_table"
+    };
+    const active = buildQuestOverviewRows(makeSnapshot({
+      fightingCornerQuest: {
+        state: "in-progress",
+        character,
+        progress: { ...baseProgress, accepted: true }
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+    expect(active).toContainEqual(expect.objectContaining({
+      id: "fighting-corner-onboarding",
+      priority: "active"
+    }));
+
+    const ready = buildQuestOverviewRows(makeSnapshot({
+      fightingCornerQuest: {
+        state: "turn-in-ready",
+        character,
+        progress: { ...baseProgress, accepted: true, completedObjectives: 3, readyToClaim: true }
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
+    expect(ready).toContainEqual(expect.objectContaining({
+      id: "fighting-corner-onboarding",
+      priority: "claimable"
+    }));
+    const readyRow = ready.find((row) => row.id === "fighting-corner-onboarding");
+    expect(readyRow?.title).toContain("3/3");
+    expect(readyRow?.body).toContain("фізичний стіл зі справами");
+  });
+
   it("shows the first Korchma route quest as active guidance", () => {
     const rows = buildQuestOverviewRows(makeSnapshot({
       firstKorchmaQuest: {

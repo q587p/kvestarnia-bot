@@ -53,6 +53,8 @@ DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
+FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
+FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
 # SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
 # SUPPORT_JAR_CURRENT_UAH=0
 # SUPPORT_JAR_GOAL_UAH=5000
@@ -88,6 +90,8 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 `BOT_TOKEN` може бути порожнім для локальних перевірок без реального Telegram polling. У цьому режимі бот валідовує конфіг і запускає HTTP healthcheck server, але не під’єднується до Telegram API.
 
 `BOT_USERNAME` optional. Якщо він заданий, `/duel` invite links генеруються як `https://t.me/<BOT_USERNAME>?start=duel_<token>`. Тримай dev/prod ботів окремо: локально можна ставити `kvestarnia_dev_bot`, production має використовувати реальний `kvestarnia_bot`. Значення пишеться без `@`.
+
+`FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED` окремо відкриває production-поверхню справи `Перше правило Бійцівського кутка`; до цільової runtime-перевірки лишай його `false`. `FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED` стосується лише локального helper-а й ніколи не обходить production-gate.
 
 `SUPPORT_JAR_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
 
@@ -143,6 +147,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_quiet_pocket` — скидає локальний cooldown злодійської `Тихої кишені` для поточного персонажа.
 - `/dev_reset_bureaucramancer_protocol` — скидає локальний cooldown бюрокромантського `Протоколу 13-З` для поточного персонажа.
 - `/dev_reset_rogue` — скидає локальний cooldown `Тихої кишені` та поточний київський день цілей, які цей злодій уже пробував обчистити.
+- `/dev_reset_fighting_corner_quest` — стирає тільки пʼять ключів поточного remort-життя справи `Перше правило Бійцівського кутка`; попередні життя не чіпає. Команда реєструється лише поза production, коли `FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=true`; production не відкриває її навіть із цим прапорцем.
 - `/dev_yeger_first_done` — доводить першу Єгерську дошку `Неспокійні справи` до `5/5` реальними terminal win rows; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_yeger_second_done` — доводить другу Єгерську дошку `Неспокійні справи 2.0` до `17/17` реальними terminal win rows після зданої першої дошки; нагороду й досягнення треба забрати звичайною кнопкою здачі.
 - `/dev_adventure_reset` — скидає й перетасовує поточний вибір пригоди для швидкого локального тесту.

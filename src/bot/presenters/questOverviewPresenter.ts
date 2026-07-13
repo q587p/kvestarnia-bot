@@ -73,6 +73,7 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
 
   add(getFirstKorchmaQuestOverviewRow(snapshot));
   add(getDailyKorchmaRoundOverviewRow(snapshot));
+  add(getFightingCornerQuestOverviewRow(snapshot));
   add(getProblemQuestOverviewRow(snapshot));
   add(getAdventureOverviewRow(snapshot));
   add(getStarterAdventureOverviewRow(snapshot));
@@ -87,6 +88,42 @@ export function buildQuestOverviewRows(snapshot: QuestHubSnapshot): QuestOvervie
     .sort((left, right) => PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority] || left.order - right.order)
     .slice(0, MAX_OVERVIEW_ROWS)
     .map(stripOverviewOrder);
+}
+
+function getFightingCornerQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
+  const quest = snapshot.fightingCornerQuest;
+  if (!quest || quest.state === "level-locked" || quest.state === "completed") {
+    return null;
+  }
+
+  if (quest.state === "available") {
+    return {
+      id: "fighting-corner-onboarding",
+      priority: "available",
+      title: "📜 <b>Перше правило Бійцівського кутка</b> — чекає згоди",
+      body: [
+        "<i>Зроблено:</i> ви доросли до кутка, а папірець — до вас.",
+        "<i>Далі:</i> прийміть справу особисто.",
+        "<i>Де:</i> стіл зі справами."
+      ].join("\n")
+    };
+  }
+
+  return {
+    id: "fighting-corner-onboarding",
+    priority: quest.state === "turn-in-ready" ? "claimable" : "active",
+    title: `📜 <b>Перше правило Бійцівського кутка</b> — ${quest.progress.completedObjectives}/3`,
+    body: quest.state === "turn-in-ready"
+      ? [
+          "<i>Зроблено:</i> усі три правила перевірено.",
+          "<i>Далі:</i> заберіть збережену нагороду.",
+          "<i>Де:</i> фізичний стіл зі справами."
+        ].join("\n")
+      : [
+          "<i>Далі:</i> завершіть тренування, миттєву й покрокову дуелі в будь-якому порядку.",
+          "<i>Де:</i> Бійцівський куток; виклик можна переслати або знайти суперника через «Хто поруч»."
+        ].join("\n")
+  };
 }
 
 function getFirstKorchmaQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {

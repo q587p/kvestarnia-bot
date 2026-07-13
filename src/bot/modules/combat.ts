@@ -75,6 +75,7 @@ import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
+import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { startPerfSpan } from "../performanceLogger";
 import {
 presentKorchmaDeepLevelLocked
@@ -270,6 +271,13 @@ async function handleTrainingDoppelgangerCallback(
             reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
           })
     });
+    if (result.state !== "not-found" && services.fightingCornerQuest) {
+      const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
+        telegramUserId,
+        result.session
+      );
+      await notifyTrainingQuestProgress(ctx, updates);
+    }
     return;
   }
 
@@ -333,6 +341,13 @@ async function handleTrainingDoppelgangerCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
     });
+    if (services.fightingCornerQuest) {
+      const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
+        telegramUserId,
+        result.session
+      );
+      await notifyTrainingQuestProgress(ctx, updates);
+    }
     return;
   }
 
@@ -343,6 +358,19 @@ async function handleTrainingDoppelgangerCallback(
     requireKorchmaInterior: true,
     ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });
+}
+
+async function notifyTrainingQuestProgress(
+  ctx: Context,
+  updates: Awaited<ReturnType<BotServices["fightingCornerQuest"]["recordTrainingSessionSafely"]>>
+): Promise<void> {
+  for (const update of updates) {
+    try {
+      await ctx.reply(presentFightingCornerQuestProgressNotification(update), HTML_MESSAGE_OPTIONS);
+    } catch {
+      // Quest progress is durable; Telegram delivery remains best-effort.
+    }
+  }
 }
 
 async function handleFightCallback(

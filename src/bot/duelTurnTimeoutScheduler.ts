@@ -5,6 +5,7 @@ import { getCombatSkillProfile } from "../domain/combat";
 import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
 import { buildDuelResultKeyboard } from "./keyboards/duelKeyboard";
 import { presentDuelView, presentTurnBasedDuel } from "./presenters/duelPresenter";
+import { presentFightingCornerQuestProgressNotification } from "./presenters/fightingCornerQuestPresenter";
 import { isMessageNotModifiedError } from "./safeEditMessageText";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -33,6 +34,7 @@ export function createDuelTurnTimeoutScheduler(
 
         if (result.state === "updated") {
           await notifyParticipants(service, bot, result.session);
+          await notifyQuestProgress(bot, result.questProgressUpdates ?? []);
         }
       }
     } finally {
@@ -62,6 +64,23 @@ export function createDuelTurnTimeoutScheduler(
       }
     }
   };
+}
+
+async function notifyQuestProgress(
+  bot: Bot,
+  updates: NonNullable<Extract<Awaited<ReturnType<DuelChallengeService["resolveDueTurnBasedSession"]>>, { state: "updated" }>["questProgressUpdates"]>
+): Promise<void> {
+  await Promise.all(updates.map(async (update) => {
+    try {
+      await bot.api.sendMessage(
+        Number(update.telegramUserId),
+        presentFightingCornerQuestProgressNotification(update),
+        HTML_MESSAGE_OPTIONS
+      );
+    } catch {
+      // Quest progress is durable; Telegram delivery remains best-effort.
+    }
+  }));
 }
 
 async function notifyParticipants(

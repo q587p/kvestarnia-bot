@@ -216,6 +216,46 @@ describe("DuelChallengeService", () => {
     expect(activityEvents.duelCompletions).toHaveLength(1);
   });
 
+  it("runs idempotent quest progress only after quick-duel settlement and on durable replay recovery", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const recordResolvedDuelSafely = vi.fn(() => Promise.resolve([{
+      telegramUserId: 1n,
+      objective: "quick-duel" as const,
+      progress: {
+        accepted: true,
+        trainingCompleted: false,
+        quickDuelCompleted: true,
+        turnBasedDuelCompleted: false,
+        completedObjectives: 1,
+        requiredObjectives: 3 as const,
+        readyToClaim: false,
+        currentLocationId: "location.korchma.fighting_corner"
+      }
+    }]));
+    const service = buildService(world, fixedNow, undefined, undefined, undefined, { recordResolvedDuelSafely });
+    const created = await service.createOpenChallengeForTelegramUser(1n);
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    const resolved = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    expect(resolved).toMatchObject({
+      state: "resolved",
+      questProgressUpdates: [{ telegramUserId: 1n, objective: "quick-duel" }]
+    });
+    expect(recordResolvedDuelSafely).toHaveBeenCalledTimes(1);
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("resolved");
+
+    const replay = await service.getByToken(created.challenge.inviteToken);
+    expect(replay).toMatchObject({ state: "resolved" });
+    expect(recordResolvedDuelSafely).toHaveBeenCalledTimes(2);
+  });
+
   it("checks accept resource warnings against the accepting hero, not the challenger", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n, { hpCurrent: 1, hpMax: 24, manaCurrent: 1, manaMax: 12 });
@@ -1853,7 +1893,8 @@ function buildService(
   clock = fixedNow,
   nearbyDuelTargets?: NearbyDuelTargetValidator,
   achievements?: AchievementService,
-  activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">
+  activityEvents?: Pick<PublicActivityEventPublisher, "recordDuelCompletedSafely">,
+  fightingCornerQuest?: ConstructorParameters<typeof DuelChallengeService>[7]
 ): DuelChallengeService {
   return new DuelChallengeService(
     world,
@@ -1862,7 +1903,8 @@ function buildService(
     new FakeRandomSource([0.5]),
     nearbyDuelTargets,
     achievements,
-    activityEvents
+    activityEvents,
+    fightingCornerQuest
   );
 }
 

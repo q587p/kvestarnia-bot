@@ -4,10 +4,12 @@ import type {
   TrainingDoppelgangerService,
   TrainingDoppelgangerTimeoutResult
 } from "../services/trainingDoppelgangerService";
+import type { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import { buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "./keyboards/trainingDoppelgangerKeyboard";
 import { presentPersistentFightTurn } from "./presenters/fightPresenter";
 import { presentTrainingDoppelgangerTurn } from "./presenters/trainingDoppelgangerPresenter";
+import { presentFightingCornerQuestProgressNotification } from "./presenters/fightingCornerQuestPresenter";
 import { isMessageNotModifiedError } from "./safeEditMessageText";
 
 const HTML_MESSAGE_OPTIONS = {
@@ -18,6 +20,7 @@ export function createCombatTurnTimeoutScheduler(
   services: {
     fight: FightService;
     trainingDoppelganger?: TrainingDoppelgangerService;
+    fightingCornerQuest?: FightingCornerQuestService;
   },
   bot: Bot,
   options: { intervalMs?: number; limit?: number } = {}
@@ -51,6 +54,13 @@ export function createCombatTurnTimeoutScheduler(
 
           if (result.state !== "skipped") {
             await notifyTrainingFight(services.trainingDoppelganger, bot, result);
+            if (services.fightingCornerQuest) {
+              const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
+                BigInt(result.telegramUserId),
+                result.session
+              );
+              await notifyTrainingQuestProgress(bot, updates);
+            }
           }
         }
       }
@@ -77,6 +87,23 @@ export function createCombatTurnTimeoutScheduler(
       }
     }
   };
+}
+
+async function notifyTrainingQuestProgress(
+  bot: Bot,
+  updates: Awaited<ReturnType<FightingCornerQuestService["recordTrainingSessionSafely"]>>
+): Promise<void> {
+  for (const update of updates) {
+    try {
+      await bot.api.sendMessage(
+        Number(update.telegramUserId),
+        presentFightingCornerQuestProgressNotification(update),
+        HTML_MESSAGE_OPTIONS
+      );
+    } catch {
+      // Quest progress is durable; Telegram delivery remains best-effort.
+    }
+  }
 }
 
 async function notifyPersistentFight(

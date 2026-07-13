@@ -5,6 +5,7 @@ import type { CellarErrandService } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../../services/cellarGrownupQuestService";
 import type { FightService } from "../../services/fightService";
 import type { FirstKorchmaQuestService } from "../../services/firstKorchmaQuestService";
+import type { FightingCornerQuestService } from "../../services/fightingCornerQuestService";
 import type { ItemUpgradeService } from "../../services/itemUpgradeService";
 import type { DailyKorchmaRoundService } from "../../services/dailyKorchmaRoundService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
@@ -49,6 +50,7 @@ export interface QuestHubCommandOptions {
   dailyKorchmaRound?: DailyKorchmaRoundService;
   fight: FightService;
   firstKorchmaQuest?: FirstKorchmaQuestService;
+  fightingCornerQuest?: FightingCornerQuestService;
   itemUpgrades?: Pick<ItemUpgradeService, "getUnlockQuestForTelegramUser">;
   yeger: YegerQuestService;
   presence: PresenceService;
@@ -167,6 +169,9 @@ export async function buildQuestHubSnapshot(
   const firstKorchmaQuest = options.firstKorchmaQuest
     ? await options.firstKorchmaQuest.getForTelegramUser(telegramUserId)
     : null;
+  const fightingCornerQuest = options.fightingCornerQuest
+    ? await options.fightingCornerQuest.getForTelegramUser(telegramUserId)
+    : null;
   const starterFight =
     typeof options.fight.getMimicShawarmaForTelegramUser === "function"
       ? await options.fight.getMimicShawarmaForTelegramUser(telegramUserId)
@@ -191,6 +196,7 @@ export async function buildQuestHubSnapshot(
   if (
     fight.state === "no-character" ||
     firstKorchmaQuest?.state === "no-character" ||
+    fightingCornerQuest?.state === "no-character" ||
     problemQuest.state === "no-character" ||
     yeger.state === "no-character" ||
     cellar.state === "no-character" ||
@@ -207,6 +213,7 @@ export async function buildQuestHubSnapshot(
     currentLocationId,
     adventure,
     ...(firstKorchmaQuest ? { firstKorchmaQuest } : {}),
+    ...(fightingCornerQuest && fightingCornerQuest.state !== "disabled" ? { fightingCornerQuest } : {}),
     ...(starterAdventure && starterAdventure.state !== "no-character" ? { starterAdventure } : {}),
     fight,
     ...(starterFight && starterFight.state !== "no-character" ? { starterFight } : {}),

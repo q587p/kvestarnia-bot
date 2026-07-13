@@ -127,6 +127,8 @@ export type RogueRetaliationClaimResult =
   | { state: "blocked"; reason: RogueRetaliationClaimReason; attempt?: RoguePickpocketAttemptRecord };
 
 export interface ClassNoncombatRepository {
+  isRogueRetaliationDuelInviteToken?(inviteToken: string): Promise<boolean>;
+
   getSnapshotForTelegramUser(
     telegramUserId: bigint,
     input: { activeSince: Date; page: number; pageSize: number; now: Date; rogueAttemptedLocalDate?: string }
