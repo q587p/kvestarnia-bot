@@ -20,6 +20,7 @@ describe("Fighting Corner quest presenter", () => {
     expect(text).toContain("<b>Перше правило Бійцівського кутка</b>");
     expect(text).toContain("перешліть посилання-запрошення");
     expect(text).toContain("«👀 Хто поруч» → «Кинути виклик присутнім»");
+    expect(text).toContain("присутнім».\n\nТретє правило:");
     expect(text).toContain("обидва бійці заходять добровільно");
     expect(text).toContain("а корчмар — із журналом");
     expect(text).not.toContain("за Столом зі справами");
