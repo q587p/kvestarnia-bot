@@ -4,7 +4,7 @@
 - Player-facing name: `Квестарня`.
 - Technical slug/package/repo prefix: `kvestarnia`.
 - Bot username target: `@kvestarnia_bot`.
-- Current package version in this repository snapshot: `0.3.10`. The production-off `Перше правило Бійцівського кутка` is a level 3+, once-per-remort-life Quest Table quest over settled Doppelganger training, ordinary quick duels and terminal turn-based duels with a resolved round; current-life `DailyAction` keys preserve acceptance/progress/exact claim reward through one bounded read, while combat/duel settlement stays primary and `/dev_reset_fighting_corner_quest` stays non-production only.
+- Current package version in this repository snapshot: `0.3.10`. The production-off `Перше правило Бійцівського кутка` is a level 3+, once-per-remort-life Quest Table quest over settled Doppelganger training, ordinary quick duels and terminal turn-based duels with a resolved round; current-life `DailyAction` keys preserve acceptance/progress/exact claim reward through one bounded read, all terminal training command/turn/mode/view/journal recovery records progress before Telegram rendering, combat/duel settlement stays primary and `/dev_reset_fighting_corner_quest` stays non-production only.
 ## Language split
 - Codex-facing workflow docs, task docs, prompts, skills, PR text, commits, and test names should be English when practical.
 - Player-facing Telegram copy, lore, item/monster names, news, and release flavor stay Ukrainian.

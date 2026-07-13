@@ -213,7 +213,7 @@ function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServ
   });
 }
 
-async function handleTrainingDoppelgangerCallback(
+export async function handleTrainingDoppelgangerCallback(
   ctx: Context,
   callback: TrainingDoppelgangerCallback,
   services: BotServices
@@ -255,6 +255,13 @@ async function handleTrainingDoppelgangerCallback(
       return;
     }
 
+    const questProgressUpdates = result.state !== "not-found" && services.fightingCornerQuest
+      ? await services.fightingCornerQuest.recordTrainingSessionSafely(
+          telegramUserId,
+          result.session
+        )
+      : [];
+
     if (result.state !== "not-found") {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
@@ -272,13 +279,7 @@ async function handleTrainingDoppelgangerCallback(
             reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
           })
     });
-    if (result.state !== "not-found" && services.fightingCornerQuest) {
-      const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
-        telegramUserId,
-        result.session
-      );
-      await notifyTrainingQuestProgress(ctx, updates);
-    }
+    await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
   }
 
@@ -312,6 +313,13 @@ async function handleTrainingDoppelgangerCallback(
       });
     }
 
+    const questProgressUpdates = services.fightingCornerQuest
+      ? await services.fightingCornerQuest.recordTrainingSessionSafely(
+          telegramUserId,
+          result.session
+        )
+      : [];
+
     await safeAnswerCallbackQuery(ctx);
 
     if (callback.type === "journal") {
@@ -319,6 +327,7 @@ async function handleTrainingDoppelgangerCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
       });
+      await notifyTrainingQuestProgress(ctx, questProgressUpdates);
       return;
     }
 
@@ -342,13 +351,7 @@ async function handleTrainingDoppelgangerCallback(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
     });
-    if (services.fightingCornerQuest) {
-      const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
-        telegramUserId,
-        result.session
-      );
-      await notifyTrainingQuestProgress(ctx, updates);
-    }
+    await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
   }
 

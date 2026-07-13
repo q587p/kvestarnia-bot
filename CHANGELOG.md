@@ -20,7 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Compatibility
 - Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. Acceptance uses a stored millisecond timestamp and requires strictly later objectives. The quest marker remains within the eight-source grouped Fight snapshot while adding one actual bounded ledger query when enabled; Quest Hub reuses that snapshot instead of repeating the three Fight-family reads.
-- Turn-based resolution uses a bounded round-existence query only when the feature is enabled; lazy terminal Doppelganger command/callback recovery now runs the same idempotent progress hook as direct settlement.
+- Turn-based resolution uses a bounded round-existence query only when the feature is enabled; lazy terminal Doppelganger command, turn, mode, view and battle-journal recovery now runs the same idempotent progress hook as direct settlement before Telegram rendering.
 - Training/duel settlement remains primary and quest progress/Telegram delivery is idempotent best effort. Normal training, quick-duel and turn-based rewards, tournament scoring/prizes, combat outcomes and lore text are unchanged.
 
 ## [0.3.9] - 12026-07-13 - Quest Marker Snapshot DB Fan-out Reduction
