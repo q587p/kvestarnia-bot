@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CharacterRecord, CharacterRepository } from "../../src/db/repositories/characterRepository";
-import type {
-  ClaimDailyActionInput,
-  ClaimDailyActionResult,
-  DailyActionRecord,
-  DailyActionRepository,
-  ItemGrant
+import {
+  canonicalizeAppliedItemGrants,
+  type ClaimDailyActionInput,
+  type ClaimDailyActionResult,
+  type DailyActionRecord,
+  type DailyActionRepository,
+  type ItemGrant
 } from "../../src/db/repositories/dailyActionRepository";
+import { buildQuestIskrokaminBonusGrant } from "../../src/domain/quests/questIskrokaminBonus";
 import type { DuelChallengeRecord } from "../../src/db/repositories/duelChallengeRepository";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import {
@@ -200,6 +202,35 @@ describe("FightingCornerQuestService", () => {
     ]);
   });
 
+  it("normalizes older duplicate applied-grant rows on exact reward replay", async () => {
+    const world = new TestWorld();
+    world.character.level = 4;
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+    await world.service().claimForTelegramUser(42n);
+    world.daily.replaceResult(42n, FIGHTING_CORNER_QUEST_KEYS.completed, "life:0", {
+      reward: {
+        appliedItemGrants: [
+          { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+          { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 },
+          { itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }
+        ]
+      }
+    });
+
+    const replay = await world.service().claimForTelegramUser(42n);
+
+    expect(replay).toMatchObject({
+      state: "already-completed",
+      reward: {
+        itemGrants: [
+          { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+          { itemId: ISKROKAMIN_ITEM_ID, quantity: 2 }
+        ]
+      }
+    });
+  });
+
   it("serializes concurrent claims so XP, gold and items are granted once", async () => {
     const world = new TestWorld();
     await world.completeObjectives();
@@ -239,7 +270,7 @@ describe("FightingCornerQuestService", () => {
     expect(world.grantedItems).toEqual([{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]);
   });
 
-  it("allows a new remort-life quest while the max-owned cap prevents soap stacking", async () => {
+  it("allows a new remort-life quest while an owned exact base soap remains capped at one", async () => {
     const world = new TestWorld();
     await world.completeObjectives();
     world.character.currentLocationId = "location.korchma.quest_table";
@@ -257,6 +288,31 @@ describe("FightingCornerQuestService", () => {
     expect(world.grantedItems.filter((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID))
       .toEqual([{ itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 }]);
     expect(world.daily.count(FIGHTING_CORNER_QUEST_KEYS.completed, "life:1", 42n)).toBe(1);
+  });
+
+  it("may grant the exact base soap again in a later life after it is no longer owned", async () => {
+    const world = new TestWorld();
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+    await world.service().claimForTelegramUser(42n);
+
+    world.ownedItems.delete(PINK_SOAP_OF_FIRST_RULE_ITEM_ID);
+    world.character.remortCount = 1;
+    await world.completeObjectives();
+    world.character.currentLocationId = "location.korchma.quest_table";
+    const nextLife = await world.service().claimForTelegramUser(42n);
+
+    expect(nextLife.state).toBe("completed");
+    expect(nextLife.state === "completed" ? nextLife.reward.itemGrants : []).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 })
+      ])
+    );
+    expect(world.grantedItems.filter((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID))
+      .toEqual([
+        { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 },
+        { itemId: PINK_SOAP_OF_FIRST_RULE_ITEM_ID, quantity: 1 }
+      ]);
   });
 
   it("isolates every stage by remort life and rejects results settled for an older life", async () => {
@@ -410,22 +466,28 @@ class TestDailyActionRepository implements DailyActionRepository {
       return Promise.resolve({ state: "existing", action: existing, character, levelChange: null, itemGrants: [] });
     }
 
-    const itemGrants = [...(input.itemGrants ?? [])];
-    if (input.questIskrokaminBonus && character.level >= 4) {
-      itemGrants.push({ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 });
-    }
-    const mergedItemGrants = [...itemGrants.reduce((map, grant) => {
+    const bonus = input.questIskrokaminBonus
+      ? buildQuestIskrokaminBonusGrant({
+          characterId: character.id,
+          characterLevel: character.level,
+          sourceIdentity: `${input.key}:${input.localDate}`
+        })
+      : null;
+    const itemGrants = bonus
+      ? [...(input.itemGrants ?? []), bonus]
+      : [...(input.itemGrants ?? [])];
+    const appliedItemGrants = itemGrants.flatMap((grant) => {
       const owned = this.ownedItems.get(grant.itemId) ?? 0;
       const quantity = grant.maxOwnedQuantity === undefined
         ? grant.quantity
         : Math.max(0, Math.min(grant.quantity, grant.maxOwnedQuantity - owned));
       if (quantity <= 0) {
-        return map;
+        return [];
       }
       this.ownedItems.set(grant.itemId, owned + quantity);
-      map.set(grant.itemId, (map.get(grant.itemId) ?? 0) + quantity);
-      return map;
-    }, new Map<string, number>())].map(([itemId, quantity]) => ({ itemId, quantity }));
+      return [{ itemId: grant.itemId, quantity }];
+    });
+    const mergedItemGrants = canonicalizeAppliedItemGrants(appliedItemGrants);
     const base = input.resultJson && typeof input.resultJson === "object" && !Array.isArray(input.resultJson)
       ? input.resultJson
       : {};
@@ -463,6 +525,15 @@ class TestDailyActionRepository implements DailyActionRepository {
 
   count(key: string, localDate: string, telegramUserId: bigint): number {
     return this.rows.has(rowKey(telegramUserId, key, localDate)) ? 1 : 0;
+  }
+
+  replaceResult(telegramUserId: bigint, key: string, localDate: string, resultJson: unknown): void {
+    const keyValue = rowKey(telegramUserId, key, localDate);
+    const existing = this.rows.get(keyValue);
+    if (!existing) {
+      throw new Error(`Missing test daily action ${keyValue}.`);
+    }
+    this.rows.set(keyValue, { ...existing, resultJson: resultJson as DailyActionRecord["resultJson"] });
   }
 }
 

@@ -53,14 +53,15 @@ export function createCombatTurnTimeoutScheduler(
           const result = await services.trainingDoppelganger.resolveDueTrainingTurn(due);
 
           if (result.state !== "skipped") {
-            await notifyTrainingFight(services.trainingDoppelganger, bot, result);
+            let questUpdates: Awaited<ReturnType<FightingCornerQuestService["recordTrainingSessionSafely"]>> = [];
             if (services.fightingCornerQuest) {
-              const updates = await services.fightingCornerQuest.recordTrainingSessionSafely(
+              questUpdates = await services.fightingCornerQuest.recordTrainingSessionSafely(
                 BigInt(result.telegramUserId),
                 result.session
               );
-              await notifyTrainingQuestProgress(bot, updates);
             }
+            await notifyTrainingFight(services.trainingDoppelganger, bot, result);
+            await notifyTrainingQuestProgress(bot, questUpdates);
           }
         }
       }

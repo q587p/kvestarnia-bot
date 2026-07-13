@@ -15,8 +15,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added explicit production-off rollout flags for the quest and its non-production-only helper.
 
 ### Rewards
-- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold, the max-one starter tool `Рожеве мило першого правила` and one guaranteed `Іскрокамінь`, plus the existing canonical level 4+ quest Iskrokamin bonus. Already-owned soap is not duplicated or shown as applied.
-- Exact XP, gold and applied item grants are stored and replayed; duplicate/concurrent claims cannot reroll or duplicate them.
+- The replay-safe claim grants `ceil(42%)` of the remort-adjusted current-level XP band clamped to `5..42`, `min(93, 13 + level * 6)` gold, the starter tool `Рожеве мило першого правила` and one guaranteed `Іскрокамінь`, plus the existing deterministic `0..3` level 4+ quest Iskrokamin bonus. The exact base soap is not duplicated or shown as applied while currently owned; if it is absent, a later remort life may grant the base item again.
+- Exact XP, gold and post-cap applied item grants are stored and replayed; equal applied item ids are coalesced into one summed row, older duplicate stored rows normalize on replay, and duplicate/concurrent claims cannot reroll or duplicate them.
 
 ### Compatibility
 - Reused current-life `DailyAction` keys with one bounded five-key read; no schema or migration was added. Acceptance uses a stored millisecond timestamp and requires strictly later objectives. The quest marker remains within the eight-source grouped Fight snapshot while adding one actual bounded ledger query when enabled; Quest Hub reuses that snapshot instead of repeating the three Fight-family reads.

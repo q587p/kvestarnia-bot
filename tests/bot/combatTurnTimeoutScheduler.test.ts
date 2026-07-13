@@ -475,6 +475,12 @@ function terminalPersistentSession(): DueSoloCombatSessionRecord {
   const state: CombatState = {
     ...session.state!,
     status: "won",
+    completedAt: "2026-06-20T00:00:23.000Z",
+    settlement: {
+      ...session.state!.settlement!,
+      status: "completed",
+      settledAt: "2026-06-20T00:00:23.000Z"
+    },
     turn: 3,
     monster: {
       ...session.state!.monster,
@@ -523,6 +529,12 @@ function terminalTrainingSession(): DueSoloCombatSessionRecord {
   const state: CombatState = {
     ...session.state!,
     status: "won",
+    completedAt: "2026-06-20T00:00:23.000Z",
+    settlement: {
+      ...session.state!.settlement!,
+      status: "completed",
+      settledAt: "2026-06-20T00:00:23.000Z"
+    },
     turn: 3,
     monster: {
       ...session.state!.monster,

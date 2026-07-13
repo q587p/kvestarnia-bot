@@ -57,7 +57,8 @@ describe("Fighting Corner quest presenter", () => {
             name: "Рожеве мило першого правила",
             quantity: 1
           },
-          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 2 }
+          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 },
+          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 }
         ]
       },
       levelChange: null
@@ -69,6 +70,7 @@ describe("Fighting Corner quest presenter", () => {
     expect(text).toContain("11 XP");
     expect(text).toContain("37");
     expect(text).toContain("Іскрокамінь ×2");
+    expect(text.match(/Іскрокамінь ×2/g)).toHaveLength(1);
   });
 });
 

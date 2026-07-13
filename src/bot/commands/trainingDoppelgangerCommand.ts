@@ -133,8 +133,8 @@ export async function sendTrainingDoppelganger(
     return;
   }
 
-  await markTrainingPresence(ctx, options.presence);
   if (result.state === "active") {
+    await markTrainingPresence(ctx, options.presence);
     await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
     const messageId = await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
       type: "session",
@@ -149,6 +149,7 @@ export async function sendTrainingDoppelganger(
     telegramUserId,
     result.session
   ) ?? [];
+  await markTrainingPresence(ctx, options.presence);
   const messageId = await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     type: "session",
     session: result.session,

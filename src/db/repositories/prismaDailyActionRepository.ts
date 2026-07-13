@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { buildQuestIskrokaminBonusGrant } from "../../domain/quests/questIskrokaminBonus";
 import {
+  canonicalizeAppliedItemGrants,
   DailyActionPrefixLimitExceededError,
   DailyActionQuantityLimitExceededError,
   type ClaimDailyActionInput,
@@ -298,13 +299,18 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           });
         }
 
-        if (appliedItemGrants.length > 0 || itemGrants.length > 0) {
+        const canonicalAppliedItemGrants = canonicalizeAppliedItemGrants(appliedItemGrants);
+
+        if (canonicalAppliedItemGrants.length > 0 || itemGrants.length > 0) {
           await tx.dailyAction.update({
             where: {
               id: action.id
             },
             data: {
-              resultJson: withAppliedItemGrants(action.resultJson, appliedItemGrants) as Prisma.InputJsonValue
+              resultJson: withAppliedItemGrants(
+                action.resultJson,
+                canonicalAppliedItemGrants
+              ) as Prisma.InputJsonValue
             }
           });
         }
@@ -318,7 +324,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             newLevel,
             leveledUp: newLevel > oldLevel
           },
-          itemGrants: appliedItemGrants,
+          itemGrants: canonicalAppliedItemGrants,
           hpLoss
         };
         });
@@ -996,7 +1002,7 @@ function withAppliedItemGrants(resultJson: Prisma.JsonValue | null, appliedItemG
     ...base,
     reward: {
       ...rewardObject,
-      appliedItemGrants: appliedItemGrants.map((grant) => ({
+      appliedItemGrants: canonicalizeAppliedItemGrants(appliedItemGrants).map((grant) => ({
         itemId: grant.itemId,
         quantity: grant.quantity
       }))
@@ -1045,7 +1051,7 @@ function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
     return [];
   }
 
-  return itemGrants.flatMap((grant) => {
+  return canonicalizeAppliedItemGrants(itemGrants.flatMap((grant) => {
     if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
       return [];
     }
@@ -1056,7 +1062,7 @@ function readItemGrants(resultJson: Prisma.JsonValue | null): ItemGrant[] {
     return typeof itemId === "string" && typeof quantity === "number"
       ? [{ itemId, quantity }]
       : [];
-  });
+  }));
 }
 
 class HpMutationConflictError extends Error {

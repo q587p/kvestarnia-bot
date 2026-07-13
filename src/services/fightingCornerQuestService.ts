@@ -1,9 +1,10 @@
 import type { CharacterRecord, CharacterRepository } from "../db/repositories/characterRepository";
 import type { ClassNoncombatRepository } from "../db/repositories/classNoncombatRepository";
-import type {
-  DailyActionRecord,
-  DailyActionRepository,
-  RewardLevelChange
+import {
+  canonicalizeAppliedItemGrants,
+  type DailyActionRecord,
+  type DailyActionRepository,
+  type RewardLevelChange
 } from "../db/repositories/dailyActionRepository";
 import type { DuelChallengeRecord } from "../db/repositories/duelChallengeRepository";
 import type { SoloCombatSessionRecord } from "../db/repositories/soloCombatSessionRepository";
@@ -568,7 +569,7 @@ function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity
     return [];
   }
 
-  return grants.flatMap((grant) => {
+  return canonicalizeAppliedItemGrants(grants.flatMap((grant) => {
     if (!grant || typeof grant !== "object" || Array.isArray(grant)) {
       return [];
     }
@@ -577,7 +578,7 @@ function readAppliedItemGrants(value: unknown): Array<{ itemId: string; quantity
     return typeof itemId === "string" && typeof quantity === "number"
       ? [{ itemId, quantity: Math.max(0, Math.floor(quantity)) }]
       : [];
-  });
+  }));
 }
 
 function parseStoredDate(value: unknown): Date | null {

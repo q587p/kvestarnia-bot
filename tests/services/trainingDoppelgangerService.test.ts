@@ -266,6 +266,7 @@ describe("TrainingDoppelgangerService", () => {
       }
     });
     expect(result.state === "updated" && ["won", "lost"].includes(result.session.status)).toBe(true);
+    expect(result.state === "updated" ? result.session.state?.settlement?.status : null).toBe("completed");
     expect(world.actions.get(`${TRAINING_DOPPELGANGER_REWARD_KEY}:${started.session.id}`)).toMatchObject({
       rewardGold: 0
     });
@@ -401,18 +402,33 @@ describe("TrainingDoppelgangerService", () => {
     expect(result.state).toBe("terminal");
     if (result.state === "terminal") {
       expect(result.session.state?.status).toBe("won");
+      expect(result.session.state?.settlement?.status).toBe("completed");
       expect(result.reward?.state).toBe("claimed");
       expect(result.reward?.reward.localDate).toBe(started.session.id);
     }
-    expect(world.actions.size).toBe(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
     expect(world.cooldowns.size).toBe(1);
     expect(world.sessions.get(started.session.id)?.reward).toBeDefined();
   });
 
   it("records a lazily settled terminal session exactly once through repeated shared command recovery", async () => {
     const world = new FakeWorld();
-    world.addCharacter(telegramUserId);
+    world.addCharacter(telegramUserId, {
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    });
     const service = buildService(world, new FakeRandomSource([0.1, 0.9, 0.1, 0.9, 0.1, 0.1, 0.1]));
+    const fightingCornerQuest = new FightingCornerQuestService(
+      world,
+      world,
+      { isRogueRetaliationDuelInviteToken: () => Promise.resolve(false) },
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-06-17T09:29:58.123Z")
+    );
+    await expect(fightingCornerQuest.acceptForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "accepted"
+    });
     const started = await service.getOrStartForTelegramUser(telegramUserId);
     if (started.state !== "active" || !started.session.state) {
       throw new Error(`Expected active training, got ${started.state}`);
@@ -426,29 +442,6 @@ describe("TrainingDoppelgangerService", () => {
       }
     });
 
-    const seen = new Set<string>();
-    let recordCalls = 0;
-    const fightingCornerQuest = {
-      recordTrainingSessionSafely: (_telegramUserId: bigint, session: SoloCombatSessionRecord) => {
-        recordCalls += 1;
-        if (seen.has(session.id)) return Promise.resolve([]);
-        seen.add(session.id);
-        return Promise.resolve([{
-          telegramUserId,
-          objective: "training" as const,
-          progress: {
-            accepted: true,
-            trainingCompleted: true,
-            quickDuelCompleted: false,
-            turnBasedDuelCompleted: false,
-            completedObjectives: 1,
-            requiredObjectives: 3 as const,
-            readyToClaim: false,
-            currentLocationId: "location.korchma.fighting_corner"
-          }
-        }]);
-      }
-    };
     const replies: string[] = [];
     const ctx = {
       from: { id: Number(telegramUserId), first_name: "Тестовий" },
@@ -466,20 +459,118 @@ describe("TrainingDoppelgangerService", () => {
       fightingCornerQuest,
       now: fixedNow
     });
+    const xpAfterFirst = (await world.findByTelegramUserId(telegramUserId))?.xp;
+    const cooldownAfterFirst = world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt;
+    const rewardAfterFirst = world.sessions.get(started.session.id)?.reward;
+
+    expect(world.sessions.get(started.session.id)?.state?.settlement?.status).toBe("completed");
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
+    expect(replies.filter((text) => text.includes("Зараховано тренування із Сумлінним Допельґанґером")))
+      .toHaveLength(1);
+
     await sendTrainingDoppelganger(ctx, service, "reply", {
       presence,
       fightingCornerQuest,
       now: fixedNow
     });
 
-    expect(recordCalls).toBe(1);
-    expect(seen).toEqual(new Set([started.session.id]));
+    expect((await world.findByTelegramUserId(telegramUserId))?.xp).toBe(xpAfterFirst);
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt).toEqual(cooldownAfterFirst);
+    expect(world.sessions.get(started.session.id)?.reward).toEqual(rewardAfterFirst);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
     expect(replies.filter((text) => text.includes("Зараховано тренування із Сумлінним Допельґанґером")))
       .toHaveLength(1);
-    expect(world.actions.size).toBe(1);
   });
 
-  it("records a journal-lazily-settled terminal session once across repeated journal and view recovery", async () => {
+  it("records a normal terminal player turn on its first callback and replays it idempotently", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, {
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    });
+    const service = buildService(world, new FakeRandomSource([0, 0, 0, 0, 0, 0]));
+    const fightingCornerQuest = new FightingCornerQuestService(
+      world,
+      world,
+      { isRogueRetaliationDuelInviteToken: () => Promise.resolve(false) },
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-06-17T09:29:58.123Z")
+    );
+    await fightingCornerQuest.acceptForTelegramUser(telegramUserId);
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error(`Expected active training, got ${started.state}`);
+    }
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      state: {
+        ...started.session.state,
+        monster: { ...started.session.state.monster, hp: 1 }
+      }
+    });
+    const reply = vi.fn(() => Promise.resolve({ message_id: 42 }));
+    const ctx = {
+      from: { id: Number(telegramUserId), first_name: "Тестовий" },
+      answerCallbackQuery: vi.fn(() => Promise.resolve(true)),
+      editMessageText: vi.fn(() => Promise.resolve(true)),
+      reply
+    } as unknown as Context;
+    const services = {
+      trainingDoppelganger: service,
+      fightingCornerQuest,
+      presence: { markAction: () => Promise.resolve(undefined) },
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" })
+      }
+    } as unknown as BotServices;
+    const callback = {
+      type: "turn" as const,
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "attack" as const
+    };
+
+    await handleTrainingDoppelgangerCallback(ctx, callback, services);
+
+    expect(world.sessions.get(started.session.id)).toMatchObject({
+      status: "won",
+      state: { settlement: { status: "completed" } }
+    });
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
+    expect(reply.mock.calls.filter(([text]) =>
+      String(text).includes("Зараховано тренування із Сумлінним Допельґанґером")
+    )).toHaveLength(1);
+    const xpAfterFirst = (await world.findByTelegramUserId(telegramUserId))?.xp;
+    const cooldownAfterFirst = world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt;
+    const rewardAfterFirst = world.sessions.get(started.session.id)?.reward;
+
+    await handleTrainingDoppelgangerCallback(ctx, callback, services);
+
+    expect((await world.findByTelegramUserId(telegramUserId))?.xp).toBe(xpAfterFirst);
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt).toEqual(cooldownAfterFirst);
+    expect(world.sessions.get(started.session.id)?.reward).toEqual(rewardAfterFirst);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
+    expect(reply.mock.calls.filter(([text]) =>
+      String(text).includes("Зараховано тренування із Сумлінним Допельґанґером")
+    )).toHaveLength(1);
+  });
+
+  it.each(["journal", "view"] as const)(
+    "records the first %s-lazily-settled terminal session without a second recovery call",
+    async (callbackType) => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId, {
       currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
@@ -524,21 +615,11 @@ describe("TrainingDoppelgangerService", () => {
       }
     } as unknown as BotServices;
 
-    await handleTrainingDoppelgangerCallback(
-      ctx,
-      { type: "journal", sessionId: started.session.id, page: 0 },
-      services
-    );
-    await handleTrainingDoppelgangerCallback(
-      ctx,
-      { type: "journal", sessionId: started.session.id, page: 0 },
-      services
-    );
-    await handleTrainingDoppelgangerCallback(
-      ctx,
-      { type: "view", sessionId: started.session.id },
-      services
-    );
+    const callback = callbackType === "journal"
+      ? { type: "journal" as const, sessionId: started.session.id, page: 0 }
+      : { type: "view" as const, sessionId: started.session.id };
+
+    await handleTrainingDoppelgangerCallback(ctx, callback, services);
 
     expect(world.sessions.get(started.session.id)).toMatchObject({
       status: "won",
@@ -550,12 +631,41 @@ describe("TrainingDoppelgangerService", () => {
     expect(reply.mock.calls.filter(([text]) =>
       String(text).includes("Зараховано тренування із Сумлінним Допельґанґером")
     )).toHaveLength(1);
+    const xpAfterFirst = (await world.findByTelegramUserId(telegramUserId))?.xp;
+    const cooldownAfterFirst = world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt;
+    const rewardAfterFirst = world.sessions.get(started.session.id)?.reward;
+
+    await handleTrainingDoppelgangerCallback(ctx, callback, services);
+
+    expect((await world.findByTelegramUserId(telegramUserId))?.xp).toBe(xpAfterFirst);
+    expect(world.cooldowns.get(TRAINING_DOPPELGANGER_COOLDOWN_KEY)?.availableAt).toEqual(cooldownAfterFirst);
+    expect(world.sessions.get(started.session.id)?.reward).toEqual(rewardAfterFirst);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
+    expect(reply.mock.calls.filter(([text]) =>
+      String(text).includes("Зараховано тренування із Сумлінним Допельґанґером")
+    )).toHaveLength(1);
   });
 
   it("claims a training reward when scheduled timeout auto-loses", async () => {
     const world = new FakeWorld();
-    world.addCharacter(telegramUserId, { hpCurrent: 1 });
+    world.addCharacter(telegramUserId, {
+      hpCurrent: 1,
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+    });
     const service = buildService(world, new FakeRandomSource([0.9, 0.9, 0.1, 0.9]));
+    const fightingCornerQuest = new FightingCornerQuestService(
+      world,
+      world,
+      { isRogueRetaliationDuelInviteToken: () => Promise.resolve(false) },
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-06-17T09:29:58.123Z")
+    );
+    await fightingCornerQuest.acceptForTelegramUser(telegramUserId);
     const started = await service.getOrStartForTelegramUser(telegramUserId);
 
     if (started.state !== "active" || !started.session.state) {
@@ -587,6 +697,9 @@ describe("TrainingDoppelgangerService", () => {
     expect(result.state).toBe("terminal");
     if (result.state === "terminal") {
       expect(result.session.state?.status).toBe("lost");
+      expect(result.session.state?.settlement?.status).toBe("completed");
+      await expect(fightingCornerQuest.recordTrainingSessionSafely(telegramUserId, result.session))
+        .resolves.toHaveLength(1);
       expect(result.reward).toMatchObject({
         reward: {
           xp: 1,
@@ -595,9 +708,26 @@ describe("TrainingDoppelgangerService", () => {
         }
       });
     }
-    expect(world.actions.size).toBe(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
     expect(world.cooldowns.size).toBe(1);
     expect(world.resourceMutations).toBe(1);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === FIGHTING_CORNER_QUEST_KEYS.training && action.localDate === "life:0"
+    )).toHaveLength(1);
+    const xpAfterFirst = (await world.findByTelegramUserId(telegramUserId))?.xp;
+    const rewardAfterFirst = world.sessions.get(started.session.id)?.reward;
+
+    if (result.state === "terminal") {
+      await expect(fightingCornerQuest.recordTrainingSessionSafely(telegramUserId, result.session))
+        .resolves.toEqual([]);
+    }
+    expect((await world.findByTelegramUserId(telegramUserId))?.xp).toBe(xpAfterFirst);
+    expect(world.sessions.get(started.session.id)?.reward).toEqual(rewardAfterFirst);
+    expect([...world.actions.values()].filter((action) =>
+      action.key === TRAINING_DOPPELGANGER_REWARD_KEY && action.localDate === started.session.id
+    )).toHaveLength(1);
   });
 
   it("repairs a missing cooldown when XP was committed before training settlement completion", async () => {

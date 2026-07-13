@@ -74,6 +74,53 @@ describe("training doppelganger command", () => {
     warning.mockRestore();
   });
 
+  it("records terminal quest progress before non-essential presence fails", async () => {
+    const terminalSession = trainingSession();
+    terminalSession.status = "lost";
+    terminalSession.state = {
+      ...terminalSession.state,
+      status: "lost",
+      completedAt: "2026-07-02T10:00:00.000Z",
+      settlement: { status: "completed", version: 1 }
+    } as SoloCombatSessionRecord["state"];
+    const service = new FakeTrainingDoppelgangerService({
+      state: "terminal",
+      character: character(),
+      doppelganger: doppelganger(),
+      session: terminalSession,
+      reward: null
+    });
+    const order: string[] = [];
+    const recordTrainingSessionSafely = vi.fn(() => {
+      order.push("quest");
+      return Promise.resolve([]);
+    });
+    const presence = {
+      markAction: () => {
+        order.push("presence");
+        return Promise.reject(new Error("presence unavailable"));
+      }
+    } as unknown as PresenceService;
+    const ctx = {
+      from: { id: 42, first_name: "Тестовий" },
+      reply: vi.fn(() => Promise.resolve({ message_id: 1 }))
+    } as unknown as Context;
+
+    await expect(sendTrainingDoppelganger(
+      ctx,
+      service as unknown as TrainingDoppelgangerService,
+      "reply",
+      {
+        presence,
+        fightingCornerQuest: { recordTrainingSessionSafely },
+        now: () => new Date("2026-07-02T10:00:00.000Z")
+      }
+    )).rejects.toThrow("presence unavailable");
+
+    expect(order).toEqual(["quest", "presence"]);
+    expect(recordTrainingSessionSafely).toHaveBeenCalledWith(42n, terminalSession);
+  });
+
   it("blocks pending Barrel raids before starting the training fight", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const service = new FakeTrainingDoppelgangerService({ state: "no-character" });

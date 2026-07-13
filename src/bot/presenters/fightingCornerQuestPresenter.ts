@@ -132,18 +132,34 @@ function objectiveLine(done: boolean, text: string): string {
 }
 
 function presentCompleted(reward: FightingCornerQuestReward, replay = false): string {
-  const soapLine = reward.itemGrants.some((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID)
+  const itemGrants = canonicalizePresentedItemGrants(reward.itemGrants);
+  const soapLine = itemGrants.some((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID)
     ? "🧼 Рожеве мило першого правила відтепер числиться інструментом. Бійцівський куток уперше занепокоївся."
     : null;
   return [
     "🎁 <b>Перше правило перевірено</b>",
     "",
     replay
-      ? "Корчмар показує вже закритий запис. Нагорода та сама; другого Іскрокаменя з цього папірця не буде."
+      ? "Корчмар показує вже закритий запис. Нагорода та сама; ще раз видати її цей папірець не дозволяє."
       : "Корчмар ставить три галочки й відсуває нагороду подалі від ліктів Бійцівського кутка.",
     "",
     presentQuestRewardAmount(reward),
     ...(soapLine ? [soapLine] : []),
-    ...reward.itemGrants.map(presentRewardItemGrant)
+    ...itemGrants.map(presentRewardItemGrant)
   ].join("\n");
+}
+
+function canonicalizePresentedItemGrants(
+  grants: FightingCornerQuestReward["itemGrants"]
+): FightingCornerQuestReward["itemGrants"] {
+  const byItemId = new Map<string, FightingCornerQuestReward["itemGrants"][number]>();
+
+  for (const grant of grants) {
+    const existing = byItemId.get(grant.itemId);
+    byItemId.set(grant.itemId, existing
+      ? { ...existing, quantity: existing.quantity + grant.quantity }
+      : grant);
+  }
+
+  return [...byItemId.values()];
 }
