@@ -2,7 +2,6 @@ import type { BotServices } from "./botServices";
 import type { QuestMarkerInput } from "./keyboards/questButtonMarkers";
 import { safeOptionalUiLookup } from "./optionalUiLookup";
 import {
-  elapsedMs,
   hotPathNow,
   startPerfSpan,
   type QuestMarkerPerformanceSource
@@ -52,12 +51,22 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   ] = await perf.measureDb(() => Promise.all([
     attribution.measure(
       "adventure",
-      () => resolveAdventureQuestMarkers(telegramUserId, services.adventure),
-      typeof services.adventure.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
+      () => resolveAdventureQuestMarkers(
+        telegramUserId,
+        services.adventure,
+        (sourceCount) => attribution.addSources(sourceCount)
+      ),
+      typeof services.adventure.getQuestMarkerSnapshotForTelegramUser === "function"
+        ? 1
+        : getLegacyAdventureSourceWeight(services.adventure)
     ),
     attribution.measure(
       "fight",
-      () => resolveFightQuestMarkers(telegramUserId, services.fight),
+      () => resolveFightQuestMarkers(
+        telegramUserId,
+        services.fight,
+        (sourceCount) => attribution.addSources(sourceCount)
+      ),
       typeof services.fight.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
     ),
     typeof firstKorchmaQuestService?.getForTelegramUser === "function"
@@ -200,7 +209,8 @@ function optionalQuestMarkerLookup<T>(
 
 async function resolveAdventureQuestMarkers(
   telegramUserId: bigint,
-  service: BotServices["adventure"]
+  service: BotServices["adventure"],
+  addFallbackSources: (sourceCount: number) => void
 ) {
   if (typeof service.getQuestMarkerSnapshotForTelegramUser === "function") {
     const grouped = await optionalQuestMarkerLookup(
@@ -209,7 +219,9 @@ async function resolveAdventureQuestMarkers(
     );
 
     if (!grouped) {
-      return { adventure: null, starterAdventure: null };
+      const sourceWeight = getLegacyAdventureSourceWeight(service);
+      addFallbackSources(sourceWeight);
+      return resolveLegacyAdventureQuestMarkers(telegramUserId, service);
     }
 
     const [adventure, starterAdventure] = await Promise.all([
@@ -220,6 +232,13 @@ async function resolveAdventureQuestMarkers(
     return { adventure, starterAdventure };
   }
 
+  return resolveLegacyAdventureQuestMarkers(telegramUserId, service);
+}
+
+async function resolveLegacyAdventureQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["adventure"]
+) {
   const [adventure, starterAdventure] = await Promise.all([
     optionalQuestMarkerLookup(
       "adventure offer",
@@ -238,7 +257,8 @@ async function resolveAdventureQuestMarkers(
 
 async function resolveFightQuestMarkers(
   telegramUserId: bigint,
-  service: BotServices["fight"]
+  service: BotServices["fight"],
+  addFallbackSources: (sourceCount: number) => void
 ) {
   if (typeof service.getQuestMarkerSnapshotForTelegramUser === "function") {
     const grouped = await optionalQuestMarkerLookup(
@@ -247,7 +267,8 @@ async function resolveFightQuestMarkers(
     );
 
     if (!grouped) {
-      return { fight: null, problemQuest: null };
+      addFallbackSources(2);
+      return resolveLegacyFightQuestMarkers(telegramUserId, service);
     }
 
     const [fight, problemQuest] = await Promise.all([
@@ -258,6 +279,13 @@ async function resolveFightQuestMarkers(
     return { fight, problemQuest };
   }
 
+  return resolveLegacyFightQuestMarkers(telegramUserId, service);
+}
+
+async function resolveLegacyFightQuestMarkers(
+  telegramUserId: bigint,
+  service: BotServices["fight"]
+) {
   const [fight, problemQuest] = await Promise.all([
     optionalQuestMarkerLookup(
       "fight overview",
@@ -270,6 +298,10 @@ async function resolveFightQuestMarkers(
   ]);
 
   return { fight, problemQuest };
+}
+
+function getLegacyAdventureSourceWeight(service: BotServices["adventure"]): number {
+  return 1 + (typeof service.getMimicShawarmaForTelegramUser === "function" ? 1 : 0);
 }
 
 function resolveSettledQuestMarkerLookup<T>(
@@ -287,24 +319,27 @@ function resolveSettledQuestMarkerLookup<T>(
   return optionalQuestMarkerLookup(label, () => Promise.reject(error));
 }
 
-function createQuestMarkerDbAttribution() {
+export function createQuestMarkerDbAttribution(now: () => number = hotPathNow) {
   let sourceCount = 0;
   let slowestSource: QuestMarkerPerformanceSource | null = null;
   let slowestSourceMs = 0;
 
   return {
+    addSources(sourceWeight: number): void {
+      sourceCount += sourceWeight;
+    },
     async measure<T>(
       source: QuestMarkerPerformanceSource,
       lookup: () => Promise<T>,
       sourceWeight = 1
     ): Promise<T> {
       sourceCount += sourceWeight;
-      const startedAt = hotPathNow();
+      const startedAt = now();
 
       try {
         return await lookup();
       } finally {
-        const durationMs = elapsedMs(startedAt);
+        const durationMs = now() - startedAt;
         if (durationMs > slowestSourceMs) {
           slowestSource = source;
           slowestSourceMs = durationMs;

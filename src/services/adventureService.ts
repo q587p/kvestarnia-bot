@@ -326,6 +326,9 @@ export class AdventureService {
   async getQuestMarkerSnapshotForTelegramUser(
     telegramUserId: bigint
   ): Promise<AdventureQuestMarkerSnapshot> {
+    const now = this.clock();
+    const period = buildAdventurePeriod(now);
+    const mimicLocalDate = toIsoDate(now);
     const context = await this.getQuestMarkerCharacterContext(telegramUserId);
 
     if (!context) {
@@ -336,8 +339,8 @@ export class AdventureService {
     }
 
     const [adventure, starterAdventure] = await Promise.allSettled([
-      this.getAdventureContext(telegramUserId, context),
-      this.getMimicShawarmaFromContext(telegramUserId, context)
+      this.getAdventureContext(telegramUserId, context, period),
+      this.getMimicShawarmaFromContext(telegramUserId, context, mimicLocalDate)
     ]);
 
     return { adventure, starterAdventure };
@@ -621,20 +624,21 @@ export class AdventureService {
   async getMimicShawarmaForTelegramUser(
     telegramUserId: bigint
   ): Promise<MimicShawarmaLookupResult> {
+    const localDate = toIsoDate(this.clock());
     const context = await this.getQuestMarkerCharacterContext(telegramUserId);
 
     if (!context) {
       return { state: "no-character" };
     }
 
-    return this.getMimicShawarmaFromContext(telegramUserId, context);
+    return this.getMimicShawarmaFromContext(telegramUserId, context, localDate);
   }
 
   private async getMimicShawarmaFromContext(
     telegramUserId: bigint,
-    context: AdventureQuestMarkerCharacterContext
+    context: AdventureQuestMarkerCharacterContext,
+    localDate: string
   ): Promise<MimicShawarmaLookupResult> {
-    const localDate = toIsoDate(this.clock());
     const { characterSummary } = context;
 
     const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
@@ -875,9 +879,9 @@ export class AdventureService {
 
   private async getAdventureContext(
     telegramUserId: bigint,
-    sharedContext?: AdventureQuestMarkerCharacterContext
+    sharedContext?: AdventureQuestMarkerCharacterContext,
+    period = buildAdventurePeriod(this.clock())
   ): Promise<AdventureLookupResult> {
-    const period = buildAdventurePeriod(this.clock());
     const context = sharedContext ?? await this.getQuestMarkerCharacterContext(telegramUserId);
 
     if (!context) {

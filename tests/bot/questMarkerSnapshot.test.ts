@@ -5,7 +5,10 @@ import {
   buildKorchmaHallKeyboard,
   buildKorchmaYardKeyboard
 } from "../../src/bot/keyboards/tavernKeyboard";
-import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
+import {
+  buildQuestMarkerSnapshotForTelegramUser,
+  createQuestMarkerDbAttribution
+} from "../../src/bot/questMarkerSnapshot";
 
 describe("quest marker snapshot", () => {
   afterEach(() => {
@@ -296,7 +299,139 @@ describe("quest marker snapshot", () => {
     );
     expect(payload?.questMarkerSlowestSourceMs).toEqual(expect.any(Number));
   });
+
+  it("falls back once after grouped-root failures and preserves recovering siblings and unrelated markers", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const adventureSnapshot = vi.fn(() => Promise.reject(new Error("adventure shared root failed")));
+    const adventureOffer = vi.fn(() => Promise.resolve({ state: "ready" as const, character, offer: {} }));
+    const starterAdventure = vi.fn(() => Promise.reject(new Error("starter child failed")));
+    const fightSnapshot = vi.fn(() => Promise.reject(new Error("fight shared root failed")));
+    const fightOverview = vi.fn(() => Promise.reject(new Error("fight child failed")));
+    const problemQuest = vi.fn(() => Promise.resolve({
+      state: "ready" as const,
+      character,
+      progress: { wins: 0, target: 13 },
+      archive: []
+    }));
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      adventure: {
+        getQuestMarkerSnapshotForTelegramUser: adventureSnapshot,
+        getAdventureOfferForTelegramUser: adventureOffer,
+        getMimicShawarmaForTelegramUser: starterAdventure
+      },
+      fight: {
+        getQuestMarkerSnapshotForTelegramUser: fightSnapshot,
+        getFightOverviewForTelegramUser: fightOverview,
+        getProblemQuestProgressForTelegramUser: problemQuest
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character })
+      }
+    }));
+
+    expect(snapshot?.adventure?.state).toBe("ready");
+    expect(snapshot?.starterAdventure).toBeUndefined();
+    expect(snapshot?.fight).toBeUndefined();
+    expect(snapshot?.problemQuest).toEqual({ wins: 0, target: 13 });
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(adventureSnapshot).toHaveBeenCalledTimes(1);
+    expect(adventureOffer).toHaveBeenCalledTimes(1);
+    expect(starterAdventure).toHaveBeenCalledTimes(1);
+    expect(fightSnapshot).toHaveBeenCalledTimes(1);
+    expect(fightOverview).toHaveBeenCalledTimes(1);
+    expect(problemQuest).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("quest marker adventure snapshot"),
+      expect.any(Error)
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("quest marker fight snapshot"),
+      expect.any(Error)
+    );
+  });
+
+  it("attributes only the legacy Adventure methods that are actually available", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const adventureOffer = vi.fn(() => Promise.resolve({ state: "ready" as const, character, offer: {} }));
+
+    await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      adventure: { getAdventureOfferForTelegramUser: adventureOffer }
+    }));
+
+    expect(adventureOffer).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledWith("Kvestarnia sampled perf timing", expect.objectContaining({
+      questMarkerSourceCount: 6
+    }));
+  });
+
+  it("counts the cellar-grownup source only when the retired cellar branch invokes it", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const cellarGrownup = vi.fn(() => Promise.resolve({ state: "ready", character }));
+
+    await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "ready", character, offer: {} })
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character })
+      },
+      cellarGrownup: { getForTelegramUser: cellarGrownup }
+    }));
+    await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      adventure: {
+        getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "ready", character, offer: {} })
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "level-retired", character, maxLevel: 3 })
+      },
+      cellarGrownup: { getForTelegramUser: cellarGrownup }
+    }));
+
+    expect(cellarGrownup).toHaveBeenCalledTimes(1);
+    expect(info.mock.calls.map((call) => (call[1] as Record<string, unknown>).questMarkerSourceCount))
+      .toEqual([6, 7]);
+  });
+
+  it("reports the exact slowest overlapping high-level source from a controlled clock", async () => {
+    const times = [0, 13, 20, 43, 50, 57];
+    const attribution = createQuestMarkerDbAttribution(() => times.shift() ?? 57);
+
+    await attribution.measure("adventure", () => Promise.resolve(undefined));
+    await attribution.measure("fight", () => Promise.resolve(undefined));
+    await attribution.measure("cellar", () => Promise.resolve(undefined));
+
+    expect(attribution.fields()).toEqual({
+      questMarkerSourceCount: 3,
+      questMarkerSlowestSource: "fight",
+      questMarkerSlowestSourceMs: 23
+    });
+  });
 });
+
+function markerServices(overrides: Record<string, unknown> = {}): BotServices {
+  return {
+    adventure: {
+      getAdventureOfferForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    fight: {
+      getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+      getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    yeger: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    cellarErrand: {
+      getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    dailyKorchmaRound: {
+      getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+    },
+    ...overrides
+  } as unknown as BotServices;
+}
 
 function flatInlineButtonTexts(keyboard: { inline_keyboard: { text: string }[][] }): string[] {
   return keyboard.inline_keyboard.flat().map((button) => button.text);
