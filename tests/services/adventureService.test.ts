@@ -51,6 +51,28 @@ import type { AchievementService, AchievementSimpleEventType } from "../../src/s
 const telegramUserId = 42n;
 
 describe("AdventureService", () => {
+  it("shares character and equipment reads across its quest marker snapshot", async () => {
+    const combinedEquipment = new FakeEquipmentRepository(null);
+    const combined = setup(null, combinedEquipment);
+    combined.characters.add(telegramUserId, { xp: 25 });
+
+    const separateEquipment = new FakeEquipmentRepository(null);
+    const separate = setup(null, separateEquipment);
+    separate.characters.add(telegramUserId, { xp: 25 });
+
+    const grouped = await combined.service.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+    await Promise.all([
+      separate.service.getAdventureOfferForTelegramUser(telegramUserId),
+      separate.service.getMimicShawarmaForTelegramUser(telegramUserId)
+    ]);
+
+    expect(grouped.adventure.status).toBe("fulfilled");
+    expect(grouped.starterAdventure.status).toBe("fulfilled");
+    expect(combined.characters.findCount).toBe(separate.characters.findCount - 1);
+    expect(combinedEquipment.listCount).toBe(1);
+    expect(separateEquipment.listCount).toBe(2);
+  });
+
   it("returns no-character when user has no character", async () => {
     const { service } = setup();
 
@@ -1133,6 +1155,7 @@ function fakeSession(): SoloCombatSessionRecord {
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+  findCount = 0;
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
     const xp = overrides.xp ?? 25;
@@ -1188,6 +1211,7 @@ class FakeCharacterRepository implements CharacterRepository {
   }
 
   findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
+    this.findCount += 1;
     return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
   }
 
@@ -1402,9 +1426,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
 }
 
 class FakeEquipmentRepository implements EquipmentRepository {
+  listCount = 0;
+
   constructor(private snapshot: CharacterEquipmentSnapshot | null) {}
 
   listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    this.listCount += 1;
     return Promise.resolve(this.snapshot);
   }
 

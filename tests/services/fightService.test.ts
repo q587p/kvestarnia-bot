@@ -90,6 +90,33 @@ import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 const telegramUserId = 42n;
 
 describe("FightService", () => {
+  it("shares the character read across its quest marker snapshot", async () => {
+    const combinedCharacters = new FakeCharacterRepository();
+    combinedCharacters.add(telegramUserId, { xp: 7 });
+    const combined = new FightService({
+      characters: combinedCharacters,
+      dailyActions: new FakeDailyActionRepository(combinedCharacters),
+      clock: fixedClock
+    });
+    const separateCharacters = new FakeCharacterRepository();
+    separateCharacters.add(telegramUserId, { xp: 7 });
+    const separate = new FightService({
+      characters: separateCharacters,
+      dailyActions: new FakeDailyActionRepository(separateCharacters),
+      clock: fixedClock
+    });
+
+    const grouped = await combined.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+    await Promise.all([
+      separate.getFightOverviewForTelegramUser(telegramUserId),
+      separate.getProblemQuestProgressForTelegramUser(telegramUserId)
+    ]);
+
+    expect(grouped.fight.status).toBe("fulfilled");
+    expect(grouped.problemQuest.status).toBe("fulfilled");
+    expect(combinedCharacters.findCount).toBe(separateCharacters.findCount - 1);
+  });
+
   it("returns no-character when user has no character", async () => {
     const characters = new FakeCharacterRepository();
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -6849,6 +6876,7 @@ class FakeActivityEventRepository implements ActivityEventRepository {
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+  findCount = 0;
   resourceUpdateCount = 0;
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
@@ -6912,6 +6940,7 @@ class FakeCharacterRepository implements CharacterRepository {
   }
 
   findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
+    this.findCount += 1;
     return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
   }
 

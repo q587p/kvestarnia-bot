@@ -6,6 +6,9 @@ export interface HotPathTimingInput {
   telegramUserId?: bigint | string | number | null;
   itemCount?: number | null;
   rowCount?: number | null;
+  questMarkerSourceCount?: number | null;
+  questMarkerSlowestSource?: QuestMarkerPerformanceSource | null;
+  questMarkerSlowestSourceMs?: number | null;
   resultState?: string | null;
   filter?: string | null;
   sort?: string | null;
@@ -30,6 +33,17 @@ export type PerformanceErrorCategory =
   | "unknown";
 
 export type PerformanceErrorComponent = "db" | "compute" | "telegram";
+
+export type QuestMarkerPerformanceSource =
+  | "adventure"
+  | "fight"
+  | "first-korchma"
+  | "yeger"
+  | "cellar"
+  | "barrel-beer"
+  | "daily-korchma"
+  | "item-upgrades"
+  | "cellar-grownup";
 
 const DEFAULT_SLOW_HOT_PATH_MS = 350;
 const DEFAULT_PERF_SAMPLE_RATE = 0;
@@ -205,6 +219,13 @@ export function sanitizePerfTimingPayload(
     ...(input.errorComponent != null ? { errorComponent: input.errorComponent } : {}),
     ...(input.itemCount != null ? { itemCount: input.itemCount } : {}),
     ...(input.rowCount != null ? { rowCount: input.rowCount } : {}),
+    ...(input.questMarkerSourceCount != null ? { questMarkerSourceCount: input.questMarkerSourceCount } : {}),
+    ...(input.questMarkerSlowestSource != null
+      ? { questMarkerSlowestSource: input.questMarkerSlowestSource }
+      : {}),
+    ...(input.questMarkerSlowestSourceMs != null
+      ? { questMarkerSlowestSourceMs: roundMs(input.questMarkerSlowestSourceMs) }
+      : {}),
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort !== undefined ? { sort: input.sort } : {}),
     ...(input.page !== undefined ? { page: input.page } : {}),

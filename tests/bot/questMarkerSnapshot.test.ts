@@ -9,6 +9,7 @@ import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMark
 
 describe("quest marker snapshot", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -221,6 +222,79 @@ describe("quest marker snapshot", () => {
     expect(snapshot?.yeger?.state).toBe("offered");
     expect(yegerFullLookup).not.toHaveBeenCalled();
     expect(itemUpgradeFullLookup).not.toHaveBeenCalled();
+  });
+
+  it("collapses the primary fan-out to eight attributed sources while preserving grouped fail-soft results", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const adventureOffer = vi.fn(() => Promise.resolve({ state: "no-character" }));
+    const starterAdventure = vi.fn(() => Promise.resolve({ state: "no-character" }));
+    const fightOverview = vi.fn(() => Promise.resolve({ state: "no-character" }));
+    const problemQuest = vi.fn(() => Promise.resolve({ state: "no-character" }));
+    const adventureSnapshot = vi.fn(() => Promise.resolve({
+      adventure: { status: "fulfilled" as const, value: { state: "ready" as const, character, offer: {} } },
+      starterAdventure: { status: "rejected" as const, reason: new Error("P1008") }
+    }));
+    const fightSnapshot = vi.fn(() => Promise.resolve({
+      fight: { status: "fulfilled" as const, value: { state: "level-retired" as const, character, maxLevel: 2 } },
+      problemQuest: {
+        status: "fulfilled" as const,
+        value: { state: "ready" as const, character, progress: { wins: 0, target: 13 }, archive: [] }
+      }
+    }));
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, {
+      adventure: {
+        getQuestMarkerSnapshotForTelegramUser: adventureSnapshot,
+        getAdventureOfferForTelegramUser: adventureOffer,
+        getMimicShawarmaForTelegramUser: starterAdventure
+      },
+      fight: {
+        getQuestMarkerSnapshotForTelegramUser: fightSnapshot,
+        getFightOverviewForTelegramUser: fightOverview,
+        getProblemQuestProgressForTelegramUser: problemQuest
+      },
+      firstKorchmaQuest: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      yeger: {
+        getQuestMarkerForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      barrelBeerTutorial: {
+        getForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      itemUpgrades: {
+        getQuestMarkerForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getUnlockQuestForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      }
+    } as unknown as BotServices);
+
+    expect(snapshot?.adventure?.state).toBe("ready");
+    expect(snapshot?.starterAdventure).toBeUndefined();
+    expect(adventureSnapshot).toHaveBeenCalledTimes(1);
+    expect(fightSnapshot).toHaveBeenCalledTimes(1);
+    expect(adventureOffer).not.toHaveBeenCalled();
+    expect(starterAdventure).not.toHaveBeenCalled();
+    expect(fightOverview).not.toHaveBeenCalled();
+    expect(problemQuest).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("quest marker starter adventure"), expect.any(Error));
+    expect(info).toHaveBeenCalledWith("Kvestarnia sampled perf timing", expect.objectContaining({
+      route: "main-menu.quest-markers",
+      questMarkerSourceCount: 8
+    }));
+    const payload = info.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
+    expect(payload?.questMarkerSlowestSource).toMatch(
+      /^(adventure|fight|first-korchma|yeger|cellar|barrel-beer|daily-korchma|item-upgrades)$/
+    );
+    expect(payload?.questMarkerSlowestSourceMs).toEqual(expect.any(Number));
   });
 });
 

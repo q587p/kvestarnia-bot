@@ -266,6 +266,11 @@ export type ProblemQuestProgressLookupResult =
       archive: ProblemQuestProgress[];
     };
 
+export interface FightQuestMarkerSnapshot {
+  fight: PromiseSettledResult<FightLookupResult>;
+  problemQuest: PromiseSettledResult<ProblemQuestProgressLookupResult>;
+}
+
 export type FightLookupResult =
   | { state: "no-character" }
   | ({ state: "combat-blocked"; character: CharacterSummary } & RecoveryNoticeField)
@@ -1203,8 +1208,11 @@ export class FightService {
     ];
   }
 
-  async getFightOverviewForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+  async getFightOverviewForTelegramUser(
+    telegramUserId: bigint,
+    options: { character?: CharacterRecord } = {}
+  ): Promise<FightLookupResult> {
+    const character = options.character ?? await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
@@ -1213,7 +1221,7 @@ export class FightService {
     const baseSummary = summarizeCharacter(character);
 
     if (isWithinActivityMaxLevel(baseSummary.level, STARTER_ACTIVITY_MAX_LEVEL)) {
-      return this.getMimicShawarmaForTelegramUser(telegramUserId);
+      return this.getMimicShawarmaForTelegramUser(telegramUserId, { character });
     }
 
     if (!this.combatSessions) {
@@ -1599,9 +1607,10 @@ export class FightService {
   }
 
   async getProblemQuestProgressForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    options: { character?: CharacterRecord } = {}
   ): Promise<ProblemQuestProgressLookupResult> {
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const character = options.character ?? await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
@@ -1615,6 +1624,26 @@ export class FightService {
       progress,
       archive: await this.getProblemQuestArchiveProgress(telegramUserId, progress)
     };
+  }
+
+  async getQuestMarkerSnapshotForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<FightQuestMarkerSnapshot> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return {
+        fight: { status: "fulfilled", value: { state: "no-character" } },
+        problemQuest: { status: "fulfilled", value: { state: "no-character" } }
+      };
+    }
+
+    const [fight, problemQuest] = await Promise.allSettled([
+      this.getFightOverviewForTelegramUser(telegramUserId, { character }),
+      this.getProblemQuestProgressForTelegramUser(telegramUserId, { character })
+    ]);
+
+    return { fight, problemQuest };
   }
 
   async getFightForTelegramUser(
@@ -2015,9 +2044,12 @@ export class FightService {
     };
   }
 
-  async getMimicShawarmaForTelegramUser(telegramUserId: bigint): Promise<FightLookupResult> {
+  async getMimicShawarmaForTelegramUser(
+    telegramUserId: bigint,
+    options: { character?: CharacterRecord } = {}
+  ): Promise<FightLookupResult> {
     const localDate = toIsoDate(this.clock());
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const character = options.character ?? await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
