@@ -352,7 +352,8 @@ function classifyDeliveryFailure(error: unknown): "retryable" | "permanent" | "a
       ? candidate.response as Record<string, unknown>
       : {};
   const code = numberOrNull(candidate.error_code) ?? numberOrNull(nested.error_code);
-  const description = String(candidate.description ?? nested.description ?? "").toLowerCase();
+  const descriptionValue = candidate.description ?? nested.description;
+  const description = typeof descriptionValue === "string" ? descriptionValue.toLowerCase() : "";
 
   if (code === 403 || (code === 400 && /chat not found|blocked|deactivated/.test(description))) {
     return "permanent";

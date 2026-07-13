@@ -18,7 +18,9 @@ describe("PrismaHpRecoveryNotificationRepository query shape", () => {
   });
 
   it("loads one bulk character snapshot call as the batch grows", async () => {
-    const findMany = vi.fn().mockResolvedValue([]);
+    const findMany = vi.fn<(
+      input: { where: { id: { in: string[] } } }
+    ) => Promise<never[]>>().mockResolvedValue([]);
     const repository = new PrismaHpRecoveryNotificationRepository({
       character: { findMany }
     } as unknown as PrismaClient, new HpRecoveryNotificationProducer(true));
@@ -26,8 +28,8 @@ describe("PrismaHpRecoveryNotificationRepository query shape", () => {
     await repository.loadSnapshots(Array.from({ length: 13 }, (_, index) => `character-${index}`));
 
     expect(findMany).toHaveBeenCalledTimes(1);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: { in: expect.arrayContaining(["character-0", "character-12"]) } }
-    }));
+    expect(findMany.mock.calls[0]?.[0].where.id.in).toEqual(
+      expect.arrayContaining(["character-0", "character-12"])
+    );
   });
 });

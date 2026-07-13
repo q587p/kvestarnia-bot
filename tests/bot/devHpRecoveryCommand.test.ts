@@ -22,7 +22,10 @@ describe("dev_hp_recovery_due", () => {
 
   it("prepares a due state without sending the recovery notice directly", async () => {
     let handler: ((ctx: Context) => Promise<void>) | undefined;
-    const command = vi.fn((_name, registered) => { handler = registered; });
+    const command = vi.fn<(
+      name: string,
+      registered: (ctx: Context) => Promise<void>
+    ) => void>((_name, registered) => { handler = registered; });
     const prepareDueForTelegramUser = vi.fn().mockResolvedValue(true);
     const reply = vi.fn().mockResolvedValue(true);
 

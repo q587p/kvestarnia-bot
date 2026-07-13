@@ -197,20 +197,23 @@ describe("HealthRecoveryNotificationService", () => {
 
     expect(service.areDevHelpersEnabled()).toBe(false);
     expect(await service.prepareDueForTelegramUser(42n, now)).toBe(false);
-    expect(fixture.repository.prepareDueForTelegramUser).not.toHaveBeenCalled();
+    expect(fixture.prepareDueForTelegramUser).not.toHaveBeenCalled();
   });
 });
 
 function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpRecoverySnapshot[]) {
   const claimDue = vi.fn().mockResolvedValue(rows);
   const loadSnapshots = vi.fn().mockResolvedValue(snapshots);
-  const rebase = vi.fn().mockResolvedValue(true);
+  const rebase = vi.fn<HpRecoveryNotificationRepository["rebase"]>().mockResolvedValue(true);
   const suppress = vi.fn().mockResolvedValue(true);
   const markReady = vi.fn().mockResolvedValue(true);
   const claimReadyForSending = vi.fn().mockResolvedValue(true);
   const markSent = vi.fn().mockResolvedValue(true);
   const retrySending = vi.fn().mockResolvedValue(true);
   const suppressSending = vi.fn().mockResolvedValue(true);
+  const prepareDueForTelegramUser = vi.fn<
+    HpRecoveryNotificationRepository["prepareDueForTelegramUser"]
+  >().mockResolvedValue(true);
   const repository = {
     claimDue,
     loadSnapshots,
@@ -221,7 +224,7 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     markSent,
     retrySending,
     suppressSending,
-    prepareDueForTelegramUser: vi.fn().mockResolvedValue(true)
+    prepareDueForTelegramUser
   } as unknown as HpRecoveryNotificationRepository;
   return {
     repository,
@@ -233,7 +236,8 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     claimReadyForSending,
     markSent,
     retrySending,
-    suppressSending
+    suppressSending,
+    prepareDueForTelegramUser
   };
 }
 
