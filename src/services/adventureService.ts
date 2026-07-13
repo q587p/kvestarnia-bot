@@ -1,4 +1,4 @@
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type { CharacterRecord, CharacterRepository } from "../db/repositories/characterRepository";
 import { classes } from "../content/classes";
 import { classIdToKey, getKnownComboTitleValues, raceIdToKey } from "../content/characterOptions";
 import { monsters } from "../content/monsters";
@@ -194,6 +194,16 @@ export type MimicShawarmaLookupResult =
   | { state: "ready"; character: CharacterSummary }
   | { state: "already-completed"; character: CharacterSummary; fightAvailable: boolean };
 
+export interface AdventureQuestMarkerSnapshot {
+  adventure: PromiseSettledResult<AdventureLookupResult>;
+  starterAdventure: PromiseSettledResult<MimicShawarmaLookupResult>;
+}
+
+interface AdventureQuestMarkerCharacterContext {
+  character: CharacterRecord;
+  characterSummary: CharacterSummary;
+}
+
 export type AdventureProblemResult =
   | { state: "no-character" }
   | { state: "level-locked"; character: CharacterSummary; requiredLevel: number }
@@ -311,6 +321,29 @@ export class AdventureService {
       character: context.character,
       offer: context.offer
     };
+  }
+
+  async getQuestMarkerSnapshotForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<AdventureQuestMarkerSnapshot> {
+    const now = this.clock();
+    const period = buildAdventurePeriod(now);
+    const mimicLocalDate = toIsoDate(now);
+    const context = await this.getQuestMarkerCharacterContext(telegramUserId);
+
+    if (!context) {
+      return {
+        adventure: { status: "fulfilled", value: { state: "no-character" } },
+        starterAdventure: { status: "fulfilled", value: { state: "no-character" } }
+      };
+    }
+
+    const [adventure, starterAdventure] = await Promise.allSettled([
+      this.getAdventureContext(telegramUserId, context, period),
+      this.getMimicShawarmaFromContext(telegramUserId, context, mimicLocalDate)
+    ]);
+
+    return { adventure, starterAdventure };
   }
 
   async selectAdventureProblem(
@@ -592,14 +625,21 @@ export class AdventureService {
     telegramUserId: bigint
   ): Promise<MimicShawarmaLookupResult> {
     const localDate = toIsoDate(this.clock());
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const context = await this.getQuestMarkerCharacterContext(telegramUserId);
 
-    if (!character) {
+    if (!context) {
       return { state: "no-character" };
     }
 
-    const equippedItems = await this.getEquippedItemContents(telegramUserId);
-    const characterSummary = summarizeCharacter(character, { equippedItems });
+    return this.getMimicShawarmaFromContext(telegramUserId, context, localDate);
+  }
+
+  private async getMimicShawarmaFromContext(
+    telegramUserId: bigint,
+    context: AdventureQuestMarkerCharacterContext,
+    localDate: string
+  ): Promise<MimicShawarmaLookupResult> {
+    const { characterSummary } = context;
 
     const existingAdventure = await this.dailyActions.findForTelegramUser(telegramUserId, {
       key: MIMIC_SHAWARMA_ADVENTURE_KEY,
@@ -837,16 +877,17 @@ export class AdventureService {
     return this.dailyActions.deleteForTelegramUser(telegramUserId, input);
   }
 
-  private async getAdventureContext(telegramUserId: bigint): Promise<AdventureLookupResult> {
-    const period = buildAdventurePeriod(this.clock());
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+  private async getAdventureContext(
+    telegramUserId: bigint,
+    sharedContext?: AdventureQuestMarkerCharacterContext,
+    period = buildAdventurePeriod(this.clock())
+  ): Promise<AdventureLookupResult> {
+    const context = sharedContext ?? await this.getQuestMarkerCharacterContext(telegramUserId);
 
-    if (!character) {
+    if (!context) {
       return { state: "no-character" };
     }
-
-    const equippedItems = await this.getEquippedItemContents(telegramUserId);
-    const characterSummary = summarizeCharacter(character, { equippedItems });
+    const { character, characterSummary } = context;
 
     if (!meetsActivityLevel(characterSummary.level, ADVENTURE_CHOICE_MIN_LEVEL)) {
       return {
@@ -934,6 +975,23 @@ export class AdventureService {
     const equipmentSnapshot = await this.equipment?.listByTelegramUserId(telegramUserId);
 
     return equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+  }
+
+  private async getQuestMarkerCharacterContext(
+    telegramUserId: bigint
+  ): Promise<AdventureQuestMarkerCharacterContext | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return null;
+    }
+
+    const equippedItems = await this.getEquippedItemContents(telegramUserId);
+
+    return {
+      character,
+      characterSummary: summarizeCharacter(character, { equippedItems })
+    };
   }
 
   private async getAdventureRerollIndex(

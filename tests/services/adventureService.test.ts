@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { BotServices } from "../../src/bot/botServices";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
 import { classes } from "../../src/content/classes";
 import { getKnownComboTitleValues } from "../../src/content/characterOptions";
 import { activeRaces } from "../../src/content/races";
@@ -29,6 +31,7 @@ import type {
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/starterRewards";
+import { getKyivDayKey } from "../../src/shared/kyivDate";
 import {
   ADVENTURE_CHOICE_KEY,
   ADVENTURE_CHOICE_REROLL_KEY,
@@ -51,6 +54,146 @@ import type { AchievementService, AchievementSimpleEventType } from "../../src/s
 const telegramUserId = 42n;
 
 describe("AdventureService", () => {
+  it("shares character and equipment reads across its quest marker snapshot", async () => {
+    const combinedEquipment = new FakeEquipmentRepository(null);
+    const combined = setup(null, combinedEquipment);
+    combined.characters.add(telegramUserId, { xp: 25 });
+
+    const separateEquipment = new FakeEquipmentRepository(null);
+    const separate = setup(null, separateEquipment);
+    separate.characters.add(telegramUserId, { xp: 25 });
+
+    const grouped = await combined.service.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+    await Promise.all([
+      separate.service.getAdventureOfferForTelegramUser(telegramUserId),
+      separate.service.getMimicShawarmaForTelegramUser(telegramUserId)
+    ]);
+
+    expect(grouped.adventure.status).toBe("fulfilled");
+    expect(grouped.starterAdventure.status).toBe("fulfilled");
+    expect(combined.characters.findCount).toBe(separate.characters.findCount - 1);
+    expect(combinedEquipment.listCount).toBe(1);
+    expect(separateEquipment.listCount).toBe(2);
+  });
+
+  it.each(["character", "equipment"] as const)(
+    "recovers Adventure siblings through one legacy fallback after a fail-once shared %s read",
+    async (failure) => {
+      const equipment = new FakeEquipmentRepository(null);
+      const probe = setup(null, equipment);
+      probe.characters.add(telegramUserId, { xp: 25 });
+      if (failure === "character") {
+        probe.characters.failNextFind();
+      } else {
+        equipment.failNextList();
+      }
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      const snapshot = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, {
+        adventure: probe.service,
+        fight: {
+          getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        yeger: { getForTelegramUser: () => Promise.resolve({ state: "no-character" }) },
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character: { level: 2 } })
+        },
+        dailyKorchmaRound: {
+          getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      } as unknown as BotServices);
+
+      expect(snapshot?.adventure).toBeDefined();
+      expect(snapshot?.starterAdventure).toBeDefined();
+      expect(snapshot?.cellar?.state).toBe("ready");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("quest marker adventure snapshot"),
+        expect.any(Error)
+      );
+    }
+  );
+
+  it("does not retry an ordinary rejected Adventure child and preserves its sibling and unrelated markers", async () => {
+    const probe = setup();
+    probe.characters.add(telegramUserId, { xp: 25 });
+    probe.dailyActions.failNextFindForKey(ADVENTURE_CHOICE_KEY);
+    const legacyAdventure = vi.spyOn(probe.service, "getAdventureOfferForTelegramUser");
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, {
+      adventure: probe.service,
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+        getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      },
+      yeger: { getForTelegramUser: () => Promise.resolve({ state: "no-character" }) },
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character: { level: 2 } })
+      },
+      dailyKorchmaRound: {
+        getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
+      }
+    } as unknown as BotServices);
+
+    expect(snapshot?.adventure).toBeUndefined();
+    expect(snapshot?.starterAdventure).toBeDefined();
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(legacyAdventure).not.toHaveBeenCalled();
+  });
+
+  it("captures the Adventure period before a shared read advances across a 93-minute boundary", async () => {
+    const initial = buildAdventurePeriod(fixedClock());
+    const beforeBoundary = new Date(initial.expiresAt.getTime() - 1);
+    const afterBoundary = new Date(initial.expiresAt.getTime() + 1);
+    let now = beforeBoundary;
+    const equipment = new AdvancingEquipmentRepository(() => {
+      now = afterBoundary;
+    });
+    const probe = setup(null, equipment, undefined, { clock: () => now });
+    probe.characters.add(telegramUserId, { xp: 25 });
+
+    const grouped = await probe.service.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+
+    expect(grouped.adventure).toMatchObject({
+      status: "fulfilled",
+      value: {
+        state: "ready",
+        offer: { periodToken: buildAdventurePeriod(beforeBoundary).token }
+      }
+    });
+    expect(probe.dailyActions.findInputs).toContainEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: buildAdventurePeriod(beforeBoundary).storageKey
+    });
+  });
+
+  it("captures Mimic local-date input before a shared read advances across Kyiv midnight", async () => {
+    const beforeKyivMidnight = new Date("2026-07-12T20:59:59.999Z");
+    const afterKyivMidnight = new Date("2026-07-12T21:00:00.001Z");
+    let now = beforeKyivMidnight;
+    let clockReads = 0;
+    const equipment = new AdvancingEquipmentRepository(() => {
+      now = afterKyivMidnight;
+    });
+    const probe = setup(null, equipment, undefined, {
+      clock: () => {
+        clockReads += 1;
+        return now;
+      }
+    });
+    probe.characters.add(telegramUserId, { xp: 7 });
+
+    await probe.service.getQuestMarkerSnapshotForTelegramUser(telegramUserId);
+
+    expect(getKyivDayKey(beforeKyivMidnight)).toBe("2026-07-12");
+    expect(getKyivDayKey(afterKyivMidnight)).toBe("2026-07-13");
+    expect(clockReads).toBe(1);
+    expect(probe.dailyActions.findInputs).toContainEqual({
+      key: MIMIC_SHAWARMA_ADVENTURE_KEY,
+      localDate: "2026-07-12"
+    });
+  });
+
   it("returns no-character when user has no character", async () => {
     const { service } = setup();
 
@@ -932,7 +1075,7 @@ function setup(
   activeFight: SoloCombatSessionRecord | null = null,
   equipment: EquipmentRepository | undefined = undefined,
   leasedFight?: SoloCombatLeaseLookupResult,
-  options: { achievements?: FakeAchievementService } = {}
+  options: { achievements?: FakeAchievementService; clock?: () => Date } = {}
 ): {
   characters: FakeCharacterRepository;
   dailyActions: FakeDailyActionRepository;
@@ -955,7 +1098,7 @@ function setup(
     service: new AdventureService(
       characters,
       dailyActions,
-      fixedClock,
+      options.clock ?? fixedClock,
       fights,
       equipment,
       options.achievements as unknown as AchievementService | undefined
@@ -1133,6 +1276,12 @@ function fakeSession(): SoloCombatSessionRecord {
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();
+  private failFindCount = 0;
+  findCount = 0;
+
+  failNextFind(): void {
+    this.failFindCount += 1;
+  }
 
   add(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
     const xp = overrides.xp ?? 25;
@@ -1188,6 +1337,11 @@ class FakeCharacterRepository implements CharacterRepository {
   }
 
   findByTelegramUserId(userTelegramId: bigint): Promise<CharacterRecord | null> {
+    this.findCount += 1;
+    if (this.failFindCount > 0) {
+      this.failFindCount -= 1;
+      return Promise.reject(new Error("fail-once character read"));
+    }
     return Promise.resolve(this.charactersByTelegramUserId.get(userTelegramId) ?? null);
   }
 
@@ -1218,7 +1372,9 @@ class FakeCharacterRepository implements CharacterRepository {
 
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
+  private readonly failFindKeys = new Set<string>();
   createCount = 0;
+  readonly findInputs: Array<{ key: string; localDate: string }> = [];
   lastDeleteInput: DailyActionClaimIdentity | null = null;
   lastRollbackInput: DailyActionRollbackInput | null = null;
 
@@ -1226,6 +1382,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
 
   get records(): DailyActionRecord[] {
     return [...this.actions.values()];
+  }
+
+  failNextFindForKey(key: string): void {
+    this.failFindKeys.add(key);
   }
 
   add(
@@ -1258,6 +1418,10 @@ class FakeDailyActionRepository implements DailyActionRepository {
     userTelegramId: bigint,
     input: { key: string; localDate: string }
   ): Promise<DailyActionRecord | null> {
+    this.findInputs.push(input);
+    if (this.failFindKeys.delete(input.key)) {
+      throw new Error(`fail-once daily action read: ${input.key}`);
+    }
     const character = await this.characters.findByTelegramUserId(userTelegramId);
 
     if (!character) {
@@ -1402,10 +1566,39 @@ class FakeDailyActionRepository implements DailyActionRepository {
 }
 
 class FakeEquipmentRepository implements EquipmentRepository {
+  private failListCount = 0;
+  listCount = 0;
+
   constructor(private snapshot: CharacterEquipmentSnapshot | null) {}
 
+  failNextList(): void {
+    this.failListCount += 1;
+  }
+
   listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    this.listCount += 1;
+    if (this.failListCount > 0) {
+      this.failListCount -= 1;
+      return Promise.reject(new Error("fail-once equipment read"));
+    }
     return Promise.resolve(this.snapshot);
+  }
+
+  equipForCharacter(): Promise<CharacterEquipmentRecord> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+
+  unequipForCharacter(): Promise<boolean> {
+    throw new Error("Not implemented in adventure service tests.");
+  }
+}
+
+class AdvancingEquipmentRepository implements EquipmentRepository {
+  constructor(private readonly advance: () => void) {}
+
+  listByTelegramUserId(): Promise<CharacterEquipmentSnapshot | null> {
+    this.advance();
+    return Promise.resolve(null);
   }
 
   equipForCharacter(): Promise<CharacterEquipmentRecord> {

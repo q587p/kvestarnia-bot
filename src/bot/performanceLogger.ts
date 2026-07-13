@@ -6,6 +6,10 @@ export interface HotPathTimingInput {
   telegramUserId?: bigint | string | number | null;
   itemCount?: number | null;
   rowCount?: number | null;
+  questMarkerSourceCount?: number | null;
+  questMarkerSlowestSource?: QuestMarkerPerformanceSource | null;
+  /** Overlapping high-level source wall-clock latency, not exclusive SQL time. */
+  questMarkerSlowestSourceMs?: number | null;
   resultState?: string | null;
   filter?: string | null;
   sort?: string | null;
@@ -31,8 +35,32 @@ export type PerformanceErrorCategory =
 
 export type PerformanceErrorComponent = "db" | "compute" | "telegram";
 
+export type QuestMarkerPerformanceSource =
+  | "adventure"
+  | "fight"
+  | "first-korchma"
+  | "yeger"
+  | "cellar"
+  | "barrel-beer"
+  | "daily-korchma"
+  | "item-upgrades"
+  | "cellar-grownup";
+
 const DEFAULT_SLOW_HOT_PATH_MS = 350;
 const DEFAULT_PERF_SAMPLE_RATE = 0;
+const MAX_QUEST_MARKER_SOURCE_COUNT = 32;
+const MAX_QUEST_MARKER_SOURCE_MS = 60_000;
+const QUEST_MARKER_PERFORMANCE_SOURCES = new Set<QuestMarkerPerformanceSource>([
+  "adventure",
+  "fight",
+  "first-korchma",
+  "yeger",
+  "cellar",
+  "barrel-beer",
+  "daily-korchma",
+  "item-upgrades",
+  "cellar-grownup"
+]);
 
 export function hotPathNow(): number {
   return performance.now();
@@ -190,6 +218,18 @@ export function sanitizePerfTimingPayload(
 ): Record<string, string | number | null | boolean> {
   const renderGitCommit = getSafeRenderMetadata("RENDER_GIT_COMMIT", /^[a-f0-9]{7,40}$/i);
   const renderInstanceId = getSafeRenderMetadata("RENDER_INSTANCE_ID", /^[A-Za-z0-9._-]{1,100}$/);
+  const questMarkerSourceCount = sanitizeBoundedNumber(
+    input.questMarkerSourceCount,
+    MAX_QUEST_MARKER_SOURCE_COUNT,
+    true
+  );
+  const questMarkerSlowestSource = sanitizeQuestMarkerPerformanceSource(
+    input.questMarkerSlowestSource
+  );
+  const questMarkerSlowestSourceMs = sanitizeBoundedNumber(
+    input.questMarkerSlowestSourceMs,
+    MAX_QUEST_MARKER_SOURCE_MS
+  );
 
   return {
     route: input.route,
@@ -205,6 +245,13 @@ export function sanitizePerfTimingPayload(
     ...(input.errorComponent != null ? { errorComponent: input.errorComponent } : {}),
     ...(input.itemCount != null ? { itemCount: input.itemCount } : {}),
     ...(input.rowCount != null ? { rowCount: input.rowCount } : {}),
+    ...(questMarkerSourceCount !== undefined ? { questMarkerSourceCount } : {}),
+    ...(questMarkerSlowestSource !== undefined && questMarkerSlowestSourceMs !== undefined
+      ? { questMarkerSlowestSource }
+      : {}),
+    ...(questMarkerSlowestSource !== undefined && questMarkerSlowestSourceMs !== undefined
+      ? { questMarkerSlowestSourceMs: roundMs(questMarkerSlowestSourceMs) }
+      : {}),
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort !== undefined ? { sort: input.sort } : {}),
     ...(input.page !== undefined ? { page: input.page } : {}),
@@ -275,6 +322,27 @@ function getSlowPerfThresholdMs(): number {
 
 function roundMs(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function sanitizeBoundedNumber(
+  value: number | null | undefined,
+  maximum: number,
+  integer = false
+): number | undefined {
+  if (value == null || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const bounded = Math.min(maximum, Math.max(0, value));
+  return integer ? Math.round(bounded) : bounded;
+}
+
+function sanitizeQuestMarkerPerformanceSource(
+  value: QuestMarkerPerformanceSource | null | undefined
+): QuestMarkerPerformanceSource | undefined {
+  return value !== null && value !== undefined && QUEST_MARKER_PERFORMANCE_SOURCES.has(value)
+    ? value
+    : undefined;
 }
 
 function asErrorRecord(error: unknown): Record<string, unknown> | null {

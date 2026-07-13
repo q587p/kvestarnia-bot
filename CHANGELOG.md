@@ -7,6 +7,20 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.9] - 12026-07-13 - Quest Marker Snapshot DB Fan-out Reduction
+
+### Added
+- Added bounded quest-marker source-count and slowest-source timing attribution to the existing privacy-safe `main-menu.quest-markers` performance record.
+
+### Changed
+- The main-menu quest-marker snapshot now groups regular/starter Adventure reads and fight-overview/problem-quest reads, reducing its primary service-source fan-out from ten to eight.
+- Adventure marker state shares one character/equipment read, while Fight marker state shares one character read; shared-root errors fall back once to independent child reads, settled child errors are not retried, and unrelated markers retain fail-soft isolation.
+- Adventure period and starter Mimic date inputs are frozen before the shared read, while source attribution counts only invoked legacy methods and emits runtime-allowlisted, finite bounded timing values.
+
+### Compatibility
+- Quest-marker states, quest overview rows, route guidance, keyboards, rewards, balance and player-facing copy are unchanged. No schema, migration, cache, dependency, rollout flag or dev helper was added.
+- `fight.turn` remains a separately measured performance follow-up and is not changed by this release.
+
 ## [0.3.8] - 12026-07-13 - Measured Runtime Stability
 
 ### Added

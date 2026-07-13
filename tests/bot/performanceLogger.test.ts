@@ -91,6 +91,9 @@ describe("performance logger", () => {
       telegramUserId: 42n,
       resultState: "scene",
       rowCount: 2,
+      questMarkerSourceCount: 8,
+      questMarkerSlowestSource: "fight",
+      questMarkerSlowestSourceMs: 13.04,
       dbMs: 5.04,
       computeMs: 1.94,
       telegramMs: 9.99,
@@ -107,6 +110,9 @@ describe("performance logger", () => {
       thresholdMs: 350,
       resultState: "scene",
       rowCount: 2,
+      questMarkerSourceCount: 8,
+      questMarkerSlowestSource: "fight",
+      questMarkerSlowestSourceMs: 13,
       dbMs: 5,
       computeMs: 1.9,
       telegramMs: 10,
@@ -120,6 +126,32 @@ describe("performance logger", () => {
       "token",
       "resultJson"
     ]));
+  });
+
+  it("allowlists and bounds quest-marker attribution at runtime", () => {
+    const rejected = sanitizePerfTimingPayload({
+      route: "main-menu.quest-markers",
+      questMarkerSourceCount: Number.NaN,
+      questMarkerSlowestSource: "private-dynamic-label" as "fight",
+      questMarkerSlowestSourceMs: Number.POSITIVE_INFINITY,
+      totalMs: 13
+    });
+    const bounded = sanitizePerfTimingPayload({
+      route: "main-menu.quest-markers",
+      questMarkerSourceCount: -5,
+      questMarkerSlowestSource: "fight",
+      questMarkerSlowestSourceMs: 93_000,
+      totalMs: 13
+    });
+
+    expect(rejected).not.toHaveProperty("questMarkerSourceCount");
+    expect(rejected).not.toHaveProperty("questMarkerSlowestSource");
+    expect(rejected).not.toHaveProperty("questMarkerSlowestSourceMs");
+    expect(bounded).toMatchObject({
+      questMarkerSourceCount: 0,
+      questMarkerSlowestSource: "fight",
+      questMarkerSlowestSourceMs: 60_000
+    });
   });
 
   it("logs a measured failure once without raw error details or player identifiers", async () => {
