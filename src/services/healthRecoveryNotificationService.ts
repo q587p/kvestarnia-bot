@@ -1,25 +1,11 @@
-import { items } from "../content";
-import type { ItemContent } from "../content/schema";
 import {
-  buildHpRecoveryStateFingerprint,
   type ClaimedHpRecoveryNotification,
   type HpRecoveryNotificationRepository,
   type HpRecoverySnapshot
 } from "../db/repositories/hpRecoveryNotificationRepository";
-import { summarizeCharacter } from "../domain/characters/characterSummary";
-import {
-  isEquipmentAttunementPendingForRow,
-  matchesEquipmentAttunementRow,
-  parseEquipmentAttunementPayload
-} from "../domain/equipment/equipmentAttunement";
-import { applyPassiveResourceRegeneration } from "../domain/resources/resourceRegeneration";
-import {
-  buildShynokRecoveryWindows,
-  isShynokDrinkKey
-} from "../domain/shynokDrinks";
+import { evaluateCanonicalHpRecovery } from "../domain/resources/canonicalHpRecovery";
 
 export const HP_RECOVERY_NOTIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-export const HP_RECOVERY_NOTIFICATION_MAX_ATTEMPTS = 13;
 
 export interface HealthRecoveryTickMetrics {
   due: number;
@@ -80,10 +66,7 @@ export class HealthRecoveryNotificationService {
 
     for (const row of work) {
       try {
-        if (
-          now.getTime() - row.updatedAt.getTime() > HP_RECOVERY_NOTIFICATION_MAX_AGE_MS ||
-          row.attemptCount >= HP_RECOVERY_NOTIFICATION_MAX_ATTEMPTS
-        ) {
+        if (now.getTime() - row.updatedAt.getTime() > HP_RECOVERY_NOTIFICATION_MAX_AGE_MS) {
           metrics.suppressed += Number(await this.suppressClaim(row, now, "delivery-window-expired"));
           continue;
         }
@@ -94,7 +77,7 @@ export class HealthRecoveryNotificationService {
           continue;
         }
 
-        const canonical = buildCanonicalRecovery(snapshot, now);
+        const canonical = evaluateCanonicalHpRecovery(snapshot, now);
         if (row.claim === "ready") {
           await this.deliver(sender, row, now, metrics);
           continue;
@@ -142,60 +125,12 @@ export class HealthRecoveryNotificationService {
         }
 
         const finalCheckAt = this.revalidationClock?.() ?? now;
-        const [freshSnapshot] = await this.repository.loadSnapshots([row.characterId], finalCheckAt);
-        if (!freshSnapshot || freshSnapshot.remortCount !== row.remortCount) {
-          metrics.suppressed += Number(await this.suppressClaim(row, finalCheckAt, "life-changed"));
-          continue;
+        const final = await this.repository.finalizeChecking(row, finalCheckAt);
+        if (final.state === "suppressed") {
+          metrics.suppressed += 1;
+        } else if (final.state === "ready") {
+          await this.deliver(sender, final.notification, finalCheckAt, metrics);
         }
-        const freshCanonical = buildCanonicalRecovery(freshSnapshot, finalCheckAt);
-        if (freshSnapshot.activeCombatLease) {
-          await this.repository.rebase({
-            ...rebaseInput(row, freshSnapshot, freshCanonical.fingerprint),
-            nextAttemptAt: new Date(finalCheckAt.getTime() + 60_000)
-          });
-          continue;
-        }
-        if (freshCanonical.summary.hpCurrent >= freshCanonical.summary.hpMax) {
-          if (freshCanonical.pendingAttunementReadyAt) {
-            await this.repository.rebase({
-              ...rebaseInput(row, freshSnapshot, freshCanonical.fingerprint),
-              nextAttemptAt: freshCanonical.pendingAttunementReadyAt
-            });
-          } else {
-            metrics.suppressed += Number(await this.suppressClaim(row, finalCheckAt, "full-outside-worker"));
-          }
-          continue;
-        }
-        if (freshCanonical.regeneration.resources.hpCurrent < freshCanonical.regeneration.resources.hpMax) {
-          await this.repository.rebase({
-            ...rebaseInput(row, freshSnapshot, freshCanonical.fingerprint),
-            nextAttemptAt: freshCanonical.regeneration.recovery.hpFullAt ?? new Date(finalCheckAt.getTime() + 60_000)
-          });
-          continue;
-        }
-
-        const ready = await this.repository.markReady({
-          ...rebaseInput(row, freshSnapshot, freshCanonical.fingerprint),
-          nextAttemptAt: finalCheckAt,
-          readyAt: finalCheckAt,
-          effectiveHpMax: freshCanonical.regeneration.resources.hpMax
-        });
-        if (!ready) {
-          continue;
-        }
-
-        await this.deliver(sender, {
-          ...row,
-          status: "ready",
-          sourceHpCurrent: freshCanonical.regeneration.resources.hpMax,
-          sourceHpRegenAt: finalCheckAt,
-          sourceFingerprint: freshCanonical.fingerprint,
-          readyAt: finalCheckAt,
-          nextAttemptAt: finalCheckAt,
-          processingStartedAt: null,
-          claim: "ready",
-          claimStartedAt: null
-        }, finalCheckAt, metrics);
       } catch {
         metrics.errors += 1;
         await this.suppressClaim(row, now, "row-error").catch(() => false);
@@ -207,86 +142,50 @@ export class HealthRecoveryNotificationService {
 
   private async deliver(
     sender: HealthRecoveryMessageSender,
-    row: ClaimedHpRecoveryNotification,
+    row: Extract<ClaimedHpRecoveryNotification, { claim: "ready" }>,
     now: Date,
     metrics: HealthRecoveryTickMetrics
   ): Promise<void> {
     const deliveryCheckAt = this.revalidationClock?.() ?? now;
-    const [snapshot] = await this.repository.loadSnapshots([row.characterId], deliveryCheckAt);
-    if (!snapshot || snapshot.remortCount !== row.remortCount || !row.readyAt) {
-      metrics.suppressed += Number(await this.repository.suppressReady(
-        row.characterId,
-        row.generation,
-        deliveryCheckAt,
-        "ready-state-missing"
-      ));
+    const claim = await this.repository.claimReadyForSending(row, deliveryCheckAt);
+    if (claim.state === "suppressed") {
+      metrics.suppressed += 1;
       return;
     }
-    const canonical = buildCanonicalRecovery(snapshot, deliveryCheckAt);
-    if (
-      snapshot.hpCurrent !== row.sourceHpCurrent ||
-      !datesEqual(snapshot.hpRegenAt, row.sourceHpRegenAt) ||
-      canonical.summary.hpCurrent < canonical.summary.hpMax ||
-      row.sourceFingerprint !== canonical.fingerprint
-    ) {
-      metrics.suppressed += Number(await this.repository.suppressReady(
-        row.characterId,
-        row.generation,
-        deliveryCheckAt,
-        "ready-state-changed"
-      ));
-      return;
-    }
-    if (snapshot.lastActionAt && snapshot.lastActionAt > row.readyAt) {
-      metrics.suppressed += Number(await this.repository.suppressReady(
-        row.characterId,
-        row.generation,
-        deliveryCheckAt,
-        "active-after-ready"
-      ));
-      return;
-    }
-
-    const claimed = await this.repository.claimReadyForSending({
-      characterId: row.characterId,
-      generation: row.generation,
-      remortCount: row.remortCount,
-      expectedHpCurrent: row.sourceHpCurrent,
-      expectedHpRegenAt: row.sourceHpRegenAt,
-      expectedStateFingerprint: canonical.fingerprint,
-      expectedEffectiveHpMax: canonical.summary.hpMax,
-      readyAt: row.readyAt,
-      now: deliveryCheckAt
-    });
-    if (!claimed) {
+    if (claim.state !== "claimed") {
       return;
     }
 
     try {
-      await sender.sendMessage(snapshot.telegramUserId.toString(), presentHealthRecoveryNotification(), {
+      await sender.sendMessage(claim.telegramUserId.toString(), presentHealthRecoveryNotification(), {
         parse_mode: "HTML"
       });
-      if (await this.repository.markSent(row.characterId, row.generation, deliveryCheckAt)) {
+      const completedAt = this.revalidationClock?.() ?? deliveryCheckAt;
+      if (await this.repository.markSent(row.characterId, row.generation, completedAt)) {
         metrics.sent += 1;
       }
     } catch (error) {
+      const failureAt = this.revalidationClock?.() ?? deliveryCheckAt;
       const delivery = classifyDeliveryFailure(error);
       if (delivery.kind === "permanent") {
         metrics.suppressed += Number(await this.repository.suppressSending(
           row.characterId,
           row.generation,
-          deliveryCheckAt,
+          failureAt,
           "telegram-permanent"
         ));
         return;
       }
       if (delivery.kind === "retryable") {
-        const backoffMs = Math.min(13 * 60_000, 60_000 * (2 ** Math.min(3, row.attemptCount)));
+        const backoffMs = Math.min(
+          13 * 60_000,
+          60_000 * (2 ** Math.min(3, Math.max(0, claim.attemptCount - 1)))
+        );
         const retryAfterMs = Math.max(0, delivery.retryAfterSeconds ?? 0) * 1000;
         metrics.retried += Number(await this.repository.retrySending(
           row.characterId,
           row.generation,
-          new Date(deliveryCheckAt.getTime() + Math.max(backoffMs, retryAfterMs)),
+          new Date(failureAt.getTime() + Math.max(backoffMs, retryAfterMs)),
           "telegram-retryable"
         ));
         return;
@@ -322,83 +221,6 @@ export function presentHealthRecoveryNotification(): string {
     "",
     "Організм подав заявку на продовження пригод і сам її погодив."
   ].join("\n");
-}
-
-function buildCanonicalRecovery(snapshot: HpRecoverySnapshot, now: Date) {
-  const equippedItems = getActiveEquippedItems(snapshot, now);
-  const summary = summarizeCharacter({
-    name: "",
-    pronoun: snapshot.pronoun,
-    path: snapshot.path,
-    raceId: snapshot.raceId,
-    classId: snapshot.classId,
-    level: snapshot.level,
-    xp: snapshot.xp,
-    gold: 0,
-    hpCurrent: snapshot.hpCurrent,
-    hpMax: snapshot.hpMax,
-    manaCurrent: 0,
-    manaMax: 1,
-    statsJson: snapshot.statsJson
-  }, {
-    equippedItems,
-    remortCount: snapshot.remortCount
-  });
-  const recoveryDrink = snapshot.recoveryDrink && isShynokDrinkKey(snapshot.recoveryDrink.drinkKey)
-    ? {
-        drinkKey: snapshot.recoveryDrink.drinkKey,
-        phase: snapshot.recoveryDrink.phase === "queued" ? "queued" as const : "timed" as const,
-        startedAt: snapshot.recoveryDrink.startedAt,
-        expiresAt: snapshot.recoveryDrink.expiresAt,
-        metadata: snapshot.recoveryDrink.metadata
-      }
-    : null;
-  const regeneration = applyPassiveResourceRegeneration({
-    resources: {
-      hpCurrent: summary.hpCurrent,
-      hpMax: summary.hpMax,
-      manaCurrent: 0,
-      manaMax: 0,
-      hpRegenAt: snapshot.hpRegenAt,
-      manaRegenAt: now
-    },
-    profile: {
-      raceId: summary.raceId,
-      classId: summary.classId,
-      title: summary.title,
-      stats: summary.stats
-    },
-    now,
-    multiplierWindows: buildShynokRecoveryWindows(recoveryDrink)
-  });
-  const fingerprint = buildHpRecoveryStateFingerprint(snapshot, now);
-  return { summary, regeneration, fingerprint, pendingAttunementReadyAt: getPendingAttunementReadyAt(snapshot, now) };
-}
-
-function getActiveEquippedItems(snapshot: HpRecoverySnapshot, now: Date): ItemContent[] {
-  return snapshot.equipment.flatMap((row) => {
-    if (isEquipmentAttunementPendingForRow({
-      row,
-      actionPayloads: snapshot.attunementActions.map((action) => action.resultJson),
-      now
-    })) {
-      return [];
-    }
-    const item = items.find((candidate) => candidate.id === row.itemId);
-    return item ? [item] : [];
-  });
-}
-
-function getPendingAttunementReadyAt(snapshot: HpRecoverySnapshot, now: Date): Date | null {
-  const readyTimes = snapshot.attunementActions.flatMap((action) => {
-    const payload = parseEquipmentAttunementPayload(action.resultJson);
-    if (!payload || !snapshot.equipment.some((row) => matchesEquipmentAttunementRow(payload, row))) {
-      return [];
-    }
-    const readyAt = Date.parse(payload.readyAt);
-    return readyAt > now.getTime() ? [readyAt] : [];
-  });
-  return readyTimes.length > 0 ? new Date(Math.min(...readyTimes)) : null;
 }
 
 function rebaseInput(

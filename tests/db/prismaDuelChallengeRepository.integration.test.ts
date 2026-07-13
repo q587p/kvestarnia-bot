@@ -2,7 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
 import type {
   DuelCombatSessionRecord,
@@ -16,6 +17,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
   let dir: string;
   let prisma: PrismaClient;
   let repository: PrismaDuelChallengeRepository;
+  let producerRecord: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-duel-repo-"));
@@ -28,8 +30,14 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaDuelChallengeRepository(prisma);
+    const producer = new HpRecoveryNotificationProducer(true);
+    producerRecord = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    repository = new PrismaDuelChallengeRepository(prisma, producer);
   }, 60_000);
+
+  beforeEach(() => {
+    producerRecord.mockClear();
+  });
 
   afterAll(async () => {
     await prisma?.$disconnect();
@@ -374,6 +382,19 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         turn: 1
       }
     })).resolves.toBe(1);
+    expect(producerRecord).toHaveBeenCalledTimes(2);
+    expect(producerRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      session.challengerCharacterId,
+      completedAt,
+      "recovering"
+    );
+    expect(producerRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      session.targetCharacterId,
+      completedAt,
+      "recovering"
+    );
   });
 
   it("lets only one callback-vs-timeout terminal update win the same turn/version", async () => {

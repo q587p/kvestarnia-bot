@@ -63,10 +63,24 @@ DEV_GRANT_COMMANDS_ENABLED=false
 
 Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before any production enablement:
 
-1. Restore a production-shaped SQLite copy into an isolated workspace, run `npx prisma migrate deploy`, `npx prisma validate`, and the focused HP recovery repository/service tests against it. Do not point manual QA at the live database.
-2. Refresh the isolated local bot with the flag enabled, run `/dev_hp_recovery_due`, and verify the task-doc scenarios with a maintainer test account. This QA is a maintainer step; a passing automated suite is not a claim that Telegram QA happened.
+1. Stop or snapshot the source database through the normal production backup procedure. Copy that backup into an isolated workspace; never point these commands at the mounted live database. The following PowerShell sequence must show 44 completed migrations before deploy and 45 afterward:
+
+   ```powershell
+   $source = Resolve-Path 'C:\backups\kvestarnia-before-hp-recovery.db'
+   $qa = Join-Path (Get-Location) '.tmp-hp-recovery-production-copy.db'
+   Copy-Item -LiteralPath $source -Destination $qa
+   sqlite3.exe $qa "SELECT COUNT(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"
+   $env:DATABASE_URL = 'file:' + ($qa.Replace('\', '/'))
+   npx.cmd prisma migrate status
+   npx.cmd prisma migrate deploy
+   npx.cmd prisma migrate status
+   sqlite3.exe $qa ".read scripts/explain-hp-recovery-candidates.sql"
+   ```
+
+   The final read-only SQL script must report 45 completed migrations, the three queue indexes, four fixed index-backed candidate branches, and no `MULTI-INDEX OR`. It sets `PRAGMA query_only=ON` before the schema smoke and `EXPLAIN`. Repository integration tests use temporary handcrafted SQLite schemas and are separate automated evidence; they do not validate this restored production-shaped copy.
+2. Run `npx.cmd prisma validate` in the checkout. Refresh the isolated local bot with the flag enabled, run `/dev_hp_recovery_due`, and verify the task-doc scenarios with a maintainer test account. This QA is a maintainer step; a passing automated suite is not a claim that Telegram QA happened.
 3. Enable one controlled production window. Watch only aggregate scheduler logs: tick duration and due/claimed/sent/retried/suppressed/error counts. Logs must not include Telegram ids or player data.
-4. Abort and turn the flag off on any duplicate notice, any three consecutive ticks with `errors > 0`, or any three consecutive full batches (`due = 13`) without backlog reduction. Flag-off stops both producers and the scheduler; it does not scan or mutate the queue.
+4. Abort and turn the flag off on any duplicate notice, any three consecutive ticks with `errors > 0`, or any three consecutive ticks with `due = 13`. This conservative saturation signal needs no unbounded `COUNT(*)` or backlog scan. Flag-off stops both producers and the scheduler; it does not scan or mutate the queue.
 5. Re-enable only after diagnosing the aggregate signal. Nonterminal rows with no queue progress for more than 24 hours are suppressed when they next become due, so days-old work cannot send after a later re-enable. Ambiguous stale `sending` rows are suppressed and never resent.
 
 Rollback is flag-only after the additive migration: keep the schema in place, set `HP_RECOVERY_NOTIFICATIONS_ENABLED=false`, restart normally, and leave stale-row handling to the bounded due path.

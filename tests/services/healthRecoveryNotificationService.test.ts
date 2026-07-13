@@ -6,6 +6,7 @@ import {
   type HpRecoverySnapshot
 } from "../../src/db/repositories/hpRecoveryNotificationRepository";
 import { buildEquipmentAttunementPayload } from "../../src/domain/equipment/equipmentAttunement";
+import { evaluateCanonicalHpRecovery } from "../../src/domain/resources/canonicalHpRecovery";
 import { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
 
 const now = new Date("2026-07-13T10:00:00.000Z");
@@ -40,9 +41,8 @@ describe("HealthRecoveryNotificationService", () => {
 
     const metrics = await service.runBatch(sender, now);
 
-    expect(fixture.markReady).toHaveBeenCalledWith(expect.objectContaining({
-      effectiveHpMax: expectedHpMax
-    }));
+    expect(fixture.finalizeChecking).toHaveBeenCalled();
+    expect(snapshot.hpCurrent).toBe(expectedHpMax);
     expect(metrics.sent).toBe(1);
   });
 
@@ -89,7 +89,7 @@ describe("HealthRecoveryNotificationService", () => {
 
     expect(fixture.rebase).toHaveBeenCalled();
     expect(fixture.suppressChecking).not.toHaveBeenCalled();
-    expect(fixture.markReady).not.toHaveBeenCalled();
+    expect(fixture.finalizeChecking).not.toHaveBeenCalled();
   });
 
   it("suppresses the old attunement generation when the item was unequipped or replaced before readiness", async () => {
@@ -124,7 +124,7 @@ describe("HealthRecoveryNotificationService", () => {
       expect(fixture.rebase).toHaveBeenCalledWith(expect.objectContaining({
         nextAttemptAt: new Date(now.getTime() + 60_000)
       }));
-      expect(fixture.markReady).not.toHaveBeenCalled();
+      expect(fixture.finalizeChecking).not.toHaveBeenCalled();
     }
   );
 
@@ -165,7 +165,7 @@ describe("HealthRecoveryNotificationService", () => {
     const metrics = await service.runBatch({ sendMessage: vi.fn() }, now);
 
     expect(metrics.suppressed).toBe(1);
-    expect(fixture.markReady).not.toHaveBeenCalled();
+    expect(fixture.finalizeChecking).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -182,7 +182,7 @@ describe("HealthRecoveryNotificationService", () => {
     await service.runBatch({ sendMessage: vi.fn() }, now);
 
     expect(fixture.rebase).toHaveBeenCalled();
-    expect(fixture.markReady).not.toHaveBeenCalled();
+    expect(fixture.finalizeChecking).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -231,6 +231,40 @@ describe("HealthRecoveryNotificationService", () => {
     );
   });
 
+  it("starts retry_after at the time a delayed Telegram failure is observed", async () => {
+    const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now });
+    const fixture = makeRepository([makeReadyRow(snapshot)], [snapshot]);
+    let clockNow = now;
+    let rejectSend!: (error: unknown) => void;
+    let markSendStarted!: () => void;
+    const sendStarted = new Promise<void>((resolve) => { markSendStarted = resolve; });
+    const sender = {
+      sendMessage: vi.fn(() => {
+        markSendStarted();
+        return new Promise((_resolve, reject) => { rejectSend = reject; });
+      })
+    };
+    const service = new HealthRecoveryNotificationService(
+      fixture.repository,
+      true,
+      false,
+      () => clockNow
+    );
+
+    const tick = service.runBatch(sender, now);
+    await sendStarted;
+    clockNow = new Date(now.getTime() + 5 * 60_000);
+    rejectSend({ error_code: 429, parameters: { retry_after: 587 } });
+    await tick;
+
+    expect(fixture.retrySending).toHaveBeenCalledWith(
+      "character",
+      1,
+      new Date(clockNow.getTime() + 587_000),
+      "telegram-retryable"
+    );
+  });
+
   it("suppresses a ready retry after the player interacted with a recovered-state card", async () => {
     const interactedAt = new Date(now.getTime() + 1_000);
     const snapshot = makeSnapshot({ hpCurrent: 25, hpRegenAt: now, lastActionAt: interactedAt });
@@ -243,12 +277,7 @@ describe("HealthRecoveryNotificationService", () => {
       .runBatch(sender, interactedAt);
 
     expect(metrics.suppressed).toBe(1);
-    expect(fixture.suppressReady).toHaveBeenCalledWith(
-      "character",
-      1,
-      interactedAt,
-      "active-after-ready"
-    );
+    expect(fixture.claimReadyForSending).toHaveBeenCalled();
     expect(sender.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -272,8 +301,10 @@ describe("HealthRecoveryNotificationService", () => {
     const first = makeSnapshot({ characterId: "first", telegramUserId: 1n, hpCurrent: 25, hpRegenAt: now });
     const second = makeSnapshot({ characterId: "second", telegramUserId: 2n, hpCurrent: 25, hpRegenAt: now });
     const fixture = makeRepository([makeReadyRow(first), makeReadyRow(second)], [first, second]);
-    fixture.claimReadyForSending.mockImplementation(({ characterId }) =>
-      characterId === "first" ? Promise.reject(new Error("row failed")) : Promise.resolve(true)
+    fixture.claimReadyForSending.mockImplementation((row) =>
+      row.characterId === "first"
+        ? Promise.reject(new Error("row failed"))
+        : Promise.resolve({ state: "claimed", telegramUserId: 2n, attemptCount: row.attemptCount + 1 })
     );
     const sender = { sendMessage: vi.fn().mockResolvedValue(true) };
     const service = new HealthRecoveryNotificationService(fixture.repository, true, false);
@@ -312,15 +343,46 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
   const rebase = vi.fn<HpRecoveryNotificationRepository["rebase"]>().mockResolvedValue(true);
   const suppressChecking = vi.fn().mockResolvedValue(true);
   const suppressReady = vi.fn().mockResolvedValue(true);
-  const markReady = vi.fn<HpRecoveryNotificationRepository["markReady"]>().mockImplementation((input) => {
-    const snapshot = snapshots.find((candidate) => candidate.characterId === input.characterId);
-    if (snapshot) {
-      snapshot.hpCurrent = input.effectiveHpMax;
-      snapshot.hpRegenAt = input.readyAt;
+  const finalizeChecking = vi.fn<HpRecoveryNotificationRepository["finalizeChecking"]>().mockImplementation((row, at) => {
+    const snapshot = snapshots.find((candidate) => candidate.characterId === row.characterId);
+    if (!snapshot) {
+      return Promise.resolve({ state: "suppressed" });
     }
-    return Promise.resolve(true);
+    const canonical = evaluateCanonicalHpRecovery(snapshot, at);
+    snapshot.hpCurrent = canonical.regeneration.resources.hpMax;
+    snapshot.hpRegenAt = at;
+    return Promise.resolve({
+      state: "ready",
+      notification: {
+        ...row,
+        status: "ready",
+        sourceHpCurrent: snapshot.hpCurrent,
+        sourceHpRegenAt: at,
+        sourceFingerprint: buildHpRecoveryStateFingerprint(snapshot, at),
+        processingStartedAt: null,
+        readyAt: at,
+        nextAttemptAt: at,
+        claim: "ready",
+        claimStartedAt: null
+      }
+    });
   });
-  const claimReadyForSending = vi.fn().mockResolvedValue(true);
+  const claimReadyForSending = vi.fn<HpRecoveryNotificationRepository["claimReadyForSending"]>()
+    .mockImplementation((row) => {
+      const snapshot = snapshots.find((candidate) => candidate.characterId === row.characterId);
+      if (
+        !snapshot ||
+        row.attemptCount >= 13 ||
+        (snapshot.lastActionAt && row.readyAt && snapshot.lastActionAt > row.readyAt)
+      ) {
+        return Promise.resolve({ state: "suppressed" });
+      }
+      return Promise.resolve({
+        state: "claimed",
+        telegramUserId: snapshot.telegramUserId,
+        attemptCount: row.attemptCount + 1
+      });
+    });
   const markSent = vi.fn().mockResolvedValue(true);
   const retrySending = vi.fn().mockResolvedValue(true);
   const suppressSending = vi.fn().mockResolvedValue(true);
@@ -333,7 +395,7 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     rebase,
     suppressChecking,
     suppressReady,
-    markReady,
+    finalizeChecking,
     claimReadyForSending,
     markSent,
     retrySending,
@@ -347,7 +409,7 @@ function makeRepository(rows: ClaimedHpRecoveryNotification[], snapshots: HpReco
     rebase,
     suppressChecking,
     suppressReady,
-    markReady,
+    finalizeChecking,
     claimReadyForSending,
     markSent,
     retrySending,

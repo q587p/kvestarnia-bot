@@ -6,7 +6,10 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { buildHpRecoveryStateFingerprint } from "../../src/db/repositories/hpRecoveryNotificationRepository";
-import { PrismaHpRecoveryNotificationRepository } from "../../src/db/repositories/prismaHpRecoveryNotificationRepository";
+import {
+  BOUNDED_HP_RECOVERY_CANDIDATE_SQL,
+  PrismaHpRecoveryNotificationRepository
+} from "../../src/db/repositories/prismaHpRecoveryNotificationRepository";
 import { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
 import { buildEquipmentAttunementPayload } from "../../src/domain/equipment/equipmentAttunement";
 
@@ -199,11 +202,7 @@ describe("PrismaHpRecoveryNotificationRepository integration", () => {
         now: workerBAt,
         errorCode: "stale-a"
       })).toBe(false);
-      expect(await repository.markReady({
-        ...transition,
-        readyAt: workerBAt,
-        effectiveHpMax: 25
-      })).toBe(false);
+      expect(await repository.finalizeChecking(workerA, workerBAt)).toEqual({ state: "lost" });
 
       expect(await prisma.hpRecoveryNotification.findUnique({
         where: { characterId: workerB.characterId }
@@ -331,6 +330,124 @@ describe("PrismaHpRecoveryNotificationRepository integration", () => {
     }
   });
 
+  it("caps every indexed candidate branch before the final merge with thousands due", async () => {
+    const checkAt = new Date("2026-07-13T15:30:00.000Z");
+    await seedRawRecoveryBacklog(prisma, checkAt, 4_000);
+
+    const plan = await prisma.$queryRawUnsafe<Array<{ detail: string }>>(
+      `EXPLAIN QUERY PLAN ${BOUNDED_HP_RECOVERY_CANDIDATE_SQL}`,
+      checkAt,
+      13,
+      checkAt,
+      13,
+      new Date(checkAt.getTime() - 5 * 60_000),
+      13,
+      new Date(checkAt.getTime() - 13 * 60_000),
+      13,
+      13
+    );
+    const details = plan.map((row) => row.detail);
+
+    expect(details.some((detail) => detail.includes("MULTI-INDEX OR"))).toBe(false);
+    expect(details.filter((detail) => detail.includes(
+      "hp_recovery_notifications_status_next_attempt_at_idx"
+    ))).toHaveLength(2);
+    expect(details.filter((detail) => detail.includes(
+      "hp_recovery_notifications_status_processing_started_at_idx"
+    ))).toHaveLength(2);
+    expect(details.filter((detail) => detail === "CO-ROUTINE waiting_due" ||
+      detail === "CO-ROUTINE ready_due" ||
+      detail === "CO-ROUTINE stale_checking" ||
+      detail === "CO-ROUTINE stale_sending")).toHaveLength(4);
+    expect(details.filter((detail) => detail === "USE TEMP B-TREE FOR ORDER BY")).toHaveLength(4);
+    expect(BOUNDED_HP_RECOVERY_CANDIDATE_SQL.match(/LIMIT \?/g)).toHaveLength(5);
+
+    const claimed = await repository.claimDue(checkAt, { limit: 13 });
+    expect(claimed).toHaveLength(13);
+  });
+
+  it("bounds the complete thirteen-row newly-ready runBatch SQL path", async () => {
+    const checkAt = new Date("2026-07-13T15:45:00.000Z");
+    for (let index = 0; index < 13; index += 1) {
+      await seedCharacter(prisma, `batch-budget-${index}`, BigInt(7000 + index));
+      const characterId = `character-batch-budget-${index}`;
+      await prisma.character.update({
+        where: { id: characterId },
+        data: { hpCurrent: 24, hpRegenAt: new Date(checkAt.getTime() - 60 * 60_000) }
+      });
+      await prisma.$transaction((tx) => producer.record(tx, characterId, checkAt, "recovering"));
+    }
+
+    const statements: string[] = [];
+    const queryClient = new PrismaClient({
+      datasources: { db: { url: databaseUrl } },
+      log: [{ emit: "event", level: "query" }]
+    });
+    queryClient.$on("query", (event) => statements.push(event.query.trim()));
+    const queryRepository = new PrismaHpRecoveryNotificationRepository(queryClient, producer);
+    try {
+      const sendMessage = vi.fn().mockResolvedValue(true);
+      const metrics = await new HealthRecoveryNotificationService(queryRepository, true, false)
+        .runBatch({ sendMessage }, checkAt);
+      const selects = statements.filter((statement) => /^SELECT/i.test(statement));
+      const writes = statements.filter((statement) => /^(UPDATE|INSERT|DELETE)/i.test(statement));
+      const characterSnapshotSelects = selects.filter((statement) => /characters/i.test(statement));
+
+      // Before the transaction-returned outcomes: 53 snapshot roots, 319 SELECTs,
+      // 65 writes, and 488 total statements. The final path permits one bulk root
+      // plus two authoritative single-character roots per ready row.
+      expect(metrics).toMatchObject({ due: 13, claimed: 13, sent: 13, errors: 0 });
+      expect(sendMessage).toHaveBeenCalledTimes(13);
+      expect(characterSnapshotSelects).toHaveLength(27);
+      expect(selects).toHaveLength(163);
+      expect(writes).toHaveLength(65);
+      expect(statements).toHaveLength(332);
+    } finally {
+      await queryClient.$disconnect();
+    }
+  });
+
+  it.each([
+    [12, true, "sent", 13],
+    [13, false, "suppressed", 13]
+  ] as const)(
+    "enforces the delivery-attempt cap from stored count %i",
+    async (attemptCount, shouldSend, expectedStatus, expectedCount) => {
+      const readyAt = new Date("2026-07-13T15:55:00.000Z");
+      await seedCharacter(prisma, `attempt-${attemptCount}`, BigInt(8000 + attemptCount));
+      const characterId = `character-attempt-${attemptCount}`;
+      await prisma.character.update({
+        where: { id: characterId },
+        data: { hpCurrent: 25, hpRegenAt: readyAt }
+      });
+      await prisma.$transaction((tx) => producer.record(tx, characterId, readyAt, "recovering"));
+      const [snapshot] = await repository.loadSnapshots([characterId], readyAt);
+      if (!snapshot) {
+        throw new Error("Missing attempt-boundary snapshot.");
+      }
+      await prisma.hpRecoveryNotification.update({
+        where: { characterId },
+        data: {
+          status: "ready",
+          readyAt,
+          nextAttemptAt: readyAt,
+          sourceHpCurrent: 25,
+          sourceHpRegenAt: readyAt,
+          sourceFingerprint: buildHpRecoveryStateFingerprint(snapshot, readyAt),
+          attemptCount
+        }
+      });
+      const sendMessage = vi.fn().mockResolvedValue(true);
+
+      await new HealthRecoveryNotificationService(repository, true, false)
+        .runBatch({ sendMessage }, readyAt);
+
+      expect(sendMessage).toHaveBeenCalledTimes(shouldSend ? 1 : 0);
+      await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } }))
+        .resolves.toMatchObject({ status: expectedStatus, attemptCount: expectedCount });
+    }
+  );
+
   it.each(["resource", "effective", "activity", "generation", "life"] as const)(
     "rejects a final %s race before the ready row can enter sending",
     async (race) => {
@@ -387,17 +504,12 @@ describe("PrismaHpRecoveryNotificationRepository integration", () => {
         });
       }
 
-      expect(await repository.claimReadyForSending({
-        characterId,
-        generation: queue.generation,
-        remortCount: 0,
-        expectedHpCurrent: 25,
-        expectedHpRegenAt: readyAt,
-        expectedStateFingerprint: fingerprint,
-        expectedEffectiveHpMax: 25,
-        readyAt,
-        now: deliveryAt
-      })).toBe(false);
+      expect((await repository.claimReadyForSending({
+        ...queue,
+        status: "ready",
+        claim: "ready",
+        claimStartedAt: null
+      }, deliveryAt)).state).not.toBe("claimed");
       expect((await prisma.hpRecoveryNotification.findUnique({ where: { characterId } }))?.status).not.toBe("sending");
     }
   );
@@ -532,4 +644,39 @@ async function seedCharacter(prisma: PrismaClient, suffix: string, telegramUserI
       updatedAt: now
     }
   });
+}
+
+async function seedRawRecoveryBacklog(prisma: PrismaClient, now: Date, count: number): Promise<void> {
+  await prisma.$executeRawUnsafe("PRAGMA foreign_keys = OFF");
+  try {
+    await prisma.$executeRawUnsafe(`
+      WITH RECURSIVE backlog(n) AS (
+        SELECT 1
+        UNION ALL
+        SELECT n + 1 FROM backlog WHERE n < ?
+      )
+      INSERT INTO hp_recovery_notifications (
+        id, character_id, generation, remort_count, source_hp_current, source_hp_max,
+        source_hp_regen_at, status, next_attempt_at, processing_started_at,
+        attempt_count, created_at, updated_at
+      )
+      SELECT
+        'backlog-' || n,
+        'backlog-character-' || n,
+        1,
+        0,
+        1,
+        25,
+        ?,
+        CASE n % 4 WHEN 0 THEN 'waiting' WHEN 1 THEN 'ready' WHEN 2 THEN 'checking' ELSE 'sending' END,
+        ?,
+        ?,
+        0,
+        ?,
+        ?
+      FROM backlog
+    `, count, now, new Date(now.getTime() - 60_000), new Date(now.getTime() - 60 * 60_000), now, now);
+  } finally {
+    await prisma.$executeRawUnsafe("PRAGMA foreign_keys = ON");
+  }
 }

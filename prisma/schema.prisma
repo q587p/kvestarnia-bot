@@ -317,8 +317,8 @@ model HpRecoveryNotification {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  @@index([status, nextAttemptAt])
-  @@index([status, processingStartedAt])
+  @@index([status, nextAttemptAt, updatedAt, id], map: "hp_recovery_notifications_status_next_attempt_at_idx")
+  @@index([status, processingStartedAt, updatedAt, id], map: "hp_recovery_notifications_status_processing_started_at_idx")
   @@map("hp_recovery_notifications")
 }
 

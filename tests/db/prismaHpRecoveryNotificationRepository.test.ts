@@ -5,15 +5,17 @@ import { PrismaHpRecoveryNotificationRepository } from "../../src/db/repositorie
 
 describe("PrismaHpRecoveryNotificationRepository query shape", () => {
   it("an idle tick performs one bounded due lookup and no fan-out", async () => {
-    const findMany = vi.fn().mockResolvedValue([]);
+    const queryRawUnsafe = vi.fn().mockResolvedValue([]);
     const updateMany = vi.fn();
     const repository = new PrismaHpRecoveryNotificationRepository({
-      hpRecoveryNotification: { findMany, updateMany }
+      $queryRawUnsafe: queryRawUnsafe,
+      hpRecoveryNotification: { updateMany }
     } as unknown as PrismaClient, new HpRecoveryNotificationProducer(true));
 
     expect(await repository.claimDue(new Date("2026-07-13T10:00:00.000Z"), { limit: 13 })).toEqual([]);
-    expect(findMany).toHaveBeenCalledTimes(1);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 13 }));
+    expect(queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(queryRawUnsafe.mock.calls[0]?.[0]).toContain("LIMIT ?");
+    expect(queryRawUnsafe.mock.calls[0]).toHaveLength(10);
     expect(updateMany).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 # Durable HP Recovery Notifications
 
-Status: implemented behind a disabled-by-default production flag in PR #159.
+Status: deployable behind a disabled-by-default production flag in PR #159. It is not approved to enable until the maintainer completes the production-copy checks and manual Telegram QA below.
 
 ## Goal and scope
 
@@ -39,10 +39,11 @@ The worker never calls `HeroService` and does not load inventory, achievements, 
 
 - Cadence: 60 seconds by default, injectable in tests.
 - Batch limit: 13 by default, injectable in tests.
-- Idle tick: one bounded indexed due lookup and no character fan-out.
-- Due batch: one bulk Character snapshot load for 1..13 rows; actual SQLite statement-count coverage proves the relation SELECT count is constant from one to thirteen candidates. Only rows that are genuinely ready receive bounded single-row final snapshot reloads and guarded CAS writes.
-- Claim cost: one indexed due SELECT plus at most one row CAS per claimed candidate; delivery stays sequential.
-- Indexes: `(status, nextAttemptAt)` and `(status, processingStartedAt)` plus unique `characterId`.
+- Idle tick: one raw SQLite candidate statement and no character fan-out. The statement has four independently ordered and limited branches (`waiting`, `ready`, stale `checking`, stale `sending`), each capped at 13 before a deterministic final merge capped at 13. Total candidate-sort input is therefore at most 52 rows regardless of backlog size.
+- Candidate indexes: `(status, nextAttemptAt, updatedAt, id)` for `waiting`/`ready`, `(status, processingStartedAt, updatedAt, id)` for stale leases, plus unique `characterId`. A real SQLite regression with 4,000 qualifying rows proves four fixed index searches, no `MULTI-INDEX OR`, five `LIMIT 13` operations, and only branch-local temp sorts fed by already capped inputs.
+- Due batch: one bulk narrow snapshot operation for the claimed batch. A newly-ready row may then receive exactly one authoritative single-character snapshot inside the HP-CAS/`checking -> ready` transaction and one inside the `ready -> sending` transaction. The service performs no outer single-character reload around either transaction, and delivery stays outside every transaction.
+- Complete 13-row newly-ready budget, measured from actual Prisma SQLite query logging: 27 Character snapshot roots, 163 SELECTs, 65 writes, and 332 total logged statements. Before the transaction-returned outcome refactor the same path required 53 snapshot roots, 319 SELECTs, 65 writes, and 488 total statements. The integration test asserts the exact final ceiling so redundant snapshot rounds fail the suite.
+- Disabled lazy resource-sync budget: the ordinary CAS/update-and-reload path stays outside an interactive transaction when the producer flag is off. An enabled full-HP lazy sync uses one transaction so queue suppression and the authoritative resource mutation remain atomic.
 - No migration backfill and no recurring full-character reconciliation scan.
 
 ## Delivery guarantee
@@ -50,10 +51,10 @@ The worker never calls `HeroService` and does not load inventory, achievements, 
 Telegram `sendMessage` has no idempotency key, so the contract is deliberately anti-spam at-most-once across ambiguous network outcomes, not impossible exactly-once delivery.
 
 - Success becomes `sent`.
-- Known retryable 429 failures return to `ready` with bounded backoff and honor Telegram `retry_after`.
+- Known retryable 429 failures return to `ready` with bounded backoff and honor Telegram `retry_after`; both delays start when the failure is observed after `sendMessage` settles, not when the request began.
 - Known blocked/chat-not-found failures become `suppressed`.
 - 5xx, unknown network outcomes, and crashes after `sendMessage` are ambiguous and remain `sending`; a stale sending lease is suppressed after restart and is not resent.
-- Thirteen total attempts or 24 hours without queue progress suppresses the low-value nudge. This same 24-hour stale cutoff prevents days-old nonterminal rows from sending after flag disable/re-enable; suppression happens only when a stale row becomes due, with no backlog scan.
+- `attemptCount` counts claimed Telegram network deliveries, not queue/checking claims. A row may claim attempts 1 through 13; a ready row already at 13 is suppressed before another send, so the persisted count never reaches 14. Separately, 24 hours without queue progress suppresses the low-value nudge. This same stale cutoff prevents days-old nonterminal rows from sending after flag disable/re-enable; suppression happens only when a stale row becomes due, with no backlog scan.
 - Rows are sent sequentially and one row failure does not abort later rows.
 
 ## Rollout and lifecycle
@@ -73,6 +74,7 @@ Use an isolated non-production runtime and a test account:
 3. Without pressing `/hero`, `/fight`, or a menu callback, wait for the next scheduler tick and verify exactly one private notice with the copy above.
 4. Repeat while any solo, training, starter, duel, or party-boss combat lease is active; verify delivery waits and does not duplicate after combat.
 5. Prepare another due row, then fully heal or run a lazy resource sync before delivery; verify no stale notice appears.
-6. Prepare another due row, restart before checking, and verify stale checking resumes once. Simulate an ambiguous send crash and verify stale `sending` is suppressed rather than resent.
+6. Prepare another due row, stop the isolated runtime before its checking lease completes, restart after the lease expires, and verify checking resumes once without a duplicate.
 
 Production cannot register, list, or mutate through `/dev_hp_recovery_due`, even when the rollout flag is enabled.
+Ambiguous network failure and crash-after-send behavior is covered by automated sender fault injection and stale-`sending` restart tests; there is no honest Telegram-side manual procedure that can prove whether an ambiguous API response was accepted. Before enablement, also complete the isolated production-copy `44 -> 45` migration and read-only `EXPLAIN` procedure in `docs/operations/developer-setup.md`.

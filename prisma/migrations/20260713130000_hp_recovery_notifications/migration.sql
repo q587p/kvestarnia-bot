@@ -29,8 +29,8 @@ ON "hp_recovery_notifications"("character_id");
 
 -- CreateIndex
 CREATE INDEX "hp_recovery_notifications_status_next_attempt_at_idx"
-ON "hp_recovery_notifications"("status", "next_attempt_at");
+ON "hp_recovery_notifications"("status", "next_attempt_at", "updated_at", "id");
 
 -- CreateIndex
 CREATE INDEX "hp_recovery_notifications_status_processing_started_at_idx"
-ON "hp_recovery_notifications"("status", "processing_started_at");
+ON "hp_recovery_notifications"("status", "processing_started_at", "updated_at", "id");

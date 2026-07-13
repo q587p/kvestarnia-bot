@@ -48,7 +48,7 @@ describe("PrismaCharacterRepository", () => {
 
     expect(prisma.lastUpdateManyInput).toMatchObject({
       where: {
-        id: "character-1",
+        user: { telegramUserId },
         hpCurrent: 28,
         manaCurrent: 14,
         hpRegenAt: null,
@@ -159,8 +159,41 @@ describe("PrismaCharacterRepository", () => {
         manaRegenAt: null
       }
     });
+    expect(prisma.transactionCount).toBe(0);
 
     expect(record).not.toHaveBeenCalled();
+    expect(prisma.transactionCount).toBe(0);
+  });
+
+  it("uses one transaction when an enabled full lazy sync must suppress the queue atomically", async () => {
+    const prisma = new FakeCharacterPrisma();
+    const producer = new HpRecoveryNotificationProducer(true);
+    const record = vi.spyOn(producer, "record").mockResolvedValue(undefined);
+    const repository = new PrismaCharacterRepository(prisma.client, producer);
+
+    await repository.updateResourcesForTelegramUser(telegramUserId, {
+      hpCurrent: 52,
+      hpMax: 52,
+      manaCurrent: 14,
+      manaMax: 26,
+      hpRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T10:05:00.000Z"),
+      expected: {
+        hpCurrent: 28,
+        manaCurrent: 14,
+        hpRegenAt: null,
+        manaRegenAt: null
+      }
+    });
+
+    expect(prisma.transactionCount).toBe(1);
+    expect(record).toHaveBeenCalledWith(
+      prisma.client,
+      "character-1",
+      new Date("2026-06-17T10:05:00.000Z"),
+      "suppress",
+      { errorCode: "lazy-sync-full" }
+    );
   });
 
 });

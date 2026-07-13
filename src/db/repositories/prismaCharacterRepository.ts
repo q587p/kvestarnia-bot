@@ -96,6 +96,10 @@ export class PrismaCharacterRepository implements CharacterRepository {
 
     const current = toCharacterRecord(character);
     const data = normalizeCharacterResourceUpdate(current, input);
+    const shouldRecordFullRecovery =
+      this.hpRecoveryProducer.isEnabled() &&
+      input.hpMax !== undefined &&
+      data.hpCurrent >= input.hpMax;
 
     if (input.expectedLife) {
       const expectedLife = input.expectedLife;
@@ -149,6 +153,27 @@ export class PrismaCharacterRepository implements CharacterRepository {
     }
 
     if (input.expected) {
+      if (!shouldRecordFullRecovery) {
+        const updated = await this.prisma.character.updateMany({
+          where: {
+            user: { telegramUserId },
+            hpCurrent: input.expected.hpCurrent,
+            manaCurrent: input.expected.manaCurrent,
+            ...(input.expected.hpRegenAt === undefined ? {} : { hpRegenAt: input.expected.hpRegenAt }),
+            ...(input.expected.manaRegenAt === undefined
+              ? {}
+              : { manaRegenAt: input.expected.manaRegenAt })
+          },
+          data: {
+            hpCurrent: data.hpCurrent,
+            manaCurrent: data.manaCurrent,
+            hpRegenAt: input.hpRegenAt,
+            manaRegenAt: input.manaRegenAt
+          }
+        });
+        return updated.count > 0 ? this.findByTelegramUserId(telegramUserId) : null;
+      }
+
       return this.prisma.$transaction(async (tx) => {
         const updated = await tx.character.updateMany({
           where: {
@@ -177,6 +202,20 @@ export class PrismaCharacterRepository implements CharacterRepository {
         });
         return record ? toCharacterRecord(record) : null;
       });
+    }
+
+    if (!shouldRecordFullRecovery) {
+      const updated = await this.prisma.character.update({
+        where: { id: character.id },
+        data: {
+          hpCurrent: data.hpCurrent,
+          manaCurrent: data.manaCurrent,
+          hpRegenAt: input.hpRegenAt,
+          manaRegenAt: input.manaRegenAt
+        },
+        include: { ...characterRecordInclude }
+      });
+      return toCharacterRecord(updated);
     }
 
     return this.prisma.$transaction(async (tx) => {
