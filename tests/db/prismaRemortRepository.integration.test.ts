@@ -7,6 +7,11 @@ import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositori
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
+import {
+  settleVarenykSatedOutsideCombat,
+  VARENYK_SATED_STATUS_KEY,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("PrismaRemortRepository integration", () => {
   let dir: string;
@@ -616,12 +621,30 @@ describe("PrismaRemortRepository integration", () => {
 
   it("cancels active party boss proof and clears leases during remort", async () => {
     const now = new Date("2026-06-22T12:30:00.000Z");
+    const survivorId = "character-remort-party-survivor";
     await seedCharacter(prisma, {
       userId: "user-remort-party-boss",
       characterId: "character-remort-party-boss",
       telegramUserId: 9315n
     });
     await seedDraft(prisma, "character-remort-party-boss", "token-remort-party-boss", now);
+    await seedCharacter(prisma, {
+      userId: "user-remort-party-survivor",
+      characterId: survivorId,
+      telegramUserId: 9316n
+    });
+    const survivorPayload = makeSatedPayload(
+      survivorId,
+      new Date(now.getTime() - 5 * 60_000 - 30_000)
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: survivorId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(survivorPayload.availableAt),
+        resultJson: survivorPayload
+      }
+    });
     await prisma.partySession.create({
       data: {
         id: "party-remort-boss",
@@ -634,14 +657,24 @@ describe("PrismaRemortRepository integration", () => {
         expiresAt: new Date(now.getTime() + 60_000),
         activeLeaderKey: "party-leader:character-remort-party-boss",
         participants: {
-          create: {
-            id: "participant-remort-party-boss",
-            characterId: "character-remort-party-boss",
-            status: "joined",
-            joinSource: "leader",
-            joinedAt: now,
-            activeMembershipKey: "party-member:character-remort-party-boss"
-          }
+          create: [
+            {
+              id: "participant-remort-party-boss",
+              characterId: "character-remort-party-boss",
+              status: "joined",
+              joinSource: "leader",
+              joinedAt: now,
+              activeMembershipKey: "party-member:character-remort-party-boss"
+            },
+            {
+              id: "participant-remort-party-survivor",
+              characterId: survivorId,
+              status: "joined",
+              joinSource: "invite",
+              joinedAt: now,
+              activeMembershipKey: `party-member:${survivorId}`
+            }
+          ]
         }
       }
     });
@@ -658,7 +691,13 @@ describe("PrismaRemortRepository integration", () => {
         stateJson: {
           status: "active",
           turn: 1,
-          participants: [{ characterId: "character-remort-party-boss" }]
+          participants: [
+            { characterId: "character-remort-party-boss" },
+            {
+              characterId: survivorId,
+              varenykSated: makeFrozenSated(survivorPayload, new Date(now.getTime() - 5 * 60_000))
+            }
+          ]
         },
         turnExpiresAt: new Date(now.getTime() + 23_000)
       }
@@ -669,6 +708,17 @@ describe("PrismaRemortRepository integration", () => {
         characterId: "character-remort-party-boss",
         kind: "party-boss",
         referenceId: "party-remort-boss"
+      }
+    });
+    const survivorLeaseAt = new Date(now.getTime() - 5 * 60_000);
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-remort-party-survivor",
+        characterId: survivorId,
+        kind: "party-boss",
+        referenceId: "party-remort-boss",
+        createdAt: survivorLeaseAt,
+        updatedAt: survivorLeaseAt
       }
     });
 
@@ -687,6 +737,103 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.partyParticipant.findUnique({ where: { id: "participant-remort-party-boss" } })).resolves.toMatchObject({
       activeMembershipKey: null
     });
+    const survivorCooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = survivorCooldown.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-06-22T12:29:30.000Z");
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
+      now: new Date(now.getTime() + 29_000),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(0);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
+      now: new Date(now.getTime() + 30_000),
+      combatBlocked: false
+    })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
+  });
+
+  it("snaps a surviving Sated cursor to expiry when remort cancels Big Barrel after a round", async () => {
+    const now = new Date("2026-06-22T15:00:00.000Z");
+    const actorId = "character-remort-party-round-actor";
+    const survivorId = "character-remort-party-round-survivor";
+    await seedCharacter(prisma, { userId: "user-remort-party-round-actor", characterId: actorId, telegramUserId: 9317n });
+    await seedCharacter(prisma, { userId: "user-remort-party-round-survivor", characterId: survivorId, telegramUserId: 9318n });
+    await seedDraft(prisma, actorId, "token-remort-party-round", now);
+    const payload = makeSatedPayload(survivorId, new Date(now.getTime() - 14 * 60_000));
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: survivorId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await prisma.partySession.create({
+      data: {
+        id: "party-remort-after-round",
+        inviteToken: "party-remort-after-round-token",
+        status: "active",
+        leaderCharacterId: actorId,
+        participantCap: 8,
+        minimumParticipants: 1,
+        joinUntilAt: new Date(now.getTime() + 60_000),
+        expiresAt: new Date(now.getTime() + 60_000),
+        activeLeaderKey: `party-leader:${actorId}`,
+        participants: {
+          create: [
+            { id: "participant-remort-round-actor", characterId: actorId, status: "joined", joinSource: "leader", joinedAt: now, activeMembershipKey: `party-member:${actorId}` },
+            { id: "participant-remort-round-survivor", characterId: survivorId, status: "joined", joinSource: "invite", joinedAt: now, activeMembershipKey: `party-member:${survivorId}` }
+          ]
+        }
+      }
+    });
+    await prisma.partyBossSession.create({
+      data: {
+        id: "boss-remort-after-round",
+        partySessionId: "party-remort-after-round",
+        leaderCharacterId: actorId,
+        status: "active",
+        turn: 2,
+        version: 2,
+        rulesVersion: "party-boss-proof-v1",
+        bossKey: "party-boss-proof-one",
+        stateJson: {
+          status: "active",
+          turn: 2,
+          roundLog: [{ turn: 1 }],
+          participants: [
+            { characterId: actorId },
+            { characterId: survivorId, varenykSated: makeFrozenSated(payload, new Date(now.getTime() - 13 * 60_000 - 30_000)) }
+          ]
+        },
+        turnExpiresAt: new Date(now.getTime() + 23_000)
+      }
+    });
+    for (const [id, characterId] of [["lease-remort-round-actor", actorId], ["lease-remort-round-survivor", survivorId]] as const) {
+      const createdAt = new Date(now.getTime() - 13 * 60_000 - 30_000);
+      await prisma.activeCombatLease.create({ data: { id, characterId, kind: "party-boss", referenceId: "party-remort-after-round", createdAt, updatedAt: createdAt } });
+    }
+
+    const first = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+    const cursorAfterFirst = ((await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
+    const replay = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+    const cursorAfterReplay = ((await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
+
+    expect(first).toMatchObject({ state: "completed" });
+    expect(replay).toMatchObject({
+      state: "replayed",
+      remort: { id: first.state === "completed" ? first.remort.id : undefined }
+    });
+    expect(cursorAfterFirst).toBe(payload.expiresAt);
+    expect(cursorAfterReplay).toBe(payload.expiresAt);
   });
 
   it("expires unreadable legacy solo state without rewards or character resource rollback", async () => {
@@ -1197,6 +1344,53 @@ async function seedDraft(
       updatedAt: now
     }
   });
+}
+
+function makeSatedPayload(characterId: string, startedAt: Date): VarenykSatedPayloadV1 {
+  return {
+    kind: "varenyk-sated-support-v1",
+    version: 1,
+    activationId: `${characterId}-sated`,
+    actorCharacterId: characterId,
+    actorRemortCount: 0,
+    recipientCharacterId: characterId,
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: startedAt.toISOString(),
+    expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(startedAt.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: startedAt.toISOString(),
+    receipt: {
+      version: 1,
+      previewToken: `${characterId}-preview`,
+      actorTelegramUserId: "9316",
+      targetTelegramUserId: "9316",
+      actorName: "Пан Вареник",
+      targetName: "Пан Вареник",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 12,
+      targetHpAfter: 44,
+      targetManaAfter: 7
+    }
+  };
+}
+
+function makeFrozenSated(payload: VarenykSatedPayloadV1, leaseStartedAt: Date) {
+  return {
+    version: 1 as const,
+    activationId: payload.activationId,
+    recipientCharacterId: payload.recipientCharacterId,
+    recipientRemortCount: payload.recipientRemortCount,
+    rank: payload.rank,
+    expiresAt: payload.expiresAt,
+    cursorAt: leaseStartedAt.toISOString(),
+    leaseStartedAt: leaseStartedAt.toISOString(),
+    outsideRemainderMs: 30_000,
+    pulseIds: []
+  };
 }
 
 async function seedPostalTransfer(

@@ -17,18 +17,24 @@ import type {
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
+import { items } from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import type { CombatGearAbilityInput, CombatSkillProfile } from "../../domain/combat";
 import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels/turnBasedDuel";
 import { preserveDuelResourceRatio } from "../../domain/duels/duelBalance";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  isEquipmentAttunementPendingForRow
+} from "../../domain/equipment/equipmentAttunement";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
-  advanceVarenykSatedCursorThroughCombat,
   freezeVarenykSatedFromCooldown,
+  releaseVarenykSatedCombatLease,
   VarenykSatedCasError
 } from "./prismaVarenykSated";
 
@@ -408,28 +414,23 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         const participant = state.participants[side];
         const canonical = await tx.character.findUnique({
           where: { id: participant.characterId },
-          select: {
-            hpCurrent: true,
-            hpMax: true,
-            manaCurrent: true,
-            manaMax: true,
-            hpRegenAt: true,
-            manaRegenAt: true,
-            updatedAt: true
+          include: {
+            equipment: true
           }
         });
         if (!canonical) {
           throw new VarenykSatedCasError("duel-character-missing");
         }
+        const natural = await getNaturalDuelResources(tx, canonical, participant.remortCount, now);
         const sated = await freezeVarenykSatedFromCooldown({
           tx,
           characterId: participant.characterId,
           remortCount: participant.remortCount,
           resources: {
-            hp: canonical.hpCurrent,
-            hpMax: canonical.hpMax,
-            mana: canonical.manaCurrent,
-            manaMax: canonical.manaMax
+            hp: natural.hpCurrent,
+            hpMax: natural.hpMax,
+            mana: natural.manaCurrent,
+            manaMax: natural.manaMax
           },
           now
         });
@@ -446,8 +447,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             data: {
               hpCurrent: sated.resources.hp,
               manaCurrent: sated.resources.mana,
-              hpRegenAt: sated.resources.hp >= canonical.hpMax ? now : canonical.hpRegenAt,
-              manaRegenAt: sated.resources.mana >= canonical.manaMax ? now : canonical.manaRegenAt
+              hpRegenAt: sated.resources.hp >= natural.hpMax ? now : canonical.hpRegenAt,
+              manaRegenAt: sated.resources.mana >= natural.manaMax ? now : canonical.manaRegenAt
             }
           });
           if (persisted.count !== 1) {
@@ -458,10 +459,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         state.participants[side] = {
           ...participant,
           hp: canonicalResourcesChanged
-            ? preserveDuelResourceRatio(sated.resources.hp, canonical.hpMax, participant.hpMax)
+            ? preserveDuelResourceRatio(sated.resources.hp, natural.hpMax, participant.hpMax)
             : participant.hp,
           mana: canonicalResourcesChanged
-            ? preserveDuelResourceRatio(sated.resources.mana, canonical.manaMax, participant.manaMax)
+            ? preserveDuelResourceRatio(sated.resources.mana, natural.manaMax, participant.manaMax)
             : participant.mana,
           ...(sated.sated ? { varenykSated: sated.sated } : {})
         };
@@ -665,19 +666,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         return null;
       }
 
-      for (const participant of Object.values(input.state.participants)) {
-        if (!participant.varenykSated) {
-          continue;
-        }
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: participant.characterId,
-          activationId: participant.varenykSated.activationId,
-          now: input.now,
-          outsideRemainderMs: participant.varenykSated.outsideRemainderMs
-        });
-      }
-
       if (input.action) {
         await tx.duelCombatAction.create({
           data: {
@@ -743,7 +731,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             );
           }
 
-          await tx.activeCombatLease.deleteMany({
+          const leases = await tx.activeCombatLease.findMany({
             where: {
               characterId: {
                 in: [current.challengerCharacterId, current.targetCharacterId]
@@ -752,6 +740,16 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               referenceId: sessionId
             }
           });
+          for (const lease of leases) {
+            const participant = Object.values(input.state.participants)
+              .find((entry) => entry.characterId === lease.characterId);
+            await releaseVarenykSatedCombatLease({
+              tx,
+              lease,
+              releasedAt: input.completedAt ?? input.now,
+              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+            });
+          }
         }
       }
 
@@ -875,24 +873,13 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           const participant = state
             ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
             : undefined;
-          await advanceVarenykSatedCursorThroughCombat({
+          await releaseVarenykSatedCombatLease({
             tx,
-            characterId: lease.characterId,
-            ...(participant?.varenykSated
-              ? {
-                  activationId: participant.varenykSated.activationId,
-                  outsideRemainderMs: participant.varenykSated.outsideRemainderMs
-                }
-              : { leaseStartedAt: lease.createdAt }),
-            now
+            lease,
+            releasedAt: now,
+            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
           });
         }
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            kind: "turn-based-duel",
-            referenceId: session.id
-          }
-        });
       });
 
       repairedSessions += 1;
@@ -929,18 +916,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
 
       const deleted = await this.prisma.$transaction(async (tx) => {
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: lease.characterId,
-          leaseStartedAt: lease.createdAt,
-          now
-        });
-        return tx.activeCombatLease.deleteMany({
-          where: {
-            id: lease.id,
-            kind: "turn-based-duel"
-          }
-        });
+        await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
+        return { count: 1 };
       });
       removedOrphanLeases += deleted.count;
       console.warn("Квестарня: removed orphan turn-based duel lease.", {
@@ -967,6 +944,48 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
   }
+}
+
+async function getNaturalDuelResources(
+  tx: Prisma.TransactionClient,
+  canonical: Character & { equipment: CharacterEquipment[] },
+  remortCount: number,
+  now: Date
+): Promise<{ hpCurrent: number; hpMax: number; manaCurrent: number; manaMax: number }> {
+  const localDates = canonical.equipment.map(
+    (row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`
+  );
+  const actions = localDates.length > 0
+    ? await tx.dailyAction.findMany({
+        where: {
+          characterId: canonical.id,
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+          localDate: { in: localDates }
+        },
+        select: { resultJson: true }
+      })
+    : [];
+  const actionPayloads = actions.map((row) => row.resultJson);
+  const equippedItems = canonical.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
+      return [];
+    }
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const { equipment, ...record } = canonical;
+  void equipment;
+  const summary = summarizeCharacter({
+    ...record,
+    currentLocationId: null,
+    remortCount
+  }, { equippedItems, remortCount });
+  return {
+    hpCurrent: summary.hpCurrent,
+    hpMax: summary.hpMax,
+    manaCurrent: summary.manaCurrent,
+    manaMax: summary.manaMax
+  };
 }
 
 async function awardTurnBasedDuelXp(

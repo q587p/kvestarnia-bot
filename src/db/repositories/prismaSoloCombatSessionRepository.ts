@@ -32,8 +32,7 @@ import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import {
-  advanceVarenykSatedCursorThroughCombat,
-  VarenykSatedCasError
+  releaseVarenykSatedCombatLease
 } from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
@@ -791,15 +790,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       const releasingLease = input.status !== "active" && input.releaseLease;
-      if (input.state.varenykSated && !releasingLease) {
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: updated.characterId,
-          activationId: input.state.varenykSated.activationId,
-          now: getSatedLeaseThrough(input),
-          outsideRemainderMs: input.state.varenykSated.outsideRemainderMs
-        });
-      }
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
@@ -845,20 +835,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
-      const current = await tx.soloCombatSession.findUnique({
-        where: { id: sessionId },
-        select: { characterId: true }
-      });
       const releasingLease = input.status !== "active" && input.releaseLease;
-      if (current && input.state.varenykSated && !releasingLease) {
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: current.characterId,
-          activationId: input.state.varenykSated.activationId,
-          now: getSatedLeaseThrough(input),
-          outsideRemainderMs: input.state.varenykSated.outsideRemainderMs
-        });
-      }
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
@@ -957,15 +934,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
 
       const releasingLease = input.status !== "active" && input.releaseLease;
-      if (input.state.varenykSated && !releasingLease) {
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: input.characterId,
-          activationId: input.state.varenykSated.activationId,
-          now: getSatedLeaseThrough(input),
-          outsideRemainderMs: input.state.varenykSated.outsideRemainderMs
-        });
-      }
 
       const consumed = await tx.characterItem.updateMany({
         where: {
@@ -2815,29 +2783,12 @@ async function releaseSoloCombatLease(
     return false;
   }
 
-  const sated = input.state?.varenykSated;
-  await advanceVarenykSatedCursorThroughCombat({
+  await releaseVarenykSatedCombatLease({
     tx,
-    characterId: lease.characterId,
-    ...(sated ? { activationId: sated.activationId } : {}),
-    now: input.releasedAt,
-    ...(sated
-      ? { outsideRemainderMs: sated.outsideRemainderMs }
-      : { leaseStartedAt: lease.createdAt })
+    lease,
+    releasedAt: input.releasedAt,
+    ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {})
   });
-
-  const deleted = await tx.activeCombatLease.deleteMany({
-    where: {
-      id: lease.id,
-      characterId: lease.characterId,
-      kind: lease.kind,
-      referenceId: lease.referenceId,
-      updatedAt: lease.updatedAt
-    }
-  });
-  if (deleted.count !== 1) {
-    throw new VarenykSatedCasError("lease-release");
-  }
   return true;
 }
 

@@ -12,6 +12,7 @@ import type {
 import { startTurnBasedDuel, type TurnBasedDuelState } from "../../src/domain/duels/turnBasedDuel";
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import {
+  settleVarenykSatedOutsideCombat,
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
@@ -368,8 +369,8 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     for (const side of ["challenger", "target"] as const) {
       const participant = started.record?.state.participants[side];
       expect(participant).toMatchObject({
-        hp: 12,
-        mana: 7,
+        hp: Math.round((12 / 32) * 24),
+        mana: Math.round((7 / 16) * 12),
         varenykSated: { outsideRemainderMs: 30_000 }
       });
       await expect(prisma.character.findUnique({
@@ -430,17 +431,41 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   it("settles asymmetric pre-lease Sated against natural maxima before rebuilding balanced ratios", async () => {
     const seeded = await seedPendingChallenge("asymmetric-with-sated");
-    const state = makeAsymmetricState(seeded.challenger.id, seeded.target.id);
     const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
     const cursorAt = new Date("2026-06-17T17:57:30.000Z");
     await prisma.character.update({
       where: { id: seeded.challenger.id },
-      data: { hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 }
+      data: { hpCurrent: 25, hpMax: 25, manaCurrent: 14, manaMax: 12 }
     });
     await prisma.character.update({
       where: { id: seeded.target.id },
-      data: { level: 13, hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 }
+      data: { level: 13, hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 }
     });
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-asymmetric-with-sated",
+        characterId: seeded.challenger.id,
+        slot: "accessory",
+        itemId: "item.mantok.coverage.universal.bead-of-pocket-weather"
+      }
+    });
+    const effectiveState = startTurnBasedDuel({
+      challenger: makeDuelist(seeded.challenger.id, {
+        hpCurrent: 25,
+        hpMax: 33,
+        manaCurrent: 14,
+        manaMax: 17
+      }),
+      target: makeDuelist(seeded.target.id, {
+        level: 13,
+        hpCurrent: 108,
+        hpMax: 108,
+        manaCurrent: 54,
+        manaMax: 54
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    effectiveState.actingCharacterId = seeded.challenger.id;
     for (const characterId of [seeded.challenger.id, seeded.target.id]) {
       const payload = makeSatedPayload(characterId, cursorAt);
       await prisma.characterCooldown.create({
@@ -459,30 +484,87 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       acceptedAt,
       {
         sessionId: "session-asymmetric-with-sated",
-        state,
+        state: effectiveState,
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );
-    const balancedChallenger = state.participants.challenger;
+    const balancedChallenger = effectiveState.participants.challenger;
 
     expect(started.record?.state.participants.challenger).toMatchObject({
-      hp: Math.round((14 / 24) * balancedChallenger.hpMax),
+      hp: Math.round((27 / 33) * balancedChallenger.hpMax),
       hpMax: balancedChallenger.hpMax,
-      mana: Math.round((8 / 12) * balancedChallenger.manaMax),
+      mana: Math.round((16 / 17) * balancedChallenger.manaMax),
       manaMax: balancedChallenger.manaMax,
       varenykSated: { outsideRemainderMs: 30_000 }
     });
     expect(started.record?.state.participants.target).toMatchObject({
-      hp: state.participants.target.hp,
-      hpMax: state.participants.target.hpMax,
-      mana: state.participants.target.mana,
-      manaMax: state.participants.target.manaMax,
+      hp: effectiveState.participants.target.hp,
+      hpMax: effectiveState.participants.target.hpMax,
+      mana: effectiveState.participants.target.mana,
+      manaMax: effectiveState.participants.target.manaMax,
       varenykSated: { outsideRemainderMs: 30_000 }
     });
     await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
-      .resolves.toMatchObject({ hpCurrent: 14, hpMax: 24, manaCurrent: 8, manaMax: 12 });
+      .resolves.toMatchObject({ hpCurrent: 27, hpMax: 25, manaCurrent: 16, manaMax: 12 });
     await expect(prisma.character.findUnique({ where: { id: seeded.target.id } }))
-      .resolves.toMatchObject({ hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 });
+      .resolves.toMatchObject({ hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 });
+  });
+
+  it("keeps a level-three partial effective HP pool partial while settling pre-lease Sated", async () => {
+    const seeded = await seedPendingChallenge("effective-partial-sated");
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 24, hpMax: 25, manaCurrent: 12, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 }
+    });
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist(seeded.challenger.id, {
+        hpCurrent: 24,
+        hpMax: 33,
+        manaCurrent: 12,
+        manaMax: 16
+      }),
+      target: makeDuelist(seeded.target.id, {
+        level: 13,
+        hpCurrent: 108,
+        hpMax: 108,
+        manaCurrent: 54,
+        manaMax: 54
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = seeded.challenger.id;
+    const payload = makeSatedPayload(seeded.challenger.id, cursorAt);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: seeded.challenger.id,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "effective-partial-sated",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-effective-partial-sated",
+        state,
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started.record?.state.participants.challenger.hp).toBe(
+      Math.round((26 / 33) * state.participants.challenger.hpMax)
+    );
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 26, hpMax: 25, manaCurrent: 14, manaMax: 12 });
   });
 
   it("resolves terminal sessions, grants XP once and releases both leases", async () => {
@@ -698,6 +780,77 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       }
     });
     expect((orphanStatus.resultJson as { cursorAt: string }).cursorAt).toBe("2026-06-17T18:00:30.000Z");
+  });
+
+  it("releases a turn-duel orphan after round progress without losing its original remainder", async () => {
+    const session = await seedActiveSession("orphan-after-round", new Date("2026-06-17T19:23:00.000Z"));
+    const characterId = session.challengerCharacterId;
+    const startedAt = new Date("2026-06-17T19:00:00.000Z");
+    const leaseStartedAt = new Date("2026-06-17T19:00:30.000Z");
+    const payload = makeSatedPayload(characterId, startedAt);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await prisma.activeCombatLease.update({
+      where: { characterId },
+      data: { createdAt: leaseStartedAt, updatedAt: leaseStartedAt }
+    });
+    const progressed = JSON.parse(JSON.stringify(session.state)) as TurnBasedDuelState;
+    progressed.turn = 2;
+    progressed.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: payload.activationId,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: payload.expiresAt,
+      cursorAt: "2026-06-17T19:03:00.000Z",
+      leaseStartedAt: leaseStartedAt.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: [`${session.id}:turn:1:${characterId}`]
+    };
+    await expect(repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
+      state: progressed,
+      status: "active",
+      now: new Date("2026-06-17T19:03:00.000Z"),
+      deadlineMode: "player-action",
+      turnExpiresAt: new Date("2026-06-17T19:23:00.000Z")
+    })).resolves.toMatchObject({ turn: 2, version: 2 });
+    let stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect((stored.resultJson as { cursorAt: string }).cursorAt).toBe(startedAt.toISOString());
+    await prisma.duelCombatSession.delete({ where: { id: session.id } });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const first = await repository.repairTurnBasedCombatState(new Date("2026-06-17T19:05:30.000Z"));
+    const duplicate = await repository.repairTurnBasedCombatState(new Date("2026-06-17T19:06:30.000Z"));
+    warn.mockRestore();
+
+    expect(first.removedOrphanLeases).toBe(2);
+    expect(duplicate.removedOrphanLeases).toBe(0);
+    stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-06-17T19:05:00.000Z");
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 33, mana: 1, manaMax: 16 },
+      now: new Date("2026-06-17T19:05:59.999Z"),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(0);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 33, mana: 1, manaMax: 16 },
+      now: new Date("2026-06-17T19:06:00.000Z"),
+      combatBlocked: false
+    })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
   });
 
   it("repairs active sessions whose acting participant or optional state blocks are malformed", async () => {
@@ -969,6 +1122,18 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(character_id, key)
+    )`,
+    `CREATE TABLE daily_actions (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL,
+      reward_gold INTEGER NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key, local_date)
     )`,
     `CREATE TABLE active_combat_leases (
       id TEXT PRIMARY KEY,

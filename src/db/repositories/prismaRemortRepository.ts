@@ -25,7 +25,9 @@ import {
   markCombatSettlementForfeitedByRemort,
   type CombatState
 } from "../../domain/combat";
+import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { releaseVarenykSatedCombatLease } from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
@@ -490,13 +492,7 @@ async function prepareActiveCombatForRemort(
   });
 
   if (!session) {
-    await tx.activeCombatLease.deleteMany({
-      where: {
-        characterId,
-        kind: lease.kind,
-        referenceId: lease.referenceId
-      }
-    });
+    await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
     return { state: "ready" };
   }
 
@@ -532,12 +528,11 @@ async function prepareActiveCombatForRemort(
     await deleteOwnedPendingTrainingCooldown(tx, characterId, session.id, mapped.state.life?.remortCount ?? 0);
   }
 
-  await tx.activeCombatLease.deleteMany({
-    where: {
-      characterId,
-      kind: lease.kind,
-      referenceId: lease.referenceId
-    }
+  await releaseVarenykSatedCombatLease({
+    tx,
+    lease,
+    releasedAt: now,
+    ...(mapped?.state?.varenykSated ? { sated: mapped.state.varenykSated } : {})
   });
 
   return { state: "ready" };
@@ -553,6 +548,7 @@ async function cancelPartyBossForRemort(
       partySessionId
     }
   });
+  const partyState = session?.stateJson;
 
   if (session?.status === "active") {
     const stateJson = session.stateJson;
@@ -584,12 +580,21 @@ async function cancelPartyBossForRemort(
     });
   }
 
-  await tx.activeCombatLease.deleteMany({
+  const leases = await tx.activeCombatLease.findMany({
     where: {
       kind: PARTY_BOSS_COMBAT_LEASE_KIND,
       referenceId: partySessionId
     }
   });
+  for (const lease of leases) {
+    const sated = findPartyParticipantSated(partyState, lease.characterId);
+    await releaseVarenykSatedCombatLease({
+      tx,
+      lease,
+      releasedAt: now,
+      ...(sated ? { sated } : {})
+    });
+  }
   await tx.partySession.updateMany({
     where: {
       id: partySessionId,
@@ -614,6 +619,23 @@ async function cancelPartyBossForRemort(
       activeMembershipKey: null
     }
   });
+}
+
+function findPartyParticipantSated(value: Prisma.JsonValue | null | undefined, characterId: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const participants = (value as Record<string, unknown>).participants;
+  if (!Array.isArray(participants)) {
+    return undefined;
+  }
+  const participant = participants.find((entry) =>
+    entry !== null &&
+    typeof entry === "object" &&
+    !Array.isArray(entry) &&
+    (entry as Record<string, unknown>).characterId === characterId
+  ) as Record<string, unknown> | undefined;
+  return parseVarenykSatedCombatState(participant?.varenykSated) ?? undefined;
 }
 
 async function deleteOwnedPendingTrainingCooldown(

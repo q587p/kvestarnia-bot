@@ -49,8 +49,8 @@ import { isMedicalCombatItemId } from "../../services/combatItemUse";
 import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
-  advanceVarenykSatedCursorThroughCombat,
-  freezeVarenykSatedFromCooldown
+  freezeVarenykSatedFromCooldown,
+  releaseVarenykSatedCombatLease
 } from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
@@ -833,19 +833,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
-      for (const participant of resolved.state.participants) {
-        if (!participant.varenykSated) {
-          continue;
-        }
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: participant.characterId,
-          activationId: participant.varenykSated.activationId,
-          now: input.now,
-          outsideRemainderMs: participant.varenykSated.outsideRemainderMs
-        });
-      }
-
       for (const action of actionInputs) {
         if (action.action === "item" && action.item) {
           await consumePartyBossCombatItem(tx, action.characterId, action.item.id);
@@ -893,7 +880,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           ...achievementEvents,
           ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now, this.hpRecoveryProducer)
         ];
-        await releasePartyBossLocks(tx, session.partySessionId);
+        await releasePartyBossLocks(tx, session.partySessionId, input.now, resolved.state);
       }
 
       const current = await tx.partyBossSession.findUnique({
@@ -1365,7 +1352,12 @@ function buildBigBarrelReward(
   };
 }
 
-async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Promise<void> {
+async function releasePartyBossLocks(
+  tx: TxClient,
+  partySessionId: string,
+  releasedAt: Date,
+  state: PartyBossState
+): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
       id: partySessionId,
@@ -1380,12 +1372,21 @@ async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Prom
   if (transitioned.count !== 1) {
     return;
   }
-  await tx.activeCombatLease.deleteMany({
+  const leases = await tx.activeCombatLease.findMany({
     where: {
       kind: PARTY_BOSS_LEASE_KIND,
       referenceId: partySessionId
     }
   });
+  for (const lease of leases) {
+    const participant = state.participants.find((entry) => entry.characterId === lease.characterId);
+    await releaseVarenykSatedCombatLease({
+      tx,
+      lease,
+      releasedAt,
+      ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+    });
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId: partySessionId,

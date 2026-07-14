@@ -411,6 +411,188 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect((stored.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
   });
 
+  it("retains the original remainder after combat progress when solo state later disappears or becomes malformed", async () => {
+    for (const mode of ["missing", "malformed"] as const) {
+      const characterId = `character-progress-${mode}`;
+      const sessionId = `session-progress-${mode}`;
+      const telegramUserId = mode === "missing" ? 42932n : 42933n;
+      const startedAt = new Date("2026-07-14T12:00:00.000Z");
+      const leaseStartedAt = new Date("2026-07-14T12:00:30.000Z");
+      const releasedAt = new Date("2026-07-14T12:05:30.000Z");
+      await seedCharacter(prisma, {
+        userId: `user-progress-${mode}`,
+        characterId,
+        telegramUserId
+      });
+      await prisma.character.update({
+        where: { id: characterId },
+        data: {
+          classId: "class.varenyk-mancer",
+          hpCurrent: 1,
+          manaCurrent: 1,
+          hpRegenAt: releasedAt,
+          manaRegenAt: releasedAt
+        }
+      });
+      const payload = makeSoloSatedPayload(characterId, `progress-${mode}-activation`, startedAt, telegramUserId);
+      if (mode === "malformed") {
+        payload.expiresAt = "2026-07-14T12:05:00.000Z";
+      }
+      await prisma.characterCooldown.create({
+        data: {
+          characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+      const state = makeCombatState(sessionId, "monster.deadline-spider");
+      state.varenykSated = {
+        version: 1,
+        activationId: payload.activationId,
+        recipientCharacterId: characterId,
+        recipientRemortCount: 0,
+        rank: 1,
+        expiresAt: payload.expiresAt,
+        cursorAt: leaseStartedAt.toISOString(),
+        leaseStartedAt: leaseStartedAt.toISOString(),
+        outsideRemainderMs: 30_000,
+        pulseIds: [`${sessionId}:turn:1:${characterId}`]
+      };
+      await prisma.soloCombatSession.create({
+        data: {
+          id: sessionId,
+          characterId,
+          monsterId: "monster.deadline-spider",
+          stateJson: state,
+          status: "active",
+          turn: 1,
+          expiresAt: new Date("2026-07-14T12:23:00.000Z")
+        }
+      });
+      await prisma.activeCombatLease.create({
+        data: {
+          id: `lease-progress-${mode}`,
+          characterId,
+          kind: "solo-combat",
+          referenceId: sessionId,
+          createdAt: leaseStartedAt,
+          updatedAt: leaseStartedAt
+        }
+      });
+      const progressed = JSON.parse(JSON.stringify(state)) as CombatState;
+      progressed.turn = 2;
+      await expect(repository.updateByIdIfActiveTurn(sessionId, 1, {
+        state: progressed,
+        status: "active",
+        satedLeaseAt: new Date("2026-07-14T12:03:00.000Z")
+      })).resolves.toMatchObject({ turn: 2 });
+      let cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+      });
+      expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(startedAt.toISOString());
+
+      if (mode === "missing") {
+        await prisma.soloCombatSession.delete({ where: { id: sessionId } });
+      } else {
+        await prisma.soloCombatSession.update({
+          where: { id: sessionId },
+          data: { stateJson: { malformed: true } }
+        });
+      }
+      await expect(repository.releaseLeaseBySessionId(sessionId, releasedAt)).resolves.toBe(true);
+      await expect(repository.releaseLeaseBySessionId(sessionId, new Date(releasedAt.getTime() + 60_000)))
+        .resolves.toBe(false);
+      cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+      });
+      expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(
+        mode === "missing" ? "2026-07-14T12:05:00.000Z" : payload.expiresAt
+      );
+
+      if (mode === "missing") {
+        const classNoncombat = new PrismaClassNoncombatRepository(prisma);
+        await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+          telegramUserId,
+          new Date("2026-07-14T12:05:59.999Z"),
+          characterId
+        )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+        await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+          telegramUserId,
+          new Date("2026-07-14T12:06:00.000Z"),
+          characterId
+        )).resolves.toMatchObject({ hpRestored: 1, manaRestored: 1 });
+      }
+    }
+  });
+
+  it("releases an old solo lease without mutating a newer Sated activation", async () => {
+    const characterId = "character-newer-sated-after-lease";
+    const leaseStartedAt = new Date("2026-07-14T13:00:30.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-newer-sated-after-lease",
+      characterId,
+      telegramUserId: 42934n
+    });
+    const newer = makeSoloSatedPayload(
+      characterId,
+      "newer-sated-activation",
+      new Date("2026-07-14T13:01:00.000Z"),
+      42934n
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(newer.availableAt),
+        resultJson: newer
+      }
+    });
+    const state = makeCombatState("old-lease-newer-sated", "monster.deadline-spider");
+    state.varenykSated = {
+      version: 1,
+      activationId: "old-sated-activation",
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: "2026-07-14T13:13:00.000Z",
+      cursorAt: leaseStartedAt.toISOString(),
+      leaseStartedAt: leaseStartedAt.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: []
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: state.id,
+        characterId,
+        monsterId: state.monster.id,
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-07-14T13:23:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "old-lease-newer-sated",
+        characterId,
+        kind: "solo-combat",
+        referenceId: state.id,
+        createdAt: leaseStartedAt,
+        updatedAt: leaseStartedAt
+      }
+    });
+
+    await expect(repository.releaseLeaseBySessionId(
+      state.id,
+      new Date("2026-07-14T13:05:30.000Z")
+    )).resolves.toBe(true);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect(stored.resultJson).toEqual(newer);
+  });
+
   it("releases a delayed solo lease once, preserves a near-minute remainder, and ignores duplicate cleanup after OOC recovery", async () => {
     const characterId = "character-cursor-safe-release";
     const sessionId = "cursor-safe-release";

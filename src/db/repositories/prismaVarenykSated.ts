@@ -84,6 +84,12 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     return;
   }
   if (input.activationId && payload.activationId !== input.activationId) {
+    if (
+      input.leaseStartedAt &&
+      Date.parse(payload.startedAt) > input.leaseStartedAt.getTime()
+    ) {
+      return;
+    }
     throw new VarenykSatedCasError("activation");
   }
   if (
@@ -125,6 +131,44 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   });
   if (updated.count !== 1) {
     throw new VarenykSatedCasError("cursor");
+  }
+}
+
+export async function releaseVarenykSatedCombatLease(input: {
+  tx: TxClient;
+  lease: {
+    id: string;
+    characterId: string;
+    kind: string;
+    referenceId: string;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  releasedAt: Date;
+  sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs">;
+}): Promise<void> {
+  await advanceVarenykSatedCursorThroughCombat({
+    tx: input.tx,
+    characterId: input.lease.characterId,
+    ...(input.sated ? { activationId: input.sated.activationId } : {}),
+    now: input.releasedAt,
+    leaseStartedAt: input.lease.createdAt,
+    ...(input.sated
+      ? { outsideRemainderMs: input.sated.outsideRemainderMs }
+      : {})
+  });
+
+  const deleted = await input.tx.activeCombatLease.deleteMany({
+    where: {
+      id: input.lease.id,
+      characterId: input.lease.characterId,
+      kind: input.lease.kind,
+      referenceId: input.lease.referenceId,
+      updatedAt: input.lease.updatedAt
+    }
+  });
+  if (deleted.count !== 1) {
+    throw new VarenykSatedCasError("lease-release");
   }
 }
 
