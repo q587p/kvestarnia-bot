@@ -122,6 +122,8 @@ Example: a Rogue pocket-theatre challenge.
 
 Local `/dev_reset_quiet_pocket` clears the current `noncombat.rogue.pickpocket` cooldown key and keeps legacy quiet-pocket key cleanup only for compatibility. Local `/dev_reset_rogue` clears the same Rogue cooldown family and deletes the current actor's current-Kyiv-day pickpocket attempt rows so the same targets can be tested again.
 
+`0.3.12` ships the narrow Varenyk-mancer support slice. A living level 3+ Varenyk-mancer can `🍽️ Нагодувати` themselves or an active exact-location recipient from any existing actionable location. Attunement-aware Intelligence, Charisma and level determine rank; canonical passive mana settles first, then the highest affordable rank is selected from exact costs `8/12/16/20/23`. A fresh transaction applies capped immediate HP/mana recovery and one recipient-global `CharacterCooldown` contract: `😋 Ситий` lasts 13 minutes, the recipient wait lasts 93 minutes, complete out-of-combat minutes settle lazily, and durable combat turns/rounds pulse once by stored identity. A server-owned preview row rejects forged confirms. No scheduler, food/cooking/crafting engine, items, economy or Priest changes were added. Local `/dev_reset_varenyk_sated` clears only the caller's current-life status/wait and is unavailable in production.
+
 ### Information Action
 
 Example: a Yeger scouts a passage.

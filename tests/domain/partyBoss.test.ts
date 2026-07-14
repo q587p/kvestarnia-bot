@@ -11,6 +11,38 @@ const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
 
 describe("party boss reducer", () => {
+  it("grants one Sated pulse per eligible Big Barrel participant after the round", () => {
+    const startedAt = new Date("2026-07-14T10:00:00.000Z");
+    const state = createPartyBossState({
+      partySessionId: "big-barrel-sated",
+      variant: "big-barrel",
+      now: startedAt,
+      participants: [participant("character-1", "Вареник", { hp: 30, hpCurrent: 20, mana: 12, manaCurrent: 4 })]
+    });
+    state.participants[0]!.varenykSated = {
+      version: 1,
+      activationId: "sated-activation",
+      recipientCharacterId: "character-1",
+      recipientRemortCount: 0,
+      rank: 2,
+      expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+      cursorAt: startedAt.toISOString(),
+      pulseIds: []
+    };
+
+    const resolved = resolvePartyBossRound({
+      state,
+      now: new Date(startedAt.getTime() + 60_000),
+      seed: "big-barrel-sated",
+      actions: [{ characterId: "character-1", action: "defend", origin: "manual" }]
+    });
+
+    expect(resolved.round.actions[0]?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
+      "sated-activation:big-barrel:big-barrel-sated:1:character-1"
+    ]);
+  });
+
   it("resolves submitted actions and fills missing participants with timeout defend", () => {
     const state = createPartyBossState({
       partySessionId: "party-1",

@@ -27,9 +27,11 @@ import {
   THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { advanceVarenykSatedCursorThroughCombat } from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
@@ -55,6 +57,7 @@ import type {
 } from "./soloCombatSessionRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { freezeVarenykSatedFromCooldown } from "./prismaVarenykSated";
 
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
@@ -594,12 +597,34 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
-      const committedState = await applyCombatDrinkStateCommit(
+      let committedState = await applyCombatDrinkStateCommit(
         tx,
         character.id,
         input.state,
         input.drinkStateCommit
       );
+      const combatStartedAt = committedState.life?.startedAt
+        ? new Date(committedState.life.startedAt)
+        : null;
+      if (combatStartedAt && Number.isFinite(combatStartedAt.getTime())) {
+        const sated = await freezeVarenykSatedFromCooldown({
+          tx,
+          characterId: character.id,
+          remortCount: committedState.life?.remortCount ?? 0,
+          resources: {
+            hp: committedState.hero.hp,
+            hpMax: committedState.hero.hpMax,
+            mana: committedState.hero.mana,
+            manaMax: committedState.hero.manaMax
+          },
+          now: combatStartedAt
+        });
+        committedState = {
+          ...committedState,
+          hero: { ...committedState.hero, hp: sated.resources.hp, mana: sated.resources.mana },
+          ...(sated.sated ? { varenykSated: sated.sated } : {})
+        };
+      }
 
       const session = await tx.soloCombatSession.create({
         data: {
@@ -756,6 +781,15 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
+      if (input.state.varenykSated) {
+        await advanceVarenykSatedCursorThroughCombat({
+          tx,
+          characterId: updated.characterId,
+          activationId: input.state.varenykSated.activationId,
+          now: new Date(input.state.varenykSated.cursorAt)
+        });
+      }
+
       if (input.status !== "active" && input.releaseLease) {
         await tx.activeCombatLease.deleteMany({
           where: {
@@ -798,6 +832,19 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (result.count !== 1) {
         return null;
+      }
+
+      const current = await tx.soloCombatSession.findUnique({
+        where: { id: sessionId },
+        select: { characterId: true }
+      });
+      if (current && input.state.varenykSated) {
+        await advanceVarenykSatedCursorThroughCombat({
+          tx,
+          characterId: current.characterId,
+          activationId: input.state.varenykSated.activationId,
+          now: new Date(input.state.varenykSated.cursorAt)
+        });
       }
 
       if (input.status !== "active" && input.releaseLease) {
@@ -894,6 +941,15 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (updated.count !== 1) {
         return { outcome: "stale-turn", session: null };
+      }
+
+      if (input.state.varenykSated) {
+        await advanceVarenykSatedCursorThroughCombat({
+          tx,
+          characterId: input.characterId,
+          activationId: input.state.varenykSated.activationId,
+          now: new Date(input.state.varenykSated.cursorAt)
+        });
       }
 
       const consumed = await tx.characterItem.updateMany({
@@ -1701,6 +1757,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
+  const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1738,7 +1795,8 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(turnLog.length > 0 ? { turnLog } : {}),
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     ...(equipmentAbilities ? { equipmentAbilities } : {}),
-    ...(enemyStatuses ? { enemyStatuses } : {})
+    ...(enemyStatuses ? { enemyStatuses } : {}),
+    ...(varenykSated ? { varenykSated } : {})
   };
 }
 
@@ -2666,6 +2724,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
   const enemyPressureSkips = parseEnemyPressureSkipSummaries(value.enemyPressureSkips);
+  const satedRecovery = parseSatedRecovery(value.satedRecovery);
 
   if (
     !action ||
@@ -2709,8 +2768,20 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(enemyPressureSkips.length > 0 ? { enemyPressureSkips } : {}),
-    ...(debugTrace ? { debugTrace } : {})
+    ...(debugTrace ? { debugTrace } : {}),
+    ...(satedRecovery ? { satedRecovery } : {})
   };
+}
+
+function parseSatedRecovery(value: unknown): CombatTurnSummary["satedRecovery"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const hpRestored = intOrNull(value.hpRestored);
+  const manaRestored = intOrNull(value.manaRestored);
+  return hpRestored !== null && hpRestored >= 0 && manaRestored !== null && manaRestored >= 0
+    ? { hpRestored, manaRestored }
+    : null;
 }
 
 function parsePlayerAbilityFumbleSummary(value: unknown): CombatTurnSummary["fumble"] | null {

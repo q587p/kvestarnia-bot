@@ -5,7 +5,10 @@ import {
   presentPriestBlessResult,
   presentPriestHealResult,
   presentRoguePickpocketResult,
-  presentRoguePickpocketTargetNotification
+  presentRoguePickpocketTargetNotification,
+  presentVarenykSatedPreview,
+  presentVarenykSatedResult,
+  presentVarenykSatedTargetNotification
 } from "../../src/bot/presenters/classNoncombatPresenter";
 import type {
   ClassNoncombatOpenResult,
@@ -44,6 +47,39 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("⚕️ Лікування: без відпочинку, доки вистачає мани.");
     expect(text).not.toContain("⚕️ Лікування: готово.");
     expect(text).not.toContain("Оберіть себе або когось активного поруч:");
+  });
+
+  it("shows the automatic Varenyk downgrade and recovery only when resources changed", () => {
+    const preview = presentVarenykSatedPreview({
+      state: "preview",
+      targetTelegramUserId: 42n,
+      target: { name: "Сусід" },
+      statRank: 5,
+      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 1 },
+      durationMinutes: 13,
+      recipientWaitMinutes: 93
+    } as never);
+    expect(preview).toContain("Ранг: <b>3</b> · ціна: <b>16 мани</b>");
+    expect(preview).toContain("Статистика обіцяла ранг 5");
+
+    const completed = {
+      state: "completed",
+      created: true,
+      action: {
+        actorTelegramUserId: 1n,
+        targetTelegramUserId: 2n,
+        actorName: "Пан Вареник",
+        targetName: "Сусід",
+        rank: 3,
+        manaCost: 16,
+        immediateHpRestored: 0,
+        immediateManaRestored: 0,
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        availableAt: new Date("2026-07-03T10:33:00.000Z")
+      }
+    } as never;
+    expect(presentVarenykSatedResult(completed)).not.toContain("Відновлено:");
+    expect(presentVarenykSatedTargetNotification(completed)).not.toContain("Відновлено:");
   });
 
   it("keeps the Priest target prompt when active nearby targets exist", () => {

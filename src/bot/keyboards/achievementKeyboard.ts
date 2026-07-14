@@ -17,6 +17,7 @@ export function buildHeroAchievementsKeyboard(
   options: {
     priestSelfHealCallbackData?: string | null;
     priestSelfBlessCallbackData?: string | null;
+    varenykSelfFeedCallbackData?: string | null;
     restoreCallbackData?: string | null;
   } = {}
 ): InlineKeyboard {
@@ -32,6 +33,10 @@ export function buildHeroAchievementsKeyboard(
 
   if (options.priestSelfBlessCallbackData) {
     keyboard.row().text("✨ Благословити себе", options.priestSelfBlessCallbackData);
+  }
+
+  if (options.varenykSelfFeedCallbackData) {
+    keyboard.row().text("🍽️ Нагодувати себе", options.varenykSelfFeedCallbackData);
   }
 
   if (options.restoreCallbackData) {

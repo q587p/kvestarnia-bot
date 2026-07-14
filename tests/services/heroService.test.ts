@@ -438,7 +438,10 @@ class FakeShynokRepository {
 
 class FakeClassNoncombatRepository implements Pick<
   ClassNoncombatRepository,
-  "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+  | "getActivePriestBlessingForTelegramUser"
+  | "getPriestSelfBlessAvailableAtForTelegramUser"
+  | "isActorBlockedForTelegramUser"
+  | "settleVarenykSatedForTelegramUser"
 > {
   constructor(
     private readonly blessing: PriestBlessingRecord | null,
@@ -456,5 +459,9 @@ class FakeClassNoncombatRepository implements Pick<
 
   isActorBlockedForTelegramUser(): Promise<boolean> {
     return Promise.resolve(this.actorBlocked);
+  }
+
+  settleVarenykSatedForTelegramUser(): ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]> {
+    return Promise.resolve(null);
   }
 }

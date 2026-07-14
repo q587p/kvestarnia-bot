@@ -71,6 +71,196 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.noncombatRoguePickpocketAttempt.count()).resolves.toBe(1);
   });
 
+  it("spends self-feed mana before immediate recovery and replays the durable receipt", async () => {
+    await seedCharacter({
+      telegramUserId: 1001n,
+      userId: "user-varenyk",
+      characterId: "varenyk",
+      classId: "class.varenyk-mancer",
+      hpCurrent: 15,
+      manaCurrent: 8
+    });
+    const input = {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      activeSince: new Date("2026-07-03T08:55:00.000Z"),
+      now,
+      previewToken: "sated-preview"
+    };
+    await expect(repository.saveVarenykSatedPreview(1001n, {
+      ...input,
+      expiresAt: new Date(now.getTime() + 13 * 60_000)
+    })).resolves.toBe(true);
+
+    const first = await repository.completeVarenykSated(1001n, input);
+    const replay = await repository.completeVarenykSated(1001n, input);
+
+    expect(first).toMatchObject({
+      state: "completed",
+      created: true,
+      action: {
+        rank: 1,
+        manaCost: 8,
+        immediateHpRestored: 3,
+        immediateManaRestored: 1,
+        expiresAt: new Date(now.getTime() + 13 * 60_000),
+        availableAt: new Date(now.getTime() + 93 * 60_000)
+      },
+      status: {
+        expiresAt: new Date(now.getTime() + 13 * 60_000).toISOString(),
+        availableAt: new Date(now.getTime() + 93 * 60_000).toISOString(),
+        cursorAt: now.toISOString()
+      }
+    });
+    expect(replay).toMatchObject({
+      state: "completed",
+      created: false,
+      action: { activationId: first.state === "completed" ? first.action.activationId : "missing" }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "varenyk" } })).resolves.toMatchObject({
+      hpCurrent: 18,
+      manaCurrent: 1
+    });
+    await expect(repository.completeVarenykSated(1001n, { ...input, previewToken: "fresh-forged" }))
+      .resolves.toMatchObject({ state: "blocked", reason: "stale" });
+  });
+
+  it("settles passive mana before choosing the affordable self-feed rank", async () => {
+    await seedCharacter({
+      telegramUserId: 1051n,
+      userId: "user-passive-varenyk",
+      characterId: "passive-varenyk",
+      classId: "class.varenyk-mancer",
+      manaCurrent: 7,
+      manaRegenAt: new Date("2026-07-03T08:59:30.000Z")
+    });
+    const input = {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      activeSince: new Date("2026-07-03T08:55:00.000Z"),
+      now,
+      previewToken: "passive-preview"
+    };
+    await expect(repository.saveVarenykSatedPreview(1051n, {
+      ...input,
+      expiresAt: new Date(now.getTime() + 13 * 60_000)
+    })).resolves.toBe(true);
+
+    await expect(repository.completeVarenykSated(1051n, input)).resolves.toMatchObject({
+      state: "completed",
+      created: true,
+      action: { rank: 1, manaCost: 8, immediateManaRestored: 1 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: "passive-varenyk" } })).resolves.toMatchObject({
+      manaCurrent: 1
+    });
+  });
+
+  it("replaces the active Sated activation after the recipient wait is genuinely cleared", async () => {
+    await seedCharacter({
+      telegramUserId: 1061n,
+      userId: "user-refresh-varenyk",
+      characterId: "refresh-varenyk",
+      classId: "class.varenyk-mancer",
+      manaCurrent: 20
+    });
+    const firstInput = {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      activeSince: new Date("2026-07-03T08:55:00.000Z"),
+      now,
+      previewToken: "refresh-first"
+    };
+    await repository.saveVarenykSatedPreview(1061n, {
+      ...firstInput,
+      expiresAt: new Date(now.getTime() + 13 * 60_000)
+    });
+    const first = await repository.completeVarenykSated(1061n, firstInput);
+    expect(first).toMatchObject({ state: "completed", created: true });
+
+    const secondNow = new Date(now.getTime() + 60_000);
+    await prisma.characterCooldown.update({
+      where: {
+        characterId_key: {
+          characterId: "refresh-varenyk",
+          key: "class.varenyk-mancer.sated-support.recipient"
+        }
+      },
+      data: { availableAt: secondNow }
+    });
+    const secondInput = {
+      ...firstInput,
+      activeSince: new Date(secondNow.getTime() - 5 * 60_000),
+      now: secondNow,
+      previewToken: "refresh-second"
+    };
+    await expect(repository.saveVarenykSatedPreview(1061n, {
+      ...secondInput,
+      expiresAt: new Date(secondNow.getTime() + 13 * 60_000)
+    })).resolves.toBe(true);
+    const second = await repository.completeVarenykSated(1061n, secondInput);
+
+    expect(second).toMatchObject({
+      state: "completed",
+      created: true,
+      status: { startedAt: secondNow.toISOString() }
+    });
+    if (first.state === "completed" && second.state === "completed") {
+      expect(second.action.activationId).not.toBe(first.action.activationId);
+    }
+    await expect(prisma.characterCooldown.count({
+      where: {
+        characterId: "refresh-varenyk",
+        key: "class.varenyk-mancer.sated-support.recipient"
+      }
+    })).resolves.toBe(1);
+  });
+
+  it("allows exactly one winner when two Varenyk-mancers race for one recipient", async () => {
+    await seedCharacter({ telegramUserId: 1101n, userId: "user-v1", characterId: "v1", classId: "class.varenyk-mancer" });
+    await seedCharacter({ telegramUserId: 1102n, userId: "user-v2", characterId: "v2", classId: "class.varenyk-mancer" });
+    await seedCharacter({ telegramUserId: 1103n, userId: "user-recipient", characterId: "recipient", hpCurrent: 10, manaCurrent: 10 });
+    const feed = (actor: bigint, previewToken: string) => repository.completeVarenykSated(actor, {
+      targetTelegramUserId: 1103n,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      activeSince: new Date("2026-07-03T08:55:00.000Z"),
+      now,
+      previewToken
+    });
+
+    await Promise.all([
+      repository.saveVarenykSatedPreview(1101n, {
+        targetTelegramUserId: 1103n,
+        expectedActorRemortCount: 0,
+        expectedTargetRemortCount: 0,
+        activeSince: new Date("2026-07-03T08:55:00.000Z"),
+        now,
+        expiresAt: new Date(now.getTime() + 13 * 60_000),
+        previewToken: "race-one"
+      }),
+      repository.saveVarenykSatedPreview(1102n, {
+        targetTelegramUserId: 1103n,
+        expectedActorRemortCount: 0,
+        expectedTargetRemortCount: 0,
+        activeSince: new Date("2026-07-03T08:55:00.000Z"),
+        now,
+        expiresAt: new Date(now.getTime() + 13 * 60_000),
+        previewToken: "race-two"
+      })
+    ]);
+
+    const results = await Promise.all([feed(1101n, "race-one"), feed(1102n, "race-two")]);
+    expect(results.filter((result) => result.state === "completed" && result.created)).toHaveLength(1);
+    expect(results.filter((result) => result.state === "blocked")).toHaveLength(1);
+    await expect(prisma.characterCooldown.count({
+      where: { characterId: "recipient", key: "class.varenyk-mancer.sated-support.recipient" }
+    })).resolves.toBe(1);
+  });
+
   it("claims noticed-success Rogue retaliation once and records the quick-duel invite", async () => {
     await seedCharacter({ telegramUserId: 101n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 102n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
@@ -261,7 +451,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(snapshot?.targets).toHaveLength(1);
   });
 
-  it("does not treat current adventure presence as a class noncombat blocker", async () => {
+  it("treats a current adventure as an incompatible class noncombat blocker", async () => {
     await seedCharacter({
       telegramUserId: 811n,
       userId: "user-priest",
@@ -274,7 +464,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     const snapshot = await repository.getSnapshotForTelegramUser(811n, snapshotInput());
 
     expect(snapshot).toMatchObject({
-      actorBlocked: false
+      actorBlocked: true
     });
   });
 
@@ -744,6 +934,30 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL UNIQUE,
       kind TEXT NOT NULL,
       reference_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_equipment (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      character_id TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      activation_id TEXT NOT NULL,
+      character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      drink_key TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL,
+      expires_at DATETIME NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      metadata_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

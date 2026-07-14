@@ -15,6 +15,11 @@ import {
 import { isMeaningfulCombatParticipation } from "../combat/combatParticipation";
 import { SeededRandomSource } from "../../shared/random";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../itemCraft";
+import {
+  applyVarenykSatedCombatPulse,
+  cloneVarenykSatedCombatState,
+  type VarenykSatedCombatStateV1
+} from "../noncombat/varenykSatedSupport";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
@@ -43,6 +48,7 @@ export interface PartyBossParticipantState {
   combatStats: CombatActorStats;
   equipmentAbilityGrantIds?: string[];
   resources: CombatActorResourceState;
+  varenykSated?: VarenykSatedCombatStateV1;
   combatItems?: CombatState["combatItems"];
   contribution: {
     submittedActions: number;
@@ -197,6 +203,10 @@ export interface PartyBossParticipantActionSummary {
   healing?: number;
   guard?: number;
   hpAfter?: number;
+  satedRecovery?: {
+    hpRestored: number;
+    manaRestored: number;
+  };
 }
 
 export interface PartyBossRetaliationSummary {
@@ -520,6 +530,36 @@ export function resolvePartyBossRound(input: {
     Object.assign(tauntRound, retaliationResolution.warriorTaunt);
   }
   const bossRetaliations = retaliationResolution.retaliations;
+  if (isBigBarrelBrotherState(next)) {
+    for (const participant of roundParticipants) {
+      const summary = actionSummaries.find((entry) => entry.characterId === participant.characterId);
+      if (!summary || !participant.varenykSated) {
+        continue;
+      }
+      const pulse = applyVarenykSatedCombatPulse({
+        sated: participant.varenykSated,
+        resources: participant.resources,
+        pulseId: [
+          participant.varenykSated.activationId,
+          "big-barrel",
+          next.partySessionId,
+          next.turn,
+          participant.characterId
+        ].join(":"),
+        now: input.now
+      });
+      if (!pulse.sated) {
+        continue;
+      }
+      participant.varenykSated = pulse.sated;
+      if (pulse.applied) {
+        participant.resources = { ...participant.resources, hp: pulse.resources.hp, mana: pulse.resources.mana };
+      }
+      if (pulse.hpRestored > 0 || pulse.manaRestored > 0) {
+        summary.satedRecovery = { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored };
+      }
+    }
+  }
   const livingParticipants = next.participants.filter(
     (participant) => participant.status === "active" && participant.resources.hp > 0
   );
@@ -722,11 +762,15 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
         ...(participant.resources.guard ? { guard: { ...participant.resources.guard } } : {})
       },
       ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
+      ...(participant.varenykSated ? { varenykSated: cloneVarenykSatedCombatState(participant.varenykSated) } : {}),
       contribution: { ...participant.contribution }
     })),
     roundLog: state.roundLog.map((round) => ({
       ...round,
-      actions: round.actions.map((action) => ({ ...action })),
+      actions: round.actions.map((action) => ({
+        ...action,
+        ...(action.satedRecovery ? { satedRecovery: { ...action.satedRecovery } } : {})
+      })),
       bossRetaliations: round.bossRetaliations.map((retaliation) => ({ ...retaliation })),
       ...(round.wardSign
         ? { wardSign: { ...round.wardSign, affectedCharacterIds: [...round.wardSign.affectedCharacterIds] } }

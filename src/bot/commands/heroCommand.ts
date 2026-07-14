@@ -7,7 +7,8 @@ import {
 } from "../../domain/noncombat/classNoncombatTechniques";
 import {
   makePriestBlessCallbackData,
-  makePriestHealCallbackData
+  makePriestHealCallbackData,
+  makeVarenykFeedPreviewCallbackData
 } from "../callbacks/classNoncombatCallbackData";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
@@ -57,6 +58,8 @@ export async function sendHero(
     const heroText = presentHero(result.character, {
       activeDrink: result.activeDrink,
       activePriestBlessing: result.activePriestBlessing,
+      activeVarenykSated: result.activeVarenykSated,
+      satedRecovery: result.satedRecovery,
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
     });
@@ -68,6 +71,11 @@ export async function sendHero(
         classNoncombatBlocked: result.classNoncombatBlocked,
         priestSelfBlessAvailableAt:
           result.priestSelfBlessAvailableAt ?? result.activePriestBlessing?.expiresAt ?? null
+      }),
+      varenykSelfFeedCallbackData: getVarenykSelfFeedCallbackData({
+        character: result.character,
+        classNoncombatBlocked: result.classNoncombatBlocked,
+        availableAt: result.varenykSatedAvailableAt
       }),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
@@ -87,6 +95,31 @@ export async function sendHero(
   }
 
   await sendText(ctx, mode, presentHeroMissing(), false);
+}
+
+function getVarenykSelfFeedCallbackData(input: {
+  character: CharacterSummary;
+  classNoncombatBlocked?: boolean;
+  availableAt?: Date | null;
+}): string | null {
+  const { character } = input;
+  if (
+    input.classNoncombatBlocked ||
+    input.availableAt ||
+    character.classId !== "class.varenyk-mancer" ||
+    character.level < CLASS_NONCOMBAT_MIN_LEVEL ||
+    character.hpCurrent <= 0 ||
+    character.manaCurrent < 8
+  ) {
+    return null;
+  }
+  const remortCount = character.remortCount ?? 0;
+  return makeVarenykFeedPreviewCallbackData({
+    targetTelegramUserId: null,
+    actorRemortCount: remortCount,
+    targetRemortCount: remortCount,
+    page: 0
+  });
 }
 
 function getPriestSelfBlessCallbackData(input: {

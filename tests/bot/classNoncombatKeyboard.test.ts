@@ -130,6 +130,38 @@ describe("class noncombat keyboard", () => {
     expect(buttonTexts(keyboard)).toContain("🕯️ Новий Сусід пізніше");
     expect(buttonTexts(keyboard)).not.toContain("🗡️ Новий Сусід");
   });
+
+  it("exposes Varenyk self and nearby feeding without hiding cooldown recipients", () => {
+    const keyboard = buildClassNoncombatKeyboard({
+      state: "ready",
+      mode: "varenyk",
+      character: character({ classId: "class.varenyk-mancer", className: "Вареникомант" }),
+      actorBlocked: false,
+      locationName: "Перед Корчмою",
+      targets: [
+        target({ name: "Голодний", canVarenykFeed: true }),
+        target({
+          name: "Ситий Сусід",
+          canVarenykFeed: false,
+          varenykSatedAvailableAt: new Date("2026-07-03T10:33:00.000Z")
+        })
+      ],
+      targetPage: 0,
+      targetTotalPages: 1,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: null,
+      varenykSatedSelfAvailableAt: null,
+      varenykSatedSelf: null,
+      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 1 }
+    });
+
+    expect(buttonTexts(keyboard)).toEqual(expect.arrayContaining([
+      "🍽️ Нагодувати себе",
+      "🍽️ Голодний",
+      "😋 Ситий Сусід ситий"
+    ]));
+  });
 });
 
 function priestOpenResult(

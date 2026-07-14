@@ -48,6 +48,10 @@ import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import {
+  advanceVarenykSatedCursorThroughCombat,
+  freezeVarenykSatedFromCooldown
+} from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -304,6 +308,22 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           };
         })
       });
+
+      if (isBigBarrelParty) {
+        for (const participant of state.participants) {
+          const frozen = await freezeVarenykSatedFromCooldown({
+            tx,
+            characterId: participant.characterId,
+            remortCount: participant.remortCount,
+            resources: participant.resources,
+            now: input.now
+          });
+          participant.resources = { ...participant.resources, ...frozen.resources };
+          if (frozen.sated) {
+            participant.varenykSated = frozen.sated;
+          }
+        }
+      }
 
       await tx.activeCombatLease.createMany({
         data: joined.map((participant) => ({
@@ -811,6 +831,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (updated.count !== 1) {
         return null;
+      }
+
+      for (const participant of resolved.state.participants) {
+        if (!participant.varenykSated) {
+          continue;
+        }
+        await advanceVarenykSatedCursorThroughCombat({
+          tx,
+          characterId: participant.characterId,
+          activationId: participant.varenykSated.activationId,
+          now: new Date(participant.varenykSated.cursorAt)
+        });
       }
 
       for (const action of actionInputs) {

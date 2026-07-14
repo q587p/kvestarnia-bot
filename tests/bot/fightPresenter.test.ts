@@ -2717,6 +2717,41 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Список дрібних проблем не зрушив");
     expect(text).not.toContain("зробив вигляд, що співчуває");
   });
+
+  it("shows active Sated and a recovery line after a persistent combat turn", () => {
+    const text = presentPersistentFightTurn({
+      state: "updated",
+      character,
+      session: persistentSession({
+        varenykSated: {
+          version: 1,
+          activationId: "sated",
+          recipientCharacterId: "character-42",
+          recipientRemortCount: 0,
+          rank: 2,
+          expiresAt: new Date(Date.now() + 13 * 60_000).toISOString(),
+          cursorAt: new Date().toISOString(),
+          pulseIds: ["pulse"]
+        },
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          monsterOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 2,
+          manaSpent: 0,
+          critical: false,
+          satedRecovery: { hpRestored: 1, manaRestored: 0 }
+        }
+      }),
+      monster: { id: "monster.test", name: "Тестовий монстр", description: "Тест.", level: 3, tags: ["test"] },
+      questProgress: null,
+      fightReward: null
+    });
+
+    expect(text).toContain("😋 Ситий · ранг 2");
+    expect(text).toContain("+1 HP");
+  });
 });
 
 function completed(

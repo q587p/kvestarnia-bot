@@ -5,6 +5,7 @@ import {
   makePriestHealCallbackData,
   makeRoguePickpocketCallbackData,
   makeRogueRetaliationDuelCallbackData,
+  makeVarenykFeedConfirmCallbackData,
   parseClassNoncombatCallbackData
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
 import { handleClassNoncombatCallback } from "../../src/bot/commands/classNoncombatCommand";
@@ -14,7 +15,8 @@ import type {
   PriestBlessResult,
   PriestHealResult,
   RoguePickpocketResult,
-  RogueRetaliationResult
+  RogueRetaliationResult,
+  VarenykSatedResult
 } from "../../src/services/classNoncombatService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
@@ -23,6 +25,37 @@ const actorTelegramUserId = 1001n;
 const targetTelegramUserId = 1002n;
 
 describe("class noncombat command", () => {
+  it("sends one private Varenyk notification only for a fresh durable other-target feed", async () => {
+    const freshContext = callbackContext();
+    const callback = parseClassNoncombatCallbackData(makeVarenykFeedConfirmCallbackData({
+      targetTelegramUserId,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      page: 0,
+      previewToken: "preview123"
+    }));
+    expect(callback.ok).toBe(true);
+    await handleClassNoncombatCallback(
+      freshContext.ctx,
+      callback.ok ? callback.value : neverCallback(),
+      { feedVarenykSatedForTelegramUser: vi.fn().mockResolvedValue(varenykResult(true)) } as never
+    );
+    expect(freshContext.sendMessage).toHaveBeenCalledOnce();
+    expect(freshContext.sendMessage).toHaveBeenCalledWith(
+      Number(targetTelegramUserId),
+      expect.stringContaining("Вас нагодували"),
+      { parse_mode: "HTML" }
+    );
+
+    const replayContext = callbackContext();
+    await handleClassNoncombatCallback(
+      replayContext.ctx,
+      callback.ok ? callback.value : neverCallback(),
+      { feedVarenykSatedForTelegramUser: vi.fn().mockResolvedValue(varenykResult(false)) } as never
+    );
+    expect(replayContext.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("notifies the actor about fresh Priest heal achievement unlocks", async () => {
     const { ctx, reply, sendMessage } = callbackContext();
     const service = {
@@ -638,6 +671,38 @@ function roguePickpocketResult(options: { created: boolean }): RoguePickpocketRe
           unlockedAt: now
         }]
       : []
+  };
+}
+
+function varenykResult(created: boolean): VarenykSatedResult {
+  const expiresAt = new Date(now.getTime() + 13 * 60_000);
+  const availableAt = new Date(now.getTime() + 93 * 60_000);
+  return {
+    state: "completed",
+    created,
+    action: {
+      activationId: "sated",
+      actorCharacterId: "actor",
+      targetCharacterId: "target",
+      actorTelegramUserId,
+      targetTelegramUserId,
+      actorName: "Пан Вареник",
+      targetName: "Ціль",
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      rank: 2,
+      manaCost: 12,
+      immediateHpRestored: 4,
+      immediateManaRestored: 1,
+      startedAt: now,
+      expiresAt,
+      availableAt,
+      created
+    },
+    status: {} as never,
+    actor: character("Пан Вареник", "class.varenyk-mancer"),
+    target: character("Ціль", "class.warrior"),
+    unlocks: []
   };
 }
 

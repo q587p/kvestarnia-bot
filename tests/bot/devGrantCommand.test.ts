@@ -39,6 +39,7 @@ describe("dev grant commands", () => {
     const cellarMouseResetCalls = await captureMessageCalls("/dev_reset_cellar_mouse", devGrant);
     const priestResetCalls = await captureMessageCalls("/dev_reset_priest_blessing", devGrant);
     const quietPocketResetCalls = await captureMessageCalls("/dev_reset_quiet_pocket", devGrant);
+    const varenykSatedResetCalls = await captureMessageCalls("/dev_reset_varenyk_sated", devGrant);
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
@@ -86,6 +87,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetCellarMouseCooldown).toHaveBeenCalledWith(42n);
     expect(devGrant.resetPriestBlessingCooldown).toHaveBeenCalledWith(42n);
     expect(devGrant.resetQuietPocketCooldown).toHaveBeenCalledWith(42n);
+    expect(devGrant.resetVarenykSated).toHaveBeenCalledWith(42n);
     expect(devGrant.resetRogue).toHaveBeenCalledWith(42n);
     expect(devGrant.completeFirstYegerQuestProgress).toHaveBeenCalledWith(42n);
     expect(devGrant.completeSecondYegerQuestProgress).toHaveBeenCalledWith(42n);
@@ -118,6 +120,7 @@ describe("dev grant commands", () => {
     expect(String(cellarMouseResetCalls.at(-1)?.payload.text)).toContain("мишачий льоховий cooldown");
     expect(String(priestResetCalls.at(-1)?.payload.text)).toContain("жрецьке благословення");
     expect(String(quietPocketResetCalls.at(-1)?.payload.text)).toContain("Тиха кишеня");
+    expect(String(varenykSatedResetCalls.at(-1)?.payload.text)).toContain("Ситість");
     expect(String(rogueResetCalls.at(-1)?.payload.text)).toContain("злодійський QA reset");
     expect(String(yegerFirstDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи» доведено до 5/5");
     expect(String(yegerSecondDoneCalls.at(-1)?.payload.text)).toContain("«Неспокійні справи 2.0» доведено до 17/17");
@@ -254,6 +257,7 @@ describe("dev grant commands", () => {
     const cellarMouseCalls = await captureMessageCalls("/dev_reset_cellar_mouse", devGrant);
     const priestResetCalls = await captureMessageCalls("/dev_reset_priest_blessing", devGrant);
     const quietPocketResetCalls = await captureMessageCalls("/dev_reset_quiet_pocket", devGrant);
+    const varenykSatedResetCalls = await captureMessageCalls("/dev_reset_varenyk_sated", devGrant);
     const rogueResetCalls = await captureMessageCalls("/dev_reset_rogue", devGrant);
     const yegerFirstDoneCalls = await captureMessageCalls("/dev_yeger_first_done", devGrant);
     const yegerSecondDoneCalls = await captureMessageCalls("/dev_yeger_second_done", devGrant);
@@ -287,6 +291,7 @@ describe("dev grant commands", () => {
     expect(devGrant.resetCellarMouseCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetPriestBlessingCooldown).not.toHaveBeenCalled();
     expect(devGrant.resetQuietPocketCooldown).not.toHaveBeenCalled();
+    expect(devGrant.resetVarenykSated).not.toHaveBeenCalled();
     expect(devGrant.resetRogue).not.toHaveBeenCalled();
     expect(devGrant.completeFirstYegerQuestProgress).not.toHaveBeenCalled();
     expect(devGrant.completeSecondYegerQuestProgress).not.toHaveBeenCalled();
@@ -308,6 +313,7 @@ describe("dev grant commands", () => {
     expect(cellarMouseCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(priestResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(quietPocketResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
+    expect(varenykSatedResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(rogueResetCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerFirstDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
     expect(yegerSecondDoneCalls.some((call) => call.method === "sendMessage")).toBe(false);
@@ -469,6 +475,9 @@ function fakeDevGrantService(input: {
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
   resetBureaucramancerProtocolCooldown: ReturnType<
+    typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
+  >;
+  resetVarenykSated: ReturnType<
     typeof vi.fn<(telegramUserId: bigint) => Promise<DevGrantResult>>
   >;
   resetRogue: ReturnType<
@@ -676,6 +685,12 @@ function fakeDevGrantService(input: {
     resetBureaucramancerProtocolCooldown: vi.fn(() => Promise.resolve({
       state: "updated",
       kind: "bureaucramancer-protocol-cooldown",
+      character,
+      cleared: true
+    })),
+    resetVarenykSated: vi.fn(() => Promise.resolve({
+      state: "updated",
+      kind: "varenyk-sated",
       character,
       cleared: true
     })),

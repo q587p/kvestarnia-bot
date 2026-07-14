@@ -2,7 +2,9 @@ import type {
   ClassNoncombatOpenResult,
   PriestBlessResult,
   PriestHealResult,
-  RoguePickpocketResult
+  RoguePickpocketResult,
+  VarenykSatedPreviewResult,
+  VarenykSatedResult
 } from "../../services/classNoncombatService";
 import type { PriestBlessingRecord } from "../../db/repositories/classNoncombatRepository";
 import { presentCharacterDisplayName } from "./characterDisplay";
@@ -18,7 +20,9 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     return [
       result.character.classId === "class.priest"
         ? "✨ <b>Жрецька поміч ще вчиться не плутати кадило з чайником</b>"
-        : "🗡️ <b>Тиха кишеня ще не отримала службовий дозвіл</b>",
+        : result.character.classId === "class.varenyk-mancer"
+          ? "🍽️ <b>Вареникова підтримка ще не дістала великої миски</b>"
+          : "🗡️ <b>Тиха кишеня ще не отримала службовий дозвіл</b>",
       "",
       `Класова дія відкривається з рівня ${result.requiredLevel}.`
     ].join("\n");
@@ -28,15 +32,19 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     ? [
         result.mode === "priest"
           ? "✨ <b>Жрецька поміч</b>"
-          : "🗡️ <b>Тиха кишеня</b>",
+          : result.mode === "varenyk"
+            ? "🍽️ <b>Нагодувати</b>"
+            : "🗡️ <b>Тиха кишеня</b>",
         "",
         `📍 ${escapeHtml(result.locationName)}`,
-        result.mode === "priest"
+        result.mode === "priest" || result.mode === "varenyk"
           ? `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>.`
           : null,
         result.mode === "priest"
           ? "⚕️ Лікування: недоступне під час бою або рейду."
-          : "🕯️ Спроба: недоступна під час бою або рейду.",
+          : result.mode === "varenyk"
+            ? "🍽️ Годування: недоступне під час бою або іншої пригодницької метушні."
+            : "🕯️ Спроба: недоступна під час бою або рейду.",
         result.mode === "priest"
           ? "✨ Благословення: недоступне під час бою або рейду."
           : null,
@@ -56,13 +64,25 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
           ? "Оберіть себе або когось активного поруч:"
           : "Поруч нікого активного немає, але себе можна підтримати без черги."
       ]
-    : [
+    : result.mode === "rogue"
+    ? [
         "🗡️ <b>Тиха кишеня</b>",
         "",
         `📍 ${escapeHtml(result.locationName)}`,
         "",
         "Ризик малий не буває: можна нічого не знайти, засвітитись або дуже невдало зустріти чужий лікоть.",
         ...presentRogueOtherTargetsLines(result.roguePickpocketCooldownAvailableAt)
+      ]
+    : [
+        "🍽️ <b>Нагодувати</b>",
+        "",
+        `📍 ${escapeHtml(result.locationName)}`,
+        `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>.`,
+        result.varenykPlan
+          ? `Зараз вистачає на ранг <b>${result.varenykPlan.rank}</b> за <b>${result.varenykPlan.manaCost} мани</b>.`
+          : "Навіть найменша миска просить 8 мани.",
+        "",
+        "Оберіть, кому вручити теплу аргументацію в тісті."
       ];
 
   if (!result.actorBlocked && result.mode === "priest") {
@@ -91,6 +111,61 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
     }
   }
   return lines.filter((line): line is string => line !== null).join("\n");
+}
+
+export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): string {
+  if (result.state === "blocked") {
+    return presentBlocked("🍽️", "Миска не дійшла", result.reason, result.availableAt);
+  }
+  const self = result.targetTelegramUserId === null;
+  const downgraded = result.plan.rank < result.statRank
+    ? `Статистика обіцяла ранг ${result.statRank}, але мана накрила стіл лише на <b>${result.plan.rank}</b>.`
+    : null;
+  return [
+    "🍽️ <b>Підтвердити годування?</b>",
+    "",
+    `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
+    `Ранг: <b>${result.plan.rank}</b> · ціна: <b>${result.plan.manaCost} мани</b>.`,
+    `Одразу: до <b>+${result.plan.immediateHp} HP</b> і <b>+1 мани</b>.`,
+    `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · нова миска через <b>${result.recipientWaitMinutes} хв</b>.`,
+    downgraded,
+    "",
+    "Вареники вже пораховані. Відступити ще не соромно."
+  ].filter((line): line is string => line !== null).join("\n");
+}
+
+export function presentVarenykSatedResult(result: VarenykSatedResult): string {
+  if (result.state === "blocked") {
+    return presentBlocked("🍽️", "Годування не склалося", result.reason, result.availableAt);
+  }
+  const self = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
+  return [
+    result.created ? "😋 <b>Ситий</b>" : "🧾 <b>Та сама миска вже врахована</b>",
+    "",
+    self
+      ? "Вареникомант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
+      : `${escapeHtml(result.action.actorName)} нагодував ${escapeHtml(result.action.targetName)}. Вареники не ставили зайвих питань.`,
+    `Ранг <b>${result.action.rank}</b> · витрачено <b>${result.action.manaCost} мани</b>.`,
+    result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
+      ? `Відновлено: <b>+${result.action.immediateHpRestored} HP</b> · <b>+${result.action.immediateManaRestored} мани</b>.`
+      : "Ресурси повні, зате статус акуратно загорнутий.",
+    `Діє ще: <b>${formatRemaining(result.action.expiresAt)}</b>.`,
+    `Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`
+  ].join("\n");
+}
+
+export function presentVarenykSatedTargetNotification(
+  result: Extract<VarenykSatedResult, { state: "completed" }>
+): string {
+  return [
+    "😋 <b>Вас нагодували</b>",
+    "",
+    `${escapeHtml(result.action.actorName)} передав вареники рангу <b>${result.action.rank}</b>.`,
+    result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
+      ? `Відновлено: <b>+${result.action.immediateHpRestored} HP</b> · <b>+${result.action.immediateManaRestored} мани</b>.`
+      : "Ресурси вже повні. Вареники вирішили працювати на перспективу.",
+    `😋 «Ситий» ще <b>${formatRemaining(result.action.expiresAt)}</b>.`
+  ].join("\n");
 }
 
 export function presentPriestHealResult(result: PriestHealResult): string {
@@ -267,6 +342,8 @@ function presentBlocked(
         return "Це техніка жерця.";
       case "not-rogue":
         return "Це техніка злодія.";
+      case "not-varenyk-mancer":
+        return "Це техніка Вареникоманта.";
       case "level-locked":
         return "Класова дія відкривається з 3 рівня.";
       case "target-level-locked":
@@ -283,6 +360,8 @@ function presentBlocked(
         return "Ціль зараз зайнята боєм або рейдом. Допомога дочекається вільного віконця.";
       case "actor-defeated":
         return "При 0 HP кишені бачать вас першими.";
+      case "target-defeated":
+        return "При 0 HP вареники не воскресають. Спершу потрібне звичайне повернення до тями.";
       case "full-hp":
         return "HP уже повне. Мана лишається на місці.";
       case "insufficient-mana":
@@ -297,8 +376,12 @@ function presentBlocked(
           : "Техніка ще відсапується.";
       case "target-cooldown":
         return availableAt
-          ? `Цю саму ціль можна благословити знову через ${formatRemaining(availableAt)}. Інших — доки вистачає мани.`
-          : "Ця ціль ще пам’ятає попереднє благословення. Інших можна підтримати маною.";
+          ? icon === "✨"
+            ? `Цю саму ціль можна благословити знову через ${formatRemaining(availableAt)}.`
+            : `Цю ціль можна нагодувати знову через ${formatRemaining(availableAt)}.`
+          : icon === "✨"
+            ? "Ця ціль ще пам’ятає благословення."
+            : "Ця ціль ще пам’ятає вареники.";
       case "pair-daily-used":
         return "Цього пригодника сьогодні вже пробували. Наступна така спроба — завтра; іншу ціль можна після відпочинку пальців.";
       default:

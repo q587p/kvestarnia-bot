@@ -9,8 +9,57 @@ import {
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
 import { findMantokAbilityGrantByKey } from "../../src/content";
+import { applyVarenykSatedPulsesToTurnBasedDuel } from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("turn-based duel domain", () => {
+  it("pulses Sated once for each participant after their committed round action", () => {
+    const now = new Date("2026-07-14T10:01:00.000Z");
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger" }),
+      target: makeDuelist({ id: "target" }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.participants.challenger.hp -= 3;
+    state.participants.challenger.mana = 0;
+    state.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: "sated-duel",
+      recipientCharacterId: "challenger",
+      recipientRemortCount: state.participants.challenger.remortCount,
+      rank: 1,
+      expiresAt: new Date(now.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: new Date(now.getTime() - 60_000).toISOString(),
+      pulseIds: []
+    };
+    const otherActor = state.actingCharacterId === "challenger" ? "target" : "challenger";
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: otherActor,
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) throw new Error("Expected queued action.");
+    const round = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: state.actingCharacterId,
+      action: "defend",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!round.ok || round.resolution !== "resolved") throw new Error("Expected resolved round.");
+
+    const pulsed = applyVarenykSatedPulsesToTurnBasedDuel({
+      state: round.state,
+      sessionId: "duel-session",
+      committedTurn: 1,
+      now
+    });
+    const action = pulsed.lastRound?.actions.find((entry) => entry.actorCharacterId === "challenger");
+    expect(action?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(pulsed.participants.challenger.varenykSated?.pulseIds).toEqual([
+      "sated-duel:turn-based-duel:duel-session:1:challenger"
+    ]);
+  });
+
   it("stores a stable first actor from initiative instead of always using the challenger", () => {
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "slow", dexterity: 2, luck: 2 }),

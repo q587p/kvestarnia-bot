@@ -197,7 +197,10 @@ function presentTrainingDoppelgangerState(input: {
       : "🥊 <b>Бій: завершено</b>",
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`
+    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
+    ...(state?.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
+      ? [`😋 Ситий · ранг ${state.varenykSated.rank} · ще ${Math.max(1, Math.ceil((Date.parse(state.varenykSated.expiresAt) - Date.now()) / 60_000))} хв.`]
+      : [])
   ];
 
   if (state?.status === "active") {
@@ -210,6 +213,9 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
+    if (state.lastTurn.satedRecovery && (state.lastTurn.satedRecovery.hpRestored > 0 || state.lastTurn.satedRecovery.manaRestored > 0)) {
+      lines.push(`😋 Ситість відновила +${state.lastTurn.satedRecovery.hpRestored} HP і +${state.lastTurn.satedRecovery.manaRestored} мани.`);
+    }
     const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
     if (flavor) {

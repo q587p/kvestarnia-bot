@@ -384,6 +384,15 @@ export function presentTurnBasedDuel(
   if (result.session.status === "active" && viewerParticipant?.cooldowns) {
     lines.push(...presentAbilityCooldowns(viewerParticipant.cooldowns));
   }
+  if (
+    result.session.status === "active" &&
+    viewerParticipant?.varenykSated &&
+    Date.parse(viewerParticipant.varenykSated.expiresAt) > result.now.getTime()
+  ) {
+    lines.push(
+      `😋 <b>Ситий</b> · ще ${formatRemaining(new Date(viewerParticipant.varenykSated.expiresAt), result.now)}`
+    );
+  }
 
   lines.push("", actionLine, "");
 
@@ -559,11 +568,17 @@ function presentTurnBasedRoundState(
   }
 
   if (state.lastRound) {
-    return state.lastRound.actions.map((action) => presentTurnBasedActionLine(action, state)).join("\n");
+    return state.lastRound.actions.flatMap((action) => [
+      presentTurnBasedActionLine(action, state),
+      ...(presentTurnBasedSatedRecoveryLine(action) ? [presentTurnBasedSatedRecoveryLine(action)!] : [])
+    ]).join("\n");
   }
 
   if (state.lastAction) {
-    return presentTurnBasedActionLine(state.lastAction, state);
+    return [
+      presentTurnBasedActionLine(state.lastAction, state),
+      presentTurnBasedSatedRecoveryLine(state.lastAction)
+    ].filter(Boolean).join("\n");
   }
 
   return "Корчмар відкрив чистий рядок. Поки що в ньому тільки очікування й пляма від кухля.";
@@ -618,7 +633,10 @@ export function presentTurnBasedDuelJournal(
       presentDuelVitals(state.participants.target)
     ],
     actionLines: round.actions.length > 0
-      ? round.actions.map((action) => presentTurnBasedActionLine(action, state))
+      ? round.actions.flatMap((action) => [
+          presentTurnBasedActionLine(action, state),
+          ...(presentTurnBasedSatedRecoveryLine(action) ? [presentTurnBasedSatedRecoveryLine(action)!] : [])
+        ])
       : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
   });
 }
@@ -705,6 +723,20 @@ function presentTurnBasedActionLine(
   const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
   return [`${actorName} ${actionLine} ${hitLine}`, supportLine].filter(Boolean).join("\n");
+}
+
+function presentTurnBasedSatedRecoveryLine(action: {
+  satedRecovery?: { hpRestored: number; manaRestored: number };
+}): string | null {
+  const recovery = action.satedRecovery;
+  if (!recovery || (recovery.hpRestored <= 0 && recovery.manaRestored <= 0)) {
+    return null;
+  }
+  const parts = [
+    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
+    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
+  ];
+  return `😋 «Ситий» підсунув ${parts.join(" і ")}.`;
 }
 
 function findTurnBasedParticipant(

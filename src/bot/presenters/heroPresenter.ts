@@ -4,7 +4,11 @@ import {
   buildLevelGrowthBonus,
   createEmptyEquipmentEffectSummary
 } from "../../domain/progression/effectiveStats";
-import type { HeroActiveDrink, HeroActivePriestBlessing } from "../../services/heroService";
+import type {
+  HeroActiveDrink,
+  HeroActivePriestBlessing,
+  HeroActiveVarenykSated
+} from "../../services/heroService";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
@@ -15,6 +19,8 @@ export function presentHero(
   options: {
     activeDrink?: HeroActiveDrink | null;
     activePriestBlessing?: HeroActivePriestBlessing | null;
+    activeVarenykSated?: HeroActiveVarenykSated | null;
+    satedRecovery?: { hpRestored: number; manaRestored: number } | null;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
   } = {}
@@ -60,9 +66,11 @@ export function presentHero(
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
   const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
+  const activeVarenykSatedLine = presentActiveVarenykSated(options.activeVarenykSated ?? null);
   const activeStatusLines = [
     activeDrinkLine,
     activePriestBlessingLine,
+    activeVarenykSatedLine,
     ...presentEquipmentAttunementLines(summary)
   ]
     .filter((line): line is string => Boolean(line));
@@ -81,6 +89,9 @@ export function presentHero(
     ...(nextLevelGrowthLine ? [`Зміна: ${nextLevelGrowthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
+    ...(options.satedRecovery && (options.satedRecovery.hpRestored > 0 || options.satedRecovery.manaRestored > 0)
+      ? [`😋 Ситість відновила: <b>+${options.satedRecovery.hpRestored} HP</b> · <b>+${options.satedRecovery.manaRestored} мани</b>.`]
+      : []),
     ...resourceRecoveryLines,
     ...(activeStatusLines.length > 0 ? ["", ...activeStatusLines] : []),
     ...(resourceRecoveryLines.length > 0 || activeStatusLines.length > 0 ? [""] : []),
@@ -149,6 +160,12 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
   }
 
   return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>.`;
+}
+
+function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
+  return sated
+    ? `😋 Стан: <b>Ситий</b> · ранг <b>${sated.rank}</b> · ще <b>${formatRemainingMinutes(sated.expiresAt)}</b>.`
+    : null;
 }
 
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {

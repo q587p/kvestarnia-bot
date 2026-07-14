@@ -17,6 +17,7 @@ import type {
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel, type DuelistSummary } from "../domain/duels/duelResolver";
+import { applyVarenykSatedPulsesToTurnBasedDuel } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatGearAbilityInput } from "../domain/combat";
 import {
   resolveTurnBasedDuelAction,
@@ -754,8 +755,13 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
-    const state = resolved.state;
     const now = this.clock();
+    const state = applyVarenykSatedPulsesToTurnBasedDuel({
+      state: resolved.state,
+      sessionId: session.id,
+      committedTurn: session.turn,
+      now
+    });
     const result = buildStoredTurnBasedResult(
       state,
       rollTurnBasedDuelXpRewards(state, this.rng)
@@ -830,23 +836,31 @@ export class DuelChallengeService {
       };
     }
 
+    const committedState = resolved.resolution === "resolved"
+      ? applyVarenykSatedPulsesToTurnBasedDuel({
+          state: resolved.state,
+          sessionId: session.id,
+          committedTurn: session.turn,
+          now
+        })
+      : resolved.state;
     const result = buildStoredTurnBasedResult(
-      resolved.state,
-      rollTurnBasedDuelXpRewards(resolved.state, this.rng)
+      committedState,
+      rollTurnBasedDuelXpRewards(committedState, this.rng)
     );
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
       session.version,
       {
-        state: resolved.state,
-        status: resolved.state.status,
+        state: committedState,
+        status: committedState.status,
         now,
         deadlineMode: "player-action",
-        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
+        turnExpiresAt: resolved.resolution === "resolved" && committedState.status === "active"
           ? getNextTurnExpiry(now)
           : session.turnExpiresAt,
-        completedAt: resolved.state.status === "active" ? null : now,
+        completedAt: committedState.status === "active" ? null : now,
         result,
         ...(resolved.resolution === "resolved"
           ? {

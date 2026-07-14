@@ -11,6 +11,7 @@ import {
   type MonsterAbilityRuntimeStateV1
 } from "./monsterAbilityRuntime";
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
+import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
@@ -197,6 +198,7 @@ export interface CombatState {
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
   playerAbilityFumbles?: PlayerAbilityFumblesState;
+  varenykSated?: VarenykSatedCombatStateV1;
 }
 
 export interface PlayerAbilityFumblesState {
@@ -328,6 +330,7 @@ export interface CombatTurnSummary {
   enemyResults?: CombatEnemyAbilityResult[];
   allyResults?: CombatAllyAbilityResult[];
   fumble?: CombatPlayerAbilityFumbleSummary;
+  satedRecovery?: { hpRestored: number; manaRestored: number };
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
   debugTrace?: CombatDebugTrace;
@@ -519,6 +522,9 @@ export function cloneCombatState(state: CombatState): CombatState {
     ...(state.turnLog ? { turnLog: state.turnLog.map(cloneCombatTurnLogEntry) } : {}),
     ...(state.playerAbilityFumbles
       ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(state.playerAbilityFumbles) }
+      : {}),
+    ...(state.varenykSated
+      ? { varenykSated: { ...state.varenykSated, pulseIds: [...state.varenykSated.pulseIds] } }
       : {})
   };
 }

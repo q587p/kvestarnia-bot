@@ -153,6 +153,10 @@ export function registerDevGrantCommands(
     await handleDevResetBureaucramancerProtocolCommand(ctx, devGrantService);
   });
 
+  bot.command("dev_reset_varenyk_sated", async (ctx) => {
+    await handleDevResetVarenykSatedCommand(ctx, devGrantService);
+  });
+
   bot.command("dev_reset_rogue", async (ctx) => {
     await handleDevResetRogueCommand(ctx, devGrantService);
   });
@@ -448,6 +452,22 @@ async function handleDevResetBureaucramancerProtocolCommand(
   const result = await devGrantService.resetBureaucramancerProtocolCooldown(telegramUserId);
 
   await ctx.reply(presentDevGrantResult(result), HTML_MESSAGE_OPTIONS);
+}
+
+async function handleDevResetVarenykSatedCommand(
+  ctx: DevGrantContext,
+  devGrantService: DevGrantService
+): Promise<void> {
+  if (!devGrantService.isEnabled()) {
+    await ctx.reply(presentDevGrantDisabled());
+    return;
+  }
+  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  if (!telegramUserId) {
+    await ctx.reply(presentDevGrantNoCharacter());
+    return;
+  }
+  await ctx.reply(presentDevGrantResult(await devGrantService.resetVarenykSated(telegramUserId)), HTML_MESSAGE_OPTIONS);
 }
 
 async function handleDevResetRogueCommand(

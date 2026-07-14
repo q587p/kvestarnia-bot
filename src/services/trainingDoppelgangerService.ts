@@ -43,6 +43,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
+import { applyVarenykSatedPulseToSoloCombat } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
@@ -269,9 +270,19 @@ export class TrainingDoppelgangerService {
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
       rng: this.rng
     });
-    const state = resolved.ok
+    const resolvedWithSated = resolved.ok
+      ? applyVarenykSatedPulseToSoloCombat({
+          state: resolved.state,
+          combatKind: "training-doppelganger",
+          sessionId: session.id,
+          committedTurn: session.state.turn,
+          recipientCharacterId: session.characterId,
+          now
+        })
+      : null;
+    const state = resolvedWithSated
       ? markCombatTurnTimeoutMode(
-          withTrainingTerminalCompletedAt(withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now), now),
+          withTrainingTerminalCompletedAt(withNextTrainingTurnExpiry(recordCombatTimeout(resolvedWithSated, now), now), now),
           timeoutMode
         )
       : null;
@@ -738,9 +749,17 @@ export class TrainingDoppelgangerService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolvedState = withTrainingTerminalCompletedAt(
-      withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      withNextTrainingTurnExpiry(resetCombatTimeout(applyVarenykSatedPulseToSoloCombat({
+        state: resolved.state,
+        combatKind: "training-doppelganger",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      })), resolvedAt),
+      resolvedAt
     );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,

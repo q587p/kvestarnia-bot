@@ -7,6 +7,21 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.12] - 12026-07-14 - Varenyk-mancer Sated Support
+
+### Added
+- Added level 3+ Varenyk-mancer `🍽️ Нагодувати` support from the hero and `Хто поруч` surfaces. Self-feeding and active exact-location recipients receive capped immediate `2 + rank` HP and `1` mana, followed by the 13-minute `😋 Ситий` contract; the recipient has one global 93-minute wait before another fresh feeding.
+- Added deterministic attunement-aware Intelligence/Charisma rank planning with exact rank costs `8 / 12 / 16 / 20 / 23`. After canonical passive mana settlement, insufficient mana automatically selects the highest affordable rank; less than 8 mana blocks.
+- Added rewardless first fresh self-feed and first fresh other-feed achievements plus local-only `/dev_reset_varenyk_sated` QA support.
+
+### Persistence and combat
+- Reused `CharacterCooldown` without a schema migration for a versioned recipient-global activation/wait/receipt and a short server-owned preview proof. Commit revalidates lives, presence, normalized location, blocking flows, resources, cooldown and preview identity in one transaction; duplicate, stale, forged and racing confirmations cannot duplicate spend, recovery, notification or achievements.
+- Outside combat, complete eligible minutes lazily grant capped `+1 HP / +1 mana`; the durable cursor advances while full and discards combat-lease time. Stored persistent PvE, multi-enemy PvE, Doppelganger, turn-based duel and Big Barrel states freeze the activation and grant at most one post-action pulse per own durable turn/round identity. Quick duels receive no synthetic pulse.
+- A fresh feed after a genuinely ended, shortened or cleared recipient wait replaces the single activation, refreshing duration and rank without parallel stacking. Recipient remort clears old-life state; actor remort does not cancel another recipient's committed activation.
+
+### Compatibility
+- Priest healing/blessing, Shynok recovery, ordinary passive regeneration, combat rewards and stored journals keep their existing contracts. No food/cooking engine, item/economy change, scheduler, rollout flag, location, Prisma model or migration was added.
+
 ## [0.3.11] - 12026-07-14 - Fight Turn and Daily Korchma Read-Path Reduction
 
 ### Changed

@@ -733,6 +733,8 @@ function getRecalculationProgress(
     case "bard.performance.completed":
     case "priest.heal.completed":
     case "priest.blessing.completed":
+    case "varenyk.sated.self":
+    case "varenyk.sated.other":
     case "rogue.pickpocket.attempted":
     case "rogue.pickpocket.success":
     case "rogue.pickpocket.caught":
@@ -849,6 +851,8 @@ function getRecalculationOccurredAt(
     case "bard.performance.completed":
     case "priest.heal.completed":
     case "priest.blessing.completed":
+    case "varenyk.sated.self":
+    case "varenyk.sated.other":
     case "rogue.pickpocket.attempted":
     case "rogue.pickpocket.success":
     case "rogue.pickpocket.caught":
@@ -956,6 +960,8 @@ function isActivityDateTriggerType(type: AchievementTriggerType): boolean {
     case "bard.performance.completed":
     case "priest.heal.completed":
     case "priest.blessing.completed":
+    case "varenyk.sated.self":
+    case "varenyk.sated.other":
     case "rogue.pickpocket.attempted":
     case "rogue.pickpocket.success":
     case "rogue.pickpocket.caught":

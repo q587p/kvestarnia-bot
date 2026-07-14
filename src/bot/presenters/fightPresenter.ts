@@ -500,7 +500,11 @@ function presentActiveFightEffectNotices(
       `🩸 Кровотеча триває: ${bleed.damagePerActivation} шкоди, ще ${bleed.remainingHeroActivations} активац.`
     );
 
-  return Array.from(new Set([...notices, ...bleedNotices]));
+  const satedNotice = state.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
+    ? [`😋 Ситий · ранг ${state.varenykSated.rank} · ще ${presentSatedRemaining(state.varenykSated.expiresAt)}.`]
+    : [];
+
+  return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice]));
 }
 
 function presentJournalEnemyHpRows(
@@ -1750,8 +1754,16 @@ function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
 
   return [
     ...(bark ? [presentMonsterBarkBlockquote(bark.text), ""] : []),
-    ...lines
+    ...lines,
+    ...(summary.satedRecovery && (summary.satedRecovery.hpRestored > 0 || summary.satedRecovery.manaRestored > 0)
+      ? [`😋 Ситість відновила +${summary.satedRecovery.hpRestored} HP і +${summary.satedRecovery.manaRestored} мани.`]
+      : [])
   ].join("\n");
+}
+
+function presentSatedRemaining(expiresAt: string): string {
+  const milliseconds = Math.max(0, Date.parse(expiresAt) - Date.now());
+  return `${Math.max(1, Math.ceil(milliseconds / 60_000))} хв`;
 }
 
 function presentMonsterBarkBlockquote(text: string): string {

@@ -19,6 +19,15 @@ import {
   PRIEST_DIRECT_AID_COOLDOWN_MINUTES,
   ROGUE_PICKPOCKET_COOLDOWN_MINUTES
 } from "../domain/noncombat/classNoncombatTechniques";
+import {
+  buildVarenykSatedPlan,
+  getAffordableVarenykSatedPlan,
+  VARENYK_SATED_DURATION_MINUTES,
+  VARENYK_SATED_RECIPIENT_WAIT_MINUTES,
+  type VarenykSatedPlan,
+  type VarenykSatedPayloadV1
+} from "../domain/noncombat/varenykSatedSupport";
+import { applyPassiveResourceRegeneration } from "../domain/resources/resourceRegeneration";
 import { applyPriestBlessingBonusToSummary } from "../domain/noncombat/priestBlessingBonus";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
@@ -28,11 +37,12 @@ import { toKorchmaLocalDate } from "./tavernRaidService";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 
-export type ClassNoncombatMode = "priest" | "rogue";
+export type ClassNoncombatMode = "priest" | "rogue" | "varenyk";
 
 export interface ClassNoncombatTarget extends NoncombatTargetRecord {
   canPriestAid: boolean;
   canRoguePickpocket: boolean;
+  canVarenykFeed: boolean;
 }
 
 export type ClassNoncombatOpenResult =
@@ -49,6 +59,9 @@ export type ClassNoncombatOpenResult =
       priestBlessCooldownAvailableAt: Date | null;
       priestSelfBlessAvailableAt: Date | null;
       roguePickpocketCooldownAvailableAt: Date | null;
+      varenykSatedSelfAvailableAt: Date | null;
+      varenykSatedSelf: VarenykSatedPayloadV1 | null;
+      varenykPlan: VarenykSatedPlan | null;
     }
   | { state: "not-eligible"; character: CharacterSummary; requiredLevel: number };
 
@@ -80,6 +93,35 @@ export type RoguePickpocketResult =
 
 export type RogueRetaliationResult = RogueRetaliationClaimResult;
 
+export type VarenykSatedPreviewResult =
+  | {
+      state: "preview";
+      actor: CharacterSummary;
+      target: CharacterSummary | ClassNoncombatTarget;
+      targetTelegramUserId: bigint | null;
+      actorRemortCount: number;
+      targetRemortCount: number;
+      statRank: number;
+      plan: VarenykSatedPlan;
+      previewToken: string;
+      page: number;
+      durationMinutes: number;
+      recipientWaitMinutes: number;
+    }
+  | { state: "blocked"; reason: NoncombatGateReason; availableAt?: Date };
+
+export type VarenykSatedResult =
+  | {
+      state: "completed";
+      action: import("../db/repositories/classNoncombatRepository").VarenykSatedActionRecord;
+      status: VarenykSatedPayloadV1;
+      actor: CharacterSummary;
+      target: CharacterSummary;
+      created: boolean;
+      unlocks: AchievementUnlock[];
+    }
+  | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterSummary; target?: CharacterSummary; availableAt?: Date };
+
 const ROGUE_RETALIATION_WINDOW_MINUTES = 13;
 const ROGUE_RETALIATION_TOKEN_LENGTH = 16;
 
@@ -98,6 +140,7 @@ export class ClassNoncombatService {
     page = 0
   ): Promise<ClassNoncombatOpenResult> {
     const now = this.clock();
+    await this.repository.settleVarenykSatedForTelegramUser(telegramUserId, now);
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page,
@@ -115,7 +158,8 @@ export class ClassNoncombatService {
     const eligible =
       character.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
       ((mode === "priest" && character.classId === "class.priest") ||
-        (mode === "rogue" && character.classId === "class.rogue"));
+        (mode === "rogue" && character.classId === "class.rogue") ||
+        (mode === "varenyk" && character.classId === "class.varenyk-mancer"));
     if (!eligible) {
       return { state: "not-eligible", character, requiredLevel: CLASS_NONCOMBAT_MIN_LEVEL };
     }
@@ -132,6 +176,7 @@ export class ClassNoncombatService {
         ? snapshot.targets.map((target) => ({
             ...target,
             canPriestAid: false,
+            canVarenykFeed: false,
             canRoguePickpocket:
               target.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
               !target.rogueAttemptedToday &&
@@ -140,12 +185,140 @@ export class ClassNoncombatService {
         : await Promise.all(snapshot.targets.map(async (target) => ({
             ...target,
             ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
-            canPriestAid: true,
-            canRoguePickpocket: false
+            canPriestAid: mode === "priest",
+            canRoguePickpocket: false,
+            canVarenykFeed: mode === "varenyk" && !target.varenykSatedAvailableAt
           }))),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
       priestSelfBlessAvailableAt: snapshot.priestSelfBlessAvailableAt,
-      roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt
+      roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt,
+      varenykSatedSelfAvailableAt: snapshot.varenykSatedSelfAvailableAt,
+      varenykSatedSelf: snapshot.varenykSatedSelf,
+      varenykPlan: mode === "varenyk"
+        ? getAffordableVarenykSatedPlan(
+            buildVarenykSatedPlan({
+              effectiveIntelligence: character.stats.intelligence,
+              effectiveCharisma: character.stats.charisma,
+              level: character.level
+            }).rank,
+            character.manaCurrent
+          )
+        : null
+    };
+  }
+
+  async previewVarenykSatedForTelegramUser(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      page: number;
+    }
+  ): Promise<VarenykSatedPreviewResult> {
+    const open = await this.openForTelegramUser(actorTelegramUserId, "varenyk", input.page);
+    if (open.state !== "ready") {
+      return { state: "blocked", reason: open.state === "no-character" ? "no-character" : "not-varenyk-mancer" };
+    }
+    if ((open.character.remortCount ?? 0) !== input.expectedActorRemortCount) {
+      return { state: "blocked", reason: "actor-remort-mismatch" };
+    }
+    if (open.actorBlocked || open.character.hpCurrent <= 0) {
+      return { state: "blocked", reason: open.character.hpCurrent <= 0 ? "actor-defeated" : "actor-blocked" };
+    }
+    const target = input.targetTelegramUserId === null
+      ? open.character
+      : open.targets.find((candidate) => candidate.telegramUserId === input.targetTelegramUserId);
+    if (!target) {
+      return { state: "blocked", reason: "target-not-found" };
+    }
+    if ((target.remortCount ?? 0) !== input.expectedTargetRemortCount) {
+      return { state: "blocked", reason: "target-remort-mismatch" };
+    }
+    if (target.hpCurrent <= 0) {
+      return { state: "blocked", reason: "target-defeated" };
+    }
+    const availableAt = input.targetTelegramUserId === null
+      ? open.varenykSatedSelfAvailableAt
+      : (target as ClassNoncombatTarget).varenykSatedAvailableAt;
+    if (availableAt) {
+      return { state: "blocked", reason: "target-cooldown", availableAt };
+    }
+    const statPlan = buildVarenykSatedPlan({
+      effectiveIntelligence: open.character.stats.intelligence,
+      effectiveCharisma: open.character.stats.charisma,
+      level: open.character.level
+    });
+    const plan = getAffordableVarenykSatedPlan(statPlan.rank, open.character.manaCurrent);
+    if (!plan) {
+      return { state: "blocked", reason: "insufficient-mana" };
+    }
+    const previewToken = createPreviewToken(this.rng);
+    const now = this.clock();
+    const saved = await this.repository.saveVarenykSatedPreview(actorTelegramUserId, {
+      targetTelegramUserId: input.targetTelegramUserId,
+      expectedActorRemortCount: input.expectedActorRemortCount,
+      expectedTargetRemortCount: input.expectedTargetRemortCount,
+      previewToken,
+      activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
+      now,
+      expiresAt: addMinutes(now, VARENYK_SATED_DURATION_MINUTES)
+    });
+    if (!saved) {
+      return { state: "blocked", reason: "stale" };
+    }
+    return {
+      state: "preview",
+      actor: open.character,
+      target,
+      targetTelegramUserId: input.targetTelegramUserId,
+      actorRemortCount: input.expectedActorRemortCount,
+      targetRemortCount: input.expectedTargetRemortCount,
+      statRank: statPlan.rank,
+      plan,
+      previewToken,
+      page: input.page,
+      durationMinutes: VARENYK_SATED_DURATION_MINUTES,
+      recipientWaitMinutes: VARENYK_SATED_RECIPIENT_WAIT_MINUTES
+    };
+  }
+
+  async feedVarenykSatedForTelegramUser(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      previewToken: string;
+    }
+  ): Promise<VarenykSatedResult> {
+    const now = this.clock();
+    const result = await this.repository.completeVarenykSated(actorTelegramUserId, {
+      ...input,
+      activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
+      now
+    });
+    if (result.state === "blocked") {
+      return presentBlocked(result);
+    }
+    const unlocks = result.created && this.achievements
+      ? await this.achievements.trackEventSafely({
+          type: result.action.actorCharacterId === result.action.targetCharacterId
+            ? "varenyk.sated.self"
+            : "varenyk.sated.other",
+          characterId: result.action.actorCharacterId,
+          occurredAt: result.action.startedAt,
+          sourceId: result.action.activationId
+        })
+      : [];
+    return {
+      state: "completed",
+      action: result.action,
+      status: result.status,
+      actor: (await this.summarizeForPlanning(result.action.actorTelegramUserId, result.actor, now)).summary,
+      target: (await this.summarizeForPlanning(result.action.targetTelegramUserId, result.target, now)).summary,
+      created: result.created,
+      unlocks
     };
   }
 
@@ -421,9 +594,31 @@ export class ClassNoncombatService {
     const titledSummary = activeCosmeticTitle
       ? { ...baseSummary, activeCosmeticTitle }
       : baseSummary;
+    const regeneration = applyPassiveResourceRegeneration({
+      resources: {
+        hpCurrent: titledSummary.hpCurrent,
+        hpMax: titledSummary.hpMax,
+        manaCurrent: titledSummary.manaCurrent,
+        manaMax: titledSummary.manaMax,
+        ...(character.hpRegenAt === undefined ? {} : { hpRegenAt: character.hpRegenAt }),
+        ...(character.manaRegenAt === undefined ? {} : { manaRegenAt: character.manaRegenAt })
+      },
+      profile: {
+        raceId: titledSummary.raceId,
+        classId: titledSummary.classId,
+        title: titledSummary.title,
+        stats: titledSummary.stats
+      },
+      now
+    });
+    const regeneratedSummary = {
+      ...titledSummary,
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent
+    };
 
     return {
-      summary: applyPriestBlessingBonusToSummary(titledSummary, activeBlessing, now),
+      summary: applyPriestBlessingBonusToSummary(regeneratedSummary, activeBlessing, now),
       equippedItemIds: equippedItems.map((item) => item.id),
       activePriestBlessing: activeBlessing
     };
@@ -528,6 +723,14 @@ function addMinutes(date: Date, minutes: number): Date {
 function createRetaliationToken(rng: RandomSource): string {
   let token = "";
   for (let index = 0; index < ROGUE_RETALIATION_TOKEN_LENGTH; index += 1) {
+    token += rng.nextInt(0, 35).toString(36);
+  }
+  return token;
+}
+
+function createPreviewToken(rng: RandomSource): string {
+  let token = "";
+  for (let index = 0; index < 10; index += 1) {
     token += rng.nextInt(0, 35).toString(36);
   }
   return token;

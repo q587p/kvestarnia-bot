@@ -22,6 +22,7 @@ import type { EquipmentEffectSummary } from "../progression/effectiveStats";
 import type { RandomSource } from "../../shared/random";
 import { INSTANT_DUEL_BALANCE_VERSION, prepareBalancedDuelists, type DuelistBalanceAudit } from "./duelBalance";
 import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
+import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
 
 export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
 export const TURN_BASED_DUEL_TURN_SECONDS = 23;
@@ -56,6 +57,7 @@ export interface TurnBasedDuelParticipantSnapshot {
   cooldowns?: CombatState["cooldowns"];
   guard?: CombatState["guard"];
   playerAbilityFumbles?: CombatState["playerAbilityFumbles"];
+  varenykSated?: VarenykSatedCombatStateV1;
   balanceAudit: DuelistBalanceAudit;
 }
 
@@ -71,6 +73,7 @@ export interface TurnBasedDuelActionSummary {
   critical: boolean;
   skillId?: string;
   fumble?: CombatTurnSummary["fumble"];
+  satedRecovery?: { hpRestored: number; manaRestored: number };
 }
 
 export interface TurnBasedDuelQueuedAction {
@@ -809,6 +812,9 @@ function cloneParticipant(
     ...(participant.guard ? { guard: { ...participant.guard } } : {}),
     ...(participant.playerAbilityFumbles
       ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(participant.playerAbilityFumbles) }
+      : {}),
+    ...(participant.varenykSated
+      ? { varenykSated: { ...participant.varenykSated, pulseIds: [...participant.varenykSated.pulseIds] } }
       : {})
   };
 }

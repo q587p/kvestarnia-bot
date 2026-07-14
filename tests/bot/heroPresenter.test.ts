@@ -82,6 +82,22 @@ describe("hero presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
+  it("shows compact Sated duration and only reports recovery when a resource changed", () => {
+    const text = presentHero(summary, {
+      activeVarenykSated: {
+        activationId: "sated",
+        rank: 3,
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      },
+      satedRecovery: { hpRestored: 0, manaRestored: 1 }
+    });
+
+    expect(text).toContain("😋 Стан: <b>Ситий</b> · ранг <b>3</b> · ще <b>13 хв</b>");
+    expect(text).toContain("😋 Ситість відновила: <b>+0 HP</b> · <b>+1 мани</b>");
+    expect(presentHero(summary, { satedRecovery: { hpRestored: 0, manaRestored: 0 } }))
+      .not.toContain("Ситість відновила");
+  });
+
   it("shows an active cosmetic title separately from the generated title", () => {
     const text = presentHero(summary, {
       activeCosmeticTitle: "Де тут вихід?"

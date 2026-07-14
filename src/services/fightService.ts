@@ -73,6 +73,7 @@ import {
   type MonsterCombatStats
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
+import { applyVarenykSatedPulseToSoloCombat } from "../domain/noncombat/varenykSatedSupport";
 import {
   getItemDropChance,
   rollBandageDropQuantity,
@@ -650,9 +651,19 @@ export class FightService {
       ...withPersistentEnemyCombatStats(activeSession.state),
       rng: this.rng
     });
-    const resolvedState = resolved.ok
+    const resolvedWithSated = resolved.ok
+      ? applyVarenykSatedPulseToSoloCombat({
+          state: resolved.state,
+          combatKind: "persistent-pve",
+          sessionId: activeSession.id,
+          committedTurn: activeSession.state.turn,
+          recipientCharacterId: activeSession.characterId,
+          now
+        })
+      : null;
+    const resolvedState = resolvedWithSated
       ? markCombatTurnTimeoutMode(
-          withNextTurnExpiry(stampCombatCompletedAt(recordCombatTimeout(resolved.state, now), now), now),
+          withNextTurnExpiry(stampCombatCompletedAt(recordCombatTimeout(resolvedWithSated, now), now), now),
           timeoutMode
         )
       : null;
@@ -2518,9 +2529,17 @@ export class FightService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolvedState = withNextTurnExpiry(
-      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      stampCombatCompletedAt(resetCombatTimeout(applyVarenykSatedPulseToSoloCombat({
+        state: resolved.state,
+        combatKind: "persistent-pve",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      })), resolvedAt),
+      resolvedAt
     );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
@@ -2863,9 +2882,17 @@ export class FightService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolvedState = withNextTurnExpiry(
-      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      stampCombatCompletedAt(resetCombatTimeout(applyVarenykSatedPulseToSoloCombat({
+        state: resolved.state,
+        combatKind: "persistent-pve",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      })), resolvedAt),
+      resolvedAt
     );
     const itemUpdate = await this.combatSessions.applyCombatItemTurnById?.(currentSession.id, input.turn, {
       telegramUserId,

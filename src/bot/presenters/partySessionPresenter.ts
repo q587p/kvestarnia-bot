@@ -539,6 +539,9 @@ export function presentPartyBoss(
   }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
+    if (viewer?.varenykSated && Date.parse(viewer.varenykSated.expiresAt) > Date.now()) {
+      lines.push(`😋 <b>Ситий</b> · ще ${formatRemainingWait(new Date(viewer.varenykSated.expiresAt), new Date())}`);
+    }
   }
 
   const lastRound = state.roundLog.at(-1);
@@ -653,6 +656,10 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   } else {
     for (const action of round.actions) {
       actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
+      const recovery = presentVarenykSatedRecoveryLine(action);
+      if (recovery) {
+        actionLines.push(recovery);
+      }
     }
   }
 
@@ -826,9 +833,15 @@ function presentLastRoundLines(
   options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
   const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
-  const lines = round.actions.map((action) =>
-    presentPartyBossActionLine(action, byCharacterId.get(action.characterId), options.viewerCharacterId)
-  );
+  const lines = round.actions.flatMap((action) => {
+    const actionLine = presentPartyBossActionLine(
+      action,
+      byCharacterId.get(action.characterId),
+      options.viewerCharacterId
+    );
+    const recovery = presentVarenykSatedRecoveryLine(action);
+    return recovery ? [actionLine, recovery] : [actionLine];
+  });
 
   if (round.bossRetaliations.length > 0) {
     if (options.isBig && round.bossRetaliations.length > 1) {
@@ -1452,6 +1465,20 @@ function presentPartyBossActionLine(
         ? `${subject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
   }
+}
+
+function presentVarenykSatedRecoveryLine(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+): string | null {
+  const recovery = action.satedRecovery;
+  if (!recovery || (recovery.hpRestored <= 0 && recovery.manaRestored <= 0)) {
+    return null;
+  }
+  const parts = [
+    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
+    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
+  ];
+  return `😋 «Ситий» підклав до журналу ${parts.join(" і ")}.`;
 }
 
 function presentPartyBossActionSupport(

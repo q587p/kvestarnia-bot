@@ -13,6 +13,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 - [`latest-events-feed-qa.md`](latest-events-feed-qa.md) — latest events feed QA package if present.
 - [`duel-tournaments-qa.md`](duel-tournaments-qa.md) — turn-based duel tournament reward QA checklist and current manual status.
 - [`BIG_BARREL_BROTHER_GROUP_RAID_QA.md`](BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future Big Barrel Brother QA matrix if present.
+- [`varenyk-mancer-sated-support-qa.md`](varenyk-mancer-sated-support-qa.md) — compact manual Telegram checklist for `0.3.12` feeding, lazy sustain and durable combat pulses; results remain pending until actually run.
 
 ## Historical smoke records
 

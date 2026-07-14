@@ -70,6 +70,8 @@ export const achievementTriggerTypes = [
   "bard.performance.completed",
   "priest.heal.completed",
   "priest.blessing.completed",
+  "varenyk.sated.self",
+  "varenyk.sated.other",
   "rogue.pickpocket.attempted",
   "rogue.pickpocket.success",
   "rogue.pickpocket.caught",
@@ -1186,6 +1188,28 @@ export const achievements = [
     sortOrder: 109,
     status: "enabled",
     trigger: { type: "rogue.pickpocket.attempted", threshold: 1 }
+  },
+  {
+    id: "achievement.varenyk.sated.self-first",
+    category: "weird",
+    title: "Сам собі гостина",
+    description: "уперше нагодувати себе варениками й не вимагати окремого рахунку.",
+    hidden: false,
+    lockedDescription: "уперше скористатися «Нагодувати» на собі.",
+    sortOrder: 109.05,
+    status: "enabled",
+    trigger: { type: "varenyk.sated.self", threshold: 1 }
+  },
+  {
+    id: "achievement.varenyk.sated.other-first",
+    category: "weird",
+    title: "Миска дипломатії",
+    description: "уперше нагодувати іншого пригодника й довести, що підтримка буває з тістом.",
+    hidden: false,
+    lockedDescription: "уперше скористатися «Нагодувати» на іншому пригоднику.",
+    sortOrder: 109.1,
+    status: "enabled",
+    trigger: { type: "varenyk.sated.other", threshold: 1 }
   },
   {
     id: "achievement.rogue.pickpocket.success",

@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 137 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 147 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -112,6 +112,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.priest.heal.first` | enabled | visible | `priest.heal.completed >= 1` | Мана замість бинта | уперше полікувати жерцем поза боєм і не витратити жодного бинта на бюрократію. |
 | `achievement.priest.blessing.first` | enabled | visible | `priest.blessing.completed >= 1` | Печатка суворої турботи | уперше благословити когось жерцем так, щоб навіть пил став чемнішим. |
 | `achievement.rogue.pickpocket.first` | enabled | visible | `rogue.pickpocket.attempted >= 1` | Кишеня не підписувала згоду | уперше спробувати тиху кишеню як злодій і лишити протоколу дивні питання. |
+| `achievement.varenyk.sated.self-first` | enabled | visible | `varenyk.sated.self >= 1` | Сам собі гостина | уперше нагодувати себе варениками й не вимагати окремого рахунку. |
+| `achievement.varenyk.sated.other-first` | enabled | visible | `varenyk.sated.other >= 1` | Миска дипломатії | уперше нагодувати іншого пригодника й довести, що підтримка буває з тістом. |
 | `achievement.rogue.pickpocket.success` | enabled | visible | `rogue.pickpocket.success >= 1` | Монета змінила філософію | уперше успішно обчистити кишеню так тихо, що золото саме переглянуло біографію. |
 | `achievement.rogue.pickpocket.caught` | enabled | visible | `rogue.pickpocket.caught >= 1` | Лікоть мав аргументи | уперше провалити тиху кишеню так голосно, що HP попросило прилягти. |
 | `achievement.training.doppelganger.first` | enabled | visible | `training.doppelganger.finished >= 1` | Дзеркало вдарило першим | уперше завершити тренування з Допельґанґером і не підписувати протокол споріднености. |

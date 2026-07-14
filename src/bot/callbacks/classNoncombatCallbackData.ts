@@ -2,7 +2,7 @@ import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type ClassNoncombatCallback =
-  | { type: "open"; mode: "priest" | "rogue"; page: number }
+  | { type: "open"; mode: "priest" | "rogue" | "varenyk"; page: number }
   | {
       type: "priest-heal";
       targetTelegramUserId: bigint | null;
@@ -28,6 +28,21 @@ export type ClassNoncombatCallback =
       type: "rogue-retaliation-duel";
       mode: "quick" | "turn-based";
       retaliationToken: string;
+    }
+  | {
+      type: "varenyk-feed-preview";
+      targetTelegramUserId: bigint | null;
+      actorRemortCount: number;
+      targetRemortCount: number;
+      page: number;
+    }
+  | {
+      type: "varenyk-feed-confirm";
+      targetTelegramUserId: bigint | null;
+      actorRemortCount: number;
+      targetRemortCount: number;
+      page: number;
+      previewToken: string;
     };
 
 export type ClassNoncombatCallbackError =
@@ -43,9 +58,29 @@ const PREFIX = "v1:nc";
 const targetPattern = /^[0-9a-z]{1,13}$/;
 const numberPattern = /^[0-9a-z]{1,4}$/;
 const retaliationTokenPattern = /^[0-9a-z]{8,24}$/;
+const previewTokenPattern = /^[0-9a-z]{8,16}$/;
 
-export function makeClassNoncombatOpenCallbackData(mode: "priest" | "rogue", page = 0): string {
-  return `${PREFIX}:o:${mode === "priest" ? "p" : "r"}:${page.toString(36)}`;
+export function makeClassNoncombatOpenCallbackData(mode: "priest" | "rogue" | "varenyk", page = 0): string {
+  return `${PREFIX}:o:${mode === "priest" ? "p" : mode === "rogue" ? "r" : "v"}:${page.toString(36)}`;
+}
+
+export function makeVarenykFeedPreviewCallbackData(input: {
+  targetTelegramUserId: bigint | null;
+  actorRemortCount: number;
+  targetRemortCount: number;
+  page?: number;
+}): string {
+  return makeTargetedCallback("f", input);
+}
+
+export function makeVarenykFeedConfirmCallbackData(input: {
+  targetTelegramUserId: bigint | null;
+  actorRemortCount: number;
+  targetRemortCount: number;
+  page?: number;
+  previewToken: string;
+}): string {
+  return `${makeTargetedCallback("c", input)}:${input.previewToken}`;
 }
 
 export function makePriestHealCallbackData(input: {
@@ -99,18 +134,22 @@ export function parseClassNoncombatCallbackData(
   }
 
   const [, section, action, first, second, third, fourth, ...rest] = data.split(":");
-  if (section !== "nc" || rest.length > 0) {
+  if (section !== "nc") {
     return err("invalid-prefix");
   }
 
   if (action === "o") {
-    if (first !== "p" && first !== "r") {
+    if (first !== "p" && first !== "r" && first !== "v") {
       return err("invalid-action");
     }
-    if (!second || !numberPattern.test(second) || third !== undefined || fourth !== undefined) {
+    if (!second || !numberPattern.test(second) || third !== undefined || fourth !== undefined || rest.length > 0) {
       return err("invalid-page");
     }
-    return ok({ type: "open", mode: first === "p" ? "priest" : "rogue", page: Number.parseInt(second, 36) });
+    return ok({
+      type: "open",
+      mode: first === "p" ? "priest" : first === "r" ? "rogue" : "varenyk",
+      page: Number.parseInt(second, 36)
+    });
   }
 
   if (action === "rd") {
@@ -127,7 +166,7 @@ export function parseClassNoncombatCallbackData(
     if (!mode || !token || !retaliationTokenPattern.test(token)) {
       return err("invalid-target");
     }
-    if (third !== undefined || fourth !== undefined) {
+    if (third !== undefined || fourth !== undefined || rest.length > 0) {
       return err("invalid-prefix");
     }
 
@@ -138,7 +177,7 @@ export function parseClassNoncombatCallbackData(
     });
   }
 
-  if (action !== "h" && action !== "b" && action !== "p") {
+  if (action !== "h" && action !== "b" && action !== "p" && action !== "f" && action !== "c") {
     return err("invalid-action");
   }
 
@@ -154,6 +193,14 @@ export function parseClassNoncombatCallbackData(
   if (!fourth || !numberPattern.test(fourth)) {
     return err("invalid-page");
   }
+  const confirmToken = rest[0];
+  if (action === "c") {
+    if (!confirmToken || !previewTokenPattern.test(confirmToken) || rest.length !== 1) {
+      return err("invalid-target");
+    }
+  } else if (rest.length > 0) {
+    return err("invalid-prefix");
+  }
 
   const payload = {
     targetTelegramUserId: first === "s" ? null : parseBase36BigInt(first),
@@ -168,6 +215,12 @@ export function parseClassNoncombatCallbackData(
   if (action === "b") {
     return ok({ type: "priest-bless", ...payload });
   }
+  if (action === "f") {
+    return ok({ type: "varenyk-feed-preview", ...payload });
+  }
+  if (action === "c") {
+    return ok({ type: "varenyk-feed-confirm", ...payload, previewToken: confirmToken! });
+  }
 
   return ok({
     type: "rogue-pickpocket",
@@ -177,7 +230,7 @@ export function parseClassNoncombatCallbackData(
 }
 
 function makeTargetedCallback(
-  action: "h" | "b" | "p",
+  action: "h" | "b" | "p" | "f" | "c",
   input: {
     targetTelegramUserId: bigint | null;
     actorRemortCount: number;

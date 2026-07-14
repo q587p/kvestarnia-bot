@@ -418,6 +418,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "grant"
   },
   {
+    command: "dev_reset_varenyk_sated",
+    icon: "🍽️",
+    description: "скинути власний стан і паузу «Ситий» локально",
+    includeInMenu: false,
+    devOnly: "grant"
+  },
+  {
     command: "dev_reset_rogue",
     icon: "🧤",
     description: "скинути cooldown і сьогоднішні кишені злодія локально",
