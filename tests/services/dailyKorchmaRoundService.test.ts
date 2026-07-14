@@ -78,6 +78,82 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
   });
 
+  it("uses bounded marker reads for every marker state without invoking the Fight service", async () => {
+    const noCharacter = new FakeWorld(null);
+    await expect(markerLookup(noCharacter)).resolves.toEqual({ state: "no-character" });
+    expectMarkerCalls(noCharacter, { character: 1, offer: 0, barrel: 0, steps: 0, reward: 0, fight: 0 });
+
+    const levelLocked = new FakeWorld(makeCharacter({ level: 1 }));
+    await expect(markerLookup(levelLocked)).resolves.toMatchObject({ state: "level-locked" });
+    expectMarkerCalls(levelLocked, { character: 1, offer: 1, barrel: 0, steps: 0, reward: 0, fight: 0 });
+
+    const hpBlocked = new FakeWorld(makeCharacter({ level: 3, hpCurrent: 0 }));
+    await expect(markerLookup(hpBlocked)).resolves.toMatchObject({ state: "hp-blocked" });
+    expectMarkerCalls(hpBlocked, { character: 1, offer: 1, barrel: 0, steps: 0, reward: 0, fight: 0 });
+
+    const activeFight = new FakeWorld(makeCharacter({ level: 3 }));
+    await expect(markerLookup(activeFight, "persistent-active")).resolves.toMatchObject({ state: "active-fight" });
+    expectMarkerCalls(activeFight, { character: 1, offer: 1, barrel: 1, steps: 0, reward: 0, fight: 0 });
+
+    const pendingBarrel = new FakeWorld(makeCharacter({ level: 3 }));
+    pendingBarrel.pendingBarrel = true;
+    await expect(markerLookup(pendingBarrel)).resolves.toMatchObject({ state: "pending-barrel" });
+    expectMarkerCalls(pendingBarrel, { character: 1, offer: 1, barrel: 1, steps: 0, reward: 0, fight: 0 });
+
+    const notIssued = new FakeWorld(makeCharacter({ level: 3 }));
+    await expect(markerLookup(notIssued)).resolves.toMatchObject({ state: "not-issued" });
+    expectMarkerCalls(notIssued, { character: 1, offer: 1, barrel: 1, steps: 0, reward: 0, fight: 0 });
+
+    const ready = new FakeWorld(makeCharacter({ level: 3 }));
+    await readyOffer(ready);
+    ready.resetMarkerCalls();
+    await expect(markerLookup(ready)).resolves.toMatchObject({ state: "ready" });
+    expectMarkerCalls(ready, { character: 1, offer: 1, barrel: 1, steps: 1, reward: 1, fight: 0 });
+
+    const turnInReady = new FakeWorld(makeCharacter({ level: 3 }));
+    const turnInOffer = await readyOffer(turnInReady);
+    await recordMarkerStep(turnInReady, turnInOffer, 0);
+    await recordMarkerStep(turnInReady, turnInOffer, 1);
+    turnInReady.resetMarkerCalls();
+    await expect(markerLookup(turnInReady)).resolves.toMatchObject({ state: "turn-in-ready" });
+    expectMarkerCalls(turnInReady, { character: 1, offer: 1, barrel: 1, steps: 1, reward: 1, fight: 0 });
+
+    const completed = new FakeWorld(makeCharacter({ level: 3 }));
+    const completedOffer = await readyOffer(completed);
+    await completed.daily.claimForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+      localDate: completedOffer.dayKey,
+      rewardXp: 1,
+      rewardGold: 1,
+      resultJson: { version: 1 }
+    });
+    completed.resetMarkerCalls();
+    await expect(markerLookup(completed)).resolves.toMatchObject({ state: "completed" });
+    expectMarkerCalls(completed, { character: 1, offer: 1, barrel: 1, steps: 1, reward: 1, fight: 0 });
+  });
+
+  it("starts independent marker reads before the shared Fight result settles", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    let resolveFight: ((value: never) => void) | undefined;
+    const sharedFight = new Promise<never>((resolve) => {
+      resolveFight = resolve;
+    });
+    const marker = world.service.getQuestMarkerForTelegramUser(telegramUserId, sharedFight);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(world.characterReads).toBe(1);
+    expect(world.daily.findCalls).toContainEqual({
+      key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+      localDate: "2026-06-28"
+    });
+    expect(world.barrelReads).toBe(1);
+
+    resolveFight?.({ state: "ready", character: world.character! } as never);
+    await expect(marker).resolves.toMatchObject({ state: "not-issued" });
+  });
+
   it("loads step rows through the current-day prefix only", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3 }));
     const offer = await readyOffer(world);
@@ -574,12 +650,59 @@ async function readyOffer(world: FakeWorld) {
   return result.offer;
 }
 
+async function markerLookup(
+  world: FakeWorld,
+  state: "ready" | "persistent-active" | "training-active" = "ready"
+) {
+  return world.service.getQuestMarkerForTelegramUser(
+    telegramUserId,
+    Promise.resolve({ state, character: world.character! } as never)
+  );
+}
+
+async function recordMarkerStep(
+  world: FakeWorld,
+  offer: Awaited<ReturnType<typeof readyOffer>>,
+  sceneIndex: number
+) {
+  const scene = offer.scenes[sceneIndex]!;
+  await world.daily.claimForTelegramUser(telegramUserId, {
+    key: DAILY_KORCHMA_ROUND_STEP_KEY,
+    localDate: `${offer.dayKey}:${scene.id}`,
+    rewardXp: 0,
+    rewardGold: 0,
+    resultJson: {
+      version: 1,
+      dayToken: offer.dayToken,
+      sceneId: scene.id,
+      actionId: scene.actions[0]!.id,
+      locationId: scene.locationId
+    }
+  });
+}
+
+function expectMarkerCalls(
+  world: FakeWorld,
+  expected: { character: number; offer: number; barrel: number; steps: number; reward: number; fight: number }
+) {
+  expect(world.characterReads).toBe(expected.character);
+  expect(world.daily.findCalls.filter((call) => call.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(expected.offer);
+  expect(world.barrelReads).toBe(expected.barrel);
+  expect(world.daily.prefixListCalls).toHaveLength(expected.steps);
+  expect(world.daily.findCalls.filter((call) => call.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(expected.reward);
+  expect(world.fightReads).toBe(expected.fight);
+  expect(world.daily.broadListCalls).toBe(0);
+}
+
 class FakeWorld implements CharacterRepository, DailyActionRepository {
   readonly daily = new FakeDailyActionRepository(this);
   readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, undefined, () => now);
   locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
   fightState: "ready" | "persistent-active" | "training-active" = "ready";
   pendingBarrel = false;
+  characterReads = 0;
+  fightReads = 0;
+  barrelReads = 0;
 
   constructor(public character: CharacterRecord | null) {}
 
@@ -588,6 +711,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
   }
 
   findByTelegramUserId(id: bigint): Promise<CharacterRecord | null> {
+    this.characterReads += 1;
     return Promise.resolve(id === telegramUserId ? this.character : null);
   }
 
@@ -614,6 +738,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
   }
 
   getFightOverviewForTelegramUser() {
+    this.fightReads += 1;
     return Promise.resolve({
       state: this.fightState,
       character: this.character!
@@ -621,6 +746,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
   }
 
   getActivePendingFridayBarrelRaidForTelegramUser() {
+    this.barrelReads += 1;
     return Promise.resolve(
       this.pendingBarrel
         ? {
@@ -633,12 +759,22 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
         : { state: "none" as const }
     );
   }
+
+  resetMarkerCalls(): void {
+    this.characterReads = 0;
+    this.fightReads = 0;
+    this.barrelReads = 0;
+    this.daily.findCalls = [];
+    this.daily.prefixListCalls = [];
+    this.daily.broadListCalls = 0;
+  }
 }
 
 class FakeDailyActionRepository implements DailyActionRepository {
   private readonly actions = new Map<string, DailyActionRecord>();
   beforeCreate: ((input: ClaimDailyActionInput) => void) | null = null;
   broadListCalls = 0;
+  findCalls: Array<{ key: string; localDate: string }> = [];
   prefixListCalls: Array<{ key: string; localDatePrefix: string; take: number }> = [];
 
   constructor(private readonly world: FakeWorld) {}
@@ -651,6 +787,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
     id: bigint,
     input: { key: string; localDate: string }
   ): Promise<DailyActionRecord | null> {
+    this.findCalls.push(input);
     if (id !== telegramUserId || !this.world.character) {
       return Promise.resolve(null);
     }

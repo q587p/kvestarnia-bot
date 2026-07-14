@@ -2,7 +2,10 @@ import type { AdventureLookupResult, MimicShawarmaLookupResult } from "../../ser
 import type { BarrelBeerTutorialLookupResult } from "../../services/barrelBeerTutorialService";
 import type { CellarErrandLookupResult } from "../../services/cellarErrandService";
 import type { CellarGrownupQuestLookupResult } from "../../services/cellarGrownupQuestService";
-import type { DailyKorchmaRoundExistingLookupResult } from "../../services/dailyKorchmaRoundService";
+import type {
+  DailyKorchmaRoundExistingLookupResult,
+  DailyKorchmaRoundMarkerLookupResult
+} from "../../services/dailyKorchmaRoundService";
 import type { FightLookupResult, ProblemQuestProgress } from "../../services/fightService";
 import type { FirstKorchmaQuestLookupResult } from "../../services/firstKorchmaQuestService";
 import type { FightingCornerQuestLookupResult } from "../../services/fightingCornerQuestService";
@@ -67,7 +70,10 @@ export interface QuestMarkerInput {
   cellar?: Exclude<CellarErrandLookupResult, { state: "no-character" }>;
   cellarGrownup?: Exclude<CellarGrownupQuestLookupResult, { state: "no-character" | "too-young" }>;
   barrelBeerTutorial?: Exclude<BarrelBeerTutorialLookupResult, { state: "no-character" }>;
-  dailyKorchmaRound?: Exclude<DailyKorchmaRoundExistingLookupResult, { state: "no-character" }>;
+  dailyKorchmaRound?: Exclude<
+    DailyKorchmaRoundExistingLookupResult | DailyKorchmaRoundMarkerLookupResult,
+    { state: "no-character" }
+  >;
   itemUpgrades?: Exclude<ItemUpgradeQuestLookupResult, { state: "no-character" }>;
   fightingCornerQuest?: Exclude<FightingCornerQuestLookupResult, { state: "no-character" | "disabled" }>;
 }

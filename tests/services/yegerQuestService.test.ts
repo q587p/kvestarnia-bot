@@ -128,6 +128,49 @@ describe("YegerQuestService", () => {
     });
   });
 
+  it("reports a fresh relevant win only while it advances the current Yeger board", async () => {
+    const world = new FakeWorld();
+    world.addCharacter({ level: 5, xp: 110 });
+    const service = world.service();
+
+    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toBeNull();
+    expect(world.completedSinceCalls).toBe(0);
+
+    world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
+    world.sessions.push({
+      monsterId: "monster.stamp-doorkeeper-skeleton",
+      status: "won",
+      createdAt: startedAt
+    });
+
+    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      wins: 1,
+      target: 5,
+      stageId: "first"
+    });
+
+    for (let index = 1; index < 5; index += 1) {
+      world.sessions.push({
+        monsterId: "monster.unread-rules-ghost",
+        status: "won",
+        createdAt: new Date(startedAt.getTime() + index)
+      });
+    }
+
+    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      wins: 5,
+      target: 5
+    });
+
+    world.sessions.push({
+      monsterId: "monster.stamp-doorkeeper-skeleton",
+      status: "won",
+      createdAt: new Date(startedAt.getTime() + 6)
+    });
+    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toBeNull();
+    expect(world.completedSinceCalls).toBe(3);
+  });
+
   it("counts the second Yeger board from its own start time", async () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 8, xp: 320 });
@@ -1183,6 +1226,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
     Promise.resolve({ state: "no-character" });
   listForTelegramUserCalls = 0;
   listForTelegramUserInCreatedAtRangeCalls: Array<{ key: string; createdAtGte: Date; createdAtLt: Date }> = [];
+  completedSinceCalls = 0;
 
   service(achievements?: AchievementService): YegerQuestService {
     return new YegerQuestService(
@@ -1618,6 +1662,7 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   }
 
   listCompletedByTelegramUserIdSince(_telegramUserId: bigint, since: Date) {
+    this.completedSinceCalls += 1;
     return Promise.resolve(
       this.sessions.flatMap((session) => {
         const completedAt = session.completedAt ?? (

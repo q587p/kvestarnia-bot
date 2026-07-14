@@ -517,6 +517,33 @@ export class YegerQuestService {
       : { state: "in-progress", character: summary, progress };
   }
 
+  async getProgressAfterFreshRelevantWinForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<YegerQuestProgress | null> {
+    const stage = await this.getCurrentStage(telegramUserId);
+
+    if (!stage) {
+      return null;
+    }
+
+    const started = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: stage.startedKey,
+      localDate: YEGER_UNQUIET_TRIAL_BUCKET
+    });
+
+    if (!started) {
+      return null;
+    }
+
+    const wins = await this.countRelevantWins(telegramUserId, started.createdAt);
+
+    if (wins <= 0 || wins > stage.target) {
+      return null;
+    }
+
+    return buildYegerQuestProgress(stage, wins);
+  }
+
   async startForTelegramUser(telegramUserId: bigint): Promise<YegerQuestStartResult> {
     const current = await this.getForTelegramUser(telegramUserId);
 
@@ -1283,14 +1310,22 @@ export class YegerQuestService {
     startedAt: Date,
     stage: YegerQuestStage
   ): Promise<YegerQuestProgress> {
+    const wins = await this.countRelevantWins(telegramUserId, startedAt);
+
+    return buildYegerQuestProgress(stage, Math.min(wins, stage.target));
+  }
+
+  private async countRelevantWins(
+    telegramUserId: bigint,
+    startedAt: Date
+  ): Promise<number> {
     const sessions = await this.combatSessions.listCompletedByTelegramUserIdSince(telegramUserId, startedAt);
-    const wins = sessions.filter((session) => {
+
+    return sessions.filter((session) => {
       const monster = monsters.find((candidate) => candidate.id === session.monsterId);
 
       return session.status === "won" && !!monster && isYegerUnquietTarget(monster);
     }).length;
-
-    return buildYegerQuestProgress(stage, Math.min(wins, stage.target));
   }
 
   private async getTrackingSummary(telegramUserId: bigint): Promise<YegerTrackingSummary> {

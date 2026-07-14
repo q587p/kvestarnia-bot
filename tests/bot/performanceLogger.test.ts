@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   classifyPerformanceError,
+  createFightTurnDbAttribution,
   logPerformanceTiming,
   sanitizePerfTimingPayload,
   startPerfSpan,
@@ -94,6 +95,9 @@ describe("performance logger", () => {
       questMarkerSourceCount: 8,
       questMarkerSlowestSource: "fight",
       questMarkerSlowestSourceMs: 13.04,
+      fightTurnDbStageCount: 3,
+      fightTurnSlowestDbStage: "resolve",
+      fightTurnSlowestDbStageMs: 23.04,
       dbMs: 5.04,
       computeMs: 1.94,
       telegramMs: 9.99,
@@ -113,6 +117,9 @@ describe("performance logger", () => {
       questMarkerSourceCount: 8,
       questMarkerSlowestSource: "fight",
       questMarkerSlowestSourceMs: 13,
+      fightTurnDbStageCount: 3,
+      fightTurnSlowestDbStage: "resolve",
+      fightTurnSlowestDbStageMs: 23,
       dbMs: 5,
       computeMs: 1.9,
       telegramMs: 10,
@@ -151,6 +158,47 @@ describe("performance logger", () => {
       questMarkerSourceCount: 0,
       questMarkerSlowestSource: "fight",
       questMarkerSlowestSourceMs: 60_000
+    });
+  });
+
+  it("allowlists and bounds Fight turn DB-stage attribution at runtime", () => {
+    const rejected = sanitizePerfTimingPayload({
+      route: "fight.turn",
+      fightTurnDbStageCount: Number.NaN,
+      fightTurnSlowestDbStage: "private-player-state" as "resolve",
+      fightTurnSlowestDbStageMs: Number.POSITIVE_INFINITY,
+      totalMs: 13
+    });
+    const bounded = sanitizePerfTimingPayload({
+      route: "fight.turn",
+      fightTurnDbStageCount: 93,
+      fightTurnSlowestDbStage: "yeger",
+      fightTurnSlowestDbStageMs: -42,
+      totalMs: 13
+    });
+
+    expect(rejected).not.toHaveProperty("fightTurnDbStageCount");
+    expect(rejected).not.toHaveProperty("fightTurnSlowestDbStage");
+    expect(rejected).not.toHaveProperty("fightTurnSlowestDbStageMs");
+    expect(bounded).toMatchObject({
+      fightTurnDbStageCount: 8,
+      fightTurnSlowestDbStage: "yeger",
+      fightTurnSlowestDbStageMs: 0
+    });
+  });
+
+  it("counts non-nested Fight DB stages and keeps durations finite and non-negative", async () => {
+    const times = [0, 13, 20, 10, 30, Number.POSITIVE_INFINITY];
+    const attribution = createFightTurnDbAttribution(() => times.shift() ?? 30);
+
+    await attribution.measure("resolve", () => Promise.resolve(undefined));
+    await attribution.measure("presence", () => Promise.resolve(undefined));
+    await attribution.measure("yeger", () => Promise.resolve(undefined));
+
+    expect(attribution.fields()).toEqual({
+      fightTurnDbStageCount: 3,
+      fightTurnSlowestDbStage: "resolve",
+      fightTurnSlowestDbStageMs: 13
     });
   });
 
