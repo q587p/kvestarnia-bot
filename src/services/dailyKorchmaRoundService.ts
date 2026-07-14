@@ -26,7 +26,7 @@ import {
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "./dailyActionKeys";
-import type { FightService } from "./fightService";
+import type { FightLookupResult, FightService } from "./fightService";
 import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
@@ -64,6 +64,21 @@ export type DailyKorchmaRoundLookupResult =
 export type DailyKorchmaRoundExistingLookupResult =
   | DailyKorchmaRoundLookupResult
   | { state: "not-issued"; character: CharacterSummary; dayToken: string };
+
+export type DailyKorchmaRoundMarkerLookupResult =
+  | { state: "no-character" }
+  | {
+      state:
+        | "level-locked"
+        | "hp-blocked"
+        | "active-fight"
+        | "pending-barrel"
+        | "not-issued"
+        | "ready"
+        | "turn-in-ready"
+        | "completed";
+      character: CharacterSummary;
+    };
 
 export type DailyKorchmaRoundOverviewResult =
   | DailyKorchmaRoundExistingLookupResult
@@ -192,6 +207,75 @@ export class DailyKorchmaRoundService {
     }
 
     return this.resultFromContext(context);
+  }
+
+  async getQuestMarkerForTelegramUser(
+    telegramUserId: bigint,
+    sharedFight: Promise<FightLookupResult | null>
+  ): Promise<DailyKorchmaRoundMarkerLookupResult> {
+    const characterRecord = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!characterRecord) {
+      return { state: "no-character" };
+    }
+
+    const dayKey = getKyivDayKey(this.clock());
+    const character = summarizeCharacter(characterRecord);
+    const lifeToken = Math.max(0, Math.floor(characterRecord.remortCount ?? 0));
+    const offerRecord = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+      localDate: dayKey
+    });
+    const offer = buildOfferFromRecord(offerRecord, lifeToken);
+
+    if (!offer && character.level < DAILY_KORCHMA_ROUND_MIN_LEVEL) {
+      return { state: "level-locked", character };
+    }
+
+    if (character.hpCurrent <= 0) {
+      return { state: "hp-blocked", character };
+    }
+
+    const [fight, hasPendingBarrel] = await Promise.all([
+      sharedFight,
+      this.hasPendingBarrel(telegramUserId)
+    ]);
+
+    if (!fight) {
+      throw new Error("Shared Fight quest marker lookup was unavailable.");
+    }
+
+    if (fight.state === "persistent-active" || fight.state === "training-active") {
+      return { state: "active-fight", character };
+    }
+
+    if (hasPendingBarrel) {
+      return { state: "pending-barrel", character };
+    }
+
+    if (!offer) {
+      return { state: "not-issued", character };
+    }
+
+    const [stepRecords, rewardRecord] = await Promise.all([
+      this.listStepRecords(telegramUserId, offer.dayKey, offer.scenes),
+      this.dailyActions.findForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+        localDate: offer.dayKey
+      })
+    ]);
+
+    if (rewardRecord) {
+      return { state: "completed", character };
+    }
+
+    const completedSceneIds = new Set(
+      stepRecords.map((record) => readStepJson(record)?.sceneId).filter(isString)
+    );
+
+    return completedSceneIds.size >= DAILY_KORCHMA_ROUND_REQUIRED_STEPS
+      ? { state: "turn-in-ready", character }
+      : { state: "ready", character };
   }
 
   async startForTelegramUser(
@@ -654,21 +738,7 @@ export class DailyKorchmaRoundService {
       record = claim && claim.state !== "insufficient-gold" ? claim.action : null;
     }
 
-    const json = record ? readOfferJson(record) : null;
-    const sceneIds = json?.sceneIds ?? [];
-    const scenes = sceneIds.map(getDailyKorchmaRoundScene).filter(isScene);
-
-    if (!json || scenes.length !== 3) {
-      return null;
-    }
-
-    return {
-      dayKey: json.dayKey,
-      dayToken: json.dayToken,
-      lifeToken,
-      requiredSteps: json.requiredSteps,
-      scenes
-    };
+    return buildOfferFromRecord(record, lifeToken);
   }
 
   private async listStepRecords(
@@ -794,6 +864,27 @@ export class DailyKorchmaRoundService {
 
     return pending.state === "pending";
   }
+}
+
+function buildOfferFromRecord(
+  record: DailyActionRecord | null,
+  lifeToken: number
+): Omit<DailyKorchmaRoundOffer, "completedSceneIds" | "omittedSceneId"> | null {
+  const json = record ? readOfferJson(record) : null;
+  const sceneIds = json?.sceneIds ?? [];
+  const scenes = sceneIds.map(getDailyKorchmaRoundScene).filter(isScene);
+
+  if (!json || scenes.length !== 3) {
+    return null;
+  }
+
+  return {
+    dayKey: json.dayKey,
+    dayToken: json.dayToken,
+    lifeToken,
+    requiredSteps: json.requiredSteps,
+    scenes
+  };
 }
 
 interface DailyKorchmaRoundContext {

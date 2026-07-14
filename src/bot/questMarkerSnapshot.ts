@@ -38,6 +38,15 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
   const cellarGrownupService = services.cellarGrownup;
   const perf = startPerfSpan("main-menu.quest-markers", { telegramUserId });
   const attribution = createQuestMarkerDbAttribution();
+  const fightMarkersPromise = attribution.measure(
+    "fight",
+    () => resolveFightQuestMarkers(
+      telegramUserId,
+      services.fight,
+      (sourceCount) => attribution.addSources(sourceCount)
+    ),
+    typeof services.fight.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
+  );
 
   const [
     adventureMarkers,
@@ -60,15 +69,7 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
         ? 1
         : getLegacyAdventureSourceWeight(services.adventure)
     ),
-    attribution.measure(
-      "fight",
-      () => resolveFightQuestMarkers(
-        telegramUserId,
-        services.fight,
-        (sourceCount) => attribution.addSources(sourceCount)
-      ),
-      typeof services.fight.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
-    ),
+    fightMarkersPromise,
     typeof firstKorchmaQuestService?.getForTelegramUser === "function"
       ? attribution.measure(
           "first-korchma",
@@ -109,12 +110,15 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
           )
         )
       : Promise.resolve(null),
-    services.dailyKorchmaRound
+    typeof services.dailyKorchmaRound?.getQuestMarkerForTelegramUser === "function"
       ? attribution.measure(
           "daily-korchma",
           () => optionalQuestMarkerLookup(
             "daily korchma round",
-            () => services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId)
+            () => services.dailyKorchmaRound.getQuestMarkerForTelegramUser(
+              telegramUserId,
+              fightMarkersPromise.then(({ fight }) => fight)
+            )
           )
         )
       : Promise.resolve(null),

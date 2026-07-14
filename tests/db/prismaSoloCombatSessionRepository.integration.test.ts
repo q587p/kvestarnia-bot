@@ -1167,6 +1167,112 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     ]);
   });
 
+  it("counts only bounded eligible Yeger wins after the stage boundary for the requested life", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-yeger-bounded-progress",
+      characterId: "character-yeger-bounded-progress",
+      telegramUserId: 4257n
+    });
+    const stageStartedAt = new Date("2026-06-22T12:01:00.000Z");
+    const atMinute = (minute: number) => new Date(`2026-06-22T12:${String(minute).padStart(2, "0")}:00.000Z`);
+    const eligible = Array.from({ length: 6 }, (_, index) => makeSoloSessionData({
+      id: `yeger-eligible-${index + 1}`,
+      characterId: "character-yeger-bounded-progress",
+      monsterId: index % 2 === 0
+        ? "monster.stamp-doorkeeper-skeleton"
+        : "monster.unread-rules-ghost",
+      status: "won",
+      source: "normal",
+      completedAt: atMinute(index + 1),
+      updatedAt: atMinute(index + 1),
+      settlementStatus: "completed"
+    }));
+    await prisma.soloCombatSession.createMany({
+      data: [
+        ...eligible,
+        makeLegacySoloSessionData({
+          id: "yeger-eligible-legacy",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.stamp-doorkeeper-skeleton",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(7),
+          updatedAt: atMinute(7)
+        }),
+        makeSoloSessionData({
+          id: "yeger-old-completion-updated-late",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.stamp-doorkeeper-skeleton",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(0),
+          updatedAt: atMinute(10),
+          settlementStatus: "completed"
+        }),
+        makeSoloSessionData({
+          id: "yeger-pending",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.unread-rules-ghost",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(8),
+          updatedAt: atMinute(8),
+          settlementStatus: "pending"
+        }),
+        makeSoloSessionData({
+          id: "yeger-forfeited",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.unread-rules-ghost",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(9),
+          updatedAt: atMinute(9),
+          settlementStatus: "forfeited-by-remort"
+        }),
+        makeSoloSessionData({
+          id: "yeger-unrelated-monster",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.deadline-spider",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(8),
+          updatedAt: atMinute(8),
+          settlementStatus: "completed"
+        }),
+        makeSoloSessionData({
+          id: "yeger-next-life",
+          characterId: "character-yeger-bounded-progress",
+          monsterId: "monster.stamp-doorkeeper-skeleton",
+          status: "won",
+          source: "normal",
+          completedAt: atMinute(8),
+          updatedAt: atMinute(8),
+          settlementStatus: "completed",
+          remortCount: 1
+        })
+      ]
+    });
+
+    const options = {
+      monsterIds: ["monster.stamp-doorkeeper-skeleton", "monster.unread-rules-ghost"],
+      completedSince: stageStartedAt,
+      life: { remortCount: 0 },
+      limit: 93
+    };
+    await expect(
+      repository.countProgressEligibleWinsByTelegramUserId(4257n, options)
+    ).resolves.toBe(7);
+    await expect(
+      repository.countProgressEligibleWinsByTelegramUserId(4257n, { ...options, limit: 6 })
+    ).resolves.toBe(6);
+    await expect(
+      repository.countProgressEligibleWinsByTelegramUserId(4257n, {
+        ...options,
+        life: { remortCount: 1 }
+      })
+    ).resolves.toBe(1);
+  });
+
   it("clears monster rest cooldown by aging recent ordinary completion times", async () => {
     await seedCharacter(prisma, {
       userId: "user-monster-rest-clear",
@@ -2120,6 +2226,7 @@ function makeSoloSessionData(input: {
   updatedAt: Date;
   createdAt?: Date;
   settlementStatus?: "pending" | "completed" | "forfeited-by-remort";
+  remortCount?: number;
 }) {
   const state = {
     ...makeCombatState(input.id, input.monsterId),
@@ -2127,7 +2234,7 @@ function makeSoloSessionData(input: {
     source: input.source,
     life: {
       characterId: input.characterId,
-      remortCount: 0,
+      remortCount: input.remortCount ?? 0,
       startedAt: input.completedAt.toISOString()
     },
     ...(input.settlementStatus

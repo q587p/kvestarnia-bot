@@ -1940,21 +1940,8 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain(makePlaceCallbackData("bar"));
   });
 
-  it("includes Yeger quest progress in the separate message when a matching won fight moved it", async () => {
-    const yegerLookup = vi
-      .fn()
-      .mockResolvedValueOnce({
-        state: "in-progress",
-        character,
-        progress: { wins: 4, target: 5 },
-        tracking: { state: "none" }
-      })
-      .mockResolvedValueOnce({
-        state: "turn-in-ready",
-        character,
-        progress: { wins: 5, target: 5 },
-        tracking: { state: "none" }
-      });
+  it("includes Yeger quest progress after one eligible settled level-4 win lookup", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 5, target: 5, stageId: "first" });
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({
         sessionId: "123e4567-e89b-42d3-a456-426614174111",
@@ -1966,7 +1953,7 @@ describe("scene callback HTML options", () => {
           resolvePersistentFightTurn: () =>
             Promise.resolve({
               state: "updated",
-              character,
+              character: { ...character, level: 4 },
               session: {
                 ...persistentSession("monster.restless-auditor"),
                 id: "123e4567-e89b-42d3-a456-426614174111",
@@ -2014,11 +2001,11 @@ describe("scene callback HTML options", () => {
                 issued: true,
                 branchComplete: false
               },
-              fightReward: null
+              fightReward: claimedPersistentFightReward()
             })
         },
         yeger: {
-          getForTelegramUser: yegerLookup
+          getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup
         }
       })
     );
@@ -2027,7 +2014,8 @@ describe("scene callback HTML options", () => {
       (call) => call.method === "sendMessage" && String(call.payload.text).includes("Прогрес справ зрушив")
     );
 
-    expect(yegerLookup).toHaveBeenCalledTimes(2);
+    expect(yegerLookup).toHaveBeenCalledTimes(1);
+    expect(yegerLookup).toHaveBeenCalledWith(42n, { remortCount: 0 });
     expect(String(edit?.payload.text)).not.toContain("Неспокійні справи");
     expect(progress?.payload.parse_mode).toBe("HTML");
     expect(String(progress?.payload.text)).toContain("📋 <b>Прогрес справ зрушив</b>");
@@ -2037,6 +2025,230 @@ describe("scene callback HTML options", () => {
     expect(String(progress?.payload.text)).toContain("<i>Неспокійні справи</i>: <b>5/5</b>. — Єгер чекає дощечку.");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🍻 До шинку");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🏹 До Єгеря");
+  });
+
+  it("keeps the primary edit and problem progress but skips Yeger for an unsettled tagged win", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 3, target: 5, stageId: "first" });
+    const result = {
+      ...persistentUpdatedResult({
+        sessionId: "123e4567-e89b-42d3-a456-426614174217",
+        status: "won",
+        tags: ["unquiet"],
+        level: 4
+      }),
+      questProgress: {
+        stageId: "13",
+        title: "Тринадцять дрібних проблем",
+        wins: 3,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: true,
+        branchComplete: false
+      },
+      fightReward: null
+    };
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const progressText = calls
+      .filter((call) => call.method === "sendMessage")
+      .map((call) => String(call.payload.text))
+      .join("\n");
+
+    expect(edits).toHaveLength(1);
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(progressText).toContain("Тринадцять дрібних проблем");
+    expect(progressText).not.toContain("Неспокійні справи");
+  });
+
+  it("performs zero Yeger reads for a settled tagged win below level 4", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 1, target: 5, stageId: "first" });
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174218",
+      status: "won",
+      tags: ["unquiet"],
+      level: 3,
+      settled: true
+    });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text)).join("\n"))
+      .not.toContain("Неспокійні справи");
+  });
+
+  it.each([
+    ["attack", makeFightTurnCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174211", turn: 1, action: "attack" }), "turn"],
+    ["defend", makeFightTurnCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174211", turn: 1, action: "defend" }), "turn"],
+    ["class action", makeFightTurnCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174211", turn: 1, action: "skill" }), "turn"],
+    ["item", makeFightItemUseCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174211", turn: 1, itemKey: getCombatItemUseKey("item.responsible-panic-bandage") }), "item"],
+    ["gear", makeFightGearActionCallbackData({ sessionId: "123e4567-e89b-42d3-a456-426614174211", turn: 1, grantKey: "rldagr" }), "turn"]
+  ])("performs zero Yeger progress reads for an ordinary non-terminal persistent %s callback", async (_name, callbackData, resolverKind) => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 1, target: 5, stageId: "first" });
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174211",
+      status: "active",
+      tags: ["unquiet"]
+    });
+
+    await captureApiCalls(
+      callbackData,
+      servicesWith({
+        fight: resolverKind === "item"
+          ? { resolvePersistentFightItemTurn: () => Promise.resolve(result) }
+          : { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing session", { state: "not-found" as const, character }],
+    ["rest blocker", { state: "needs-rest" as const, character }],
+    ["stale callback", {
+      state: "stale-turn" as const,
+      character,
+      session: persistentSession("monster.restless-auditor"),
+      monster: null,
+      questProgress: null
+    }],
+    ["terminal replay", {
+      ...persistentUpdatedResult({
+        sessionId: "123e4567-e89b-42d3-a456-426614174212",
+        status: "won",
+        tags: ["unquiet"]
+      }),
+      state: "terminal" as const
+    }]
+  ])("performs zero Yeger progress reads for a persistent %s", async (_name, result) => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 1, target: 5, stageId: "first" });
+
+    await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: "123e4567-e89b-42d3-a456-426614174212",
+        turn: 1,
+        action: "attack"
+      }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result as never) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).not.toHaveBeenCalled();
+  });
+
+  it("performs zero Yeger reads for a fresh non-Yeger victory", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 1, target: 5, stageId: "first" });
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174213",
+      status: "won",
+      tags: ["beast"]
+    });
+
+    await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).not.toHaveBeenCalled();
+  });
+
+  it("does not show a Yeger card when the single post-win lookup reports no eligible progress", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue(null);
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174214",
+      status: "won",
+      tags: ["unquiet"],
+      level: 4,
+      settled: true
+    });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).toHaveBeenCalledTimes(1);
+    expect(calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text)).join("\n"))
+      .not.toContain("Неспокійні справи");
+  });
+
+  it("emits one bounded DB-stage record for a successful fight.turn callback", async () => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174215",
+      status: "active",
+      tags: ["beast"]
+    });
+
+    await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({ fight: { resolvePersistentFightTurn: () => Promise.resolve(result) } })
+    );
+
+    const fightRecords = info.mock.calls
+      .map((call) => call[1] as Record<string, unknown>)
+      .filter((payload) => payload?.route === "fight.turn");
+    expect(fightRecords).toHaveLength(1);
+    expect(fightRecords[0]?.fightTurnDbStageCount).toBe(2);
+    expect(["resolve", "presence"]).toContain(fightRecords[0]?.fightTurnSlowestDbStage);
+    const slowestStageMs = fightRecords[0]?.fightTurnSlowestDbStageMs;
+    expect(typeof slowestStageMs).toBe("number");
+    expect(slowestStageMs as number).toBeGreaterThanOrEqual(0);
+  });
+
+  it("emits one sanitized terminal record when the conditional post-win Yeger lookup fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = Object.assign(new Error("private Yeger progress value"), { code: "P2028" });
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174216",
+      status: "won",
+      tags: ["unquiet"],
+      level: 4,
+      settled: true
+    });
+
+    await expect(captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: {
+          getProgressAfterFreshRelevantWinForTelegramUser: () => Promise.reject(failure)
+        }
+      })
+    )).rejects.toThrow("private Yeger progress value");
+
+    const perfCalls = errorLog.mock.calls.filter(([message]) => message === "Kvestarnia failed perf timing");
+    expect(perfCalls).toHaveLength(1);
+    expect(perfCalls[0]?.[1]).toEqual(expect.objectContaining({
+      route: "fight.turn",
+      outcome: "error",
+      errorCategory: "database",
+      errorComponent: "db"
+    }));
+    expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+    expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
   });
 
   it("offers craft shortcuts after the completed second Yeger turn-in when craft options are available", async () => {
@@ -7824,6 +8036,60 @@ function persistentSession(monsterId: string) {
         hpMax: 12
       }
     }
+  };
+}
+
+function persistentUpdatedResult(input: {
+  sessionId: string;
+  status: "active" | "won";
+  tags: string[];
+  level?: number;
+  settled?: boolean;
+}) {
+  const base = persistentSession("monster.restless-auditor");
+  const session = {
+    ...base,
+    id: input.sessionId,
+    status: input.status,
+    turn: 2,
+    state: {
+      ...base.state,
+      id: input.sessionId,
+      status: input.status,
+      turn: 2,
+      monster: {
+        ...base.state.monster,
+        hp: input.status === "won" ? 0 : base.state.monster.hp
+      }
+    }
+  };
+
+  return {
+    state: "updated" as const,
+    character: { ...character, level: input.level ?? character.level },
+    session,
+    monster: {
+      id: "monster.restless-auditor",
+      name: "Неспокійний аудитор",
+      description: "Шурхотить формами навіть після смерті.",
+      level: 4,
+      tags: input.tags
+    },
+    questProgress: null,
+    fightReward: input.settled ? claimedPersistentFightReward() : null
+  };
+}
+
+function claimedPersistentFightReward() {
+  return {
+    state: "claimed" as const,
+    reward: {
+      xp: 13,
+      gold: 0,
+      localDate: "12026-07-14",
+      itemGrants: []
+    },
+    levelChange: noLevelChange
   };
 }
 

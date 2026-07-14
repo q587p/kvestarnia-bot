@@ -10,6 +10,10 @@ export interface HotPathTimingInput {
   questMarkerSlowestSource?: QuestMarkerPerformanceSource | null;
   /** Overlapping high-level source wall-clock latency, not exclusive SQL time. */
   questMarkerSlowestSourceMs?: number | null;
+  fightTurnDbStageCount?: number | null;
+  fightTurnSlowestDbStage?: FightTurnPerformanceStage | null;
+  /** Non-additive stage wall-clock latency; stages are measured without nesting. */
+  fightTurnSlowestDbStageMs?: number | null;
   resultState?: string | null;
   filter?: string | null;
   sort?: string | null;
@@ -46,10 +50,14 @@ export type QuestMarkerPerformanceSource =
   | "item-upgrades"
   | "cellar-grownup";
 
+export type FightTurnPerformanceStage = "yeger" | "resolve" | "presence" | "reward-progress";
+
 const DEFAULT_SLOW_HOT_PATH_MS = 350;
 const DEFAULT_PERF_SAMPLE_RATE = 0;
 const MAX_QUEST_MARKER_SOURCE_COUNT = 32;
 const MAX_QUEST_MARKER_SOURCE_MS = 60_000;
+const MAX_FIGHT_TURN_DB_STAGE_COUNT = 8;
+const MAX_FIGHT_TURN_DB_STAGE_MS = 60_000;
 const QUEST_MARKER_PERFORMANCE_SOURCES = new Set<QuestMarkerPerformanceSource>([
   "adventure",
   "fight",
@@ -60,6 +68,12 @@ const QUEST_MARKER_PERFORMANCE_SOURCES = new Set<QuestMarkerPerformanceSource>([
   "daily-korchma",
   "item-upgrades",
   "cellar-grownup"
+]);
+const FIGHT_TURN_PERFORMANCE_STAGES = new Set<FightTurnPerformanceStage>([
+  "yeger",
+  "resolve",
+  "presence",
+  "reward-progress"
 ]);
 
 export function hotPathNow(): number {
@@ -230,6 +244,18 @@ export function sanitizePerfTimingPayload(
     input.questMarkerSlowestSourceMs,
     MAX_QUEST_MARKER_SOURCE_MS
   );
+  const fightTurnDbStageCount = sanitizeBoundedNumber(
+    input.fightTurnDbStageCount,
+    MAX_FIGHT_TURN_DB_STAGE_COUNT,
+    true
+  );
+  const fightTurnSlowestDbStage = sanitizeFightTurnPerformanceStage(
+    input.fightTurnSlowestDbStage
+  );
+  const fightTurnSlowestDbStageMs = sanitizeBoundedNumber(
+    input.fightTurnSlowestDbStageMs,
+    MAX_FIGHT_TURN_DB_STAGE_MS
+  );
 
   return {
     route: input.route,
@@ -252,6 +278,13 @@ export function sanitizePerfTimingPayload(
     ...(questMarkerSlowestSource !== undefined && questMarkerSlowestSourceMs !== undefined
       ? { questMarkerSlowestSourceMs: roundMs(questMarkerSlowestSourceMs) }
       : {}),
+    ...(fightTurnDbStageCount !== undefined ? { fightTurnDbStageCount } : {}),
+    ...(fightTurnSlowestDbStage !== undefined && fightTurnSlowestDbStageMs !== undefined
+      ? { fightTurnSlowestDbStage }
+      : {}),
+    ...(fightTurnSlowestDbStage !== undefined && fightTurnSlowestDbStageMs !== undefined
+      ? { fightTurnSlowestDbStageMs: roundMs(fightTurnSlowestDbStageMs) }
+      : {}),
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort !== undefined ? { sort: input.sort } : {}),
     ...(input.page !== undefined ? { page: input.page } : {}),
@@ -260,6 +293,41 @@ export function sanitizePerfTimingPayload(
     ...(input.telegramMs != null ? { telegramMs: roundMs(input.telegramMs) } : {}),
     ...(input.telegramEditMs != null ? { telegramEditMs: roundMs(input.telegramEditMs) } : {}),
     totalMs: roundMs(input.totalMs)
+  };
+}
+
+export function createFightTurnDbAttribution(now: () => number = hotPathNow) {
+  let stageCount = 0;
+  let slowestStage: FightTurnPerformanceStage | null = null;
+  let slowestStageMs = 0;
+
+  return {
+    async measure<T>(stage: FightTurnPerformanceStage, lookup: () => Promise<T>): Promise<T> {
+      stageCount += 1;
+      const startedAt = now();
+
+      try {
+        return await lookup();
+      } finally {
+        const elapsed = now() - startedAt;
+        const durationMs = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+        if (durationMs > slowestStageMs) {
+          slowestStage = stage;
+          slowestStageMs = durationMs;
+        }
+      }
+    },
+    fields() {
+      return {
+        fightTurnDbStageCount: stageCount,
+        ...(slowestStage === null
+          ? {}
+          : {
+              fightTurnSlowestDbStage: slowestStage,
+              fightTurnSlowestDbStageMs: slowestStageMs
+            })
+      };
+    }
   };
 }
 
@@ -341,6 +409,14 @@ function sanitizeQuestMarkerPerformanceSource(
   value: QuestMarkerPerformanceSource | null | undefined
 ): QuestMarkerPerformanceSource | undefined {
   return value !== null && value !== undefined && QUEST_MARKER_PERFORMANCE_SOURCES.has(value)
+    ? value
+    : undefined;
+}
+
+function sanitizeFightTurnPerformanceStage(
+  value: FightTurnPerformanceStage | null | undefined
+): FightTurnPerformanceStage | undefined {
+  return value !== null && value !== undefined && FIGHT_TURN_PERFORMANCE_STAGES.has(value)
     ? value
     : undefined;
 }

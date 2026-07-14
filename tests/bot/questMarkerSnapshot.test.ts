@@ -227,6 +227,60 @@ describe("quest marker snapshot", () => {
     expect(itemUpgradeFullLookup).not.toHaveBeenCalled();
   });
 
+  it("passes the already-started grouped Fight result to the Daily Korchma marker read without full rereads", async () => {
+    const fullFightOverview = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const fullDailyOverview = vi.fn(() => Promise.resolve({ state: "no-character" as const }));
+    const fightSnapshot = vi.fn(() => Promise.resolve({
+      fight: {
+        status: "fulfilled" as const,
+        value: { state: "persistent-ready" as const, character, questProgress: { wins: 0, target: 13 } }
+      },
+      problemQuest: { status: "fulfilled" as const, value: { state: "no-character" as const } }
+    }));
+    const dailyMarker = vi.fn(async (_telegramUserId: bigint, sharedFight: Promise<unknown>) => {
+      await expect(sharedFight).resolves.toMatchObject({ state: "persistent-ready" });
+      return { state: "not-issued" as const, character };
+    });
+
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      fight: {
+        getQuestMarkerSnapshotForTelegramUser: fightSnapshot,
+        getFightOverviewForTelegramUser: fullFightOverview,
+        getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+      },
+      dailyKorchmaRound: {
+        getQuestMarkerForTelegramUser: dailyMarker,
+        getExistingForTelegramUser: fullDailyOverview
+      }
+    }));
+
+    expect(snapshot?.dailyKorchmaRound?.state).toBe("not-issued");
+    expect(fightSnapshot).toHaveBeenCalledTimes(1);
+    expect(dailyMarker).toHaveBeenCalledTimes(1);
+    expect(fullFightOverview).not.toHaveBeenCalled();
+    expect(fullDailyOverview).not.toHaveBeenCalled();
+  });
+
+  it("keeps unrelated markers when the bounded Daily Korchma marker read fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(42n, markerServices({
+      cellarErrand: {
+        getForTelegramUser: () => Promise.resolve({ state: "ready", character })
+      },
+      dailyKorchmaRound: {
+        getQuestMarkerForTelegramUser: () => Promise.reject(new Error("P1008")),
+        getExistingForTelegramUser: () => Promise.resolve({ state: "not-issued", character, dayToken: "20260714" })
+      }
+    }));
+
+    expect(snapshot?.cellar?.state).toBe("ready");
+    expect(snapshot?.dailyKorchmaRound).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("quest marker daily korchma round"),
+      expect.any(Error)
+    );
+  });
+
   it("collapses the primary fan-out to eight attributed sources while preserving grouped fail-soft results", async () => {
     vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
@@ -289,6 +343,7 @@ describe("quest marker snapshot", () => {
         getForTelegramUser: () => Promise.resolve({ state: "no-character" })
       },
       dailyKorchmaRound: {
+        getQuestMarkerForTelegramUser: () => Promise.resolve({ state: "no-character" }),
         getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
       },
       itemUpgrades: {
@@ -445,6 +500,7 @@ function markerServices(overrides: Record<string, unknown> = {}): BotServices {
       getForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     dailyKorchmaRound: {
+      getQuestMarkerForTelegramUser: () => Promise.resolve({ state: "no-character" }),
       getExistingForTelegramUser: () => Promise.resolve({ state: "no-character" })
     },
     ...overrides

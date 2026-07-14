@@ -10,8 +10,10 @@ PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
 PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
 } from "../../services/presenceService";
-import type { YegerQuestService } from "../../services/yegerQuestService";
-import { isYegerUnquietTarget } from "../../services/yegerQuestService";
+import {
+  isYegerUnquietTarget,
+  YEGER_UNQUIET_TRIAL_MIN_LEVEL
+} from "../../services/yegerQuestService";
 import {
   getPassageSearchNodeKey,
   PASSAGE_SEARCH_NODE_DEEP_LEVEL1
@@ -76,7 +78,7 @@ import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
-import { startPerfSpan } from "../performanceLogger";
+import { createFightTurnDbAttribution, startPerfSpan } from "../performanceLogger";
 import {
 presentKorchmaDeepLevelLocked
 } from "../presenters/tavernPresenter";
@@ -577,39 +579,48 @@ async function handleFightCallback(
 
   if (callback.type === "turn" || callback.type === "item" || callback.type === "gear") {
     const perf = startPerfSpan(`fight.${callback.type}`, { telegramUserId });
-    const yegerBefore = await perf.measureDb(() => getYegerProgressSnapshot(services.yeger, telegramUserId));
-    const result = await perf.measureDb(() => callback.type === "turn"
-      ? services.fight.resolvePersistentFightTurn(telegramUserId, {
-          sessionId: callback.sessionId,
-          turn: callback.turn,
-          action: callback.action
-        })
-      : callback.type === "gear"
+    const dbAttribution = createFightTurnDbAttribution();
+    const result = await perf.measureDb(() => dbAttribution.measure(
+      "resolve",
+      () => callback.type === "turn"
         ? services.fight.resolvePersistentFightTurn(telegramUserId, {
             sessionId: callback.sessionId,
             turn: callback.turn,
-            action: "gear",
-            grantKey: callback.grantKey
+            action: callback.action
           })
-      : services.fight.resolvePersistentFightItemTurn(telegramUserId, {
-          sessionId: callback.sessionId,
-          turn: callback.turn,
-          itemKey: callback.itemKey
-        }));
+        : callback.type === "gear"
+          ? services.fight.resolvePersistentFightTurn(telegramUserId, {
+              sessionId: callback.sessionId,
+              turn: callback.turn,
+              action: "gear",
+              grantKey: callback.grantKey
+            })
+        : services.fight.resolvePersistentFightItemTurn(telegramUserId, {
+            sessionId: callback.sessionId,
+            turn: callback.turn,
+            itemKey: callback.itemKey
+          })
+    ));
 
     if (result.state === "no-character") {
       await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx));
       await perf.measureTelegram(() => safeEditMessageText(ctx, presentFightNoCharacter()));
-      perf.end({ resultState: result.state });
+      perf.end({
+        resultState: result.state,
+        ...(callback.type === "turn" ? dbAttribution.fields() : {})
+      });
       return;
     }
 
     if (result.state !== "not-found" && result.state !== "needs-rest") {
-      await perf.measureDb(() => markScenePresence(ctx, services.presence, {
-        locationId: resolvePersistentFightPresenceLocation(result.session),
-        currentRaidId: null,
-        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-      }));
+      await perf.measureDb(() => dbAttribution.measure(
+        "presence",
+        () => markScenePresence(ctx, services.presence, {
+          locationId: resolvePersistentFightPresenceLocation(result.session),
+          currentRaidId: null,
+          currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+        })
+      ));
     }
 
     const rendered = perf.measureCompute(() => {
@@ -637,9 +648,24 @@ async function handleFightCallback(
       ...HTML_MESSAGE_OPTIONS,
       ...(rendered.replyMarkup ? { reply_markup: rendered.replyMarkup } : {})
     }));
+    const yegerProgress =
+      result.state === "updated" &&
+      result.session.state?.status === "won" &&
+      result.fightReward !== null &&
+      result.character.level >= YEGER_UNQUIET_TRIAL_MIN_LEVEL &&
+      result.monster &&
+      isYegerUnquietTarget(result.monster) &&
+      typeof services.yeger?.getProgressAfterFreshRelevantWinForTelegramUser === "function"
+        ? await perf.measureDb(() => dbAttribution.measure(
+            "yeger",
+            () => services.yeger.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, {
+              remortCount: result.character.remortCount ?? 0
+            })
+          ))
+        : null;
     const progressMessage =
       result.state === "updated" && result.session.state?.status === "won"
-        ? await perf.measureDb(() => presentWonFightQuestProgressAfterFight(result, services, telegramUserId, yegerBefore))
+        ? presentWonFightQuestProgressAfterFight(result, yegerProgress)
         : null;
 
     if (progressMessage) {
@@ -668,7 +694,8 @@ async function handleFightCallback(
     perf.end({
       resultState: result.state === "updated" && result.session.state?.status === "won"
         ? "reward"
-        : result.state
+        : result.state,
+      ...(callback.type === "turn" ? dbAttribution.fields() : {})
     });
     return;
   }
@@ -821,35 +848,16 @@ async function getCurrentLocationId(
   return place.state === "ready" ? place.locationId : undefined;
 }
 
-type YegerProgressSnapshot = { wins: number; target: number } | null;
+type YegerProgressSnapshot = { wins: number; target: number; stageId?: string } | null;
 type FightQuestProgressAfterFightMessage = {
   text: string;
   replyMarkup?: InlineKeyboard;
 };
 
-async function getYegerProgressSnapshot(
-  yeger: Pick<YegerQuestService, "getForTelegramUser"> | undefined,
-  telegramUserId: bigint
-): Promise<YegerProgressSnapshot> {
-  if (!yeger) {
-    return null;
-  }
-
-  const result = await yeger.getForTelegramUser(telegramUserId);
-
-  if (result.state !== "in-progress" && result.state !== "turn-in-ready") {
-    return null;
-  }
-
-  return result.progress;
-}
-
-async function presentWonFightQuestProgressAfterFight(
+function presentWonFightQuestProgressAfterFight(
   result: Extract<PersistentFightTurnResult, { state: "updated" }>,
-  services: BotServices,
-  telegramUserId: bigint,
-  yegerBefore: YegerProgressSnapshot
-): Promise<FightQuestProgressAfterFightMessage | null> {
+  yegerProgress: YegerProgressSnapshot
+): FightQuestProgressAfterFightMessage | null {
   const entries: QuestProgressAfterFightEntry[] = [];
   const problemEntry = buildProblemQuestProgressAfterFightEntry(result.questProgress, {
     singleProblemHint: hasMoreThanOnePersistentEnemy(result)
@@ -859,20 +867,16 @@ async function presentWonFightQuestProgressAfterFight(
     entries.push(problemEntry);
   }
 
-  if (result.monster && isYegerUnquietTarget(result.monster) && yegerBefore) {
-    const yegerAfter = await getYegerProgressSnapshot(services.yeger, telegramUserId);
-
-    if (yegerAfter && yegerAfter.wins > yegerBefore.wins) {
-      entries.push({
-        title: presentYegerQuestTitle(yegerAfter),
-        wins: yegerAfter.wins,
-        target: yegerAfter.target,
-        completed: yegerAfter.wins >= yegerAfter.target,
-        ...(yegerAfter.wins >= yegerAfter.target
-          ? { readyHint: "Єгер чекає дощечку.", action: "yeger" as const }
-          : {})
-      });
-    }
+  if (yegerProgress) {
+    entries.push({
+      title: presentYegerQuestTitle(yegerProgress),
+      wins: yegerProgress.wins,
+      target: yegerProgress.target,
+      completed: yegerProgress.wins >= yegerProgress.target,
+      ...(yegerProgress.wins >= yegerProgress.target
+        ? { readyHint: "Єгер чекає дощечку.", action: "yeger" as const }
+        : {})
+    });
   }
 
   const text = presentQuestProgressAfterFight(entries);

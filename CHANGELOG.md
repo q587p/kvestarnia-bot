@@ -7,6 +7,21 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.11] - 12026-07-14 - Fight Turn and Daily Korchma Read-Path Reduction
+
+### Changed
+- Replaced the Daily Korchma main-menu marker lookup with a bounded current-day read that consumes the already-started grouped Fight result. Actual Daily Korchma overview, scene, action and claim flows remain on the unchanged authoritative `getExistingForTelegramUser()` path.
+- Removed the unconditional bot-layer Yeger progress pre-read from persistent attack, defend, class-action, item and gear callbacks. Ordinary, blocked, stale, missing-session, duplicate/replay, non-Yeger, unsettled/forfeited and below-level victory paths now perform zero bot-layer Yeger progress reads; an eligible fresh settled Yeger-relevant victory at level 4+ performs one post-win lookup backed by a capped database count.
+- Added allowlisted `fight.turn` DB-stage count and slowest-stage attribution using only `yeger`, `resolve`, `presence` and `reward-progress`, with finite non-negative non-additive wall-clock durations.
+
+### Verification
+- Main-menu marker snapshots now invoke the full Fight overview once instead of twice. Inside the Daily Korchma marker source, pending/no-offer states drop from four service/repository calls to three and existing-offer states drop from six to five; no-character, level-lock, HP-block and active-fight paths preserve their prior call counts while replacing the active-fight duplicate overview with the bounded concurrent Barrel gate.
+- Persistent callbacks reduce bot-layer Yeger progress lookups from one to zero on ordinary/replay paths and from two to one on an eligible settled Yeger win. Focused tests cover every marker state and persistent attack/defend/class-action/item/gear, blocked, stale, missing-session, terminal replay, non-Yeger, unsettled/forfeited, below-level and eligible Yeger-win cases; real repository coverage proves the stage/life/settlement filters and `target + 1` query cap.
+
+### Compatibility
+- Combat settlement, CAS, leases, rewards, inventory consumption, cooldowns, stored journals/replays, presence ordering, quest/marker states, routes, keyboards, lore and runtime Telegram copy are unchanged. No schema, migration, dependency, cache, scheduler, rollout flag or dev helper was added, and no additional Fight-service read was removed.
+- Structural call-count removal is the release proof. Production latency impact remains unmeasured until the documented post-deploy sampling window is complete.
+
 ## [0.3.10] - 12026-07-14 - Fighting Corner Onboarding Quest
 
 ### Added

@@ -59,6 +59,7 @@ import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
 >;
+type CountRow = { count: bigint | number };
 type TxClient = Prisma.TransactionClient;
 
 const terminalStatuses = new Set<CombatStatus>(["won", "lost", "fled", "expired"]);
@@ -67,6 +68,7 @@ const DUE_SESSION_PAGE_SIZE = 100;
 const DUE_SESSION_SCAN_CAP = 1000;
 const RECENT_ORDINARY_PAGE_SIZE = 50;
 const RECENT_ORDINARY_SCAN_CAP = 200;
+const MAX_PROGRESS_ELIGIBLE_WIN_COUNT = 93;
 const RETRY_SOLO_COMBAT_CREATE = Symbol("retry-solo-combat-create");
 const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 
@@ -258,6 +260,65 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         completedAt
       }];
     });
+  }
+
+  async countProgressEligibleWinsByTelegramUserId(
+    telegramUserId: bigint,
+    options: {
+      monsterIds: readonly string[];
+      completedSince: Date;
+      life: Pick<CombatLifeState, "remortCount">;
+      limit: number;
+    }
+  ): Promise<number> {
+    const monsterIds = [...new Set(options.monsterIds)];
+    if (monsterIds.length === 0) {
+      return 0;
+    }
+
+    const limit = Math.max(
+      1,
+      Math.min(MAX_PROGRESS_ELIGIBLE_WIN_COUNT, Math.floor(options.limit))
+    );
+    const completedSinceIso = options.completedSince.toISOString();
+    const remortCount = Math.max(0, Math.floor(options.life.remortCount));
+    const rows = await this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT session.id
+        FROM solo_combat_sessions AS session
+        INNER JOIN characters AS character ON character.id = session.character_id
+        INNER JOIN users AS user ON user.id = character.user_id
+        WHERE user.telegram_user_id = ${telegramUserId}
+          AND session.status = 'won'
+          AND session.monster_id IN (${Prisma.join(monsterIds)})
+          AND (
+            (
+              julianday(json_extract(session.state_json, '$.completedAt')) IS NOT NULL
+              AND julianday(json_extract(session.state_json, '$.completedAt')) >= julianday(${completedSinceIso})
+            )
+            OR (
+              julianday(json_extract(session.state_json, '$.completedAt')) IS NULL
+              AND session.created_at >= ${options.completedSince}
+            )
+          )
+          AND (
+            json_type(session.state_json, '$.settlement') IS NULL
+            OR json_extract(session.state_json, '$.settlement.status') = 'completed'
+          )
+          AND (
+            CAST(json_extract(session.state_json, '$.life.remortCount') AS INTEGER) = ${remortCount}
+            OR (
+              json_type(session.state_json, '$.life.remortCount') IS NULL
+              AND ${remortCount} = 0
+            )
+          )
+        LIMIT ${limit}
+      ) AS bounded_wins
+    `);
+
+    const count = rows[0]?.count ?? 0;
+    return Math.min(limit, Math.max(0, Number(count)));
   }
 
   async listRecentCompletedByTelegramUserId(
