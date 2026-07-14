@@ -26,10 +26,7 @@ export function createHealthRecoveryNotificationScheduler(
     inFlight = service.runBatch(bot.api, now(), { limit: options.limit ?? DEFAULT_BATCH_LIMIT });
     try {
       const metrics = await inFlight;
-      console.info("Квестарня: tick сповіщень про відновлення HP.", {
-        durationMs: Math.max(0, Date.now() - startedAt),
-        ...metrics
-      });
+      logHealthRecoveryTick(metrics, Math.max(0, Date.now() - startedAt));
       return metrics;
     } finally {
       inFlight = null;
@@ -64,8 +61,25 @@ function emptyMetrics(): HealthRecoveryTickMetrics {
   return { due: 0, claimed: 0, sent: 0, retried: 0, suppressed: 0, errors: 0 };
 }
 
+function logHealthRecoveryTick(metrics: HealthRecoveryTickMetrics, durationMs: number): void {
+  if (!Object.values(metrics).some((value) => value > 0)) {
+    return;
+  }
+
+  const message =
+    `Квестарня: tick сповіщень про відновлення HP. durationMs=${durationMs}` +
+    ` due=${metrics.due} claimed=${metrics.claimed} sent=${metrics.sent}` +
+    ` retried=${metrics.retried} suppressed=${metrics.suppressed} errors=${metrics.errors}`;
+  if (metrics.errors > 0) {
+    console.error(message);
+    return;
+  }
+  console.info(message);
+}
+
 function logHealthRecoverySchedulerError(error: unknown): void {
-  console.error("Квестарня: tick сповіщень про відновлення HP не відпрацював.", {
-    errorName: error instanceof Error ? error.name : "unknown"
-  });
+  const errorName = error instanceof Error ? error.name : "unknown";
+  console.error(
+    `Квестарня: tick сповіщень про відновлення HP не відпрацював. errorName=${errorName}`
+  );
 }
