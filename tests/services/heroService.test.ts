@@ -75,6 +75,37 @@ describe("HeroService", () => {
     expect(inventory.listCount).toBe(0);
   });
 
+  it("passes the authoritative character id to the cheap Sated guard and skips it for no-character", async () => {
+    const existingNoncombat = new FakeClassNoncombatRepository(null);
+    const missingNoncombat = new FakeClassNoncombatRepository(null);
+    const existing = new HeroService(
+      new FakeCharacterRepository(buildCharacter()),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      existingNoncombat
+    );
+    const missing = new HeroService(
+      new FakeCharacterRepository(null),
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => new Date("2026-07-03T09:00:00.000Z"),
+      undefined,
+      missingNoncombat
+    );
+
+    await existing.findByTelegramUserId(telegramUserId);
+    await missing.findByTelegramUserId(telegramUserId);
+
+    expect(existingNoncombat.satedSettlementCharacterIds).toEqual(["character-42"]);
+    expect(missingNoncombat.satedSettlementCharacterIds).toEqual([]);
+  });
+
   it("reports a recovery notice when hero lookup fills HP", async () => {
     const marker = new Date("2026-06-13T11:40:00.000Z");
     const characters = new FakeCharacterRepository(
@@ -443,6 +474,7 @@ class FakeClassNoncombatRepository implements Pick<
   | "isActorBlockedForTelegramUser"
   | "settleVarenykSatedForTelegramUser"
 > {
+  readonly satedSettlementCharacterIds: string[] = [];
   constructor(
     private readonly blessing: PriestBlessingRecord | null,
     private readonly actorBlocked = false,
@@ -461,7 +493,12 @@ class FakeClassNoncombatRepository implements Pick<
     return Promise.resolve(this.actorBlocked);
   }
 
-  settleVarenykSatedForTelegramUser(): ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]> {
+  settleVarenykSatedForTelegramUser(
+    _telegramUserId: bigint,
+    _now: Date,
+    knownCharacterId?: string
+  ): ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]> {
+    if (knownCharacterId) this.satedSettlementCharacterIds.push(knownCharacterId);
     return Promise.resolve(null);
   }
 }

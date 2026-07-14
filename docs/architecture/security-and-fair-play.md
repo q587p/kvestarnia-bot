@@ -17,6 +17,8 @@
 
 Performance telemetry is not an audit ledger: it must not contain Telegram user ids, usernames, chat ids, player text, callback data, SQL parameters, serialized state or raw exception messages. Use route/count/timing fields, validated deploy metadata and a small allowlist of terminal error categories instead.
 
+`0.3.12` Varenyk-mancer feeding reuses `CharacterCooldown` without a schema change. The short actor-owned preview stores the exact affordable applied rank/cost, effective stat and attuned-equipment snapshot, Shynok recovery windows, target/remort identities and expiry. Confirmation settles canonical resources but may commit only that stored plan; changed equipment/attunement/Shynok identity is stale, lost exact affordability is insufficient mana, and later regeneration cannot silently upgrade the rank. The recipient row is claimed and finalized with guarded JSON/timestamp CAS in the same transaction as mana spend, immediate recovery and receipt creation. Active status cannot refresh/extend/change rank even if its wait is manually cleared. Existing payloads settle through expiry before refeed/combat freeze, and durable combat cursors exclude only actual lease time. Duplicate/replay/losing CAS paths roll back without notification or achievement.
+
 ## Секрети
 - Bot token тільки в env/secret manager.
 - `.env` не комітити.

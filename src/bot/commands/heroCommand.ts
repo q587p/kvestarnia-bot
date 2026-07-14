@@ -59,6 +59,7 @@ export async function sendHero(
       activeDrink: result.activeDrink,
       activePriestBlessing: result.activePriestBlessing,
       activeVarenykSated: result.activeVarenykSated,
+      varenykSatedAvailableAt: result.varenykSatedAvailableAt,
       satedRecovery: result.satedRecovery,
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue

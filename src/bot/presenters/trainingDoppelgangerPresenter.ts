@@ -214,7 +214,7 @@ function presentTrainingDoppelgangerState(input: {
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
     if (state.lastTurn.satedRecovery && (state.lastTurn.satedRecovery.hpRestored > 0 || state.lastTurn.satedRecovery.manaRestored > 0)) {
-      lines.push(`😋 Ситість відновила +${state.lastTurn.satedRecovery.hpRestored} HP і +${state.lastTurn.satedRecovery.manaRestored} мани.`);
+      lines.push(`😋 Ситість відновила ${presentSatedRecoveryParts(state.lastTurn.satedRecovery)}.`);
     }
     const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
@@ -260,6 +260,13 @@ function presentTrainingDoppelgangerState(input: {
   }
 
   return lines.join("\n");
+}
+
+function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
+  return [
+    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
+    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
+  ].join(" і ");
 }
 
 export function presentTrainingDoppelgangerJournal(

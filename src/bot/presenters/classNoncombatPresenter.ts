@@ -110,6 +110,12 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
       lines.push("", "Нових кишень поруч немає. Старі записи Корчма вже сховала до завтра.");
     }
   }
+  if (!result.actorBlocked && result.mode === "varenyk") {
+    const waitLines = presentVarenykStatusAndWaitLines(result);
+    if (waitLines.length > 0) {
+      lines.push("", ...waitLines);
+    }
+  }
   return lines.filter((line): line is string => line !== null).join("\n");
 }
 
@@ -118,17 +124,17 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     return presentBlocked("🍽️", "Миска не дійшла", result.reason, result.availableAt);
   }
   const self = result.targetTelegramUserId === null;
-  const downgraded = result.plan.rank < result.statRank
-    ? `Статистика обіцяла ранг ${result.statRank}, але мана накрила стіл лише на <b>${result.plan.rank}</b>.`
-    : null;
+  const rankLine = result.plan.rank < result.statRank
+    ? `Ранг за характеристиками: <b>${result.statRank}</b> · застосований доступний: <b>${result.plan.rank}</b>.`
+    : `Ранг за характеристиками й застосований: <b>${result.plan.rank}</b>.`;
   return [
     "🍽️ <b>Підтвердити годування?</b>",
     "",
     `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
-    `Ранг: <b>${result.plan.rank}</b> · ціна: <b>${result.plan.manaCost} мани</b>.`,
+    rankLine,
+    `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу: до <b>+${result.plan.immediateHp} HP</b> і <b>+1 мани</b>.`,
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · нова миска через <b>${result.recipientWaitMinutes} хв</b>.`,
-    downgraded,
     "",
     "Вареники вже пораховані. Відступити ще не соромно."
   ].filter((line): line is string => line !== null).join("\n");
@@ -143,11 +149,11 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     result.created ? "😋 <b>Ситий</b>" : "🧾 <b>Та сама миска вже врахована</b>",
     "",
     self
-      ? "Вареникомант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
+      ? "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
       : `${escapeHtml(result.action.actorName)} нагодував ${escapeHtml(result.action.targetName)}. Вареники не ставили зайвих питань.`,
     `Ранг <b>${result.action.rank}</b> · витрачено <b>${result.action.manaCost} мани</b>.`,
     result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
-      ? `Відновлено: <b>+${result.action.immediateHpRestored} HP</b> · <b>+${result.action.immediateManaRestored} мани</b>.`
+      ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
       : "Ресурси повні, зате статус акуратно загорнутий.",
     `Діє ще: <b>${formatRemaining(result.action.expiresAt)}</b>.`,
     `Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`
@@ -162,7 +168,7 @@ export function presentVarenykSatedTargetNotification(
     "",
     `${escapeHtml(result.action.actorName)} передав вареники рангу <b>${result.action.rank}</b>.`,
     result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
-      ? `Відновлено: <b>+${result.action.immediateHpRestored} HP</b> · <b>+${result.action.immediateManaRestored} мани</b>.`
+      ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
       : "Ресурси вже повні. Вареники вирішили працювати на перспективу.",
     `😋 «Ситий» ще <b>${formatRemaining(result.action.expiresAt)}</b>.`
   ].join("\n");
@@ -343,7 +349,7 @@ function presentBlocked(
       case "not-rogue":
         return "Це техніка злодія.";
       case "not-varenyk-mancer":
-        return "Це техніка Вареникоманта.";
+        return "Це техніка Вареник-манта.";
       case "level-locked":
         return "Класова дія відкривається з 3 рівня.";
       case "target-level-locked":
@@ -355,17 +361,29 @@ function presentBlocked(
       case "wrong-location":
         return "Корчемна географія змістилася: ви вже не в одній локації.";
       case "actor-blocked":
-        return "Спершу завершіть бій або рейд. Жрецька поміч не лізе поперед черги.";
+        return icon === "🍽️"
+          ? "Спершу завершіть бій, рейд або іншу пригоду. Миска почекає без образ."
+          : "Спершу завершіть бій або рейд. Жрецька поміч не лізе поперед черги.";
       case "target-blocked":
-        return "Ціль зараз зайнята боєм або рейдом. Допомога дочекається вільного віконця.";
+        return icon === "🍽️"
+          ? "Ціль зараз у бою, рейді або іншій пригоді. Вареники не лізуть у чужий хід."
+          : "Ціль зараз зайнята боєм або рейдом. Допомога дочекається вільного віконця.";
       case "actor-defeated":
-        return "При 0 HP кишені бачать вас першими.";
+        return icon === "🍽️"
+          ? "При 0 HP годувати не виходить. Спершу поверніться до тями."
+          : "При 0 HP кишені бачать вас першими.";
       case "target-defeated":
         return "При 0 HP вареники не воскресають. Спершу потрібне звичайне повернення до тями.";
       case "full-hp":
         return "HP уже повне. Мана лишається на місці.";
       case "insufficient-mana":
-        return "Мани не вистачає. Жрець суворо дивиться на порожню шкалу.";
+        return icon === "🍽️"
+          ? "Навіть найменша миска просить 8 мани."
+          : "Мани не вистачає. Жрець суворо дивиться на порожню шкалу.";
+      case "already-sated":
+        return availableAt
+          ? `Стан «Ситий» ще діє ${formatRemaining(availableAt)}. Нову миску поки не ставимо.`
+          : "Стан «Ситий» ще діє. Нову миску поки не ставимо.";
       case "already-blessed":
         return blessing
           ? `На цілі вже тримається благословення ще ${formatRemaining(blessing.expiresAt)}.`
@@ -475,6 +493,33 @@ function presentRogueOtherTargetsLines(availableAt: Date | null): string[] {
   return availableAt
     ? ["", `🕯️ Нова спроба по іншій цілі: пальці відсапуються ще ${formatRemaining(availableAt)}.`]
     : [];
+}
+
+function presentVarenykStatusAndWaitLines(
+  result: Extract<ClassNoncombatOpenResult, { state: "ready" }>
+): string[] {
+  const lines: string[] = [];
+  if (result.varenykSatedSelf) {
+    lines.push(`😋 Ситий — ${formatRemaining(new Date(result.varenykSatedSelf.expiresAt))}.`);
+  } else if (result.varenykSatedSelfAvailableAt) {
+    lines.push(`🍽️ Нагодувати себе знову через ${formatRemaining(result.varenykSatedSelfAvailableAt)}.`);
+  }
+  for (const target of result.targets) {
+    if (target.varenykSated) {
+      lines.push(`😋 ${escapeHtml(target.name)} — Ситий ще ${formatRemaining(new Date(target.varenykSated.expiresAt))}.`);
+    } else if (target.varenykSatedAvailableAt) {
+      lines.push(`🍽️ ${escapeHtml(target.name)} — нагодувати знову через ${formatRemaining(target.varenykSatedAvailableAt)}.`);
+    }
+  }
+  return lines;
+}
+
+function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): string {
+  const parts = [
+    ...(hpRestored > 0 ? [`<b>+${hpRestored} HP</b>`] : []),
+    ...(manaRestored > 0 ? [`<b>+${manaRestored} мани</b>`] : [])
+  ];
+  return `Відновлено: ${parts.join(" · ")}.`;
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {

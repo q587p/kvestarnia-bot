@@ -92,10 +92,25 @@ describe("hero presenter", () => {
       satedRecovery: { hpRestored: 0, manaRestored: 1 }
     });
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> · ранг <b>3</b> · ще <b>13 хв</b>");
-    expect(text).toContain("😋 Ситість відновила: <b>+0 HP</b> · <b>+1 мани</b>");
+    expect(text).toContain("😋 <b>Ситий</b> — <b>13 хв</b> · ранг <b>3</b>");
+    expect(text).toContain("😋 Ситість відновила: <b>+1 мани</b>");
+    expect(text).not.toContain("+0 HP");
     expect(presentHero(summary, { satedRecovery: { hpRestored: 0, manaRestored: 0 } }))
       .not.toContain("Ситість відновила");
+  });
+
+  it("shows the recipient wait without calling an expired status active", () => {
+    const text = presentHero(summary, {
+      activeVarenykSated: {
+        activationId: "expired-sated",
+        rank: 3,
+        expiresAt: new Date("2026-06-23T10:00:00.000Z")
+      },
+      varenykSatedAvailableAt: new Date("2026-06-23T11:33:00.000Z")
+    });
+
+    expect(text).toContain("🍽️ Нагодувати знову через <b>93 хв</b>");
+    expect(text).not.toContain("😋 <b>Ситий</b>");
   });
 
   it("shows an active cosmetic title separately from the generated title", () => {

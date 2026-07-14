@@ -20,6 +20,7 @@ export function presentHero(
     activeDrink?: HeroActiveDrink | null;
     activePriestBlessing?: HeroActivePriestBlessing | null;
     activeVarenykSated?: HeroActiveVarenykSated | null;
+    varenykSatedAvailableAt?: Date | null;
     satedRecovery?: { hpRestored: number; manaRestored: number } | null;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
@@ -66,11 +67,19 @@ export function presentHero(
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
   const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
-  const activeVarenykSatedLine = presentActiveVarenykSated(options.activeVarenykSated ?? null);
+  const activeVarenykSated = options.activeVarenykSated &&
+    options.activeVarenykSated.expiresAt.getTime() > Date.now()
+    ? options.activeVarenykSated
+    : null;
+  const activeVarenykSatedLine = presentActiveVarenykSated(activeVarenykSated);
+  const varenykSatedWaitLine = !activeVarenykSated && options.varenykSatedAvailableAt
+    ? `🍽️ Нагодувати знову через <b>${formatRemainingMinutes(options.varenykSatedAvailableAt)}</b>.`
+    : null;
   const activeStatusLines = [
     activeDrinkLine,
     activePriestBlessingLine,
     activeVarenykSatedLine,
+    varenykSatedWaitLine,
     ...presentEquipmentAttunementLines(summary)
   ]
     .filter((line): line is string => Boolean(line));
@@ -90,7 +99,7 @@ export function presentHero(
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
     ...(options.satedRecovery && (options.satedRecovery.hpRestored > 0 || options.satedRecovery.manaRestored > 0)
-      ? [`😋 Ситість відновила: <b>+${options.satedRecovery.hpRestored} HP</b> · <b>+${options.satedRecovery.manaRestored} мани</b>.`]
+      ? [`😋 Ситість відновила: ${presentSatedRecoveryParts(options.satedRecovery)}.`]
       : []),
     ...resourceRecoveryLines,
     ...(activeStatusLines.length > 0 ? ["", ...activeStatusLines] : []),
@@ -164,8 +173,15 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
 
 function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
   return sated
-    ? `😋 Стан: <b>Ситий</b> · ранг <b>${sated.rank}</b> · ще <b>${formatRemainingMinutes(sated.expiresAt)}</b>.`
+    ? `😋 <b>Ситий</b> — <b>${formatRemainingMinutes(sated.expiresAt)}</b> · ранг <b>${sated.rank}</b>.`
     : null;
+}
+
+function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
+  return [
+    ...(recovery.hpRestored > 0 ? [`<b>+${recovery.hpRestored} HP</b>`] : []),
+    ...(recovery.manaRestored > 0 ? [`<b>+${recovery.manaRestored} мани</b>`] : [])
+  ].join(" · ");
 }
 
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {

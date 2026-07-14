@@ -841,7 +841,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           tx,
           characterId: participant.characterId,
           activationId: participant.varenykSated.activationId,
-          now: new Date(participant.varenykSated.cursorAt)
+          now: input.now,
+          outsideRemainderMs: participant.varenykSated.outsideRemainderMs
         });
       }
 

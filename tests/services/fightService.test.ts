@@ -908,6 +908,54 @@ describe("FightService", () => {
     expect(dailyActions.createCount).toBe(0);
   });
 
+  it("persists the Sated pulse in an ordinary persistent PvE turn and its turn log", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.9, 0.9, 0.9])
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected active persistent fight.");
+    }
+    const state = started.session.state;
+    state.hero.hp -= 2;
+    state.hero.mana = 0;
+    state.varenykSated = {
+      version: 1,
+      activationId: "pve-sated",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: addSeconds(fixedClock(), 13 * 60).toISOString(),
+      cursorAt: addSeconds(fixedClock(), -60).toISOString(),
+      leaseStartedAt: addSeconds(fixedClock(), -60).toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    await sessions.updateById(started.session.id, { state, status: "active" });
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "defend"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.lastTurn?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+      expect(result.session.state?.turnLog?.at(-1)?.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+      expect(result.session.state?.varenykSated?.pulseIds).toEqual([
+        `pve-sated:persistent-pve:${started.session.id}:1:${started.session.characterId}`
+      ]);
+    }
+  });
+
   it("freezes monster context and bark state when a persistent fight starts", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -3288,7 +3336,7 @@ describe("FightService", () => {
     expect(recovered.fightReward?.reward.xp).toBe(7);
   });
 
-  it("claims a persistent fight reward when the final monster response drops the hero to zero", async () => {
+  it("claims a persistent fight reward without a response from the defeated final monster", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3317,7 +3365,7 @@ describe("FightService", () => {
     expect(result.state).toBe("updated");
     if (result.state === "updated") {
       expect(result.session.status).toBe("won");
-      expect(result.session.state?.hero.hp).toBe(0);
+      expect(result.session.state?.hero.hp).toBe(1);
       expect(result.fightReward?.state).toBe("claimed");
     }
     const rewardRecords = dailyActions.records.filter(

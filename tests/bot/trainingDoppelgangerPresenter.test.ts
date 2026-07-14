@@ -53,6 +53,29 @@ describe("training doppelganger presenter", () => {
     expect(text).not.toContain("<b>Мандрівник</b>");
   });
 
+  it("omits zero-valued Sated recovery components", () => {
+    const character = buildCharacter();
+    const text = presentTrainingDoppelganger({
+      state: "active",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          satedRecovery: { hpRestored: 0, manaRestored: 1 }
+        }
+      })
+    });
+
+    expect(text).toContain("😋 Ситість відновила +1 мани.");
+    expect(text).not.toContain("+0 HP");
+  });
+
   it("renders a training battle journal page", () => {
     const character = buildCharacter();
     const text = presentTrainingDoppelgangerJournal({

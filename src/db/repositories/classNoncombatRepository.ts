@@ -1,6 +1,6 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { RoguePickpocketOutcome } from "../../domain/noncombat/classNoncombatTechniques";
-import type { VarenykSatedPayloadV1 } from "../../domain/noncombat/varenykSatedSupport";
+import type { VarenykSatedPayloadV1, VarenykSatedPlan } from "../../domain/noncombat/varenykSatedSupport";
 
 export interface NoncombatTargetRecord {
   telegramUserId: bigint;
@@ -32,6 +32,8 @@ export interface NoncombatActionSnapshot {
   roguePickpocketCooldownAvailableAt: Date | null;
   varenykSatedSelfAvailableAt: Date | null;
   varenykSatedSelf: VarenykSatedPayloadV1 | null;
+  varenykStatRank: number | null;
+  varenykPlan: VarenykSatedPlan | null;
 }
 
 export interface PriestAidRecord {
@@ -102,6 +104,18 @@ export interface VarenykSatedStatusRecord {
   hpRestored: number;
   manaRestored: number;
 }
+
+export type VarenykSatedPreviewRepositoryResult =
+  | {
+      state: "saved";
+      statRank: number;
+      plan: VarenykSatedPlan;
+    }
+  | {
+      state: "blocked";
+      reason: NoncombatGateReason;
+      availableAt?: Date;
+    };
 
 export type NoncombatGateReason =
   | "no-character"
@@ -176,7 +190,14 @@ export interface ClassNoncombatRepository {
 
   getSnapshotForTelegramUser(
     telegramUserId: bigint,
-    input: { activeSince: Date; page: number; pageSize: number; now: Date; rogueAttemptedLocalDate?: string }
+    input: {
+      activeSince: Date;
+      page: number;
+      pageSize: number;
+      now: Date;
+      mode: "priest" | "rogue" | "varenyk";
+      rogueAttemptedLocalDate?: string;
+    }
   ): Promise<NoncombatActionSnapshot | null>;
 
   getActivePriestBlessingForTelegramUser(
@@ -191,7 +212,8 @@ export interface ClassNoncombatRepository {
 
   settleVarenykSatedForTelegramUser(
     telegramUserId: bigint,
-    now: Date
+    now: Date,
+    knownCharacterId?: string
   ): Promise<VarenykSatedStatusRecord | null>;
 
   saveVarenykSatedPreview(
@@ -205,7 +227,7 @@ export interface ClassNoncombatRepository {
       now: Date;
       expiresAt: Date;
     }
-  ): Promise<boolean>;
+  ): Promise<VarenykSatedPreviewRepositoryResult>;
 
   isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean>;
 

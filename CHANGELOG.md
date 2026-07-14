@@ -15,12 +15,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Added rewardless first fresh self-feed and first fresh other-feed achievements plus local-only `/dev_reset_varenyk_sated` QA support.
 
 ### Persistence and combat
-- Reused `CharacterCooldown` without a schema migration for a versioned recipient-global activation/wait/receipt and a short server-owned preview proof. Commit revalidates lives, presence, normalized location, blocking flows, resources, cooldown and preview identity in one transaction; duplicate, stale, forged and racing confirmations cannot duplicate spend, recovery, notification or achievements.
-- Outside combat, complete eligible minutes lazily grant capped `+1 HP / +1 mana`; the durable cursor advances while full and discards combat-lease time. Stored persistent PvE, multi-enemy PvE, Doppelganger, turn-based duel and Big Barrel states freeze the activation and grant at most one post-action pulse per own durable turn/round identity. Quick duels receive no synthetic pulse.
-- A fresh feed after a genuinely ended, shortened or cleared recipient wait replaces the single activation, refreshing duration and rank without parallel stacking. Recipient remort clears old-life state; actor remort does not cancel another recipient's committed activation.
+- Reused `CharacterCooldown` without a schema migration for a versioned recipient-global activation/wait/receipt and a short server-owned preview proof. Preview binds exact stat/applied rank, cost, effective stats, attuned equipment, Shynok recovery windows, target lives and expiry; confirmation can commit only that plan, never silently upgrade after later regeneration, and fails without mutation on lost affordability or canonical drift.
+- Outside combat, complete eligible minutes lazily grant capped `+1 HP / +1 mana`; guarded Character/Cooldown CAS settlement advances the cursor while full, settles through expiry before refeed/freeze and excludes only actual combat-lease time. Stored persistent PvE, multi-enemy PvE, Doppelganger, turn-based duel and Big Barrel states grant at most one pulse after the owner's committed action/spend and before the following hostile response. Quick duels receive no synthetic pulse.
+- Active `😋 Ситий` cannot stack, refresh, extend or change rank even when its recipient wait is manually cleared. A new activation requires both expired status and a genuinely ended 93-minute wait. Recipient remort clears old-life state; actor remort does not cancel another recipient's committed activation.
 
 ### Compatibility
-- Priest healing/blessing, Shynok recovery, ordinary passive regeneration, combat rewards and stored journals keep their existing contracts. No food/cooking engine, item/economy change, scheduler, rollout flag, location, Prisma model or migration was added.
+- Priest healing/blessing and Rogue adventure gates retain their pre-release behavior; status-absent Hero and non-Varenyk class-support reads avoid heavyweight Sated fan-out. Shynok recovery, ordinary passive regeneration, combat rewards and stored journals keep their existing contracts. No food/cooking engine, item/economy change, scheduler, rollout flag, location, Prisma model or migration was added.
 
 ## [0.3.11] - 12026-07-14 - Fight Turn and Daily Korchma Read-Path Reduction
 

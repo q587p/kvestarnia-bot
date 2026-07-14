@@ -115,12 +115,16 @@ export class HeroService {
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<HeroLookupResult> {
     const now = this.clock();
-    const satedSettlement = await this.classNoncombat?.settleVarenykSatedForTelegramUser(telegramUserId, now) ?? null;
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
     }
+    const satedSettlement = await this.classNoncombat?.settleVarenykSatedForTelegramUser(
+      telegramUserId,
+      now,
+      character.id
+    ) ?? null;
 
     const [
       inventoryRows,

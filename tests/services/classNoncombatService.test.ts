@@ -9,8 +9,13 @@ import type {
   RoguePickpocketAttemptRecord,
   RoguePickpocketRepositoryResult,
   RogueRetaliationClaimResult,
+  VarenykSatedPreviewRepositoryResult,
   VarenykSatedRepositoryResult
 } from "../../src/db/repositories/classNoncombatRepository";
+import {
+  buildVarenykSatedPlan,
+  getAffordableVarenykSatedPlan
+} from "../../src/domain/noncombat/varenykSatedSupport";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   CharacterEquipmentRecord,
@@ -49,71 +54,6 @@ describe("ClassNoncombatService", () => {
       durationMinutes: 13,
       recipientWaitMinutes: 93
     });
-  });
-
-  it("uses only attuned equipment stats when planning the Varenyk rank", async () => {
-    const repository = new FakeClassNoncombatRepository({
-      actor: varenyk({
-        manaCurrent: 20,
-        statsJson: { intelligence: 9, charisma: 9 }
-      })
-    });
-    const tuningEquipment = new FakeEquipmentRepository([
-      snapshotFor(actorTelegramUserId, [
-        equipmentRow({
-          characterId: "actor",
-          itemId: "item.stamp-of-minor-authority",
-          attunement: {
-            state: "tuning",
-            strength: "weak",
-            startedAt: now,
-            readyAt: new Date(now.getTime() + 13 * 60_000)
-          }
-        })
-      ])
-    ]);
-    const attunedEquipment = new FakeEquipmentRepository([
-      snapshotFor(actorTelegramUserId, [
-        equipmentRow({
-          characterId: "actor",
-          itemId: "item.stamp-of-minor-authority",
-          attunement: {
-            state: "attuned",
-            strength: "weak",
-            startedAt: new Date(now.getTime() - 13 * 60_000),
-            readyAt: now
-          }
-        })
-      ])
-    ]);
-
-    const tuning = await new ClassNoncombatService(
-      repository,
-      () => now,
-      new FakeRandomSource([0]),
-      undefined,
-      tuningEquipment
-    ).previewVarenykSatedForTelegramUser(actorTelegramUserId, {
-      targetTelegramUserId: null,
-      expectedActorRemortCount: 0,
-      expectedTargetRemortCount: 0,
-      page: 0
-    });
-    const attuned = await new ClassNoncombatService(
-      repository,
-      () => now,
-      new FakeRandomSource([0]),
-      undefined,
-      attunedEquipment
-    ).previewVarenykSatedForTelegramUser(actorTelegramUserId, {
-      targetTelegramUserId: null,
-      expectedActorRemortCount: 0,
-      expectedTargetRemortCount: 0,
-      page: 0
-    });
-
-    expect(tuning).toMatchObject({ state: "preview", statRank: 1, plan: { rank: 1, manaCost: 8 } });
-    expect(attuned).toMatchObject({ state: "preview", statRank: 2, plan: { rank: 2, manaCost: 12 } });
   });
 
   it("awards Varenyk achievements only for a fresh durable completion", async () => {
@@ -500,6 +440,21 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("does not settle or query Sated rows when opening Priest and Rogue support", async () => {
+    const priestRepository = new FakeClassNoncombatRepository({ actor: priest() });
+    const rogueRepository = new FakeClassNoncombatRepository({ actor: rogue() });
+
+    await new ClassNoncombatService(priestRepository, () => now, new FakeRandomSource([0]))
+      .openForTelegramUser(actorTelegramUserId, "priest");
+    await new ClassNoncombatService(rogueRepository, () => now, new FakeRandomSource([0]))
+      .openForTelegramUser(actorTelegramUserId, "rogue");
+
+    expect(priestRepository.satedSettlementCalls).toBe(0);
+    expect(rogueRepository.satedSettlementCalls).toBe(0);
+    expect(priestRepository.lastSnapshotInput?.mode).toBe("priest");
+    expect(rogueRepository.lastSnapshotInput?.mode).toBe("rogue");
+  });
+
   it("opens Rogue target lists without loading effective equipment or Priest blessings", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 3, statsJson: { dexterity: 7, luck: 5 } }),
@@ -582,6 +537,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   lastClaimRetaliationInput: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1] | null = null;
   lastRetaliationDuelInput: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1] | null = null;
   readonly activeBlessingLookupTelegramUserIds: bigint[] = [];
+  satedSettlementCalls = 0;
 
   private readonly actor: CharacterRecord;
   private readonly target: CharacterRecord;
@@ -589,6 +545,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   private readonly blessResult?: PriestBlessRepositoryResult;
   private readonly pickpocketResult?: RoguePickpocketRepositoryResult;
   private readonly satedResult?: VarenykSatedRepositoryResult;
+  private readonly satedPreviewResult?: VarenykSatedPreviewRepositoryResult;
   private readonly actorBlocked: boolean;
   private readonly activeBlessings: Map<bigint, PriestBlessingRecord>;
 
@@ -599,6 +556,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     blessResult?: PriestBlessRepositoryResult;
     pickpocketResult?: RoguePickpocketRepositoryResult;
     satedResult?: VarenykSatedRepositoryResult;
+    satedPreviewResult?: VarenykSatedPreviewRepositoryResult;
     actorBlocked?: boolean;
     activeBlessings?: Map<bigint, PriestBlessingRecord>;
   } = {}) {
@@ -608,6 +566,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.blessResult = options.blessResult;
     this.pickpocketResult = options.pickpocketResult;
     this.satedResult = options.satedResult;
+    this.satedPreviewResult = options.satedPreviewResult;
     this.actorBlocked = options.actorBlocked ?? false;
     this.activeBlessings = options.activeBlessings ?? new Map<bigint, PriestBlessingRecord>();
   }
@@ -640,7 +599,9 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       locationName: "Перед Корчмою",
       priestBlessCooldownAvailableAt: null,
       priestSelfBlessAvailableAt: null,
-      roguePickpocketCooldownAvailableAt: null
+      roguePickpocketCooldownAvailableAt: null,
+      varenykStatRank: null,
+      varenykPlan: null
     });
   }
 
@@ -650,11 +611,25 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   }
 
   settleVarenykSatedForTelegramUser() {
+    this.satedSettlementCalls += 1;
     return Promise.resolve(null);
   }
 
   saveVarenykSatedPreview() {
-    return Promise.resolve(true);
+    if (this.satedPreviewResult) {
+      return Promise.resolve(this.satedPreviewResult);
+    }
+    const stats = this.actor.statsJson as { intelligence?: unknown; charisma?: unknown };
+    const statPlan = buildVarenykSatedPlan({
+      effectiveIntelligence: typeof stats.intelligence === "number" ? stats.intelligence : 0,
+      effectiveCharisma: typeof stats.charisma === "number" ? stats.charisma : 0,
+      level: this.actor.level
+    });
+    const statRank = statPlan.rank;
+    const plan = getAffordableVarenykSatedPlan(statRank, this.actor.manaCurrent);
+    return Promise.resolve(plan
+      ? { state: "saved" as const, statRank, plan }
+      : { state: "blocked" as const, reason: "insufficient-mana" as const });
   }
 
   completeVarenykSated(): ReturnType<ClassNoncombatRepository["completeVarenykSated"]> {

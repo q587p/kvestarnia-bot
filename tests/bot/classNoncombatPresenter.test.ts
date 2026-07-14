@@ -59,8 +59,8 @@ describe("class noncombat presenter", () => {
       durationMinutes: 13,
       recipientWaitMinutes: 93
     } as never);
-    expect(preview).toContain("Ранг: <b>3</b> · ціна: <b>16 мани</b>");
-    expect(preview).toContain("Статистика обіцяла ранг 5");
+    expect(preview).toContain("Ранг за характеристиками: <b>5</b> · застосований доступний: <b>3</b>");
+    expect(preview).toContain("Точна ціна: <b>16 мани</b>");
 
     const completed = {
       state: "completed",
@@ -80,6 +80,30 @@ describe("class noncombat presenter", () => {
     } as never;
     expect(presentVarenykSatedResult(completed)).not.toContain("Відновлено:");
     expect(presentVarenykSatedTargetNotification(completed)).not.toContain("Відновлено:");
+  });
+
+  it("uses Varenyk-specific blockers and canonical active/wait wording", () => {
+    const blocked = presentVarenykSatedResult({
+      state: "blocked",
+      reason: "actor-blocked"
+    } as never);
+    const active = presentVarenykSatedResult({
+      state: "blocked",
+      reason: "already-sated",
+      availableAt: new Date("2026-07-03T09:13:00.000Z")
+    } as never);
+    const wait = presentVarenykSatedResult({
+      state: "blocked",
+      reason: "target-cooldown",
+      availableAt: new Date("2026-07-03T10:33:00.000Z")
+    } as never);
+
+    expect(blocked).toContain("Миска почекає");
+    expect(blocked).not.toContain("Жрець");
+    expect(blocked).not.toContain("злодій");
+    expect(active).toContain("Стан «Ситий» ще діє 13 хвилин");
+    expect(wait).toContain("нагодувати знову через 93 хвилини");
+    expect(wait).not.toContain("ще пам’ятає");
   });
 
   it("keeps the Priest target prompt when active nearby targets exist", () => {

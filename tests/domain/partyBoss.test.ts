@@ -11,7 +11,7 @@ const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
 
 describe("party boss reducer", () => {
-  it("grants one Sated pulse per eligible Big Barrel participant after the round", () => {
+  it("grants one Sated pulse after the participant action and before Big Barrel retaliation", () => {
     const startedAt = new Date("2026-07-14T10:00:00.000Z");
     const state = createPartyBossState({
       partySessionId: "big-barrel-sated",
@@ -27,6 +27,8 @@ describe("party boss reducer", () => {
       rank: 2,
       expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
       cursorAt: startedAt.toISOString(),
+      leaseStartedAt: startedAt.toISOString(),
+      outsideRemainderMs: 0,
       pulseIds: []
     };
 
@@ -38,6 +40,7 @@ describe("party boss reducer", () => {
     });
 
     expect(resolved.round.actions[0]?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(resolved.round.actions[0]?.hpAfter).toBe(21);
     expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);

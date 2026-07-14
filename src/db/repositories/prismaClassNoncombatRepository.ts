@@ -42,6 +42,7 @@ import {
   parseVarenykSatedPayload,
   settleVarenykSatedOutsideCombat,
   VARENYK_SATED_DURATION_MINUTES,
+  VARENYK_SATED_MANA_COSTS,
   VARENYK_SATED_RECIPIENT_WAIT_MINUTES,
   VARENYK_SATED_PREVIEW_KEY,
   VARENYK_SATED_RULES_VERSION,
@@ -78,7 +79,9 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     telegramUserId: bigint,
     input: Parameters<ClassNoncombatRepository["getSnapshotForTelegramUser"]>[1]
   ): Promise<NoncombatActionSnapshot | null> {
-    const actor = await findCharacter(this.prisma, telegramUserId);
+    const actor = input.mode === "varenyk"
+      ? await findSatedCharacter(this.prisma, telegramUserId)
+      : await findCharacter(this.prisma, telegramUserId);
     if (!actor) {
       return null;
     }
@@ -87,16 +90,22 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     const locationId = normalizePresenceLocationId(actor.user.lastSeenLocationId);
     const [rawTargets, attemptedRogueTargetIds, pickpocketCooldown] = await Promise.all([
       listActiveTargets(this.prisma, actor.id, locationId, input.activeSince),
-      input.rogueAttemptedLocalDate
+      input.mode === "rogue" && input.rogueAttemptedLocalDate
         ? listRogueAttemptedTargetIds(this.prisma, actor.id, input.rogueAttemptedLocalDate)
         : Promise.resolve([]),
-      findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
+      input.mode === "rogue"
+        ? findCooldown(this.prisma, actor.id, ROGUE_PICKPOCKET_COOLDOWN_KEY)
+        : Promise.resolve(null)
     ]);
     const attemptedRogueTargetIdSet = new Set(attemptedRogueTargetIds);
     const targetIds = [actor.id, ...rawTargets.map((target) => target.characterId)];
     const [blessAvailableAtByTargetId, satedByTargetId] = await Promise.all([
-      listPriestBlessAvailableAtByTargetId(this.prisma, actor.id, targetIds, input.now),
-      listVarenykSatedByTargetId(this.prisma, targetIds, input.now)
+      input.mode === "priest"
+        ? listPriestBlessAvailableAtByTargetId(this.prisma, actor.id, targetIds, input.now)
+        : Promise.resolve(new Map<string, Date>()),
+      input.mode === "varenyk"
+        ? listVarenykSatedByTargetId(this.prisma, targetIds, input.now)
+        : Promise.resolve(new Map<string, { availableAt: Date | null; payload: VarenykSatedPayloadV1 | null }>())
     ]);
     const targets = rawTargets.map((target) => ({
       ...target,
@@ -109,10 +118,26 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     const totalPages = Math.max(1, Math.ceil(targets.length / safePageSize));
     const safePage = clampPage(input.page, totalPages);
     const start = safePage * safePageSize;
+    const varenykPlanning = input.mode === "varenyk"
+      ? await getSatedCanonicalResources(this.prisma, actor as SatedCharacter, input.now)
+      : null;
+    const varenykStatPlan = varenykPlanning
+      ? buildVarenykSatedPlan({
+          effectiveIntelligence: varenykPlanning.summary.stats.intelligence,
+          effectiveCharisma: varenykPlanning.summary.stats.charisma,
+          level: varenykPlanning.summary.level
+        })
+      : null;
 
     return {
-      character: actorRecord,
-      actorBlocked: isBlocked(actor),
+      character: varenykPlanning
+        ? {
+            ...actorRecord,
+            hpCurrent: varenykPlanning.regeneration.resources.hpCurrent,
+            manaCurrent: varenykPlanning.regeneration.resources.manaCurrent
+          }
+        : actorRecord,
+      actorBlocked: input.mode === "varenyk" ? isVarenykBlocked(actor) : isBlocked(actor),
       targets: targets.slice(start, start + safePageSize),
       targetPage: safePage,
       targetTotalPages: totalPages,
@@ -124,7 +149,14 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         ? pickpocketCooldown.availableAt
         : null,
       varenykSatedSelfAvailableAt: satedByTargetId.get(actor.id)?.availableAt ?? null,
-      varenykSatedSelf: satedByTargetId.get(actor.id)?.payload ?? null
+      varenykSatedSelf: satedByTargetId.get(actor.id)?.payload ?? null,
+      varenykStatRank: varenykStatPlan?.rank ?? null,
+      varenykPlan: varenykStatPlan && varenykPlanning
+        ? getAffordableVarenykSatedPlan(
+            varenykStatPlan.rank,
+            varenykPlanning.regeneration.resources.manaCurrent
+          )
+        : null
     };
   }
 
@@ -168,15 +200,24 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
   async settleVarenykSatedForTelegramUser(
     telegramUserId: bigint,
-    now: Date
+    now: Date,
+    knownCharacterId?: string
   ) {
+    if (knownCharacterId) {
+      const activeRow = await findCooldown(this.prisma, knownCharacterId, VARENYK_SATED_STATUS_KEY);
+      if (!activeRow) {
+        return null;
+      }
+    }
     return this.prisma.$transaction(async (tx) => {
-      const character = await findSatedCharacter(tx, telegramUserId);
+      const character = knownCharacterId
+        ? await findSatedCharacterById(tx, knownCharacterId)
+        : await findSatedCharacter(tx, telegramUserId);
       if (!character) {
         return null;
       }
-      const cooldown = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
-      const payload = parseVarenykSatedPayload(cooldown?.resultJson);
+      const statusRow = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
+      const payload = parseVarenykSatedPayload(statusRow?.resultJson);
       const remortCount = getIncludedRemortCount(character);
       if (!payload || payload.recipientRemortCount !== remortCount || payload.recipientCharacterId !== character.id) {
         return null;
@@ -192,7 +233,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           manaMax: canonical.regeneration.resources.manaMax
         },
         now,
-        combatBlocked: isBlocked(character)
+        combatBlocked: Boolean(character.activeCombatLease)
       });
       const safeSettlement = canonical.regeneration.resources.hpCurrent <= 0 && settlement.hpRestored > 0
         ? {
@@ -231,14 +272,17 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         }
       }
       if (safeSettlement.payload.cursorAt !== payload.cursorAt) {
-        await tx.characterCooldown.updateMany({
+        const updated = await tx.characterCooldown.updateMany({
           where: {
-            id: cooldown!.id,
-            availableAt: cooldown!.availableAt,
-            resultJson: { equals: cooldown!.resultJson ?? Prisma.JsonNull }
+            id: statusRow!.id,
+            availableAt: statusRow!.availableAt,
+            resultJson: { equals: statusRow!.resultJson ?? Prisma.JsonNull }
           },
           data: { resultJson: toJson(safeSettlement.payload) }
         });
+        if (updated.count !== 1) {
+          throw new SatedClaimRaceError();
+        }
       }
       if (safeSettlement.hpRestored > 0) {
         await this.hpRecoveryProducer.record(
@@ -260,7 +304,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
   async saveVarenykSatedPreview(
     actorTelegramUserId: bigint,
     input: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1]
-  ): Promise<boolean> {
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const actor = await findSatedCharacter(tx, actorTelegramUserId);
       const target = !actor
@@ -268,8 +312,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         : input.targetTelegramUserId === null
           ? actor
           : await findSatedCharacter(tx, input.targetTelegramUserId);
-      if (!actor || validateSharedTarget(actor, target, input, { allowSelf: true })) {
-        return false;
+      if (!actor || validateSharedTarget(actor, target, input, { allowSelf: true, blockAdventure: true })) {
+        return { state: "blocked" as const, reason: "stale" as const };
       }
       if (
         actor.classId !== VARENYK_MANCER_CLASS_ID ||
@@ -277,7 +321,45 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         actor.hpCurrent <= 0 ||
         target!.hpCurrent <= 0
       ) {
-        return false;
+        return { state: "blocked" as const, reason: "stale" as const };
+      }
+      const existing = await findCooldown(tx, target!.id, VARENYK_SATED_STATUS_KEY);
+      const existingPayload = parseVarenykSatedPayload(existing?.resultJson);
+      if (isVarenykSatedActive(
+        existingPayload,
+        target!.id,
+        getIncludedRemortCount(target!),
+        input.now
+      )) {
+        return {
+          state: "blocked" as const,
+          reason: "already-sated" as const,
+          availableAt: new Date(existingPayload.expiresAt)
+        };
+      }
+      if (existing && existing.availableAt > input.now) {
+        return {
+          state: "blocked" as const,
+          reason: "target-cooldown" as const,
+          availableAt: existing.availableAt
+        };
+      }
+      const actorContext = await settleSatedForCommit(tx, actor, input.now);
+      if (actor.id !== target!.id) {
+        await settleSatedForCommit(tx, target!, input.now);
+      }
+      const canonical = actorContext.canonical;
+      const statPlan = buildVarenykSatedPlan({
+        effectiveIntelligence: canonical.summary.stats.intelligence,
+        effectiveCharisma: canonical.summary.stats.charisma,
+        level: canonical.summary.level
+      });
+      const plan = getAffordableVarenykSatedPlan(
+        statPlan.rank,
+        canonical.regeneration.resources.manaCurrent
+      );
+      if (!plan) {
+        return { state: "blocked" as const, reason: "insufficient-mana" as const };
       }
       const payload: SatedPreviewPayload = {
         kind: "varenyk-sated-preview-v1",
@@ -288,6 +370,15 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         recipientCharacterId: target!.id,
         recipientRemortCount: getIncludedRemortCount(target!),
         targetTelegramUserId: input.targetTelegramUserId?.toString() ?? null,
+        statRank: statPlan.rank,
+        plan,
+        effectiveStats: {
+          intelligence: canonical.summary.stats.intelligence,
+          charisma: canonical.summary.stats.charisma,
+          level: canonical.summary.level,
+          equipmentItemIds: canonical.equipmentItemIds
+        },
+        recoveryWindows: canonical.recoveryWindows,
         expiresAt: input.expiresAt.toISOString()
       };
       await tx.characterCooldown.upsert({
@@ -300,7 +391,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         },
         update: { availableAt: input.expiresAt, resultJson: toJson(payload) }
       });
-      return true;
+      return { state: "saved" as const, statRank: statPlan.rank, plan };
     });
   }
 
@@ -557,7 +648,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         const target = input.targetTelegramUserId === null
           ? actor
           : await findSatedCharacter(tx, input.targetTelegramUserId);
-        const gate = validateSharedTarget(actor, target, input, { allowSelf: true });
+        const gate = validateSharedTarget(actor, target, input, { allowSelf: true, blockAdventure: true });
         if (gate) {
           return gate;
         }
@@ -586,32 +677,42 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         if (!preview || !matchesSatedPreview(preview, input, actor, target!)) {
           return { state: "blocked" as const, reason: "stale" as const, actor: actorRecord, target: targetRecord };
         }
-        if (existing && existing.availableAt > input.now) {
+        const actorContext = await settleSatedForCommit(tx, actor, input.now);
+        const targetContext = actor.id === target!.id
+          ? actorContext
+          : await settleSatedForCommit(tx, target!, input.now);
+        const currentExisting = targetContext.cooldown;
+        const currentPayload = targetContext.payload;
+        if (isVarenykSatedActive(
+          currentPayload,
+          target!.id,
+          targetRecord.remortCount ?? 0,
+          input.now
+        )) {
+          return {
+            state: "blocked" as const,
+            reason: "already-sated" as const,
+            actor: toCharacterRecord(actorContext.character),
+            target: toCharacterRecord(targetContext.character),
+            availableAt: new Date(currentPayload.expiresAt)
+          };
+        }
+        if (currentExisting && currentExisting.availableAt > input.now) {
           return {
             state: "blocked" as const,
             reason: "target-cooldown" as const,
-            actor: actorRecord,
-            target: targetRecord,
-            availableAt: existing.availableAt
+            actor: toCharacterRecord(actorContext.character),
+            target: toCharacterRecord(targetContext.character),
+            availableAt: currentExisting.availableAt
           };
         }
-
-        const [actorCanonical, targetCanonical] = actor.id === target!.id
-          ? await getSatedCanonicalResources(tx, actor, input.now).then((value) => [value, value] as const)
-          : await Promise.all([
-              getSatedCanonicalResources(tx, actor, input.now),
-              getSatedCanonicalResources(tx, target!, input.now)
-            ]);
-        const statPlan = buildVarenykSatedPlan({
-          effectiveIntelligence: actorCanonical.summary.stats.intelligence,
-          effectiveCharisma: actorCanonical.summary.stats.charisma,
-          level: actorCanonical.summary.level
-        });
-        const affordablePlan = getAffordableVarenykSatedPlan(
-          statPlan.rank,
-          actorCanonical.regeneration.resources.manaCurrent
-        );
-        if (!affordablePlan) {
+        const actorCanonical = actorContext.canonical;
+        const targetCanonical = targetContext.canonical;
+        if (!matchesSatedPreviewPlan(preview, actorCanonical)) {
+          return { state: "blocked" as const, reason: "stale" as const, actor: actorRecord, target: targetRecord };
+        }
+        const exactPlan = preview.plan;
+        if (actorCanonical.regeneration.resources.manaCurrent < exactPlan.manaCost) {
           return { state: "blocked" as const, reason: "insufficient-mana" as const, actor: actorRecord, target: targetRecord };
         }
 
@@ -624,9 +725,13 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           actorCharacterId: actor.id,
           recipientCharacterId: target!.id
         });
-        if (existing) {
+        if (currentExisting) {
           const claimed = await tx.characterCooldown.updateMany({
-            where: { id: existing.id, availableAt: existing.availableAt },
+            where: {
+              id: currentExisting.id,
+              availableAt: currentExisting.availableAt,
+              resultJson: { equals: currentExisting.resultJson ?? Prisma.JsonNull }
+            },
             data: { availableAt, resultJson: claimJson }
           });
           if (claimed.count !== 1) {
@@ -638,39 +743,25 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           });
         }
 
-        let targetBase = {
+        const targetBase = {
           hp: targetCanonical.regeneration.resources.hpCurrent,
           hpMax: targetCanonical.regeneration.resources.hpMax,
           mana: targetCanonical.regeneration.resources.manaCurrent,
           manaMax: targetCanonical.regeneration.resources.manaMax
         };
-        if (existingPayload && isVarenykSatedActive(
-          existingPayload,
-          target!.id,
-          targetRecord.remortCount ?? 0,
-          input.now
-        )) {
-          targetBase = settleVarenykSatedOutsideCombat({
-            payload: existingPayload,
-            resources: targetBase,
-            now: input.now,
-            combatBlocked: false
-          }).resources;
-        }
-
-        const actorManaAfterSpend = actorCanonical.regeneration.resources.manaCurrent - affordablePlan.manaCost;
+        const actorManaAfterSpend = actorCanonical.regeneration.resources.manaCurrent - exactPlan.manaCost;
         const immediateBase = actor.id === target!.id
           ? { ...targetBase, mana: actorManaAfterSpend }
           : targetBase;
-        const immediate = applyVarenykSatedImmediateRecovery(immediateBase, affordablePlan);
+        const immediate = applyVarenykSatedImmediateRecovery(immediateBase, exactPlan);
         if (actor.id === target!.id) {
           const updated = await tx.character.updateMany({
             where: {
-              id: actor.id,
-              hpCurrent: actor.hpCurrent,
-              manaCurrent: actor.manaCurrent,
-              hpRegenAt: actor.hpRegenAt,
-              manaRegenAt: actor.manaRegenAt
+              id: actorContext.character.id,
+              hpCurrent: actorContext.character.hpCurrent,
+              manaCurrent: actorContext.character.manaCurrent,
+              hpRegenAt: actorContext.character.hpRegenAt,
+              manaRegenAt: actorContext.character.manaRegenAt
             },
             data: {
               hpCurrent: immediate.resources.hp,
@@ -685,11 +776,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         } else {
           const spent = await tx.character.updateMany({
             where: {
-              id: actor.id,
-              hpCurrent: actor.hpCurrent,
-              manaCurrent: actor.manaCurrent,
-              hpRegenAt: actor.hpRegenAt,
-              manaRegenAt: actor.manaRegenAt
+              id: actorContext.character.id,
+              hpCurrent: actorContext.character.hpCurrent,
+              manaCurrent: actorContext.character.manaCurrent,
+              hpRegenAt: actorContext.character.hpRegenAt,
+              manaRegenAt: actorContext.character.manaRegenAt
             },
             data: {
               hpCurrent: actorCanonical.regeneration.resources.hpCurrent,
@@ -701,11 +792,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           if (spent.count !== 1) throw new ResourceRaceError();
           const recovered = await tx.character.updateMany({
             where: {
-              id: target!.id,
-              hpCurrent: target!.hpCurrent,
-              manaCurrent: target!.manaCurrent,
-              hpRegenAt: target!.hpRegenAt,
-              manaRegenAt: target!.manaRegenAt
+              id: targetContext.character.id,
+              hpCurrent: targetContext.character.hpCurrent,
+              manaCurrent: targetContext.character.manaCurrent,
+              hpRegenAt: targetContext.character.hpRegenAt,
+              manaRegenAt: targetContext.character.manaRegenAt
             },
             data: {
               hpCurrent: immediate.resources.hp,
@@ -730,13 +821,13 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           actorRemortCount: actorRecord.remortCount ?? 0,
           recipientCharacterId: target!.id,
           recipientRemortCount: targetRecord.remortCount ?? 0,
-          rank: affordablePlan.rank,
-          manaCost: affordablePlan.manaCost,
+          rank: exactPlan.rank,
+          manaCost: exactPlan.manaCost,
           effectiveStats: {
-            intelligence: actorCanonical.summary.stats.intelligence,
-            charisma: actorCanonical.summary.stats.charisma,
-            level: actorCanonical.summary.level,
-            equipmentItemIds: actorCanonical.equipmentItemIds
+            intelligence: preview.effectiveStats.intelligence,
+            charisma: preview.effectiveStats.charisma,
+            level: preview.effectiveStats.level,
+            equipmentItemIds: [...preview.effectiveStats.equipmentItemIds]
           },
           startedAt: input.now.toISOString(),
           expiresAt: expiresAt.toISOString(),
@@ -756,13 +847,24 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             targetManaAfter: immediate.resources.mana
           }
         };
-        await tx.characterCooldown.update({
-          where: { characterId_key: { characterId: target!.id, key: VARENYK_SATED_STATUS_KEY } },
-          data: { availableAt, resultJson: toJson(payload) }
+        const persisted = await tx.characterCooldown.updateMany({
+          where: {
+            characterId: target!.id,
+            key: VARENYK_SATED_STATUS_KEY,
+            availableAt,
+            resultJson: { equals: claimJson }
+          },
+          data: { resultJson: toJson(payload) }
         });
-        await tx.characterCooldown.deleteMany({
+        if (persisted.count !== 1) {
+          throw new SatedClaimRaceError();
+        }
+        const previewDeleted = await tx.characterCooldown.deleteMany({
           where: { id: previewRow!.id, resultJson: { equals: previewRow!.resultJson ?? Prisma.JsonNull } }
         });
+        if (previewDeleted.count !== 1) {
+          throw new SatedClaimRaceError();
+        }
         await this.hpRecoveryProducer.record(
           tx,
           target!.id,
@@ -1145,7 +1247,7 @@ function validateSharedTarget(
     expectedTargetRemortCount: number;
     activeSince: Date;
   },
-  options: { allowSelf: boolean }
+  options: { allowSelf: boolean; blockAdventure?: boolean }
 ): { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord } | null {
   const actorRecord = toCharacterRecord(actor);
   if (!target) {
@@ -1169,10 +1271,11 @@ function validateSharedTarget(
   if (actor.id !== target.id && (!target.user.lastActionAt || target.user.lastActionAt < input.activeSince)) {
     return { state: "blocked", reason: "target-inactive", actor: actorRecord, target: targetRecord };
   }
-  if (isBlocked(actor)) {
+  const blocked = options.blockAdventure ? isVarenykBlocked : isBlocked;
+  if (blocked(actor)) {
     return { state: "blocked", reason: "actor-blocked", actor: actorRecord, target: targetRecord };
   }
-  if (isBlocked(target)) {
+  if (blocked(target)) {
     return { state: "blocked", reason: "target-blocked", actor: actorRecord, target: targetRecord };
   }
 
@@ -1322,7 +1425,17 @@ async function findSatedCharacter(
   });
 }
 
-async function getSatedCanonicalResources(tx: TxClient, character: SatedCharacter, now: Date) {
+async function findSatedCharacterById(
+  client: TxClient | PrismaClient,
+  characterId: string
+): Promise<SatedCharacter | null> {
+  return client.character.findUnique({
+    where: { id: characterId },
+    include: satedCharacterInclude
+  });
+}
+
+async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character: SatedCharacter, now: Date) {
   const localDates = character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
   const attunementActions = localDates.length > 0
     ? await tx.dailyAction.findMany({
@@ -1355,6 +1468,11 @@ async function getSatedCanonicalResources(tx: TxClient, character: SatedCharacte
         metadata: character.drinkState.metadataJson
       }
     : null;
+  const recoveryWindows = buildShynokRecoveryWindows(drink).map((window) => ({
+    startsAt: window.startsAt.toISOString(),
+    expiresAt: window.expiresAt.toISOString(),
+    multiplierBp: window.multiplierBp
+  }));
   const regeneration = applyPassiveResourceRegeneration({
     resources: {
       hpCurrent: summary.hpCurrent,
@@ -1371,9 +1489,111 @@ async function getSatedCanonicalResources(tx: TxClient, character: SatedCharacte
       stats: summary.stats
     },
     now,
-    multiplierWindows: buildShynokRecoveryWindows(drink)
+    multiplierWindows: recoveryWindows.map((window) => ({
+      startsAt: new Date(window.startsAt),
+      expiresAt: new Date(window.expiresAt),
+      multiplierBp: window.multiplierBp
+    }))
   });
-  return { summary, regeneration, equipmentItemIds: equippedItems.map((item) => item.id) };
+  return {
+    summary,
+    regeneration,
+    equipmentItemIds: equippedItems.map((item) => item.id).sort(),
+    recoveryWindows
+  };
+}
+
+async function settleSatedForCommit(
+  tx: TxClient,
+  character: SatedCharacter,
+  now: Date
+): Promise<{
+  character: SatedCharacter;
+  canonical: Awaited<ReturnType<typeof getSatedCanonicalResources>>;
+  cooldown: Awaited<ReturnType<typeof findCooldown>>;
+  payload: VarenykSatedPayloadV1 | null;
+}> {
+  const cooldown = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
+  const payload = parseVarenykSatedPayload(cooldown?.resultJson);
+  const canonical = await getSatedCanonicalResources(tx, character, now);
+  if (!cooldown || !payload || payload.recipientCharacterId !== character.id ||
+      payload.recipientRemortCount !== getIncludedRemortCount(character)) {
+    return { character, canonical, cooldown, payload: null };
+  }
+
+  const settlement = settleVarenykSatedOutsideCombat({
+    payload,
+    resources: {
+      hp: canonical.regeneration.resources.hpCurrent,
+      hpMax: canonical.regeneration.resources.hpMax,
+      mana: canonical.regeneration.resources.manaCurrent,
+      manaMax: canonical.regeneration.resources.manaMax
+    },
+    now,
+    combatBlocked: false
+  });
+  const safeSettlement = canonical.regeneration.resources.hpCurrent <= 0 && settlement.hpRestored > 0
+    ? { ...settlement, resources: { ...settlement.resources, hp: 0 }, hpRestored: 0 }
+    : settlement;
+  const hpRegenAt = safeSettlement.resources.hp >= safeSettlement.resources.hpMax
+    ? now
+    : canonical.regeneration.resources.hpRegenAt;
+  const manaRegenAt = safeSettlement.resources.mana >= safeSettlement.resources.manaMax
+    ? now
+    : canonical.regeneration.resources.manaRegenAt;
+  const resourceChanged = safeSettlement.resources.hp !== character.hpCurrent ||
+    safeSettlement.resources.mana !== character.manaCurrent ||
+    hpRegenAt?.getTime() !== character.hpRegenAt?.getTime() ||
+    manaRegenAt?.getTime() !== character.manaRegenAt?.getTime();
+  if (resourceChanged) {
+    const updated = await tx.character.updateMany({
+      where: {
+        id: character.id,
+        hpCurrent: character.hpCurrent,
+        manaCurrent: character.manaCurrent,
+        hpRegenAt: character.hpRegenAt,
+        manaRegenAt: character.manaRegenAt
+      },
+      data: {
+        hpCurrent: safeSettlement.resources.hp,
+        manaCurrent: safeSettlement.resources.mana,
+        hpRegenAt,
+        manaRegenAt
+      }
+    });
+    if (updated.count !== 1) {
+      throw new ResourceRaceError();
+    }
+  }
+  let nextCooldown = cooldown;
+  if (safeSettlement.payload.cursorAt !== payload.cursorAt) {
+    const nextJson = toJson(safeSettlement.payload);
+    const updated = await tx.characterCooldown.updateMany({
+      where: {
+        id: cooldown.id,
+        availableAt: cooldown.availableAt,
+        resultJson: { equals: cooldown.resultJson ?? Prisma.JsonNull }
+      },
+      data: { resultJson: nextJson }
+    });
+    if (updated.count !== 1) {
+      throw new SatedClaimRaceError();
+    }
+    nextCooldown = { ...cooldown, resultJson: safeSettlement.payload as unknown as Prisma.JsonValue };
+  }
+  const refreshed = resourceChanged
+    ? await findSatedCharacterById(tx, character.id)
+    : character;
+  if (!refreshed) {
+    throw new ResourceRaceError();
+  }
+  const refreshedCanonical = await getSatedCanonicalResources(tx, refreshed, now);
+  return {
+    character: refreshed,
+    canonical: refreshedCanonical,
+    cooldown: nextCooldown,
+    payload: safeSettlement.payload
+  };
 }
 
 interface SatedPreviewPayload {
@@ -1385,6 +1605,15 @@ interface SatedPreviewPayload {
   recipientCharacterId: string;
   recipientRemortCount: number;
   targetTelegramUserId: string | null;
+  statRank: number;
+  plan: import("../../domain/noncombat/varenykSatedSupport").VarenykSatedPlan;
+  effectiveStats: {
+    intelligence: number;
+    charisma: number;
+    level: number;
+    equipmentItemIds: string[];
+  };
+  recoveryWindows: Array<{ startsAt: string; expiresAt: string; multiplierBp: number }>;
   expiresAt: string;
 }
 
@@ -1403,12 +1632,54 @@ function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
     typeof value.recipientCharacterId !== "string" ||
     typeof value.recipientRemortCount !== "number" ||
     (value.targetTelegramUserId !== null && typeof value.targetTelegramUserId !== "string") ||
+    !Number.isInteger(value.statRank) ||
+    !isSatedPreviewRecord(value.plan) ||
+    !Number.isInteger(value.plan.rank) ||
+    !Number.isInteger(value.plan.manaCost) ||
+    !Number.isInteger(value.plan.immediateHp) ||
+    !Number.isInteger(value.plan.immediateMana) ||
+    !isSatedPreviewRecord(value.effectiveStats) ||
+    !Number.isInteger(value.effectiveStats.intelligence) ||
+    !Number.isInteger(value.effectiveStats.charisma) ||
+    !Number.isInteger(value.effectiveStats.level) ||
+    !Array.isArray(value.effectiveStats.equipmentItemIds) ||
+    !value.effectiveStats.equipmentItemIds.every((entry) => typeof entry === "string") ||
+    !Array.isArray(value.recoveryWindows) ||
+    !value.recoveryWindows.every((entry) =>
+      isSatedPreviewRecord(entry) &&
+      typeof entry.startsAt === "string" && Number.isFinite(Date.parse(entry.startsAt)) &&
+      typeof entry.expiresAt === "string" && Number.isFinite(Date.parse(entry.expiresAt)) &&
+      Number.isInteger(entry.multiplierBp)
+    ) ||
     typeof value.expiresAt !== "string" ||
     !Number.isFinite(Date.parse(value.expiresAt))
   ) {
     return null;
   }
   return value as unknown as SatedPreviewPayload;
+}
+
+function matchesSatedPreviewPlan(
+  preview: SatedPreviewPayload,
+  canonical: Awaited<ReturnType<typeof getSatedCanonicalResources>>
+): boolean {
+  const statPlan = buildVarenykSatedPlan({
+    effectiveIntelligence: canonical.summary.stats.intelligence,
+    effectiveCharisma: canonical.summary.stats.charisma,
+    level: canonical.summary.level
+  });
+  return preview.statRank === statPlan.rank &&
+    preview.effectiveStats.intelligence === canonical.summary.stats.intelligence &&
+    preview.effectiveStats.charisma === canonical.summary.stats.charisma &&
+    preview.effectiveStats.level === canonical.summary.level &&
+    preview.effectiveStats.equipmentItemIds.length === canonical.equipmentItemIds.length &&
+    preview.effectiveStats.equipmentItemIds.every((id, index) => id === canonical.equipmentItemIds[index]) &&
+    JSON.stringify(preview.recoveryWindows) === JSON.stringify(canonical.recoveryWindows) &&
+    preview.plan.rank >= 1 &&
+    preview.plan.rank <= preview.statRank &&
+    preview.plan.manaCost === VARENYK_SATED_MANA_COSTS[preview.plan.rank - 1] &&
+    preview.plan.immediateHp === 2 + preview.plan.rank &&
+    preview.plan.immediateMana === 1;
 }
 
 function matchesSatedPreview(
@@ -1650,7 +1921,11 @@ function getPresenceLocationQueryIds(locationId: string): string[] {
 }
 
 function isBlocked(character: IncludedCharacter): boolean {
-  return Boolean(character.activeCombatLease || character.user.currentRaidId || character.user.currentAdventureId);
+  return Boolean(character.activeCombatLease || character.user.currentRaidId);
+}
+
+function isVarenykBlocked(character: IncludedCharacter): boolean {
+  return Boolean(isBlocked(character) || character.user.currentAdventureId);
 }
 
 type IncludedCharacter = Character & {

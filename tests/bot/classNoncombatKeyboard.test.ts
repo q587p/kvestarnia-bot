@@ -135,7 +135,7 @@ describe("class noncombat keyboard", () => {
     const keyboard = buildClassNoncombatKeyboard({
       state: "ready",
       mode: "varenyk",
-      character: character({ classId: "class.varenyk-mancer", className: "Вареникомант" }),
+      character: character({ classId: "class.varenyk-mancer", className: "Вареник-мант" }),
       actorBlocked: false,
       locationName: "Перед Корчмою",
       targets: [
@@ -159,8 +159,36 @@ describe("class noncombat keyboard", () => {
     expect(buttonTexts(keyboard)).toEqual(expect.arrayContaining([
       "🍽️ Нагодувати себе",
       "🍽️ Голодний",
-      "😋 Ситий Сусід ситий"
+      "🍽️ Ситий Сусід — пауза"
     ]));
+  });
+
+  it("does not expose feeding while an active status survives a cleared wait", () => {
+    const keyboard = buildClassNoncombatKeyboard({
+      state: "ready",
+      mode: "varenyk",
+      character: character({ classId: "class.varenyk-mancer", className: "Вареник-мант" }),
+      actorBlocked: false,
+      locationName: "Перед Корчмою",
+      targets: [target({
+        name: "Ще Ситий",
+        canVarenykFeed: false,
+        varenykSatedAvailableAt: null,
+        varenykSated: {} as never
+      })],
+      targetPage: 0,
+      targetTotalPages: 1,
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: null,
+      varenykSatedSelfAvailableAt: null,
+      varenykSatedSelf: {} as never,
+      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 1 }
+    });
+
+    expect(buttonTexts(keyboard)).not.toContain("🍽️ Нагодувати себе");
+    expect(buttonTexts(keyboard)).not.toContain("🍽️ Ще Ситий");
+    expect(buttonTexts(keyboard)).toContain("😋 Ще Ситий — Ситий");
   });
 });
 

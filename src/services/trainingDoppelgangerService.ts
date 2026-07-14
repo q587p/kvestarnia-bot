@@ -43,7 +43,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
-import { applyVarenykSatedPulseToSoloCombat } from "../domain/noncombat/varenykSatedSupport";
+import { applyVarenykSatedPulseBeforeSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
@@ -261,6 +261,7 @@ export class TrainingDoppelgangerService {
     }
 
     const timeoutMode = getNextTrainingTimeoutMode(mode);
+    const committedTurn = session.state.turn;
 
     const resolved = resolveCombatTurn({
       state: session.state,
@@ -268,21 +269,19 @@ export class TrainingDoppelgangerService {
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+        state,
+        combatKind: "training-doppelganger",
+        sessionId: session.id,
+        committedTurn,
+        recipientCharacterId: session.characterId,
+        now
+      }),
       rng: this.rng
     });
-    const resolvedWithSated = resolved.ok
-      ? applyVarenykSatedPulseToSoloCombat({
-          state: resolved.state,
-          combatKind: "training-doppelganger",
-          sessionId: session.id,
-          committedTurn: session.state.turn,
-          recipientCharacterId: session.characterId,
-          now
-        })
-      : null;
-    const state = resolvedWithSated
+    const state = resolved.ok
       ? markCombatTurnTimeoutMode(
-          withTrainingTerminalCompletedAt(withNextTrainingTurnExpiry(recordCombatTimeout(resolvedWithSated, now), now), now),
+          withTrainingTerminalCompletedAt(withNextTrainingTurnExpiry(recordCombatTimeout(resolved.state, now), now), now),
           timeoutMode
         )
       : null;
@@ -720,11 +719,20 @@ export class TrainingDoppelgangerService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolved = resolveCombatTurn({
       state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+        state,
+        combatKind: "training-doppelganger",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      }),
       rng: this.rng
     });
 
@@ -749,16 +757,8 @@ export class TrainingDoppelgangerService {
       };
     }
 
-    const resolvedAt = this.clock();
     const resolvedState = withTrainingTerminalCompletedAt(
-      withNextTrainingTurnExpiry(resetCombatTimeout(applyVarenykSatedPulseToSoloCombat({
-        state: resolved.state,
-        combatKind: "training-doppelganger",
-        sessionId: currentSession.id,
-        committedTurn: input.turn,
-        recipientCharacterId: currentSession.characterId,
-        now: resolvedAt
-      })), resolvedAt),
+      withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), resolvedAt),
       resolvedAt
     );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
@@ -1009,9 +1009,9 @@ export class TrainingDoppelgangerService {
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
-      await this.combatSessions.releaseLeaseBySessionId?.(lookup.session.id);
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.session.id, this.clock());
     } else if (lookup.state === "missing-session") {
-      await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId);
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId, this.clock());
     } else if (lookup.state === "unsupported") {
       return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     } else {

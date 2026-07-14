@@ -95,7 +95,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
     });
   } else {
-    if (!result.varenykSatedSelfAvailableAt && result.varenykPlan) {
+    if (!result.varenykSatedSelf && !result.varenykSatedSelfAvailableAt && result.varenykPlan) {
       keyboard.text("🍽️ Нагодувати себе", makeVarenykFeedPreviewCallbackData({
         targetTelegramUserId: null,
         actorRemortCount,
@@ -111,8 +111,10 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
           targetRemortCount: target.remortCount,
           page: currentPage
         })).row();
+      } else if (target.varenykSated) {
+        keyboard.text(`😋 ${formatName(target.name)} — Ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
       } else if (target.varenykSatedAvailableAt) {
-        keyboard.text(`😋 ${formatName(target.name)} ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+        keyboard.text(`🍽️ ${formatName(target.name)} — пауза`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
       }
     }
     addPaginationControls(keyboard, {

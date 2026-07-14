@@ -9,10 +9,9 @@ import {
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
 import { findMantokAbilityGrantByKey } from "../../src/content";
-import { applyVarenykSatedPulsesToTurnBasedDuel } from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("turn-based duel domain", () => {
-  it("pulses Sated once for each participant after their committed round action", () => {
+  it("pulses Sated once immediately after each participant's committed round action", () => {
     const now = new Date("2026-07-14T10:01:00.000Z");
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),
@@ -29,6 +28,8 @@ describe("turn-based duel domain", () => {
       rank: 1,
       expiresAt: new Date(now.getTime() + 12 * 60_000).toISOString(),
       cursorAt: new Date(now.getTime() - 60_000).toISOString(),
+      leaseStartedAt: new Date(now.getTime() - 60_000).toISOString(),
+      outsideRemainderMs: 0,
       pulseIds: []
     };
     const otherActor = state.actingCharacterId === "challenger" ? "target" : "challenger";
@@ -43,16 +44,12 @@ describe("turn-based duel domain", () => {
       state: queued.state,
       actorCharacterId: state.actingCharacterId,
       action: "defend",
+      sated: { sessionId: "duel-session", committedTurn: 1, now },
       rng: new FakeRandomSource([0.1, 0.9])
     });
     if (!round.ok || round.resolution !== "resolved") throw new Error("Expected resolved round.");
 
-    const pulsed = applyVarenykSatedPulsesToTurnBasedDuel({
-      state: round.state,
-      sessionId: "duel-session",
-      committedTurn: 1,
-      now
-    });
+    const pulsed = round.state;
     const action = pulsed.lastRound?.actions.find((entry) => entry.actorCharacterId === "challenger");
     expect(action?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
     expect(pulsed.participants.challenger.varenykSated?.pulseIds).toEqual([

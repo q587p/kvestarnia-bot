@@ -17,7 +17,6 @@ import type {
 } from "../db/repositories/duelChallengeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { resolveQuickDuel, type DuelistSummary } from "../domain/duels/duelResolver";
-import { applyVarenykSatedPulsesToTurnBasedDuel } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatGearAbilityInput } from "../domain/combat";
 import {
   resolveTurnBasedDuelAction,
@@ -746,8 +745,10 @@ export class DuelChallengeService {
   }
 
   async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
+    const now = this.clock();
     const resolved = resolveTurnBasedDuelTimeout({
       state: session.state,
+      sated: { sessionId: session.id, committedTurn: session.turn, now },
       rng: this.rng
     });
 
@@ -755,13 +756,7 @@ export class DuelChallengeService {
       return { state: "stale", session };
     }
 
-    const now = this.clock();
-    const state = applyVarenykSatedPulsesToTurnBasedDuel({
-      state: resolved.state,
-      sessionId: session.id,
-      committedTurn: session.turn,
-      now
-    });
+    const state = resolved.state;
     const result = buildStoredTurnBasedResult(
       state,
       rollTurnBasedDuelXpRewards(state, this.rng)
@@ -818,6 +813,7 @@ export class DuelChallengeService {
       actorCharacterId,
       action,
       ...(gearAbility ? { gearAbility } : {}),
+      sated: { sessionId: session.id, committedTurn: session.turn, now },
       rng: this.rng
     });
 
@@ -836,14 +832,7 @@ export class DuelChallengeService {
       };
     }
 
-    const committedState = resolved.resolution === "resolved"
-      ? applyVarenykSatedPulsesToTurnBasedDuel({
-          state: resolved.state,
-          sessionId: session.id,
-          committedTurn: session.turn,
-          now
-        })
-      : resolved.state;
+    const committedState = resolved.state;
     const result = buildStoredTurnBasedResult(
       committedState,
       rollTurnBasedDuelXpRewards(committedState, this.rng)

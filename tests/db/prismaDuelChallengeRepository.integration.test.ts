@@ -11,6 +11,10 @@ import type {
 } from "../../src/db/repositories/duelChallengeRepository";
 import { startTurnBasedDuel, type TurnBasedDuelState } from "../../src/domain/duels/turnBasedDuel";
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
+import {
+  VARENYK_SATED_STATUS_KEY,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
 import { FakeRandomSource } from "../../src/shared/random";
 
 describe("PrismaDuelChallengeRepository turn-based integration", () => {
@@ -478,11 +482,23 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       }
     });
     await seedCharacter("char-orphan", 999_001n);
+    const orphanLeaseStartedAt = new Date("2026-06-17T18:00:30.000Z");
+    const orphanSated = makeSatedPayload("char-orphan", new Date("2026-06-17T18:00:00.000Z"));
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: "char-orphan",
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(orphanSated.availableAt),
+        resultJson: orphanSated
+      }
+    });
     await prisma.activeCombatLease.create({
       data: {
         characterId: "char-orphan",
         kind: "turn-based-duel",
-        referenceId: "missing-session"
+        referenceId: "missing-session",
+        createdAt: orphanLeaseStartedAt,
+        updatedAt: orphanLeaseStartedAt
       }
     });
 
@@ -506,6 +522,15 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         }
       }
     })).resolves.toBe(0);
+    const orphanStatus = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "char-orphan",
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    expect((orphanStatus.resultJson as { cursorAt: string }).cursorAt).toBe("2026-06-17T18:00:30.000Z");
   });
 
   it("repairs active sessions whose acting participant or optional state blocks are malformed", async () => {
@@ -872,6 +897,38 @@ function makeTerminalResult(
     targetScore: outcome === "target" ? 1 : 0,
     swing: 0,
     flavorKey: "integration-test"
+  };
+}
+
+function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayloadV1 {
+  return {
+    kind: "varenyk-sated-support-v1",
+    version: 1,
+    activationId: `${characterId}-sated`,
+    actorCharacterId: characterId,
+    actorRemortCount: 0,
+    recipientCharacterId: characterId,
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: cursorAt.toISOString(),
+    expiresAt: new Date(cursorAt.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(cursorAt.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: cursorAt.toISOString(),
+    receipt: {
+      version: 1,
+      previewToken: `${characterId}-preview`,
+      actorTelegramUserId: "999001",
+      targetTelegramUserId: "999001",
+      actorName: "Пан Вареник",
+      targetName: "Пан Вареник",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 12,
+      targetHpAfter: 24,
+      targetManaAfter: 12
+    }
   };
 }
 

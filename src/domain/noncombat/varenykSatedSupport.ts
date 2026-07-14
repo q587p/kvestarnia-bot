@@ -58,6 +58,8 @@ export interface VarenykSatedCombatStateV1 {
   rank: number;
   expiresAt: string;
   cursorAt: string;
+  leaseStartedAt: string;
+  outsideRemainderMs: number;
   pulseIds: string[];
 }
 
@@ -176,6 +178,8 @@ export function freezeVarenykSatedForCombat(
     rank: clamp(safeInt(payload.rank), 1, 5),
     expiresAt: payload.expiresAt,
     cursorAt: now.toISOString(),
+    leaseStartedAt: now.toISOString(),
+    outsideRemainderMs: Math.max(0, Math.min(59_999, now.getTime() - Date.parse(payload.cursorAt))),
     pulseIds: []
   };
 }
@@ -253,6 +257,44 @@ export function applyVarenykSatedPulseToSoloCombat(input: {
         }
       : {})
   };
+}
+
+export function applyVarenykSatedPulseBeforeSoloEnemyResponse(input: {
+  state: import("../combat/combatState").CombatState;
+  combatKind: "persistent-pve" | "training-doppelganger";
+  sessionId: string;
+  committedTurn: number;
+  recipientCharacterId: string;
+  now: Date;
+}): import("../combat/combatState").CombatTurnSummary["satedRecovery"] | undefined {
+  const pulse = applyVarenykSatedCombatPulse({
+    sated: input.state.varenykSated,
+    resources: {
+      hp: input.state.hero.hp,
+      hpMax: input.state.hero.hpMax,
+      mana: input.state.hero.mana,
+      manaMax: input.state.hero.manaMax
+    },
+    pulseId: [
+      input.state.varenykSated?.activationId ?? "none",
+      input.combatKind,
+      input.sessionId,
+      input.committedTurn,
+      input.recipientCharacterId
+    ].join(":"),
+    now: input.now
+  });
+  if (!pulse.sated) {
+    return undefined;
+  }
+  input.state.varenykSated = pulse.sated;
+  if (pulse.applied) {
+    input.state.hero.hp = pulse.resources.hp;
+    input.state.hero.mana = pulse.resources.mana;
+  }
+  return pulse.hpRestored > 0 || pulse.manaRestored > 0
+    ? { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored }
+    : undefined;
 }
 
 export function applyVarenykSatedPulsesToTurnBasedDuel(input: {
@@ -367,6 +409,9 @@ export function parseVarenykSatedCombatState(value: unknown): VarenykSatedCombat
     !isPositiveInt(value.rank) ||
     !isIsoDate(value.expiresAt) ||
     !isIsoDate(value.cursorAt) ||
+    !isIsoDate(value.leaseStartedAt) ||
+    !isNonNegativeInt(value.outsideRemainderMs) ||
+    value.outsideRemainderMs >= 60_000 ||
     !Array.isArray(value.pulseIds) ||
     !value.pulseIds.every((entry) => typeof entry === "string")
   ) {

@@ -115,6 +115,56 @@ const rangerTrickShotNumbers = {
 } as const;
 
 describe("combat domain engine", () => {
+  it("applies a Sated pulse after a committed single-enemy action and before the hostile response", () => {
+    const weakMonster = { ...monster, attack: 1 };
+    const state = startCombat({ hero: warrior, monster: weakMonster });
+    state.hero.hp = 1;
+    state.hero.mana = 0;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skip",
+      hero: warrior,
+      monster: weakMonster,
+      afterCommittedHeroAction: (committed) => {
+        expect(committed.hero.hp).toBe(1);
+        committed.hero.hp += 1;
+        committed.hero.mana += 1;
+        return { hpRestored: 1, manaRestored: 1 };
+      },
+      rng: new FakeRandomSource([0.1, 0.1])
+    });
+
+    expect(result.state.status).toBe("active");
+    expect(result.state.hero.hp).toBe(1);
+    expect(result.state.hero.mana).toBe(1);
+    expect(result.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(result.state.turnLog?.at(-1)?.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+  });
+
+  it("applies a Sated pulse before living enemies respond in persistent multi-enemy PvE", () => {
+    const weakSecond = { ...secondMonster, attack: 1 };
+    const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [weakSecond] });
+    state.hero.hp = 20;
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 50 },
+      monster,
+      enemies: [monster, weakSecond],
+      afterCommittedHeroAction: (committed) => {
+        committed.hero.hp += 1;
+        return { hpRestored: 1, manaRestored: 0 };
+      },
+      rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
+    });
+
+    expect(result.state.status).toBe("active");
+    expect(result.state.hero.hp).toBeGreaterThan(0);
+    expect(result.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 0 });
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+  });
   it("maps every supported class to the intended MVP skill profile", () => {
     const expectedProfiles = {
       "class.warrior": {
@@ -236,7 +286,7 @@ describe("combat domain engine", () => {
     });
   });
 
-  it("lets a defeated single monster answer in the same turn", () => {
+  it("skips the response of a single monster defeated by the committed action", () => {
     const result = resolveCombatTurn({
       state: {
         ...startCombat({ hero: unarmedMage, monster }),
@@ -259,8 +309,8 @@ describe("combat domain engine", () => {
       action: "attack",
       heroOutcome: "won",
       heroDamage: 4,
-      monsterOutcome: "hit",
-      monsterDamage: 4,
+      monsterOutcome: "miss",
+      monsterDamage: 0,
       monsterAction: "attack",
       manaSpent: 0
     });
@@ -498,7 +548,7 @@ describe("combat domain engine", () => {
     expect(result.state.hero.hp).toBe(0);
   });
 
-  it("counts a final-enemy same-turn response KO as a hero win", () => {
+  it("does not let a defeated final enemy knock out the hero", () => {
     const result = resolveCombatTurn({
       state: {
         ...startCombat({ hero: unarmedMage, monster }),
@@ -522,14 +572,14 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("won");
-    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.hero.hp).toBe(1);
     expect(result.state.monster.hp).toBe(0);
     expect(result.summary).toMatchObject({
       action: "attack",
       heroOutcome: "won",
       heroDamage: 4,
-      monsterOutcome: "hit",
-      monsterDamage: 4,
+      monsterOutcome: "miss",
+      monsterDamage: 0,
       monsterAction: "attack",
       manaSpent: 0
     });
@@ -577,7 +627,7 @@ describe("combat domain engine", () => {
     expect(getPrimaryCombatEnemy(result.state).id).toBe(secondMonster.monsterId);
   });
 
-  it("lets a primary enemy defeated by the hero answer before target handoff", () => {
+  it("skips a primary enemy defeated by the committed action before target handoff", () => {
     const state = startCombat({ hero: warrior, monster, enemies: [secondMonster] });
     state.enemies![0]!.hp = 1;
     state.monster.hp = 1;
@@ -593,16 +643,8 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("active");
-    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual([
-      "enemy:1",
-      "enemy:2"
-    ]);
-    const defeatedEnemyAction = result.summary.enemyActions?.[0];
-
-    expect(defeatedEnemyAction?.enemyId).toBe("enemy:1");
-    expect(defeatedEnemyAction?.monsterAction).toBe("attack");
-    expect(defeatedEnemyAction?.simultaneousFinalResponse).toBe(true);
-    expect(defeatedEnemyAction?.monsterDamage).toBeGreaterThanOrEqual(0);
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(result.summary.enemyActions?.some((entry) => entry.enemyId === "enemy:1")).toBe(false);
     expectPrimaryEnemyMirror(result.state, "enemy:2");
   });
 
@@ -725,12 +767,11 @@ describe("combat domain engine", () => {
     expect(second.ok).toBe(true);
     expect(second.state.status).toBe("won");
     expect(normalizeCombatEnemies(second.state).every((enemy) => enemy.hp === 0)).toBe(true);
-    expect(second.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
-    expect(second.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(second.summary.enemyActions).toBeUndefined();
     expect(parseCombatState(JSON.parse(JSON.stringify(second.state)))).not.toBeNull();
   });
 
-  it("counts a final two-enemy same-turn response KO as a hero win", () => {
+  it("skips the final defeated enemy response in a two-enemy fight", () => {
     const state = makeStateAfterPrimaryEnemyDeath();
     state.hero.hp = 1;
     state.enemies![0]!.hp = 1;
@@ -749,16 +790,15 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("won");
-    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.hero.hp).toBe(1);
     expect(normalizeCombatEnemies(result.state).every((enemy) => enemy.hp === 0)).toBe(true);
     expect(result.summary.heroOutcome).toBe("won");
-    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
-    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
-    expect(result.state.turnLog?.at(-1)?.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.enemyActions).toBeUndefined();
+    expect(result.state.turnLog?.at(-1)?.summary.enemyActions).toBeUndefined();
     expect(result.state.turnLog?.at(-1)?.eventId).toBe("terminal:won");
   });
 
-  it("counts a final single-enemy same-turn response KO as a hero win", () => {
+  it("skips the final defeated enemy response in a single-enemy fight", () => {
     const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster });
     state.hero.hp = 1;
     state.monster.hp = 1;
@@ -773,14 +813,14 @@ describe("combat domain engine", () => {
 
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("won");
-    expect(result.state.hero.hp).toBe(0);
+    expect(result.state.hero.hp).toBe(1);
     expect(result.state.monster.hp).toBe(0);
-    expect(result.summary.simultaneousFinalResponse).toBe(true);
-    expect(result.summary.monsterAction).toBe("attack");
-    expect(result.state.turnLog?.at(-1)?.summary.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.simultaneousFinalResponse).toBeUndefined();
+    expect(result.summary.monsterDamage).toBe(0);
+    expect(result.state.turnLog?.at(-1)?.summary.simultaneousFinalResponse).toBeUndefined();
   });
 
-  it("treats a final response KO as a loss when another enemy remains", () => {
+  it("lets a living backup enemy KO the hero after the defeated primary is skipped", () => {
     const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [secondMonster] });
     state.hero.hp = 1;
     state.enemies![0]!.hp = 1;
@@ -798,8 +838,8 @@ describe("combat domain engine", () => {
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("lost");
     expect(result.state.hero.hp).toBe(0);
-    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1"]);
-    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:2"]);
+    expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBeUndefined();
     expect(normalizeCombatEnemies(result.state).some((enemy) => enemy.enemyId === "enemy:2" && enemy.hp > 0)).toBe(true);
   });
 
@@ -831,8 +871,8 @@ describe("combat domain engine", () => {
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe("won");
     expect(result.state.monster.hp).toBe(0);
-    expect(result.summary.simultaneousFinalResponse).toBe(true);
-    expect(result.summary.monsterAction).toBe("attack");
+    expect(result.summary.simultaneousFinalResponse).toBeUndefined();
+    expect(result.summary.monsterDamage).toBe(0);
     expect(result.summary.monsterSkillId).toBeUndefined();
     expect(result.summary.monsterEffectText).toBeUndefined();
     expect(result.state.monsterRuntime?.effects?.some((effect) => effect.kind === "shield")).not.toBe(true);

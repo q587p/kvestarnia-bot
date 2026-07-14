@@ -93,6 +93,46 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.cooldowns.size).toBe(0);
   });
 
+  it("persists a Sated pulse on the Training Doppelganger turn before its response", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.9, 0.9, 0.9]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error("Expected active training.");
+    }
+    const state = started.session.state;
+    state.hero.hp -= 2;
+    state.hero.mana = 0;
+    state.varenykSated = {
+      version: 1,
+      activationId: "training-sated",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(fixedNow().getTime() + 13 * 60_000).toISOString(),
+      cursorAt: new Date(fixedNow().getTime() - 60_000).toISOString(),
+      leaseStartedAt: new Date(fixedNow().getTime() - 60_000).toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    world.sessions.set(started.session.id, { ...started.session, state });
+
+    const result = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "defend"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated") {
+      expect(result.session.state?.lastTurn?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+      expect(result.session.state?.varenykSated?.pulseIds).toEqual([
+        `training-sated:training-doppelganger:${started.session.id}:1:${started.session.characterId}`
+      ]);
+    }
+  });
+
   it("shows start choices without creating a training session", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);

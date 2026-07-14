@@ -625,7 +625,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           tx,
           characterId: participant.characterId,
           activationId: participant.varenykSated.activationId,
-          now: new Date(participant.varenykSated.cursorAt)
+          now: input.now,
+          outsideRemainderMs: participant.varenykSated.outsideRemainderMs
         });
       }
 
@@ -816,6 +817,28 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           }
         });
 
+        const repairLeases = await tx.activeCombatLease.findMany({
+          where: {
+            kind: "turn-based-duel",
+            referenceId: session.id
+          }
+        });
+        for (const lease of repairLeases) {
+          const participant = state
+            ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
+            : undefined;
+          await advanceVarenykSatedCursorThroughCombat({
+            tx,
+            characterId: lease.characterId,
+            ...(participant?.varenykSated
+              ? {
+                  activationId: participant.varenykSated.activationId,
+                  outsideRemainderMs: participant.varenykSated.outsideRemainderMs
+                }
+              : { leaseStartedAt: lease.createdAt }),
+            now
+          });
+        }
         await tx.activeCombatLease.deleteMany({
           where: {
             kind: "turn-based-duel",
@@ -857,11 +880,19 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         continue;
       }
 
-      const deleted = await this.prisma.activeCombatLease.deleteMany({
-        where: {
-          id: lease.id,
-          kind: "turn-based-duel"
-        }
+      const deleted = await this.prisma.$transaction(async (tx) => {
+        await advanceVarenykSatedCursorThroughCombat({
+          tx,
+          characterId: lease.characterId,
+          leaseStartedAt: lease.createdAt,
+          now
+        });
+        return tx.activeCombatLease.deleteMany({
+          where: {
+            id: lease.id,
+            kind: "turn-based-duel"
+          }
+        });
       });
       removedOrphanLeases += deleted.count;
       console.warn("Квестарня: removed orphan turn-based duel lease.", {

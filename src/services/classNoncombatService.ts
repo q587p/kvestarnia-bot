@@ -20,8 +20,6 @@ import {
   ROGUE_PICKPOCKET_COOLDOWN_MINUTES
 } from "../domain/noncombat/classNoncombatTechniques";
 import {
-  buildVarenykSatedPlan,
-  getAffordableVarenykSatedPlan,
   VARENYK_SATED_DURATION_MINUTES,
   VARENYK_SATED_RECIPIENT_WAIT_MINUTES,
   type VarenykSatedPlan,
@@ -140,12 +138,15 @@ export class ClassNoncombatService {
     page = 0
   ): Promise<ClassNoncombatOpenResult> {
     const now = this.clock();
-    await this.repository.settleVarenykSatedForTelegramUser(telegramUserId, now);
+    if (mode === "varenyk") {
+      await this.repository.settleVarenykSatedForTelegramUser(telegramUserId, now);
+    }
     const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page,
       pageSize: 5,
       now,
+      mode,
       ...(mode === "rogue" ? { rogueAttemptedLocalDate: toKorchmaLocalDate(now) } : {})
     });
     if (!snapshot) {
@@ -187,23 +188,17 @@ export class ClassNoncombatService {
             ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
             canPriestAid: mode === "priest",
             canRoguePickpocket: false,
-            canVarenykFeed: mode === "varenyk" && !target.varenykSatedAvailableAt
+            canVarenykFeed:
+              mode === "varenyk" &&
+              !target.varenykSated &&
+              !target.varenykSatedAvailableAt
           }))),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,
       priestSelfBlessAvailableAt: snapshot.priestSelfBlessAvailableAt,
       roguePickpocketCooldownAvailableAt: snapshot.roguePickpocketCooldownAvailableAt,
       varenykSatedSelfAvailableAt: snapshot.varenykSatedSelfAvailableAt,
       varenykSatedSelf: snapshot.varenykSatedSelf,
-      varenykPlan: mode === "varenyk"
-        ? getAffordableVarenykSatedPlan(
-            buildVarenykSatedPlan({
-              effectiveIntelligence: character.stats.intelligence,
-              effectiveCharisma: character.stats.charisma,
-              level: character.level
-            }).rank,
-            character.manaCurrent
-          )
-        : null
+      varenykPlan: mode === "varenyk" ? snapshot.varenykPlan : null
     };
   }
 
@@ -244,15 +239,6 @@ export class ClassNoncombatService {
     if (availableAt) {
       return { state: "blocked", reason: "target-cooldown", availableAt };
     }
-    const statPlan = buildVarenykSatedPlan({
-      effectiveIntelligence: open.character.stats.intelligence,
-      effectiveCharisma: open.character.stats.charisma,
-      level: open.character.level
-    });
-    const plan = getAffordableVarenykSatedPlan(statPlan.rank, open.character.manaCurrent);
-    if (!plan) {
-      return { state: "blocked", reason: "insufficient-mana" };
-    }
     const previewToken = createPreviewToken(this.rng);
     const now = this.clock();
     const saved = await this.repository.saveVarenykSatedPreview(actorTelegramUserId, {
@@ -264,8 +250,8 @@ export class ClassNoncombatService {
       now,
       expiresAt: addMinutes(now, VARENYK_SATED_DURATION_MINUTES)
     });
-    if (!saved) {
-      return { state: "blocked", reason: "stale" };
+    if (saved.state === "blocked") {
+      return { state: "blocked", reason: saved.reason, ...(saved.availableAt ? { availableAt: saved.availableAt } : {}) };
     }
     return {
       state: "preview",
@@ -274,8 +260,8 @@ export class ClassNoncombatService {
       targetTelegramUserId: input.targetTelegramUserId,
       actorRemortCount: input.expectedActorRemortCount,
       targetRemortCount: input.expectedTargetRemortCount,
-      statRank: statPlan.rank,
-      plan,
+      statRank: saved.statRank,
+      plan: saved.plan,
       previewToken,
       page: input.page,
       durationMinutes: VARENYK_SATED_DURATION_MINUTES,
@@ -335,7 +321,8 @@ export class ClassNoncombatService {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page: 0,
       pageSize: 50,
-      now
+      now,
+      mode: "priest"
     });
     const actor = preflight
       ? await this.summarizeForPlanning(actorTelegramUserId, preflight.character, now)
@@ -405,7 +392,8 @@ export class ClassNoncombatService {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page: 0,
       pageSize: 50,
-      now
+      now,
+      mode: "priest"
     });
     const actor = snapshot
       ? await this.summarizeForPlanning(actorTelegramUserId, snapshot.character, now)
@@ -476,7 +464,8 @@ export class ClassNoncombatService {
       activeSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       page: 0,
       pageSize: 50,
-      now
+      now,
+      mode: "rogue"
     });
     const actor = snapshot
       ? await this.summarizeForPlanning(actorTelegramUserId, snapshot.character, now)

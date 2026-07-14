@@ -22,7 +22,10 @@ import type { EquipmentEffectSummary } from "../progression/effectiveStats";
 import type { RandomSource } from "../../shared/random";
 import { INSTANT_DUEL_BALANCE_VERSION, prepareBalancedDuelists, type DuelistBalanceAudit } from "./duelBalance";
 import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
-import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
+import {
+  applyVarenykSatedCombatPulse,
+  type VarenykSatedCombatStateV1
+} from "../noncombat/varenykSatedSupport";
 
 export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
 export const TURN_BASED_DUEL_TURN_SECONDS = 23;
@@ -166,6 +169,7 @@ export function resolveTurnBasedDuelAction(input: {
   actorCharacterId: string;
   action: TurnBasedDuelAction;
   gearAbility?: CombatGearAbilityInput;
+  sated?: { sessionId: string; committedTurn: number; now: Date };
   rng: RandomSource;
 }): ResolveTurnBasedDuelActionResult {
   const state = cloneTurnBasedDuelState(input.state);
@@ -245,11 +249,12 @@ export function resolveTurnBasedDuelAction(input: {
     return { ok: true, resolution: "queued", state, queuedAction };
   }
 
-  return resolveQueuedRound(state, input.rng);
+  return resolveQueuedRound(state, input.rng, { ...(input.sated ? { sated: input.sated } : {}) });
 }
 
 export function resolveTurnBasedDuelTimeout(input: {
   state: TurnBasedDuelState;
+  sated?: { sessionId: string; committedTurn: number; now: Date };
   rng: RandomSource;
 }): ResolveTurnBasedDuelActionResult {
   const state = cloneTurnBasedDuelState(input.state);
@@ -282,14 +287,18 @@ export function resolveTurnBasedDuelTimeout(input: {
     timeoutCharacterIds: [
       ...(input.state.pendingActions?.challenger ? [] : [state.participants.challenger.characterId]),
       ...(input.state.pendingActions?.target ? [] : [state.participants.target.characterId])
-    ]
+    ],
+    ...(input.sated ? { sated: input.sated } : {})
   });
 }
 
 function resolveQueuedRound(
   state: TurnBasedDuelState,
   rng: RandomSource,
-  options: { timeoutCharacterIds?: string[] } = {}
+  options: {
+    timeoutCharacterIds?: string[];
+    sated?: { sessionId: string; committedTurn: number; now: Date };
+  } = {}
 ): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
   const pending = state.pendingActions;
   const mitigation = {
@@ -316,11 +325,14 @@ function resolveQueuedRound(
       continue;
     }
 
-    actions.push(resolveQueuedCombatAction(state, side, queued, rng, {
+    const summary = resolveQueuedCombatAction(state, side, queued, rng, {
       timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
       incomingDamageReduction: mitigation[defenderSideOf(side)],
       incomingDamageMultiplier: mitigationMultiplier[defenderSideOf(side)]
-    }));
+    });
+    actions.push(options.sated
+      ? applySatedPulseAfterDuelAction(state, side, summary, options.sated)
+      : summary);
   }
 
   const round = {
@@ -817,4 +829,41 @@ function cloneParticipant(
       ? { varenykSated: { ...participant.varenykSated, pulseIds: [...participant.varenykSated.pulseIds] } }
       : {})
   };
+}
+
+function applySatedPulseAfterDuelAction(
+  state: TurnBasedDuelState,
+  side: "challenger" | "target",
+  summary: TurnBasedDuelActionSummary,
+  input: { sessionId: string; committedTurn: number; now: Date }
+): TurnBasedDuelActionSummary {
+  const participant = state.participants[side];
+  const pulse = applyVarenykSatedCombatPulse({
+    sated: participant.varenykSated,
+    resources: {
+      hp: participant.hp,
+      hpMax: participant.hpMax,
+      mana: participant.mana,
+      manaMax: participant.manaMax
+    },
+    pulseId: [
+      participant.varenykSated?.activationId ?? "none",
+      "turn-based-duel",
+      input.sessionId,
+      input.committedTurn,
+      participant.characterId
+    ].join(":"),
+    now: input.now
+  });
+  if (!pulse.sated) {
+    return summary;
+  }
+  participant.varenykSated = pulse.sated;
+  if (pulse.applied) {
+    participant.hp = pulse.resources.hp;
+    participant.mana = pulse.resources.mana;
+  }
+  return pulse.hpRestored > 0 || pulse.manaRestored > 0
+    ? { ...summary, satedRecovery: { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored } }
+    : summary;
 }

@@ -1756,9 +1756,16 @@ function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
     ...(bark ? [presentMonsterBarkBlockquote(bark.text), ""] : []),
     ...lines,
     ...(summary.satedRecovery && (summary.satedRecovery.hpRestored > 0 || summary.satedRecovery.manaRestored > 0)
-      ? [`😋 Ситість відновила +${summary.satedRecovery.hpRestored} HP і +${summary.satedRecovery.manaRestored} мани.`]
+      ? [`😋 Ситість відновила ${presentSatedRecoveryParts(summary.satedRecovery)}.`]
       : [])
   ].join("\n");
+}
+
+function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
+  return [
+    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
+    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
+  ].join(" і ");
 }
 
 function presentSatedRemaining(expiresAt: string): string {

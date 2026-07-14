@@ -6,6 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import type { CreateSoloCombatSessionInput } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CombatState } from "../../src/domain/combat";
+import {
+  VARENYK_SATED_STATUS_KEY,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("PrismaSoloCombatSessionRepository integration", () => {
   let dir: string;
@@ -332,6 +336,78 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       referenceId: "missing-stale-session"
     });
     await expect(repository.releaseLeaseBySessionId("missing-stale-session")).resolves.toBe(true);
+  });
+
+  it("excludes a missing session's exact combat lease interval without consuming outside remainder", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-missing-sated-session",
+      characterId: "character-missing-sated-session",
+      telegramUserId: 4293n
+    });
+    const startedAt = new Date("2026-07-14T10:00:00.000Z");
+    const leaseStartedAt = new Date("2026-07-14T10:00:30.000Z");
+    const payload: VarenykSatedPayloadV1 = {
+      kind: "varenyk-sated-support-v1",
+      version: 1,
+      activationId: "missing-session-activation",
+      actorCharacterId: "character-missing-sated-session",
+      actorRemortCount: 0,
+      recipientCharacterId: "character-missing-sated-session",
+      recipientRemortCount: 0,
+      rank: 1,
+      manaCost: 8,
+      effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+      startedAt: startedAt.toISOString(),
+      expiresAt: new Date("2026-07-14T10:13:00.000Z").toISOString(),
+      availableAt: new Date("2026-07-14T11:33:00.000Z").toISOString(),
+      cursorAt: startedAt.toISOString(),
+      receipt: {
+        version: 1,
+        previewToken: "missing-session-preview",
+        actorTelegramUserId: "4293",
+        targetTelegramUserId: "4293",
+        actorName: "Пан Вареник",
+        targetName: "Пан Вареник",
+        immediateHpRestored: 0,
+        immediateManaRestored: 0,
+        actorManaAfter: 12,
+        targetHpAfter: 20,
+        targetManaAfter: 12
+      }
+    };
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: "character-missing-sated-session",
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-missing-sated-session",
+        characterId: "character-missing-sated-session",
+        kind: "solo-combat",
+        referenceId: "missing-sated-session",
+        createdAt: leaseStartedAt,
+        updatedAt: leaseStartedAt
+      }
+    });
+
+    await expect(repository.releaseLeaseBySessionId(
+      "missing-sated-session",
+      new Date("2026-07-14T10:05:30.000Z")
+    )).resolves.toBe(true);
+
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "character-missing-sated-session",
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    expect((stored.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
   });
 
   it("keeps unsupported leases visible and untouched", async () => {
