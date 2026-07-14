@@ -103,6 +103,12 @@ export interface VarenykSatedStatusRecord {
   payload: VarenykSatedPayloadV1;
   hpRestored: number;
   manaRestored: number;
+  character: CharacterRecord;
+  passiveRecoveryNotice: {
+    type: "hp-full";
+    hpCurrent: number;
+    hpMax: number;
+  } | null;
 }
 
 export type VarenykSatedPreviewRepositoryResult =

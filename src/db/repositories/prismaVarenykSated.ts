@@ -86,6 +86,13 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   if (input.activationId && payload.activationId !== input.activationId) {
     throw new VarenykSatedCasError("activation");
   }
+  if (
+    !input.activationId &&
+    input.leaseStartedAt &&
+    Date.parse(payload.startedAt) > input.leaseStartedAt.getTime()
+  ) {
+    return;
+  }
   const through = new Date(Math.min(input.now.getTime(), Date.parse(payload.expiresAt)));
   const inferredRemainder = input.leaseStartedAt
     ? input.leaseStartedAt.getTime() - Date.parse(payload.cursorAt)

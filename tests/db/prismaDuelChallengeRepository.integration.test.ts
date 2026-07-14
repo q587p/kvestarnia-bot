@@ -318,6 +318,75 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     });
   });
 
+  it("persists exact pre-lease Sated minutes once and preserves the outside remainder on duel start replay", async () => {
+    const seeded = await seedPendingChallenge("sated-prelease");
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    for (const side of ["challenger", "target"] as const) {
+      const participant = seeded.state.participants[side];
+      participant.hp = 10;
+      participant.mana = 5;
+      await prisma.character.update({
+        where: { id: participant.characterId },
+        data: { hpCurrent: 10, manaCurrent: 5 }
+      });
+      const payload = makeSatedPayload(participant.characterId, cursorAt);
+      await prisma.characterCooldown.create({
+        data: {
+          characterId: participant.characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+    }
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "sated-prelease",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-sated-prelease",
+        state: seeded.state,
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+    const restartedRepository = new PrismaDuelChallengeRepository(prisma);
+    const replay = await restartedRepository.startTurnBasedByTokenForTelegramUser(
+      "sated-prelease",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-sated-prelease-replay",
+        state: seeded.state,
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started).toMatchObject({ transitioned: true });
+    expect(replay).toEqual({ record: null, transitioned: false });
+    for (const side of ["challenger", "target"] as const) {
+      const participant = started.record?.state.participants[side];
+      expect(participant).toMatchObject({
+        hp: 12,
+        mana: 7,
+        varenykSated: { outsideRemainderMs: 30_000 }
+      });
+      await expect(prisma.character.findUnique({
+        where: { id: seeded.state.participants[side].characterId }
+      })).resolves.toMatchObject({ hpCurrent: 12, manaCurrent: 7 });
+      const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: {
+          characterId_key: {
+            characterId: seeded.state.participants[side].characterId,
+            key: VARENYK_SATED_STATUS_KEY
+          }
+        }
+      });
+      expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-06-17T17:59:30.000Z");
+    }
+  });
+
   it("resolves terminal sessions, grants XP once and releases both leases", async () => {
     const session = await seedActiveSession("terminal-surrender", new Date("2026-06-17T18:00:23.000Z"));
     const completedAt = new Date("2026-06-17T18:00:11.000Z");

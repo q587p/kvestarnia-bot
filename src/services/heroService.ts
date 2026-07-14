@@ -125,6 +125,7 @@ export class HeroService {
       now,
       character.id
     ) ?? null;
+    const authoritativeCharacter = satedSettlement?.character ?? character;
 
     const [
       inventoryRows,
@@ -172,7 +173,7 @@ export class HeroService {
     const resourceAware = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
-      character,
+      character: authoritativeCharacter,
       equippedItems,
       equipmentAttunements,
       remortCount,
@@ -186,6 +187,7 @@ export class HeroService {
       presentedPriestBlessing,
       now
     );
+    const recoveryNotice = satedSettlement?.passiveRecoveryNotice ?? resourceAware.recoveryNotice;
 
     return {
       state: "existing-character",
@@ -210,8 +212,8 @@ export class HeroService {
       classNoncombatBlocked,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
-      ...(resourceAware.recoveryNotice
-        ? { recoveryNotice: resourceAware.recoveryNotice }
+      ...(recoveryNotice
+        ? { recoveryNotice }
         : {})
     };
   }

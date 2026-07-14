@@ -253,6 +253,35 @@ describe("hero command", () => {
 
     expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("⚕️ Полікувати себе");
   });
+
+  it("hides Varenyk self-feeding when the Hero lookup reports the class-specific adventure gate", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character: {
+          ...character,
+          classId: "class.varenyk-mancer",
+          className: "Вареник-мант",
+          level: 3,
+          hpCurrent: 24,
+          manaCurrent: 12,
+          manaMax: 16
+        },
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        activePriestBlessing: null,
+        varenykSatedAvailableAt: null,
+        classNoncombatBlocked: true,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("🍽️ Нагодувати себе");
+  });
 });
 
 function makeReplyContext(replies: Array<{ text: string; options: unknown }>): Context {

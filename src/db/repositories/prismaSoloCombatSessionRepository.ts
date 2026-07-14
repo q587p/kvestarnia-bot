@@ -31,7 +31,10 @@ import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSate
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
-import { advanceVarenykSatedCursorThroughCombat } from "./prismaVarenykSated";
+import {
+  advanceVarenykSatedCursorThroughCombat,
+  VarenykSatedCasError
+} from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
@@ -723,10 +726,16 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (status !== "active") {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+        const state = parseCombatState(updated.stateJson);
+        const completedAt = state?.completedAt ? new Date(state.completedAt) : null;
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state,
+          releasedAt: status === "expired"
+            ? updated.expiresAt
+            : completedAt && Number.isFinite(completedAt.getTime())
+              ? completedAt
+              : new Date()
         });
       }
 
@@ -781,7 +790,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (input.state.varenykSated) {
+      const releasingLease = input.status !== "active" && input.releaseLease;
+      if (input.state.varenykSated && !releasingLease) {
         await advanceVarenykSatedCursorThroughCombat({
           tx,
           characterId: updated.characterId,
@@ -791,11 +801,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         });
       }
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -839,7 +849,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         where: { id: sessionId },
         select: { characterId: true }
       });
-      if (current && input.state.varenykSated) {
+      const releasingLease = input.status !== "active" && input.releaseLease;
+      if (current && input.state.varenykSated && !releasingLease) {
         await advanceVarenykSatedCursorThroughCombat({
           tx,
           characterId: current.characterId,
@@ -849,11 +860,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         });
       }
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -945,7 +956,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "stale-turn", session: null };
       }
 
-      if (input.state.varenykSated) {
+      const releasingLease = input.status !== "active" && input.releaseLease;
+      if (input.state.varenykSated && !releasingLease) {
         await advanceVarenykSatedCursorThroughCombat({
           tx,
           characterId: input.characterId,
@@ -977,11 +989,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -1022,10 +1034,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state ?? parseCombatState(updated.stateJson),
+          releasedAt: input.claimedAt
         });
       }
 
@@ -1115,34 +1127,16 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async releaseLeaseBySessionId(sessionId: string, now?: Date): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      const lease = await tx.activeCombatLease.findFirst({
-        where: { kind: "solo-combat", referenceId: sessionId },
-        select: { characterId: true, createdAt: true }
-      });
       const current = await tx.soloCombatSession.findUnique({
         where: { id: sessionId },
-        select: { characterId: true, stateJson: true }
+        select: { stateJson: true }
       });
       const state = current ? parseCombatState(current.stateJson) : null;
-      if (now && (state?.varenykSated || lease)) {
-        await advanceVarenykSatedCursorThroughCombat({
-          tx,
-          characterId: current?.characterId ?? lease!.characterId,
-          ...(state?.varenykSated ? { activationId: state.varenykSated.activationId } : {}),
-          now,
-          ...(state?.varenykSated
-            ? { outsideRemainderMs: state.varenykSated.outsideRemainderMs }
-            : { leaseStartedAt: lease!.createdAt })
-        });
-      }
-      const deleted = await tx.activeCombatLease.deleteMany({
-        where: {
-          kind: "solo-combat",
-          referenceId: sessionId
-        }
+      return releaseSoloCombatLease(tx, {
+        sessionId,
+        state,
+        releasedAt: now ?? new Date()
       });
-
-      return deleted.count > 0;
     });
   }
 
@@ -1541,11 +1535,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (state?.settlement?.status === "completed") {
         if (input.releaseLease) {
-          await tx.activeCombatLease.deleteMany({
-            where: {
-              kind: "solo-combat",
-              referenceId: sessionId
-            }
+          await releaseSoloCombatLease(tx, {
+            sessionId,
+            state,
+            releasedAt: input.settledAt
           });
         }
 
@@ -1557,11 +1550,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (state?.settlement?.status === "forfeited-by-remort") {
         if (input.releaseLease) {
-          await tx.activeCombatLease.deleteMany({
-            where: {
-              kind: "solo-combat",
-              referenceId: sessionId
-            }
+          await releaseSoloCombatLease(tx, {
+            sessionId,
+            state,
+            releasedAt: input.settledAt
           });
         }
 
@@ -1639,11 +1631,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            kind: "solo-combat",
-            referenceId: sessionId
-          }
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: nextState ?? state,
+          releasedAt: input.settledAt
         });
       }
 
@@ -2796,6 +2787,58 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(debugTrace ? { debugTrace } : {}),
     ...(satedRecovery ? { satedRecovery } : {})
   };
+}
+
+async function releaseSoloCombatLease(
+  tx: TxClient,
+  input: {
+    sessionId: string;
+    state: CombatState | null;
+    releasedAt: Date;
+  }
+): Promise<boolean> {
+  const lease = await tx.activeCombatLease.findFirst({
+    where: {
+      kind: "solo-combat",
+      referenceId: input.sessionId
+    },
+    select: {
+      id: true,
+      characterId: true,
+      kind: true,
+      referenceId: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+  if (!lease) {
+    return false;
+  }
+
+  const sated = input.state?.varenykSated;
+  await advanceVarenykSatedCursorThroughCombat({
+    tx,
+    characterId: lease.characterId,
+    ...(sated ? { activationId: sated.activationId } : {}),
+    now: input.releasedAt,
+    ...(sated
+      ? { outsideRemainderMs: sated.outsideRemainderMs }
+      : { leaseStartedAt: lease.createdAt })
+  });
+
+  const deleted = await tx.activeCombatLease.deleteMany({
+    where: {
+      id: lease.id,
+      characterId: lease.characterId,
+      kind: lease.kind,
+      referenceId: lease.referenceId,
+      updatedAt: lease.updatedAt
+    }
+  });
+  if (deleted.count !== 1) {
+    throw new VarenykSatedCasError("lease-release");
+  }
+  return true;
 }
 
 function getSatedLeaseThrough(input: UpdateSoloCombatSessionInput): Date {

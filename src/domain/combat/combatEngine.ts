@@ -920,6 +920,9 @@ function resolveHeroAttack(
       })]
     : [];
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
+  const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
+    nextState.monster.hp <= 0 &&
+    heroDamage > 0;
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
   let heroEffectDamage = 0;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
@@ -962,17 +965,19 @@ function resolveHeroAttack(
     };
   }
 
+  const monsterDefeatedBeforeHeroEffects = nextState.monster.hp <= 0;
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   heroEffectDamage = heroEffect.damage;
   monsterDamage += heroEffectDamage;
   const satedRecovery = nextState.hero.hp > 0
     ? input.afterCommittedHeroAction?.(nextState)
     : undefined;
-  if (nextState.hero.hp > 0 && nextState.monster.hp > 0) {
+  if (nextState.hero.hp > 0 && (nextState.monster.hp > 0 || monsterDefeatedBeforeHeroEffects)) {
     monsterResponse = resolveMonsterResponse({
       state: nextState,
       input,
-      damageReduction: getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble)
+      damageReduction: getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
+      simultaneousFinalResponse: monsterDefeatedByHeroExchange
     });
     monsterDamage += monsterResponse.damage;
   }
@@ -1168,6 +1173,7 @@ function resolveMultiEnemyHeroAttack(
   syncPrimaryCombatEnemy(nextState);
   const action = skill?.action ?? (input.action === "defend" ? "defend" : "attack");
   const primary = getPrimaryCombatEnemy(nextState);
+  const enemyPhaseParticipants = getLivingCombatEnemies(nextState);
   const primaryStats = findEnemyStats(input, primary);
   const monsterHpBeforeHeroAction = primary.hp;
   const defenderStats = applyMonsterRuntimeHeroAttackModifiers(
@@ -1246,6 +1252,9 @@ function resolveMultiEnemyHeroAttack(
     heroDamage += extraDamage;
   }
   applyGearBleedFromAction(nextState, input, skill, actorAction.summary, primary.enemyId);
+  const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
+    primary.hp <= 0 &&
+    heroDamage > 0;
   const manaSpent = actorAction.summary.manaSpent + manaPressure;
   let monsterDamage = runtimeHeroDamage.reflectedDamage;
   let heroEffectDamage = 0;
@@ -1257,7 +1266,9 @@ function resolveMultiEnemyHeroAttack(
     const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
       nextState,
       input,
-      getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble)
+      getCommittedAbilityResponseDamageReduction(skill, actorAction.summary.fumble),
+      enemyPhaseParticipants,
+      monsterDefeatedByHeroExchange
     );
     heroEffectDamage = activationPhase.heroEffectDamage;
     monsterDamage += activationPhase.monsterDamage;

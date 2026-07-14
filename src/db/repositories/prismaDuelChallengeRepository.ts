@@ -27,7 +27,8 @@ import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCou
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
   advanceVarenykSatedCursorThroughCombat,
-  freezeVarenykSatedFromCooldown
+  freezeVarenykSatedFromCooldown,
+  VarenykSatedCasError
 } from "./prismaVarenykSated";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
@@ -404,13 +405,52 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       };
       for (const side of ["challenger", "target"] as const) {
         const participant = state.participants[side];
+        const canonical = await tx.character.findUnique({
+          where: { id: participant.characterId },
+          select: {
+            hpCurrent: true,
+            manaCurrent: true,
+            hpRegenAt: true,
+            manaRegenAt: true,
+            updatedAt: true
+          }
+        });
+        if (!canonical) {
+          throw new VarenykSatedCasError("duel-character-missing");
+        }
         const sated = await freezeVarenykSatedFromCooldown({
           tx,
           characterId: participant.characterId,
           remortCount: participant.remortCount,
-          resources: { hp: participant.hp, hpMax: participant.hpMax, mana: participant.mana, manaMax: participant.manaMax },
+          resources: {
+            hp: canonical.hpCurrent,
+            hpMax: participant.hpMax,
+            mana: canonical.manaCurrent,
+            manaMax: participant.manaMax
+          },
           now
         });
+        if (sated.hpRestored > 0 || sated.manaRestored > 0) {
+          const persisted = await tx.character.updateMany({
+            where: {
+              id: participant.characterId,
+              hpCurrent: canonical.hpCurrent,
+              manaCurrent: canonical.manaCurrent,
+              hpRegenAt: canonical.hpRegenAt,
+              manaRegenAt: canonical.manaRegenAt,
+              updatedAt: canonical.updatedAt
+            },
+            data: {
+              hpCurrent: sated.resources.hp,
+              manaCurrent: sated.resources.mana,
+              hpRegenAt: sated.resources.hp >= participant.hpMax ? now : canonical.hpRegenAt,
+              manaRegenAt: sated.resources.mana >= participant.manaMax ? now : canonical.manaRegenAt
+            }
+          });
+          if (persisted.count !== 1) {
+            throw new VarenykSatedCasError("duel-character-resources");
+          }
+        }
         state.participants[side] = {
           ...participant,
           hp: sated.resources.hp,

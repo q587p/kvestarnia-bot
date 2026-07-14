@@ -284,6 +284,83 @@ describe("HeroService", () => {
     });
   });
 
+  it("renders authoritative post-settlement Sated resources without rewriting them from the stale Hero read", async () => {
+    const now = new Date("2026-07-03T09:00:00.000Z");
+    const stale = buildCharacter({
+      classId: "class.varenyk-mancer",
+      level: 3,
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: now,
+      manaRegenAt: now
+    });
+    const authoritative = buildCharacter({
+      ...stale,
+      hpCurrent: 4,
+      manaCurrent: 3
+    });
+    const characters = new FakeCharacterRepository(stale);
+    const service = new HeroService(
+      characters,
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => now,
+      undefined,
+      new FakeClassNoncombatRepository(null, false, null, {
+        payload: buildSatedPayload(now),
+        hpRestored: 3,
+        manaRestored: 2,
+        character: authoritative,
+        passiveRecoveryNotice: null
+      })
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      character: { hpCurrent: 4, manaCurrent: 3 },
+      satedRecovery: { hpRestored: 3, manaRestored: 2 }
+    });
+    expect(characters.resourceUpdateCount).toBe(0);
+  });
+
+  it("preserves one canonical passive full-HP notice when Sated settlement also owns regeneration", async () => {
+    const now = new Date("2026-07-03T09:00:00.000Z");
+    const authoritative = buildCharacter({
+      classId: "class.varenyk-mancer",
+      level: 3,
+      hpCurrent: 22,
+      hpMax: 22,
+      manaCurrent: 10,
+      hpRegenAt: now,
+      manaRegenAt: now
+    });
+    const characters = new FakeCharacterRepository(buildCharacter({ hpCurrent: 21, hpRegenAt: now }));
+    const service = new HeroService(
+      characters,
+      new FakeInventoryRepository([]),
+      undefined,
+      undefined,
+      undefined,
+      () => now,
+      undefined,
+      new FakeClassNoncombatRepository(null, false, null, {
+        payload: buildSatedPayload(now),
+        hpRestored: 0,
+        manaRestored: 0,
+        character: authoritative,
+        passiveRecoveryNotice: { type: "hp-full", hpCurrent: 22, hpMax: 22 }
+      })
+    );
+
+    await expect(service.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      recoveryNotice: { type: "hp-full", hpCurrent: 22, hpMax: 22 }
+    });
+    expect(characters.resourceUpdateCount).toBe(0);
+  });
+
   it("returns Priest self-blessing wait for hero shortcuts", async () => {
     const availableAt = new Date("2026-07-03T10:33:00.000Z");
     const service = new HeroService(
@@ -478,7 +555,8 @@ class FakeClassNoncombatRepository implements Pick<
   constructor(
     private readonly blessing: PriestBlessingRecord | null,
     private readonly actorBlocked = false,
-    private readonly selfBlessAvailableAt: Date | null = null
+    private readonly selfBlessAvailableAt: Date | null = null,
+    private readonly satedSettlement: Awaited<ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>> = null
   ) {}
 
   getActivePriestBlessingForTelegramUser(): Promise<PriestBlessingRecord | null> {
@@ -499,6 +577,38 @@ class FakeClassNoncombatRepository implements Pick<
     knownCharacterId?: string
   ): ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]> {
     if (knownCharacterId) this.satedSettlementCharacterIds.push(knownCharacterId);
-    return Promise.resolve(null);
+    return Promise.resolve(this.satedSettlement);
   }
+}
+
+function buildSatedPayload(now: Date) {
+  return {
+    kind: "varenyk-sated-support-v1" as const,
+    version: 1 as const,
+    activationId: "hero-sated",
+    actorCharacterId: "character-42",
+    actorRemortCount: 0,
+    recipientCharacterId: "character-42",
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(now.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: now.toISOString(),
+    receipt: {
+      version: 1 as const,
+      previewToken: "hero-preview",
+      actorTelegramUserId: telegramUserId.toString(),
+      targetTelegramUserId: telegramUserId.toString(),
+      actorName: "Мандрівник",
+      targetName: "Мандрівник",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 10,
+      targetHpAfter: 22,
+      targetManaAfter: 10
+    }
+  };
 }

@@ -3336,7 +3336,7 @@ describe("FightService", () => {
     expect(recovered.fightReward?.reward.xp).toBe(7);
   });
 
-  it("claims a persistent fight reward without a response from the defeated final monster", async () => {
+  it("claims a persistent fight reward after the defeated final monster's canonical response", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
     const dailyActions = new FakeDailyActionRepository(characters);
@@ -3365,7 +3365,9 @@ describe("FightService", () => {
     expect(result.state).toBe("updated");
     if (result.state === "updated") {
       expect(result.session.status).toBe("won");
-      expect(result.session.state?.hero.hp).toBe(1);
+      expect(result.session.state?.hero.hp).toBe(0);
+      expect(result.session.state?.lastTurn?.monsterDamage ?? 0).toBeGreaterThan(0);
+      expect(result.session.state?.lastTurn?.simultaneousFinalResponse).toBe(true);
       expect(result.fightReward?.state).toBe("claimed");
     }
     const rewardRecords = dailyActions.records.filter(

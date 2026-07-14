@@ -208,6 +208,10 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       if (!activeRow) {
         return null;
       }
+      const activePayload = parseVarenykSatedPayload(activeRow.resultJson);
+      if (isSettledHistoricalSatedRow(activeRow, activePayload, knownCharacterId, now)) {
+        return null;
+      }
     }
     return this.prisma.$transaction(async (tx) => {
       const character = knownCharacterId
@@ -224,6 +228,15 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       }
 
       const canonical = await getSatedCanonicalResources(tx, character, now);
+      const passiveRecoveryNotice =
+        character.hpCurrent < canonical.regeneration.resources.hpMax &&
+        canonical.regeneration.resources.hpCurrent >= canonical.regeneration.resources.hpMax
+          ? {
+              type: "hp-full" as const,
+              hpCurrent: canonical.regeneration.resources.hpCurrent,
+              hpMax: canonical.regeneration.resources.hpMax
+            }
+          : null;
       const settlement = settleVarenykSatedOutsideCombat({
         payload,
         resources: {
@@ -293,10 +306,18 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         );
       }
 
+      const refreshed = changed
+        ? await findSatedCharacterById(tx, character.id)
+        : character;
+      if (!refreshed) {
+        throw new ResourceRaceError();
+      }
       return {
         payload: safeSettlement.payload,
         hpRestored: safeSettlement.hpRestored,
-        manaRestored: safeSettlement.manaRestored
+        manaRestored: safeSettlement.manaRestored,
+        character: toCharacterRecord(refreshed),
+        passiveRecoveryNotice
       };
     });
   }
@@ -337,11 +358,17 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           availableAt: new Date(existingPayload.expiresAt)
         };
       }
-      if (existing && existing.availableAt > input.now) {
+      const authoritativeAvailableAt = getAuthoritativeSatedAvailableAt(
+        existing,
+        existingPayload,
+        target!.id,
+        getIncludedRemortCount(target!)
+      );
+      if (authoritativeAvailableAt && authoritativeAvailableAt > input.now) {
         return {
           state: "blocked" as const,
           reason: "target-cooldown" as const,
-          availableAt: existing.availableAt
+          availableAt: authoritativeAvailableAt
         };
       }
       const actorContext = await settleSatedForCommit(tx, actor, input.now);
@@ -362,8 +389,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         return { state: "blocked" as const, reason: "insufficient-mana" as const };
       }
       const payload: SatedPreviewPayload = {
-        kind: "varenyk-sated-preview-v1",
-        version: 1,
+        kind: "varenyk-sated-preview-v2",
+        version: 2,
         previewToken: input.previewToken,
         actorCharacterId: actor.id,
         actorRemortCount: getIncludedRemortCount(actor),
@@ -376,7 +403,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           intelligence: canonical.summary.stats.intelligence,
           charisma: canonical.summary.stats.charisma,
           level: canonical.summary.level,
-          equipmentItemIds: canonical.equipmentItemIds
+          equipmentItemIds: canonical.equipmentItemIds,
+          attunedEquipmentRows: canonical.attunedEquipmentRows
         },
         recoveryWindows: canonical.recoveryWindows,
         expiresAt: input.expiresAt.toISOString()
@@ -397,7 +425,11 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
 
   async isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean> {
     const actor = await findCharacter(this.prisma, telegramUserId);
-    return actor ? isBlocked(actor) : false;
+    return actor
+      ? actor.classId === VARENYK_MANCER_CLASS_ID
+        ? isVarenykBlocked(actor)
+        : isBlocked(actor)
+      : false;
   }
 
   async completePriestHeal(
@@ -648,6 +680,17 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         const target = input.targetTelegramUserId === null
           ? actor
           : await findSatedCharacter(tx, input.targetTelegramUserId);
+        if (target) {
+          const existing = await findCooldown(tx, target.id, VARENYK_SATED_STATUS_KEY);
+          const existingPayload = parseVarenykSatedPayload(existing?.resultJson);
+          if (existingPayload && matchesSatedReplay(existingPayload, input.previewToken, actor, target)) {
+            return mapSatedReplay(
+              existingPayload,
+              toCharacterRecord(actor),
+              toCharacterRecord(target)
+            );
+          }
+        }
         const gate = validateSharedTarget(actor, target, input, { allowSelf: true, blockAdventure: true });
         if (gate) {
           return gate;
@@ -667,11 +710,6 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           return { state: "blocked" as const, reason: "target-defeated" as const, actor: actorRecord, target: targetRecord };
         }
 
-        const existing = await findCooldown(tx, target!.id, VARENYK_SATED_STATUS_KEY);
-        const existingPayload = parseVarenykSatedPayload(existing?.resultJson);
-        if (existingPayload && matchesSatedReplay(existingPayload, input.previewToken, actor, target!)) {
-          return mapSatedReplay(existingPayload, actorRecord, targetRecord);
-        }
         const previewRow = await findCooldown(tx, actor.id, VARENYK_SATED_PREVIEW_KEY);
         const preview = parseSatedPreviewPayload(previewRow?.resultJson);
         if (!preview || !matchesSatedPreview(preview, input, actor, target!)) {
@@ -697,13 +735,19 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             availableAt: new Date(currentPayload.expiresAt)
           };
         }
-        if (currentExisting && currentExisting.availableAt > input.now) {
+        const authoritativeAvailableAt = getAuthoritativeSatedAvailableAt(
+          currentExisting,
+          currentPayload,
+          target!.id,
+          targetRecord.remortCount ?? 0
+        );
+        if (authoritativeAvailableAt && authoritativeAvailableAt > input.now) {
           return {
             state: "blocked" as const,
             reason: "target-cooldown" as const,
             actor: toCharacterRecord(actorContext.character),
             target: toCharacterRecord(targetContext.character),
-            availableAt: currentExisting.availableAt
+            availableAt: authoritativeAvailableAt
           };
         }
         const actorCanonical = actorContext.canonical;
@@ -1382,11 +1426,57 @@ async function listVarenykSatedByTargetId(
   });
   return new Map(rows.map((row) => {
     const payload = parseVarenykSatedPayload(row.resultJson);
+    const authoritativeAvailableAt = getAuthoritativeSatedAvailableAt(
+      row,
+      payload,
+      row.characterId,
+      payload?.recipientRemortCount ?? -1
+    );
     return [row.characterId, {
-      availableAt: row.availableAt > now ? row.availableAt : null,
+      availableAt: authoritativeAvailableAt && authoritativeAvailableAt > now ? authoritativeAvailableAt : null,
       payload: payload && Date.parse(payload.expiresAt) > now.getTime() ? payload : null
     }];
   }));
+}
+
+function getAuthoritativeSatedAvailableAt(
+  row: Awaited<ReturnType<typeof findCooldown>>,
+  payload: VarenykSatedPayloadV1 | null,
+  recipientCharacterId: string,
+  recipientRemortCount: number
+): Date | null {
+  if (!row) {
+    return null;
+  }
+  const payloadAvailableAt = payload &&
+    payload.recipientCharacterId === recipientCharacterId &&
+    payload.recipientRemortCount === recipientRemortCount
+    ? new Date(payload.availableAt)
+    : null;
+  return payloadAvailableAt && payloadAvailableAt > row.availableAt
+    ? payloadAvailableAt
+    : row.availableAt;
+}
+
+function isSettledHistoricalSatedRow(
+  row: NonNullable<Awaited<ReturnType<typeof findCooldown>>>,
+  payload: VarenykSatedPayloadV1 | null,
+  characterId: string,
+  now: Date
+): boolean {
+  if (!payload || payload.recipientCharacterId !== characterId) {
+    return false;
+  }
+  const expiresAt = Date.parse(payload.expiresAt);
+  const cursorAt = Date.parse(payload.cursorAt);
+  const payloadAvailableAt = Date.parse(payload.availableAt);
+  return Number.isFinite(expiresAt) &&
+    Number.isFinite(cursorAt) &&
+    Number.isFinite(payloadAvailableAt) &&
+    expiresAt <= now.getTime() &&
+    cursorAt >= expiresAt &&
+    row.availableAt <= now &&
+    payloadAvailableAt <= now.getTime();
 }
 
 const satedCharacterInclude = {
@@ -1448,13 +1538,14 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
       })
     : [];
   const actionPayloads = attunementActions.map((row) => row.resultJson);
-  const equippedItems = character.equipment.flatMap((row) => {
+  const attunedEquipment = character.equipment.flatMap((row) => {
     if (isEquipmentAttunementPendingForRow({ row, actionPayloads, now })) {
       return [];
     }
     const item = items.find((candidate) => candidate.id === row.itemId);
-    return item ? [item] : [];
+    return item ? [{ row, item }] : [];
   });
+  const equippedItems = attunedEquipment.map(({ item }) => item);
   const summary = summarizeCharacter(toCharacterRecord(character), {
     equippedItems,
     remortCount: getIncludedRemortCount(character)
@@ -1499,6 +1590,19 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
     summary,
     regeneration,
     equipmentItemIds: equippedItems.map((item) => item.id).sort(),
+    attunedEquipmentRows: attunedEquipment
+      .map(({ row }) => ({
+        rowId: row.id,
+        slot: row.slot,
+        itemId: row.itemId,
+        updatedAt: row.updatedAt.toISOString()
+      }))
+      .sort((left, right) =>
+        left.slot.localeCompare(right.slot) ||
+        left.rowId.localeCompare(right.rowId) ||
+        left.itemId.localeCompare(right.itemId) ||
+        left.updatedAt.localeCompare(right.updatedAt)
+      ),
     recoveryWindows
   };
 }
@@ -1597,8 +1701,8 @@ async function settleSatedForCommit(
 }
 
 interface SatedPreviewPayload {
-  kind: "varenyk-sated-preview-v1";
-  version: 1;
+  kind: "varenyk-sated-preview-v2";
+  version: 2;
   previewToken: string;
   actorCharacterId: string;
   actorRemortCount: number;
@@ -1612,6 +1716,12 @@ interface SatedPreviewPayload {
     charisma: number;
     level: number;
     equipmentItemIds: string[];
+    attunedEquipmentRows: Array<{
+      rowId: string;
+      slot: string;
+      itemId: string;
+      updatedAt: string;
+    }>;
   };
   recoveryWindows: Array<{ startsAt: string; expiresAt: string; multiplierBp: number }>;
   expiresAt: string;
@@ -1624,8 +1734,8 @@ function isSatedPreviewRecord(value: unknown): value is Record<string, unknown> 
 function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
   if (
     !isSatedPreviewRecord(value) ||
-    value.kind !== "varenyk-sated-preview-v1" ||
-    value.version !== 1 ||
+    value.kind !== "varenyk-sated-preview-v2" ||
+    value.version !== 2 ||
     typeof value.previewToken !== "string" ||
     typeof value.actorCharacterId !== "string" ||
     typeof value.actorRemortCount !== "number" ||
@@ -1644,6 +1754,15 @@ function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
     !Number.isInteger(value.effectiveStats.level) ||
     !Array.isArray(value.effectiveStats.equipmentItemIds) ||
     !value.effectiveStats.equipmentItemIds.every((entry) => typeof entry === "string") ||
+    !Array.isArray(value.effectiveStats.attunedEquipmentRows) ||
+    !value.effectiveStats.attunedEquipmentRows.every((entry) =>
+      isSatedPreviewRecord(entry) &&
+      typeof entry.rowId === "string" &&
+      typeof entry.slot === "string" &&
+      typeof entry.itemId === "string" &&
+      typeof entry.updatedAt === "string" &&
+      Number.isFinite(Date.parse(entry.updatedAt))
+    ) ||
     !Array.isArray(value.recoveryWindows) ||
     !value.recoveryWindows.every((entry) =>
       isSatedPreviewRecord(entry) &&
@@ -1674,6 +1793,7 @@ function matchesSatedPreviewPlan(
     preview.effectiveStats.level === canonical.summary.level &&
     preview.effectiveStats.equipmentItemIds.length === canonical.equipmentItemIds.length &&
     preview.effectiveStats.equipmentItemIds.every((id, index) => id === canonical.equipmentItemIds[index]) &&
+    JSON.stringify(preview.effectiveStats.attunedEquipmentRows) === JSON.stringify(canonical.attunedEquipmentRows) &&
     JSON.stringify(preview.recoveryWindows) === JSON.stringify(canonical.recoveryWindows) &&
     preview.plan.rank >= 1 &&
     preview.plan.rank <= preview.statRank &&
@@ -1708,8 +1828,10 @@ function matchesSatedReplay(
   return payload.receipt.previewToken === previewToken &&
     payload.actorCharacterId === actor.id &&
     payload.actorRemortCount === getIncludedRemortCount(actor) &&
+    payload.receipt.actorTelegramUserId === actor.user.telegramUserId.toString() &&
     payload.recipientCharacterId === target.id &&
-    payload.recipientRemortCount === getIncludedRemortCount(target);
+    payload.recipientRemortCount === getIncludedRemortCount(target) &&
+    payload.receipt.targetTelegramUserId === target.user.telegramUserId.toString();
 }
 
 function mapSatedReplay(
