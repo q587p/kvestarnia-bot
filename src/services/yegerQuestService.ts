@@ -126,6 +126,9 @@ const YEGER_UNQUIET_TRIAL_STAGES: readonly YegerQuestStage[] = [
   YEGER_UNQUIET_TRIAL_FIRST_STAGE,
   YEGER_UNQUIET_TRIAL_SECOND_STAGE
 ];
+const YEGER_UNQUIET_TRIAL_MONSTER_IDS = monsters
+  .filter(isYegerUnquietTarget)
+  .map((monster) => monster.id);
 
 interface YegerRangerSupplyDefinition {
   kind: YegerRangerSupplyKind;
@@ -518,7 +521,8 @@ export class YegerQuestService {
   }
 
   async getProgressAfterFreshRelevantWinForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    input: { remortCount: number }
   ): Promise<YegerQuestProgress | null> {
     const stage = await this.getCurrentStage(telegramUserId);
 
@@ -535,7 +539,19 @@ export class YegerQuestService {
       return null;
     }
 
-    const wins = await this.countRelevantWins(telegramUserId, started.createdAt);
+    if (!this.combatSessions.countProgressEligibleWinsByTelegramUserId) {
+      return null;
+    }
+
+    const wins = await this.combatSessions.countProgressEligibleWinsByTelegramUserId(
+      telegramUserId,
+      {
+        monsterIds: YEGER_UNQUIET_TRIAL_MONSTER_IDS,
+        completedSince: started.createdAt,
+        life: { remortCount: Math.max(0, Math.floor(input.remortCount)) },
+        limit: stage.target + 1
+      }
+    );
 
     if (wins <= 0 || wins > stage.target) {
       return null;

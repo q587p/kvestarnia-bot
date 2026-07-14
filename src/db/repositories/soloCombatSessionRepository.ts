@@ -248,6 +248,15 @@ export interface SoloCombatSessionRepository {
     telegramUserId: bigint,
     since: Date
   ): Promise<SoloCombatSessionCompletionRecord[]>;
+  countProgressEligibleWinsByTelegramUserId?(
+    telegramUserId: bigint,
+    options: {
+      monsterIds: readonly string[];
+      completedSince: Date;
+      life: Pick<CombatLifeState, "remortCount">;
+      limit: number;
+    }
+  ): Promise<number>;
   listRecentCompletedByTelegramUserId?(
     telegramUserId: bigint,
     limit: number

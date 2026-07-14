@@ -10,7 +10,10 @@ PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
 PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
 PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
 } from "../../services/presenceService";
-import { isYegerUnquietTarget } from "../../services/yegerQuestService";
+import {
+  isYegerUnquietTarget,
+  YEGER_UNQUIET_TRIAL_MIN_LEVEL
+} from "../../services/yegerQuestService";
 import {
   getPassageSearchNodeKey,
   PASSAGE_SEARCH_NODE_DEEP_LEVEL1
@@ -648,12 +651,16 @@ async function handleFightCallback(
     const yegerProgress =
       result.state === "updated" &&
       result.session.state?.status === "won" &&
+      result.fightReward !== null &&
+      result.character.level >= YEGER_UNQUIET_TRIAL_MIN_LEVEL &&
       result.monster &&
       isYegerUnquietTarget(result.monster) &&
       typeof services.yeger?.getProgressAfterFreshRelevantWinForTelegramUser === "function"
         ? await perf.measureDb(() => dbAttribution.measure(
             "yeger",
-            () => services.yeger.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)
+            () => services.yeger.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, {
+              remortCount: result.character.remortCount ?? 0
+            })
           ))
         : null;
     const progressMessage =

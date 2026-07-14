@@ -1940,7 +1940,7 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain(makePlaceCallbackData("bar"));
   });
 
-  it("includes Yeger quest progress in the separate message when a matching won fight moved it", async () => {
+  it("includes Yeger quest progress after one eligible settled level-4 win lookup", async () => {
     const yegerLookup = vi.fn().mockResolvedValue({ wins: 5, target: 5, stageId: "first" });
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({
@@ -1953,7 +1953,7 @@ describe("scene callback HTML options", () => {
           resolvePersistentFightTurn: () =>
             Promise.resolve({
               state: "updated",
-              character,
+              character: { ...character, level: 4 },
               session: {
                 ...persistentSession("monster.restless-auditor"),
                 id: "123e4567-e89b-42d3-a456-426614174111",
@@ -2001,7 +2001,7 @@ describe("scene callback HTML options", () => {
                 issued: true,
                 branchComplete: false
               },
-              fightReward: null
+              fightReward: claimedPersistentFightReward()
             })
         },
         yeger: {
@@ -2015,6 +2015,7 @@ describe("scene callback HTML options", () => {
     );
 
     expect(yegerLookup).toHaveBeenCalledTimes(1);
+    expect(yegerLookup).toHaveBeenCalledWith(42n, { remortCount: 0 });
     expect(String(edit?.payload.text)).not.toContain("Неспокійні справи");
     expect(progress?.payload.parse_mode).toBe("HTML");
     expect(String(progress?.payload.text)).toContain("📋 <b>Прогрес справ зрушив</b>");
@@ -2024,6 +2025,68 @@ describe("scene callback HTML options", () => {
     expect(String(progress?.payload.text)).toContain("<i>Неспокійні справи</i>: <b>5/5</b>. — Єгер чекає дощечку.");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🍻 До шинку");
     expect(JSON.stringify(progress?.payload.reply_markup)).toContain("🏹 До Єгеря");
+  });
+
+  it("keeps the primary edit and problem progress but skips Yeger for an unsettled tagged win", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 3, target: 5, stageId: "first" });
+    const result = {
+      ...persistentUpdatedResult({
+        sessionId: "123e4567-e89b-42d3-a456-426614174217",
+        status: "won",
+        tags: ["unquiet"],
+        level: 4
+      }),
+      questProgress: {
+        stageId: "13",
+        title: "Тринадцять дрібних проблем",
+        wins: 3,
+        target: 13,
+        completed: false,
+        rewardClaimed: false,
+        issued: true,
+        branchComplete: false
+      },
+      fightReward: null
+    };
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const progressText = calls
+      .filter((call) => call.method === "sendMessage")
+      .map((call) => String(call.payload.text))
+      .join("\n");
+
+    expect(edits).toHaveLength(1);
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(progressText).toContain("Тринадцять дрібних проблем");
+    expect(progressText).not.toContain("Неспокійні справи");
+  });
+
+  it("performs zero Yeger reads for a settled tagged win below level 4", async () => {
+    const yegerLookup = vi.fn().mockResolvedValue({ wins: 1, target: 5, stageId: "first" });
+    const result = persistentUpdatedResult({
+      sessionId: "123e4567-e89b-42d3-a456-426614174218",
+      status: "won",
+      tags: ["unquiet"],
+      level: 3,
+      settled: true
+    });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) },
+        yeger: { getProgressAfterFreshRelevantWinForTelegramUser: yegerLookup }
+      })
+    );
+
+    expect(yegerLookup).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.method === "sendMessage").map((call) => String(call.payload.text)).join("\n"))
+      .not.toContain("Неспокійні справи");
   });
 
   it.each([
@@ -2113,7 +2176,9 @@ describe("scene callback HTML options", () => {
     const result = persistentUpdatedResult({
       sessionId: "123e4567-e89b-42d3-a456-426614174214",
       status: "won",
-      tags: ["unquiet"]
+      tags: ["unquiet"],
+      level: 4,
+      settled: true
     });
     const calls = await captureApiCalls(
       makeFightTurnCallbackData({ sessionId: result.session.id, turn: 1, action: "attack" }),
@@ -2159,7 +2224,9 @@ describe("scene callback HTML options", () => {
     const result = persistentUpdatedResult({
       sessionId: "123e4567-e89b-42d3-a456-426614174216",
       status: "won",
-      tags: ["unquiet"]
+      tags: ["unquiet"],
+      level: 4,
+      settled: true
     });
 
     await expect(captureApiCalls(
@@ -7976,6 +8043,8 @@ function persistentUpdatedResult(input: {
   sessionId: string;
   status: "active" | "won";
   tags: string[];
+  level?: number;
+  settled?: boolean;
 }) {
   const base = persistentSession("monster.restless-auditor");
   const session = {
@@ -7997,7 +8066,7 @@ function persistentUpdatedResult(input: {
 
   return {
     state: "updated" as const,
-    character,
+    character: { ...character, level: input.level ?? character.level },
     session,
     monster: {
       id: "monster.restless-auditor",
@@ -8007,7 +8076,20 @@ function persistentUpdatedResult(input: {
       tags: input.tags
     },
     questProgress: null,
-    fightReward: null
+    fightReward: input.settled ? claimedPersistentFightReward() : null
+  };
+}
+
+function claimedPersistentFightReward() {
+  return {
+    state: "claimed" as const,
+    reward: {
+      xp: 13,
+      gold: 0,
+      localDate: "12026-07-14",
+      itemGrants: []
+    },
+    levelChange: noLevelChange
   };
 }
 

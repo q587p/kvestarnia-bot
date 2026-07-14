@@ -213,14 +213,13 @@ export class DailyKorchmaRoundService {
     telegramUserId: bigint,
     sharedFight: Promise<FightLookupResult | null>
   ): Promise<DailyKorchmaRoundMarkerLookupResult> {
-    const now = this.clock();
-    const dayKey = getKyivDayKey(now);
     const characterRecord = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!characterRecord) {
       return { state: "no-character" };
     }
 
+    const dayKey = getKyivDayKey(this.clock());
     const character = summarizeCharacter(characterRecord);
     const lifeToken = Math.max(0, Math.floor(characterRecord.remortCount ?? 0));
     const offerRecord = await this.dailyActions.findForTelegramUser(telegramUserId, {

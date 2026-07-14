@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 import {
   normalizeCombatEnemies,
@@ -743,6 +743,27 @@ describe("PrismaSoloCombatSessionRepository", () => {
         life: { remortCount: 0 }
       })
     ).resolves.toBe(2);
+  });
+
+  it("uses one capped aggregate query for progress-eligible wins", async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ count: 12n }]);
+    const repository = new PrismaSoloCombatSessionRepository({
+      $queryRaw: queryRaw
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+    const completedSince = new Date("2026-06-12T10:00:00.000Z");
+
+    await expect(repository.countProgressEligibleWinsByTelegramUserId(42n, {
+      monsterIds: ["monster.unquiet-a", "monster.unquiet-b"],
+      completedSince,
+      life: { remortCount: 2 },
+      limit: 6
+    })).resolves.toBe(6);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const query = queryRaw.mock.calls[0]?.[0] as Prisma.Sql;
+    expect(query.sql).toContain("SELECT COUNT(*) AS count");
+    expect(query.sql).toContain("LIMIT ?");
+    expect(query.values.at(-1)).toBe(6);
   });
 });
 

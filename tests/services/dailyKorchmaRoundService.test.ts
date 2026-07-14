@@ -154,6 +154,36 @@ describe("DailyKorchmaRoundService", () => {
     await expect(marker).resolves.toMatchObject({ state: "not-issued" });
   });
 
+  it("linearizes the marker day after a deferred character read crossing Kyiv midnight", async () => {
+    const beforeKyivMidnight = new Date("2026-06-28T20:59:59.900Z");
+    const afterKyivMidnight = new Date("2026-06-28T21:00:00.100Z");
+    let clockNow = afterKyivMidnight;
+    const world = new FakeWorld(makeCharacter({ level: 3 }), () => clockNow);
+    await expect(world.service.getForTelegramUser(telegramUserId)).resolves.toMatchObject({ state: "ready" });
+    world.resetMarkerCalls();
+
+    let resolveCharacter: ((character: CharacterRecord | null) => void) | undefined;
+    world.characterLookup = () => new Promise((resolve) => {
+      resolveCharacter = resolve;
+    });
+    clockNow = beforeKyivMidnight;
+    const marker = markerLookup(world);
+
+    await Promise.resolve();
+    clockNow = afterKyivMidnight;
+    resolveCharacter?.(world.character);
+
+    await expect(marker).resolves.toMatchObject({ state: "ready" });
+    expect(world.daily.findCalls).toContainEqual({
+      key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+      localDate: "2026-06-29"
+    });
+    expect(world.daily.findCalls).not.toContainEqual({
+      key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+      localDate: "2026-06-28"
+    });
+  });
+
   it("loads step rows through the current-day prefix only", async () => {
     const world = new FakeWorld(makeCharacter({ level: 3 }));
     const offer = await readyOffer(world);
@@ -696,15 +726,30 @@ function expectMarkerCalls(
 
 class FakeWorld implements CharacterRepository, DailyActionRepository {
   readonly daily = new FakeDailyActionRepository(this);
-  readonly service = new DailyKorchmaRoundService(this, this.daily, this, this, this, undefined, undefined, () => now);
+  readonly service: DailyKorchmaRoundService;
   locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
   fightState: "ready" | "persistent-active" | "training-active" = "ready";
   pendingBarrel = false;
   characterReads = 0;
   fightReads = 0;
   barrelReads = 0;
+  characterLookup: (() => Promise<CharacterRecord | null>) | null = null;
 
-  constructor(public character: CharacterRecord | null) {}
+  constructor(
+    public character: CharacterRecord | null,
+    clock: () => Date = () => now
+  ) {
+    this.service = new DailyKorchmaRoundService(
+      this,
+      this.daily,
+      this,
+      this,
+      this,
+      undefined,
+      undefined,
+      clock
+    );
+  }
 
   findByUserId(): Promise<CharacterRecord | null> {
     return Promise.resolve(this.character);
@@ -712,7 +757,10 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
 
   findByTelegramUserId(id: bigint): Promise<CharacterRecord | null> {
     this.characterReads += 1;
-    return Promise.resolve(id === telegramUserId ? this.character : null);
+    if (id !== telegramUserId) {
+      return Promise.resolve(null);
+    }
+    return this.characterLookup?.() ?? Promise.resolve(this.character);
   }
 
   deleteByTelegramUserId(): Promise<boolean> {

@@ -132,9 +132,13 @@ describe("YegerQuestService", () => {
     const world = new FakeWorld();
     world.addCharacter({ level: 5, xp: 110 });
     const service = world.service();
+    const lookupInput = { remortCount: 0 };
 
-    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toBeNull();
+    await expect(
+      service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, lookupInput)
+    ).resolves.toBeNull();
     expect(world.completedSinceCalls).toBe(0);
+    expect(world.progressEligibleCountCalls).toHaveLength(0);
 
     world.addAction(YEGER_UNQUIET_TRIAL_STARTED_KEY, startedAt);
     world.sessions.push({
@@ -143,10 +147,17 @@ describe("YegerQuestService", () => {
       createdAt: startedAt
     });
 
-    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toMatchObject({
+    await expect(
+      service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, lookupInput)
+    ).resolves.toMatchObject({
       wins: 1,
       target: 5,
       stageId: "first"
+    });
+    expect(world.progressEligibleCountCalls.at(-1)).toMatchObject({
+      completedSince: startedAt,
+      life: { remortCount: 0 },
+      limit: 6
     });
 
     for (let index = 1; index < 5; index += 1) {
@@ -157,7 +168,9 @@ describe("YegerQuestService", () => {
       });
     }
 
-    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toMatchObject({
+    await expect(
+      service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, lookupInput)
+    ).resolves.toMatchObject({
       wins: 5,
       target: 5
     });
@@ -167,8 +180,11 @@ describe("YegerQuestService", () => {
       status: "won",
       createdAt: new Date(startedAt.getTime() + 6)
     });
-    await expect(service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId)).resolves.toBeNull();
-    expect(world.completedSinceCalls).toBe(3);
+    await expect(
+      service.getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, lookupInput)
+    ).resolves.toBeNull();
+    expect(world.completedSinceCalls).toBe(0);
+    expect(world.progressEligibleCountCalls).toHaveLength(3);
   });
 
   it("counts the second Yeger board from its own start time", async () => {
@@ -189,6 +205,16 @@ describe("YegerQuestService", () => {
       state: "in-progress",
       progress: { wins: 2, target: 17, stageId: "second" }
     });
+    await expect(
+      world.service().getProgressAfterFreshRelevantWinForTelegramUser(telegramUserId, { remortCount: 0 })
+    ).resolves.toMatchObject({
+      wins: 2,
+      target: 17,
+      stageId: "second"
+    });
+    expect(world.progressEligibleCountCalls).toEqual([
+      expect.objectContaining({ completedSince: startedAt, life: { remortCount: 0 }, limit: 18 })
+    ]);
   });
 
   it("tracks bought and free bandages for immediate achievement notifications", async () => {
@@ -1209,12 +1235,17 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   character: CharacterRecord | null = null;
   readonly actions: DailyActionRecord[] = [];
   readonly sessions: Array<{
+    id?: string;
     monsterId: string;
     status: "won" | "lost" | "fled" | "expired";
     createdAt: Date;
     completedAt?: Date;
     updatedAt?: Date;
-    state?: { completedAt?: string } | null;
+    state?: {
+      completedAt?: string;
+      settlement?: { status: "pending" | "completed" | "forfeited-by-remort" };
+      life?: { remortCount: number };
+    } | null;
   }> = [];
   readonly itemGrants: Array<{ itemId: string; quantity: number }> = [];
   readonly itemQuantities = new Map<string, number>();
@@ -1227,6 +1258,12 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
   listForTelegramUserCalls = 0;
   listForTelegramUserInCreatedAtRangeCalls: Array<{ key: string; createdAtGte: Date; createdAtLt: Date }> = [];
   completedSinceCalls = 0;
+  progressEligibleCountCalls: Array<{
+    monsterIds: readonly string[];
+    completedSince: Date;
+    life: { remortCount: number };
+    limit: number;
+  }> = [];
 
   service(achievements?: AchievementService): YegerQuestService {
     return new YegerQuestService(
@@ -1681,6 +1718,34 @@ class FakeWorld implements CharacterRepository, DailyActionRepository, SoloComba
         }];
       })
     );
+  }
+
+  countProgressEligibleWinsByTelegramUserId(
+    _telegramUserId: bigint,
+    options: {
+      monsterIds: readonly string[];
+      completedSince: Date;
+      life: { remortCount: number };
+      limit: number;
+    }
+  ): Promise<number> {
+    this.progressEligibleCountCalls.push(options);
+    const monsterIds = new Set(options.monsterIds);
+    const wins = this.sessions.filter((session) => {
+      const completedAt = session.completedAt ?? (
+        session.state?.completedAt ? new Date(session.state.completedAt) : session.createdAt
+      );
+      const settlementStatus = session.state?.settlement?.status;
+      const remortCount = session.state?.life?.remortCount ?? 0;
+
+      return session.status === "won" &&
+        monsterIds.has(session.monsterId) &&
+        completedAt >= options.completedSince &&
+        (settlementStatus === undefined || settlementStatus === "completed") &&
+        remortCount === options.life.remortCount;
+    }).length;
+
+    return Promise.resolve(Math.min(wins, options.limit));
   }
 
   countWonByTelegramUserId(
