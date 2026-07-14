@@ -103,8 +103,9 @@ describe("health server", () => {
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Вареники, що пам’ятають про ману");
+    expect(text).toContain("У грі вже:");
     expect(text).toContain("🍽️ Нагодувати");
-    expect(text).toContain("скромнішим доступним рангом");
+    expect(text).toContain("скромнішим доступним варіянтом");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
