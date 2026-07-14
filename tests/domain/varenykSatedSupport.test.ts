@@ -78,7 +78,7 @@ describe("Varenyk-mancer Sated support", () => {
     expect(full.payload.cursorAt).toBe(new Date(startedAt.getTime() + 3 * 60_000).toISOString());
   });
 
-  it("settles through expiry and discards combat-blocked time", () => {
+  it("settles through expiry, retires the terminal fraction, and leaves lease exclusion to combat", () => {
     const expired = settleVarenykSatedOutsideCombat({
       payload: makePayload(),
       resources: { hp: 1, hpMax: 30, mana: 1, manaMax: 30 },
@@ -97,7 +97,18 @@ describe("Varenyk-mancer Sated support", () => {
     });
     expect(blocked.hpRestored).toBe(0);
     expect(blocked.manaRestored).toBe(0);
-    expect(blocked.payload.cursorAt).toBe(new Date(startedAt.getTime() + 4 * 60_000).toISOString());
+    expect(blocked.payload.cursorAt).toBe(startedAt.toISOString());
+
+    const fractional = makePayload();
+    fractional.cursorAt = new Date(startedAt.getTime() + 30_000).toISOString();
+    const terminal = settleVarenykSatedOutsideCombat({
+      payload: fractional,
+      resources: { hp: 1, hpMax: 30, mana: 1, manaMax: 30 },
+      now: new Date(startedAt.getTime() + 20 * 60_000),
+      combatBlocked: false
+    });
+    expect(terminal.elapsedMinutes).toBe(12);
+    expect(terminal.payload.cursorAt).toBe(new Date(startedAt.getTime() + 13 * 60_000).toISOString());
   });
 
   it("freezes the current-life activation and pulses once per durable identity after spending", () => {

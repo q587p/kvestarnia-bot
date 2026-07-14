@@ -825,13 +825,19 @@ describe("PrismaClassNoncombatRepository integration", () => {
       .toBe(false);
   });
 
-  it("uses only the indexed guard for settled historical Sated receipts on repeated Hero reads", async () => {
+  it("naturally reaches the historical fast path after a combat lease crosses expiry", async () => {
     await seedCharacter({
       telegramUserId: 4051n,
       userId: "user-historical-sated",
       characterId: "historical-sated",
       classId: "class.varenyk-mancer",
-      level: 3
+      level: 3,
+      hpCurrent: 1,
+      hpMax: 30,
+      manaCurrent: 1,
+      manaMax: 30,
+      hpRegenAt: new Date("2026-07-03T06:13:30.000Z"),
+      manaRegenAt: new Date("2026-07-03T06:13:30.000Z")
     });
     const historical = satedPayload({
       activationId: "historical-activation",
@@ -840,7 +846,6 @@ describe("PrismaClassNoncombatRepository integration", () => {
       expiresAt: new Date("2026-07-03T06:13:00.000Z"),
       availableAt: new Date("2026-07-03T07:33:00.000Z")
     });
-    historical.cursorAt = historical.expiresAt;
     await prisma.characterCooldown.create({
       data: {
         characterId: "historical-sated",
@@ -849,6 +854,63 @@ describe("PrismaClassNoncombatRepository integration", () => {
         resultJson: historical
       }
     });
+
+    const leaseStartedAt = new Date("2026-07-03T06:02:30.000Z");
+    const frozen = await prisma.$transaction(async (tx) => {
+      const result = await freezeVarenykSatedFromCooldown({
+        tx,
+        characterId: "historical-sated",
+        remortCount: 0,
+        resources: { hp: 1, hpMax: 30, mana: 1, manaMax: 30 },
+        now: leaseStartedAt
+      });
+      await tx.character.update({
+        where: { id: "historical-sated" },
+        data: { hpCurrent: result.resources.hp, manaCurrent: result.resources.mana }
+      });
+      await tx.activeCombatLease.create({
+        data: {
+          characterId: "historical-sated",
+          kind: "solo-combat",
+          referenceId: "historical-sated-session",
+          createdAt: leaseStartedAt,
+          updatedAt: leaseStartedAt
+        }
+      });
+      return result;
+    });
+    expect(frozen).toMatchObject({
+      hpRestored: 2,
+      manaRestored: 2,
+      sated: { outsideRemainderMs: 30_000 }
+    });
+
+    await expect(repository.settleVarenykSatedForTelegramUser(
+      4051n,
+      new Date("2026-07-03T06:13:30.000Z"),
+      "historical-sated"
+    )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+    await prisma.$transaction(async (tx) => {
+      await advanceVarenykSatedCursorThroughCombat({
+        tx,
+        characterId: "historical-sated",
+        activationId: historical.activationId,
+        now: new Date("2026-07-03T06:14:00.000Z"),
+        outsideRemainderMs: frozen.sated?.outsideRemainderMs
+      });
+      await tx.activeCombatLease.delete({ where: { characterId: "historical-sated" } });
+    });
+    const terminal = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "historical-sated",
+          key: "class.varenyk-mancer.sated-support.recipient"
+        }
+      }
+    });
+    expect((terminal.resultJson as { cursorAt: string }).cursorAt).toBe(historical.expiresAt);
+    await expect(prisma.character.findUnique({ where: { id: "historical-sated" } }))
+      .resolves.toMatchObject({ hpCurrent: 3, manaCurrent: 3 });
 
     queryEvents = [];
     await expect(repository.settleVarenykSatedForTelegramUser(4051n, now, "historical-sated"))

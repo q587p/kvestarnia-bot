@@ -61,6 +61,7 @@ export async function sendHero(
       activeVarenykSated: result.activeVarenykSated,
       varenykSatedAvailableAt: result.varenykSatedAvailableAt,
       satedRecovery: result.satedRecovery,
+      ...(result.recoveryNotice ? { recoveryNotice: result.recoveryNotice } : {}),
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
     });

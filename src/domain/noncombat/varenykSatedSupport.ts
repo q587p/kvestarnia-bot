@@ -139,9 +139,12 @@ export function settleVarenykSatedOutsideCombat(input: {
   }
 
   const elapsedMinutes = Math.floor((through.getTime() - cursorAt.getTime()) / 60_000);
+  const reachedExpiry = through.getTime() === expiresAt.getTime();
   const nextCursor = input.combatBlocked
-    ? through
-    : new Date(cursorAt.getTime() + elapsedMinutes * 60_000);
+    ? cursorAt
+    : reachedExpiry
+      ? expiresAt
+      : new Date(cursorAt.getTime() + elapsedMinutes * 60_000);
   const recovered = input.combatBlocked || elapsedMinutes <= 0
     ? applyRecovery(input.resources, 0, 0)
     : applyRecovery(input.resources, elapsedMinutes, elapsedMinutes);

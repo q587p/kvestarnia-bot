@@ -98,12 +98,39 @@ describe("class noncombat presenter", () => {
       availableAt: new Date("2026-07-03T10:33:00.000Z")
     } as never);
 
+    expect(blocked).toContain("активну пригоду");
     expect(blocked).toContain("Миска почекає");
     expect(blocked).not.toContain("Жрець");
     expect(blocked).not.toContain("злодій");
     expect(active).toContain("Стан «Ситий» ще діє 13 хвилин");
     expect(wait).toContain("нагодувати знову через 93 хвилини");
     expect(wait).not.toContain("ще пам’ятає");
+  });
+
+  it("shows only the authoritative wait on an expired replay and availability after the wait", () => {
+    const action = {
+      actorTelegramUserId: 1n,
+      targetTelegramUserId: 2n,
+      actorName: "Пан Вареник",
+      targetName: "Сусід",
+      rank: 2,
+      manaCost: 12,
+      immediateHpRestored: 1,
+      immediateManaRestored: 0,
+      expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+      availableAt: new Date("2026-07-03T10:33:00.000Z")
+    };
+    vi.setSystemTime(new Date("2026-07-03T09:14:00.000Z"));
+    const waiting = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
+
+    expect(waiting).not.toContain("Діє ще");
+    expect(waiting).toContain("Наступне годування цієї цілі: <b>79 хвилин</b>");
+
+    vi.setSystemTime(new Date("2026-07-03T10:33:00.000Z"));
+    const available = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
+    expect(available).not.toContain("Діє ще");
+    expect(available).not.toContain("Наступне годування");
+    expect(available).toContain("знову можна нагодувати");
   });
 
   it("keeps the Priest target prompt when active nearby targets exist", () => {
@@ -180,6 +207,26 @@ describe("class noncombat presenter", () => {
     expect(text).toContain("Спершу завершіть бій або рейд.");
     expect(text).not.toContain("готово");
     expect(text).not.toContain("активним протоколом");
+  });
+
+  it("names the active adventure in the blocked Varenyk support surface", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "varenyk",
+      actorBlocked: true,
+      character: {
+        id: "character-varenyk",
+        name: "Вареник-мант",
+        classId: "class.varenyk-mancer",
+        manaCurrent: 16,
+        manaMax: 16
+      },
+      targets: [],
+      locationName: "Прямий прохід"
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain("активну пригоду, бій або рейд");
+    expect(text).not.toContain("Жрець");
   });
 
   it("explains stale busy Priest callbacks without the protocol wording", () => {

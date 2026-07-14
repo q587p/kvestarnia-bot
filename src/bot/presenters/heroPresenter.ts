@@ -9,6 +9,7 @@ import type {
   HeroActivePriestBlessing,
   HeroActiveVarenykSated
 } from "../../services/heroService";
+import type { ResourceRecoveryNotice } from "../../services/characterResourceService";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
@@ -22,6 +23,7 @@ export function presentHero(
     activeVarenykSated?: HeroActiveVarenykSated | null;
     varenykSatedAvailableAt?: Date | null;
     satedRecovery?: { hpRestored: number; manaRestored: number } | null;
+    recoveryNotice?: ResourceRecoveryNotice;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
   } = {}
@@ -85,6 +87,13 @@ export function presentHero(
     .filter((line): line is string => Boolean(line));
 
   return [
+    ...(options.recoveryNotice
+      ? [
+          `❤️ <b>Здоров’я знову повне: ${options.recoveryNotice.hpCurrent}/${options.recoveryNotice.hpMax}</b>.`,
+          "Корчмар мовчки підсунув кухоль води й записав це як сервіс.",
+          ""
+        ]
+      : []),
     `👤 <b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",

@@ -20,6 +20,7 @@ import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import type { CombatGearAbilityInput, CombatSkillProfile } from "../../domain/combat";
 import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels/turnBasedDuel";
+import { preserveDuelResourceRatio } from "../../domain/duels/duelBalance";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -409,7 +410,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           where: { id: participant.characterId },
           select: {
             hpCurrent: true,
+            hpMax: true,
             manaCurrent: true,
+            manaMax: true,
             hpRegenAt: true,
             manaRegenAt: true,
             updatedAt: true
@@ -424,9 +427,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           remortCount: participant.remortCount,
           resources: {
             hp: canonical.hpCurrent,
-            hpMax: participant.hpMax,
+            hpMax: canonical.hpMax,
             mana: canonical.manaCurrent,
-            manaMax: participant.manaMax
+            manaMax: canonical.manaMax
           },
           now
         });
@@ -443,18 +446,23 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             data: {
               hpCurrent: sated.resources.hp,
               manaCurrent: sated.resources.mana,
-              hpRegenAt: sated.resources.hp >= participant.hpMax ? now : canonical.hpRegenAt,
-              manaRegenAt: sated.resources.mana >= participant.manaMax ? now : canonical.manaRegenAt
+              hpRegenAt: sated.resources.hp >= canonical.hpMax ? now : canonical.hpRegenAt,
+              manaRegenAt: sated.resources.mana >= canonical.manaMax ? now : canonical.manaRegenAt
             }
           });
           if (persisted.count !== 1) {
             throw new VarenykSatedCasError("duel-character-resources");
           }
         }
+        const canonicalResourcesChanged = sated.hpRestored > 0 || sated.manaRestored > 0;
         state.participants[side] = {
           ...participant,
-          hp: sated.resources.hp,
-          mana: sated.resources.mana,
+          hp: canonicalResourcesChanged
+            ? preserveDuelResourceRatio(sated.resources.hp, canonical.hpMax, participant.hpMax)
+            : participant.hp,
+          mana: canonicalResourcesChanged
+            ? preserveDuelResourceRatio(sated.resources.mana, canonical.manaMax, participant.manaMax)
+            : participant.mana,
           ...(sated.sated ? { varenykSated: sated.sated } : {})
         };
       }

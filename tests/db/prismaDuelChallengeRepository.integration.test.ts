@@ -387,6 +387,104 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     }
   });
 
+  it("preserves the exact asymmetric balanced snapshot when neither participant has Sated", async () => {
+    const seeded = await seedPendingChallenge("asymmetric-without-sated");
+    const state = makeAsymmetricState(seeded.challenger.id, seeded.target.id);
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 }
+    });
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "asymmetric-without-sated",
+      seeded.target.telegramUserId,
+      new Date("2026-06-17T18:00:00.000Z"),
+      {
+        sessionId: "session-asymmetric-without-sated",
+        state,
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started.record?.state.participants.challenger).toMatchObject({
+      hp: state.participants.challenger.hp,
+      hpMax: state.participants.challenger.hpMax,
+      mana: state.participants.challenger.mana,
+      manaMax: state.participants.challenger.manaMax
+    });
+    expect(started.record?.state.participants.target).toMatchObject({
+      hp: state.participants.target.hp,
+      hpMax: state.participants.target.hpMax,
+      mana: state.participants.target.mana,
+      manaMax: state.participants.target.manaMax
+    });
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 });
+    await expect(prisma.character.findUnique({ where: { id: seeded.target.id } }))
+      .resolves.toMatchObject({ hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 });
+  });
+
+  it("settles asymmetric pre-lease Sated against natural maxima before rebuilding balanced ratios", async () => {
+    const seeded = await seedPendingChallenge("asymmetric-with-sated");
+    const state = makeAsymmetricState(seeded.challenger.id, seeded.target.id);
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 }
+    });
+    for (const characterId of [seeded.challenger.id, seeded.target.id]) {
+      const payload = makeSatedPayload(characterId, cursorAt);
+      await prisma.characterCooldown.create({
+        data: {
+          characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+    }
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "asymmetric-with-sated",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-asymmetric-with-sated",
+        state,
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+    const balancedChallenger = state.participants.challenger;
+
+    expect(started.record?.state.participants.challenger).toMatchObject({
+      hp: Math.round((14 / 24) * balancedChallenger.hpMax),
+      hpMax: balancedChallenger.hpMax,
+      mana: Math.round((8 / 12) * balancedChallenger.manaMax),
+      manaMax: balancedChallenger.manaMax,
+      varenykSated: { outsideRemainderMs: 30_000 }
+    });
+    expect(started.record?.state.participants.target).toMatchObject({
+      hp: state.participants.target.hp,
+      hpMax: state.participants.target.hpMax,
+      mana: state.participants.target.mana,
+      manaMax: state.participants.target.manaMax,
+      varenykSated: { outsideRemainderMs: 30_000 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 14, hpMax: 24, manaCurrent: 8, manaMax: 12 });
+    await expect(prisma.character.findUnique({ where: { id: seeded.target.id } }))
+      .resolves.toMatchObject({ hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 });
+  });
+
   it("resolves terminal sessions, grants XP once and releases both leases", async () => {
     const session = await seedActiveSession("terminal-surrender", new Date("2026-06-17T18:00:23.000Z"));
     const completedAt = new Date("2026-06-17T18:00:11.000Z");
@@ -969,6 +1067,25 @@ function makeTerminalResult(
   };
 }
 
+function makeAsymmetricState(challengerId: string, targetId: string): TurnBasedDuelState {
+  const state = startTurnBasedDuel({
+    challenger: makeDuelist(challengerId, {
+      hpCurrent: 12,
+      manaCurrent: 6
+    }),
+    target: makeDuelist(targetId, {
+      level: 13,
+      hpCurrent: 60,
+      hpMax: 60,
+      manaCurrent: 30,
+      manaMax: 30
+    }),
+    rng: new FakeRandomSource([0.99, 0])
+  });
+  state.actingCharacterId = challengerId;
+  return state;
+}
+
 function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayloadV1 {
   return {
     kind: "varenyk-sated-support-v1",
@@ -1001,7 +1118,7 @@ function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayl
   };
 }
 
-function makeDuelist(id: string): DuelistSummary {
+function makeDuelist(id: string, overrides: Partial<DuelistSummary> = {}): DuelistSummary {
   return {
     id,
     name: id,
@@ -1039,6 +1156,7 @@ function makeDuelist(id: string): DuelistSummary {
         charisma: 0,
         luck: 0
       }
-    }
+    },
+    ...overrides
   };
 }

@@ -101,10 +101,12 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     59_999,
     Math.floor(input.outsideRemainderMs ?? inferredRemainder)
   ));
-  const nextCursor = new Date(Math.max(
-    Date.parse(payload.cursorAt),
-    through.getTime() - remainder
-  ));
+  const nextCursor = through.getTime() === Date.parse(payload.expiresAt)
+    ? through
+    : new Date(Math.max(
+        Date.parse(payload.cursorAt),
+        through.getTime() - remainder
+      ));
   if (nextCursor.getTime() <= Date.parse(payload.cursorAt)) {
     return;
   }

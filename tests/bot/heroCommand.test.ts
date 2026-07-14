@@ -5,7 +5,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { HeroService } from "../../src/services/heroService";
 
 describe("hero command", () => {
-  it("does not send stale lazy recovery notice before the hero card", async () => {
+  it("renders the authoritative full-HP recovery notice once in a replied hero card", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {
       findByTelegramUserId: () =>
@@ -31,7 +31,7 @@ describe("hero command", () => {
     await sendHero(makeReplyContext(replies), heroService, "reply");
 
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
+    expect(replies[0]?.text.match(/Здоров’я знову повне/g)).toHaveLength(1);
     expect(replies[0]?.text).toContain("<b>Мандрівник</b>");
     expect(replies[0]?.text).toContain("❤️ HP 24/24");
     const options = replies[0]?.options as {
@@ -43,7 +43,7 @@ describe("hero command", () => {
     expect(options.reply_markup?.inline_keyboard).toBeDefined();
   });
 
-  it("does not prefix edited hero cards with stale lazy recovery notice", async () => {
+  it("renders the authoritative full-HP recovery notice once in an edited hero card", async () => {
     const edits: Array<{ text: string; options: unknown }> = [];
     const heroService = {
       findByTelegramUserId: () =>
@@ -65,7 +65,7 @@ describe("hero command", () => {
     await sendHero(makeEditContext(edits), heroService, "edit");
 
     expect(edits).toHaveLength(1);
-    expect(edits[0]?.text).not.toContain("Здоров’я знову повне");
+    expect(edits[0]?.text.match(/Здоров’я знову повне/g)).toHaveLength(1);
     expect(edits[0]?.text).toContain("<b>Мандрівник</b>");
     expect(edits[0]?.options).toMatchObject({
       parse_mode: "HTML"
@@ -252,6 +252,25 @@ describe("hero command", () => {
     await sendHero(makeReplyContext(replies), heroService, "reply");
 
     expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("⚕️ Полікувати себе");
+  });
+
+  it("omits the full-HP recovery notice when no recovery occurred", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
   });
 
   it("hides Varenyk self-feeding when the Hero lookup reports the class-specific adventure gate", async () => {

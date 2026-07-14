@@ -49,7 +49,9 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
           ? "✨ Благословення: недоступне під час бою або рейду."
           : null,
         "",
-        "Спершу завершіть бій або рейд. Тоді оновіть картку, і Корчма знову дасть кнопки."
+        result.mode === "varenyk"
+          ? "Спершу завершіть активну пригоду, бій або рейд. Тоді оновіть картку, і Корчма знову дасть кнопки."
+          : "Спершу завершіть бій або рейд. Тоді оновіть картку, і Корчма знову дасть кнопки."
       ]
     : result.mode === "priest"
     ? [
@@ -145,6 +147,15 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     return presentBlocked("🍽️", "Годування не склалося", result.reason, result.availableAt);
   }
   const self = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
+  const now = Date.now();
+  const timingLines = result.action.expiresAt.getTime() > now
+    ? [
+        `Діє ще: <b>${formatRemaining(result.action.expiresAt)}</b>.`,
+        `Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`
+      ]
+    : result.action.availableAt.getTime() > now
+      ? [`Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`]
+      : ["Цю ціль знову можна нагодувати."];
   return [
     result.created ? "😋 <b>Ситий</b>" : "🧾 <b>Та сама миска вже врахована</b>",
     "",
@@ -155,8 +166,7 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
       : "Ресурси повні, зате статус акуратно загорнутий.",
-    `Діє ще: <b>${formatRemaining(result.action.expiresAt)}</b>.`,
-    `Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`
+    ...timingLines
   ].join("\n");
 }
 
@@ -362,7 +372,7 @@ function presentBlocked(
         return "Корчемна географія змістилася: ви вже не в одній локації.";
       case "actor-blocked":
         return icon === "🍽️"
-          ? "Спершу завершіть бій, рейд або іншу пригоду. Миска почекає без образ."
+          ? "Спершу завершіть активну пригоду, бій або рейд. Миска почекає без образ."
           : "Спершу завершіть бій або рейд. Жрецька поміч не лізе поперед черги.";
       case "target-blocked":
         return icon === "🍽️"
