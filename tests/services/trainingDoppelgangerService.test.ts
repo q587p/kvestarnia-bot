@@ -168,6 +168,25 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.sessions.size).toBe(0);
   });
 
+  it("passes the observed cleanup clock when expiring malformed Doppelganger state", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const malformed = makeTerminalTrainingSession("training-malformed-observed", "lost");
+    world.sessions.set(malformed.id, { ...malformed, status: "active", state: null });
+    const service = buildService(world);
+
+    await expect(service.resolveTurn(telegramUserId, {
+      sessionId: malformed.id,
+      turn: malformed.turn,
+      action: "attack"
+    })).resolves.toMatchObject({ state: "terminal" });
+    expect(world.lastStatusMark).toEqual({
+      sessionId: malformed.id,
+      status: "expired",
+      observedAt: fixedNow()
+    });
+  });
+
   it("offers distinct duel champions and starts the selected champion copy", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);
@@ -1213,6 +1232,11 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
   readonly sessions = new Map<string, SoloCombatSessionRecord>();
   leaseLookup: SoloCombatLeaseLookupResult | null = null;
   resourceMutations = 0;
+  lastStatusMark: {
+    sessionId: string;
+    status: SoloCombatSessionRecord["status"];
+    observedAt?: Date;
+  } | null = null;
 
   addCharacter(userTelegramId: bigint, overrides: Partial<CharacterRecord> = {}): void {
     this.charactersByTelegramUserId.set(userTelegramId, {
@@ -1855,8 +1879,10 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
 
   markStatusById(
     sessionId: string,
-    status: SoloCombatSessionRecord["status"]
+    status: SoloCombatSessionRecord["status"],
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null> {
+    this.lastStatusMark = { sessionId, status, ...(observedAt ? { observedAt } : {}) };
     const existing = this.sessions.get(sessionId);
 
     if (!existing) {

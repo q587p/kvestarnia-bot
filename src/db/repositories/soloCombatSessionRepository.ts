@@ -319,6 +319,7 @@ export interface SoloCombatSessionRepository {
   resolveLifeById?(sessionId: string): Promise<SoloCombatSessionLifeRecord | null>;
   markStatusById(
     sessionId: string,
-    status: SoloCombatSessionStatus
+    status: SoloCombatSessionStatus,
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null>;
 }

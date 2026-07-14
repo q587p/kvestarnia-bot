@@ -302,7 +302,7 @@ export class TrainingDoppelgangerService {
     session: SoloCombatSessionRecord
   ): Promise<SoloCombatSessionRecord> {
     if (!session.state) {
-      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+      return await this.combatSessions.markStatusById(session.id, "expired", this.clock()) ?? {
         ...session,
         status: "expired"
       };
@@ -653,7 +653,7 @@ export class TrainingDoppelgangerService {
     }
 
     if (!session.state) {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character,
@@ -1046,7 +1046,7 @@ export class TrainingDoppelgangerService {
     });
 
     if (adopted.outcome === "life-mismatch") {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return expired ?? adopted.session ?? session;
     }
 
@@ -1064,7 +1064,7 @@ export class TrainingDoppelgangerService {
     options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }>> {
     if (!session.state) {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
 
       return {
         state: "terminal",

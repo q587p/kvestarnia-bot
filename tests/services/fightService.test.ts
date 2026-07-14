@@ -2059,6 +2059,32 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(1);
   });
 
+  it("passes the observed cleanup clock when expiring a malformed persistent fight", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const malformed = makeActivePersistentSession({
+      id: "session-malformed-observed",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    sessions.addSession({ ...malformed, state: null });
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      combatSessions: sessions,
+      clock: fixedClock
+    });
+
+    await expect(service.getFightOverviewForTelegramUser(telegramUserId))
+      .resolves.toMatchObject({ state: "persistent-terminal" });
+    expect(sessions.lastStatusMark).toEqual({
+      sessionId: "session-malformed-observed",
+      status: "expired",
+      observedAt: fixedClock()
+    });
+  });
+
   it("returns the active lease winner when a persistent fight start races another create", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
@@ -7613,6 +7639,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   rejectNextActiveTurnUpdate = false;
   readonly combatItemStacks = new Map<string, number>();
   readonly consumedCombatItems: string[] = [];
+  lastStatusMark: { sessionId: string; status: SoloCombatSessionStatus; observedAt?: Date } | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
 
@@ -8085,8 +8112,10 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
 
   markStatusById(
     sessionId: string,
-    status: SoloCombatSessionStatus
+    status: SoloCombatSessionStatus,
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null> {
+    this.lastStatusMark = { sessionId, status, ...(observedAt ? { observedAt } : {}) };
     const session = this.sessions.get(sessionId);
 
     if (!session) {

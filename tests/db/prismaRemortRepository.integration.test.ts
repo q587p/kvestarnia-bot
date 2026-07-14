@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
+import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
@@ -18,6 +19,7 @@ describe("PrismaRemortRepository integration", () => {
   let prisma: PrismaClient;
   let repository: PrismaRemortRepository;
   let passages: PrismaPendingPassageEncounterRepository;
+  let partyBosses: PrismaPartyBossRepository;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-remort-repo-"));
@@ -31,6 +33,7 @@ describe("PrismaRemortRepository integration", () => {
     await createMinimalSchema(prisma);
     repository = new PrismaRemortRepository(prisma);
     passages = new PrismaPendingPassageEncounterRepository(prisma);
+    partyBosses = new PrismaPartyBossRepository(prisma);
   }, 60_000);
 
   afterAll(async () => {
@@ -186,8 +189,8 @@ describe("PrismaRemortRepository integration", () => {
       }
     });
     await prisma.$executeRaw`
-      INSERT INTO daily_actions (id, character_id, key, value_json, created_at, updated_at)
-      VALUES ('daily-remort-bandage', 'character-remort-solo', 'yeger.bandage.purchase.confirm', '{}', ${new Date(now.getTime() - 60_000)}, ${new Date(now.getTime() - 60_000)})
+      INSERT INTO daily_actions (id, character_id, key, local_date, reward_xp, reward_gold, result_json, created_at)
+      VALUES ('daily-remort-bandage', 'character-remort-solo', 'yeger.bandage.purchase.confirm', '2026-06-22', 0, 0, '{}', ${new Date(now.getTime() - 60_000)})
     `;
     await prisma.characterCooldown.create({
       data: {
@@ -619,23 +622,34 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(1);
   });
 
-  it("cancels active party boss proof and clears leases during remort", async () => {
+  it("keeps canonically persisted Big Barrel pre-lease Sated recovery when another participant remorts", async () => {
+    const startAt = new Date("2026-06-22T12:25:00.000Z");
     const now = new Date("2026-06-22T12:30:00.000Z");
+    const actorId = "character-remort-party-boss";
     const survivorId = "character-remort-party-survivor";
     await seedCharacter(prisma, {
       userId: "user-remort-party-boss",
-      characterId: "character-remort-party-boss",
+      characterId: actorId,
       telegramUserId: 9315n
     });
-    await seedDraft(prisma, "character-remort-party-boss", "token-remort-party-boss", now);
+    await seedDraft(prisma, actorId, "token-remort-party-boss", now);
     await seedCharacter(prisma, {
       userId: "user-remort-party-survivor",
       characterId: survivorId,
       telegramUserId: 9316n
     });
+    await prisma.character.update({
+      where: { id: survivorId },
+      data: {
+        hpCurrent: 112,
+        manaCurrent: 54,
+        hpRegenAt: new Date(startAt.getTime() - 60 * 60_000),
+        manaRegenAt: new Date(startAt.getTime() - 60 * 60_000)
+      }
+    });
     const survivorPayload = makeSatedPayload(
       survivorId,
-      new Date(now.getTime() - 5 * 60_000 - 30_000)
+      new Date(startAt.getTime() - 2 * 60_000 - 30_000)
     );
     await prisma.characterCooldown.create({
       data: {
@@ -645,88 +659,38 @@ describe("PrismaRemortRepository integration", () => {
         resultJson: survivorPayload
       }
     });
-    await prisma.partySession.create({
-      data: {
-        id: "party-remort-boss",
-        inviteToken: "party-remort-boss-token",
-        status: "active",
-        leaderCharacterId: "character-remort-party-boss",
-        participantCap: 8,
-        minimumParticipants: 1,
-        joinUntilAt: new Date(now.getTime() + 60_000),
-        expiresAt: new Date(now.getTime() + 60_000),
-        activeLeaderKey: "party-leader:character-remort-party-boss",
-        participants: {
-          create: [
-            {
-              id: "participant-remort-party-boss",
-              characterId: "character-remort-party-boss",
-              status: "joined",
-              joinSource: "leader",
-              joinedAt: now,
-              activeMembershipKey: "party-member:character-remort-party-boss"
-            },
-            {
-              id: "participant-remort-party-survivor",
-              characterId: survivorId,
-              status: "joined",
-              joinSource: "invite",
-              joinedAt: now,
-              activeMembershipKey: `party-member:${survivorId}`
-            }
-          ]
-        }
-      }
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-boss",
+      inviteToken: "party-remort-boss-token",
+      actorId,
+      survivorId,
+      joinedAt: startAt
     });
-    await prisma.partyBossSession.create({
-      data: {
-        id: "boss-remort-party",
-        partySessionId: "party-remort-boss",
-        leaderCharacterId: "character-remort-party-boss",
-        status: "active",
-        turn: 1,
-        version: 1,
-        rulesVersion: "party-boss-proof-v1",
-        bossKey: "party-boss-proof-one",
-        stateJson: {
-          status: "active",
-          turn: 1,
-          participants: [
-            { characterId: "character-remort-party-boss" },
-            {
-              characterId: survivorId,
-              varenykSated: makeFrozenSated(survivorPayload, new Date(now.getTime() - 5 * 60_000))
-            }
-          ]
-        },
-        turnExpiresAt: new Date(now.getTime() + 23_000)
-      }
+    const started = await partyBosses.startFromRecruitingPartyForTelegramUser(9315n, {
+      partyInviteToken: "party-remort-boss-token",
+      now: startAt,
+      turnExpiresAt: new Date(startAt.getTime() + 23_000)
     });
-    await prisma.activeCombatLease.create({
-      data: {
-        id: "lease-remort-party-boss",
-        characterId: "character-remort-party-boss",
-        kind: "party-boss",
-        referenceId: "party-remort-boss"
-      }
+    expect(started.state).toBe("started");
+    const leasesAtStart = await prisma.activeCombatLease.findMany({
+      where: { kind: "party-boss", referenceId: "party-remort-boss" }
     });
-    const survivorLeaseAt = new Date(now.getTime() - 5 * 60_000);
-    await prisma.activeCombatLease.create({
-      data: {
-        id: "lease-remort-party-survivor",
-        characterId: survivorId,
-        kind: "party-boss",
-        referenceId: "party-remort-boss",
-        createdAt: survivorLeaseAt,
-        updatedAt: survivorLeaseAt
-      }
+    expect(leasesAtStart).toHaveLength(2);
+    expect(leasesAtStart.every((lease) => lease.createdAt.getTime() === startAt.getTime())).toBe(true);
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
     });
 
     await expect(repository.completeDraftForTelegramUser(
       9315n,
       makeCompletionInput("token-remort-party-boss", now)
     )).resolves.toMatchObject({ state: "completed" });
-    const bossSession = await prisma.partyBossSession.findUnique({ where: { id: "boss-remort-party" } });
+    const bossSession = await prisma.partyBossSession.findUnique({
+      where: { partySessionId: "party-remort-boss" }
+    });
     const bossResult = bossSession?.resultJson;
 
     expect(bossSession?.status).toBe("cancelled");
@@ -736,6 +700,12 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: "party-remort-boss" } })).resolves.toBe(0);
     await expect(prisma.partyParticipant.findUnique({ where: { id: "participant-remort-party-boss" } })).resolves.toMatchObject({
       activeMembershipKey: null
+    });
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
     });
     const survivorCooldown = await prisma.characterCooldown.findUniqueOrThrow({
       where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
@@ -756,14 +726,24 @@ describe("PrismaRemortRepository integration", () => {
     })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
   });
 
-  it("snaps a surviving Sated cursor to expiry when remort cancels Big Barrel after a round", async () => {
-    const now = new Date("2026-06-22T15:00:00.000Z");
+  it("does not write raid-time resources back after a real Big Barrel round and participant remort", async () => {
+    const startAt = new Date("2026-06-22T15:00:00.000Z");
+    const now = new Date("2026-06-22T15:00:20.000Z");
     const actorId = "character-remort-party-round-actor";
     const survivorId = "character-remort-party-round-survivor";
     await seedCharacter(prisma, { userId: "user-remort-party-round-actor", characterId: actorId, telegramUserId: 9317n });
     await seedCharacter(prisma, { userId: "user-remort-party-round-survivor", characterId: survivorId, telegramUserId: 9318n });
     await seedDraft(prisma, actorId, "token-remort-party-round", now);
-    const payload = makeSatedPayload(survivorId, new Date(now.getTime() - 14 * 60_000));
+    await prisma.character.update({
+      where: { id: survivorId },
+      data: {
+        hpCurrent: 112,
+        manaCurrent: 54,
+        hpRegenAt: new Date(startAt.getTime() - 60 * 60_000),
+        manaRegenAt: new Date(startAt.getTime() - 60 * 60_000)
+      }
+    });
+    const payload = makeSatedPayload(survivorId, new Date(startAt.getTime() - 2 * 60_000 - 30_000));
     await prisma.characterCooldown.create({
       data: {
         characterId: survivorId,
@@ -772,51 +752,34 @@ describe("PrismaRemortRepository integration", () => {
         resultJson: payload
       }
     });
-    await prisma.partySession.create({
-      data: {
-        id: "party-remort-after-round",
-        inviteToken: "party-remort-after-round-token",
-        status: "active",
-        leaderCharacterId: actorId,
-        participantCap: 8,
-        minimumParticipants: 1,
-        joinUntilAt: new Date(now.getTime() + 60_000),
-        expiresAt: new Date(now.getTime() + 60_000),
-        activeLeaderKey: `party-leader:${actorId}`,
-        participants: {
-          create: [
-            { id: "participant-remort-round-actor", characterId: actorId, status: "joined", joinSource: "leader", joinedAt: now, activeMembershipKey: `party-member:${actorId}` },
-            { id: "participant-remort-round-survivor", characterId: survivorId, status: "joined", joinSource: "invite", joinedAt: now, activeMembershipKey: `party-member:${survivorId}` }
-          ]
-        }
-      }
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-after-round",
+      inviteToken: "party-remort-after-round-token",
+      actorId,
+      survivorId,
+      joinedAt: startAt
     });
-    await prisma.partyBossSession.create({
-      data: {
-        id: "boss-remort-after-round",
-        partySessionId: "party-remort-after-round",
-        leaderCharacterId: actorId,
-        status: "active",
-        turn: 2,
-        version: 2,
-        rulesVersion: "party-boss-proof-v1",
-        bossKey: "party-boss-proof-one",
-        stateJson: {
-          status: "active",
-          turn: 2,
-          roundLog: [{ turn: 1 }],
-          participants: [
-            { characterId: actorId },
-            { characterId: survivorId, varenykSated: makeFrozenSated(payload, new Date(now.getTime() - 13 * 60_000 - 30_000)) }
-          ]
-        },
-        turnExpiresAt: new Date(now.getTime() + 23_000)
-      }
+    const started = await partyBosses.startFromRecruitingPartyForTelegramUser(9317n, {
+      partyInviteToken: "party-remort-after-round-token",
+      now: startAt,
+      turnExpiresAt: new Date(startAt.getTime() + 23_000)
     });
-    for (const [id, characterId] of [["lease-remort-round-actor", actorId], ["lease-remort-round-survivor", survivorId]] as const) {
-      const createdAt = new Date(now.getTime() - 13 * 60_000 - 30_000);
-      await prisma.activeCombatLease.create({ data: { id, characterId, kind: "party-boss", referenceId: "party-remort-after-round", createdAt, updatedAt: createdAt } });
-    }
+    expect(started.state).toBe("started");
+    await partyBosses.submitActionForTelegramUser(9317n, "party-remort-after-round-token", 1, "attack", {
+      now: new Date(startAt.getTime() + 10_000),
+      nextTurnExpiresAt: new Date(startAt.getTime() + 33_000)
+    });
+    const resolved = await partyBosses.submitActionForTelegramUser(9318n, "party-remort-after-round-token", 1, "defend", {
+      now: new Date(startAt.getTime() + 11_000),
+      nextTurnExpiresAt: new Date(startAt.getTime() + 34_000)
+    });
+    expect(resolved.state).toBe("resolved");
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
+    });
 
     const first = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
     const cursorAfterFirst = ((await prisma.characterCooldown.findUniqueOrThrow({
@@ -832,8 +795,17 @@ describe("PrismaRemortRepository integration", () => {
       state: "replayed",
       remort: { id: first.state === "completed" ? first.remort.id : undefined }
     });
-    expect(cursorAfterFirst).toBe(payload.expiresAt);
-    expect(cursorAfterReplay).toBe(payload.expiresAt);
+    expect(cursorAfterFirst).toBe("2026-06-22T14:59:50.000Z");
+    expect(cursorAfterReplay).toBe(cursorAfterFirst);
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
+    });
+    await expect(prisma.activeCombatLease.count({
+      where: { kind: "party-boss", referenceId: "party-remort-after-round" }
+    })).resolves.toBe(0);
   });
 
   it("expires unreadable legacy solo state without rewards or character resource rollback", async () => {
@@ -943,9 +915,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,
       key TEXT NOT NULL,
-      value_json JSONB NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL,
+      reward_gold INTEGER NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      UNIQUE(character_id, key, local_date)
     )`,
     `CREATE TABLE character_remort_drafts (
       id TEXT PRIMARY KEY,
@@ -1378,19 +1354,44 @@ function makeSatedPayload(characterId: string, startedAt: Date): VarenykSatedPay
   };
 }
 
-function makeFrozenSated(payload: VarenykSatedPayloadV1, leaseStartedAt: Date) {
-  return {
-    version: 1 as const,
-    activationId: payload.activationId,
-    recipientCharacterId: payload.recipientCharacterId,
-    recipientRemortCount: payload.recipientRemortCount,
-    rank: payload.rank,
-    expiresAt: payload.expiresAt,
-    cursorAt: leaseStartedAt.toISOString(),
-    leaseStartedAt: leaseStartedAt.toISOString(),
-    outsideRemainderMs: 30_000,
-    pulseIds: []
-  };
+async function seedRecruitingBigBarrel(
+  prisma: PrismaClient,
+  input: {
+    partyId: string;
+    inviteToken: string;
+    actorId: string;
+    survivorId: string;
+    joinedAt: Date;
+  }
+): Promise<void> {
+  await prisma.partySession.create({
+    data: {
+      id: input.partyId,
+      inviteToken: input.inviteToken,
+      status: "recruiting",
+      leaderCharacterId: input.actorId,
+      periodId: `12026-06-22:${input.partyId}`,
+      originLocationId: "barrel.big-brother",
+      participantCap: 8,
+      minimumParticipants: 1,
+      joinUntilAt: new Date(input.joinedAt.getTime() + 13 * 60_000),
+      expiresAt: new Date(input.joinedAt.getTime() + 13 * 60_000),
+      activeLeaderKey: `party-leader:${input.actorId}`,
+      createdAt: input.joinedAt,
+      updatedAt: input.joinedAt,
+      participants: {
+        create: [input.actorId, input.survivorId].map((characterId, index) => ({
+          id: `participant-${characterId.replace(/^character-/, "")}`,
+          characterId,
+          remortCount: 0,
+          status: "joined",
+          joinSource: index === 0 ? "leader" : "invite",
+          joinedAt: input.joinedAt,
+          activeMembershipKey: `party-member:${characterId}`
+        }))
+      }
+    }
+  });
 }
 
 async function seedPostalTransfer(

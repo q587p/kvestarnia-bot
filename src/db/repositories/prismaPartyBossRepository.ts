@@ -50,7 +50,8 @@ import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerPro
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
   freezeVarenykSatedFromCooldown,
-  releaseVarenykSatedCombatLease
+  releaseVarenykSatedCombatLease,
+  VarenykSatedCasError
 } from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
@@ -311,6 +312,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (isBigBarrelParty) {
         for (const participant of state.participants) {
+          const joinedParticipant = joined.find((entry) => entry.characterId === participant.characterId);
+          if (!joinedParticipant) {
+            throw new Error("Big Barrel participant disappeared before Sated freeze.");
+          }
+          const canonical = joinedParticipant.character;
           const frozen = await freezeVarenykSatedFromCooldown({
             tx,
             characterId: participant.characterId,
@@ -318,6 +324,31 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             resources: participant.resources,
             now: input.now
           });
+          if (frozen.hpRestored > 0 || frozen.manaRestored > 0) {
+            const persisted = await tx.character.updateMany({
+              where: {
+                id: canonical.id,
+                hpCurrent: canonical.hpCurrent,
+                manaCurrent: canonical.manaCurrent,
+                hpRegenAt: canonical.hpRegenAt,
+                manaRegenAt: canonical.manaRegenAt,
+                updatedAt: canonical.updatedAt
+              },
+              data: {
+                hpCurrent: frozen.resources.hp,
+                manaCurrent: frozen.resources.mana,
+                hpRegenAt: frozen.resources.hp >= frozen.resources.hpMax
+                  ? input.now
+                  : canonical.hpRegenAt,
+                manaRegenAt: frozen.resources.mana >= frozen.resources.manaMax
+                  ? input.now
+                  : canonical.manaRegenAt
+              }
+            });
+            if (persisted.count !== 1) {
+              throw new VarenykSatedCasError("party-character-resources");
+            }
+          }
           participant.resources = { ...participant.resources, ...frozen.resources };
           if (frozen.sated) {
             participant.varenykSated = frozen.sated;
@@ -329,7 +360,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         data: joined.map((participant) => ({
           characterId: participant.characterId,
           kind: PARTY_BOSS_LEASE_KIND,
-          referenceId: party.id
+          referenceId: party.id,
+          createdAt: input.now,
+          updatedAt: input.now
         }))
       });
 

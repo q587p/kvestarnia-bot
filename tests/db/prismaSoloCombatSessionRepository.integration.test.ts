@@ -796,6 +796,77 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect((duplicate.resultJson as { cursorAt: string }).cursorAt).toBe(payload.expiresAt);
   });
 
+  it("releases an early malformed solo session at the observed cleanup time and preserves its exact lease remainder", async () => {
+    const characterId = "character-malformed-observed-cleanup";
+    const telegramUserId = 42999n;
+    const satedStartedAt = new Date("2026-07-14T10:00:00.000Z");
+    const combatStartedAt = new Date("2026-07-14T10:00:30.000Z");
+    const observedCleanupAt = new Date("2026-07-14T10:02:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-malformed-observed-cleanup",
+      characterId,
+      telegramUserId
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { classId: "class.varenyk-mancer", hpCurrent: 1, manaCurrent: 1 }
+    });
+    const payload = makeSoloSatedPayload(
+      characterId,
+      "malformed-observed-cleanup-activation",
+      satedStartedAt,
+      telegramUserId
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    const input = makeCreateInput("malformed-observed-cleanup", "monster.deadline-spider");
+    input.state.life = {
+      characterId,
+      remortCount: 0,
+      startedAt: combatStartedAt.toISOString()
+    };
+    input.state.hero = { hp: 1, hpMax: 30, mana: 1, manaMax: 14 };
+    input.expiresAt = new Date("2026-07-14T11:00:00.000Z");
+    const session = await repository.createForTelegramUser(telegramUserId, input);
+    expect(session?.id).toBe("malformed-observed-cleanup");
+    await expect(prisma.activeCombatLease.findUnique({ where: { characterId } }))
+      .resolves.toMatchObject({ createdAt: combatStartedAt });
+    await prisma.soloCombatSession.update({
+      where: { id: "malformed-observed-cleanup" },
+      data: { stateJson: { malformed: true } }
+    });
+
+    await expect(repository.markStatusById(
+      "malformed-observed-cleanup",
+      "expired",
+      observedCleanupAt
+    )).resolves.toMatchObject({ status: "expired" });
+    const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect((cooldown.resultJson as { cursorAt: string }).cursorAt)
+      .toBe("2026-07-14T10:01:30.000Z");
+    await expect(prisma.activeCombatLease.count({ where: { characterId } })).resolves.toBe(0);
+
+    const classNoncombat = new PrismaClassNoncombatRepository(prisma);
+    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+      telegramUserId,
+      new Date("2026-07-14T10:02:29.999Z"),
+      characterId
+    )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+      telegramUserId,
+      new Date("2026-07-14T10:02:30.000Z"),
+      characterId
+    )).resolves.toMatchObject({ hpRestored: 1, manaRestored: 1 });
+  });
+
   it("keeps unsupported leases visible and untouched", async () => {
     await seedCharacter(prisma, {
       userId: "user-unsupported-lease",

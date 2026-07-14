@@ -141,6 +141,21 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
         ? input.challenger.id
         : input.target.id;
 
+  return buildTurnBasedDuelState({
+    prepared,
+    actingCharacterId
+  });
+}
+
+export function buildTurnBasedDuelState(input: {
+  prepared: ReturnType<typeof prepareBalancedDuelists>;
+  actingCharacterId: string;
+}): TurnBasedDuelState {
+  const actingCharacterId =
+    input.actingCharacterId === input.prepared.challenger.id ||
+    input.actingCharacterId === input.prepared.target.id
+      ? input.actingCharacterId
+      : input.prepared.challenger.id;
   return {
     mode: "turn-based",
     status: "active",
@@ -149,8 +164,8 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
     turn: 1,
     actingCharacterId,
     participants: {
-      challenger: buildParticipantSnapshot(prepared.challenger),
-      target: buildParticipantSnapshot(prepared.target)
+      challenger: buildParticipantSnapshot(input.prepared.challenger),
+      target: buildParticipantSnapshot(input.prepared.target)
     }
   };
 }

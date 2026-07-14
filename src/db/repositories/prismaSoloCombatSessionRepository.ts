@@ -644,7 +644,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         data: {
           characterId: character.id,
           kind: "solo-combat",
-          referenceId: session.id
+          referenceId: session.id,
+          createdAt: combatStartedAt ?? session.createdAt,
+          updatedAt: combatStartedAt ?? session.createdAt
         }
       });
 
@@ -693,7 +695,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async markStatusById(
     sessionId: string,
-    status: SoloCombatSessionStatus
+    status: SoloCombatSessionStatus,
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null> {
     if (!hasTransaction(this.prisma)) {
       const record = await this.prisma.soloCombatSession.update({
@@ -731,10 +734,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           sessionId,
           state,
           releasedAt: status === "expired"
-            ? updated.expiresAt
+            ? new Date(Math.min((observedAt ?? new Date()).getTime(), updated.expiresAt.getTime()))
             : completedAt && Number.isFinite(completedAt.getTime())
               ? completedAt
-              : new Date()
+              : observedAt ?? new Date()
         });
       }
 
@@ -2783,13 +2786,12 @@ async function releaseSoloCombatLease(
     return false;
   }
 
-  await releaseVarenykSatedCombatLease({
+  return releaseVarenykSatedCombatLease({
     tx,
     lease,
     releasedAt: input.releasedAt,
     ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {})
   });
-  return true;
 }
 
 function getSatedLeaseThrough(input: UpdateSoloCombatSessionInput): Date {

@@ -695,7 +695,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+      return await this.combatSessions.markStatusById(session.id, "expired", now) ?? {
         ...session,
         status: "expired"
       };
@@ -1306,7 +1306,7 @@ export class FightService {
     }
 
     if (!activeSession.state) {
-      const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired");
+      const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired", this.clock());
       const fallbackSession = expiredSession ?? activeSession;
       const monster = findPersistentFightMonster(fallbackSession);
 
@@ -1732,7 +1732,7 @@ export class FightService {
       }
 
       if (!activeSession.state) {
-        await this.combatSessions.markStatusById(activeSession.id, "expired");
+        await this.combatSessions.markStatusById(activeSession.id, "expired", this.clock());
       } else if (isExpired(activeSession, this.clock())) {
         const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
         const expiredSession = await this.combatSessions.updateById(activeSession.id, {
@@ -2293,7 +2293,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      await this.combatSessions.markStatusById(session.id, "expired");
+      await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character: characterSummary,
@@ -2684,7 +2684,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      await this.combatSessions.markStatusById(session.id, "expired");
+      await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character: characterSummary,
@@ -3780,7 +3780,7 @@ export class FightService {
     });
 
     if (adopted.outcome === "life-mismatch") {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return expired ?? adopted.session ?? session;
     }
 

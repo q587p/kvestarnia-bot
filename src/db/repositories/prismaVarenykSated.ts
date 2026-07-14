@@ -146,7 +146,39 @@ export async function releaseVarenykSatedCombatLease(input: {
   };
   releasedAt: Date;
   sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs">;
-}): Promise<void> {
+}): Promise<boolean> {
+  const claimedAt = new Date(Math.max(
+    input.releasedAt.getTime(),
+    input.lease.updatedAt.getTime() + 1
+  ));
+  const claimed = await input.tx.activeCombatLease.updateMany({
+    where: {
+      id: input.lease.id,
+      characterId: input.lease.characterId,
+      kind: input.lease.kind,
+      referenceId: input.lease.referenceId,
+      updatedAt: input.lease.updatedAt
+    },
+    data: { updatedAt: claimedAt }
+  });
+  if (claimed.count !== 1) {
+    const current = await input.tx.activeCombatLease.findUnique({
+      where: { id: input.lease.id },
+      select: { characterId: true, kind: true, referenceId: true }
+    });
+    if (!current) {
+      return false;
+    }
+    if (
+      current.characterId === input.lease.characterId &&
+      current.kind === input.lease.kind &&
+      current.referenceId === input.lease.referenceId
+    ) {
+      return false;
+    }
+    throw new VarenykSatedCasError("lease-identity");
+  }
+
   await advanceVarenykSatedCursorThroughCombat({
     tx: input.tx,
     characterId: input.lease.characterId,
@@ -164,12 +196,13 @@ export async function releaseVarenykSatedCombatLease(input: {
       characterId: input.lease.characterId,
       kind: input.lease.kind,
       referenceId: input.lease.referenceId,
-      updatedAt: input.lease.updatedAt
+      updatedAt: claimedAt
     }
   });
   if (deleted.count !== 1) {
     throw new VarenykSatedCasError("lease-release");
   }
+  return true;
 }
 
 export class VarenykSatedCasError extends Error {
