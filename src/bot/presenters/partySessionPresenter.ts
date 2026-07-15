@@ -28,7 +28,10 @@ import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
-import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -541,7 +544,7 @@ export function presentPartyBoss(
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
     if (viewer?.varenykSated && Date.parse(viewer.varenykSated.expiresAt) > Date.now()) {
-      const satedBuff = presentActiveVarenykSatedBuff(new Date(viewer.varenykSated.expiresAt));
+      const satedBuff = presentActiveVarenykSatedCombatState(new Date(viewer.varenykSated.expiresAt));
       if (satedBuff) lines.push(satedBuff);
     }
   }
@@ -644,10 +647,10 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
   const satedLines = session.state.participants.flatMap((participant) => {
     if (!participant.varenykSated) return [];
-    const line = presentActiveVarenykSatedBuff(
+    const line = presentActiveVarenykSatedCombatState(
       new Date(participant.varenykSated.expiresAt),
       new Date(),
-      `<b>${escapeHtml(participant.name)}</b>: <b>Ситий</b>`
+      `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
     );
     return line ? [line] : [];
   });
@@ -667,7 +670,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   } else {
     for (const action of round.actions) {
       actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
-      const recovery = presentVarenykSatedRecoveryLine(action);
+      const recovery = presentVarenykSatedRecoveryLine(action, names.get(action.characterId));
       if (recovery) {
         actionLines.push(recovery);
       }
@@ -850,7 +853,7 @@ function presentLastRoundLines(
       byCharacterId.get(action.characterId),
       options.viewerCharacterId
     );
-    const recovery = presentVarenykSatedRecoveryLine(action);
+    const recovery = presentVarenykSatedRecoveryLine(action, byCharacterId.get(action.characterId)?.name);
     return recovery ? [actionLine, recovery] : [actionLine];
   });
 
@@ -1479,17 +1482,13 @@ function presentPartyBossActionLine(
 }
 
 function presentVarenykSatedRecoveryLine(
-  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
+  recipientName?: string
 ): string | null {
   const recovery = action.satedRecovery;
-  if (!recovery || (recovery.hpRestored <= 0 && recovery.manaRestored <= 0)) {
-    return null;
-  }
-  const parts = [
-    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
-    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
-  ];
-  return `😋 «Ситий» підклав до журналу ${parts.join(" і ")}.`;
+  return recovery && recipientName
+    ? presentVarenykSatedJournalRecovery(recovery, `<b>${escapeHtml(recipientName)}</b>`)
+    : null;
 }
 
 function presentPartyBossActionSupport(

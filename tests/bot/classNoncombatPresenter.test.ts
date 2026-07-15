@@ -66,10 +66,9 @@ describe("class noncombat presenter", () => {
       "",
       "Точна ціна: <b>16 мани</b>.",
       "Одразу: до <b>+5 HP</b>.",
-      "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або власного бойового ходу.",
-      "Кожна бойова порція забирає 1 хв дії «Ситого».",
+      "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або ходу в бою (кожен забирає хвилину дії).",
       "",
-      "😋 «Ситий»: <b>13 хв</b> · нова миска через <b>93 хв</b>.",
+      "😋 «Ситий»: <b>13 хв</b> · ваша нова миска для цієї цілі через <b>93 хв</b>.",
       "",
       "Вареники вже пораховані. Відступити ще не соромно."
     ].join("\n"));
@@ -77,7 +76,7 @@ describe("class noncombat presenter", () => {
     expect(preview).toContain("Точна ціна: <b>16 мани</b>");
     expect(preview).toContain("Одразу: до <b>+5 HP</b>.");
     expect(preview).not.toContain("Одразу: до <b>+5 HP</b> і");
-    expect(preview).toContain("після повної хвилини або власного бойового ходу");
+    expect(preview).toContain("після повної хвилини або ходу в бою");
 
     const completed = {
       state: "completed",
@@ -102,10 +101,12 @@ describe("class noncombat presenter", () => {
     expect(actorResult).not.toMatch(/ранг/iu);
     expect(targetNotification).not.toMatch(/ранг/iu);
     expect(actorResult).toContain("питань.\n\nРесурси повні");
-    expect(actorResult).toContain("бафами.\nНагодувати цю ціль знову");
+    expect(actorResult).toContain("<b>Пан Вареник</b> нагодував <b>Сусід</b>");
+    expect(actorResult).toContain("станами.\n\nВи зможете нагодувати цю ціль знову");
     expect(actorResult).toContain("\n\n💫 Мани витрачено: <b>16</b>.");
     expect(targetNotification).toContain("турботою.\n\nРесурси вже повні");
-    expect(targetNotification).toContain("Видно в персонажі поруч із бафами.");
+    expect(targetNotification).toContain("<b>Пан Вареник</b> передав вам вареники");
+    expect(targetNotification).toContain("Видно в персонажі поруч з іншими станами.");
   });
 
   it("formats a fresh self-feeding result like other class support outcomes", () => {
@@ -132,8 +133,10 @@ describe("class noncombat presenter", () => {
       "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала.",
       "",
       "Ресурси повні, зате статус акуратно загорнутий.",
-      "😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії. Видно в персонажі поруч із бафами.",
-      "Нагодувати цю ціль знову: <b>через 93 хвилини</b>.",
+      "",
+      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після ходу в бою (кожен забирає хвилину дії). Видно в персонажі поруч з іншими станами.",
+      "",
+      "Ви зможете нагодувати цю ціль знову <b>через 93 хвилини</b>.",
       "",
       "💫 Мани витрачено: <b>8</b>."
     ].join("\n"));
@@ -160,7 +163,7 @@ describe("class noncombat presenter", () => {
     expect(blocked).not.toContain("Жрець");
     expect(blocked).not.toContain("злодій");
     expect(active).toContain("Стан «Ситий» ще діє 13 хвилин");
-    expect(wait).toContain("нагодувати знову через 93 хвилини");
+    expect(wait).toContain("нагодувати цю ціль знову через 93 хвилини");
     expect(wait).not.toContain("ще пам’ятає");
   });
 
@@ -181,13 +184,13 @@ describe("class noncombat presenter", () => {
     const waiting = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
 
     expect(waiting).not.toContain("Діє ще");
-    expect(waiting).toContain("Нагодувати цю ціль знову: <b>через 79 хвилин</b>");
+    expect(waiting).toContain("Ви зможете нагодувати цю ціль знову <b>через 79 хвилин</b>");
 
     vi.setSystemTime(new Date("2026-07-03T10:33:00.000Z"));
     const available = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
     expect(available).not.toContain("Діє ще");
-    expect(available).not.toContain("Нагодувати цю ціль знову");
-    expect(available).toContain("знову можна нагодувати");
+    expect(available).not.toContain("Ви зможете нагодувати цю ціль знову");
+    expect(available).toContain("знову можете нагодувати");
   });
 
   it("keeps the Priest target prompt when active nearby targets exist", () => {

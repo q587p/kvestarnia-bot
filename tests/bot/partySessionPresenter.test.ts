@@ -744,7 +744,8 @@ describe("party session presenter", () => {
             damage: 0,
             manaSpent: 0,
             skillId: "gear.barrel-counter-shield",
-            guard: 2
+            guard: 2,
+            satedRecovery: { hpRestored: 1, manaRestored: 1 }
           }
         ],
         bossDamage: 0,
@@ -777,7 +778,8 @@ describe("party session presenter", () => {
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
-    expect(journal).toContain("😋 <b>Голова</b>: <b>Ситий</b> ще 12 хв");
+    expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
+    expect(journal).toContain("😋 «Ситий» відновив <b>Голова</b>: <b>+1 HP</b> і <b>+1 мани</b>.");
   });
 
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {

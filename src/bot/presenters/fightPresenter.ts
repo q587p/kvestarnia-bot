@@ -33,7 +33,10 @@ import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSupportEffectLine } from "./combatActionPresenter";
-import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -473,7 +476,10 @@ export function presentPersistentFightJournal(
       })
     ],
     opponentRows: presentJournalEnemyHpRows(entry, state),
-    actionLines: [presentTurnSummary(entry.summary, { includeHeading: false })],
+    actionLines: [presentTurnSummary(entry.summary, {
+      includeHeading: false,
+      satedRecipientHtml: `<b>${escapeHtml(result.character.name)}</b>`
+    })],
     noticeLines: notices
   });
 }
@@ -483,7 +489,7 @@ function presentJournalTurnNotices(
   state?: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"]
 ): string[] {
   const satedBuff = state?.varenykSated
-    ? presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
     : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
@@ -509,7 +515,7 @@ function presentActiveFightEffectNotices(
     );
 
   const activeSatedBuff = state.varenykSated
-    ? presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
     : null;
   const satedNotice = activeSatedBuff ? [activeSatedBuff] : [];
 
@@ -847,7 +853,10 @@ function presentPersistentFightState(input: {
 
   if ((shouldShowLastTurn && state?.lastTurn) || state?.status === "won") {
     if (shouldShowLastTurn && state.lastTurn) {
-      lines.push("", presentTurnSummary(state.lastTurn, { includeHeading: false }));
+      lines.push("", presentTurnSummary(state.lastTurn, {
+        includeHeading: false,
+        satedRecipientHtml: `<b>${escapeHtml(input.character.name)}</b>`
+      }));
     }
     lines.push(...presentDefeatedEnemyLines(state, input.monster));
   }
@@ -1209,16 +1218,18 @@ function presentProblemQuestIssueLine(
 
 function presentTurnSummary(
   summary: CombatTurnSummary,
-  options: { includeHeading?: boolean } = {}
+  options: { includeHeading?: boolean; satedRecipientHtml?: string } = {}
 ): string {
   const heading = options.includeHeading === false ? [] : ["Остання дія"];
   const monsterResponse = presentMonsterResponse(summary);
   const enemyResponses = presentEnemyResponses(summary);
   const enemyPressureSkips = presentEnemyPressureSkips(summary);
   const heroEffectResponse = presentHeroEffectDamage(summary);
+  const withStoredContext = (lines: string[]) =>
+    withMonsterBark(summary, lines, options.satedRecipientHtml);
 
   if (summary.heroOutcome === "not-enough-mana") {
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       "Мани не стало навіть на драматичний жест.",
       withEnemyPressureSkips(
@@ -1229,7 +1240,7 @@ function presentTurnSummary(
   }
 
   if (summary.heroOutcome === "skill-on-cooldown") {
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       "Навичка ще відсапується. Пригодник зробив вигляд, що так і планував.",
       withEnemyPressureSkips(
@@ -1245,7 +1256,7 @@ function presentTurnSummary(
         ? `${presentSkillAction(summary.skillId)}: спрацьовує, ви стали в захист, ворогові важче влучити, а удар буде слабшим.`
         : "Ви стали в захист: ворогові важче влучити, а удар буде слабшим.";
 
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       defenseLine,
       heroEffectResponse,
@@ -1263,7 +1274,7 @@ function presentTurnSummary(
     const itemName = escapeHtml(summary.itemName ?? "манатку");
     const healing = presentItemUseHealingSummary(summary);
 
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       `Ви використали <b>${itemName}</b>.${healing}`,
       heroEffectResponse,
@@ -1275,11 +1286,11 @@ function presentTurnSummary(
   }
 
   if (summary.heroOutcome === "fled") {
-    return withMonsterBark(summary, [...heading, "Ви вийшли з бою без переможного фанфарства."]);
+    return withStoredContext([...heading, "Ви вийшли з бою без переможного фанфарства."]);
   }
 
   if (summary.heroOutcome === "flee-failed") {
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       "Втеча не вдалася.",
       heroEffectResponse,
@@ -1288,7 +1299,7 @@ function presentTurnSummary(
   }
 
   if (summary.heroOutcome === "inactive") {
-    return withMonsterBark(summary, [
+    return withStoredContext([
       ...heading,
       "Ви не встигли обрати дію.",
       heroEffectResponse,
@@ -1316,7 +1327,7 @@ function presentTurnSummary(
       enemyPressureSkips
     );
 
-  return withMonsterBark(summary, [
+  return withStoredContext([
     ...heading,
     hit,
     ...presentAllyAbilityResults(summary),
@@ -1758,23 +1769,21 @@ function trimTerminalPunctuation(text: string): string {
   return text.trim().replace(/[.!?]+$/u, "");
 }
 
-function withMonsterBark(summary: CombatTurnSummary, lines: string[]): string {
+function withMonsterBark(
+  summary: CombatTurnSummary,
+  lines: string[],
+  satedRecipientHtml?: string
+): string {
   const bark = summary.monsterBarkId ? findMonsterBark(summary.monsterBarkId) : null;
+  const satedRecovery = summary.satedRecovery && satedRecipientHtml
+    ? presentVarenykSatedJournalRecovery(summary.satedRecovery, satedRecipientHtml)
+    : null;
 
   return [
     ...(bark ? [presentMonsterBarkBlockquote(bark.text), ""] : []),
     ...lines,
-    ...(summary.satedRecovery && (summary.satedRecovery.hpRestored > 0 || summary.satedRecovery.manaRestored > 0)
-      ? [`😋 Ситість відновила ${presentSatedRecoveryParts(summary.satedRecovery)}.`]
-      : [])
+    ...(satedRecovery ? [satedRecovery] : [])
   ].join("\n");
-}
-
-function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
-  return [
-    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
-    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
-  ].join(" і ");
 }
 
 function presentMonsterBarkBlockquote(text: string): string {

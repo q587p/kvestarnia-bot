@@ -24,7 +24,10 @@ import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combat
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
-import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 export function presentDuelEntry(): string {
   return [
@@ -390,7 +393,7 @@ export function presentTurnBasedDuel(
     viewerParticipant?.varenykSated &&
     Date.parse(viewerParticipant.varenykSated.expiresAt) > result.now.getTime()
   ) {
-    const satedBuff = presentActiveVarenykSatedBuff(
+    const satedBuff = presentActiveVarenykSatedCombatState(
       new Date(viewerParticipant.varenykSated.expiresAt),
       result.now
     );
@@ -573,14 +576,14 @@ function presentTurnBasedRoundState(
   if (state.lastRound) {
     return state.lastRound.actions.flatMap((action) => [
       presentTurnBasedActionLine(action, state),
-      ...(presentTurnBasedSatedRecoveryLine(action) ? [presentTurnBasedSatedRecoveryLine(action)!] : [])
+      ...(presentTurnBasedSatedRecoveryLine(action, state) ? [presentTurnBasedSatedRecoveryLine(action, state)!] : [])
     ]).join("\n");
   }
 
   if (state.lastAction) {
     return [
       presentTurnBasedActionLine(state.lastAction, state),
-      presentTurnBasedSatedRecoveryLine(state.lastAction)
+      presentTurnBasedSatedRecoveryLine(state.lastAction, state)
     ].filter(Boolean).join("\n");
   }
 
@@ -623,10 +626,10 @@ export function presentTurnBasedDuelJournal(
   const round = rounds[page]!;
   const satedLines = Object.values(state.participants).flatMap((participant) => {
     if (!participant.varenykSated) return [];
-    const line = presentActiveVarenykSatedBuff(
+    const line = presentActiveVarenykSatedCombatState(
       new Date(participant.varenykSated.expiresAt),
       new Date(),
-      `<b>${escapeHtml(participant.displayName)}</b>: <b>Ситий</b>`
+      `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
     );
     return line ? [line] : [];
   });
@@ -648,7 +651,7 @@ export function presentTurnBasedDuelJournal(
     actionLines: round.actions.length > 0
       ? round.actions.flatMap((action) => [
           presentTurnBasedActionLine(action, state),
-          ...(presentTurnBasedSatedRecoveryLine(action) ? [presentTurnBasedSatedRecoveryLine(action)!] : [])
+          ...(presentTurnBasedSatedRecoveryLine(action, state) ? [presentTurnBasedSatedRecoveryLine(action, state)!] : [])
         ])
       : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
   });
@@ -739,17 +742,14 @@ function presentTurnBasedActionLine(
 }
 
 function presentTurnBasedSatedRecoveryLine(action: {
+  actorCharacterId: string;
   satedRecovery?: { hpRestored: number; manaRestored: number };
-}): string | null {
+}, state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"]): string | null {
   const recovery = action.satedRecovery;
-  if (!recovery || (recovery.hpRestored <= 0 && recovery.manaRestored <= 0)) {
-    return null;
-  }
-  const parts = [
-    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
-    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
-  ];
-  return `😋 «Ситий» підсунув ${parts.join(" і ")}.`;
+  const recipient = findTurnBasedParticipant(state, action.actorCharacterId);
+  return recovery && recipient
+    ? presentVarenykSatedJournalRecovery(recovery, `<b>${escapeHtml(recipient.displayName)}</b>`)
+    : null;
 }
 
 function findTurnBasedParticipant(

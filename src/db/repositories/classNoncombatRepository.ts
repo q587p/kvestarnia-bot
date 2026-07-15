@@ -124,6 +124,7 @@ export interface VarenykSatedActionRecord {
 
 export interface VarenykSatedStatusRecord {
   payload: VarenykSatedPayloadV1 | null;
+  personalAvailableAt: Date | null;
   hpRestored: number;
   manaRestored: number;
   character: CharacterRecord;

@@ -203,9 +203,7 @@ export class HeroService {
             expiresAt: new Date(satedSettlement.payload.expiresAt)
           }
         : null,
-      varenykSatedAvailableAt: satedSettlement?.payload && Date.parse(satedSettlement.payload.availableAt) > now.getTime()
-        ? new Date(satedSettlement.payload.availableAt)
-        : null,
+      varenykSatedAvailableAt: satedSettlement?.personalAvailableAt ?? null,
       satedRecovery: satedSettlement && (satedSettlement.hpRestored > 0 || satedSettlement.manaRestored > 0)
         ? { hpRestored: satedSettlement.hpRestored, manaRestored: satedSettlement.manaRestored }
         : null,

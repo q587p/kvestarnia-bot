@@ -15,7 +15,10 @@ import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
-import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 export function presentTrainingDoppelgangerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Допельґанґер не копіює порожні анкети.";
@@ -200,7 +203,7 @@ function presentTrainingDoppelgangerState(input: {
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     ...(state?.varenykSated
-      ? [presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))]
+      ? [presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))]
           .filter((line): line is string => line !== null)
       : [])
   ];
@@ -215,8 +218,14 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
-    if (state.lastTurn.satedRecovery && (state.lastTurn.satedRecovery.hpRestored > 0 || state.lastTurn.satedRecovery.manaRestored > 0)) {
-      lines.push(`😋 Ситість відновила ${presentSatedRecoveryParts(state.lastTurn.satedRecovery)}.`);
+    if (state.lastTurn.satedRecovery) {
+      const satedRecovery = presentVarenykSatedJournalRecovery(
+        state.lastTurn.satedRecovery,
+        `<b>${escapeHtml(input.character.name)}</b>`
+      );
+      if (satedRecovery) {
+        lines.push(satedRecovery);
+      }
     }
     const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
@@ -264,13 +273,6 @@ function presentTrainingDoppelgangerState(input: {
   return lines.join("\n");
 }
 
-function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
-  return [
-    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
-    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
-  ].join(" і ");
-}
-
 export function presentTrainingDoppelgangerJournal(
   result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>,
   requestedPage: number
@@ -299,9 +301,14 @@ export function presentTrainingDoppelgangerJournal(
     "",
     presentTrainingTurnSummary(entry.summary)
   ];
-  if (entry.summary.satedRecovery &&
-      (entry.summary.satedRecovery.hpRestored > 0 || entry.summary.satedRecovery.manaRestored > 0)) {
-    lines.push(`😋 Ситість відновила ${presentSatedRecoveryParts(entry.summary.satedRecovery)}.`);
+  if (entry.summary.satedRecovery) {
+    const satedRecovery = presentVarenykSatedJournalRecovery(
+      entry.summary.satedRecovery,
+      `<b>${escapeHtml(result.character.name)}</b>`
+    );
+    if (satedRecovery) {
+      lines.push(satedRecovery);
+    }
   }
   const notices = presentJournalTurnNotices(entry, state);
 
@@ -317,7 +324,7 @@ function presentJournalTurnNotices(
   state?: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"]["state"]
 ): string[] {
   const satedBuff = state?.varenykSated
-    ? presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
     : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),

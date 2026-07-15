@@ -1,11 +1,16 @@
 export const VARENYK_SATED_TECHNIQUE_ID = "technique.class.varenyk-mancer.sated-support";
 export const VARENYK_SATED_STATUS_KEY = "class.varenyk-mancer.sated-support.recipient";
 export const VARENYK_SATED_PREVIEW_KEY = "class.varenyk-mancer.sated-support.preview";
+export const VARENYK_SATED_PAIR_WAIT_KEY_PREFIX = "class.varenyk-mancer.sated-support.pair:";
 export const VARENYK_SATED_RULES_VERSION = "varenyk-sated-support-v1";
 export const VARENYK_SATED_DURATION_MINUTES = 13;
 export const VARENYK_SATED_RECIPIENT_WAIT_MINUTES = 93;
 export const VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS = 60_000;
 export const VARENYK_SATED_MANA_COSTS = [8, 12, 16, 20, 23] as const;
+
+export function getVarenykSatedPairWaitKey(recipientCharacterId: string): string {
+  return `${VARENYK_SATED_PAIR_WAIT_KEY_PREFIX}${recipientCharacterId}`;
+}
 
 export interface VarenykSatedPlan {
   rank: number;

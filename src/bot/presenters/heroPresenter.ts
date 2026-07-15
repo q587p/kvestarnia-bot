@@ -189,7 +189,7 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   const effects = presentActiveDrinkEffects(drink);
   const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
 
-  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще ${formatRemainingMinutes(drink.expiresAt)}${effectText}.`;
+  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще <b>${formatRemainingMinutes(drink.expiresAt)}</b>${effectText}.`;
 }
 
 function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
@@ -200,17 +200,17 @@ function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   if (drink.phase === "queued") {
-    return ["чекає бою з монстром", "завдана й отримана шкода +13%"];
+    return ["чекає бою з монстром", "завдана й отримана шкода <b>+13%</b>"];
   }
 
   const effects: string[] = [];
 
   if (drink.recoveryMultiplierBp && drink.recoveryMultiplierBp !== 10000) {
-    effects.push(`відновлення швидше на ${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%`);
+    effects.push(`відновлення швидше на <b>${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%</b>`);
   }
 
   if (drink.accuracyPenaltyPp) {
-    effects.push(`точність −${drink.accuracyPenaltyPp}`);
+    effects.push(`точність <b>−${drink.accuracyPenaltyPp}</b>`);
   }
 
   return effects;

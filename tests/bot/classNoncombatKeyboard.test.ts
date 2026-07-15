@@ -163,7 +163,7 @@ describe("class noncombat keyboard", () => {
     ]));
   });
 
-  it("does not expose feeding while an active status survives a cleared wait", () => {
+  it("offers a refresh while Sated is active and this caster has no pair wait", () => {
     const keyboard = buildClassNoncombatKeyboard({
       state: "ready",
       mode: "varenyk",
@@ -172,7 +172,7 @@ describe("class noncombat keyboard", () => {
       locationName: "Перед Корчмою",
       targets: [target({
         name: "Ще Ситий",
-        canVarenykFeed: false,
+        canVarenykFeed: true,
         varenykSatedAvailableAt: null,
         varenykSated: {} as never
       })],
@@ -186,9 +186,9 @@ describe("class noncombat keyboard", () => {
       varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 0 }
     });
 
-    expect(buttonTexts(keyboard)).not.toContain("🍽️ Нагодувати себе");
-    expect(buttonTexts(keyboard)).not.toContain("🍽️ Ще Ситий");
-    expect(buttonTexts(keyboard)).toContain("😋 Ще Ситий — Ситий");
+    expect(buttonTexts(keyboard)).toContain("🍽️ Нагодувати себе — оновити Ситого");
+    expect(buttonTexts(keyboard)).toContain("🍽️ Ще Ситий — оновити Ситого");
+    expect(buttonTexts(keyboard)).not.toContain("😋 Ще Ситий — Ситий");
   });
 });
 

@@ -208,7 +208,6 @@ export class ClassNoncombatService {
             canRoguePickpocket: false,
             canVarenykFeed:
               mode === "varenyk" &&
-              !target.varenykSated &&
               !target.varenykSatedAvailableAt
           }))),
       priestBlessCooldownAvailableAt: snapshot.priestBlessCooldownAvailableAt,

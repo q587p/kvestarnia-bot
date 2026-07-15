@@ -28,7 +28,10 @@ import {
   YEGER_BANDAGE_PURCHASE_PREVIEW_KEY
 } from "../../src/services/dailyActionKeys";
 import { FakeRandomSource } from "../../src/shared/random";
-import { VARENYK_SATED_STATUS_KEY } from "../../src/domain/noncombat/varenykSatedSupport";
+import {
+  VARENYK_SATED_PAIR_WAIT_KEY_PREFIX,
+  VARENYK_SATED_STATUS_KEY
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("DevGrantService", () => {
   it("does not grant anything in production", async () => {
@@ -553,7 +556,7 @@ describe("DevGrantService", () => {
     expect(repository.calls.filter((call) => call.includes(BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY))).toHaveLength(1);
   });
 
-  it("clears only the caller Sated row locally and stays non-mutating in production", async () => {
+  it("clears only the caller Sated state and personal pair waits locally", async () => {
     const repository = new FakeDevGrantRepository();
     const local = new DevGrantService(repository, "development", true, new FakeRandomSource([0]));
     const production = new DevGrantService(repository, "production", true, new FakeRandomSource([0]));
@@ -564,7 +567,9 @@ describe("DevGrantService", () => {
       cleared: true
     });
     await expect(production.resetVarenykSated(42n)).resolves.toEqual({ state: "disabled" });
-    expect(repository.calls).toEqual([`cooldown:42:${VARENYK_SATED_STATUS_KEY}`]);
+    expect(repository.calls).toEqual([
+      `cooldowns:42:${VARENYK_SATED_STATUS_KEY},${VARENYK_SATED_PAIR_WAIT_KEY_PREFIX}`
+    ]);
   });
 
   it("resets Rogue cooldowns and same-day target memory for local QA", async () => {

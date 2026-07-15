@@ -95,22 +95,30 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
     });
   } else {
-    if (!result.varenykSatedSelf && !result.varenykSatedSelfAvailableAt && result.varenykPlan) {
-      keyboard.text("🍽️ Нагодувати себе", makeVarenykFeedPreviewCallbackData({
-        targetTelegramUserId: null,
-        actorRemortCount,
-        targetRemortCount: actorRemortCount,
-        page: currentPage
-      })).row();
+    if (!result.varenykSatedSelfAvailableAt && result.varenykPlan) {
+      keyboard.text(
+        result.varenykSatedSelf ? "🍽️ Нагодувати себе — оновити Ситого" : "🍽️ Нагодувати себе",
+        makeVarenykFeedPreviewCallbackData({
+          targetTelegramUserId: null,
+          actorRemortCount,
+          targetRemortCount: actorRemortCount,
+          page: currentPage
+        })
+      ).row();
     }
     for (const target of result.targets) {
       if (target.canVarenykFeed && result.varenykPlan) {
-        keyboard.text(`🍽️ ${formatName(target.name)}`, makeVarenykFeedPreviewCallbackData({
-          targetTelegramUserId: target.telegramUserId,
-          actorRemortCount,
-          targetRemortCount: target.remortCount,
-          page: currentPage
-        })).row();
+        keyboard.text(
+          target.varenykSated
+            ? `🍽️ ${formatName(target.name)} — оновити Ситого`
+            : `🍽️ ${formatName(target.name)}`,
+          makeVarenykFeedPreviewCallbackData({
+            targetTelegramUserId: target.telegramUserId,
+            actorRemortCount,
+            targetRemortCount: target.remortCount,
+            page: currentPage
+          })
+        ).row();
       } else if (target.varenykSated) {
         keyboard.text(`😋 ${formatName(target.name)} — Ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
       } else if (target.varenykSatedAvailableAt) {

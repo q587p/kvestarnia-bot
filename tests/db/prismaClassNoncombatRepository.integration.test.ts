@@ -22,7 +22,11 @@ import {
   advanceVarenykSatedCursorThroughCombat,
   freezeVarenykSatedFromCooldown
 } from "../../src/db/repositories/prismaVarenykSated";
-import type { VarenykSatedPayloadV1 } from "../../src/domain/noncombat/varenykSatedSupport";
+import {
+  getVarenykSatedPairWaitKey,
+  parseVarenykSatedPayload,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 const now = new Date("2026-07-03T09:00:00.000Z");
 const cooldownAvailableAt = new Date("2026-07-03T10:33:00.000Z");
@@ -456,7 +460,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
   });
 
-  it("keeps the payload wait authoritative when only the cooldown row timestamp is shortened", async () => {
+  it("refreshes an active self status after this caster's pair wait is shortened", async () => {
     await seedCharacter({
       telegramUserId: 1056n,
       userId: "user-wait-authority",
@@ -477,39 +481,81 @@ describe("PrismaClassNoncombatRepository integration", () => {
       expiresAt: new Date(now.getTime() + 13 * 60_000)
     });
     await repository.completeVarenykSated(1056n, initial);
-    const shortenedAt = new Date(now.getTime() + 14 * 60_000);
-    await prisma.characterCooldown.update({
+    const firstStatus = parseVarenykSatedPayload((await prisma.characterCooldown.findUniqueOrThrow({
       where: {
         characterId_key: {
           characterId: "wait-authority",
           key: "class.varenyk-mancer.sated-support.recipient"
         }
+      }
+    })).resultJson)!;
+    const shortenedAt = new Date(now.getTime() + 60_000);
+    await prisma.characterCooldown.update({
+      where: {
+        characterId_key: {
+          characterId: "wait-authority",
+          key: getVarenykSatedPairWaitKey("wait-authority")
+        }
       },
       data: { availableAt: shortenedAt }
     });
 
-    await expect(repository.saveVarenykSatedPreview(1056n, {
+    const secondInput = {
       ...initial,
       now: shortenedAt,
       previewToken: "wait-authority-second",
+      activeSince: new Date(shortenedAt.getTime() - 5 * 60_000)
+    };
+    await expect(repository.saveVarenykSatedPreview(1056n, {
+      ...secondInput,
       expiresAt: new Date(shortenedAt.getTime() + 13 * 60_000)
     })).resolves.toMatchObject({
-      state: "blocked",
-      reason: "target-cooldown",
-      availableAt: new Date(now.getTime() + 93 * 60_000)
+      state: "saved",
+      plan: { rank: 1, manaCost: 8 }
     });
+    await expect(repository.completeVarenykSated(1056n, secondInput)).resolves.toMatchObject({
+      state: "completed",
+      created: true
+    });
+    const refreshedStatus = parseVarenykSatedPayload((await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "wait-authority",
+          key: "class.varenyk-mancer.sated-support.recipient"
+        }
+      }
+    })).resultJson)!;
+    expect(refreshedStatus.activationId).not.toBe(firstStatus.activationId);
+    expect(refreshedStatus.startedAt).toBe(shortenedAt.toISOString());
+    expect(refreshedStatus.expiresAt).toBe(new Date(shortenedAt.getTime() + 13 * 60_000).toISOString());
   });
 
-  it("never replaces an active Sated activation when the recipient wait is cleared", async () => {
+  it("lets another Varenyk-mancer replace an active status while preserving each pair wait", async () => {
     await seedCharacter({
       telegramUserId: 1061n,
-      userId: "user-refresh-varenyk",
-      characterId: "refresh-varenyk",
+      userId: "user-refresh-varenyk-one",
+      characterId: "refresh-varenyk-one",
       classId: "class.varenyk-mancer",
       manaCurrent: 20
     });
+    await seedCharacter({
+      telegramUserId: 1063n,
+      userId: "user-refresh-varenyk-two",
+      characterId: "refresh-varenyk-two",
+      classId: "class.varenyk-mancer",
+      manaCurrent: 20
+    });
+    await seedCharacter({
+      telegramUserId: 1064n,
+      userId: "user-refresh-target",
+      characterId: "refresh-target",
+      hpCurrent: 10,
+      hpMax: 30,
+      manaCurrent: 10,
+      manaMax: 30
+    });
     const firstInput = {
-      targetTelegramUserId: null,
+      targetTelegramUserId: 1064n,
       expectedActorRemortCount: 0,
       expectedTargetRemortCount: 0,
       activeSince: new Date("2026-07-03T08:55:00.000Z"),
@@ -522,37 +568,50 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
     const first = await repository.completeVarenykSated(1061n, firstInput);
     expect(first).toMatchObject({ state: "completed", created: true });
+    const firstActivationId = first.state === "completed" ? first.status.activationId : "";
 
     const secondNow = new Date(now.getTime() + 60_000);
-    await prisma.characterCooldown.update({
-      where: {
-        characterId_key: {
-          characterId: "refresh-varenyk",
-          key: "class.varenyk-mancer.sated-support.recipient"
-        }
-      },
-      data: { availableAt: secondNow }
-    });
+    const secondCasterOpen = await new ClassNoncombatService(repository, () => secondNow)
+      .openForTelegramUser(1063n, "varenyk");
+    expect(secondCasterOpen).toMatchObject({ state: "ready" });
+    const targetView = secondCasterOpen.state === "ready"
+      ? secondCasterOpen.targets.find((target) => target.characterId === "refresh-target")
+      : null;
+    expect(targetView?.canVarenykFeed).toBe(true);
+    expect(targetView?.varenykSatedAvailableAt).toBeNull();
+    expect(targetView?.varenykSated?.activationId).toBe(firstActivationId);
     const secondInput = {
       ...firstInput,
       activeSince: new Date(secondNow.getTime() - 5 * 60_000),
       now: secondNow,
       previewToken: "refresh-second"
     };
-    await expect(repository.saveVarenykSatedPreview(1061n, {
+    await expect(repository.saveVarenykSatedPreview(1063n, {
       ...secondInput,
       expiresAt: new Date(secondNow.getTime() + 13 * 60_000)
-    })).resolves.toMatchObject({ state: "blocked", reason: "already-sated" });
-    await expect(repository.completeVarenykSated(1061n, secondInput)).resolves.toMatchObject({
+    })).resolves.toMatchObject({ state: "saved" });
+    const replacement = await repository.completeVarenykSated(1063n, secondInput);
+    expect(replacement).toMatchObject({ state: "completed", created: true });
+    expect(replacement.state === "completed" ? replacement.status.activationId : "").not.toBe(firstActivationId);
+
+    await expect(repository.saveVarenykSatedPreview(1061n, {
+      ...secondInput,
+      previewToken: "refresh-first-caster-again",
+      expiresAt: new Date(secondNow.getTime() + 13 * 60_000)
+    })).resolves.toMatchObject({
       state: "blocked",
-      reason: "stale"
+      reason: "target-cooldown",
+      availableAt: new Date(now.getTime() + 93 * 60_000)
     });
     await expect(prisma.characterCooldown.count({
       where: {
-        characterId: "refresh-varenyk",
+        characterId: "refresh-target",
         key: "class.varenyk-mancer.sated-support.recipient"
       }
     })).resolves.toBe(1);
+    await expect(prisma.characterCooldown.count({
+      where: { key: { startsWith: "class.varenyk-mancer.sated-support.pair:" } }
+    })).resolves.toBe(2);
   });
 
   it("settles every eligible pre-expiry minute before feeding again at the 93-minute boundary", async () => {
@@ -1356,7 +1415,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
       state: "existing-character",
       character: { hpCurrent: 18, manaCurrent: 16 },
       activeVarenykSated: { activationId: fresh.activationId },
-      varenykSatedAvailableAt: new Date(fresh.availableAt),
+      varenykSatedAvailableAt: null,
       satedRecovery: null
     });
     expect(winnerResult).toMatchObject({ hpRestored: 13, manaRestored: 13 });
@@ -1471,7 +1530,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
           manaCurrent: fullTarget ? 30 : 11
         },
         activeVarenykSated: { activationId: fresh.activationId, rank: 1 },
-        varenykSatedAvailableAt: new Date(fresh.availableAt),
+        varenykSatedAvailableAt: null,
         satedRecovery: null
       });
       expect(installed).toBe(1);
