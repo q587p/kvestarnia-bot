@@ -620,9 +620,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           characterId: character.id,
           remortCount: committedState.life?.remortCount ?? 0,
           resources: {
-            hp: character.hpCurrent,
+            hp: Math.max(0, Math.min(character.hpCurrent, committedState.hero.hpMax)),
             hpMax: committedState.hero.hpMax,
-            mana: character.manaCurrent,
+            mana: Math.max(0, Math.min(character.manaCurrent, committedState.hero.manaMax)),
             manaMax: committedState.hero.manaMax
           },
           now: combatStartedAt
@@ -640,10 +640,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
             data: {
               hpCurrent: sated.resources.hp,
               manaCurrent: sated.resources.mana,
-              hpRegenAt: sated.resources.hp >= committedState.hero.hpMax
+              hpRegenAt: sated.resources.hp >= sated.resources.hpMax
                 ? combatStartedAt
                 : character.hpRegenAt,
-              manaRegenAt: sated.resources.mana >= committedState.hero.manaMax
+              manaRegenAt: sated.resources.mana >= sated.resources.manaMax
                 ? combatStartedAt
                 : character.manaRegenAt
             }

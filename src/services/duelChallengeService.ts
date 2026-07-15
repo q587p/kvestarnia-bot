@@ -235,13 +235,23 @@ export class DuelChallengeService {
     input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
   ): Promise<DuelCreateResult> {
     const now = this.clock();
-    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const mode = input.mode ?? "quick";
+    const equipmentAt = mode === "turn-based" ? now : undefined;
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!challengerSnapshot) {
       return { state: "no-character" };
     }
 
-    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+    const challenger = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      challengerSnapshot,
+      now,
+      equipmentAt
+    );
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -263,7 +273,7 @@ export class DuelChallengeService {
 
     const challenge = await this.challenges.createOpenForTelegramUser(telegramUserId, {
       inviteToken: createInviteToken(),
-      mode: input.mode ?? "quick",
+      mode,
       contextChatId: input.contextChatId ?? null,
       expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
     });
@@ -300,7 +310,12 @@ export class DuelChallengeService {
       return { state: "not-resolved", challenge: original, challenger };
     }
 
-    const currentCharacter = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const rematchMode = original.result.mode ?? original.mode;
+    const equipmentAt = rematchMode === "turn-based" ? now : undefined;
+    const currentCharacter = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!currentCharacter) {
       return { state: "no-character" };
@@ -317,7 +332,12 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = await this.syncDuelCharacterForTelegramUser(telegramUserId, currentCharacter, now);
+    const current = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      currentCharacter,
+      now,
+      equipmentAt
+    );
 
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -361,7 +381,7 @@ export class DuelChallengeService {
       rematchTarget.id,
       {
         inviteToken: createInviteToken(),
-        mode: original.result.mode ?? original.mode,
+        mode: rematchMode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       }
@@ -427,14 +447,17 @@ export class DuelChallengeService {
     }
 
     const equipmentAt = challenge.mode === "turn-based" ? now : undefined;
-    const [targetCharacter, currentChallengerCharacter] = await Promise.all([
+    const [targetCharacter, currentChallenger] = await Promise.all([
       this.challenges.findCharacterByTelegramUser(telegramUserId, equipmentAt),
-      equipmentAt
-        ? this.challenges.findCharacterByTelegramUser(challenge.challenger.telegramUserId, equipmentAt)
+      challenge.mode === "turn-based"
+        ? this.challenges.findCharacterByTelegramUser(
+            challenge.challenger.telegramUserId,
+            equipmentAt
+          )
         : Promise.resolve(challenge.challenger)
     ]);
 
-    if (!targetCharacter || !currentChallengerCharacter) {
+    if (!targetCharacter || !currentChallenger) {
       return { state: "no-character" };
     }
 
@@ -442,13 +465,15 @@ export class DuelChallengeService {
       telegramUserId,
       targetCharacter,
       now,
-      equipmentAt
+      equipmentAt,
+      challenge.mode !== "turn-based"
     );
     challenger = await this.syncDuelCharacterForTelegramUser(
       challenge.challenger.telegramUserId,
-      currentChallengerCharacter,
+      currentChallenger,
       now,
-      equipmentAt
+      equipmentAt,
+      challenge.mode !== "turn-based"
     );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
@@ -499,7 +524,6 @@ export class DuelChallengeService {
         now,
         {
           sessionId: randomUUID(),
-          rng: this.rng,
           turnExpiresAt: getNextTurnExpiry(now),
           targetChatId: options.chatId ?? null,
           targetMessageId: options.messageId ?? null
@@ -1155,13 +1179,23 @@ export class DuelChallengeService {
     input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
   ): Promise<DuelTargetedCreateResult> {
     const now = this.clock();
-    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const mode = input.mode ?? "quick";
+    const equipmentAt = mode === "turn-based" ? now : undefined;
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!challengerSnapshot) {
       return { state: "no-character" };
     }
 
-    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+    const challenger = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      challengerSnapshot,
+      now,
+      equipmentAt
+    );
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -1171,7 +1205,10 @@ export class DuelChallengeService {
       };
     }
 
-    const target = await this.challenges.findCharacterByTelegramUser(targetTelegramUserId);
+    const target = await this.challenges.findCharacterByTelegramUser(
+      targetTelegramUserId,
+      equipmentAt
+    );
 
     if (!target) {
       return { state: "target-not-found", character: challenger };
@@ -1206,7 +1243,7 @@ export class DuelChallengeService {
       target.id,
       {
         inviteToken: createInviteToken(),
-        mode: input.mode ?? "quick",
+        mode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       }
@@ -1230,8 +1267,10 @@ export class DuelChallengeService {
     telegramUserId: bigint,
     character: DuelCharacterSnapshot,
     now: Date,
-    equipmentAt?: Date
+    equipmentAt?: Date,
+    persistResources = true
   ): Promise<DuelistSummary> {
+    let effectiveSnapshot = character;
     const result = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
@@ -1239,13 +1278,17 @@ export class DuelChallengeService {
       equippedItems: getEquippedItemContents(character.equipment),
       ...(character.remortCount !== undefined ? { remortCount: character.remortCount } : {}),
       now,
-      ...(equipmentAt ? { persistCanonicalClamp: true } : {}),
+      persist: persistResources,
       reloadLatest: async () => {
-        const latest = await this.challenges.findCharacterByTelegramUser(telegramUserId, equipmentAt);
+        const latest = await this.challenges.findCharacterByTelegramUser(
+          telegramUserId,
+          equipmentAt
+        );
 
         if (!latest) {
           return null;
         }
+        effectiveSnapshot = latest;
 
         return {
           character: latest,
@@ -1256,8 +1299,11 @@ export class DuelChallengeService {
     });
 
     return withActiveCosmeticTitle(
-      withDuelEquipmentAbilityGrantIds({ ...result.character, id: character.id }, character),
-      character.activeCosmeticTitleGrantId
+      withDuelEquipmentAbilityGrantIds(
+        { ...result.character, id: effectiveSnapshot.id },
+        effectiveSnapshot
+      ),
+      effectiveSnapshot.activeCosmeticTitleGrantId
     );
   }
 

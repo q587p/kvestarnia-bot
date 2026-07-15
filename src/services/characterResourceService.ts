@@ -42,7 +42,6 @@ export async function summarizeAndSyncCharacterResources(input: {
   remortCount?: number;
   now: Date;
   persist?: boolean;
-  persistCanonicalClamp?: boolean;
   multiplierWindow?: ResourceRegenerationMultiplierWindow | null;
   multiplierWindows?: ResourceRegenerationMultiplierWindow[];
   reloadLatest?: () => Promise<CharacterResourceReloadResult | null>;
@@ -83,12 +82,7 @@ export async function summarizeAndSyncCharacterResources(input: {
         }
       : undefined;
 
-  const canonicalClampChanged = input.persistCanonicalClamp === true && (
-    baseSummary.hpCurrent !== input.character.hpCurrent ||
-    baseSummary.manaCurrent !== input.character.manaCurrent
-  );
-
-  if (input.persist !== false && (regeneration.changed || canonicalClampChanged)) {
+  if (input.persist !== false && regeneration.changed) {
     const updated = await input.characters.updateResourcesForTelegramUser?.(input.telegramUserId, {
       hpCurrent: regeneration.resources.hpCurrent,
       hpMax: regeneration.resources.hpMax,

@@ -16,16 +16,16 @@ import type {
   UpdateCharacterResourcesInput
 } from "../../src/db/repositories/characterRepository";
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
-import { getLevelForXp } from "../../src/domain/progression/level";
-import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
-import { getEquippedItemContents } from "../../src/services/equipmentService";
 import { getCombatMantokAbilityGrantsForEquippedItems } from "../../src/content";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
+import { startTurnBasedDuel } from "../../src/domain/duels/turnBasedDuel";
+import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import { getEquippedItemContents } from "../../src/services/equipmentService";
 import type { AchievementService } from "../../src/services/achievementService";
 import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import { FakeRandomSource } from "../../src/shared/random";
-import { startTurnBasedDuel } from "../../src/domain/duels/turnBasedDuel";
 
 const fixedNow = () => new Date("2026-06-17T18:00:00.000Z");
 
@@ -2242,8 +2242,11 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     return Promise.resolve(challenge);
   }
 
-  findCharacterByTelegramUser(telegramUserId: bigint, now?: Date): Promise<DuelCharacterSnapshot | null> {
-    void now;
+  findCharacterByTelegramUser(
+    telegramUserId: bigint,
+    equipmentAt?: Date
+  ): Promise<DuelCharacterSnapshot | null> {
+    void equipmentAt;
     return Promise.resolve(this.characters.get(telegramUserId) ?? null);
   }
 
@@ -2445,26 +2448,6 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       return Promise.resolve({ record: null, transitioned: false });
     }
 
-    const summarize = (character: DuelCharacterSnapshot) => {
-      const summary = summarizeCharacter(character, {
-        equippedItems: getEquippedItemContents(character.equipment),
-        remortCount: character.remortCount ?? 0
-      });
-      const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
-        itemIds: character.equipment.map((row) => row.itemId),
-        characterLevel: summary.level
-      }).map((grant) => grant.id);
-      return {
-        ...summary,
-        id: character.id,
-        ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
-      };
-    };
-    const state = startTurnBasedDuel({
-      challenger: summarize(challenge.challenger),
-      target: summarize(target),
-      rng: input.rng
-    });
     const activeChallenge: DuelChallengeRecord = {
       ...challenge,
       targetCharacterId: target.id,
@@ -2472,6 +2455,11 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       status: "active",
       updatedAt: now
     };
+    const state = startTurnBasedDuel({
+      challenger: buildFakeDuelist(activeChallenge.challenger),
+      target: buildFakeDuelist(target),
+      rng: new FakeRandomSource([0.5])
+    });
     const session: DuelCombatSessionRecord = {
       id: input.sessionId,
       duelChallengeId: activeChallenge.id,
@@ -2716,6 +2704,22 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       level: Math.max(character.level, getLevelForXp(xp, { remortCount: character.remortCount ?? 0 }))
     });
   }
+}
+
+function buildFakeDuelist(character: DuelCharacterSnapshot) {
+  const summary = summarizeCharacter(character, {
+    equippedItems: getEquippedItemContents(character.equipment)
+  });
+  const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+    itemIds: character.equipment.map((row) => row.itemId),
+    characterLevel: summary.level
+  }).map((grant) => grant.id);
+
+  return {
+    ...summary,
+    id: character.id,
+    ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
+  };
 }
 
 class FakeNearbyDuelTargetValidator implements NearbyDuelTargetValidator {

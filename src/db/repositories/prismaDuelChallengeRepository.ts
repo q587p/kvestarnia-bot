@@ -37,9 +37,11 @@ import {
 } from "../../domain/equipment/equipmentAttunement";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { CryptoRandomSource, type RandomSource } from "../../shared/random";
 import {
   freezeVarenykSatedFromCooldown,
   releaseVarenykSatedCombatLease,
@@ -54,7 +56,8 @@ type DuelCombatSessionWithChallenge =
 export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   async createOpenForTelegramUser(
@@ -193,7 +196,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
   async findCharacterByTelegramUser(
     telegramUserId: bigint,
-    now?: Date
+    equipmentAt?: Date
   ): Promise<DuelCharacterSnapshot | null> {
     const character = await this.prisma.character.findFirst({
       where: {
@@ -208,10 +211,25 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       return null;
     }
 
-    const equipment = now
-      ? await getActiveDuelEquipment(this.prisma, character.id, character.equipment, now)
-      : character.equipment;
-    return mapCharacter(character, equipment);
+    const localDates = equipmentAt
+      ? character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`)
+      : [];
+    const attunementPayloads = localDates.length > 0
+      ? await this.prisma.dailyAction.findMany({
+          where: {
+            characterId: character.id,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: { in: localDates }
+          },
+          select: { resultJson: true }
+        })
+      : [];
+
+    return mapCharacter(
+      character,
+      equipmentAt,
+      attunementPayloads.map((row) => row.resultJson)
+    );
   }
 
   async markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null> {
@@ -424,12 +442,24 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         return { record: null, transitioned: false };
       }
 
+      await tx.activeCombatLease.createMany({
+        data: participantIds.map((characterId) => ({
+          characterId,
+          kind: "turn-based-duel",
+          referenceId: sessionId,
+          createdAt: now,
+          updatedAt: now
+        }))
+      });
+
       const canonicalParticipants = {} as Record<
         "challenger" | "target",
         { duelist: DuelistSummary; sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]> }
       >;
       for (const side of ["challenger", "target"] as const) {
-        const participantId = side === "challenger" ? challenge.challengerCharacterId : target.id;
+        const participantId = side === "challenger"
+          ? challenge.challengerCharacterId
+          : target.id;
         const canonical = await tx.character.findUnique({
           where: { id: participantId },
           include: {
@@ -454,7 +484,18 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           },
           now
         });
-        if (sated.hpRestored > 0 || sated.manaRestored > 0) {
+        const hpRegenAt = sated.hpRestored > 0 && sated.resources.hp >= sated.resources.hpMax
+          ? now
+          : natural.hpRegenAt;
+        const manaRegenAt = sated.manaRestored > 0 && sated.resources.mana >= sated.resources.manaMax
+          ? now
+          : natural.manaRegenAt;
+        const resourcesChanged =
+          sated.resources.hp !== canonical.hpCurrent ||
+          sated.resources.mana !== canonical.manaCurrent ||
+          hpRegenAt.getTime() !== canonical.hpRegenAt?.getTime() ||
+          manaRegenAt.getTime() !== canonical.manaRegenAt?.getTime();
+        if (resourcesChanged) {
           const persisted = await tx.character.updateMany({
             where: {
               id: participantId,
@@ -467,12 +508,24 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             data: {
               hpCurrent: sated.resources.hp,
               manaCurrent: sated.resources.mana,
-              hpRegenAt: sated.resources.hp >= natural.duelist.hpMax ? now : canonical.hpRegenAt,
-              manaRegenAt: sated.resources.mana >= natural.duelist.manaMax ? now : canonical.manaRegenAt
+              hpRegenAt,
+              manaRegenAt
             }
           });
           if (persisted.count !== 1) {
             throw new VarenykSatedCasError("duel-character-resources");
+          }
+          if (
+            natural.passiveResourceChanged &&
+            natural.duelist.hpCurrent >= natural.duelist.hpMax
+          ) {
+            await this.hpRecoveryProducer.record(
+              tx,
+              participantId,
+              natural.hpRegenAt,
+              "suppress",
+              { errorCode: "lazy-sync-full" }
+            );
           }
         }
         canonicalParticipants[side] = {
@@ -488,7 +541,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       const state = startTurnBasedDuel({
         challenger: canonicalParticipants.challenger.duelist,
         target: canonicalParticipants.target.duelist,
-        rng: input.rng
+        rng: this.rng
       });
       for (const side of ["challenger", "target"] as const) {
         const sated = canonicalParticipants[side].sated;
@@ -496,16 +549,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           state.participants[side].varenykSated = sated;
         }
       }
-
-      await tx.activeCombatLease.createMany({
-        data: participantIds.map((characterId) => ({
-          characterId,
-          kind: "turn-based-duel",
-          referenceId: sessionId,
-          createdAt: now,
-          updatedAt: now
-        }))
-      });
 
       const record = await tx.duelCombatSession.create({
         data: {
@@ -984,13 +1027,31 @@ async function getDuelCanonicalPreparation(
   canonical: Character & { equipment: CharacterEquipment[]; _count: { remorts: number } },
   remortCount: number,
   now: Date
-): Promise<{ duelist: DuelistSummary }> {
-  const activeEquipment = await getActiveDuelEquipment(
-    tx,
-    canonical.id,
-    canonical.equipment,
-    now
+): Promise<{
+  duelist: DuelistSummary;
+  hpRegenAt: Date;
+  manaRegenAt: Date;
+  passiveResourceChanged: boolean;
+}> {
+  const localDates = canonical.equipment.map(
+    (row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`
   );
+  const actions = localDates.length > 0
+    ? await tx.dailyAction.findMany({
+        where: {
+          characterId: canonical.id,
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+          localDate: { in: localDates }
+        },
+        select: { resultJson: true }
+      })
+    : [];
+  const actionPayloads = actions.map((row) => row.resultJson);
+  const activeEquipment = getActiveEquipmentRows({
+    rows: canonical.equipment,
+    actionPayloads,
+    now
+  });
   const equippedItems = activeEquipment.flatMap((row) => {
     const item = items.find((candidate) => candidate.id === row.itemId);
     return item ? [item] : [];
@@ -1003,6 +1064,23 @@ async function getDuelCanonicalPreparation(
     currentLocationId: null,
     remortCount
   }, { equippedItems, remortCount });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: canonical.hpRegenAt,
+      manaRegenAt: canonical.manaRegenAt
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now
+  });
   const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
     itemIds: activeEquipment.map((row) => row.itemId),
     characterLevel: summary.level
@@ -1012,35 +1090,15 @@ async function getDuelCanonicalPreparation(
     duelist: {
       ...summary,
       id: canonical.id,
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
       ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
       ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
-    }
+    },
+    hpRegenAt: regeneration.resources.hpRegenAt ?? now,
+    manaRegenAt: regeneration.resources.manaRegenAt ?? now,
+    passiveResourceChanged: regeneration.changed
   };
-}
-
-async function getActiveDuelEquipment(
-  client: Pick<Prisma.TransactionClient, "dailyAction">,
-  characterId: string,
-  equipment: CharacterEquipment[],
-  now: Date
-): Promise<CharacterEquipment[]> {
-  const localDates = equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
-  const actions = localDates.length > 0
-    ? await client.dailyAction.findMany({
-        where: {
-          characterId,
-          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
-          localDate: { in: localDates }
-        },
-        select: { resultJson: true }
-      })
-    : [];
-
-  return getActiveEquipmentRows({
-    rows: equipment,
-    actionPayloads: actions.map((row) => row.resultJson),
-    now
-  });
 }
 
 async function awardTurnBasedDuelXp(
@@ -1252,11 +1310,14 @@ function mapCharacter(
     equipment: CharacterEquipment[];
     _count?: { remorts?: number };
   },
-  activeEquipment = record.equipment
+  equipmentAt?: Date,
+  attunementPayloads: readonly unknown[] = []
 ): DuelCharacterSnapshot {
   const { user, equipment, ...character } = record;
-  void equipment;
   delete (character as { _count?: unknown })._count;
+  const activeEquipment = equipmentAt
+    ? getActiveEquipmentRows({ rows: equipment, actionPayloads: attunementPayloads, now: equipmentAt })
+    : equipment;
 
   return {
     ...character,

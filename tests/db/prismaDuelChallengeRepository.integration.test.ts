@@ -21,6 +21,7 @@ import {
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
+import { DuelChallengeService } from "../../src/services/duelChallengeService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
@@ -275,26 +276,31 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   it("starts one turn-based session and two leases under concurrent accept attempts", async () => {
     const seeded = await seedPendingChallenge("start-race");
-    const firstRng = new CountingRandomSource([0.99, 0]);
-    const secondRng = new CountingRandomSource([0.99, 0]);
+    const initiativeRng = {
+      nextFloat: vi.fn(() => 0),
+      nextInt: vi.fn(() => 1)
+    };
+    const raceRepository = new PrismaDuelChallengeRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(false),
+      initiativeRng
+    );
     const [first, second] = await Promise.all([
-      repository.startTurnBasedByTokenForTelegramUser(
+      raceRepository.startTurnBasedByTokenForTelegramUser(
         "start-race",
         seeded.target.telegramUserId,
         new Date("2026-06-17T18:00:00.000Z"),
         {
           sessionId: "session-start-race-a",
-          rng: firstRng,
           turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
         }
       ),
-      repository.startTurnBasedByTokenForTelegramUser(
+      raceRepository.startTurnBasedByTokenForTelegramUser(
         "start-race",
         seeded.target.telegramUserId,
         new Date("2026-06-17T18:00:00.000Z"),
         {
           sessionId: "session-start-race-b",
-          rng: secondRng,
           turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
         }
       )
@@ -303,8 +309,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
     expect(started).toHaveLength(1);
     expect([first.transitioned, second.transitioned].filter(Boolean)).toHaveLength(1);
-    expect(firstRng.calls + secondRng.calls).toBe(2);
-    expect(first.transitioned ? secondRng.calls : firstRng.calls).toBe(0);
+    expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
     await expect(prisma.duelCombatSession.count({
       where: {
         duelChallenge: {
@@ -409,12 +414,17 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         });
       }
 
-      const rng = new CountingRandomSource([0.5, 0.5, 0.9]);
+      const initiativeRng = new CountingRandomSource([0.5, 0.5, 0.9]);
+      const boundaryRepository = new PrismaDuelChallengeRepository(
+        prisma,
+        new HpRecoveryNotificationProducer(false),
+        initiativeRng
+      );
       const service = new DuelChallengeService(
-        repository,
+        boundaryRepository,
         new PrismaCharacterRepository(prisma),
         () => acceptedAt,
-        rng
+        new FakeRandomSource([0.1])
       );
       const warning = await service.acceptForTelegramUser(
         seeded.target.telegramUserId,
@@ -429,7 +439,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         target: { hpCurrent: 71, hpMax: 72 },
         warning: { hpBelowMax: true, manaBelowMax: false }
       });
-      expect(rng.calls).toBe(0);
+      expect(initiativeRng.calls).toBe(0);
 
       const confirmation = await service.acceptForTelegramUser(
         seeded.target.telegramUserId,
@@ -442,7 +452,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
           ? { hpCurrent: 72, hpMax: 72 }
           : { hpCurrent: 75, hpMax: 77 }
       });
-      expect(rng.calls).toBe(0);
+      expect(initiativeRng.calls).toBe(0);
 
       const accepted = await service.acceptForTelegramUser(
         seeded.target.telegramUserId,
@@ -472,8 +482,8 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       expect(accepted.session.actingCharacterId).toBe(
         boundary === "before" ? seeded.target.id : seeded.challenger.id
       );
-      expect(rng.calls).toBe(boundary === "before" ? 3 : 2);
-      const initiativeCalls = rng.calls;
+      expect(initiativeRng.calls).toBe(boundary === "before" ? 3 : 2);
+      const initiativeCalls = initiativeRng.calls;
       const replay = await service.acceptForTelegramUser(
         seeded.target.telegramUserId,
         `service-attunement-${boundary}`,
@@ -483,7 +493,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         state: "active",
         session: { actingCharacterId: accepted.session.actingCharacterId }
       });
-      expect(rng.calls).toBe(initiativeCalls);
+      expect(initiativeRng.calls).toBe(initiativeCalls);
       await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
         .resolves.toMatchObject({
           hpCurrent: boundary === "before" ? 72 : 75,
@@ -525,7 +535,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       acceptedAt,
       {
         sessionId: "session-sated-prelease",
-        rng: new FakeRandomSource([0.99, 0]),
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );
@@ -536,7 +545,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       acceptedAt,
       {
         sessionId: "session-sated-prelease-replay",
-        rng: new FakeRandomSource([0.99, 0]),
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );
@@ -582,7 +590,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       new Date("2026-06-17T18:00:00.000Z"),
       {
         sessionId: "session-asymmetric-without-sated",
-        rng: new FakeRandomSource([0.99, 0]),
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );
@@ -684,7 +691,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         acceptedAt,
         {
           sessionId: `session-attunement-${boundary}`,
-          rng: new FakeRandomSource([0.99, 0]),
           turnExpiresAt: new Date(acceptedAt.getTime() + 23_000)
         }
       );
@@ -713,6 +719,248 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       });
       expect(leases).toHaveLength(2);
       expect(leases.every((lease) => lease.createdAt.getTime() === acceptedAt.getTime())).toBe(true);
+    }
+  });
+
+  it("uses the same inclusive attunement boundary across public acceptance sync, warning, initiative, and storage", async () => {
+    const readyAt = new Date("2026-06-17T18:00:00.000Z");
+    const equipmentUpdatedAt = new Date("2026-06-17T17:18:00.000Z");
+    const oldHpAnchor = new Date("2026-06-17T17:57:30.000Z");
+    const tuningEquipment = [
+      ["weapon", "item.set.red-line.left-dagger", "Кинджал червоного рядка"],
+      ["offhand", "item.set.red-line.margin-dagger", "Кинджал червоного поля"],
+      ["head", "item.set.barrel-brother.helm", "Шолом бочкового дзвону"],
+      ["chest", "item.set.barrel-brother.cuirass", "Нагрудник старшого обруча"],
+      ["legs", "item.set.barrel-brother.greaves", "Поножі нижнього обруча"]
+    ] as const;
+
+    for (const boundary of ["before", "ready"] as const) {
+      const token = `service-inclusive-attunement-${boundary}`;
+      const seeded = await seedPendingChallenge(token);
+      const acceptedAt = boundary === "before"
+        ? new Date(readyAt.getTime() - 1)
+        : readyAt;
+      await prisma.character.update({
+        where: { id: seeded.challenger.id },
+        data: {
+          level: 13,
+          hpCurrent: 72,
+          manaCurrent: 36,
+          statsJson: {
+            strength: 7,
+            dexterity: 8,
+            intelligence: 6,
+            charisma: 6,
+            luck: 4
+          }
+        }
+      });
+      await prisma.character.update({
+        where: { id: seeded.target.id },
+        data: {
+          level: 13,
+          hpCurrent: 72,
+          manaCurrent: 35,
+          hpRegenAt: oldHpAnchor,
+          manaRegenAt: acceptedAt,
+          statsJson: {
+            strength: 7,
+            dexterity: 6,
+            intelligence: 6,
+            charisma: 6,
+            luck: 5
+          }
+        }
+      });
+      for (const [slot, itemId, itemName] of tuningEquipment) {
+        const id = `${token}-${slot}`;
+        await prisma.characterEquipment.create({
+          data: {
+            id,
+            characterId: seeded.target.id,
+            slot,
+            itemId,
+            createdAt: equipmentUpdatedAt,
+            updatedAt: equipmentUpdatedAt
+          }
+        });
+        await prisma.dailyAction.create({
+          data: {
+            characterId: seeded.target.id,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: `${slot}:${id}:${equipmentUpdatedAt.getTime()}`,
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: buildEquipmentAttunementPayload({
+              slot,
+              itemId,
+              itemName,
+              equipmentUpdatedAt,
+              strength: "strong",
+              startedAt: equipmentUpdatedAt,
+              readyAt
+            })
+          }
+        });
+      }
+
+      const initiativeRng = {
+        nextFloat: vi.fn(() => 0),
+        nextInt: vi.fn(() => 1)
+      };
+      const boundaryRepository = new PrismaDuelChallengeRepository(
+        prisma,
+        new HpRecoveryNotificationProducer(false),
+        initiativeRng
+      );
+      const characterRepository = new PrismaCharacterRepository(prisma);
+      const resourceUpdateSpy = vi.spyOn(
+        characterRepository,
+        "updateResourcesForTelegramUser"
+      );
+      const service = new DuelChallengeService(
+        boundaryRepository,
+        characterRepository,
+        () => acceptedAt,
+        new FakeRandomSource([0.99])
+      );
+
+      const warned = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        { expectedMode: "turn-based" }
+      );
+      expect(warned).toMatchObject({
+        state: "resource-warning",
+        target: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72, manaCurrent: 35, manaMax: 36 }
+          : { hpCurrent: 82, hpMax: 82, manaCurrent: 35, manaMax: 36 },
+        warning: { hpBelowMax: false, manaBelowMax: true }
+      });
+      if (warned.state !== "resource-warning") {
+        throw new Error("Expected public turn-duel resource warning.");
+      }
+      expect(warned.target.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      expect(warned.target.equipmentAbilityGrantIds ?? []).toEqual(
+        boundary === "before" ? [] : ["mantok-ability.red-line-dagger"]
+      );
+      expect(warned.target.equipmentEffects?.contributions.map((entry) => entry.itemId) ?? [])
+        .toEqual(boundary === "before"
+          ? []
+          : expect.arrayContaining([
+              "mantok-set.red-line-duel:2",
+              "mantok-set.barrel-brother-bulwark:2",
+              "mantok-set.barrel-brother-bulwark:3"
+            ]));
+
+      const canonicalAfterWarning = await prisma.character.findUniqueOrThrow({
+        where: { id: seeded.target.id }
+      });
+      expect(canonicalAfterWarning).toMatchObject({
+        hpCurrent: 72,
+        manaCurrent: 35,
+        hpRegenAt: oldHpAnchor,
+        manaRegenAt: acceptedAt
+      });
+
+      const confirmation = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        { expectedMode: "turn-based", ignoreResourceWarning: true }
+      );
+      expect(confirmation).toMatchObject({
+        state: "confirmation",
+        target: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72, manaCurrent: 35, manaMax: 36 }
+          : { hpCurrent: 82, hpMax: 82, manaCurrent: 35, manaMax: 36 }
+      });
+      if (confirmation.state !== "confirmation") {
+        throw new Error("Expected public turn-duel confirmation.");
+      }
+      expect(confirmation.target.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      expect(resourceUpdateSpy).not.toHaveBeenCalled();
+
+      const accepted = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        {
+          expectedMode: "turn-based",
+          confirmed: true,
+          ignoreResourceWarning: true
+        }
+      );
+      if (accepted.state !== "active") {
+        throw new Error(`Expected active public turn duel, got ${accepted.state}.`);
+      }
+      const storedTarget = accepted.session.state.participants.target;
+      expect(accepted.session.actingCharacterId).toBe(
+        boundary === "before" ? seeded.challenger.id : seeded.target.id
+      );
+      expect(storedTarget).toMatchObject(boundary === "before"
+        ? { hp: 72, hpMax: 72, mana: 35, manaMax: 36 }
+        : {
+            hp: 82,
+            hpMax: 82,
+            mana: 35,
+            manaMax: 36,
+            equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+          });
+      expect(storedTarget.equipmentEffects).toMatchObject(boundary === "before"
+        ? {
+            hpMax: 0,
+            armor: 0,
+            resist: 0,
+            weaponDamage: 0,
+            stats: { dexterity: 0, luck: 0 }
+          }
+        : {
+            hpMax: 10,
+            armor: 8,
+            resist: 2,
+            weaponDamage: 7,
+            stats: { dexterity: 2, luck: 1 }
+          });
+      expect(storedTarget.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.target.id } }))
+        .resolves.toMatchObject(boundary === "before"
+          ? {
+              hpCurrent: 72,
+              manaCurrent: 35,
+              hpRegenAt: oldHpAnchor,
+              manaRegenAt: acceptedAt
+            }
+          : {
+              hpCurrent: 82,
+              manaCurrent: 35,
+              hpRegenAt: acceptedAt,
+              manaRegenAt: acceptedAt
+            });
+      expect(resourceUpdateSpy).not.toHaveBeenCalled();
+      expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
+
+      const duplicate = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        {
+          expectedMode: "turn-based",
+          confirmed: true,
+          ignoreResourceWarning: true
+        }
+      );
+      expect(duplicate).toMatchObject({
+        state: "active",
+        session: {
+          id: accepted.session.id,
+          actingCharacterId: accepted.session.actingCharacterId
+        }
+      });
+      expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
     }
   });
 
@@ -771,7 +1019,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       acceptedAt,
       {
         sessionId: "session-asymmetric-with-sated",
-        rng: new FakeRandomSource([0.99, 0]),
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );
@@ -842,7 +1089,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       acceptedAt,
       {
         sessionId: "session-effective-partial-sated",
-        rng: new FakeRandomSource([0.99, 0]),
         turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
       }
     );

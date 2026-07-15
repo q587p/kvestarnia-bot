@@ -11,6 +11,8 @@ import {
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
+import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import { VarenykSatedCasError } from "../../src/db/repositories/prismaVarenykSated";
 
 describe("PrismaSoloCombatSessionRepository integration", () => {
   let dir: string;
@@ -796,24 +798,202 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect((duplicate.resultJson as { cursorAt: string }).cursorAt).toBe(payload.expiresAt);
   });
 
-  it("releases an early malformed solo session at the observed cleanup time and preserves its exact lease remainder", async () => {
-    const characterId = "character-malformed-observed-cleanup";
-    const telegramUserId = 42999n;
+  it("persists pre-lease Sated recovery for ordinary and training solo lifecycles before malformed or missing cleanup", async () => {
     const satedStartedAt = new Date("2026-07-14T10:00:00.000Z");
-    const combatStartedAt = new Date("2026-07-14T10:00:30.000Z");
-    const observedCleanupAt = new Date("2026-07-14T10:02:00.000Z");
+    const combatStartedAt = new Date("2026-07-14T10:02:30.000Z");
+    const observedCleanupAt = new Date("2026-07-14T10:05:00.000Z");
+    const resumedAt = new Date("2026-07-14T10:05:30.000Z");
+    const cases = [
+      {
+        source: "normal" as const,
+        cleanup: "malformed" as const,
+        telegramUserId: 42999n,
+        monsterId: "monster.deadline-spider",
+        initial: { hp: 40, mana: 1 },
+        canonical: { hpCurrent: 42, manaCurrent: 3 },
+        combatOnly: { hp: 31, mana: 2 },
+        anchors: { hpRegenAt: combatStartedAt, manaRegenAt: resumedAt },
+        resumed: { hpRestored: 0, manaRestored: 1, hpCurrent: 42, manaCurrent: 4 }
+      },
+      {
+        source: "training" as const,
+        cleanup: "missing" as const,
+        telegramUserId: 43000n,
+        monsterId: TRAINING_DOPPELGANGER_MONSTER_ID,
+        initial: { hp: 1, mana: 18 },
+        canonical: { hpCurrent: 3, manaCurrent: 20 },
+        combatOnly: { hp: 2, mana: 19 },
+        anchors: { hpRegenAt: resumedAt, manaRegenAt: combatStartedAt },
+        resumed: { hpRestored: 1, manaRestored: 0, hpCurrent: 4, manaCurrent: 20 }
+      }
+    ];
+
+    for (const testCase of cases) {
+      const suffix = `lifecycle-${testCase.source}`;
+      const characterId = `character-prelease-${suffix}`;
+      const sessionId = `session-prelease-${suffix}`;
+      await seedCharacter(prisma, {
+        userId: `user-prelease-${suffix}`,
+        characterId,
+        telegramUserId: testCase.telegramUserId
+      });
+      await prisma.character.update({
+        where: { id: characterId },
+        data: {
+          classId: "class.varenyk-mancer",
+          hpCurrent: testCase.initial.hp,
+          manaCurrent: testCase.initial.mana,
+          hpRegenAt: resumedAt,
+          manaRegenAt: resumedAt
+        }
+      });
+      const payload = makeSoloSatedPayload(
+        characterId,
+        `prelease-${suffix}-activation`,
+        satedStartedAt,
+        testCase.telegramUserId
+      );
+      await prisma.characterCooldown.create({
+        data: {
+          characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+      const input = makeCreateInput(sessionId, testCase.monsterId);
+      input.state.source = testCase.source;
+      input.state.life = {
+        characterId,
+        remortCount: 0,
+        startedAt: combatStartedAt.toISOString()
+      };
+      input.state.hero = {
+        hp: testCase.initial.hp,
+        hpMax: 42,
+        mana: testCase.initial.mana,
+        manaMax: 20
+      };
+      input.expiresAt = new Date("2026-07-14T11:00:00.000Z");
+
+      const session = await repository.createForTelegramUser(testCase.telegramUserId, input);
+      expect(session).toMatchObject({
+        id: sessionId,
+        monsterId: testCase.monsterId,
+        state: {
+          source: testCase.source,
+          hero: { hp: testCase.canonical.hpCurrent, mana: testCase.canonical.manaCurrent },
+          varenykSated: {
+            cursorAt: combatStartedAt.toISOString(),
+            leaseStartedAt: combatStartedAt.toISOString(),
+            outsideRemainderMs: 30_000,
+            pulseIds: []
+          }
+        }
+      });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+        .resolves.toMatchObject({
+          ...testCase.canonical,
+          ...testCase.anchors
+        });
+      await expect(prisma.activeCombatLease.findUnique({ where: { characterId } }))
+        .resolves.toMatchObject({
+          kind: "solo-combat",
+          referenceId: sessionId,
+          createdAt: combatStartedAt
+        });
+      const frozenCooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+      });
+      expect((frozenCooldown.resultJson as { cursorAt: string }).cursorAt)
+        .toBe("2026-07-14T10:02:00.000Z");
+
+      if (!session?.state) {
+        throw new Error("Expected persisted solo Sated state.");
+      }
+      const combatOnly = JSON.parse(JSON.stringify(session.state)) as CombatState;
+      combatOnly.turn = 2;
+      // Represents combat-only damage, item healing, mana spend, and a living Sated pulse.
+      combatOnly.hero.hp = testCase.combatOnly.hp;
+      combatOnly.hero.mana = testCase.combatOnly.mana;
+      if (combatOnly.varenykSated) {
+        combatOnly.varenykSated.pulseIds = [`${sessionId}:turn:1:${characterId}`];
+      }
+      await expect(repository.updateByIdIfActiveTurn(sessionId, 1, {
+        state: combatOnly,
+        status: "active"
+      })).resolves.toMatchObject({
+        state: {
+          hero: testCase.combatOnly,
+          varenykSated: { pulseIds: [`${sessionId}:turn:1:${characterId}`] }
+        }
+      });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+        .resolves.toMatchObject(testCase.canonical);
+
+      if (testCase.cleanup === "missing") {
+        await prisma.soloCombatSession.delete({ where: { id: sessionId } });
+        await expect(repository.releaseLeaseBySessionId(sessionId, observedCleanupAt))
+          .resolves.toBe(true);
+      } else {
+        await prisma.soloCombatSession.update({
+          where: { id: sessionId },
+          data: { stateJson: { malformed: true } }
+        });
+        await expect(repository.markStatusById(sessionId, "expired", observedCleanupAt))
+          .resolves.toMatchObject({ status: "expired" });
+      }
+
+      const releasedCooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+      });
+      expect((releasedCooldown.resultJson as { cursorAt: string }).cursorAt)
+        .toBe("2026-07-14T10:04:30.000Z");
+      await expect(prisma.activeCombatLease.count({ where: { characterId } })).resolves.toBe(0);
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+        .resolves.toMatchObject(testCase.canonical);
+
+      const classNoncombat = new PrismaClassNoncombatRepository(prisma);
+      await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+        testCase.telegramUserId,
+        new Date(resumedAt.getTime() - 1),
+        characterId
+      )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+        .resolves.toMatchObject(testCase.canonical);
+      await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+        testCase.telegramUserId,
+        resumedAt,
+        characterId
+      )).resolves.toMatchObject({
+        hpRestored: testCase.resumed.hpRestored,
+        manaRestored: testCase.resumed.manaRestored
+      });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+        .resolves.toMatchObject({
+          hpCurrent: testCase.resumed.hpCurrent,
+          manaCurrent: testCase.resumed.manaCurrent
+        });
+    }
+  });
+
+  it("rolls back the solo cooldown cursor, session, and lease when canonical Character CAS loses", async () => {
+    const characterId = "character-prelease-cas-loss";
+    const telegramUserId = 43001n;
+    const satedStartedAt = new Date("2026-07-14T10:00:00.000Z");
+    const combatStartedAt = new Date("2026-07-14T10:02:30.000Z");
     await seedCharacter(prisma, {
-      userId: "user-malformed-observed-cleanup",
+      userId: "user-prelease-cas-loss",
       characterId,
       telegramUserId
     });
     await prisma.character.update({
       where: { id: characterId },
-      data: { classId: "class.varenyk-mancer", hpCurrent: 1, manaCurrent: 1 }
+      data: { classId: "class.varenyk-mancer", hpCurrent: 2, manaCurrent: 1 }
     });
     const payload = makeSoloSatedPayload(
       characterId,
-      "malformed-observed-cleanup-activation",
+      "prelease-cas-loss-activation",
       satedStartedAt,
       telegramUserId
     );
@@ -825,46 +1005,33 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         resultJson: payload
       }
     });
-    const input = makeCreateInput("malformed-observed-cleanup", "monster.deadline-spider");
+    const input = makeCreateInput("session-prelease-cas-loss", "monster.deadline-spider");
     input.state.life = {
       characterId,
       remortCount: 0,
       startedAt: combatStartedAt.toISOString()
     };
-    input.state.hero = { hp: 1, hpMax: 30, mana: 1, manaMax: 14 };
-    input.expiresAt = new Date("2026-07-14T11:00:00.000Z");
-    const session = await repository.createForTelegramUser(telegramUserId, input);
-    expect(session?.id).toBe("malformed-observed-cleanup");
-    await expect(prisma.activeCombatLease.findUnique({ where: { characterId } }))
-      .resolves.toMatchObject({ createdAt: combatStartedAt });
-    await prisma.soloCombatSession.update({
-      where: { id: "malformed-observed-cleanup" },
-      data: { stateJson: { malformed: true } }
-    });
-
-    await expect(repository.markStatusById(
-      "malformed-observed-cleanup",
-      "expired",
-      observedCleanupAt
-    )).resolves.toMatchObject({ status: "expired" });
+    input.state.hero = { hp: 2, hpMax: 30, mana: 1, manaMax: 14 };
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_prelease_cas_update
+      BEFORE UPDATE ON characters
+      WHEN OLD.id = 'character-prelease-cas-loss'
+      BEGIN
+        SELECT RAISE(IGNORE);
+      END`);
+    try {
+      await expect(repository.createForTelegramUser(telegramUserId, input))
+        .rejects.toBeInstanceOf(VarenykSatedCasError);
+    } finally {
+      await prisma.$executeRawUnsafe("DROP TRIGGER reject_prelease_cas_update");
+    }
     const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
-    expect((cooldown.resultJson as { cursorAt: string }).cursorAt)
-      .toBe("2026-07-14T10:01:30.000Z");
+    expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(satedStartedAt.toISOString());
+    await expect(prisma.character.findUniqueOrThrow({ where: { id: characterId } }))
+      .resolves.toMatchObject({ hpCurrent: 2, manaCurrent: 1 });
+    await expect(prisma.soloCombatSession.count({ where: { id: input.id } })).resolves.toBe(0);
     await expect(prisma.activeCombatLease.count({ where: { characterId } })).resolves.toBe(0);
-
-    const classNoncombat = new PrismaClassNoncombatRepository(prisma);
-    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
-      telegramUserId,
-      new Date("2026-07-14T10:02:29.999Z"),
-      characterId
-    )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
-    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
-      telegramUserId,
-      new Date("2026-07-14T10:02:30.000Z"),
-      characterId
-    )).resolves.toMatchObject({ hpRestored: 1, manaRestored: 1 });
   });
 
   it("persists pre-lease Sated recovery for ordinary and Training fights before malformed cleanup", async () => {
