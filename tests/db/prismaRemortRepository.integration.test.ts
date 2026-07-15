@@ -744,8 +744,8 @@ describe("PrismaRemortRepository integration", () => {
       where: { id: characterId },
       data: {
         classId: "class.varenyk-mancer",
-        hpRegenAt: new Date(now.getTime() - 60_000),
-        manaRegenAt: new Date(now.getTime() - 90_000)
+        hpRegenAt: now,
+        manaRegenAt: now
       }
     });
     await prisma.characterEquipment.create({
@@ -778,6 +778,9 @@ describe("PrismaRemortRepository integration", () => {
       }
     );
     const satedRepository = new PrismaClassNoncombatRepository(prisma);
+    let satedSettlement: Awaited<
+      ReturnType<PrismaClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>
+    > = null;
     const hero = new HeroService(
       characters,
       { listByTelegramUserId: () => Promise.resolve([]) },
@@ -787,8 +790,10 @@ describe("PrismaRemortRepository integration", () => {
       () => now,
       undefined,
       {
-        settleVarenykSatedForTelegramUser:
-          satedRepository.settleVarenykSatedForTelegramUser.bind(satedRepository),
+        settleVarenykSatedForTelegramUser: async (...args) => {
+          satedSettlement = await satedRepository.settleVarenykSatedForTelegramUser(...args);
+          return satedSettlement;
+        },
         getActivePriestBlessingForTelegramUser: () => Promise.resolve(null),
         getPriestSelfBlessAvailableAtForTelegramUser: () => Promise.resolve(null),
         isActorBlockedForTelegramUser: () => Promise.resolve(false)
@@ -797,6 +802,20 @@ describe("PrismaRemortRepository integration", () => {
 
     const result = await hero.findByTelegramUserId(telegramUserId);
     expect(remortResult).toMatchObject({ state: "completed" });
+    expect(satedSettlement).toMatchObject({
+      character: {
+        id: characterId,
+        classId: "class.mage",
+        hpCurrent: 31,
+        hpMax: 31,
+        manaCurrent: 12,
+        manaMax: 12,
+        remortCount: 1
+      },
+      payload: null,
+      hpRestored: 0,
+      manaRestored: 0
+    });
     expect(result).toMatchObject({
       state: "existing-character",
       character: {

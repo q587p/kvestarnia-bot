@@ -1280,16 +1280,18 @@ describe("PrismaClassNoncombatRepository integration", () => {
       new HpRecoveryNotificationProducer(true)
     );
     const forced = withForcedPublicSatedCasLoss(prisma, "character", 3);
+    const freshStartedAt = new Date(now.getTime() - 60_000);
     const fresh = satedPayload({
       activationId: `${characterId}-fresh`,
       recipientCharacterId: characterId,
-      startedAt: now,
-      expiresAt: new Date(now.getTime() + 13 * 60_000),
-      availableAt: new Date(now.getTime() + 93 * 60_000)
+      startedAt: freshStartedAt,
+      expiresAt: new Date(freshStartedAt.getTime() + 13 * 60_000),
+      availableAt: new Date(freshStartedAt.getTime() + 93 * 60_000)
     });
     fresh.receipt.targetHpAfter = 17;
     fresh.receipt.targetManaAfter = 15;
     let winnerResult: Awaited<ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>> = null;
+    let winnerNotification: unknown = null;
     const sequence = withPublicSatedFallbackReadSequence(
       forced.client,
       characterId,
@@ -1301,6 +1303,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
             now,
             characterId
           );
+          winnerNotification = await prisma.hpRecoveryNotification.findUnique({ where: { characterId } });
         },
         async () => {
           await prisma.$transaction([
@@ -1309,8 +1312,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
               data: {
                 hpCurrent: 17,
                 manaCurrent: 15,
-                hpRegenAt: new Date(now.getTime() - 2_000),
-                manaRegenAt: new Date(now.getTime() - 3_000)
+                hpRegenAt: now,
+                manaRegenAt: now
               }
             }),
             prisma.characterCooldown.update({
@@ -1330,8 +1333,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
             data: {
               hpCurrent: 18,
               manaCurrent: 16,
-              hpRegenAt: new Date(now.getTime() - 1_000),
-              manaRegenAt: new Date(now.getTime() - 2_000)
+              hpRegenAt: now,
+              manaRegenAt: now
             }
           });
         }
@@ -1361,22 +1364,31 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
       hpCurrent: 18,
       manaCurrent: 16,
-      hpRegenAt: new Date(now.getTime() - 1_000),
-      manaRegenAt: new Date(now.getTime() - 2_000)
+      hpRegenAt: now,
+      manaRegenAt: now
     });
-    await expect(prisma.characterCooldown.findUniqueOrThrow({
+    const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
       where: {
         characterId_key: {
           characterId,
           key: "class.varenyk-mancer.sated-support.recipient"
         }
       }
-    })).resolves.toMatchObject({
-      resultJson: { activationId: fresh.activationId, cursorAt: now.toISOString() }
     });
-    await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
-      generation: 1
+    expect(cooldown).toMatchObject({
+      availableAt: new Date(fresh.availableAt),
+      resultJson: {
+        activationId: fresh.activationId,
+        startedAt: fresh.startedAt,
+        cursorAt: freshStartedAt.toISOString(),
+        expiresAt: fresh.expiresAt,
+        availableAt: fresh.availableAt
+      }
     });
+    await expect(prisma.activeCombatLease.findUnique({ where: { characterId } })).resolves.toBeNull();
+    expect(winnerNotification).toMatchObject({ generation: 1 });
+    await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } }))
+      .resolves.toEqual(winnerNotification);
   });
 
   it.each([
