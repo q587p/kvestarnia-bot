@@ -182,7 +182,7 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
 
 function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
   return sated
-    ? `😋 <b>Ситий</b> — <b>${formatRemainingMinutes(sated.expiresAt)}</b> · ранг <b>${sated.rank}</b>.`
+    ? `😋 <b>Ситий</b> — <b>${formatRemainingMinutes(sated.expiresAt)}</b>.`
     : null;
 }
 

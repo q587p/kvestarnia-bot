@@ -78,8 +78,48 @@ describe("class noncombat presenter", () => {
         availableAt: new Date("2026-07-03T10:33:00.000Z")
       }
     } as never;
-    expect(presentVarenykSatedResult(completed)).not.toContain("Відновлено:");
-    expect(presentVarenykSatedTargetNotification(completed)).not.toContain("Відновлено:");
+    const actorResult = presentVarenykSatedResult(completed);
+    const targetNotification = presentVarenykSatedTargetNotification(completed);
+    expect(actorResult).not.toContain("Відновлено:");
+    expect(targetNotification).not.toContain("Відновлено:");
+    expect(actorResult).not.toContain("Ранг");
+    expect(targetNotification).not.toContain("рангу");
+    expect(actorResult).toContain("питань.\n\nРесурси повні");
+    expect(actorResult).toContain("бафами.\nНагодувати цю ціль знову");
+    expect(actorResult).toContain("\n\n💫 Мани витрачено: <b>16</b>.");
+    expect(targetNotification).toContain("турботою.\n\nРесурси вже повні");
+    expect(targetNotification).toContain("Видно в персонажі поруч із бафами.");
+  });
+
+  it("formats a fresh self-feeding result like other class support outcomes", () => {
+    const text = presentVarenykSatedResult({
+      state: "completed",
+      created: true,
+      action: {
+        actorTelegramUserId: 1n,
+        targetTelegramUserId: 1n,
+        actorName: "Пан Вареник",
+        targetName: "Пан Вареник",
+        rank: 1,
+        manaCost: 8,
+        immediateHpRestored: 0,
+        immediateManaRestored: 1,
+        expiresAt: new Date("2026-07-03T09:13:00.000Z"),
+        availableAt: new Date("2026-07-03T10:33:00.000Z")
+      }
+    } as never);
+
+    expect(text).toBe([
+      "😋 <b>Ситий</b>",
+      "",
+      "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала.",
+      "",
+      "Відновлено: <b>+1 мани</b>.",
+      "Стан діє ще: <b>13 хвилин</b>. Видно в персонажі поруч із бафами.",
+      "Нагодувати цю ціль знову: <b>через 93 хвилини</b>.",
+      "",
+      "💫 Мани витрачено: <b>8</b>."
+    ].join("\n"));
   });
 
   it("uses Varenyk-specific blockers and canonical active/wait wording", () => {
@@ -124,12 +164,12 @@ describe("class noncombat presenter", () => {
     const waiting = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
 
     expect(waiting).not.toContain("Діє ще");
-    expect(waiting).toContain("Наступне годування цієї цілі: <b>79 хвилин</b>");
+    expect(waiting).toContain("Нагодувати цю ціль знову: <b>через 79 хвилин</b>");
 
     vi.setSystemTime(new Date("2026-07-03T10:33:00.000Z"));
     const available = presentVarenykSatedResult({ state: "completed", created: false, action } as never);
     expect(available).not.toContain("Діє ще");
-    expect(available).not.toContain("Наступне годування");
+    expect(available).not.toContain("Нагодувати цю ціль знову");
     expect(available).toContain("знову можна нагодувати");
   });
 

@@ -76,6 +76,37 @@ describe("training doppelganger presenter", () => {
     expect(text).not.toContain("+0 HP");
   });
 
+  it("shows active Sated without exposing its technical rank", () => {
+    const character = buildCharacter();
+    const session = buildSession();
+    const text = presentTrainingDoppelganger({
+      state: "active",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: {
+        ...session,
+        state: {
+          ...session.state,
+          varenykSated: {
+            version: 1,
+            activationId: "sated-active",
+            recipientCharacterId: "character-42",
+            recipientRemortCount: 0,
+            rank: 5,
+            expiresAt: new Date(Date.now() + 13 * 60_000).toISOString(),
+            cursorAt: new Date().toISOString(),
+            leaseStartedAt: new Date().toISOString(),
+            outsideRemainderMs: 0,
+            pulseIds: []
+          }
+        }
+      }
+    });
+
+    expect(text).toContain("😋 Ситий · ще 13 хв.");
+    expect(text).not.toContain("ранг 5");
+  });
+
   it("renders a training battle journal page", () => {
     const character = buildCharacter();
     const text = presentTrainingDoppelgangerJournal({

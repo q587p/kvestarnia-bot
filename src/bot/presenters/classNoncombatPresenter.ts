@@ -150,11 +150,11 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
   const now = Date.now();
   const timingLines = result.action.expiresAt.getTime() > now
     ? [
-        `Діє ще: <b>${formatRemaining(result.action.expiresAt)}</b>.`,
-        `Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`
+        presentSatedActiveStatusLine(result.action.expiresAt),
+        `Нагодувати цю ціль знову: <b>через ${formatRemaining(result.action.availableAt)}</b>.`
       ]
     : result.action.availableAt.getTime() > now
-      ? [`Наступне годування цієї цілі: <b>${formatRemaining(result.action.availableAt)}</b>.`]
+      ? [`Нагодувати цю ціль знову: <b>через ${formatRemaining(result.action.availableAt)}</b>.`]
       : ["Цю ціль знову можна нагодувати."];
   return [
     result.created ? "😋 <b>Ситий</b>" : "🧾 <b>Та сама миска вже врахована</b>",
@@ -162,11 +162,13 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     self
       ? "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
       : `${escapeHtml(result.action.actorName)} нагодував ${escapeHtml(result.action.targetName)}. Вареники не ставили зайвих питань.`,
-    `Ранг <b>${result.action.rank}</b> · витрачено <b>${result.action.manaCost} мани</b>.`,
+    "",
     result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
       : "Ресурси повні, зате статус акуратно загорнутий.",
-    ...timingLines
+    ...timingLines,
+    "",
+    presentManaSpentLine(result.action.manaCost)
   ].join("\n");
 }
 
@@ -176,11 +178,12 @@ export function presentVarenykSatedTargetNotification(
   return [
     "😋 <b>Вас нагодували</b>",
     "",
-    `${escapeHtml(result.action.actorName)} передав вареники рангу <b>${result.action.rank}</b>.`,
+    `${escapeHtml(result.action.actorName)} передав вам вареники. Корчма визнала це турботою.`,
+    "",
     result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
       : "Ресурси вже повні. Вареники вирішили працювати на перспективу.",
-    `😋 «Ситий» ще <b>${formatRemaining(result.action.expiresAt)}</b>.`
+    presentSatedActiveStatusLine(result.action.expiresAt)
   ].join("\n");
 }
 
@@ -530,6 +533,10 @@ function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): str
     ...(manaRestored > 0 ? [`<b>+${manaRestored} мани</b>`] : [])
   ];
   return `Відновлено: ${parts.join(" · ")}.`;
+}
+
+function presentSatedActiveStatusLine(expiresAt: Date): string {
+  return `Стан діє ще: <b>${formatRemaining(expiresAt)}</b>. Видно в персонажі поруч із бафами.`;
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {

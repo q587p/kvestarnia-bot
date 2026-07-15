@@ -199,7 +199,7 @@ function presentTrainingDoppelgangerState(input: {
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     ...(state?.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
-      ? [`😋 Ситий · ранг ${state.varenykSated.rank} · ще ${Math.max(1, Math.ceil((Date.parse(state.varenykSated.expiresAt) - Date.now()) / 60_000))} хв.`]
+      ? [`😋 Ситий · ще ${Math.max(1, Math.ceil((Date.parse(state.varenykSated.expiresAt) - Date.now()) / 60_000))} хв.`]
       : [])
   ];
 

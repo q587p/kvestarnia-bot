@@ -501,7 +501,7 @@ function presentActiveFightEffectNotices(
     );
 
   const satedNotice = state.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
-    ? [`😋 Ситий · ранг ${state.varenykSated.rank} · ще ${presentSatedRemaining(state.varenykSated.expiresAt)}.`]
+    ? [`😋 Ситий · ще ${presentSatedRemaining(state.varenykSated.expiresAt)}.`]
     : [];
 
   return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice]));

@@ -92,7 +92,8 @@ describe("hero presenter", () => {
       satedRecovery: { hpRestored: 0, manaRestored: 1 }
     });
 
-    expect(text).toContain("😋 <b>Ситий</b> — <b>13 хв</b> · ранг <b>3</b>");
+    expect(text).toContain("😋 <b>Ситий</b> — <b>13 хв</b>.");
+    expect(text).not.toContain("ранг <b>3</b>");
     expect(text).toContain("😋 Ситість відновила: <b>+1 мани</b>");
     expect(text).not.toContain("+0 HP");
     expect(presentHero(summary, { satedRecovery: { hpRestored: 0, manaRestored: 0 } }))

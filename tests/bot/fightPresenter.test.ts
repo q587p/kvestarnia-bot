@@ -2749,7 +2749,8 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("😋 Ситий · ранг 2");
+    expect(text).toContain("😋 Ситий · ще");
+    expect(text).not.toContain("ранг 2");
     expect(text).toContain("+1 HP");
     expect(text).not.toContain("+0 мани");
   });
