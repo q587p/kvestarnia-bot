@@ -256,9 +256,14 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     if (knownCharacterId && !bypassHistoricalFastPath) {
       const fastPathPair = await readStablePublicSatedPairCooldownFirst(
         this.prisma,
-        knownCharacterId
+        knownCharacterId,
+        expectedCharacter !== undefined
       );
       if (fastPathPair && !fastPathPair.statusRow) {
+        const current = fastPathPair.character;
+        if (expectedCharacter && current && !matchesExpectedPublicCharacter(current, expectedCharacter)) {
+          return toPublicSatedReadRecord(current, null);
+        }
         return null;
       }
       const currentPayload = parseVarenykSatedPayload(fastPathPair?.statusRow?.resultJson);
@@ -398,10 +403,16 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       telegramUserId,
       knownCharacterId
     );
-    return pair
+    if (pair.state === "missing-character") {
+      return null;
+    }
+    const authoritativePair = pair.state === "stable"
+      ? pair
+      : await readStrongPublicSatedPair(this.prisma, telegramUserId, knownCharacterId);
+    return authoritativePair
       ? toPublicSatedReadRecord(
-          pair.character,
-          parseVarenykSatedPayload(pair.statusRow?.resultJson)
+          authoritativePair.character,
+          parseVarenykSatedPayload(authoritativePair.statusRow?.resultJson)
         )
       : null;
   }
@@ -1516,12 +1527,21 @@ type PublicSatedCooldownRow = Awaited<ReturnType<typeof findCooldown>>;
 
 async function readStablePublicSatedPairCooldownFirst(
   client: PrismaClient,
-  characterId: string
+  characterId: string,
+  validateMissingCharacter: boolean
 ): Promise<{ character: IncludedCharacter | null; statusRow: PublicSatedCooldownRow } | null> {
   for (let attempt = 0; attempt < PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS; attempt += 1) {
     const before = await findCooldown(client, characterId, VARENYK_SATED_STATUS_KEY);
     if (!before) {
-      return { character: null, statusRow: null };
+      if (!validateMissingCharacter) {
+        return { character: null, statusRow: null };
+      }
+      const character = await findCharacterById(client, characterId);
+      const after = await findCooldown(client, characterId, VARENYK_SATED_STATUS_KEY);
+      if (!after) {
+        return { character, statusRow: null };
+      }
+      continue;
     }
     const character = await findCharacterById(client, characterId);
     const after = await findCooldown(client, characterId, VARENYK_SATED_STATUS_KEY);
@@ -1536,21 +1556,42 @@ async function readStablePublicSatedPairCharacterFirst(
   client: PrismaClient,
   telegramUserId: bigint,
   knownCharacterId?: string
-): Promise<{ character: IncludedCharacter; statusRow: PublicSatedCooldownRow } | null> {
+): Promise<
+  | { state: "stable"; character: IncludedCharacter; statusRow: PublicSatedCooldownRow }
+  | { state: "missing-character" }
+  | { state: "exhausted" }
+> {
   for (let attempt = 0; attempt < PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS; attempt += 1) {
     const before = knownCharacterId
       ? await findCharacterById(client, knownCharacterId) ?? await findCharacter(client, telegramUserId)
       : await findCharacter(client, telegramUserId);
     if (!before) {
-      return null;
+      return { state: "missing-character" };
     }
     const statusRow = await findCooldown(client, before.id, VARENYK_SATED_STATUS_KEY);
     const after = await findCharacterById(client, before.id);
     if (after && samePublicCharacterObservation(before, after)) {
-      return { character: after, statusRow };
+      return { state: "stable", character: after, statusRow };
     }
   }
-  return null;
+  return { state: "exhausted" };
+}
+
+async function readStrongPublicSatedPair(
+  client: PrismaClient,
+  telegramUserId: bigint,
+  knownCharacterId?: string
+): Promise<{ character: IncludedCharacter; statusRow: PublicSatedCooldownRow } | null> {
+  return client.$transaction(async (tx) => {
+    const character = knownCharacterId
+      ? await findCharacterById(tx, knownCharacterId) ?? await findCharacter(tx, telegramUserId)
+      : await findCharacter(tx, telegramUserId);
+    if (!character) {
+      return null;
+    }
+    const statusRow = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
+    return { character, statusRow };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 function samePublicSatedCooldownObservation(

@@ -6,8 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
 import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { PrismaClassNoncombatRepository } from "../../src/db/repositories/prismaClassNoncombatRepository";
+import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
+import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
+import { HeroService } from "../../src/services/heroService";
 import {
   settleVarenykSatedOutsideCombat,
   VARENYK_SATED_STATUS_KEY,
@@ -726,6 +731,106 @@ describe("PrismaRemortRepository integration", () => {
     })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
   });
 
+  it("returns only the new-life Hero snapshot when real remort deletes Sated between preliminary Character and absence guard", async () => {
+    const now = new Date("2026-07-15T09:00:00.000Z");
+    const telegramUserId = 9320n;
+    const characterId = "character-remort-public-sated";
+    await seedCharacter(prisma, {
+      userId: "user-remort-public-sated",
+      characterId,
+      telegramUserId
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: {
+        classId: "class.varenyk-mancer",
+        hpRegenAt: new Date(now.getTime() - 60_000),
+        manaRegenAt: new Date(now.getTime() - 90_000)
+      }
+    });
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-remort-public-sated",
+        characterId,
+        slot: "head",
+        itemId: "item.mantok.coverage.class.varenyk-mancer.dough-crown"
+      }
+    });
+    const payload = makeSatedPayload(characterId, new Date(now.getTime() - 60_000));
+    await prisma.characterCooldown.create({
+      data: {
+        id: "cooldown-remort-public-sated",
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await seedDraft(prisma, characterId, "token-remort-public-sated", now);
+    let remortResult: Awaited<ReturnType<PrismaRemortRepository["completeDraftForTelegramUser"]>> | null = null;
+    const characters = withFirstCharacterReadInterleaving(
+      new PrismaCharacterRepository(prisma),
+      async () => {
+        remortResult = await repository.completeDraftForTelegramUser(
+          telegramUserId,
+          makeCompletionInput("token-remort-public-sated", now)
+        );
+      }
+    );
+    const satedRepository = new PrismaClassNoncombatRepository(prisma);
+    const hero = new HeroService(
+      characters,
+      { listByTelegramUserId: () => Promise.resolve([]) },
+      new PrismaEquipmentRepository(prisma),
+      repository,
+      undefined,
+      () => now,
+      undefined,
+      {
+        settleVarenykSatedForTelegramUser:
+          satedRepository.settleVarenykSatedForTelegramUser.bind(satedRepository),
+        getActivePriestBlessingForTelegramUser: () => Promise.resolve(null),
+        getPriestSelfBlessAvailableAtForTelegramUser: () => Promise.resolve(null),
+        isActorBlockedForTelegramUser: () => Promise.resolve(false)
+      }
+    );
+
+    const result = await hero.findByTelegramUserId(telegramUserId);
+    expect(remortResult).toMatchObject({ state: "completed" });
+    expect(result).toMatchObject({
+      state: "existing-character",
+      character: {
+        classId: "class.mage",
+        level: 1,
+        hpCurrent: 31,
+        hpMax: 31,
+        manaCurrent: 12,
+        manaMax: 12,
+        remortCount: 1,
+        stats: { intelligence: 10 }
+      },
+      activeVarenykSated: null,
+      varenykSatedAvailableAt: null,
+      satedRecovery: null
+    });
+    expect(result).not.toHaveProperty("recoveryNotice");
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      classId: "class.mage",
+      hpCurrent: 31,
+      hpMax: 31,
+      manaCurrent: 12,
+      manaMax: 12,
+      hpRegenAt: null,
+      manaRegenAt: null,
+      statsJson: { intelligence: 9 }
+    });
+    await expect(prisma.characterRemort.count({ where: { characterId } })).resolves.toBe(1);
+    await expect(prisma.characterEquipment.count({ where: { characterId } })).resolves.toBe(0);
+    await expect(prisma.characterCooldown.findUnique({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resolves.toBeNull();
+  });
+
   it("does not write raid-time resources back after a real Big Barrel round and participant remort", async () => {
     const startAt = new Date("2026-06-22T15:00:00.000Z");
     const now = new Date("2026-06-22T15:00:20.000Z");
@@ -1258,6 +1363,29 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }
+}
+
+function withFirstCharacterReadInterleaving(
+  repository: CharacterRepository,
+  afterRead: () => Promise<void>
+): CharacterRepository {
+  let interleaved = false;
+  return new Proxy(repository, {
+    get(target, property, receiver) {
+      if (property === "findByTelegramUserId") {
+        return async (telegramUserId: bigint) => {
+          const character = await target.findByTelegramUserId(telegramUserId);
+          if (!interleaved) {
+            interleaved = true;
+            await afterRead();
+          }
+          return character;
+        };
+      }
+      const value = Reflect.get(target, property, receiver) as unknown;
+      return typeof value === "function" ? value.bind(target) as unknown : value;
+    }
+  });
 }
 
 async function seedCharacter(

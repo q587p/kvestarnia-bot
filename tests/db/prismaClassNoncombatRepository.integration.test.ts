@@ -1271,6 +1271,114 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
   });
 
+  it("uses one bounded serializable snapshot after every optimistic fallback pair is unstable", async () => {
+    const telegramUserId = 4070n;
+    const characterId = "public-strong-pair-fallback";
+    await seedFullyElapsedSatedReadCharacter(telegramUserId, characterId);
+    const winnerRepository = new PrismaClassNoncombatRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true)
+    );
+    const forced = withForcedPublicSatedCasLoss(prisma, "character", 3);
+    const fresh = satedPayload({
+      activationId: `${characterId}-fresh`,
+      recipientCharacterId: characterId,
+      startedAt: now,
+      expiresAt: new Date(now.getTime() + 13 * 60_000),
+      availableAt: new Date(now.getTime() + 93 * 60_000)
+    });
+    fresh.receipt.targetHpAfter = 17;
+    fresh.receipt.targetManaAfter = 15;
+    let winnerResult: Awaited<ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>> = null;
+    const sequence = withPublicSatedFallbackReadSequence(
+      forced.client,
+      characterId,
+      () => forced.getForcedCount() === 3,
+      [
+        async () => {
+          winnerResult = await winnerRepository.settleVarenykSatedForTelegramUser(
+            telegramUserId,
+            now,
+            characterId
+          );
+        },
+        async () => {
+          await prisma.$transaction([
+            prisma.character.update({
+              where: { id: characterId },
+              data: {
+                hpCurrent: 17,
+                manaCurrent: 15,
+                hpRegenAt: new Date(now.getTime() - 2_000),
+                manaRegenAt: new Date(now.getTime() - 3_000)
+              }
+            }),
+            prisma.characterCooldown.update({
+              where: {
+                characterId_key: {
+                  characterId,
+                  key: "class.varenyk-mancer.sated-support.recipient"
+                }
+              },
+              data: { availableAt: new Date(fresh.availableAt), resultJson: fresh }
+            })
+          ]);
+        },
+        async () => {
+          await prisma.character.update({
+            where: { id: characterId },
+            data: {
+              hpCurrent: 18,
+              manaCurrent: 16,
+              hpRegenAt: new Date(now.getTime() - 1_000),
+              manaRegenAt: new Date(now.getTime() - 2_000)
+            }
+          });
+        }
+      ]
+    );
+    const loserRepository = new PrismaClassNoncombatRepository(
+      sequence.client,
+      new HpRecoveryNotificationProducer(true)
+    );
+
+    await expect(buildPublicHero(
+      new PrismaCharacterRepository(prisma),
+      loserRepository,
+      prisma
+    ).findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      character: { hpCurrent: 18, manaCurrent: 16 },
+      activeVarenykSated: { activationId: fresh.activationId },
+      varenykSatedAvailableAt: new Date(fresh.availableAt),
+      satedRecovery: null
+    });
+    expect(winnerResult).toMatchObject({ hpRestored: 13, manaRestored: 13 });
+    expect(forced.getForcedCount()).toBe(3);
+    expect(forced.getSerializableTransactionCount()).toBe(1);
+    expect(sequence.getCharacterReadCount()).toBe(6);
+    expect(sequence.getCooldownReadCount()).toBe(3);
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      hpCurrent: 18,
+      manaCurrent: 16,
+      hpRegenAt: new Date(now.getTime() - 1_000),
+      manaRegenAt: new Date(now.getTime() - 2_000)
+    });
+    await expect(prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId,
+          key: "class.varenyk-mancer.sated-support.recipient"
+        }
+      }
+    })).resolves.toMatchObject({
+      resultJson: { activationId: fresh.activationId, cursorAt: now.toISOString() }
+    });
+    await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
+      generation: 1
+    });
+  });
+
   it.each([
     { label: "resource-neutral", fullTarget: true },
     { label: "resource-changing", fullTarget: false }
@@ -2437,6 +2545,76 @@ function withPublicSatedCharacterReadBarrier(
   });
 }
 
+function withPublicSatedFallbackReadSequence(
+  prisma: PrismaClient,
+  characterId: string,
+  when: () => boolean,
+  afterBeforeReads: Array<() => Promise<void>>
+): {
+  client: PrismaClient;
+  getCharacterReadCount: () => number;
+  getCooldownReadCount: () => number;
+} {
+  let characterReadCount = 0;
+  let cooldownReadCount = 0;
+  let interleavingIndex = 0;
+  const findCharacter = prisma.character.findUnique.bind(prisma.character);
+  const findCooldownRow = prisma.characterCooldown.findUnique.bind(prisma.characterCooldown);
+  const character = new Proxy(prisma.character, {
+    get(target, property, receiver) {
+      if (property === "findUnique") {
+        return async (...args: Parameters<typeof prisma.character.findUnique>) => {
+          const where = args[0]?.where as { id?: string } | undefined;
+          const tracked = where?.id === characterId && when();
+          const result = await findCharacter(...args);
+          if (tracked) {
+            characterReadCount += 1;
+            if (characterReadCount % 2 === 1) {
+              await afterBeforeReads[interleavingIndex]?.();
+              interleavingIndex += 1;
+            }
+          }
+          return result;
+        };
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    }
+  });
+  const characterCooldown = new Proxy(prisma.characterCooldown, {
+    get(target, property, receiver) {
+      if (property === "findUnique") {
+        return async (...args: Parameters<typeof prisma.characterCooldown.findUnique>) => {
+          const key = (args[0]?.where as {
+            characterId_key?: { characterId?: string; key?: string };
+          } | undefined)?.characterId_key;
+          if (
+            key?.characterId === characterId &&
+            key.key === "class.varenyk-mancer.sated-support.recipient" &&
+            when()
+          ) {
+            cooldownReadCount += 1;
+          }
+          return findCooldownRow(...args);
+        };
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    }
+  });
+  const client = new Proxy(prisma, {
+    get(target, property, receiver) {
+      if (property === "character") return character;
+      if (property === "characterCooldown") return characterCooldown;
+      const value = Reflect.get(target, property, receiver) as unknown;
+      return typeof value === "function" ? value.bind(target) as unknown : value;
+    }
+  });
+  return {
+    client,
+    getCharacterReadCount: () => characterReadCount,
+    getCooldownReadCount: () => cooldownReadCount
+  };
+}
+
 function withPreviewSaveInterleaving(
   repository: PrismaClassNoncombatRepository,
   beforeSave: () => Promise<void>
@@ -2463,8 +2641,13 @@ function withForcedPublicSatedCasLoss(
   prisma: PrismaClient,
   stage: "character" | "cooldown",
   lossCount = 1
-): { client: PrismaClient; getForcedCount: () => number } {
+): {
+  client: PrismaClient;
+  getForcedCount: () => number;
+  getSerializableTransactionCount: () => number;
+} {
   let forcedCount = 0;
+  let serializableTransactionCount = 0;
   const runTransaction = async <T>(
     callback: (tx: Prisma.TransactionClient) => Promise<T>,
     options?: {
@@ -2472,53 +2655,62 @@ function withForcedPublicSatedCasLoss(
       timeout?: number;
       isolationLevel?: Prisma.TransactionIsolationLevel;
     }
-  ): Promise<T> => prisma.$transaction(async (tx) => {
-    const characterUpdateMany = tx.character.updateMany.bind(tx.character);
-    const cooldownUpdateMany = tx.characterCooldown.updateMany.bind(tx.characterCooldown);
-    const character = new Proxy(tx.character, {
-      get(target, property, receiver) {
-        if (property === "updateMany") {
-          return async (...args: Parameters<typeof tx.character.updateMany>) => {
-            if (stage === "character" && forcedCount < lossCount) {
-              forcedCount += 1;
-              return { count: 0 };
-            }
-            return characterUpdateMany(...args);
-          };
+  ): Promise<T> => {
+    if (options?.isolationLevel === Prisma.TransactionIsolationLevel.Serializable) {
+      serializableTransactionCount += 1;
+    }
+    return prisma.$transaction(async (tx) => {
+      const characterUpdateMany = tx.character.updateMany.bind(tx.character);
+      const cooldownUpdateMany = tx.characterCooldown.updateMany.bind(tx.characterCooldown);
+      const character = new Proxy(tx.character, {
+        get(target, property, receiver) {
+          if (property === "updateMany") {
+            return async (...args: Parameters<typeof tx.character.updateMany>) => {
+              if (stage === "character" && forcedCount < lossCount) {
+                forcedCount += 1;
+                return { count: 0 };
+              }
+              return characterUpdateMany(...args);
+            };
+          }
+          return Reflect.get(target, property, receiver) as unknown;
         }
-        return Reflect.get(target, property, receiver) as unknown;
-      }
-    });
-    const characterCooldown = new Proxy(tx.characterCooldown, {
-      get(target, property, receiver) {
-        if (property === "updateMany") {
-          return async (...args: Parameters<typeof tx.characterCooldown.updateMany>) => {
-            if (stage === "cooldown" && forcedCount < lossCount) {
-              forcedCount += 1;
-              return { count: 0 };
-            }
-            return cooldownUpdateMany(...args);
-          };
+      });
+      const characterCooldown = new Proxy(tx.characterCooldown, {
+        get(target, property, receiver) {
+          if (property === "updateMany") {
+            return async (...args: Parameters<typeof tx.characterCooldown.updateMany>) => {
+              if (stage === "cooldown" && forcedCount < lossCount) {
+                forcedCount += 1;
+                return { count: 0 };
+              }
+              return cooldownUpdateMany(...args);
+            };
+          }
+          return Reflect.get(target, property, receiver) as unknown;
         }
-        return Reflect.get(target, property, receiver) as unknown;
-      }
-    });
-    const guardedTx = new Proxy(tx, {
-      get(target, property, receiver) {
-        if (property === "character") return character;
-        if (property === "characterCooldown") return characterCooldown;
-        return Reflect.get(target, property, receiver) as unknown;
-      }
-    });
-    return callback(guardedTx);
-  }, options);
+      });
+      const guardedTx = new Proxy(tx, {
+        get(target, property, receiver) {
+          if (property === "character") return character;
+          if (property === "characterCooldown") return characterCooldown;
+          return Reflect.get(target, property, receiver) as unknown;
+        }
+      });
+      return callback(guardedTx);
+    }, options);
+  };
   const client = new Proxy(prisma, {
     get(target, property, receiver) {
       if (property === "$transaction") return runTransaction;
       return Reflect.get(target, property, receiver) as unknown;
     }
   });
-  return { client, getForcedCount: () => forcedCount };
+  return {
+    client,
+    getForcedCount: () => forcedCount,
+    getSerializableTransactionCount: () => serializableTransactionCount
+  };
 }
 
 function withUnexpectedPublicSatedError(prisma: PrismaClient): PrismaClient {
