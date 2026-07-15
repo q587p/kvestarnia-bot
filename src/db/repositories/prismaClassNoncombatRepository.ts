@@ -62,6 +62,7 @@ const ROGUE_CLASS_ID = "class.rogue";
 const VARENYK_MANCER_CLASS_ID = "class.varenyk-mancer";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 const PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS = 3;
+const PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS = 3;
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
   async isRogueRetaliationDuelInviteToken(inviteToken: string): Promise<boolean> {
@@ -253,16 +254,27 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     bypassHistoricalFastPath = false
   ) {
     if (knownCharacterId && !bypassHistoricalFastPath) {
-      const activeRow = await findCooldown(this.prisma, knownCharacterId, VARENYK_SATED_STATUS_KEY);
-      if (!activeRow) {
+      const fastPathPair = await readStablePublicSatedPairCooldownFirst(
+        this.prisma,
+        knownCharacterId
+      );
+      if (fastPathPair && !fastPathPair.statusRow) {
         return null;
       }
-      const activePayload = parseVarenykSatedPayload(activeRow.resultJson);
-      if (isSettledHistoricalSatedRow(activeRow, activePayload, knownCharacterId, now)) {
+      const currentPayload = parseVarenykSatedPayload(fastPathPair?.statusRow?.resultJson);
+      if (
+        fastPathPair?.statusRow &&
+        isSettledHistoricalSatedRow(
+          fastPathPair.statusRow,
+          currentPayload,
+          knownCharacterId,
+          now
+        )
+      ) {
         if (expectedCharacter) {
-          const current = await findCharacterById(this.prisma, knownCharacterId);
+          const current = fastPathPair.character;
           if (current && !matchesExpectedPublicCharacter(current, expectedCharacter)) {
-            return toPublicSatedReadRecord(current, activePayload);
+            return toPublicSatedReadRecord(current, currentPayload);
           }
         }
         return null;
@@ -381,14 +393,17 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     telegramUserId: bigint,
     knownCharacterId?: string
   ) {
-    const character = knownCharacterId
-      ? await findCharacterById(this.prisma, knownCharacterId) ?? await findCharacter(this.prisma, telegramUserId)
-      : await findCharacter(this.prisma, telegramUserId);
-    if (!character) {
-      return null;
-    }
-    const statusRow = await findCooldown(this.prisma, character.id, VARENYK_SATED_STATUS_KEY);
-    return toPublicSatedReadRecord(character, parseVarenykSatedPayload(statusRow?.resultJson));
+    const pair = await readStablePublicSatedPairCharacterFirst(
+      this.prisma,
+      telegramUserId,
+      knownCharacterId
+    );
+    return pair
+      ? toPublicSatedReadRecord(
+          pair.character,
+          parseVarenykSatedPayload(pair.statusRow?.resultJson)
+        )
+      : null;
   }
 
   async saveVarenykSatedPreview(
@@ -1495,6 +1510,77 @@ async function findCooldown(client: TxClient | PrismaClient, characterId: string
   return client.characterCooldown.findUnique({
     where: { characterId_key: { characterId, key } }
   });
+}
+
+type PublicSatedCooldownRow = Awaited<ReturnType<typeof findCooldown>>;
+
+async function readStablePublicSatedPairCooldownFirst(
+  client: PrismaClient,
+  characterId: string
+): Promise<{ character: IncludedCharacter | null; statusRow: PublicSatedCooldownRow } | null> {
+  for (let attempt = 0; attempt < PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS; attempt += 1) {
+    const before = await findCooldown(client, characterId, VARENYK_SATED_STATUS_KEY);
+    if (!before) {
+      return { character: null, statusRow: null };
+    }
+    const character = await findCharacterById(client, characterId);
+    const after = await findCooldown(client, characterId, VARENYK_SATED_STATUS_KEY);
+    if (samePublicSatedCooldownObservation(before, after)) {
+      return { character, statusRow: after };
+    }
+  }
+  return null;
+}
+
+async function readStablePublicSatedPairCharacterFirst(
+  client: PrismaClient,
+  telegramUserId: bigint,
+  knownCharacterId?: string
+): Promise<{ character: IncludedCharacter; statusRow: PublicSatedCooldownRow } | null> {
+  for (let attempt = 0; attempt < PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS; attempt += 1) {
+    const before = knownCharacterId
+      ? await findCharacterById(client, knownCharacterId) ?? await findCharacter(client, telegramUserId)
+      : await findCharacter(client, telegramUserId);
+    if (!before) {
+      return null;
+    }
+    const statusRow = await findCooldown(client, before.id, VARENYK_SATED_STATUS_KEY);
+    const after = await findCharacterById(client, before.id);
+    if (after && samePublicCharacterObservation(before, after)) {
+      return { character: after, statusRow };
+    }
+  }
+  return null;
+}
+
+function samePublicSatedCooldownObservation(
+  left: PublicSatedCooldownRow,
+  right: PublicSatedCooldownRow
+): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+  return left.id === right.id &&
+    left.characterId === right.characterId &&
+    left.key === right.key &&
+    left.availableAt.getTime() === right.availableAt.getTime() &&
+    left.updatedAt.getTime() === right.updatedAt.getTime() &&
+    JSON.stringify(left.resultJson) === JSON.stringify(right.resultJson);
+}
+
+function samePublicCharacterObservation(
+  left: IncludedCharacter,
+  right: IncludedCharacter
+): boolean {
+  return left.id === right.id &&
+    left.updatedAt.getTime() === right.updatedAt.getTime() &&
+    left.hpCurrent === right.hpCurrent &&
+    left.manaCurrent === right.manaCurrent &&
+    left.hpRegenAt?.getTime() === right.hpRegenAt?.getTime() &&
+    left.manaRegenAt?.getTime() === right.manaRegenAt?.getTime() &&
+    getIncludedRemortCount(left) === getIncludedRemortCount(right) &&
+    left.activeCombatLease?.kind === right.activeCombatLease?.kind &&
+    left.activeCombatLease?.referenceId === right.activeCombatLease?.referenceId;
 }
 
 async function listVarenykSatedByTargetId(

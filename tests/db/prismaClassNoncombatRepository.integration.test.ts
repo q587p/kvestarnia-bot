@@ -1215,6 +1215,178 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expectFullyElapsedPublicSettlement(characterId, payload.expiresAt, 14, 14);
   });
 
+  it("reloads one stable Character/cooldown pair when a winner settles inside the fallback split-read window", async () => {
+    const telegramUserId = 4067n;
+    const characterId = "public-fallback-pair-race";
+    await seedActiveSatedReadCharacter(telegramUserId, characterId, 1);
+    const winnerRepository = new PrismaClassNoncombatRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true)
+    );
+    const forced = withForcedPublicSatedCasLoss(prisma, "character", 3);
+    let winnerResult: Awaited<ReturnType<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>> = null;
+    const loserRepository = new PrismaClassNoncombatRepository(
+      withPublicSatedCharacterReadBarrier(forced.client, characterId, {
+        when: () => forced.getForcedCount() === 3,
+        afterRead: async () => {
+          winnerResult = await winnerRepository.settleVarenykSatedForTelegramUser(
+            telegramUserId,
+            now,
+            characterId
+          );
+        }
+      }),
+      new HpRecoveryNotificationProducer(true)
+    );
+    const hero = buildPublicHero(new PrismaCharacterRepository(prisma), loserRepository, prisma);
+
+    await expect(hero.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      character: {
+        hpCurrent: 2,
+        manaCurrent: 2
+      },
+      activeVarenykSated: { activationId: `${characterId}-activation` },
+      satedRecovery: null
+    });
+    expect(forced.getForcedCount()).toBe(3);
+    expect(winnerResult).toMatchObject({
+      character: { hpCurrent: 2, manaCurrent: 2 },
+      hpRestored: 1,
+      manaRestored: 1
+    });
+    await expectCanonicalPublicSettlement(characterId, 2, 2);
+
+    await expect(buildPublicHero(
+      new PrismaCharacterRepository(prisma),
+      winnerRepository,
+      prisma
+    ).findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      character: { hpCurrent: 2, manaCurrent: 2 },
+      activeVarenykSated: { activationId: `${characterId}-activation` },
+      satedRecovery: null
+    });
+    await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
+      generation: 1
+    });
+  });
+
+  it.each([
+    { label: "resource-neutral", fullTarget: true },
+    { label: "resource-changing", fullTarget: false }
+  ])(
+    "uses the fresh $label activation installed inside the historical split-read window",
+    async ({ fullTarget }) => {
+      const telegramUserId = fullTarget ? 4068n : 4069n;
+      const characterId = fullTarget
+        ? "public-historical-fresh-full"
+        : "public-historical-fresh-recovery";
+      const previous = await seedFullyElapsedSatedReadCharacter(telegramUserId, characterId);
+      const baseRepository = new PrismaClassNoncombatRepository(
+        prisma,
+        new HpRecoveryNotificationProducer(true)
+      );
+      await baseRepository.settleVarenykSatedForTelegramUser(telegramUserId, now, characterId);
+      await prisma.character.update({
+        where: { id: characterId },
+        data: {
+          hpCurrent: fullTarget ? 30 : 10,
+          manaCurrent: fullTarget ? 30 : 10,
+          hpRegenAt: now,
+          manaRegenAt: now
+        }
+      });
+      const fresh = satedPayload({
+        activationId: `${characterId}-fresh`,
+        recipientCharacterId: characterId,
+        startedAt: now,
+        expiresAt: new Date(now.getTime() + 13 * 60_000),
+        availableAt: new Date(now.getTime() + 93 * 60_000)
+      });
+      fresh.receipt.targetHpAfter = fullTarget ? 30 : 13;
+      fresh.receipt.targetManaAfter = fullTarget ? 30 : 11;
+      let installed = 0;
+      const interleavedClient = withPublicSatedCharacterReadBarrier(prisma, characterId, {
+        beforeRead: async () => {
+          installed += 1;
+          const installCooldown = prisma.characterCooldown.update({
+            where: {
+              characterId_key: {
+                characterId,
+                key: "class.varenyk-mancer.sated-support.recipient"
+              }
+            },
+            data: { availableAt: new Date(fresh.availableAt), resultJson: fresh }
+          });
+          if (fullTarget) {
+            await prisma.$transaction([installCooldown]);
+          } else {
+            await prisma.$transaction([
+              prisma.character.update({
+                where: { id: characterId },
+                data: { hpCurrent: 13, manaCurrent: 11, hpRegenAt: now, manaRegenAt: now }
+              }),
+              installCooldown
+            ]);
+          }
+        }
+      });
+      const interleavedRepository = new PrismaClassNoncombatRepository(
+        interleavedClient,
+        new HpRecoveryNotificationProducer(true)
+      );
+      const hero = buildPublicHero(
+        new PrismaCharacterRepository(prisma),
+        interleavedRepository,
+        prisma
+      );
+
+      await expect(hero.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+        state: "existing-character",
+        character: {
+          hpCurrent: fullTarget ? 30 : 13,
+          manaCurrent: fullTarget ? 30 : 11
+        },
+        activeVarenykSated: { activationId: fresh.activationId, rank: 1 },
+        varenykSatedAvailableAt: new Date(fresh.availableAt),
+        satedRecovery: null
+      });
+      expect(installed).toBe(1);
+      const current = await prisma.characterCooldown.findUniqueOrThrow({
+        where: {
+          characterId_key: {
+            characterId,
+            key: "class.varenyk-mancer.sated-support.recipient"
+          }
+        }
+      });
+      expect(current.resultJson).toMatchObject({
+        activationId: fresh.activationId,
+        cursorAt: now.toISOString()
+      });
+      expect(current.resultJson).not.toMatchObject({ activationId: previous.activationId });
+      await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
+        generation: 1
+      });
+
+      await expect(buildPublicHero(
+        new PrismaCharacterRepository(prisma),
+        baseRepository,
+        prisma
+      ).findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+        character: {
+          hpCurrent: fullTarget ? 30 : 13,
+          manaCurrent: fullTarget ? 30 : 11
+        },
+        activeVarenykSated: { activationId: fresh.activationId },
+        satedRecovery: null
+      });
+      await expect(prisma.hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
+        generation: 1
+      });
+    }
+  );
+
   it.each(["character", "cooldown"] as const)(
     "retries one forced public Sated %s CAS loss without duplicating recovery",
     async (stage) => {
@@ -1474,7 +1646,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
       .resolves.toBeNull();
     await expect(repository.settleVarenykSatedForTelegramUser(4051n, now, "historical-sated"))
       .resolves.toBeNull();
-    expect(queryEvents.filter((event) => event.query.includes("character_cooldowns"))).toHaveLength(2);
+    expect(queryEvents.filter((event) => event.query.includes("character_cooldowns"))).toHaveLength(4);
     expect(queryEvents.some((event) => event.query === "BEGIN IMMEDIATE")).toBe(false);
     expect(queryEvents.some((event) => event.query.includes("character_equipment"))).toBe(false);
     expect(queryEvents.some((event) => event.query.includes("character_drink_states"))).toBe(false);
@@ -2217,6 +2389,48 @@ function withFirstCharacterReadInterleaving(
           return character;
         };
       }
+      const value = Reflect.get(target, property, receiver) as unknown;
+      return typeof value === "function" ? value.bind(target) as unknown : value;
+    }
+  });
+}
+
+function withPublicSatedCharacterReadBarrier(
+  prisma: PrismaClient,
+  characterId: string,
+  barrier: {
+    when?: () => boolean;
+    beforeRead?: () => Promise<void>;
+    afterRead?: () => Promise<void>;
+  }
+): PrismaClient {
+  let interleaved = false;
+  const findUnique = prisma.character.findUnique.bind(prisma.character);
+  const character = new Proxy(prisma.character, {
+    get(target, property, receiver) {
+      if (property === "findUnique") {
+        return async (...args: Parameters<typeof prisma.character.findUnique>) => {
+          const where = args[0]?.where as { id?: string } | undefined;
+          const shouldInterleave = !interleaved &&
+            where?.id === characterId &&
+            (barrier.when?.() ?? true);
+          if (shouldInterleave) {
+            interleaved = true;
+            await barrier.beforeRead?.();
+          }
+          const result = await findUnique(...args);
+          if (shouldInterleave) {
+            await barrier.afterRead?.();
+          }
+          return result;
+        };
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    }
+  });
+  return new Proxy(prisma, {
+    get(target, property, receiver) {
+      if (property === "character") return character;
       const value = Reflect.get(target, property, receiver) as unknown;
       return typeof value === "function" ? value.bind(target) as unknown : value;
     }
