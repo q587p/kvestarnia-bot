@@ -642,11 +642,20 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const satedLines = session.state.participants.flatMap((participant) => {
+    if (!participant.varenykSated) return [];
+    const line = presentActiveVarenykSatedBuff(
+      new Date(participant.varenykSated.expiresAt),
+      new Date(),
+      `<b>${escapeHtml(participant.name)}</b>: <b>Ситий</b>`
+    );
+    return line ? [line] : [];
+  });
 
   if (rounds.length === 0) {
     return presentBattleJournalPage({
       title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
-      headerLines: ["", getBossStatusLine(session)],
+      headerLines: ["", getBossStatusLine(session), ...satedLines],
       emptyText: "Журнал поки порожній. Корчмар уже відкрив чорнильницю, але хід ще не розписався."
     });
   }
@@ -690,7 +699,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
 
   return presentBattleJournalPage({
     title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
-    headerLines: ["", getBossStatusLine(session)],
+    headerLines: ["", getBossStatusLine(session), ...satedLines],
     turn: round.turn,
     page,
     totalPages: rounds.length,

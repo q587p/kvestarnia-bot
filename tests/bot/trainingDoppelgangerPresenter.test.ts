@@ -79,31 +79,55 @@ describe("training doppelganger presenter", () => {
   it("shows active Sated without exposing its technical rank", () => {
     const character = buildCharacter();
     const session = buildSession();
+    const activeSession = {
+      ...session,
+      state: {
+        ...session.state,
+        turnLog: [{
+          eventId: "turn:sated-active",
+          turn: 1,
+          hero: { hp: 18, mana: 6 },
+          monster: { hp: 18 },
+          summary: {
+            action: "attack" as const,
+            heroOutcome: "hit" as const,
+            heroDamage: 4,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            satedRecovery: { hpRestored: 1, manaRestored: 1 }
+          }
+        }],
+        varenykSated: {
+          version: 1 as const,
+          activationId: "sated-active",
+          recipientCharacterId: "character-42",
+          recipientRemortCount: 0,
+          rank: 5,
+          expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+          cursorAt: new Date().toISOString(),
+          leaseStartedAt: new Date().toISOString(),
+          outsideRemainderMs: 0,
+          pulseIds: ["pulse:1"]
+        }
+      }
+    };
     const text = presentTrainingDoppelganger({
       state: "active",
       character,
       doppelganger: buildDoppelganger(character),
-      session: {
-        ...session,
-        state: {
-          ...session.state,
-          varenykSated: {
-            version: 1,
-            activationId: "sated-active",
-            recipientCharacterId: "character-42",
-            recipientRemortCount: 0,
-            rank: 5,
-            expiresAt: new Date(Date.now() + 13 * 60_000).toISOString(),
-            cursorAt: new Date().toISOString(),
-            leaseStartedAt: new Date().toISOString(),
-            outsideRemainderMs: 0,
-            pulseIds: []
-          }
-        }
-      }
+      session: activeSession
     });
+    const journal = presentTrainingDoppelgangerJournal({
+      state: "found",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: activeSession,
+      reward: null
+    }, 0);
 
-    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 12 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії.");
+    expect(journal).toContain("😋 Баф: <b>Ситий</b> ще 12 хв");
     expect(text).not.toContain("ранг 5");
   });
 

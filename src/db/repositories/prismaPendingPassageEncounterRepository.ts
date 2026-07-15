@@ -11,6 +11,7 @@ import type {
 } from "./pendingPassageEncounterRepository";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
+import { freezeVarenykSatedForSoloCombatStart } from "./prismaVarenykSated";
 
 type PrismaPendingPassageEncounterRecord = Awaited<
   ReturnType<PrismaClient["pendingPassageEncounter"]["findFirst"]>
@@ -328,12 +329,32 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
         return currentMapped ? { state: "not-pending", encounter: currentMapped } : { state: "invalid" };
       }
 
-      const committedState = await applyCombatDrinkStateCommit(
+      const drinkCommittedState = await applyCombatDrinkStateCommit(
         tx,
         encounter.characterId,
         input.state,
         input.drinkStateCommit
       );
+      const character = await tx.character.findUnique({
+        where: { id: encounter.characterId },
+        select: {
+          id: true,
+          hpCurrent: true,
+          manaCurrent: true,
+          hpRegenAt: true,
+          manaRegenAt: true,
+          updatedAt: true
+        }
+      });
+      if (!character) {
+        return { state: "invalid" };
+      }
+      const committedState = await freezeVarenykSatedForSoloCombatStart({
+        tx,
+        character,
+        state: drinkCommittedState,
+        now: input.now
+      });
 
       const session = await tx.soloCombatSession.create({
         data: {
@@ -351,7 +372,9 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
         data: {
           characterId: encounter.characterId,
           kind: "solo-combat",
-          referenceId: session.id
+          referenceId: session.id,
+          createdAt: input.now,
+          updatedAt: input.now
         }
       });
 

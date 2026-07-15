@@ -130,6 +130,9 @@ describe("TrainingDoppelgangerService", () => {
       expect(result.session.state?.varenykSated?.pulseIds).toEqual([
         `training-sated:training-doppelganger:${started.session.id}:1:${started.session.characterId}`
       ]);
+      expect(result.session.state?.varenykSated?.expiresAt).toBe(
+        new Date(fixedNow().getTime() + 12 * 60_000).toISOString()
+      );
     }
   });
 

@@ -303,7 +303,7 @@ export function presentTrainingDoppelgangerJournal(
       (entry.summary.satedRecovery.hpRestored > 0 || entry.summary.satedRecovery.manaRestored > 0)) {
     lines.push(`😋 Ситість відновила ${presentSatedRecoveryParts(entry.summary.satedRecovery)}.`);
   }
-  const notices = presentJournalTurnNotices(entry);
+  const notices = presentJournalTurnNotices(entry, state);
 
   if (notices.length > 0) {
     lines.push("", ...notices);
@@ -312,10 +312,17 @@ export function presentTrainingDoppelgangerJournal(
   return lines.join("\n");
 }
 
-function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+function presentJournalTurnNotices(
+  entry: CombatTurnLogEntry,
+  state?: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"]["state"]
+): string[] {
+  const satedBuff = state?.varenykSated
+    ? presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))
+    : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
-    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
+    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
+    ...(satedBuff ? [satedBuff] : [])
   ];
 }
 

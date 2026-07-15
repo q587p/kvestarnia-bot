@@ -32,9 +32,8 @@ import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import {
-  freezeVarenykSatedFromCooldown,
-  releaseVarenykSatedCombatLease,
-  VarenykSatedCasError
+  freezeVarenykSatedForSoloCombatStart,
+  releaseVarenykSatedCombatLease
 } from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
@@ -615,48 +614,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         ? new Date(committedState.life.startedAt)
         : null;
       if (combatStartedAt && Number.isFinite(combatStartedAt.getTime())) {
-        const sated = await freezeVarenykSatedFromCooldown({
+        committedState = await freezeVarenykSatedForSoloCombatStart({
           tx,
-          characterId: character.id,
-          remortCount: committedState.life?.remortCount ?? 0,
-          resources: {
-            hp: Math.max(0, Math.min(character.hpCurrent, committedState.hero.hpMax)),
-            hpMax: committedState.hero.hpMax,
-            mana: Math.max(0, Math.min(character.manaCurrent, committedState.hero.manaMax)),
-            manaMax: committedState.hero.manaMax
-          },
+          character,
+          state: committedState,
           now: combatStartedAt
         });
-        if (sated.hpRestored > 0 || sated.manaRestored > 0) {
-          const persisted = await tx.character.updateMany({
-            where: {
-              id: character.id,
-              hpCurrent: character.hpCurrent,
-              manaCurrent: character.manaCurrent,
-              hpRegenAt: character.hpRegenAt,
-              manaRegenAt: character.manaRegenAt,
-              updatedAt: character.updatedAt
-            },
-            data: {
-              hpCurrent: sated.resources.hp,
-              manaCurrent: sated.resources.mana,
-              hpRegenAt: sated.resources.hp >= sated.resources.hpMax
-                ? combatStartedAt
-                : character.hpRegenAt,
-              manaRegenAt: sated.resources.mana >= sated.resources.manaMax
-                ? combatStartedAt
-                : character.manaRegenAt
-            }
-          });
-          if (persisted.count !== 1) {
-            throw new VarenykSatedCasError("solo-character-resources");
-          }
-        }
-        committedState = {
-          ...committedState,
-          hero: { ...committedState.hero, hp: sated.resources.hp, mana: sated.resources.mana },
-          ...(sated.sated ? { varenykSated: sated.sated } : {})
-        };
       }
 
       const session = await tx.soloCombatSession.create({

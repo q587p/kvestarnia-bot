@@ -10,7 +10,7 @@ describe("Varenyk Sated presenter", () => {
     const expiresAt = new Date("2026-07-15T18:12:00.000Z");
 
     expect(presentActiveVarenykSatedBuff(expiresAt, now)).toBe(
-      "😋 Баф: <b>Ситий</b> ще 12 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою."
+      "😋 Баф: <b>Ситий</b> ще 12 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії."
     );
     expect(presentActiveVarenykSatedBuff(now, now)).toBeNull();
   });

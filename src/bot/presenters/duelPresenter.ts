@@ -621,12 +621,22 @@ export function presentTurnBasedDuelJournal(
 
   const page = clampPage(requestedPage, rounds.length);
   const round = rounds[page]!;
+  const satedLines = Object.values(state.participants).flatMap((participant) => {
+    if (!participant.varenykSated) return [];
+    const line = presentActiveVarenykSatedBuff(
+      new Date(participant.varenykSated.expiresAt),
+      new Date(),
+      `<b>${escapeHtml(participant.displayName)}</b>: <b>Ситий</b>`
+    );
+    return line ? [line] : [];
+  });
 
   return presentBattleJournalPage({
     title: "📜 <b>Журнал дуелі</b>",
     headerLines: [
       "",
-      `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`
+      `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`,
+      ...satedLines
     ],
     turn: round.turn,
     page,

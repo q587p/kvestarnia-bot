@@ -953,6 +953,9 @@ describe("FightService", () => {
       expect(result.session.state?.varenykSated?.pulseIds).toEqual([
         `pve-sated:persistent-pve:${started.session.id}:1:${started.session.characterId}`
       ]);
+      expect(result.session.state?.varenykSated?.expiresAt).toBe(
+        addSeconds(fixedClock(), 12 * 60).toISOString()
+      );
     }
   });
 

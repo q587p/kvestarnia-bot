@@ -2719,21 +2719,34 @@ describe("fight presenter", () => {
   });
 
   it("shows active Sated and a recovery line after a persistent combat turn", () => {
-    const text = presentPersistentFightTurn({
-      state: "updated",
-      character,
-      session: persistentSession({
-        varenykSated: {
-          version: 1,
-          activationId: "sated",
-          recipientCharacterId: "character-42",
-          recipientRemortCount: 0,
-          rank: 2,
-          expiresAt: new Date(Date.now() + 13 * 60_000).toISOString(),
-          cursorAt: new Date().toISOString(),
-          pulseIds: ["pulse"]
-        },
-        lastTurn: {
+    const session = persistentSession({
+      varenykSated: {
+        version: 1,
+        activationId: "sated",
+        recipientCharacterId: "character-42",
+        recipientRemortCount: 0,
+        rank: 2,
+        expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+        cursorAt: new Date().toISOString(),
+        leaseStartedAt: new Date().toISOString(),
+        outsideRemainderMs: 0,
+        pulseIds: ["pulse"]
+      },
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "hit",
+        monsterOutcome: "hit",
+        heroDamage: 3,
+        monsterDamage: 2,
+        manaSpent: 0,
+        critical: false,
+        satedRecovery: { hpRestored: 1, manaRestored: 0 }
+      },
+      turnLog: [{
+        turn: 1,
+        hero: { hp: 20, mana: 9 },
+        monster: { hp: 10 },
+        summary: {
           action: "attack",
           heroOutcome: "hit",
           monsterOutcome: "hit",
@@ -2743,13 +2756,22 @@ describe("fight presenter", () => {
           critical: false,
           satedRecovery: { hpRestored: 1, manaRestored: 0 }
         }
-      }),
+      }]
+    });
+    const result = {
+      state: "updated",
+      character,
+      session,
       monster: { id: "monster.test", name: "Тестовий монстр", description: "Тест.", level: 3, tags: ["test"] },
       questProgress: null,
       fightReward: null
-    });
+    } as const;
+    const text = presentPersistentFightTurn(result as never);
+    const journal = presentPersistentFightJournal({ ...result, state: "found" } as never, 0);
 
-    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 12 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії.");
+    expect(journal).toContain("😋 Баф: <b>Ситий</b> ще 12 хв");
+    expect(journal).toContain("😋 Ситість відновила +1 HP.");
     expect(text).not.toContain("ранг 2");
     expect(text).toContain("+1 HP");
     expect(text).not.toContain("+0 мани");

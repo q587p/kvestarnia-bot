@@ -44,6 +44,9 @@ describe("party boss reducer", () => {
     expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);
+    expect(resolved.state.participants[0]?.varenykSated?.expiresAt).toBe(
+      new Date(startedAt.getTime() + 12 * 60_000).toISOString()
+    );
   });
 
   it("resolves submitted actions and fills missing participants with timeout defend", () => {

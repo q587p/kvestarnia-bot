@@ -55,6 +55,9 @@ describe("turn-based duel domain", () => {
     expect(pulsed.participants.challenger.varenykSated?.pulseIds).toEqual([
       "sated-duel:turn-based-duel:duel-session:1:challenger"
     ]);
+    expect(pulsed.participants.challenger.varenykSated?.expiresAt).toBe(
+      new Date(now.getTime() + 11 * 60_000).toISOString()
+    );
   });
 
   it("stores a stable first actor from initiative instead of always using the challenger", () => {

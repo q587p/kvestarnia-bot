@@ -1821,7 +1821,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
       characterId: "freeze-cursor",
       activationId: "freeze-activation",
       now: leaseEndedAt,
-      outsideRemainderMs: frozen.sated?.outsideRemainderMs
+      outsideRemainderMs: frozen.sated?.outsideRemainderMs,
+      combatExpiresAt: new Date(now.getTime() + 12 * 60_000)
     }));
     const row = await prisma.characterCooldown.findUnique({
       where: {
@@ -1833,6 +1834,8 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
     expect((row?.resultJson as { cursorAt?: string } | null)?.cursorAt)
       .toBe(new Date(leaseEndedAt.getTime() - 30_000).toISOString());
+    expect((row?.resultJson as { expiresAt?: string } | null)?.expiresAt)
+      .toBe(new Date(now.getTime() + 12 * 60_000).toISOString());
   });
 
   it("returns bounded target-page metadata for class noncombat target lists", async () => {

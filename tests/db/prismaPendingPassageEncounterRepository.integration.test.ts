@@ -1,10 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
 import type { CombatState } from "../../src/domain/combat";
+import type { VarenykSatedPayloadV1 } from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("PrismaPendingPassageEncounterRepository integration", () => {
   let dir: string;
@@ -99,6 +100,90 @@ describe("PrismaPendingPassageEncounterRepository integration", () => {
     await expect(prisma.pendingPassageEncounter.findUnique({ where: { id: encounter.id } })).resolves.toMatchObject({
       status: "consumed",
       version: 2
+    });
+  });
+
+  it("freezes Sated atomically on first passage combat and consumed-encounter restart", async () => {
+    const telegramUserId = 9223n;
+    const characterId = "character-passage-sated";
+    const now = new Date("2026-07-15T10:00:00.000Z");
+    await seedCharacter(prisma, "user-passage-sated", characterId, telegramUserId);
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { hpCurrent: 10, manaCurrent: 3, hpRegenAt: now, manaRegenAt: now }
+    });
+    const payload = makeSatedPayload(characterId, new Date(now.getTime() - 2 * 60_000 - 30_000));
+    await prisma.characterCooldown.create({
+      data: {
+        id: "cooldown-passage-sated",
+        characterId,
+        key: "class.varenyk-mancer.sated-support.recipient",
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload as unknown as Prisma.InputJsonValue
+      }
+    });
+    const encounter = await repository.createForTelegramUser(
+      telegramUserId,
+      makeEncounterInput("passage-sated", "location.korchma.deep.level1.straight", now)
+    );
+    if (!encounter) throw new Error("missing encounter");
+
+    const first = await repository.consumeForTelegramUser(
+      telegramUserId,
+      encounter.token,
+      makeConsumeInput("session-passage-sated-first", encounter, now)
+    );
+    if (first.state !== "consumed" || !first.session.state?.varenykSated) {
+      throw new Error("Expected first passage fight with frozen Sated.");
+    }
+    expect(first.session.state.hero).toMatchObject({ hp: 12, mana: 5 });
+    expect(first.session.state.varenykSated).toMatchObject({
+      activationId: payload.activationId,
+      cursorAt: now.toISOString(),
+      leaseStartedAt: now.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: []
+    });
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      hpCurrent: 12,
+      manaCurrent: 5
+    });
+    await expect(prisma.activeCombatLease.findUnique({ where: { characterId } })).resolves.toMatchObject({
+      createdAt: now,
+      updatedAt: now
+    });
+
+    await prisma.activeCombatLease.delete({ where: { characterId } });
+    await prisma.soloCombatSession.update({
+      where: { id: first.session.id },
+      data: {
+        status: "lost",
+        stateJson: {
+          ...first.session.state,
+          status: "lost",
+          completedAt: now.toISOString()
+        } as unknown as Prisma.InputJsonValue
+      }
+    });
+    const current = await repository.findByTokenForTelegramUser(telegramUserId, encounter.token);
+    if (!current?.combatSessionId) throw new Error("missing consumed encounter");
+    const restartAt = new Date(now.getTime() + 1_000);
+    const restarted = await repository.createSessionForConsumedEncounter(
+      telegramUserId,
+      encounter.token,
+      makeConsumeInput("session-passage-sated-restart", current, restartAt, current.combatSessionId)
+    );
+    expect(restarted).toMatchObject({
+      state: "consumed",
+      session: {
+        state: {
+          varenykSated: {
+            activationId: payload.activationId,
+            leaseStartedAt: restartAt.toISOString(),
+            outsideRemainderMs: 31_000
+          }
+        }
+      }
     });
   });
 
@@ -333,10 +418,52 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       reference_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key)
     )`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }
+}
+
+function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayloadV1 {
+  const startedAt = cursorAt;
+  return {
+    kind: "varenyk-sated-support-v1",
+    version: 1,
+    activationId: `${characterId}-activation`,
+    actorCharacterId: characterId,
+    actorRemortCount: 0,
+    recipientCharacterId: characterId,
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: startedAt.toISOString(),
+    expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(startedAt.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: cursorAt.toISOString(),
+    receipt: {
+      version: 1,
+      previewToken: "preview-passage-sated",
+      actorTelegramUserId: "9223",
+      targetTelegramUserId: "9223",
+      actorName: "Tester",
+      targetName: "Tester",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 3,
+      targetHpAfter: 10,
+      targetManaAfter: 3
+    }
+  };
 }
 
 async function seedCharacter(prisma: PrismaClient, userId: string, characterId: string, telegramUserId: bigint): Promise<void> {

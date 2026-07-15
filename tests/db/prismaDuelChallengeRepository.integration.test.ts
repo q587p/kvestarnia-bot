@@ -1103,6 +1103,30 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
   it("resolves terminal sessions, grants XP once and releases both leases", async () => {
     const session = await seedActiveSession("terminal-surrender", new Date("2026-06-17T18:00:23.000Z"));
     const completedAt = new Date("2026-06-17T18:00:11.000Z");
+    const satedPayload = makeSatedPayload(
+      session.challengerCharacterId,
+      new Date("2026-06-17T17:59:00.000Z")
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: session.challengerCharacterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(satedPayload.availableAt),
+        resultJson: satedPayload
+      }
+    });
+    session.state.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: satedPayload.activationId,
+      recipientCharacterId: session.challengerCharacterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(Date.parse(satedPayload.expiresAt) - 60_000).toISOString(),
+      cursorAt: completedAt.toISOString(),
+      leaseStartedAt: new Date("2026-06-17T18:00:00.000Z").toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: [`${session.id}:turn:1:${session.challengerCharacterId}`]
+    };
     const terminalState = makeTerminalState(session.state, "target", "surrender");
     const result = makeTerminalResult(session, "target", "surrender", { challenger: 1, target: 4 });
 
@@ -1136,6 +1160,16 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       completedAt
     });
     expect(replay).toBeNull();
+    const storedSated = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: session.challengerCharacterId,
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    expect((storedSated.resultJson as { expiresAt: string }).expiresAt)
+      .toBe(new Date(Date.parse(satedPayload.expiresAt) - 60_000).toISOString());
     const challenge = await prisma.duelChallenge.findUnique({
       where: {
         inviteToken: "terminal-surrender"

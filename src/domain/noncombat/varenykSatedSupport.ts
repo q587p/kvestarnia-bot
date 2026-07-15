@@ -4,6 +4,7 @@ export const VARENYK_SATED_PREVIEW_KEY = "class.varenyk-mancer.sated-support.pre
 export const VARENYK_SATED_RULES_VERSION = "varenyk-sated-support-v1";
 export const VARENYK_SATED_DURATION_MINUTES = 13;
 export const VARENYK_SATED_RECIPIENT_WAIT_MINUTES = 93;
+export const VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS = 60_000;
 export const VARENYK_SATED_MANA_COSTS = [8, 12, 16, 20, 23] as const;
 
 export interface VarenykSatedPlan {
@@ -211,7 +212,15 @@ export function applyVarenykSatedCombatPulse(input: {
   }
 
   const recovered = applyRecovery(input.resources, 1, 1);
-  sated.cursorAt = through ?? sated.cursorAt;
+  const nextExpiresAt = new Date(Math.max(
+    input.now.getTime(),
+    Date.parse(sated.expiresAt) - VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS
+  ));
+  sated.expiresAt = nextExpiresAt.toISOString();
+  sated.cursorAt = new Date(Math.min(
+    nextExpiresAt.getTime(),
+    through ? Date.parse(through) : input.now.getTime()
+  )).toISOString();
   sated.pulseIds.push(input.pulseId);
   return { ...recovered, sated, applied: true };
 }

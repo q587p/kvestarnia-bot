@@ -635,7 +635,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       recipientCharacterId: characterId,
       recipientRemortCount: 0,
       rank: 1,
-      expiresAt: payload.expiresAt,
+      expiresAt: new Date(Date.parse(payload.expiresAt) - 60_000).toISOString(),
       cursorAt: leaseStartedAt.toISOString(),
       leaseStartedAt: leaseStartedAt.toISOString(),
       outsideRemainderMs: 30_000,
@@ -683,6 +683,8 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
     expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
+    expect((cooldown.resultJson as { expiresAt: string }).expiresAt)
+      .toBe(new Date(Date.parse(payload.expiresAt) - 60_000).toISOString());
 
     await prisma.character.update({
       where: { id: characterId },

@@ -91,7 +91,7 @@ describe("hero presenter", () => {
       }
     });
 
-    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії.");
     expect(text).not.toContain("ще <b>13 хв</b>");
     expect(text).not.toContain("ранг <b>3</b>");
     expect(text).not.toContain("Ситість відновила");

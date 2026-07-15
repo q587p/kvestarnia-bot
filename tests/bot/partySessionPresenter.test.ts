@@ -759,12 +759,25 @@ describe("party session presenter", () => {
         statusAfter: "active"
       }]
     });
+    session.state.participants[0]!.varenykSated = {
+      version: 1,
+      activationId: "barrel-journal-sated",
+      recipientCharacterId: "leader",
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+      cursorAt: new Date().toISOString(),
+      leaseStartedAt: new Date().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["barrel:pulse:1"]
+    };
 
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
     const journal = presentPartyBossJournal(session, 0);
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
+    expect(journal).toContain("😋 <b>Голова</b>: <b>Ситий</b> ще 12 хв");
   });
 
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {

@@ -29,6 +29,7 @@ import { findMantokAbilityGrantByKey } from "../../src/content";
 import type { MantokAbilityGrantDefinition } from "../../src/content/mantokAbilityGrants";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
+import { applyVarenykSatedPulseBeforeSoloEnemyResponse } from "../../src/domain/noncombat/varenykSatedSupport";
 
 type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
   combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
@@ -143,9 +144,22 @@ describe("combat domain engine", () => {
   });
 
   it("applies a Sated pulse before living enemies respond in persistent multi-enemy PvE", () => {
+    const startedAt = new Date("2026-07-15T10:00:00.000Z");
     const weakSecond = { ...secondMonster, attack: 1 };
     const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [weakSecond] });
     state.hero.hp = 20;
+    state.varenykSated = {
+      version: 1,
+      activationId: "multi-sated",
+      recipientCharacterId: "hero",
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+      cursorAt: startedAt.toISOString(),
+      leaseStartedAt: startedAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
 
     const result = resolveCombatTurn({
       state,
@@ -153,10 +167,14 @@ describe("combat domain engine", () => {
       hero: { ...warrior, weaponDamage: 50 },
       monster,
       enemies: [monster, weakSecond],
-      afterCommittedHeroAction: (committed) => {
-        committed.hero.hp += 1;
-        return { hpRestored: 1, manaRestored: 0 };
-      },
+      afterCommittedHeroAction: (committed) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+        state: committed,
+        combatKind: "persistent-pve",
+        sessionId: "multi-session",
+        committedTurn: 1,
+        recipientCharacterId: "hero",
+        now: new Date(startedAt.getTime() + 60_000)
+      }),
       rng: new FakeRandomSource([0.1, 0.9, 0.1, 0.1])
     });
 
@@ -165,6 +183,12 @@ describe("combat domain engine", () => {
     expect(result.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 0 });
     expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1", "enemy:2"]);
     expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
+    expect(result.state.varenykSated?.expiresAt).toBe(
+      new Date(startedAt.getTime() + 12 * 60_000).toISOString()
+    );
+    expect(result.state.varenykSated?.pulseIds).toEqual([
+      "multi-sated:persistent-pve:multi-session:1:hero"
+    ]);
   });
 
   it("lets a low-HP hero survive the canonical final response only because Sated pulses first", () => {

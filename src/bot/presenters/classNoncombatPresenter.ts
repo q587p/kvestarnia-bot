@@ -131,9 +131,12 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     "🍽️ <b>Підтвердити годування?</b>",
     "",
     `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
+    "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу: до <b>+${result.plan.immediateHp} HP</b>.`,
     "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або власного бойового ходу.",
+    "Кожна бойова порція забирає 1 хв дії «Ситого».",
+    "",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · нова миска через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
     "Вареники вже пораховані. Відступити ще не соромно."

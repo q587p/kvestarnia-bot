@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import type { CombatState } from "../../domain/combat";
 import {
   freezeVarenykSatedForCombat,
   parseVarenykSatedPayload,
@@ -9,6 +10,65 @@ import {
 } from "../../domain/noncombat/varenykSatedSupport";
 
 type TxClient = Prisma.TransactionClient;
+
+interface SoloCombatCharacterSnapshot {
+  id: string;
+  hpCurrent: number;
+  manaCurrent: number;
+  hpRegenAt: Date | null;
+  manaRegenAt: Date | null;
+  updatedAt: Date;
+}
+
+export async function freezeVarenykSatedForSoloCombatStart(input: {
+  tx: TxClient;
+  character: SoloCombatCharacterSnapshot;
+  state: CombatState;
+  now: Date;
+}): Promise<CombatState> {
+  const sated = await freezeVarenykSatedFromCooldown({
+    tx: input.tx,
+    characterId: input.character.id,
+    remortCount: input.state.life?.remortCount ?? 0,
+    resources: {
+      hp: Math.max(0, Math.min(input.character.hpCurrent, input.state.hero.hpMax)),
+      hpMax: input.state.hero.hpMax,
+      mana: Math.max(0, Math.min(input.character.manaCurrent, input.state.hero.manaMax)),
+      manaMax: input.state.hero.manaMax
+    },
+    now: input.now
+  });
+  if (sated.hpRestored > 0 || sated.manaRestored > 0) {
+    const persisted = await input.tx.character.updateMany({
+      where: {
+        id: input.character.id,
+        hpCurrent: input.character.hpCurrent,
+        manaCurrent: input.character.manaCurrent,
+        hpRegenAt: input.character.hpRegenAt,
+        manaRegenAt: input.character.manaRegenAt,
+        updatedAt: input.character.updatedAt
+      },
+      data: {
+        hpCurrent: sated.resources.hp,
+        manaCurrent: sated.resources.mana,
+        hpRegenAt: sated.resources.hp >= sated.resources.hpMax
+          ? input.now
+          : input.character.hpRegenAt,
+        manaRegenAt: sated.resources.mana >= sated.resources.manaMax
+          ? input.now
+          : input.character.manaRegenAt
+      }
+    });
+    if (persisted.count !== 1) {
+      throw new VarenykSatedCasError("solo-character-resources");
+    }
+  }
+  return {
+    ...input.state,
+    hero: { ...input.state.hero, hp: sated.resources.hp, mana: sated.resources.mana },
+    ...(sated.sated ? { varenykSated: sated.sated } : {})
+  };
+}
 
 export async function freezeVarenykSatedFromCooldown(input: {
   tx: TxClient;
@@ -73,6 +133,7 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   now: Date;
   outsideRemainderMs?: number;
   leaseStartedAt?: Date;
+  combatExpiresAt?: Date;
 }): Promise<void> {
   const row = await input.tx.characterCooldown.findUnique({
     where: {
@@ -99,7 +160,18 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   ) {
     return;
   }
-  const through = new Date(Math.min(input.now.getTime(), Date.parse(payload.expiresAt)));
+  const payloadExpiresAt = Date.parse(payload.expiresAt);
+  const combatExpiresAt = input.combatExpiresAt?.getTime();
+  const effectiveExpiresAt = new Date(Math.max(
+    Date.parse(payload.startedAt),
+    Math.min(
+      payloadExpiresAt,
+      typeof combatExpiresAt === "number" && Number.isFinite(combatExpiresAt)
+        ? combatExpiresAt
+        : payloadExpiresAt
+    )
+  ));
+  const through = new Date(Math.min(input.now.getTime(), effectiveExpiresAt.getTime()));
   const inferredRemainder = input.leaseStartedAt
     ? input.leaseStartedAt.getTime() - Date.parse(payload.cursorAt)
     : 0;
@@ -107,13 +179,14 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     59_999,
     Math.floor(input.outsideRemainderMs ?? inferredRemainder)
   ));
-  const nextCursor = through.getTime() === Date.parse(payload.expiresAt)
+  const nextCursor = through.getTime() === effectiveExpiresAt.getTime()
     ? through
     : new Date(Math.max(
         Date.parse(payload.cursorAt),
         through.getTime() - remainder
       ));
-  if (nextCursor.getTime() <= Date.parse(payload.cursorAt)) {
+  const expiryChanged = effectiveExpiresAt.getTime() < payloadExpiresAt;
+  if (nextCursor.getTime() <= Date.parse(payload.cursorAt) && !expiryChanged) {
     return;
   }
   const updated = await input.tx.characterCooldown.updateMany({
@@ -125,7 +198,11 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     data: {
       resultJson: {
         ...payload,
-        cursorAt: nextCursor.toISOString()
+        expiresAt: effectiveExpiresAt.toISOString(),
+        cursorAt: new Date(Math.min(
+          effectiveExpiresAt.getTime(),
+          Math.max(nextCursor.getTime(), Date.parse(payload.cursorAt))
+        )).toISOString()
       } as unknown as Prisma.InputJsonValue
     }
   });
@@ -145,7 +222,7 @@ export async function releaseVarenykSatedCombatLease(input: {
     updatedAt: Date;
   };
   releasedAt: Date;
-  sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs">;
+  sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs" | "expiresAt">;
 }): Promise<boolean> {
   const claimedAt = new Date(Math.max(
     input.releasedAt.getTime(),
@@ -186,7 +263,10 @@ export async function releaseVarenykSatedCombatLease(input: {
     now: input.releasedAt,
     leaseStartedAt: input.lease.createdAt,
     ...(input.sated
-      ? { outsideRemainderMs: input.sated.outsideRemainderMs }
+      ? {
+          outsideRemainderMs: input.sated.outsideRemainderMs,
+          combatExpiresAt: new Date(input.sated.expiresAt)
+        }
       : {})
   });
 

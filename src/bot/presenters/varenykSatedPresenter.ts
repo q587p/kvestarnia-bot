@@ -14,7 +14,7 @@ export function presentActiveVarenykSatedBuff(
   }
 
   const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
-  return `😋 ${subjectHtml} ще ${remainingMinutes} хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.`;
+  return `😋 ${subjectHtml} ще ${remainingMinutes} хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою; кожна бойова порція забирає 1 хв дії.`;
 }
 
 export function presentVarenykSatedRecoveryNotice(
