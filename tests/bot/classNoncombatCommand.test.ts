@@ -693,7 +693,7 @@ function varenykResult(created: boolean): VarenykSatedResult {
       rank: 2,
       manaCost: 12,
       immediateHpRestored: 4,
-      immediateManaRestored: 1,
+      immediateManaRestored: 0,
       startedAt: now,
       expiresAt,
       availableAt,

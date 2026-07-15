@@ -98,7 +98,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.noncombatRoguePickpocketAttempt.count()).resolves.toBe(1);
   });
 
-  it("spends self-feed mana before immediate recovery and replays the durable receipt", async () => {
+  it("spends self-feed mana before immediate HP recovery without returning mana and replays the receipt", async () => {
     await seedCharacter({
       telegramUserId: 1001n,
       userId: "user-varenyk",
@@ -134,7 +134,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
         rank: 1,
         manaCost: 8,
         immediateHpRestored: 3,
-        immediateManaRestored: 1,
+        immediateManaRestored: 0,
         expiresAt: new Date(now.getTime() + 13 * 60_000),
         availableAt: new Date(now.getTime() + 93 * 60_000)
       },
@@ -151,7 +151,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     });
     await expect(prisma.character.findUnique({ where: { id: "varenyk" } })).resolves.toMatchObject({
       hpCurrent: 18,
-      manaCurrent: 1
+      manaCurrent: 0
     });
     await expect(repository.completeVarenykSated(1001n, { ...input, previewToken: "fresh-forged" }))
       .resolves.toMatchObject({ state: "blocked", reason: "stale" });
@@ -259,10 +259,10 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(repository.completeVarenykSated(1051n, input)).resolves.toMatchObject({
       state: "completed",
       created: true,
-      action: { rank: 1, manaCost: 8, immediateManaRestored: 1 }
+      action: { rank: 1, manaCost: 8, immediateManaRestored: 0 }
     });
     await expect(prisma.character.findUnique({ where: { id: "passive-varenyk" } })).resolves.toMatchObject({
-      manaCurrent: 1
+      manaCurrent: 0
     });
   });
 
@@ -299,7 +299,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
       action: { rank: 3, manaCost: 16 }
     });
     await expect(prisma.character.findUnique({ where: { id: "exact-preview" } }))
-      .resolves.toMatchObject({ manaCurrent: 8 });
+      .resolves.toMatchObject({ manaCurrent: 7 });
   });
 
   it("rejects an exact preview charge that is no longer affordable", async () => {
@@ -598,14 +598,14 @@ describe("PrismaClassNoncombatRepository integration", () => {
       expiresAt: new Date(secondNow.getTime() + 13 * 60_000)
     })).resolves.toMatchObject({ state: "saved", plan: { rank: 1, manaCost: 8 } });
     await expect(prisma.character.findUnique({ where: { id: "refeed-settlement" } }))
-      .resolves.toMatchObject({ hpCurrent: 17, manaCurrent: 14 });
+      .resolves.toMatchObject({ hpCurrent: 17, manaCurrent: 13 });
     await expect(repository.completeVarenykSated(1062n, secondInput)).resolves.toMatchObject({
       state: "completed",
       created: true,
-      action: { immediateHpRestored: 3, immediateManaRestored: 1 }
+      action: { immediateHpRestored: 3, immediateManaRestored: 0 }
     });
     await expect(prisma.character.findUnique({ where: { id: "refeed-settlement" } }))
-      .resolves.toMatchObject({ hpCurrent: 20, manaCurrent: 7 });
+      .resolves.toMatchObject({ hpCurrent: 20, manaCurrent: 5 });
   });
 
   it("allows exactly one winner when two Varenyk-mancers race for one recipient", async () => {
@@ -875,8 +875,11 @@ describe("PrismaClassNoncombatRepository integration", () => {
       character: { manaCurrent: 8 },
       varenykPlan: { rank: 1, manaCost: 8 }
     });
-    expect(presentClassNoncombatOpen(open)).toContain("Мана: <b>8/");
-    expect(presentClassNoncombatOpen(open)).not.toContain("Мана: <b>9/");
+    const openText = presentClassNoncombatOpen(open);
+    expect(openText).toContain("Мана: <b>8/");
+    expect(openText).not.toContain("Мана: <b>9/");
+    expect(openText).toContain("Зараз вистачає на миску за <b>8 мани</b>.");
+    expect(openText).not.toMatch(/ранг/iu);
     await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
       manaCurrent: 7,
       manaRegenAt: originalManaRegenAt
@@ -1067,7 +1070,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
       targetPlanning: Record<string, unknown>;
     };
     expect(stored.statRank).toBe(2);
-    expect(stored.plan).toEqual({ rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 1 });
+    expect(stored.plan).toEqual({ rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 0 });
     expect(stored.actorPlanning).toMatchObject({
       hpCurrent: 17,
       manaCurrent: 12,
@@ -2291,7 +2294,7 @@ function satedPayload(input: {
       actorName: "freeze-cursor",
       targetName: "freeze-cursor",
       immediateHpRestored: 3,
-      immediateManaRestored: 1,
+      immediateManaRestored: 0,
       actorManaAfter: 1,
       targetHpAfter: 1,
       targetManaAfter: 1

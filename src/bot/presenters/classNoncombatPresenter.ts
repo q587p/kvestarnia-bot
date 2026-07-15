@@ -10,6 +10,7 @@ import type { PriestBlessingRecord } from "../../db/repositories/classNoncombatR
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentManaSpentLine } from "./resourcePresenter";
 import { escapeHtml } from "./telegramHtml";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): string {
   if (result.state === "no-character") {
@@ -81,7 +82,7 @@ export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): str
         `📍 ${escapeHtml(result.locationName)}`,
         `Мана: <b>${result.character.manaCurrent}/${result.character.manaMax}</b>.`,
         result.varenykPlan
-          ? `Зараз вистачає на ранг <b>${result.varenykPlan.rank}</b> за <b>${result.varenykPlan.manaCost} мани</b>.`
+          ? `Зараз вистачає на миску за <b>${result.varenykPlan.manaCost} мани</b>.`
           : "Навіть найменша миска просить 8 мани.",
         "",
         "Оберіть, кому вручити теплу аргументацію в тісті."
@@ -126,16 +127,13 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     return presentBlocked("🍽️", "Миска не дійшла", result.reason, result.availableAt);
   }
   const self = result.targetTelegramUserId === null;
-  const rankLine = result.plan.rank < result.statRank
-    ? `Ранг за характеристиками: <b>${result.statRank}</b> · застосований доступний: <b>${result.plan.rank}</b>.`
-    : `Ранг за характеристиками й застосований: <b>${result.plan.rank}</b>.`;
   return [
     "🍽️ <b>Підтвердити годування?</b>",
     "",
     `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
-    rankLine,
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
-    `Одразу: до <b>+${result.plan.immediateHp} HP</b> і <b>+1 мани</b>.`,
+    `Одразу: до <b>+${result.plan.immediateHp} HP</b>.`,
+    "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або власного бойового ходу.",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · нова миска через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
     "Вареники вже пораховані. Відступити ще не соромно."
@@ -163,8 +161,8 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
       ? "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
       : `${escapeHtml(result.action.actorName)} нагодував ${escapeHtml(result.action.targetName)}. Вареники не ставили зайвих питань.`,
     "",
-    result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
-      ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
+    result.action.immediateHpRestored > 0
+      ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
       : "Ресурси повні, зате статус акуратно загорнутий.",
     ...timingLines,
     "",
@@ -180,8 +178,8 @@ export function presentVarenykSatedTargetNotification(
     "",
     `${escapeHtml(result.action.actorName)} передав вам вареники. Корчма визнала це турботою.`,
     "",
-    result.action.immediateHpRestored > 0 || result.action.immediateManaRestored > 0
-      ? presentSatedRecoveryLine(result.action.immediateHpRestored, result.action.immediateManaRestored)
+    result.action.immediateHpRestored > 0
+      ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
       : "Ресурси вже повні. Вареники вирішили працювати на перспективу.",
     presentSatedActiveStatusLine(result.action.expiresAt)
   ].join("\n");
@@ -513,13 +511,19 @@ function presentVarenykStatusAndWaitLines(
 ): string[] {
   const lines: string[] = [];
   if (result.varenykSatedSelf) {
-    lines.push(`😋 Ситий — ${formatRemaining(new Date(result.varenykSatedSelf.expiresAt))}.`);
+    const selfStatus = presentActiveVarenykSatedBuff(new Date(result.varenykSatedSelf.expiresAt));
+    if (selfStatus) lines.push(selfStatus);
   } else if (result.varenykSatedSelfAvailableAt) {
     lines.push(`🍽️ Нагодувати себе знову через ${formatRemaining(result.varenykSatedSelfAvailableAt)}.`);
   }
   for (const target of result.targets) {
     if (target.varenykSated) {
-      lines.push(`😋 ${escapeHtml(target.name)} — Ситий ще ${formatRemaining(new Date(target.varenykSated.expiresAt))}.`);
+      const targetStatus = presentActiveVarenykSatedBuff(
+        new Date(target.varenykSated.expiresAt),
+        new Date(),
+        `${escapeHtml(target.name)}: <b>Ситий</b>`
+      );
+      if (targetStatus) lines.push(targetStatus);
     } else if (target.varenykSatedAvailableAt) {
       lines.push(`🍽️ ${escapeHtml(target.name)} — нагодувати знову через ${formatRemaining(target.varenykSatedAvailableAt)}.`);
     }
@@ -536,7 +540,10 @@ function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): str
 }
 
 function presentSatedActiveStatusLine(expiresAt: Date): string {
-  return `Стан діє ще: <b>${formatRemaining(expiresAt)}</b>. Видно в персонажі поруч із бафами.`;
+  const status = presentActiveVarenykSatedBuff(expiresAt);
+  return status
+    ? `${status} Видно в персонажі поруч із бафами.`
+    : "Статус уже завершився.";
 }
 
 function formatRemaining(availableAt: Date, now = new Date()): string {

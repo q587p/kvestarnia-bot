@@ -27,14 +27,14 @@ describe("Varenyk-mancer Sated support", () => {
       rank,
       manaCost,
       immediateHp: 2 + rank,
-      immediateMana: 1
+      immediateMana: 0
     });
   });
 
-  it("caps immediate HP and mana independently", () => {
+  it("caps immediate HP without restoring mana", () => {
     expect(applyVarenykSatedImmediateRecovery(
       { hp: 9, hpMax: 10, mana: 4, manaMax: 4 },
-      { immediateHp: 5, immediateMana: 1 }
+      { immediateHp: 5, immediateMana: 0 }
     )).toEqual({
       resources: { hp: 10, hpMax: 10, mana: 4, manaMax: 4 },
       hpRestored: 1,
@@ -183,7 +183,7 @@ function makePayload(): VarenykSatedPayloadV1 {
       actorName: "Actor",
       targetName: "Target",
       immediateHpRestored: 5,
-      immediateManaRestored: 1,
+      immediateManaRestored: 0,
       actorManaAfter: 10,
       targetHpAfter: 10,
       targetManaAfter: 5

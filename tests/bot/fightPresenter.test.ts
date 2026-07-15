@@ -2749,7 +2749,7 @@ describe("fight presenter", () => {
       fightReward: null
     });
 
-    expect(text).toContain("😋 Ситий · ще");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
     expect(text).not.toContain("ранг 2");
     expect(text).toContain("+1 HP");
     expect(text).not.toContain("+0 мани");

@@ -2139,7 +2139,7 @@ function matchesSatedPreviewPlan(
     preview.plan.rank <= preview.statRank &&
     preview.plan.manaCost === VARENYK_SATED_MANA_COSTS[preview.plan.rank - 1] &&
     preview.plan.immediateHp === 2 + preview.plan.rank &&
-    preview.plan.immediateMana === 1;
+    preview.plan.immediateMana === 0;
 }
 
 function matchesSatedPreview(

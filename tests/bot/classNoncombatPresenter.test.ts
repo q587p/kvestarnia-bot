@@ -49,18 +49,21 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("Оберіть себе або когось активного поруч:");
   });
 
-  it("shows the automatic Varenyk downgrade and recovery only when resources changed", () => {
+  it("keeps Varenyk rank internal and shows only the applied cost and effects", () => {
     const preview = presentVarenykSatedPreview({
       state: "preview",
       targetTelegramUserId: 42n,
       target: { name: "Сусід" },
       statRank: 5,
-      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 1 },
+      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 0 },
       durationMinutes: 13,
       recipientWaitMinutes: 93
     } as never);
-    expect(preview).toContain("Ранг за характеристиками: <b>5</b> · застосований доступний: <b>3</b>");
+    expect(preview).not.toMatch(/ранг/iu);
     expect(preview).toContain("Точна ціна: <b>16 мани</b>");
+    expect(preview).toContain("Одразу: до <b>+5 HP</b>.");
+    expect(preview).not.toContain("Одразу: до <b>+5 HP</b> і");
+    expect(preview).toContain("після повної хвилини або власного бойового ходу");
 
     const completed = {
       state: "completed",
@@ -82,8 +85,8 @@ describe("class noncombat presenter", () => {
     const targetNotification = presentVarenykSatedTargetNotification(completed);
     expect(actorResult).not.toContain("Відновлено:");
     expect(targetNotification).not.toContain("Відновлено:");
-    expect(actorResult).not.toContain("Ранг");
-    expect(targetNotification).not.toContain("рангу");
+    expect(actorResult).not.toMatch(/ранг/iu);
+    expect(targetNotification).not.toMatch(/ранг/iu);
     expect(actorResult).toContain("питань.\n\nРесурси повні");
     expect(actorResult).toContain("бафами.\nНагодувати цю ціль знову");
     expect(actorResult).toContain("\n\n💫 Мани витрачено: <b>16</b>.");
@@ -103,7 +106,7 @@ describe("class noncombat presenter", () => {
         rank: 1,
         manaCost: 8,
         immediateHpRestored: 0,
-        immediateManaRestored: 1,
+        immediateManaRestored: 0,
         expiresAt: new Date("2026-07-03T09:13:00.000Z"),
         availableAt: new Date("2026-07-03T10:33:00.000Z")
       }
@@ -114,8 +117,8 @@ describe("class noncombat presenter", () => {
       "",
       "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала.",
       "",
-      "Відновлено: <b>+1 мани</b>.",
-      "Стан діє ще: <b>13 хвилин</b>. Видно в персонажі поруч із бафами.",
+      "Ресурси повні, зате статус акуратно загорнутий.",
+      "😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою. Видно в персонажі поруч із бафами.",
       "Нагодувати цю ціль знову: <b>через 93 хвилини</b>.",
       "",
       "💫 Мани витрачено: <b>8</b>."

@@ -28,6 +28,7 @@ import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -540,7 +541,8 @@ export function presentPartyBoss(
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
     if (viewer?.varenykSated && Date.parse(viewer.varenykSated.expiresAt) > Date.now()) {
-      lines.push(`😋 <b>Ситий</b> · ще ${formatRemainingWait(new Date(viewer.varenykSated.expiresAt), new Date())}`);
+      const satedBuff = presentActiveVarenykSatedBuff(new Date(viewer.varenykSated.expiresAt));
+      if (satedBuff) lines.push(satedBuff);
     }
   }
 

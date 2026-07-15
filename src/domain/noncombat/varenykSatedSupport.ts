@@ -10,7 +10,7 @@ export interface VarenykSatedPlan {
   rank: number;
   manaCost: number;
   immediateHp: number;
-  immediateMana: 1;
+  immediateMana: 0;
 }
 
 export interface VarenykSatedReceiptV1 {
@@ -95,7 +95,7 @@ export function buildVarenykSatedPlan(input: {
     rank,
     manaCost: VARENYK_SATED_MANA_COSTS[rank - 1] ?? VARENYK_SATED_MANA_COSTS[4],
     immediateHp: 2 + rank,
-    immediateMana: 1
+    immediateMana: 0
   };
 }
 
@@ -108,7 +108,7 @@ export function getAffordableVarenykSatedPlan(
   for (let rank = maxRank; rank >= 1; rank -= 1) {
     const manaCost = VARENYK_SATED_MANA_COSTS[rank - 1]!;
     if (mana >= manaCost) {
-      return { rank, manaCost, immediateHp: 2 + rank, immediateMana: 1 };
+      return { rank, manaCost, immediateHp: 2 + rank, immediateMana: 0 };
     }
   }
   return null;

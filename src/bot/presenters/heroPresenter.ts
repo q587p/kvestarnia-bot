@@ -14,6 +14,7 @@ import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
 import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentHero(
   summary: CharacterSummary,
@@ -22,7 +23,6 @@ export function presentHero(
     activePriestBlessing?: HeroActivePriestBlessing | null;
     activeVarenykSated?: HeroActiveVarenykSated | null;
     varenykSatedAvailableAt?: Date | null;
-    satedRecovery?: { hpRestored: number; manaRestored: number } | null;
     recoveryNotice?: ResourceRecoveryNotice;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
@@ -107,9 +107,6 @@ export function presentHero(
     ...(nextLevelGrowthLine ? [`Зміна: ${nextLevelGrowthLine}`] : []),
     "",
     `❤️ HP ${summary.hpCurrent}/${summary.hpMax} · 🔮 мана ${summary.manaCurrent}/${summary.manaMax}`,
-    ...(options.satedRecovery && (options.satedRecovery.hpRestored > 0 || options.satedRecovery.manaRestored > 0)
-      ? [`😋 Ситість відновила: ${presentSatedRecoveryParts(options.satedRecovery)}.`]
-      : []),
     ...resourceRecoveryLines,
     ...(activeStatusLines.length > 0 ? ["", ...activeStatusLines] : []),
     ...(resourceRecoveryLines.length > 0 || activeStatusLines.length > 0 ? [""] : []),
@@ -181,16 +178,7 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
 }
 
 function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
-  return sated
-    ? `😋 <b>Ситий</b> — <b>${formatRemainingMinutes(sated.expiresAt)}</b>.`
-    : null;
-}
-
-function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored: number }): string {
-  return [
-    ...(recovery.hpRestored > 0 ? [`<b>+${recovery.hpRestored} HP</b>`] : []),
-    ...(recovery.manaRestored > 0 ? [`<b>+${recovery.manaRestored} мани</b>`] : [])
-  ].join(" · ");
+  return sated ? presentActiveVarenykSatedBuff(sated.expiresAt) : null;
 }
 
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {

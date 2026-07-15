@@ -153,7 +153,7 @@ describe("class noncombat keyboard", () => {
       roguePickpocketCooldownAvailableAt: null,
       varenykSatedSelfAvailableAt: null,
       varenykSatedSelf: null,
-      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 1 }
+      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 0 }
     });
 
     expect(buttonTexts(keyboard)).toEqual(expect.arrayContaining([
@@ -183,7 +183,7 @@ describe("class noncombat keyboard", () => {
       roguePickpocketCooldownAvailableAt: null,
       varenykSatedSelfAvailableAt: null,
       varenykSatedSelf: {} as never,
-      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 1 }
+      varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 0 }
     });
 
     expect(buttonTexts(keyboard)).not.toContain("🍽️ Нагодувати себе");

@@ -15,6 +15,7 @@ import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
+import { presentVarenykSatedRecoveryNotice } from "../presenters/varenykSatedPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 export interface HeroCommandOptions {
@@ -60,7 +61,6 @@ export async function sendHero(
       activePriestBlessing: result.activePriestBlessing,
       activeVarenykSated: result.activeVarenykSated,
       varenykSatedAvailableAt: result.varenykSatedAvailableAt,
-      satedRecovery: result.satedRecovery,
       ...(result.recoveryNotice ? { recoveryNotice: result.recoveryNotice } : {}),
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
@@ -93,6 +93,12 @@ export async function sendHero(
       true,
       heroKeyboard ?? options.mainMenuKeyboard
     );
+    const satedRecoveryNotice = result.satedRecovery
+      ? presentVarenykSatedRecoveryNotice(result.satedRecovery)
+      : null;
+    if (satedRecoveryNotice) {
+      await ctx.reply(satedRecoveryNotice, { parse_mode: "HTML" });
+    }
     return;
   }
 

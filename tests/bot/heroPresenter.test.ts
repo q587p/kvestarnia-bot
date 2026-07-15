@@ -82,22 +82,19 @@ describe("hero presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
-  it("shows compact Sated duration and only reports recovery when a resource changed", () => {
+  it("shows the Sated effect with an unbolded remaining duration and no embedded recovery notice", () => {
     const text = presentHero(summary, {
       activeVarenykSated: {
         activationId: "sated",
         rank: 3,
         expiresAt: new Date("2026-06-23T10:13:00.000Z")
-      },
-      satedRecovery: { hpRestored: 0, manaRestored: 1 }
+      }
     });
 
-    expect(text).toContain("😋 <b>Ситий</b> — <b>13 хв</b>.");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
+    expect(text).not.toContain("ще <b>13 хв</b>");
     expect(text).not.toContain("ранг <b>3</b>");
-    expect(text).toContain("😋 Ситість відновила: <b>+1 мани</b>");
-    expect(text).not.toContain("+0 HP");
-    expect(presentHero(summary, { satedRecovery: { hpRestored: 0, manaRestored: 0 } }))
-      .not.toContain("Ситість відновила");
+    expect(text).not.toContain("Ситість відновила");
   });
 
   it("shows the recipient wait without calling an expired status active", () => {

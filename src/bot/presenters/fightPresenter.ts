@@ -33,6 +33,7 @@ import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSupportEffectLine } from "./combatActionPresenter";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -500,9 +501,10 @@ function presentActiveFightEffectNotices(
       `🩸 Кровотеча триває: ${bleed.damagePerActivation} шкоди, ще ${bleed.remainingHeroActivations} активац.`
     );
 
-  const satedNotice = state.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
-    ? [`😋 Ситий · ще ${presentSatedRemaining(state.varenykSated.expiresAt)}.`]
-    : [];
+  const activeSatedBuff = state.varenykSated
+    ? presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))
+    : null;
+  const satedNotice = activeSatedBuff ? [activeSatedBuff] : [];
 
   return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice]));
 }
@@ -1766,11 +1768,6 @@ function presentSatedRecoveryParts(recovery: { hpRestored: number; manaRestored:
     ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
     ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
   ].join(" і ");
-}
-
-function presentSatedRemaining(expiresAt: string): string {
-  const milliseconds = Math.max(0, Date.parse(expiresAt) - Date.now());
-  return `${Math.max(1, Math.ceil(milliseconds / 60_000))} хв`;
 }
 
 function presentMonsterBarkBlockquote(text: string): string {

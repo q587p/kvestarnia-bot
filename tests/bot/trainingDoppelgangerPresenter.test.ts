@@ -103,7 +103,7 @@ describe("training doppelganger presenter", () => {
       }
     });
 
-    expect(text).toContain("😋 Ситий · ще 13 хв.");
+    expect(text).toContain("😋 Баф: <b>Ситий</b> ще 13 хв — +1 HP і +1 мани щохвилини поза боєм або після власного ходу в бою.");
     expect(text).not.toContain("ранг 5");
   });
 

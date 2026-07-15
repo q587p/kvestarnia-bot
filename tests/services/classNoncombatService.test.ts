@@ -51,7 +51,7 @@ describe("ClassNoncombatService", () => {
     expect(result).toMatchObject({
       state: "preview",
       statRank: 5,
-      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 1 },
+      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 0 },
       durationMinutes: 13,
       recipientWaitMinutes: 93
     });
@@ -113,7 +113,7 @@ describe("ClassNoncombatService", () => {
       satedPreviewResult: {
         state: "saved",
         statRank: 2,
-        plan: { rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 1 },
+        plan: { rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 0 },
         actor: planning,
         target: planning,
         actorRemortCount: 0,
@@ -931,7 +931,7 @@ function varenykSatedCompletion(
       actorName: actor.name,
       targetName: actor.name,
       immediateHpRestored: 4,
-      immediateManaRestored: 1,
+      immediateManaRestored: 0,
       actorManaAfter: 12,
       targetHpAfter: 14,
       targetManaAfter: 12
@@ -952,7 +952,7 @@ function varenykSatedCompletion(
       rank: 2,
       manaCost: 12,
       immediateHpRestored: 4,
-      immediateManaRestored: 1,
+      immediateManaRestored: 0,
       startedAt: now,
       expiresAt,
       availableAt,

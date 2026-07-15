@@ -15,6 +15,7 @@ import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentTrainingDoppelgangerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Допельґанґер не копіює порожні анкети.";
@@ -198,8 +199,9 @@ function presentTrainingDoppelgangerState(input: {
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
-    ...(state?.varenykSated && Date.parse(state.varenykSated.expiresAt) > Date.now()
-      ? [`😋 Ситий · ще ${Math.max(1, Math.ceil((Date.parse(state.varenykSated.expiresAt) - Date.now()) / 60_000))} хв.`]
+    ...(state?.varenykSated
+      ? [presentActiveVarenykSatedBuff(new Date(state.varenykSated.expiresAt))]
+          .filter((line): line is string => line !== null)
       : [])
   ];
 

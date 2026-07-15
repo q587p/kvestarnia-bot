@@ -24,6 +24,7 @@ import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combat
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentDuelEntry(): string {
   return [
@@ -389,9 +390,11 @@ export function presentTurnBasedDuel(
     viewerParticipant?.varenykSated &&
     Date.parse(viewerParticipant.varenykSated.expiresAt) > result.now.getTime()
   ) {
-    lines.push(
-      `😋 <b>Ситий</b> · ще ${formatRemaining(new Date(viewerParticipant.varenykSated.expiresAt), result.now)}`
+    const satedBuff = presentActiveVarenykSatedBuff(
+      new Date(viewerParticipant.varenykSated.expiresAt),
+      result.now
     );
+    if (satedBuff) lines.push(satedBuff);
   }
 
   lines.push("", actionLine, "");

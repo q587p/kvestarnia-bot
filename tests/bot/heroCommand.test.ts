@@ -72,6 +72,36 @@ describe("hero command", () => {
     });
   });
 
+  it("sends Sated recovery after the replied Hero card as one separate message", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = makeHeroServiceWithSatedRecovery();
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.text).toContain("👤 <b>Мандрівник</b>");
+    expect(replies[0]?.text).not.toContain("Ситість відновила");
+    expect(replies[1]).toEqual({
+      text: "😋 Ситість відновила: <b>+1 HP</b> · <b>+1 мани</b>.",
+      options: { parse_mode: "HTML" }
+    });
+  });
+
+  it("sends Sated recovery separately after editing the Hero card", async () => {
+    const edits: Array<{ text: string; options: unknown }> = [];
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = makeHeroServiceWithSatedRecovery();
+
+    await sendHero(makeEditContext(edits, replies), heroService, "edit");
+
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.text).not.toContain("Ситість відновила");
+    expect(replies).toEqual([{
+      text: "😋 Ситість відновила: <b>+1 HP</b> · <b>+1 мани</b>.",
+      options: { parse_mode: "HTML" }
+    }]);
+  });
+
   it("shows Priest self-heal on the hero card when wounded and mana is available", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {
@@ -317,7 +347,10 @@ function makeReplyContext(replies: Array<{ text: string; options: unknown }>): C
   } as unknown as Context;
 }
 
-function makeEditContext(edits: Array<{ text: string; options: unknown }>): Context {
+function makeEditContext(
+  edits: Array<{ text: string; options: unknown }>,
+  replies: Array<{ text: string; options: unknown }> = []
+): Context {
   return {
     from: {
       id: 42,
@@ -327,8 +360,26 @@ function makeEditContext(edits: Array<{ text: string; options: unknown }>): Cont
     editMessageText: (text: string, options: unknown) => {
       edits.push({ text, options });
       return Promise.resolve({});
+    },
+    reply: (text: string, options: unknown) => {
+      replies.push({ text, options });
+      return Promise.resolve({});
     }
   } as unknown as Context;
+}
+
+function makeHeroServiceWithSatedRecovery(): HeroService {
+  return {
+    findByTelegramUserId: () => Promise.resolve({
+      state: "existing-character" as const,
+      character: { ...character, hpCurrent: 20, manaCurrent: 8 },
+      inventoryGoldValue: 0,
+      activeDrink: null,
+      activeCosmeticTitle: null,
+      restoreToFullItemId: null,
+      satedRecovery: { hpRestored: 1, manaRestored: 1 }
+    })
+  } as unknown as HeroService;
 }
 
 function inlineButtonRows(options: unknown): string[][] {
