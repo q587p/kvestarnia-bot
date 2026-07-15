@@ -297,6 +297,10 @@ export function presentTrainingDoppelgangerJournal(
     "",
     presentTrainingTurnSummary(entry.summary)
   ];
+  if (entry.summary.satedRecovery &&
+      (entry.summary.satedRecovery.hpRestored > 0 || entry.summary.satedRecovery.manaRestored > 0)) {
+    lines.push(`😋 Ситість відновила ${presentSatedRecoveryParts(entry.summary.satedRecovery)}.`);
+  }
   const notices = presentJournalTurnNotices(entry);
 
   if (notices.length > 0) {

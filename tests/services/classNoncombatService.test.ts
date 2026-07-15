@@ -25,6 +25,7 @@ import type {
 import { ClassNoncombatService } from "../../src/services/classNoncombatService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { AchievementService } from "../../src/services/achievementService";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 
 const now = new Date("2026-07-03T09:00:00.000Z");
 const actorTelegramUserId = 1001n;
@@ -54,6 +55,35 @@ describe("ClassNoncombatService", () => {
       durationMinutes: 13,
       recipientWaitMinutes: 93
     });
+  });
+
+  it("captures one logical now and skips the second equipment read for Varenyk preview", async () => {
+    const beforeReady = new Date("2026-07-03T09:12:59.999Z");
+    const readyAt = new Date("2026-07-03T09:13:00.000Z");
+    let clockCalls = 0;
+    const repository = new FakeClassNoncombatRepository({
+      actor: varenyk({ manaCurrent: 8 })
+    });
+    const equipment = new FakeEquipmentRepository([]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => clockCalls++ === 0 ? beforeReady : readyAt,
+      new FakeRandomSource([0.4]),
+      undefined,
+      equipment
+    );
+
+    await expect(service.previewVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    })).resolves.toMatchObject({ state: "preview", plan: { rank: 1, manaCost: 8 } });
+
+    expect(clockCalls).toBe(1);
+    expect(repository.lastSnapshotInput?.now).toEqual(beforeReady);
+    expect(repository.lastSatedPreviewInput?.now).toEqual(beforeReady);
+    expect(equipment.lookupTelegramUserIds).toEqual([]);
   });
 
   it("awards Varenyk achievements only for a fresh durable completion", async () => {
@@ -536,6 +566,7 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   lastPickpocketInput: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1] | null = null;
   lastClaimRetaliationInput: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1] | null = null;
   lastRetaliationDuelInput: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1] | null = null;
+  lastSatedPreviewInput: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1] | null = null;
   readonly activeBlessingLookupTelegramUserIds: bigint[] = [];
   satedSettlementCalls = 0;
 
@@ -591,7 +622,15 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         gold: this.target.gold,
         remortCount: this.target.remortCount ?? 0,
         priestBlessAvailableAt: null,
-        rogueAttemptedToday: false
+        rogueAttemptedToday: false,
+        ...(this.actor.classId === "class.varenyk-mancer"
+          ? {
+              varenykPlanning: {
+                summary: summarizeCharacter(this.target),
+                equipmentItemIds: []
+              }
+            }
+          : {})
       }],
       targetPage: 0,
       targetTotalPages: 1,
@@ -601,7 +640,15 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       priestSelfBlessAvailableAt: null,
       roguePickpocketCooldownAvailableAt: null,
       varenykStatRank: null,
-      varenykPlan: null
+      varenykPlan: null,
+      ...(this.actor.classId === "class.varenyk-mancer"
+        ? {
+            varenykPlanning: {
+              summary: summarizeCharacter(this.actor),
+              equipmentItemIds: []
+            }
+          }
+        : {})
     });
   }
 
@@ -615,7 +662,11 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     return Promise.resolve(null);
   }
 
-  saveVarenykSatedPreview() {
+  saveVarenykSatedPreview(
+    _actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1]
+  ) {
+    this.lastSatedPreviewInput = input;
     if (this.satedPreviewResult) {
       return Promise.resolve(this.satedPreviewResult);
     }

@@ -4,6 +4,14 @@ import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClassNoncombatRepository } from "../../src/db/repositories/prismaClassNoncombatRepository";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
+import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
+import { ClassNoncombatService } from "../../src/services/classNoncombatService";
+import { HeroService } from "../../src/services/heroService";
+import { presentClassNoncombatOpen } from "../../src/bot/presenters/classNoncombatPresenter";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
+import { getManaFullRegenSeconds } from "../../src/domain/resources/resourceRegeneration";
 import {
   buildEquipmentAttunementPayload,
   EQUIPMENT_ATTUNEMENT_ACTION_KEY
@@ -42,6 +50,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await prisma.noncombatRoguePickpocketAttempt.deleteMany();
     await prisma.noncombatPriestAidAction.deleteMany();
     await prisma.noncombatPriestBlessing.deleteMany();
+    await prisma.hpRecoveryNotification.deleteMany();
     await prisma.characterCooldown.deleteMany();
     await prisma.activeCombatLease.deleteMany();
     await prisma.dailyAction.deleteMany();
@@ -825,6 +834,252 @@ describe("PrismaClassNoncombatRepository integration", () => {
       .toBe(false);
   });
 
+  it("uses one read-only canonical regeneration and equipment view for public Varenyk open and preview", async () => {
+    const telegramUserId = 4052n;
+    const characterId = "public-varenyk-planning";
+    await seedCharacter({
+      telegramUserId,
+      userId: "user-public-varenyk-planning",
+      characterId,
+      classId: "class.varenyk-mancer",
+      level: 3,
+      manaCurrent: 7,
+      manaMax: 20,
+      manaRegenAt: now,
+      statsJson: { dexterity: 8, luck: 8, charisma: 8, intelligence: 8 }
+    });
+    const canonical = await new PrismaCharacterRepository(prisma).findByTelegramUserId(telegramUserId);
+    expect(canonical).not.toBeNull();
+    const summary = summarizeCharacter(canonical!);
+    const manaFullRegenSeconds = getManaFullRegenSeconds({
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    });
+    const onePointElapsedMs = Math.ceil(manaFullRegenSeconds * 1000 / summary.manaMax);
+    const originalManaRegenAt = new Date(now.getTime() - onePointElapsedMs);
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { manaRegenAt: originalManaRegenAt }
+    });
+
+    const equipment = new PrismaEquipmentRepository(prisma);
+    const service = new ClassNoncombatService(repository, () => now, undefined, undefined, equipment);
+    const open = await service.openForTelegramUser(telegramUserId, "varenyk");
+
+    expect(open).toMatchObject({
+      state: "ready",
+      character: { manaCurrent: 8 },
+      varenykPlan: { rank: 1, manaCost: 8 }
+    });
+    expect(presentClassNoncombatOpen(open)).toContain("Мана: <b>8/");
+    expect(presentClassNoncombatOpen(open)).not.toContain("Мана: <b>9/");
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      manaCurrent: 7,
+      manaRegenAt: originalManaRegenAt
+    });
+
+    const preview = await service.previewVarenykSatedForTelegramUser(telegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    });
+    expect(preview).toMatchObject({
+      state: "preview",
+      actor: { manaCurrent: 8 },
+      statRank: 1,
+      plan: { rank: 1, manaCost: 8 }
+    });
+    const previewRow = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: "class.varenyk-mancer.sated-support.preview" } }
+    });
+    expect(previewRow.resultJson).toMatchObject({
+      statRank: 1,
+      plan: { rank: 1, manaCost: 8 },
+      effectiveStats: { equipmentItemIds: [] }
+    });
+  });
+
+  it.each([
+    ["before", -1],
+    ["ready", 0]
+  ] as const)("keeps public Varenyk open and stored preview on the same %s attunement boundary", async (boundary, offsetMs) => {
+    const telegramUserId = boundary === "before" ? 4053n : 4054n;
+    const characterId = `public-attunement-${boundary}`;
+    const readyAt = new Date("2026-07-03T09:13:00.000Z");
+    const acceptedAt = new Date(readyAt.getTime() + offsetMs);
+    await seedCharacter({
+      telegramUserId,
+      userId: `user-${characterId}`,
+      characterId,
+      classId: "class.varenyk-mancer",
+      level: 3,
+      manaCurrent: 12,
+      manaMax: 20,
+      manaRegenAt: acceptedAt,
+      statsJson: { dexterity: 8, luck: 8, charisma: 8, intelligence: 8 }
+    });
+    const equipmentUpdatedAt = new Date("2026-07-03T09:00:00.123Z");
+    const equipmentRow = await prisma.characterEquipment.create({
+      data: {
+        id: `public-dough-crown-${boundary}`,
+        characterId,
+        slot: "head",
+        itemId: "item.mantok.coverage.class.varenyk-mancer.dough-crown",
+        createdAt: equipmentUpdatedAt,
+        updatedAt: equipmentUpdatedAt
+      }
+    });
+    await prisma.dailyAction.create({
+      data: {
+        characterId,
+        key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+        localDate: `${equipmentRow.slot}:${equipmentRow.id}:${equipmentUpdatedAt.getTime()}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: buildEquipmentAttunementPayload({
+          slot: equipmentRow.slot,
+          itemId: equipmentRow.itemId,
+          itemName: "Ковпак слухняного тіста",
+          equipmentUpdatedAt,
+          strength: "strong",
+          startedAt: equipmentUpdatedAt,
+          readyAt
+        })
+      }
+    });
+
+    const equipment = new PrismaEquipmentRepository(prisma);
+    const service = new ClassNoncombatService(repository, () => acceptedAt, undefined, undefined, equipment);
+    const open = await service.openForTelegramUser(telegramUserId, "varenyk");
+    expect(open.state).toBe("ready");
+    if (open.state !== "ready") throw new Error("Expected ready Varenyk open.");
+    const preview = await service.previewVarenykSatedForTelegramUser(telegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    });
+    expect(preview.state).toBe("preview");
+    if (preview.state !== "preview") throw new Error("Expected Varenyk preview.");
+    const stored = (await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: "class.varenyk-mancer.sated-support.preview" } }
+    })).resultJson as {
+      statRank: number;
+      plan: { rank: number; manaCost: number };
+      effectiveStats: { intelligence: number; equipmentItemIds: string[]; attunedEquipmentRows: unknown[] };
+    };
+    const itemActive = boundary === "ready";
+
+    const natural = summarizeCharacter((await new PrismaCharacterRepository(prisma)
+      .findByTelegramUserId(telegramUserId))!);
+    expect(open.character.manaMax).toBe(natural.manaMax + (itemActive ? 2 : 0));
+    expect(open.character.manaMax).toBe(preview.actor.manaMax);
+    expect(preview.actor.stats.intelligence).toBe(open.character.stats.intelligence);
+    expect(stored.effectiveStats.intelligence).toBe(open.character.stats.intelligence);
+    expect(stored.statRank).toBe(preview.statRank);
+    expect(stored.plan).toEqual(preview.plan);
+    expect(stored.effectiveStats.equipmentItemIds).toEqual(itemActive ? [equipmentRow.itemId] : []);
+    expect(stored.effectiveStats.attunedEquipmentRows).toHaveLength(itemActive ? 1 : 0);
+    expect(open.character.equipmentEffects?.manaMax ?? 0).toBe(itemActive ? 2 : 0);
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      manaCurrent: 12,
+      manaMax: 20,
+      manaRegenAt: acceptedAt
+    });
+  });
+
+  it("makes concurrent Hero and Varenyk public Sated settlement reads benign and singular", async () => {
+    const raceRepository = new PrismaClassNoncombatRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true)
+    );
+    const equipment = new PrismaEquipmentRepository(prisma);
+    const characters = new PrismaCharacterRepository(prisma);
+    const inventory = { listByTelegramUserId: () => Promise.resolve([]) };
+
+    await seedActiveSatedReadCharacter(4055n, "public-hero-race");
+    const hero = new HeroService(
+      characters,
+      inventory,
+      equipment,
+      undefined,
+      undefined,
+      () => now,
+      undefined,
+      raceRepository
+    );
+    const heroRace = await Promise.allSettled([
+      hero.findByTelegramUserId(4055n),
+      hero.findByTelegramUserId(4055n)
+    ]);
+    expect(heroRace.every((result) => result.status === "fulfilled")).toBe(true);
+    await expectCanonicalPublicSettlement("public-hero-race", 3, 3);
+
+    await seedActiveSatedReadCharacter(4056n, "public-hero-varenyk-race");
+    const classNoncombat = new ClassNoncombatService(
+      raceRepository,
+      () => now,
+      undefined,
+      undefined,
+      equipment
+    );
+    const mixedRace = await Promise.allSettled([
+      hero.findByTelegramUserId(4056n),
+      classNoncombat.openForTelegramUser(4056n, "varenyk")
+    ]);
+    expect(mixedRace.every((result) => result.status === "fulfilled")).toBe(true);
+    expect(mixedRace[1]).toMatchObject({ status: "fulfilled", value: { state: "ready" } });
+    await expectCanonicalPublicSettlement("public-hero-varenyk-race", 3, 3);
+  });
+
+  it.each(["character", "cooldown"] as const)(
+    "retries one forced public Sated %s CAS loss without duplicating recovery",
+    async (stage) => {
+      const telegramUserId = stage === "character" ? 4057n : 4058n;
+      const characterId = `forced-${stage}-race`;
+      await seedActiveSatedReadCharacter(telegramUserId, characterId, 1);
+      const forced = withForcedPublicSatedCasLoss(prisma, stage);
+      const raceRepository = new PrismaClassNoncombatRepository(
+        forced.client,
+        new HpRecoveryNotificationProducer(true)
+      );
+      if (stage === "character") {
+        const hero = new HeroService(
+          new PrismaCharacterRepository(prisma),
+          { listByTelegramUserId: () => Promise.resolve([]) },
+          new PrismaEquipmentRepository(prisma),
+          undefined,
+          undefined,
+          () => now,
+          undefined,
+          raceRepository
+        );
+        await expect(hero.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+          character: { hpCurrent: 2, manaCurrent: 2 }
+        });
+      } else {
+        const classNoncombat = new ClassNoncombatService(
+          raceRepository,
+          () => now,
+          undefined,
+          undefined,
+          new PrismaEquipmentRepository(prisma)
+        );
+        await expect(classNoncombat.openForTelegramUser(telegramUserId, "varenyk"))
+          .resolves.toMatchObject({
+            state: "ready",
+            character: { hpCurrent: 2, manaCurrent: 2 }
+          });
+      }
+      expect(forced.getForcedCount()).toBe(1);
+      await expectCanonicalPublicSettlement(characterId, 2, 2);
+    }
+  );
+
   it("naturally reaches the historical fast path after a combat lease crosses expiry", async () => {
     await seedCharacter({
       telegramUserId: 4051n,
@@ -1501,6 +1756,129 @@ async function seedCharacter(input: {
   });
 }
 
+async function seedActiveSatedReadCharacter(
+  telegramUserId: bigint,
+  characterId: string,
+  elapsedMinutes = 2
+): Promise<void> {
+  await seedCharacter({
+    telegramUserId,
+    userId: `user-${characterId}`,
+    characterId,
+    classId: "class.varenyk-mancer",
+    level: 3,
+    hpCurrent: 1,
+    hpMax: 30,
+    hpRegenAt: now,
+    manaCurrent: 1,
+    manaMax: 30,
+    manaRegenAt: now
+  });
+  const startedAt = new Date(now.getTime() - elapsedMinutes * 60_000);
+  const payload = satedPayload({
+    activationId: `${characterId}-activation`,
+    recipientCharacterId: characterId,
+    startedAt,
+    expiresAt: new Date(startedAt.getTime() + 13 * 60_000),
+    availableAt: new Date(startedAt.getTime() + 93 * 60_000)
+  });
+  await prismaGlobal().characterCooldown.create({
+    data: {
+      characterId,
+      key: "class.varenyk-mancer.sated-support.recipient",
+      availableAt: new Date(payload.availableAt),
+      resultJson: payload
+    }
+  });
+}
+
+async function expectCanonicalPublicSettlement(
+  characterId: string,
+  hpCurrent: number,
+  manaCurrent: number
+): Promise<void> {
+  await expect(prismaGlobal().character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+    hpCurrent,
+    manaCurrent,
+    hpRegenAt: now,
+    manaRegenAt: now
+  });
+  const cooldown = await prismaGlobal().characterCooldown.findUniqueOrThrow({
+    where: {
+      characterId_key: {
+        characterId,
+        key: "class.varenyk-mancer.sated-support.recipient"
+      }
+    }
+  });
+  expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(now.toISOString());
+  await expect(prismaGlobal().hpRecoveryNotification.findUnique({ where: { characterId } })).resolves.toMatchObject({
+    generation: 1,
+    status: "waiting"
+  });
+}
+
+function withForcedPublicSatedCasLoss(
+  prisma: PrismaClient,
+  stage: "character" | "cooldown"
+): { client: PrismaClient; getForcedCount: () => number } {
+  let forcedCount = 0;
+  const runTransaction = async <T>(
+    callback: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: {
+      maxWait?: number;
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    }
+  ): Promise<T> => prisma.$transaction(async (tx) => {
+    const characterUpdateMany = tx.character.updateMany.bind(tx.character);
+    const cooldownUpdateMany = tx.characterCooldown.updateMany.bind(tx.characterCooldown);
+    const character = new Proxy(tx.character, {
+      get(target, property, receiver) {
+        if (property === "updateMany") {
+          return async (...args: Parameters<typeof tx.character.updateMany>) => {
+            if (stage === "character" && forcedCount === 0) {
+              forcedCount += 1;
+              return { count: 0 };
+            }
+            return characterUpdateMany(...args);
+          };
+        }
+        return Reflect.get(target, property, receiver) as unknown;
+      }
+    });
+    const characterCooldown = new Proxy(tx.characterCooldown, {
+      get(target, property, receiver) {
+        if (property === "updateMany") {
+          return async (...args: Parameters<typeof tx.characterCooldown.updateMany>) => {
+            if (stage === "cooldown" && forcedCount === 0) {
+              forcedCount += 1;
+              return { count: 0 };
+            }
+            return cooldownUpdateMany(...args);
+          };
+        }
+        return Reflect.get(target, property, receiver) as unknown;
+      }
+    });
+    const guardedTx = new Proxy(tx, {
+      get(target, property, receiver) {
+        if (property === "character") return character;
+        if (property === "characterCooldown") return characterCooldown;
+        return Reflect.get(target, property, receiver) as unknown;
+      }
+    });
+    return callback(guardedTx);
+  }, options);
+  const client = new Proxy(prisma, {
+    get(target, property, receiver) {
+      if (property === "$transaction") return runTransaction;
+      return Reflect.get(target, property, receiver) as unknown;
+    }
+  });
+  return { client, getForcedCount: () => forcedCount };
+}
+
 let prismaForSeeds: PrismaClient | null = null;
 
 function prismaGlobal(): PrismaClient {
@@ -1561,6 +1939,26 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       character_id TEXT NOT NULL,
       slot TEXT NOT NULL,
       item_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE hp_recovery_notifications (
+      id TEXT NOT NULL PRIMARY KEY,
+      character_id TEXT NOT NULL UNIQUE,
+      generation INTEGER NOT NULL DEFAULT 1,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      source_hp_current INTEGER NOT NULL,
+      source_hp_max INTEGER NOT NULL,
+      source_hp_regen_at DATETIME,
+      source_fingerprint TEXT,
+      status TEXT NOT NULL DEFAULT 'waiting',
+      next_attempt_at DATETIME NOT NULL,
+      processing_started_at DATETIME,
+      ready_at DATETIME,
+      sent_at DATETIME,
+      suppressed_at DATETIME,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

@@ -138,6 +138,15 @@ export class ClassNoncombatService {
     page = 0
   ): Promise<ClassNoncombatOpenResult> {
     const now = this.clock();
+    return this.openForTelegramUserAt(telegramUserId, mode, page, now);
+  }
+
+  private async openForTelegramUserAt(
+    telegramUserId: bigint,
+    mode: ClassNoncombatMode,
+    page: number,
+    now: Date
+  ): Promise<ClassNoncombatOpenResult> {
     if (mode === "varenyk") {
       await this.repository.settleVarenykSatedForTelegramUser(telegramUserId, now);
     }
@@ -155,7 +164,9 @@ export class ClassNoncombatService {
 
     const character = mode === "rogue"
       ? summarizeCharacterForOpenList(snapshot.character)
-      : (await this.summarizeForPlanning(telegramUserId, snapshot.character, now)).summary;
+      : mode === "varenyk" && snapshot.varenykPlanning
+        ? summarizeCanonicalVarenykPlanning(snapshot.varenykPlanning.summary, snapshot.character)
+        : (await this.summarizeForPlanning(telegramUserId, snapshot.character, now)).summary;
     const eligible =
       character.level >= CLASS_NONCOMBAT_MIN_LEVEL &&
       ((mode === "priest" && character.classId === "class.priest") ||
@@ -185,7 +196,11 @@ export class ClassNoncombatService {
           }))
         : await Promise.all(snapshot.targets.map(async (target) => ({
             ...target,
-            ...summarizeTargetFields((await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary),
+            ...summarizeTargetFields(
+              mode === "varenyk" && target.varenykPlanning
+                ? summarizeCanonicalVarenykPlanning(target.varenykPlanning.summary, target.character)
+                : (await this.summarizeForPlanning(target.telegramUserId, target.character, now)).summary
+            ),
             canPriestAid: mode === "priest",
             canRoguePickpocket: false,
             canVarenykFeed:
@@ -211,7 +226,8 @@ export class ClassNoncombatService {
       page: number;
     }
   ): Promise<VarenykSatedPreviewResult> {
-    const open = await this.openForTelegramUser(actorTelegramUserId, "varenyk", input.page);
+    const now = this.clock();
+    const open = await this.openForTelegramUserAt(actorTelegramUserId, "varenyk", input.page, now);
     if (open.state !== "ready") {
       return { state: "blocked", reason: open.state === "no-character" ? "no-character" : "not-varenyk-mancer" };
     }
@@ -240,7 +256,6 @@ export class ClassNoncombatService {
       return { state: "blocked", reason: "target-cooldown", availableAt };
     }
     const previewToken = createPreviewToken(this.rng);
-    const now = this.clock();
     const saved = await this.repository.saveVarenykSatedPreview(actorTelegramUserId, {
       targetTelegramUserId: input.targetTelegramUserId,
       expectedActorRemortCount: input.expectedActorRemortCount,
@@ -612,6 +627,14 @@ export class ClassNoncombatService {
       activePriestBlessing: activeBlessing
     };
   }
+}
+
+function summarizeCanonicalVarenykPlanning(
+  summary: CharacterSummary,
+  character: CharacterRecord
+): CharacterSummary {
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+  return activeCosmeticTitle ? { ...summary, activeCosmeticTitle } : summary;
 }
 
 function presentBlocked<T extends { state: "blocked"; reason: NoncombatGateReason; actor?: unknown; target?: unknown; availableAt?: Date; blessing?: PriestBlessingRecord }>(

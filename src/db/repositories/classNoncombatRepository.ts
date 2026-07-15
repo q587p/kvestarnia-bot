@@ -1,4 +1,5 @@
 import type { CharacterRecord } from "./characterRepository";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { RoguePickpocketOutcome } from "../../domain/noncombat/classNoncombatTechniques";
 import type { VarenykSatedPayloadV1, VarenykSatedPlan } from "../../domain/noncombat/varenykSatedSupport";
 
@@ -17,6 +18,12 @@ export interface NoncombatTargetRecord {
   rogueAttemptedToday: boolean;
   varenykSatedAvailableAt: Date | null;
   varenykSated: VarenykSatedPayloadV1 | null;
+  varenykPlanning?: VarenykPlanningSnapshot;
+}
+
+export interface VarenykPlanningSnapshot {
+  summary: CharacterSummary;
+  equipmentItemIds: string[];
 }
 
 export interface NoncombatActionSnapshot {
@@ -34,6 +41,7 @@ export interface NoncombatActionSnapshot {
   varenykSatedSelf: VarenykSatedPayloadV1 | null;
   varenykStatRank: number | null;
   varenykPlan: VarenykSatedPlan | null;
+  varenykPlanning?: VarenykPlanningSnapshot;
 }
 
 export interface PriestAidRecord {

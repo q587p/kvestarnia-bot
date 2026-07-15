@@ -110,6 +110,45 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("Атака влучає на 4 шкоди.");
   });
 
+  it.each([
+    [{ hpRestored: 1, manaRestored: 0 }, "😋 Ситість відновила +1 HP."],
+    [{ hpRestored: 0, manaRestored: 1 }, "😋 Ситість відновила +1 мани."],
+    [{ hpRestored: 0, manaRestored: 0 }, null]
+  ] as const)("renders stored journal Sated recovery without zero components: %j", (satedRecovery, expectedLine) => {
+    const character = buildCharacter();
+    const text = presentTrainingDoppelgangerJournal({
+      state: "found",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        turnLog: [{
+          eventId: "turn:sated",
+          turn: 1,
+          hero: { hp: 17, mana: 5 },
+          monster: { hp: 18 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            satedRecovery
+          }
+        }]
+      }),
+      reward: null
+    }, 0);
+
+    if (expectedLine) {
+      expect(text).toContain(expectedLine);
+      expect(text.match(/😋 Ситість відновила/g)).toHaveLength(1);
+    } else {
+      expect(text).not.toContain("😋 Ситість відновила");
+    }
+    expect(text).not.toContain("+0");
+  });
+
   it("renders terminal XP without gold or manatky", () => {
     const character = buildCharacter();
     const text = presentTrainingDoppelgangerTurn({

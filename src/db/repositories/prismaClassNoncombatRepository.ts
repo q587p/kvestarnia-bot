@@ -52,6 +52,7 @@ import {
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { EQUIPMENT_ATTUNEMENT_ACTION_KEY, isEquipmentAttunementPendingForRow } from "../../domain/equipment/equipmentAttunement";
 import { buildShynokRecoveryWindows, isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { applyPriestBlessingBonusToSummary } from "../../domain/noncombat/priestBlessingBonus";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -59,6 +60,7 @@ const PRIEST_CLASS_ID = "class.priest";
 const ROGUE_CLASS_ID = "class.rogue";
 const VARENYK_MANCER_CLASS_ID = "class.varenyk-mancer";
 const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
+const PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS = 3;
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
   async isRogueRetaliationDuelInviteToken(inviteToken: string): Promise<boolean> {
@@ -118,8 +120,21 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     const totalPages = Math.max(1, Math.ceil(targets.length / safePageSize));
     const safePage = clampPage(input.page, totalPages);
     const start = safePage * safePageSize;
+    const pagedTargets = targets.slice(start, start + safePageSize);
     const varenykPlanning = input.mode === "varenyk"
-      ? await getSatedCanonicalResources(this.prisma, actor as SatedCharacter, input.now)
+      ? await getSatedCanonicalResources(this.prisma, actor as SatedCharacter, input.now, true)
+      : null;
+    const varenykTargetPlanning = input.mode === "varenyk"
+      ? new Map(await Promise.all(pagedTargets.map(async (target) => {
+          const character = await findSatedCharacterById(this.prisma, target.characterId);
+          if (!character) {
+            return [target.characterId, null] as const;
+          }
+          return [
+            target.characterId,
+            toVarenykPlanningSnapshot(await getSatedCanonicalResources(this.prisma, character, input.now, true))
+          ] as const;
+        })))
       : null;
     const varenykStatPlan = varenykPlanning
       ? buildVarenykSatedPlan({
@@ -138,7 +153,12 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           }
         : actorRecord,
       actorBlocked: input.mode === "varenyk" ? isVarenykBlocked(actor) : isBlocked(actor),
-      targets: targets.slice(start, start + safePageSize),
+      targets: pagedTargets.map((target) => ({
+        ...target,
+        ...(varenykTargetPlanning?.get(target.characterId)
+          ? { varenykPlanning: varenykTargetPlanning.get(target.characterId)! }
+          : {})
+      })),
       targetPage: safePage,
       targetTotalPages: totalPages,
       locationId,
@@ -156,7 +176,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
             varenykStatPlan.rank,
             varenykPlanning.regeneration.resources.manaCurrent
           )
-        : null
+        : null,
+      ...(varenykPlanning ? { varenykPlanning: toVarenykPlanningSnapshot(varenykPlanning) } : {})
     };
   }
 
@@ -199,6 +220,24 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
   }
 
   async settleVarenykSatedForTelegramUser(
+    telegramUserId: bigint,
+    now: Date,
+    knownCharacterId?: string
+  ) {
+    for (let attempt = 1; attempt <= PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.settleVarenykSatedForTelegramUserOnce(telegramUserId, now, knownCharacterId);
+      } catch (error) {
+        const expectedRace = error instanceof ResourceRaceError || error instanceof SatedClaimRaceError;
+        if (!expectedRace || attempt === PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS) {
+          throw error;
+        }
+      }
+    }
+    return null;
+  }
+
+  private async settleVarenykSatedForTelegramUserOnce(
     telegramUserId: bigint,
     now: Date,
     knownCharacterId?: string
@@ -1525,7 +1564,12 @@ async function findSatedCharacterById(
   });
 }
 
-async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character: SatedCharacter, now: Date) {
+async function getSatedCanonicalResources(
+  tx: TxClient | PrismaClient,
+  character: SatedCharacter,
+  now: Date,
+  includeActiveBlessing = false
+) {
   const localDates = character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
   const attunementActions = localDates.length > 0
     ? await tx.dailyAction.findMany({
@@ -1546,10 +1590,26 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
     return item ? [{ row, item }] : [];
   });
   const equippedItems = attunedEquipment.map(({ item }) => item);
-  const summary = summarizeCharacter(toCharacterRecord(character), {
+  const baseSummary = summarizeCharacter(toCharacterRecord(character), {
     equippedItems,
     remortCount: getIncludedRemortCount(character)
   });
+  const activeBlessing = includeActiveBlessing
+    ? await tx.noncombatPriestBlessing.findFirst({
+        where: {
+          targetCharacterId: character.id,
+          status: "active",
+          expiresAt: { gt: now }
+        },
+        select: {
+          bonusStat: true,
+          bonusAmount: true,
+          expiresAt: true
+        },
+        orderBy: { startedAt: "desc" }
+      })
+    : null;
+  const summary = applyPriestBlessingBonusToSummary(baseSummary, activeBlessing, now);
   const drink = character.drinkState && isShynokDrinkKey(character.drinkState.drinkKey)
     ? {
         drinkKey: character.drinkState.drinkKey,
@@ -1566,10 +1626,10 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
   }));
   const regeneration = applyPassiveResourceRegeneration({
     resources: {
-      hpCurrent: summary.hpCurrent,
-      hpMax: summary.hpMax,
-      manaCurrent: summary.manaCurrent,
-      manaMax: summary.manaMax,
+      hpCurrent: baseSummary.hpCurrent,
+      hpMax: baseSummary.hpMax,
+      manaCurrent: baseSummary.manaCurrent,
+      manaMax: baseSummary.manaMax,
       hpRegenAt: character.hpRegenAt,
       manaRegenAt: character.manaRegenAt
     },
@@ -1577,7 +1637,7 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
       raceId: summary.raceId,
       classId: summary.classId,
       title: summary.title,
-      stats: summary.stats
+      stats: baseSummary.stats
     },
     now,
     multiplierWindows: recoveryWindows.map((window) => ({
@@ -1607,6 +1667,19 @@ async function getSatedCanonicalResources(tx: TxClient | PrismaClient, character
   };
 }
 
+function toVarenykPlanningSnapshot(
+  canonical: Awaited<ReturnType<typeof getSatedCanonicalResources>>
+) {
+  return {
+    summary: {
+      ...canonical.summary,
+      hpCurrent: canonical.regeneration.resources.hpCurrent,
+      manaCurrent: canonical.regeneration.resources.manaCurrent
+    },
+    equipmentItemIds: canonical.equipmentItemIds
+  };
+}
+
 async function settleSatedForCommit(
   tx: TxClient,
   character: SatedCharacter,
@@ -1619,7 +1692,7 @@ async function settleSatedForCommit(
 }> {
   const cooldown = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
   const payload = parseVarenykSatedPayload(cooldown?.resultJson);
-  const canonical = await getSatedCanonicalResources(tx, character, now);
+  const canonical = await getSatedCanonicalResources(tx, character, now, true);
   if (!cooldown || !payload || payload.recipientCharacterId !== character.id ||
       payload.recipientRemortCount !== getIncludedRemortCount(character)) {
     return { character, canonical, cooldown, payload: null };
@@ -1691,7 +1764,7 @@ async function settleSatedForCommit(
   if (!refreshed) {
     throw new ResourceRaceError();
   }
-  const refreshedCanonical = await getSatedCanonicalResources(tx, refreshed, now);
+  const refreshedCanonical = await getSatedCanonicalResources(tx, refreshed, now, true);
   return {
     character: refreshed,
     canonical: refreshedCanonical,
