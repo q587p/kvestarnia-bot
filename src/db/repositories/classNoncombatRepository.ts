@@ -23,7 +23,22 @@ export interface NoncombatTargetRecord {
 
 export interface VarenykPlanningSnapshot {
   summary: CharacterSummary;
+  activeCosmeticTitleGrantId: string | null;
+  naturalHpMax: number;
+  naturalManaMax: number;
   equipmentItemIds: string[];
+  attunedEquipmentRows: Array<{
+    rowId: string;
+    slot: string;
+    itemId: string;
+    updatedAt: string;
+  }>;
+  activePriestBlessing: {
+    id: string;
+    bonusStat: string | null;
+    bonusAmount: number;
+    expiresAt: string;
+  } | null;
 }
 
 export interface NoncombatActionSnapshot {
@@ -108,7 +123,7 @@ export interface VarenykSatedActionRecord {
 }
 
 export interface VarenykSatedStatusRecord {
-  payload: VarenykSatedPayloadV1;
+  payload: VarenykSatedPayloadV1 | null;
   hpRestored: number;
   manaRestored: number;
   character: CharacterRecord;
@@ -124,6 +139,10 @@ export type VarenykSatedPreviewRepositoryResult =
       state: "saved";
       statRank: number;
       plan: VarenykSatedPlan;
+      actor: VarenykPlanningSnapshot;
+      target: VarenykPlanningSnapshot;
+      actorRemortCount: number;
+      targetRemortCount: number;
     }
   | {
       state: "blocked";
@@ -227,7 +246,11 @@ export interface ClassNoncombatRepository {
   settleVarenykSatedForTelegramUser(
     telegramUserId: bigint,
     now: Date,
-    knownCharacterId?: string
+    knownCharacterId?: string,
+    expectedCharacter?: Pick<
+      CharacterRecord,
+      "hpCurrent" | "manaCurrent" | "hpRegenAt" | "manaRegenAt" | "remortCount"
+    >
   ): Promise<VarenykSatedStatusRecord | null>;
 
   saveVarenykSatedPreview(

@@ -31,7 +31,8 @@ import type {
   PriestHealRepositoryResult,
   RoguePickpocketAttemptRecord,
   RoguePickpocketRepositoryResult,
-  RogueRetaliationClaimResult
+  RogueRetaliationClaimResult,
+  VarenykPlanningSnapshot
 } from "./classNoncombatRepository";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
@@ -222,33 +223,48 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
   async settleVarenykSatedForTelegramUser(
     telegramUserId: bigint,
     now: Date,
-    knownCharacterId?: string
+    knownCharacterId?: string,
+    expectedCharacter?: Parameters<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>[3]
   ) {
     for (let attempt = 1; attempt <= PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS; attempt += 1) {
       try {
-        return await this.settleVarenykSatedForTelegramUserOnce(telegramUserId, now, knownCharacterId);
+        return await this.settleVarenykSatedForTelegramUserOnce(
+          telegramUserId,
+          now,
+          knownCharacterId,
+          expectedCharacter,
+          attempt > 1
+        );
       } catch (error) {
         const expectedRace = error instanceof ResourceRaceError || error instanceof SatedClaimRaceError;
-        if (!expectedRace || attempt === PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS) {
+        if (!expectedRace) {
           throw error;
         }
       }
     }
-    return null;
+    return this.reloadVarenykSatedPublicRead(telegramUserId, knownCharacterId);
   }
 
   private async settleVarenykSatedForTelegramUserOnce(
     telegramUserId: bigint,
     now: Date,
-    knownCharacterId?: string
+    knownCharacterId?: string,
+    expectedCharacter?: Parameters<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>[3],
+    bypassHistoricalFastPath = false
   ) {
-    if (knownCharacterId) {
+    if (knownCharacterId && !bypassHistoricalFastPath) {
       const activeRow = await findCooldown(this.prisma, knownCharacterId, VARENYK_SATED_STATUS_KEY);
       if (!activeRow) {
         return null;
       }
       const activePayload = parseVarenykSatedPayload(activeRow.resultJson);
       if (isSettledHistoricalSatedRow(activeRow, activePayload, knownCharacterId, now)) {
+        if (expectedCharacter) {
+          const current = await findCharacterById(this.prisma, knownCharacterId);
+          if (current && !matchesExpectedPublicCharacter(current, expectedCharacter)) {
+            return toPublicSatedReadRecord(current, activePayload);
+          }
+        }
         return null;
       }
     }
@@ -263,7 +279,7 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       const payload = parseVarenykSatedPayload(statusRow?.resultJson);
       const remortCount = getIncludedRemortCount(character);
       if (!payload || payload.recipientRemortCount !== remortCount || payload.recipientCharacterId !== character.id) {
-        return null;
+        return toPublicSatedReadRecord(character, payload);
       }
 
       const canonical = await getSatedCanonicalResources(tx, character, now);
@@ -361,6 +377,20 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     });
   }
 
+  private async reloadVarenykSatedPublicRead(
+    telegramUserId: bigint,
+    knownCharacterId?: string
+  ) {
+    const character = knownCharacterId
+      ? await findCharacterById(this.prisma, knownCharacterId) ?? await findCharacter(this.prisma, telegramUserId)
+      : await findCharacter(this.prisma, telegramUserId);
+    if (!character) {
+      return null;
+    }
+    const statusRow = await findCooldown(this.prisma, character.id, VARENYK_SATED_STATUS_KEY);
+    return toPublicSatedReadRecord(character, parseVarenykSatedPayload(statusRow?.resultJson));
+  }
+
   async saveVarenykSatedPreview(
     actorTelegramUserId: bigint,
     input: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1]
@@ -411,9 +441,9 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         };
       }
       const actorContext = await settleSatedForCommit(tx, actor, input.now);
-      if (actor.id !== target!.id) {
-        await settleSatedForCommit(tx, target!, input.now);
-      }
+      const targetContext = actor.id === target!.id
+        ? actorContext
+        : await settleSatedForCommit(tx, target!, input.now);
       const canonical = actorContext.canonical;
       const statPlan = buildVarenykSatedPlan({
         effectiveIntelligence: canonical.summary.stats.intelligence,
@@ -427,6 +457,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       if (!plan) {
         return { state: "blocked" as const, reason: "insufficient-mana" as const };
       }
+      const actorPlanning = toVarenykPlanningSnapshot(actorContext.canonical);
+      const targetPlanning = toVarenykPlanningSnapshot(targetContext.canonical);
       const payload: SatedPreviewPayload = {
         kind: "varenyk-sated-preview-v2",
         version: 2,
@@ -445,6 +477,8 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           equipmentItemIds: canonical.equipmentItemIds,
           attunedEquipmentRows: canonical.attunedEquipmentRows
         },
+        actorPlanning: toPersistedSatedPreviewPlanningSnapshot(actorPlanning),
+        targetPlanning: toPersistedSatedPreviewPlanningSnapshot(targetPlanning),
         recoveryWindows: canonical.recoveryWindows,
         expiresAt: input.expiresAt.toISOString()
       };
@@ -458,7 +492,15 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         },
         update: { availableAt: input.expiresAt, resultJson: toJson(payload) }
       });
-      return { state: "saved" as const, statRank: statPlan.rank, plan };
+      return {
+        state: "saved" as const,
+        statRank: statPlan.rank,
+        plan,
+        actor: actorPlanning,
+        target: targetPlanning,
+        actorRemortCount: getIncludedRemortCount(actorContext.character),
+        targetRemortCount: getIncludedRemortCount(targetContext.character)
+      };
     });
   }
 
@@ -1602,6 +1644,7 @@ async function getSatedCanonicalResources(
           expiresAt: { gt: now }
         },
         select: {
+          id: true,
           bonusStat: true,
           bonusAmount: true,
           expiresAt: true
@@ -1648,6 +1691,8 @@ async function getSatedCanonicalResources(
   });
   return {
     summary,
+    baseSummary,
+    activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
     regeneration,
     equipmentItemIds: equippedItems.map((item) => item.id).sort(),
     attunedEquipmentRows: attunedEquipment
@@ -1663,7 +1708,15 @@ async function getSatedCanonicalResources(
         left.itemId.localeCompare(right.itemId) ||
         left.updatedAt.localeCompare(right.updatedAt)
       ),
-    recoveryWindows
+    recoveryWindows,
+    activePriestBlessing: activeBlessing
+      ? {
+          id: activeBlessing.id,
+          bonusStat: activeBlessing.bonusStat,
+          bonusAmount: activeBlessing.bonusAmount,
+          expiresAt: activeBlessing.expiresAt.toISOString()
+        }
+      : null
   };
 }
 
@@ -1676,7 +1729,12 @@ function toVarenykPlanningSnapshot(
       hpCurrent: canonical.regeneration.resources.hpCurrent,
       manaCurrent: canonical.regeneration.resources.manaCurrent
     },
-    equipmentItemIds: canonical.equipmentItemIds
+    activeCosmeticTitleGrantId: canonical.activeCosmeticTitleGrantId,
+    naturalHpMax: canonical.baseSummary.hpMax,
+    naturalManaMax: canonical.baseSummary.manaMax,
+    equipmentItemIds: canonical.equipmentItemIds,
+    attunedEquipmentRows: canonical.attunedEquipmentRows,
+    activePriestBlessing: canonical.activePriestBlessing
   };
 }
 
@@ -1796,12 +1854,70 @@ interface SatedPreviewPayload {
       updatedAt: string;
     }>;
   };
+  actorPlanning: PersistedSatedPreviewPlanningSnapshot;
+  targetPlanning: PersistedSatedPreviewPlanningSnapshot;
   recoveryWindows: Array<{ startsAt: string; expiresAt: string; multiplierBp: number }>;
   expiresAt: string;
 }
 
+interface PersistedSatedPreviewPlanningSnapshot {
+  hpCurrent: number;
+  hpMax: number;
+  manaCurrent: number;
+  manaMax: number;
+  naturalHpMax: number;
+  naturalManaMax: number;
+  stats: VarenykPlanningSnapshot["summary"]["stats"];
+  equipmentItemIds: string[];
+  attunedEquipmentRows: VarenykPlanningSnapshot["attunedEquipmentRows"];
+  activePriestBlessing: VarenykPlanningSnapshot["activePriestBlessing"];
+}
+
 function isSatedPreviewRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isPersistedSatedPreviewPlanningSnapshot(
+  value: unknown
+): value is PersistedSatedPreviewPlanningSnapshot {
+  const stats = isSatedPreviewRecord(value) && isSatedPreviewRecord(value.stats)
+    ? value.stats
+    : null;
+  if (!isSatedPreviewRecord(value) ||
+      !Number.isInteger(value.hpCurrent) ||
+      !Number.isInteger(value.hpMax) ||
+      !Number.isInteger(value.manaCurrent) ||
+      !Number.isInteger(value.manaMax) ||
+      !Number.isInteger(value.naturalHpMax) ||
+      !Number.isInteger(value.naturalManaMax) ||
+      !stats ||
+      !["strength", "dexterity", "intelligence", "charisma", "luck"]
+        .every((key) => Number.isInteger(stats[key])) ||
+      !Array.isArray(value.equipmentItemIds) ||
+      !value.equipmentItemIds.every((entry) => typeof entry === "string") ||
+      !isSatedAttunedEquipmentRows(value.attunedEquipmentRows)) {
+    return false;
+  }
+  const blessing = value.activePriestBlessing;
+  return blessing === null || (
+    isSatedPreviewRecord(blessing) &&
+    typeof blessing.id === "string" &&
+    (blessing.bonusStat === null || typeof blessing.bonusStat === "string") &&
+    Number.isInteger(blessing.bonusAmount) &&
+    typeof blessing.expiresAt === "string" &&
+    Number.isFinite(Date.parse(blessing.expiresAt))
+  );
+}
+
+function isSatedAttunedEquipmentRows(value: unknown): value is VarenykPlanningSnapshot["attunedEquipmentRows"] {
+  return Array.isArray(value) && value.every((entry) =>
+    isSatedPreviewRecord(entry) &&
+    typeof entry.rowId === "string" &&
+    typeof entry.slot === "string" &&
+    typeof entry.itemId === "string" &&
+    typeof entry.updatedAt === "string" &&
+    Number.isFinite(Date.parse(entry.updatedAt))
+  );
 }
 
 function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
@@ -1827,15 +1943,9 @@ function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
     !Number.isInteger(value.effectiveStats.level) ||
     !Array.isArray(value.effectiveStats.equipmentItemIds) ||
     !value.effectiveStats.equipmentItemIds.every((entry) => typeof entry === "string") ||
-    !Array.isArray(value.effectiveStats.attunedEquipmentRows) ||
-    !value.effectiveStats.attunedEquipmentRows.every((entry) =>
-      isSatedPreviewRecord(entry) &&
-      typeof entry.rowId === "string" &&
-      typeof entry.slot === "string" &&
-      typeof entry.itemId === "string" &&
-      typeof entry.updatedAt === "string" &&
-      Number.isFinite(Date.parse(entry.updatedAt))
-    ) ||
+    !isSatedAttunedEquipmentRows(value.effectiveStats.attunedEquipmentRows) ||
+    !isPersistedSatedPreviewPlanningSnapshot(value.actorPlanning) ||
+    !isPersistedSatedPreviewPlanningSnapshot(value.targetPlanning) ||
     !Array.isArray(value.recoveryWindows) ||
     !value.recoveryWindows.every((entry) =>
       isSatedPreviewRecord(entry) &&
@@ -1851,6 +1961,23 @@ function parseSatedPreviewPayload(value: unknown): SatedPreviewPayload | null {
   return value as unknown as SatedPreviewPayload;
 }
 
+function toPersistedSatedPreviewPlanningSnapshot(
+  planning: VarenykPlanningSnapshot
+): PersistedSatedPreviewPlanningSnapshot {
+  return {
+    hpCurrent: planning.summary.hpCurrent,
+    hpMax: planning.summary.hpMax,
+    manaCurrent: planning.summary.manaCurrent,
+    manaMax: planning.summary.manaMax,
+    naturalHpMax: planning.naturalHpMax,
+    naturalManaMax: planning.naturalManaMax,
+    stats: planning.summary.stats,
+    equipmentItemIds: planning.equipmentItemIds,
+    attunedEquipmentRows: planning.attunedEquipmentRows,
+    activePriestBlessing: planning.activePriestBlessing
+  };
+}
+
 function matchesSatedPreviewPlan(
   preview: SatedPreviewPayload,
   canonical: Awaited<ReturnType<typeof getSatedCanonicalResources>>
@@ -1860,6 +1987,9 @@ function matchesSatedPreviewPlan(
     effectiveCharisma: canonical.summary.stats.charisma,
     level: canonical.summary.level
   });
+  const currentPlanning = toPersistedSatedPreviewPlanningSnapshot(
+    toVarenykPlanningSnapshot(canonical)
+  );
   return preview.statRank === statPlan.rank &&
     preview.effectiveStats.intelligence === canonical.summary.stats.intelligence &&
     preview.effectiveStats.charisma === canonical.summary.stats.charisma &&
@@ -1867,6 +1997,16 @@ function matchesSatedPreviewPlan(
     preview.effectiveStats.equipmentItemIds.length === canonical.equipmentItemIds.length &&
     preview.effectiveStats.equipmentItemIds.every((id, index) => id === canonical.equipmentItemIds[index]) &&
     JSON.stringify(preview.effectiveStats.attunedEquipmentRows) === JSON.stringify(canonical.attunedEquipmentRows) &&
+    preview.actorPlanning.hpMax === currentPlanning.hpMax &&
+    preview.actorPlanning.manaMax === currentPlanning.manaMax &&
+    preview.actorPlanning.naturalHpMax === currentPlanning.naturalHpMax &&
+    preview.actorPlanning.naturalManaMax === currentPlanning.naturalManaMax &&
+    JSON.stringify(preview.actorPlanning.stats) === JSON.stringify(currentPlanning.stats) &&
+    JSON.stringify(preview.actorPlanning.equipmentItemIds) === JSON.stringify(currentPlanning.equipmentItemIds) &&
+    JSON.stringify(preview.actorPlanning.attunedEquipmentRows) ===
+      JSON.stringify(currentPlanning.attunedEquipmentRows) &&
+    JSON.stringify(preview.actorPlanning.activePriestBlessing) ===
+      JSON.stringify(currentPlanning.activePriestBlessing) &&
     JSON.stringify(preview.recoveryWindows) === JSON.stringify(canonical.recoveryWindows) &&
     preview.plan.rank >= 1 &&
     preview.plan.rank <= preview.statRank &&
@@ -2169,6 +2309,16 @@ async function findCharacter(client: TxClient | PrismaClient, telegramUserId: bi
   });
 }
 
+async function findCharacterById(
+  client: TxClient | PrismaClient,
+  characterId: string
+): Promise<IncludedCharacter | null> {
+  return client.character.findUnique({
+    where: { id: characterId },
+    include: characterInclude
+  });
+}
+
 async function findCharacterByIdOrThrow(client: TxClient, characterId: string): Promise<IncludedCharacter> {
   return client.character.findUniqueOrThrow({
     where: { id: characterId },
@@ -2337,6 +2487,35 @@ class ResourceRaceError extends Error {
   constructor() {
     super("Class noncombat resource mutation lost an optimistic race.");
   }
+}
+
+function matchesExpectedPublicCharacter(
+  character: IncludedCharacter,
+  expected: NonNullable<Parameters<ClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>[3]>
+): boolean {
+  return character.hpCurrent === expected.hpCurrent &&
+    character.manaCurrent === expected.manaCurrent &&
+    character.hpRegenAt?.getTime() === expected.hpRegenAt?.getTime() &&
+    character.manaRegenAt?.getTime() === expected.manaRegenAt?.getTime() &&
+    getIncludedRemortCount(character) === (expected.remortCount ?? 0);
+}
+
+function toPublicSatedReadRecord(
+  character: IncludedCharacter,
+  payload: VarenykSatedPayloadV1 | null
+) {
+  const currentLifePayload = payload &&
+    payload.recipientCharacterId === character.id &&
+    payload.recipientRemortCount === getIncludedRemortCount(character)
+    ? payload
+    : null;
+  return {
+    payload: currentLifePayload,
+    hpRestored: 0,
+    manaRestored: 0,
+    character: toCharacterRecord(character),
+    passiveRecoveryNotice: null
+  };
 }
 
 function addMinutes(date: Date, minutes: number): Date {

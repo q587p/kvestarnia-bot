@@ -5,7 +5,8 @@ import type {
   PriestAidRecord,
   PriestBlessingRecord,
   RoguePickpocketAttemptRecord,
-  RogueRetaliationClaimResult
+  RogueRetaliationClaimResult,
+  VarenykPlanningSnapshot
 } from "../db/repositories/classNoncombatRepository";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
@@ -96,6 +97,8 @@ export type VarenykSatedPreviewResult =
       state: "preview";
       actor: CharacterSummary;
       target: CharacterSummary | ClassNoncombatTarget;
+      actorPlanning: VarenykPlanningSnapshot;
+      targetPlanning: VarenykPlanningSnapshot;
       targetTelegramUserId: bigint | null;
       actorRemortCount: number;
       targetRemortCount: number;
@@ -270,11 +273,13 @@ export class ClassNoncombatService {
     }
     return {
       state: "preview",
-      actor: open.character,
-      target,
+      actor: summarizePersistedVarenykPreview(saved.actor),
+      target: summarizePersistedVarenykPreview(saved.target),
+      actorPlanning: saved.actor,
+      targetPlanning: saved.target,
       targetTelegramUserId: input.targetTelegramUserId,
-      actorRemortCount: input.expectedActorRemortCount,
-      targetRemortCount: input.expectedTargetRemortCount,
+      actorRemortCount: saved.actorRemortCount,
+      targetRemortCount: saved.targetRemortCount,
       statRank: saved.statRank,
       plan: saved.plan,
       previewToken,
@@ -635,6 +640,15 @@ function summarizeCanonicalVarenykPlanning(
 ): CharacterSummary {
   const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
   return activeCosmeticTitle ? { ...summary, activeCosmeticTitle } : summary;
+}
+
+function summarizePersistedVarenykPreview(
+  planning: VarenykPlanningSnapshot
+): CharacterSummary {
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(planning.activeCosmeticTitleGrantId);
+  return activeCosmeticTitle
+    ? { ...planning.summary, activeCosmeticTitle }
+    : planning.summary;
 }
 
 function presentBlocked<T extends { state: "blocked"; reason: NoncombatGateReason; actor?: unknown; target?: unknown; availableAt?: Date; blessing?: PriestBlessingRecord }>(

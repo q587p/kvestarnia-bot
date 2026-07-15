@@ -86,6 +86,56 @@ describe("ClassNoncombatService", () => {
     expect(equipment.lookupTelegramUserIds).toEqual([]);
   });
 
+  it("uses the persisted repository planning snapshot instead of preliminary open summaries", async () => {
+    const preliminary = varenyk({ manaCurrent: 8, manaMax: 20, statsJson: { intelligence: 8, charisma: 8 } });
+    const canonicalSummary = {
+      ...summarizeCharacter(preliminary),
+      manaCurrent: 12,
+      manaMax: 26,
+      stats: { ...summarizeCharacter(preliminary).stats, intelligence: 11 }
+    };
+    const planning = {
+      summary: canonicalSummary,
+      activeCosmeticTitleGrantId: null,
+      naturalHpMax: canonicalSummary.hpMax,
+      naturalManaMax: canonicalSummary.manaMax,
+      equipmentItemIds: ["item.mantok.coverage.class.varenyk-mancer.dough-crown"],
+      attunedEquipmentRows: [{
+        rowId: "replacement-row",
+        slot: "head",
+        itemId: "item.mantok.coverage.class.varenyk-mancer.dough-crown",
+        updatedAt: now.toISOString()
+      }],
+      activePriestBlessing: null
+    };
+    const repository = new FakeClassNoncombatRepository({
+      actor: preliminary,
+      satedPreviewResult: {
+        state: "saved",
+        statRank: 2,
+        plan: { rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 1 },
+        actor: planning,
+        target: planning,
+        actorRemortCount: 0,
+        targetRemortCount: 0
+      }
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0.4]));
+
+    await expect(service.previewVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    })).resolves.toMatchObject({
+      state: "preview",
+      actor: { manaCurrent: 12, manaMax: 26, stats: { intelligence: 11 } },
+      target: { manaCurrent: 12, manaMax: 26, stats: { intelligence: 11 } },
+      statRank: 2,
+      plan: { rank: 2, manaCost: 12 }
+    });
+  });
+
   it("awards Varenyk achievements only for a fresh durable completion", async () => {
     const fresh = varenykSatedCompletion({ created: true });
     const repository = new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: fresh });
@@ -627,7 +677,12 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
           ? {
               varenykPlanning: {
                 summary: summarizeCharacter(this.target),
-                equipmentItemIds: []
+                activeCosmeticTitleGrantId: this.target.activeCosmeticTitleGrantId ?? null,
+                equipmentItemIds: [],
+                attunedEquipmentRows: [],
+                naturalHpMax: summarizeCharacter(this.target).hpMax,
+                naturalManaMax: summarizeCharacter(this.target).manaMax,
+                activePriestBlessing: null
               }
             }
           : {})
@@ -645,7 +700,12 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         ? {
             varenykPlanning: {
               summary: summarizeCharacter(this.actor),
-              equipmentItemIds: []
+              activeCosmeticTitleGrantId: this.actor.activeCosmeticTitleGrantId ?? null,
+              equipmentItemIds: [],
+              attunedEquipmentRows: [],
+              naturalHpMax: summarizeCharacter(this.actor).hpMax,
+              naturalManaMax: summarizeCharacter(this.actor).manaMax,
+              activePriestBlessing: null
             }
           }
         : {})
@@ -678,8 +738,34 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     });
     const statRank = statPlan.rank;
     const plan = getAffordableVarenykSatedPlan(statRank, this.actor.manaCurrent);
+    const actorSummary = summarizeCharacter(this.actor);
+    const targetSummary = summarizeCharacter(this.target);
     return Promise.resolve(plan
-      ? { state: "saved" as const, statRank, plan }
+      ? {
+          state: "saved" as const,
+          statRank,
+          plan,
+          actor: {
+            summary: actorSummary,
+            activeCosmeticTitleGrantId: this.actor.activeCosmeticTitleGrantId ?? null,
+            naturalHpMax: actorSummary.hpMax,
+            naturalManaMax: actorSummary.manaMax,
+            equipmentItemIds: [],
+            attunedEquipmentRows: [],
+            activePriestBlessing: null
+          },
+          target: {
+            summary: targetSummary,
+            activeCosmeticTitleGrantId: this.target.activeCosmeticTitleGrantId ?? null,
+            naturalHpMax: targetSummary.hpMax,
+            naturalManaMax: targetSummary.manaMax,
+            equipmentItemIds: [],
+            attunedEquipmentRows: [],
+            activePriestBlessing: null
+          },
+          actorRemortCount: this.actor.remortCount ?? 0,
+          targetRemortCount: this.target.remortCount ?? 0
+        }
       : { state: "blocked" as const, reason: "insufficient-mana" as const });
   }
 

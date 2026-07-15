@@ -123,7 +123,8 @@ export class HeroService {
     const satedSettlement = await this.classNoncombat?.settleVarenykSatedForTelegramUser(
       telegramUserId,
       now,
-      character.id
+      character.id,
+      character
     ) ?? null;
     const authoritativeCharacter = satedSettlement?.character ?? character;
 
@@ -195,14 +196,14 @@ export class HeroService {
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
       activePriestBlessing: presentedPriestBlessing,
-      activeVarenykSated: satedSettlement && Date.parse(satedSettlement.payload.expiresAt) > now.getTime()
+      activeVarenykSated: satedSettlement?.payload && Date.parse(satedSettlement.payload.expiresAt) > now.getTime()
         ? {
             activationId: satedSettlement.payload.activationId,
             rank: satedSettlement.payload.rank,
             expiresAt: new Date(satedSettlement.payload.expiresAt)
           }
         : null,
-      varenykSatedAvailableAt: satedSettlement && Date.parse(satedSettlement.payload.availableAt) > now.getTime()
+      varenykSatedAvailableAt: satedSettlement?.payload && Date.parse(satedSettlement.payload.availableAt) > now.getTime()
         ? new Date(satedSettlement.payload.availableAt)
         : null,
       satedRecovery: satedSettlement && (satedSettlement.hpRestored > 0 || satedSettlement.manaRestored > 0)
