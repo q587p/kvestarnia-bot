@@ -43,6 +43,7 @@ describe("training doppelganger command", () => {
         currentLocationId: "location.korchma.fighting_corner"
       }
     }]));
+    const presence = capturingPresence();
     let replyCalls = 0;
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const ctx = {
@@ -60,13 +61,18 @@ describe("training doppelganger command", () => {
       service as unknown as TrainingDoppelgangerService,
       "reply",
       {
-        presence: fakePresence(),
+        presence,
         fightingCornerQuest: { recordTrainingSessionSafely },
         now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     )).resolves.toBeUndefined();
 
     expect(recordTrainingSessionSafely).toHaveBeenCalledTimes(1);
+    expect(presence.marks).toEqual([{
+      locationId: "location.korchma.fighting_corner",
+      currentRaidId: null,
+      currentAdventureId: null
+    }]);
     expect(warning).toHaveBeenCalledWith(
       "Kvestarnia: Fighting Corner training progress notification failed.",
       expect.any(Error)

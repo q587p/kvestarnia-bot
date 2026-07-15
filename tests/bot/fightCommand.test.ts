@@ -15,6 +15,7 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import type { FightService } from "../../src/services/fightService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
@@ -174,10 +175,17 @@ describe("fight command", () => {
       text: "🗡️ Вдарити",
       callback_data: "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack"
     });
+    expect(presence.marks[0]).toMatchObject({
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
   });
 
   it("restores a terminal persistent fight through the canonical reward screen", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      insideKorchma: true
+    });
     const recordPersistentFightMessageReference = vi.fn(() => Promise.resolve());
     const terminalSession = {
       ...persistentSession(),
@@ -235,7 +243,7 @@ describe("fight command", () => {
       recordPersistentFightMessageReference
     } as unknown as FightService;
 
-    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply");
+    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply", { presence });
 
     expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
@@ -258,6 +266,7 @@ describe("fight command", () => {
       chatId: "42",
       messageId: 777
     });
+    expect(presence.marks[0]).toMatchObject({ currentAdventureId: null });
   });
 
   it("does not show active fight buttons for a zero-HP terminalized persistent overview", async () => {

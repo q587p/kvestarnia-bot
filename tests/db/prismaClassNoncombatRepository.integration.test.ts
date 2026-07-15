@@ -1894,6 +1894,50 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(repository.isActorBlockedForTelegramUser(811n)).resolves.toBe(false);
   });
 
+  it("ignores stale combat presence markers without a lease but blocks active leases and real adventures", async () => {
+    await seedCharacter({
+      telegramUserId: 812n,
+      userId: "user-stale-combat-presence",
+      characterId: "stale-combat-presence",
+      classId: "class.varenyk-mancer",
+      level: 3,
+      currentAdventureId: "adventure.training-doppelganger"
+    });
+
+    for (const currentAdventureId of [
+      "adventure.training-doppelganger",
+      "adventure.solo-fight",
+      "adventure.mimic-shawarma-fight"
+    ]) {
+      await prisma.user.update({
+        where: { id: "user-stale-combat-presence" },
+        data: { currentAdventureId }
+      });
+      const snapshot = await repository.getSnapshotForTelegramUser(812n, {
+        ...snapshotInput(),
+        mode: "varenyk"
+      });
+      expect(snapshot).toMatchObject({ actorBlocked: false });
+      await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(false);
+    }
+
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: "stale-combat-presence",
+        kind: "training-doppelganger",
+        referenceId: "still-active"
+      }
+    });
+    await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(true);
+
+    await prisma.activeCombatLease.delete({ where: { characterId: "stale-combat-presence" } });
+    await prisma.user.update({
+      where: { id: "user-stale-combat-presence" },
+      data: { currentAdventureId: "adventure.mimic-shawarma" }
+    });
+    await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(true);
+  });
+
   it("marks same-day Rogue attempted targets in target snapshots", async () => {
     await seedCharacter({ telegramUserId: 901n, userId: "user-rogue", characterId: "rogue", classId: "class.rogue", level: 5, gold: 1 });
     await seedCharacter({ telegramUserId: 902n, userId: "user-target", characterId: "target", level: 5, gold: 8 });
