@@ -32,7 +32,9 @@ import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import {
-  releaseVarenykSatedCombatLease
+  freezeVarenykSatedFromCooldown,
+  releaseVarenykSatedCombatLease,
+  VarenykSatedCasError
 } from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
@@ -59,7 +61,6 @@ import type {
 } from "./soloCombatSessionRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
-import { freezeVarenykSatedFromCooldown } from "./prismaVarenykSated";
 
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
@@ -591,7 +592,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           }
         },
         select: {
-          id: true
+          id: true,
+          hpCurrent: true,
+          manaCurrent: true,
+          hpRegenAt: true,
+          manaRegenAt: true,
+          updatedAt: true
         }
       });
 
@@ -614,13 +620,38 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           characterId: character.id,
           remortCount: committedState.life?.remortCount ?? 0,
           resources: {
-            hp: committedState.hero.hp,
+            hp: character.hpCurrent,
             hpMax: committedState.hero.hpMax,
-            mana: committedState.hero.mana,
+            mana: character.manaCurrent,
             manaMax: committedState.hero.manaMax
           },
           now: combatStartedAt
         });
+        if (sated.hpRestored > 0 || sated.manaRestored > 0) {
+          const persisted = await tx.character.updateMany({
+            where: {
+              id: character.id,
+              hpCurrent: character.hpCurrent,
+              manaCurrent: character.manaCurrent,
+              hpRegenAt: character.hpRegenAt,
+              manaRegenAt: character.manaRegenAt,
+              updatedAt: character.updatedAt
+            },
+            data: {
+              hpCurrent: sated.resources.hp,
+              manaCurrent: sated.resources.mana,
+              hpRegenAt: sated.resources.hp >= committedState.hero.hpMax
+                ? combatStartedAt
+                : character.hpRegenAt,
+              manaRegenAt: sated.resources.mana >= committedState.hero.manaMax
+                ? combatStartedAt
+                : character.manaRegenAt
+            }
+          });
+          if (persisted.count !== 1) {
+            throw new VarenykSatedCasError("solo-character-resources");
+          }
+        }
         committedState = {
           ...committedState,
           hero: { ...committedState.hero, hp: sated.resources.hp, mana: sated.resources.mana },

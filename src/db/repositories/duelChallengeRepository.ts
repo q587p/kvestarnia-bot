@@ -1,6 +1,7 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats } from "../../domain/characters/starterStats";
+import type { RandomSource } from "../../shared/random";
 import type {
   DuelMode,
   TurnBasedDuelAction,
@@ -150,7 +151,7 @@ export interface CreateDuelChallengeInput {
 
 export interface StartTurnBasedDuelSessionInput {
   sessionId: string;
-  state: TurnBasedDuelState;
+  rng: RandomSource;
   turnExpiresAt: Date;
   targetChatId?: bigint | null;
   targetMessageId?: number | null;
@@ -192,7 +193,8 @@ export interface DuelChallengeRepository {
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;
 
   findCharacterByTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    now?: Date
   ): Promise<DuelCharacterSnapshot | null>;
 
   markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null>;

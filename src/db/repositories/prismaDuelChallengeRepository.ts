@@ -25,10 +25,9 @@ import {
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import type { CombatGearAbilityInput, CombatSkillProfile } from "../../domain/combat";
-import { prepareBalancedDuelists } from "../../domain/duels/duelBalance";
 import type { DuelistSummary } from "../../domain/duels/duelResolver";
 import {
-  buildTurnBasedDuelState,
+  startTurnBasedDuel,
   type TurnBasedDuelState,
   type TurnBasedDuelStatus
 } from "../../domain/duels/turnBasedDuel";
@@ -192,7 +191,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
   }
 
-  async findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
+  async findCharacterByTelegramUser(
+    telegramUserId: bigint,
+    now?: Date
+  ): Promise<DuelCharacterSnapshot | null> {
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -202,7 +204,14 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       ...characterInclude
     });
 
-    return character ? mapCharacter(character) : null;
+    if (!character) {
+      return null;
+    }
+
+    const equipment = now
+      ? await getActiveDuelEquipment(this.prisma, character.id, character.equipment, now)
+      : character.equipment;
+    return mapCharacter(character, equipment);
   }
 
   async markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null> {
@@ -420,9 +429,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         { duelist: DuelistSummary; sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]> }
       >;
       for (const side of ["challenger", "target"] as const) {
-        const participant = input.state.participants[side];
+        const participantId = side === "challenger" ? challenge.challengerCharacterId : target.id;
         const canonical = await tx.character.findUnique({
-          where: { id: participant.characterId },
+          where: { id: participantId },
           include: {
             equipment: true,
             _count: { select: { remorts: true } }
@@ -432,14 +441,11 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           throw new VarenykSatedCasError("duel-character-missing");
         }
         const remortCount = getIncludedRemortCount(canonical);
-        if (remortCount !== participant.remortCount) {
-          throw new VarenykSatedCasError("duel-character-life");
-        }
         const natural = await getDuelCanonicalPreparation(tx, canonical, remortCount, now);
         const sated = await freezeVarenykSatedFromCooldown({
           tx,
-          characterId: participant.characterId,
-          remortCount: participant.remortCount,
+          characterId: participantId,
+          remortCount,
           resources: {
             hp: natural.duelist.hpCurrent,
             hpMax: natural.duelist.hpMax,
@@ -451,7 +457,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         if (sated.hpRestored > 0 || sated.manaRestored > 0) {
           const persisted = await tx.character.updateMany({
             where: {
-              id: participant.characterId,
+              id: participantId,
               hpCurrent: canonical.hpCurrent,
               manaCurrent: canonical.manaCurrent,
               hpRegenAt: canonical.hpRegenAt,
@@ -479,12 +485,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         };
       }
 
-      const state = buildTurnBasedDuelState({
-        prepared: prepareBalancedDuelists({
-          challenger: canonicalParticipants.challenger.duelist,
-          target: canonicalParticipants.target.duelist
-        }),
-        actingCharacterId: input.state.actingCharacterId
+      const state = startTurnBasedDuel({
+        challenger: canonicalParticipants.challenger.duelist,
+        target: canonicalParticipants.target.duelist,
+        rng: input.rng
       });
       for (const side of ["challenger", "target"] as const) {
         const sated = canonicalParticipants[side].sated;
@@ -981,25 +985,12 @@ async function getDuelCanonicalPreparation(
   remortCount: number,
   now: Date
 ): Promise<{ duelist: DuelistSummary }> {
-  const localDates = canonical.equipment.map(
-    (row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`
-  );
-  const actions = localDates.length > 0
-    ? await tx.dailyAction.findMany({
-        where: {
-          characterId: canonical.id,
-          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
-          localDate: { in: localDates }
-        },
-        select: { resultJson: true }
-      })
-    : [];
-  const actionPayloads = actions.map((row) => row.resultJson);
-  const activeEquipment = getActiveEquipmentRows({
-    rows: canonical.equipment,
-    actionPayloads,
+  const activeEquipment = await getActiveDuelEquipment(
+    tx,
+    canonical.id,
+    canonical.equipment,
     now
-  });
+  );
   const equippedItems = activeEquipment.flatMap((row) => {
     const item = items.find((candidate) => candidate.id === row.itemId);
     return item ? [item] : [];
@@ -1025,6 +1016,31 @@ async function getDuelCanonicalPreparation(
       ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
     }
   };
+}
+
+async function getActiveDuelEquipment(
+  client: Pick<Prisma.TransactionClient, "dailyAction">,
+  characterId: string,
+  equipment: CharacterEquipment[],
+  now: Date
+): Promise<CharacterEquipment[]> {
+  const localDates = equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`);
+  const actions = localDates.length > 0
+    ? await client.dailyAction.findMany({
+        where: {
+          characterId,
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+          localDate: { in: localDates }
+        },
+        select: { resultJson: true }
+      })
+    : [];
+
+  return getActiveEquipmentRows({
+    rows: equipment,
+    actionPayloads: actions.map((row) => row.resultJson),
+    now
+  });
 }
 
 async function awardTurnBasedDuelXp(
@@ -1235,9 +1251,11 @@ function mapCharacter(
     user: { lastSeenLocationId: string | null; telegramUserId: bigint };
     equipment: CharacterEquipment[];
     _count?: { remorts?: number };
-  }
+  },
+  activeEquipment = record.equipment
 ): DuelCharacterSnapshot {
   const { user, equipment, ...character } = record;
+  void equipment;
   delete (character as { _count?: unknown })._count;
 
   return {
@@ -1245,7 +1263,7 @@ function mapCharacter(
     telegramUserId: user.telegramUserId,
     currentLocationId: user.lastSeenLocationId,
     remortCount: getIncludedRemortCount(record),
-    equipment: equipment.map(mapEquipment)
+    equipment: activeEquipment.map(mapEquipment)
   };
 }
 
