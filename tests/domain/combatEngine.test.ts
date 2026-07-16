@@ -29,7 +29,7 @@ import { findMantokAbilityGrantByKey } from "../../src/content";
 import type { MantokAbilityGrantDefinition } from "../../src/content/mantokAbilityGrants";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
-import { applyVarenykSatedPulseBeforeSoloEnemyResponse } from "../../src/domain/noncombat/varenykSatedSupport";
+import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../../src/domain/noncombat/varenykSatedSupport";
 
 type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
   combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
@@ -116,10 +116,10 @@ const rangerTrickShotNumbers = {
 } as const;
 
 describe("combat domain engine", () => {
-  it("applies a Sated pulse after a committed single-enemy action and before the hostile response", () => {
+  it("applies a Sated pulse after the hostile response to a committed single-enemy action", () => {
     const weakMonster = { ...monster, attack: 1 };
     const state = startCombat({ hero: warrior, monster: weakMonster });
-    state.hero.hp = 1;
+    state.hero.hp = 5;
     state.hero.mana = 0;
 
     const result = resolveCombatTurn({
@@ -128,7 +128,7 @@ describe("combat domain engine", () => {
       hero: warrior,
       monster: weakMonster,
       afterCommittedHeroAction: (committed) => {
-        expect(committed.hero.hp).toBe(1);
+        expect(committed.hero.hp).toBe(4);
         committed.hero.hp += 1;
         committed.hero.mana += 1;
         return { hpRestored: 1, manaRestored: 1 };
@@ -137,13 +137,13 @@ describe("combat domain engine", () => {
     });
 
     expect(result.state.status).toBe("active");
-    expect(result.state.hero.hp).toBe(1);
+    expect(result.state.hero.hp).toBe(5);
     expect(result.state.hero.mana).toBe(1);
     expect(result.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
     expect(result.state.turnLog?.at(-1)?.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
   });
 
-  it("applies a Sated pulse before living enemies respond in persistent multi-enemy PvE", () => {
+  it("applies a Sated pulse after living enemies respond in persistent multi-enemy PvE", () => {
     const startedAt = new Date("2026-07-15T10:00:00.000Z");
     const weakSecond = { ...secondMonster, attack: 1 };
     const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster, enemies: [weakSecond] });
@@ -167,7 +167,7 @@ describe("combat domain engine", () => {
       hero: { ...warrior, weaponDamage: 50 },
       monster,
       enemies: [monster, weakSecond],
-      afterCommittedHeroAction: (committed) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (committed) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state: committed,
         combatKind: "persistent-pve",
         sessionId: "multi-session",
@@ -189,9 +189,10 @@ describe("combat domain engine", () => {
     expect(result.state.varenykSated?.pulseIds).toEqual([
       "multi-sated:persistent-pve:multi-session:1:hero"
     ]);
+    expect(result.state.turnLog?.at(-1)?.varenykSated).toEqual(result.state.varenykSated);
   });
 
-  it("lets a low-HP hero survive the canonical final response only because Sated pulses first", () => {
+  it("does not let a post-response Sated pulse revive a hero defeated by the final response", () => {
     const weakMonster = { ...monster, attack: 1 };
     const makeState = () => {
       const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster: weakMonster });
@@ -221,8 +222,8 @@ describe("combat domain engine", () => {
     expect(withoutSated.state.status).toBe("won");
     expect(withoutSated.state.hero.hp).toBe(0);
     expect(withSated.state.status).toBe("won");
-    expect(withSated.state.hero.hp).toBe(1);
-    expect(withSated.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 0 });
+    expect(withSated.state.hero.hp).toBe(0);
+    expect(withSated.summary.satedRecovery).toBeUndefined();
     expect(withSated.summary.simultaneousFinalResponse).toBe(true);
   });
   it("maps every supported class to the intended MVP skill profile", () => {

@@ -186,8 +186,9 @@ describe("class noncombat keyboard", () => {
       varenykPlan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 0 }
     });
 
-    expect(buttonTexts(keyboard)).toContain("🍽️ Нагодувати себе — оновити Ситого");
-    expect(buttonTexts(keyboard)).toContain("🍽️ Ще Ситий — оновити Ситого");
+    expect(buttonTexts(keyboard)).toContain("🍽️ Нагодувати себе — оновити стан");
+    expect(buttonTexts(keyboard)).toContain("🍽️ Ще Ситий — оновити стан");
+    expect(buttonTexts(keyboard).join("\n")).not.toContain("оновити Ситого");
     expect(buttonTexts(keyboard)).not.toContain("😋 Ще Ситий — Ситий");
   });
 });

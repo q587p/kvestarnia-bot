@@ -345,9 +345,17 @@ function resolveQueuedRound(
       incomingDamageReduction: mitigation[defenderSideOf(side)],
       incomingDamageMultiplier: mitigationMultiplier[defenderSideOf(side)]
     });
-    actions.push(options.sated
-      ? applySatedPulseAfterDuelAction(state, side, summary, options.sated)
-      : summary);
+    actions.push(summary);
+  }
+
+  if (options.sated) {
+    for (let index = 0; index < actions.length; index += 1) {
+      const summary = actions[index]!;
+      const side = findParticipantSide(state, summary.actorCharacterId);
+      if (side) {
+        actions[index] = applySatedPulseAfterDuelExchange(state, side, summary, options.sated);
+      }
+    }
   }
 
   const round = {
@@ -846,7 +854,7 @@ function cloneParticipant(
   };
 }
 
-function applySatedPulseAfterDuelAction(
+function applySatedPulseAfterDuelExchange(
   state: TurnBasedDuelState,
   side: "challenger" | "target",
   summary: TurnBasedDuelActionSummary,

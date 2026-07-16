@@ -457,7 +457,7 @@ export function presentPersistentFightJournal(
   const page = Math.max(0, Math.min(Math.floor(requestedPage), log.length - 1));
   const entry = log[page] ?? log[log.length - 1]!;
   const state = result.session.state;
-  const notices = presentJournalTurnNotices(entry, state);
+  const notices = presentJournalTurnNotices(entry);
   return presentBattleJournalPage({
     title: "📜 <b>Журнал бою</b>",
     headerLines: [presentCharacterHeader(result.character)],
@@ -484,14 +484,12 @@ export function presentPersistentFightJournal(
   });
 }
 
-function presentJournalTurnNotices(
-  entry: CombatTurnLogEntry,
-  state?: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"]
-): string[] {
-  const satedBuff = state?.varenykSated
+function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+  const satedBuff = entry.varenykSated
     ? presentActiveVarenykSatedCombatState(
-        new Date(state.varenykSated.expiresAt),
-        state.varenykSated.rank
+        new Date(entry.varenykSated.expiresAt),
+        entry.varenykSated.rank,
+        new Date(entry.varenykSated.cursorAt)
       )
     : null;
   return [

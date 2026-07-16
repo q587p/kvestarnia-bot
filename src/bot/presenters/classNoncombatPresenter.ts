@@ -135,8 +135,8 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
     "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
-    `Одразу: до <b>+${result.plan.immediateHp} HP</b>.`,
-    `Далі: <b>+${periodicRecovery.hp} HP і +${periodicRecovery.mana} ${periodicRecovery.mana === 1 ? "мана" : "мани"}</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).`,
+    `Одразу до <b>+${result.plan.immediateHp} HP</b>.`,
+    `Далі <b>+${periodicRecovery.hp} HP і +${periodicRecovery.mana} ${periodicRecovery.mana === 1 ? "мана" : "мани"}</b> після повної хвилини поза боєм або завершення бойового обміну (кожен забирає хвилину дії).`,
     "",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · ваша нова миска для цієї цілі через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
@@ -516,32 +516,38 @@ function presentRogueOtherTargetsLines(availableAt: Date | null): string[] {
 function presentVarenykStatusAndWaitLines(
   result: Extract<ClassNoncombatOpenResult, { state: "ready" }>
 ): string[] {
-  const lines: string[] = [];
+  const blocks: string[][] = [];
+  const selfLines: string[] = [];
   if (result.varenykSatedSelf) {
     const selfStatus = presentActiveVarenykSatedBuff(
       new Date(result.varenykSatedSelf.expiresAt),
       result.varenykSatedSelf.rank
     );
-    if (selfStatus) lines.push(selfStatus);
+    if (selfStatus) selfLines.push(selfStatus);
   }
   if (result.varenykSatedSelfAvailableAt) {
-    lines.push(`🍽️ Нагодувати себе знову через ${formatRemaining(result.varenykSatedSelfAvailableAt)}.`);
+    selfLines.push(`🍽️ Знову нагодувати через ${formatRemaining(result.varenykSatedSelfAvailableAt)}.`);
+  }
+  if (selfLines.length > 0) {
+    blocks.push(["👤 <b>Ви</b>", ...selfLines]);
   }
   for (const target of result.targets) {
+    const targetLines: string[] = [];
     if (target.varenykSated) {
       const targetStatus = presentActiveVarenykSatedBuff(
         new Date(target.varenykSated.expiresAt),
-        target.varenykSated.rank,
-        new Date(),
-        `Стан: <b>Ситий</b> у <b>${escapeHtml(target.name)}</b>`
+        target.varenykSated.rank
       );
-      if (targetStatus) lines.push(targetStatus);
+      if (targetStatus) targetLines.push(targetStatus);
     }
     if (target.varenykSatedAvailableAt) {
-      lines.push(`🍽️ ${escapeHtml(target.name)} — нагодувати знову через ${formatRemaining(target.varenykSatedAvailableAt)}.`);
+      targetLines.push(`🍽️ Знову нагодувати через ${formatRemaining(target.varenykSatedAvailableAt)}.`);
+    }
+    if (targetLines.length > 0) {
+      blocks.push([`👤 <b>${escapeHtml(target.name)}</b>`, ...targetLines]);
     }
   }
-  return lines;
+  return blocks.flatMap((block, index) => index === 0 ? block : ["", ...block]);
 }
 
 function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): string {

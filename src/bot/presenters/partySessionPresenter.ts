@@ -669,6 +669,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
 
   const round = rounds[page]!;
   const actionLines: string[] = [];
+  const satedRecoveryLines: string[] = [];
   if (round.actions.length === 0) {
     actionLines.push("Журнал не знайшов записаних дій учасників.");
   } else {
@@ -676,7 +677,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
       actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
       const recovery = presentVarenykSatedRecoveryLine(action, names.get(action.characterId));
       if (recovery) {
-        actionLines.push(recovery);
+        satedRecoveryLines.push(recovery);
       }
     }
   }
@@ -703,6 +704,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   if (round.warriorTaunt) {
     actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
   }
+  actionLines.push(...satedRecoveryLines);
 
   return presentBattleJournalPage({
     title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
@@ -851,14 +853,14 @@ function presentLastRoundLines(
   options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
   const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
-  const lines = round.actions.flatMap((action) => {
-    const actionLine = presentPartyBossActionLine(
-      action,
-      byCharacterId.get(action.characterId),
-      options.viewerCharacterId
-    );
+  const lines = round.actions.map((action) => presentPartyBossActionLine(
+    action,
+    byCharacterId.get(action.characterId),
+    options.viewerCharacterId
+  ));
+  const satedRecoveryLines = round.actions.flatMap((action) => {
     const recovery = presentVarenykSatedRecoveryLine(action, byCharacterId.get(action.characterId)?.name);
-    return recovery ? [actionLine, recovery] : [actionLine];
+    return recovery ? [recovery] : [];
   });
 
   if (round.bossRetaliations.length > 0) {
@@ -883,6 +885,7 @@ function presentLastRoundLines(
   if (round.personalProtocol) {
     lines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
   }
+  lines.push(...satedRecoveryLines);
   if (round.warriorTaunt) {
     lines.push(...presentWarriorRaidTauntRoundLines(
       round.warriorTaunt,

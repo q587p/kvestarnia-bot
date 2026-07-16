@@ -2719,19 +2719,20 @@ describe("fight presenter", () => {
   });
 
   it("shows active Sated and a recovery line after a persistent combat turn", () => {
+    const sated = {
+      version: 1 as const,
+      activationId: "sated",
+      recipientCharacterId: "character-42",
+      recipientRemortCount: 0,
+      rank: 2,
+      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+      cursorAt: new Date().toISOString(),
+      leaseStartedAt: new Date().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["pulse"]
+    };
     const session = persistentSession({
-      varenykSated: {
-        version: 1,
-        activationId: "sated",
-        recipientCharacterId: "character-42",
-        recipientRemortCount: 0,
-        rank: 2,
-        expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
-        cursorAt: new Date().toISOString(),
-        leaseStartedAt: new Date().toISOString(),
-        outsideRemainderMs: 0,
-        pulseIds: ["pulse"]
-      },
+      varenykSated: sated,
       lastTurn: {
         action: "attack",
         heroOutcome: "hit",
@@ -2746,6 +2747,7 @@ describe("fight presenter", () => {
         turn: 1,
         hero: { hp: 20, mana: 9 },
         monster: { hp: 10 },
+        varenykSated: sated,
         summary: {
           action: "attack",
           heroOutcome: "hit",
@@ -2769,13 +2771,68 @@ describe("fight presenter", () => {
     const text = presentPersistentFightTurn(result as never);
     const journal = presentPersistentFightJournal({ ...result, state: "found" } as never, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+2 HP</b> і <b>+1 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>\n<b>+2 HP</b> і <b>+1 мани</b>");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
-    expect(journal).toContain("😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 HP</b>.");
-    expect(text).toContain("😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 HP</b>.");
+    expect(journal).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>.");
+    expect(text).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>.");
     expect(text).not.toContain("ранг 2");
     expect(text).toContain("+1 HP");
     expect(text).not.toContain("+0 мани");
+  });
+
+  it("shows the stored Sated remainder on a historical journal turn after combat ends", () => {
+    const journal = presentPersistentFightJournal({
+      state: "found",
+      character,
+      session: persistentSession({
+        status: "won",
+        varenykSated: {
+          version: 1,
+          activationId: "sated-terminal",
+          recipientCharacterId: "character-42",
+          recipientRemortCount: 0,
+          rank: 2,
+          expiresAt: "2026-07-16T11:13:00.000Z",
+          cursorAt: "2026-07-16T11:13:00.000Z",
+          leaseStartedAt: "2026-07-16T11:10:00.000Z",
+          outsideRemainderMs: 0,
+          pulseIds: ["terminal"]
+        },
+        turnLog: [{
+          turn: 2,
+          hero: { hp: 60, mana: 3 },
+          monster: { hp: 44 },
+          varenykSated: {
+            version: 1,
+            activationId: "sated-terminal",
+            recipientCharacterId: "character-42",
+            recipientRemortCount: 0,
+            rank: 2,
+            expiresAt: "2026-07-16T11:17:00.000Z",
+            cursorAt: "2026-07-16T11:11:00.000Z",
+            leaseStartedAt: "2026-07-16T11:10:00.000Z",
+            outsideRemainderMs: 0,
+            pulseIds: ["turn-1", "turn-2"]
+          },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            monsterOutcome: "hit",
+            heroDamage: 7,
+            monsterDamage: 8,
+            manaSpent: 0,
+            critical: false,
+            satedRecovery: { hpRestored: 2, manaRestored: 1 }
+          }
+        }]
+      }),
+      monster: { id: "monster.test", name: "Тестовий монстр", description: "Тест.", level: 3, tags: ["test"] },
+      questProgress: null,
+      fightReward: null
+    } as never, 0);
+
+    expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>6 ходів</b>");
+    expect(journal).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+2 HP</b> і <b>+1 мани</b>.");
   });
 });
 

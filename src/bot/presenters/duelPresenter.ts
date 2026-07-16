@@ -575,10 +575,13 @@ function presentTurnBasedRoundState(
   }
 
   if (state.lastRound) {
-    return state.lastRound.actions.flatMap((action) => [
-      presentTurnBasedActionLine(action, state),
-      ...(presentTurnBasedSatedRecoveryLine(action, state) ? [presentTurnBasedSatedRecoveryLine(action, state)!] : [])
-    ]).join("\n");
+    return [
+      ...state.lastRound.actions.map((action) => presentTurnBasedActionLine(action, state)),
+      ...state.lastRound.actions.flatMap((action) => {
+        const recovery = presentTurnBasedSatedRecoveryLine(action, state);
+        return recovery ? [recovery] : [];
+      })
+    ].join("\n");
   }
 
   if (state.lastAction) {
@@ -651,10 +654,13 @@ export function presentTurnBasedDuelJournal(
       presentDuelVitals(state.participants.target)
     ],
     actionLines: round.actions.length > 0
-      ? round.actions.flatMap((action) => [
-          presentTurnBasedActionLine(action, state),
-          ...(presentTurnBasedSatedRecoveryLine(action, state) ? [presentTurnBasedSatedRecoveryLine(action, state)!] : [])
-        ])
+      ? [
+          ...round.actions.map((action) => presentTurnBasedActionLine(action, state)),
+          ...round.actions.flatMap((action) => {
+            const recovery = presentTurnBasedSatedRecoveryLine(action, state);
+            return recovery ? [recovery] : [];
+          })
+        ]
       : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
   });
 }

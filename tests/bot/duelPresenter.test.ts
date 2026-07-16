@@ -351,6 +351,15 @@ describe("duel presenter", () => {
               manaSpent: 0,
               critical: false,
               satedRecovery: { hpRestored: 1, manaRestored: 1 }
+            },
+            {
+              actorCharacterId: "target-character",
+              defenderCharacterId: "challenger-character",
+              action: "attack",
+              outcome: "hit",
+              damage: 4,
+              manaSpent: 0,
+              critical: false
             }
           ]
         }
@@ -360,10 +369,13 @@ describe("duel presenter", () => {
     expect(text).toContain("📜 <b>Журнал дуелі</b>");
     expect(text).toContain("Ліва Рука проти Права Рука.");
     expect(text).toContain("😋 Стан: <b>Ситий</b> у <b>Ліва Рука</b> ще <b>12 ходів</b>");
-    expect(text).toContain("😋 «Ситий» відновив <b>Ліва Рука</b>: <b>+1 HP</b> і <b>+1 мани</b>.");
+    expect(text).toContain("😋 <b>Ліва Рука</b>: ситість відновлює <b>+1 HP</b> і <b>+1 мани</b>.");
     expect(text).toContain("Хід <b>2</b> · запис 1/1");
     expect(text).toContain("Ліва: HP 20/24 · мана 8/12");
     expect(text).toContain("Ліва Рука атакує влучає на <b>7</b> шкоди.");
+    expect(text.indexOf("Права Рука атакує влучає на <b>4</b> шкоди.")).toBeLessThan(
+      text.indexOf("😋 <b>Ліва Рука</b>: ситість відновлює")
+    );
   });
 });
 

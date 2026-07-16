@@ -11,14 +11,15 @@ import { FakeRandomSource } from "../../src/shared/random";
 import { findMantokAbilityGrantByKey } from "../../src/content";
 
 describe("turn-based duel domain", () => {
-  it("pulses Sated once immediately after each participant's committed round action", () => {
+  it("pulses Sated once after the committed duel exchange resolves", () => {
     const now = new Date("2026-07-14T10:01:00.000Z");
     const state = startTurnBasedDuel({
       challenger: makeDuelist({ id: "challenger" }),
       target: makeDuelist({ id: "target" }),
       rng: new FakeRandomSource([0.99, 0])
     });
-    state.participants.challenger.hp -= 3;
+    state.actingCharacterId = "challenger";
+    state.participants.challenger.hp = state.participants.challenger.hpMax;
     state.participants.challenger.mana = 0;
     state.participants.challenger.varenykSated = {
       version: 1,
@@ -32,17 +33,16 @@ describe("turn-based duel domain", () => {
       outsideRemainderMs: 0,
       pulseIds: []
     };
-    const otherActor = state.actingCharacterId === "challenger" ? "target" : "challenger";
     const queued = resolveTurnBasedDuelAction({
       state,
-      actorCharacterId: otherActor,
-      action: "defend",
+      actorCharacterId: "target",
+      action: "attack",
       rng: new FakeRandomSource([0.1, 0.9])
     });
     if (!queued.ok) throw new Error("Expected queued action.");
     const round = resolveTurnBasedDuelAction({
       state: queued.state,
-      actorCharacterId: state.actingCharacterId,
+      actorCharacterId: "challenger",
       action: "defend",
       sated: { sessionId: "duel-session", committedTurn: 1, now },
       rng: new FakeRandomSource([0.1, 0.9])
@@ -51,7 +51,12 @@ describe("turn-based duel domain", () => {
 
     const pulsed = round.state;
     const action = pulsed.lastRound?.actions.find((entry) => entry.actorCharacterId === "challenger");
+    const targetAction = pulsed.lastRound?.actions.find((entry) => entry.actorCharacterId === "target");
     expect(action?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(targetAction?.damage).toBeGreaterThan(0);
+    expect(pulsed.participants.challenger.hp).toBe(
+      pulsed.participants.challenger.hpMax - targetAction!.damage + 1
+    );
     expect(pulsed.participants.challenger.varenykSated?.pulseIds).toEqual([
       "sated-duel:turn-based-duel:duel-session:1:challenger"
     ]);

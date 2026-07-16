@@ -97,7 +97,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
   } else {
     if (!result.varenykSatedSelfAvailableAt && result.varenykPlan) {
       keyboard.text(
-        result.varenykSatedSelf ? "🍽️ Нагодувати себе — оновити Ситого" : "🍽️ Нагодувати себе",
+        result.varenykSatedSelf ? "🍽️ Нагодувати себе — оновити стан" : "🍽️ Нагодувати себе",
         makeVarenykFeedPreviewCallbackData({
           targetTelegramUserId: null,
           actorRemortCount,
@@ -110,7 +110,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       if (target.canVarenykFeed && result.varenykPlan) {
         keyboard.text(
           target.varenykSated
-            ? `🍽️ ${formatName(target.name)} — оновити Ситого`
+            ? `🍽️ ${formatName(target.name)} — оновити стан`
             : `🍽️ ${formatName(target.name)}`,
           makeVarenykFeedPreviewCallbackData({
             targetTelegramUserId: target.telegramUserId,

@@ -2960,6 +2960,7 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const eventId = parseTurnLogEventId(entry.eventId);
     const notices = parseTurnLogNotices(entry.notices);
     const cooldowns = parseCooldowns(entry.cooldowns);
+    const varenykSated = parseVarenykSatedCombatState(entry.varenykSated);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
@@ -2971,7 +2972,8 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           ...(cooldowns ? { cooldowns } : {}),
           hero,
           monster,
-          ...(enemies.length > 0 ? { enemies } : {})
+          ...(enemies.length > 0 ? { enemies } : {}),
+          ...(varenykSated ? { varenykSated } : {})
         }];
   });
 }

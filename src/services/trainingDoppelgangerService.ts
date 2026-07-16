@@ -43,7 +43,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
-import { applyVarenykSatedPulseBeforeSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
+import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
@@ -269,7 +269,7 @@ export class TrainingDoppelgangerService {
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state,
         combatKind: "training-doppelganger",
         sessionId: session.id,
@@ -725,7 +725,7 @@ export class TrainingDoppelgangerService {
       action: input.action,
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state,
         combatKind: "training-doppelganger",
         sessionId: currentSession.id,

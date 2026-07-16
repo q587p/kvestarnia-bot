@@ -72,13 +72,25 @@ describe("training doppelganger presenter", () => {
       })
     });
 
-    expect(text).toContain("😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 мани</b>.");
+    expect(text).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 мани</b>.");
     expect(text).not.toContain("+0 HP");
   });
 
   it("shows active Sated without exposing its technical rank", () => {
     const character = buildCharacter();
     const session = buildSession();
+    const sated = {
+      version: 1 as const,
+      activationId: "sated-active",
+      recipientCharacterId: "character-42",
+      recipientRemortCount: 0,
+      rank: 5,
+      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+      cursorAt: new Date().toISOString(),
+      leaseStartedAt: new Date().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["pulse:1"]
+    };
     const activeSession = {
       ...session,
       state: {
@@ -88,6 +100,7 @@ describe("training doppelganger presenter", () => {
           turn: 1,
           hero: { hp: 18, mana: 6 },
           monster: { hp: 18 },
+          varenykSated: sated,
           summary: {
             action: "attack" as const,
             heroOutcome: "hit" as const,
@@ -98,18 +111,7 @@ describe("training doppelganger presenter", () => {
             satedRecovery: { hpRestored: 1, manaRestored: 1 }
           }
         }],
-        varenykSated: {
-          version: 1 as const,
-          activationId: "sated-active",
-          recipientCharacterId: "character-42",
-          recipientRemortCount: 0,
-          rank: 5,
-          expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
-          cursorAt: new Date().toISOString(),
-          leaseStartedAt: new Date().toISOString(),
-          outsideRemainderMs: 0,
-          pulseIds: ["pulse:1"]
-        }
+        varenykSated: sated
       }
     };
     const text = presentTrainingDoppelganger({
@@ -126,7 +128,7 @@ describe("training doppelganger presenter", () => {
       reward: null
     }, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+3 HP</b> і <b>+3 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>\n<b>+3 HP</b> і <b>+3 мани</b>");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
     expect(text).not.toContain("ранг 5");
   });
@@ -166,8 +168,8 @@ describe("training doppelganger presenter", () => {
   });
 
   it.each([
-    [{ hpRestored: 1, manaRestored: 0 }, "😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 HP</b>."],
-    [{ hpRestored: 0, manaRestored: 1 }, "😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 мани</b>."],
+    [{ hpRestored: 1, manaRestored: 0 }, "😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>."],
+    [{ hpRestored: 0, manaRestored: 1 }, "😋 <b>Мандрівник</b>: ситість відновлює <b>+1 мани</b>."],
     [{ hpRestored: 0, manaRestored: 0 }, null]
   ] as const)("renders stored journal Sated recovery without zero components: %j", (satedRecovery, expectedLine) => {
     const character = buildCharacter();
@@ -197,9 +199,9 @@ describe("training doppelganger presenter", () => {
 
     if (expectedLine) {
       expect(text).toContain(expectedLine);
-      expect(text.match(/😋 «Ситий» відновив/g)).toHaveLength(1);
+      expect(text.match(/😋 <b>Мандрівник<\/b>: ситість відновлює/g)).toHaveLength(1);
     } else {
-      expect(text).not.toContain("😋 «Ситий» відновив");
+      expect(text).not.toContain("ситість відновлює");
     }
     expect(text).not.toContain("+0");
   });

@@ -65,8 +65,8 @@ describe("class noncombat presenter", () => {
       "Ціль: <b>Сусід</b>.",
       "",
       "Точна ціна: <b>16 мани</b>.",
-      "Одразу: до <b>+5 HP</b>.",
-      "Далі: <b>+2 HP і +2 мани</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).",
+      "Одразу до <b>+5 HP</b>.",
+      "Далі <b>+2 HP і +2 мани</b> після повної хвилини поза боєм або завершення бойового обміну (кожен забирає хвилину дії).",
       "",
       "😋 «Ситий»: <b>13 хв</b> · ваша нова миска для цієї цілі через <b>93 хв</b>.",
       "",
@@ -74,11 +74,14 @@ describe("class noncombat presenter", () => {
     ].join("\n"));
     expect(preview).not.toMatch(/ранг/iu);
     expect(preview).toContain("Точна ціна: <b>16 мани</b>");
-    expect(preview).toContain("Одразу: до <b>+5 HP</b>.");
-    expect(preview).toContain("Далі: <b>+2 HP і +2 мани</b>");
-    expect(preview).not.toContain("Одразу: до <b>+5 HP</b> і");
-    expect(preview).toContain("після повної хвилини поза боєм або власного ходу в бою");
-    expect(preview).toContain("кожне бойове відновлення додатково скорочує «Ситого» на хвилину");
+    expect(preview).toContain("Одразу до <b>+5 HP</b>.");
+    expect(preview).toContain("Далі <b>+2 HP і +2 мани</b>");
+    expect(preview).not.toContain("Одразу до <b>+5 HP</b> і");
+    expect(preview).not.toContain("Одразу:");
+    expect(preview).not.toContain("Далі:");
+    expect(preview).toContain("після повної хвилини поза боєм або завершення бойового обміну");
+    expect(preview).toContain("(кожен забирає хвилину дії)");
+    expect(preview).not.toContain("кожне бойове відновлення додатково скорочує");
 
     const completed = {
       state: "completed",
@@ -139,7 +142,7 @@ describe("class noncombat presenter", () => {
       "",
       "HP уже повне, зате стан акуратно загорнутий.",
       "",
-      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину). Видно в персонажі поруч з іншими станами.",
+      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b>\n<b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії). Видно в персонажі поруч з іншими станами.",
       "",
       "Ви зможете нагодувати цю ціль знову <b>через 93 хвилини</b>.",
       "",
@@ -292,6 +295,62 @@ describe("class noncombat presenter", () => {
 
     expect(text).toContain("активну пригоду, бій або рейд");
     expect(text).not.toContain("Жрець");
+  });
+
+  it("groups Varenyk statuses and pair waits by recipient without repeating names", () => {
+    const text = presentClassNoncombatOpen({
+      state: "ready",
+      mode: "varenyk",
+      actorBlocked: false,
+      character: {
+        id: "character-varenyk",
+        name: "Shannar de Kassal",
+        classId: "class.varenyk-mancer",
+        manaCurrent: 0,
+        manaMax: 34
+      },
+      targets: [{
+        id: "character-target",
+        telegramUserId: 2n,
+        name: "Kyjivan BooksDragon",
+        remortCount: 0,
+        canPriestHeal: false,
+        canPriestBless: false,
+        canRoguePickpocket: false,
+        canVarenykFeed: false,
+        rogueAttemptedToday: false,
+        varenykSatedAvailableAt: new Date("2026-07-03T10:33:00.000Z"),
+        varenykSated: {
+          rank: 4,
+          expiresAt: new Date("2026-07-03T09:13:00.000Z")
+        }
+      }],
+      locationName: "Стіл зі справами",
+      priestBlessCooldownAvailableAt: null,
+      priestSelfBlessAvailableAt: null,
+      roguePickpocketCooldownAvailableAt: null,
+      varenykSatedSelfAvailableAt: new Date("2026-07-03T10:32:00.000Z"),
+      varenykSatedSelf: {
+        rank: 5,
+        expiresAt: new Date("2026-07-03T09:12:00.000Z")
+      },
+      varenykPlan: null,
+      targetPage: 0,
+      targetTotalPages: 1
+    } as unknown as ClassNoncombatOpenResult);
+
+    expect(text).toContain([
+      "👤 <b>Ви</b>",
+      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>",
+      "<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії).",
+      "🍽️ Знову нагодувати через 92 хвилини.",
+      "",
+      "👤 <b>Kyjivan BooksDragon</b>",
+      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b>",
+      "<b>+3 HP</b> і <b>+2 мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії).",
+      "🍽️ Знову нагодувати через 93 хвилини."
+    ].join("\n"));
+    expect(text.match(/Kyjivan BooksDragon/g)).toHaveLength(1);
   });
 
   it("explains stale busy Priest callbacks without the protocol wording", () => {

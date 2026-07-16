@@ -83,6 +83,42 @@ describe("solo combat state JSON parser", () => {
     expect(parsed?.turnLog?.[0]?.summary.fumble).toEqual(fumble);
   });
 
+  it("round-trips the Sated snapshot owned by a historical combat turn", () => {
+    const varenykSated = {
+      version: 1 as const,
+      activationId: "sated-log",
+      recipientCharacterId: "character-42",
+      recipientRemortCount: 0,
+      rank: 3,
+      expiresAt: "2026-07-16T11:17:00.000Z",
+      cursorAt: "2026-07-16T11:11:00.000Z",
+      leaseStartedAt: "2026-07-16T11:10:00.000Z",
+      outsideRemainderMs: 0,
+      pulseIds: ["sated-log:persistent-pve:session:2:character-42"]
+    };
+    const parsed = parseCombatState({
+      ...legacyState,
+      turnLog: [{
+        turn: 2,
+        summary: {
+          action: "attack",
+          heroOutcome: "hit",
+          monsterOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 2,
+          manaSpent: 0,
+          critical: false,
+          satedRecovery: { hpRestored: 2, manaRestored: 2 }
+        },
+        hero: { hp: 8, mana: 2 },
+        monster: { hp: 2 },
+        varenykSated
+      }]
+    });
+
+    expect(parsed?.turnLog?.[0]?.varenykSated).toEqual(varenykSated);
+  });
+
   it("reads a valid two-enemy state with stable identities", () => {
     const state = parseCombatState({
       ...legacyState,

@@ -313,7 +313,7 @@ export function presentTrainingDoppelgangerJournal(
       lines.push(satedRecovery);
     }
   }
-  const notices = presentJournalTurnNotices(entry, state);
+  const notices = presentJournalTurnNotices(entry);
 
   if (notices.length > 0) {
     lines.push("", ...notices);
@@ -322,14 +322,12 @@ export function presentTrainingDoppelgangerJournal(
   return lines.join("\n");
 }
 
-function presentJournalTurnNotices(
-  entry: CombatTurnLogEntry,
-  state?: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"]["state"]
-): string[] {
-  const satedBuff = state?.varenykSated
+function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
+  const satedBuff = entry.varenykSated
     ? presentActiveVarenykSatedCombatState(
-        new Date(state.varenykSated.expiresAt),
-        state.varenykSated.rank
+        new Date(entry.varenykSated.expiresAt),
+        entry.varenykSated.rank,
+        new Date(entry.varenykSated.cursorAt)
       )
     : null;
   return [

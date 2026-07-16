@@ -623,9 +623,6 @@ function resolveSingleEnemyCombatItemTurn(
 
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   const heroEffectDamage = heroEffect.damage;
-  const satedRecovery = nextState.hero.hp > 0
-    ? input.afterCommittedHeroAction?.(nextState)
-    : undefined;
   const monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
@@ -634,6 +631,9 @@ function resolveSingleEnemyCombatItemTurn(
       })
     : { damage: 0 };
   const monsterDamage = heroEffectDamage + monsterResponse.damage;
+  const satedRecovery = nextState.hero.hp > 0
+    ? input.afterCommittedHeroAction?.(nextState)
+    : undefined;
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -798,9 +798,6 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
 
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   const heroEffectDamage = heroEffect.damage;
-  const satedRecovery = nextState.hero.hp > 0
-    ? input.afterCommittedHeroAction?.(nextState)
-    : undefined;
   const monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
@@ -809,6 +806,9 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
       })
     : { damage: 0 };
   const monsterDamage = heroEffectDamage + monsterResponse.damage;
+  const satedRecovery = nextState.hero.hp > 0
+    ? input.afterCommittedHeroAction?.(nextState)
+    : undefined;
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
   const bark = resolveMonsterBark({
@@ -969,9 +969,6 @@ function resolveHeroAttack(
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   heroEffectDamage = heroEffect.damage;
   monsterDamage += heroEffectDamage;
-  const satedRecovery = nextState.hero.hp > 0
-    ? input.afterCommittedHeroAction?.(nextState)
-    : undefined;
   if (nextState.hero.hp > 0 && (nextState.monster.hp > 0 || monsterDefeatedBeforeHeroEffects)) {
     monsterResponse = resolveMonsterResponse({
       state: nextState,
@@ -981,6 +978,9 @@ function resolveHeroAttack(
     });
     monsterDamage += monsterResponse.damage;
   }
+  const satedRecovery = nextState.hero.hp > 0
+    ? input.afterCommittedHeroAction?.(nextState)
+    : undefined;
   let counterDamage = 0;
   if (
     nextState.hero.hp > 0 &&
@@ -1068,9 +1068,6 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   } else {
     const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
     heroEffectDamage = heroEffect.damage;
-    satedRecovery = nextState.hero.hp > 0
-      ? input.afterCommittedHeroAction?.(nextState)
-      : undefined;
     monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
       ? resolveMonsterResponse({
           state: nextState,
@@ -1079,6 +1076,9 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
         })
       : { damage: 0 };
     monsterDamage = heroEffectDamage + monsterResponse.damage;
+    satedRecovery = nextState.hero.hp > 0
+      ? input.afterCommittedHeroAction?.(nextState)
+      : undefined;
     nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
     nextState.turn += 1;
   }
@@ -1826,6 +1826,9 @@ function appendCombatTurnLog(
     monster: {
       hp: state.monster.hp
     },
+    ...(state.varenykSated
+      ? { varenykSated: { ...state.varenykSated, pulseIds: [...state.varenykSated.pulseIds] } }
+      : {}),
     ...turnLogEnemies(state)
   });
 }
@@ -2129,9 +2132,6 @@ function resolveHeroActivationAndLivingEnemyPhase(
 } {
   const heroEffect = applyHeroActivationEffectsForCombatState(state, participants);
   const heroEffectDamage = heroEffect.damage;
-  const satedRecovery = state.hero.hp > 0
-    ? input.afterCommittedHeroAction?.(state)
-    : undefined;
   const enemyPhase = state.hero.hp > 0 && (getLivingCombatEnemies(state).length > 0 || allowDefeatedEnemyPhase)
     ? resolveLivingEnemyPhase(state, input, damageReduction, participants)
     : {
@@ -2140,6 +2140,9 @@ function resolveHeroActivationAndLivingEnemyPhase(
         enemyPressureSkips: [],
         defendCounter: false
       };
+  const satedRecovery = state.hero.hp > 0
+    ? input.afterCommittedHeroAction?.(state)
+    : undefined;
 
   return {
     heroEffectDamage,

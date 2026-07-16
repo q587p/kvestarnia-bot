@@ -22,7 +22,7 @@ export function presentActiveVarenykSatedBuff(
     ? `${remainingMinutes} ${pluralize(remainingMinutes, "хід", "ходи", "ходів")}`
     : `${remainingMinutes} хв`;
   const recovery = getVarenykSatedPeriodicRecovery(rank);
-  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину).`;
+  return `😋 ${subjectHtml} ще <b>${remaining}</b>\n<b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії).`;
 }
 
 export function presentActiveVarenykSatedCombatState(
@@ -56,7 +56,7 @@ export function presentVarenykSatedJournalRecovery(
     ...(recovery.manaRestored > 0 ? [`<b>+${recovery.manaRestored} мани</b>`] : [])
   ];
   return parts.length > 0
-    ? `😋 «Ситий» відновив ${recipientHtml}: ${parts.join(" і ")}.`
+    ? `😋 ${recipientHtml}: ситість відновлює ${parts.join(" і ")}.`
     : null;
 }
 

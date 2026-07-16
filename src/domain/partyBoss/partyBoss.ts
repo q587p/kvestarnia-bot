@@ -522,6 +522,14 @@ export function resolvePartyBossRound(input: {
     tauntRound.expiredCharacterId = expiredAfterVictory;
     delete tauntRound.bossAttacksRemaining;
   }
+  const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
+  if (retaliationResolution.warriorTaunt) {
+    if (retaliationResolution.warriorTaunt.expiredCharacterId) {
+      delete tauntRound.bossAttacksRemaining;
+    }
+    Object.assign(tauntRound, retaliationResolution.warriorTaunt);
+  }
+  const bossRetaliations = retaliationResolution.retaliations;
   if (isBigBarrelBrotherState(next)) {
     for (const participant of roundParticipants) {
       const summary = actionSummaries.find((entry) => entry.characterId === participant.characterId);
@@ -553,14 +561,6 @@ export function resolvePartyBossRound(input: {
       }
     }
   }
-  const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
-  if (retaliationResolution.warriorTaunt) {
-    if (retaliationResolution.warriorTaunt.expiredCharacterId) {
-      delete tauntRound.bossAttacksRemaining;
-    }
-    Object.assign(tauntRound, retaliationResolution.warriorTaunt);
-  }
-  const bossRetaliations = retaliationResolution.retaliations;
   const livingParticipants = next.participants.filter(
     (participant) => participant.status === "active" && participant.resources.hp > 0
   );

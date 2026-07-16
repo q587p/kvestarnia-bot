@@ -295,7 +295,7 @@ export function applyVarenykSatedPulseToSoloCombat(input: {
   };
 }
 
-export function applyVarenykSatedPulseBeforeSoloEnemyResponse(input: {
+export function applyVarenykSatedPulseAfterSoloEnemyResponse(input: {
   state: import("../combat/combatState").CombatState;
   combatKind: "persistent-pve" | "training-doppelganger";
   sessionId: string;

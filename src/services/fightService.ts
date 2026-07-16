@@ -73,7 +73,7 @@ import {
   type MonsterCombatStats
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
-import { applyVarenykSatedPulseBeforeSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
+import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import {
   getItemDropChance,
   rollBandageDropQuantity,
@@ -649,7 +649,7 @@ export class FightService {
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, activeSession.state),
       ...withPersistentEnemyCombatStats(activeSession.state),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state,
         combatKind: "persistent-pve",
         sessionId: activeSession.id,
@@ -2479,7 +2479,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
-      afterCommittedHeroAction: (state: CombatState) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (state: CombatState) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state,
         combatKind: "persistent-pve",
         sessionId: currentSession.id,
@@ -2841,7 +2841,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseBeforeSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
         state,
         combatKind: "persistent-pve",
         sessionId: currentSession.id,
