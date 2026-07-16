@@ -86,6 +86,35 @@ describe("AchievementService", () => {
     expect(levelFive.map((unlock) => unlock.id)).toEqual(["achievement.level.5"]);
   });
 
+  it("unlocks Varenyk other-feed achievements on the first and thirteenth fresh events", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+    let thirteenthUnlockIds: string[] = [];
+
+    for (let index = 1; index <= 13; index += 1) {
+      const unlocks = await service.trackEvent({
+        type: "varenyk.sated.other",
+        characterId: "character-1",
+        occurredAt: new Date(`2026-07-16T09:${String(index).padStart(2, "0")}:00.000Z`),
+        sourceId: `activation-${index}`
+      });
+
+      if (index === 1) {
+        expect(unlocks.map((unlock) => unlock.id)).toEqual([
+          "achievement.varenyk.sated.other-first"
+        ]);
+      }
+      if (index === 13) {
+        thirteenthUnlockIds = unlocks.map((unlock) => unlock.id);
+      }
+    }
+
+    expect(thirteenthUnlockIds).toEqual([
+      "achievement.varenyk.sated.other-thirteen"
+    ]);
+    expect(repo.progressFor("achievement.varenyk.sated.other-thirteen")?.current).toBe(13);
+  });
+
   it("ignores disabled definitions", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);

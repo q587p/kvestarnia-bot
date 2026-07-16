@@ -606,9 +606,12 @@ async function getCurrentEventProgress(
 }
 
 function isCumulativeProgressDefinition(definition: AchievementDefinition, event: AchievementEvent): boolean {
-  return definition.trigger.countMode === "cumulative" &&
-    definition.trigger.type === "equipment.item_equipped" &&
-    event.type === "equipment.item_equipped";
+  if (definition.trigger.countMode !== "cumulative" || definition.trigger.type !== event.type) {
+    return false;
+  }
+
+  return definition.trigger.type === "equipment.item_equipped" ||
+    definition.trigger.type === "varenyk.sated.other";
 }
 
 async function getSnapshotProgressForEventDefinition(

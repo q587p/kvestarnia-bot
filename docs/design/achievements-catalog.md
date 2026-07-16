@@ -114,6 +114,7 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.rogue.pickpocket.first` | enabled | visible | `rogue.pickpocket.attempted >= 1` | Кишеня не підписувала згоду | уперше спробувати тиху кишеню як злодій і лишити протоколу дивні питання. |
 | `achievement.varenyk.sated.self-first` | enabled | visible | `varenyk.sated.self >= 1` | Сам собі гостина | уперше нагодувати себе варениками й не вимагати окремого рахунку. |
 | `achievement.varenyk.sated.other-first` | enabled | visible | `varenyk.sated.other >= 1` | Миска дипломатії | уперше нагодувати іншого пригодника й довести, що підтримка буває з тістом. |
+| `achievement.varenyk.sated.other-thirteen` | enabled | visible | `varenyk.sated.other >= 13` | Тринадцята миска | нагодувати інших пригодників 13 разів і перетворити підтримку на окрему систему харчування. |
 | `achievement.rogue.pickpocket.success` | enabled | visible | `rogue.pickpocket.success >= 1` | Монета змінила філософію | уперше успішно обчистити кишеню так тихо, що золото саме переглянуло біографію. |
 | `achievement.rogue.pickpocket.caught` | enabled | visible | `rogue.pickpocket.caught >= 1` | Лікоть мав аргументи | уперше провалити тиху кишеню так голосно, що HP попросило прилягти. |
 | `achievement.training.doppelganger.first` | enabled | visible | `training.doppelganger.finished >= 1` | Дзеркало вдарило першим | уперше завершити тренування з Допельґанґером і не підписувати протокол споріднености. |

@@ -1212,6 +1212,18 @@ export const achievements = [
     trigger: { type: "varenyk.sated.other", threshold: 1 }
   },
   {
+    id: "achievement.varenyk.sated.other-thirteen",
+    category: "weird",
+    title: "Тринадцята миска",
+    description: "нагодувати інших пригодників 13 разів і перетворити підтримку на окрему систему харчування.",
+    hidden: false,
+    lockedDescription: "нагодувати інших пригодників 13 разів.",
+    sortOrder: 109.15,
+    status: "enabled",
+    trigger: { type: "varenyk.sated.other", threshold: 13, countMode: "cumulative" },
+    progressTarget: 13
+  },
+  {
     id: "achievement.rogue.pickpocket.success",
     category: "weird",
     title: "Монета змінила філософію",

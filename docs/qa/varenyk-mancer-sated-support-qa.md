@@ -4,6 +4,8 @@ Status: in progress. The caller-owned local dev-reset path, maximum-rank self-pr
 
 Automated presentation coverage now also pins the outside-combat Sated duration and recovery explanation to one em-dash line. This is not fresh Telegram PASS evidence; the latest-head card still needs the pending Telegram retest.
 
+Automated achievement coverage pins `Тринадцята миска` to the thirteenth fresh other-recipient feed event. Replays and recovery pulses remain excluded by the existing fresh-commit event boundary; Telegram unlock evidence is still pending.
+
 ## Execution log
 
 - `12026-07-15`, isolated development runtime `@kvestarnia_test_bot`, checkpoint `1d69cef3a57a268a91793387799576cb38ca1ceb`: Kyjivan BooksDragon completed a fresh internal-rank-1 self-feed for 8 mana at `20:51:27 Europe/Kyiv`. The durable receipt recorded the then-candidate immediate `+1 mana`, one activation and the canonical 13/93-minute timestamps, while the visible result compressed status/recovery/cost into one block and exposed internal rank. Product review clarified that rank must never be player-facing, mana must not return immediately, the buff row must explain its minute/own-turn effect, and lazy Hero recovery must arrive as a separate message. Result: **failed — presentation/mechanics; corrected checkpoint retest pending**.
