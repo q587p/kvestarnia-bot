@@ -756,7 +756,7 @@ function presentTurnBasedSatedRecoveryLine(action: {
   const recovery = action.satedRecovery;
   const recipient = findTurnBasedParticipant(state, action.actorCharacterId);
   return recovery && recipient
-    ? presentVarenykSatedJournalRecovery(recovery, `<b>${escapeHtml(recipient.displayName)}</b>`)
+    ? presentVarenykSatedJournalRecovery(recovery, escapeHtml(recipient.displayName))
     : null;
 }
 

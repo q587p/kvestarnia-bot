@@ -779,12 +779,12 @@ describe("party session presenter", () => {
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
-    expect(journal).toContain("😋 <b>Голова</b>: ситість відновлює <b>+1 HP</b> і <b>+1 мани</b>.");
+    expect(journal).toContain("😋 Голова: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(journal.indexOf("Старший Брат Бочки атакує Голова")).toBeLessThan(
-      journal.indexOf("😋 <b>Голова</b>: ситість відновлює")
+      journal.indexOf("😋 Голова: <i>ситість</i> відновлює")
     );
     expect(active.indexOf("Старший Брат Бочки атакує вас")).toBeLessThan(
-      active.indexOf("😋 <b>Голова</b>: ситість відновлює")
+      active.indexOf("😋 Голова: <i>ситість</i> відновлює")
     );
   });
 

@@ -516,38 +516,52 @@ function presentRogueOtherTargetsLines(availableAt: Date | null): string[] {
 function presentVarenykStatusAndWaitLines(
   result: Extract<ClassNoncombatOpenResult, { state: "ready" }>
 ): string[] {
-  const blocks: string[][] = [];
-  const selfLines: string[] = [];
-  if (result.varenykSatedSelf) {
-    const selfStatus = presentActiveVarenykSatedBuff(
-      new Date(result.varenykSatedSelf.expiresAt),
-      result.varenykSatedSelf.rank
-    );
-    if (selfStatus) selfLines.push(selfStatus);
-  }
-  if (result.varenykSatedSelfAvailableAt) {
-    selfLines.push(`🍽️ Знову нагодувати через ${formatRemaining(result.varenykSatedSelfAvailableAt)}.`);
-  }
-  if (selfLines.length > 0) {
-    blocks.push(["👤 <b>Ви</b>", ...selfLines]);
-  }
+  const lines: string[] = [];
+  const now = new Date();
+  const selfSummary = presentVarenykRecipientSummary(
+    "👤 <b>Ви</b>",
+    result.varenykSatedSelf,
+    result.varenykSatedSelfAvailableAt,
+    now
+  );
+  if (selfSummary) lines.push(selfSummary);
+
   for (const target of result.targets) {
-    const targetLines: string[] = [];
-    if (target.varenykSated) {
-      const targetStatus = presentActiveVarenykSatedBuff(
-        new Date(target.varenykSated.expiresAt),
-        target.varenykSated.rank
-      );
-      if (targetStatus) targetLines.push(targetStatus);
-    }
-    if (target.varenykSatedAvailableAt) {
-      targetLines.push(`🍽️ Знову нагодувати через ${formatRemaining(target.varenykSatedAvailableAt)}.`);
-    }
-    if (targetLines.length > 0) {
-      blocks.push([`👤 <b>${escapeHtml(target.name)}</b>`, ...targetLines]);
-    }
+    const targetSummary = presentVarenykRecipientSummary(
+      `👤 <b>${escapeHtml(target.name)}</b>`,
+      target.varenykSated,
+      target.varenykSatedAvailableAt,
+      now
+    );
+    if (targetSummary) lines.push(targetSummary);
   }
-  return blocks.flatMap((block, index) => index === 0 ? block : ["", ...block]);
+
+  return lines;
+}
+
+function presentVarenykRecipientSummary(
+  subjectHtml: string,
+  status: { rank: number; expiresAt: Date | string } | null | undefined,
+  availableAt: Date | null | undefined,
+  now: Date
+): string | null {
+  const remainingMinutes = status
+    ? Math.max(0, Math.ceil((new Date(status.expiresAt).getTime() - now.getTime()) / 60_000))
+    : 0;
+  const recovery = status && remainingMinutes > 0
+    ? getVarenykSatedPeriodicRecovery(status.rank)
+    : null;
+  const statusText = recovery
+    ? `${subjectHtml}, ситий ще <b>${remainingMinutes} хв</b> (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>).`
+    : null;
+  const waitText = availableAt
+    ? `Знову через <b>${formatRemaining(availableAt, now)}</b>.`
+    : null;
+
+  if (statusText && waitText) return `${statusText} ${waitText}`;
+  if (statusText) return statusText;
+  if (waitText) return `${subjectHtml}. ${waitText}`;
+  return null;
 }
 
 function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): string {

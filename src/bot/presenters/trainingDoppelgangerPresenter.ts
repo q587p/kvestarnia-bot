@@ -224,7 +224,7 @@ function presentTrainingDoppelgangerState(input: {
     if (state.lastTurn.satedRecovery) {
       const satedRecovery = presentVarenykSatedJournalRecovery(
         state.lastTurn.satedRecovery,
-        `<b>${escapeHtml(input.character.name)}</b>`
+        escapeHtml(input.character.name)
       );
       if (satedRecovery) {
         lines.push(satedRecovery);
@@ -307,7 +307,7 @@ export function presentTrainingDoppelgangerJournal(
   if (entry.summary.satedRecovery) {
     const satedRecovery = presentVarenykSatedJournalRecovery(
       entry.summary.satedRecovery,
-      `<b>${escapeHtml(result.character.name)}</b>`
+      escapeHtml(result.character.name)
     );
     if (satedRecovery) {
       lines.push(satedRecovery);

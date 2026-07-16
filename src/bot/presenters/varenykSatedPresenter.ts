@@ -31,7 +31,15 @@ export function presentActiveVarenykSatedCombatState(
   now = new Date(),
   subjectHtml = "Стан: <b>Ситий</b>"
 ): string | null {
-  return presentActiveVarenykSatedBuff(expiresAt, rank, now, subjectHtml, "turns");
+  const remainingMs = expiresAt.getTime() - now.getTime();
+  if (remainingMs <= 0) {
+    return null;
+  }
+
+  const remainingTurns = Math.max(1, Math.ceil(remainingMs / 60_000));
+  const remaining = `${remainingTurns} ${pluralize(remainingTurns, "хід", "ходи", "ходів")}`;
+  const recovery = getVarenykSatedPeriodicRecovery(rank);
+  return `😋 ${subjectHtml} ще <b>${remaining}</b> (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>)`;
 }
 
 export function presentVarenykSatedRecoveryNotice(
@@ -52,11 +60,11 @@ export function presentVarenykSatedJournalRecovery(
   recipientHtml: string
 ): string | null {
   const parts = [
-    ...(recovery.hpRestored > 0 ? [`<b>+${recovery.hpRestored} HP</b>`] : []),
-    ...(recovery.manaRestored > 0 ? [`<b>+${recovery.manaRestored} мани</b>`] : [])
+    ...(recovery.hpRestored > 0 ? [`+${recovery.hpRestored} HP`] : []),
+    ...(recovery.manaRestored > 0 ? [`+${recovery.manaRestored} мани`] : [])
   ];
   return parts.length > 0
-    ? `😋 ${recipientHtml}: ситість відновлює ${parts.join(" і ")}.`
+    ? `😋 ${recipientHtml}: <i>ситість</i> відновлює ${parts.join(" і ")}.`
     : null;
 }
 

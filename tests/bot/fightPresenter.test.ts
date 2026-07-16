@@ -2771,10 +2771,10 @@ describe("fight presenter", () => {
     const text = presentPersistentFightTurn(result as never);
     const journal = presentPersistentFightJournal({ ...result, state: "found" } as never, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>\n<b>+2 HP</b> і <b>+1 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+2 HP / +1 мани</b>)");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
-    expect(journal).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>.");
-    expect(text).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>.");
+    expect(journal).toContain("😋 Мандрівник: <i>ситість</i> відновлює +1 HP.");
+    expect(text).toContain("😋 Мандрівник: <i>ситість</i> відновлює +1 HP.");
     expect(text).not.toContain("ранг 2");
     expect(text).toContain("+1 HP");
     expect(text).not.toContain("+0 мани");
@@ -2832,7 +2832,7 @@ describe("fight presenter", () => {
     } as never, 0);
 
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>6 ходів</b>");
-    expect(journal).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+2 HP</b> і <b>+1 мани</b>.");
+    expect(journal).toContain("😋 Мандрівник: <i>ситість</i> відновлює +2 HP і +1 мани.");
   });
 });
 

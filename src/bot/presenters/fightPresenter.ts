@@ -478,7 +478,7 @@ export function presentPersistentFightJournal(
     opponentRows: presentJournalEnemyHpRows(entry, state),
     actionLines: [presentTurnSummary(entry.summary, {
       includeHeading: false,
-      satedRecipientHtml: `<b>${escapeHtml(result.character.name)}</b>`
+      satedRecipientHtml: escapeHtml(result.character.name)
     })],
     noticeLines: notices
   });
@@ -859,7 +859,7 @@ function presentPersistentFightState(input: {
     if (shouldShowLastTurn && state.lastTurn) {
       lines.push("", presentTurnSummary(state.lastTurn, {
         includeHeading: false,
-        satedRecipientHtml: `<b>${escapeHtml(input.character.name)}</b>`
+        satedRecipientHtml: escapeHtml(input.character.name)
       }));
     }
     lines.push(...presentDefeatedEnemyLines(state, input.monster));

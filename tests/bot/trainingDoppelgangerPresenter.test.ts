@@ -72,7 +72,7 @@ describe("training doppelganger presenter", () => {
       })
     });
 
-    expect(text).toContain("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 мани</b>.");
+    expect(text).toContain("😋 Мандрівник: <i>ситість</i> відновлює +1 мани.");
     expect(text).not.toContain("+0 HP");
   });
 
@@ -128,7 +128,7 @@ describe("training doppelganger presenter", () => {
       reward: null
     }, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>\n<b>+3 HP</b> і <b>+3 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
     expect(text).not.toContain("ранг 5");
   });
@@ -168,8 +168,8 @@ describe("training doppelganger presenter", () => {
   });
 
   it.each([
-    [{ hpRestored: 1, manaRestored: 0 }, "😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b>."],
-    [{ hpRestored: 0, manaRestored: 1 }, "😋 <b>Мандрівник</b>: ситість відновлює <b>+1 мани</b>."],
+    [{ hpRestored: 1, manaRestored: 0 }, "😋 Мандрівник: <i>ситість</i> відновлює +1 HP."],
+    [{ hpRestored: 0, manaRestored: 1 }, "😋 Мандрівник: <i>ситість</i> відновлює +1 мани."],
     [{ hpRestored: 0, manaRestored: 0 }, null]
   ] as const)("renders stored journal Sated recovery without zero components: %j", (satedRecovery, expectedLine) => {
     const character = buildCharacter();
@@ -199,7 +199,7 @@ describe("training doppelganger presenter", () => {
 
     if (expectedLine) {
       expect(text).toContain(expectedLine);
-      expect(text.match(/😋 <b>Мандрівник<\/b>: ситість відновлює/g)).toHaveLength(1);
+      expect(text.match(/😋 Мандрівник: <i>ситість<\/i> відновлює/g)).toHaveLength(1);
     } else {
       expect(text).not.toContain("ситість відновлює");
     }

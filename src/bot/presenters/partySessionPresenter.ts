@@ -1494,7 +1494,7 @@ function presentVarenykSatedRecoveryLine(
 ): string | null {
   const recovery = action.satedRecovery;
   return recovery && recipientName
-    ? presentVarenykSatedJournalRecovery(recovery, `<b>${escapeHtml(recipientName)}</b>`)
+    ? presentVarenykSatedJournalRecovery(recovery, escapeHtml(recipientName))
     : null;
 }
 

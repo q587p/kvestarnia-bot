@@ -14,9 +14,9 @@ describe("Varenyk Sated presenter", () => {
     expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).toBe(
       "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>\n<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)."
     );
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("ще <b>12 ходів</b>");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("кожен хід в бою");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("(це забирає хвилину дії)");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toBe(
+      "😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)"
+    );
     expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).not.toMatch(/ранг/iu);
     expect(presentActiveVarenykSatedBuff(now, 5, now)).toBeNull();
   });
@@ -32,8 +32,8 @@ describe("Varenyk Sated presenter", () => {
   it("names the journal recovery recipient and omits zero components", () => {
     expect(presentVarenykSatedJournalRecovery(
       { hpRestored: 1, manaRestored: 1 },
-      "<b>Мандрівник</b>"
-    )).toBe("😋 <b>Мандрівник</b>: ситість відновлює <b>+1 HP</b> і <b>+1 мани</b>.");
+      "Мандрівник"
+    )).toBe("😋 Мандрівник: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(presentVarenykSatedJournalRecovery(
       { hpRestored: 0, manaRestored: 1 },
       "<b>Мандрівник</b>"
