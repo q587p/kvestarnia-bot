@@ -22,7 +22,7 @@ export function presentActiveVarenykSatedBuff(
     ? `${remainingMinutes} ${pluralize(remainingMinutes, "хід", "ходи", "ходів")}`
     : `${remainingMinutes} хв`;
   const recovery = getVarenykSatedPeriodicRecovery(rank);
-  return `😋 ${subjectHtml} ще <b>${remaining}</b>\n<b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії).`;
+  return `😋 ${subjectHtml} ще <b>${remaining}</b>\n<b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії).`;
 }
 
 export function presentActiveVarenykSatedCombatState(

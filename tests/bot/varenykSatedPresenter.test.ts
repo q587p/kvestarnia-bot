@@ -12,11 +12,11 @@ describe("Varenyk Sated presenter", () => {
     const expiresAt = new Date("2026-07-15T18:12:00.000Z");
 
     expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).toBe(
-      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>\n<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або після завершення бойового обміну (кожен забирає хвилину дії)."
+      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>\n<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)."
     );
     expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("ще <b>12 ходів</b>");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("після завершення бойового обміну");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("(кожен забирає хвилину дії)");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("кожен хід в бою");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("(це забирає хвилину дії)");
     expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).not.toMatch(/ранг/iu);
     expect(presentActiveVarenykSatedBuff(now, 5, now)).toBeNull();
   });

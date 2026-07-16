@@ -136,7 +136,7 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу до <b>+${result.plan.immediateHp} HP</b>.`,
-    `Далі <b>+${periodicRecovery.hp} HP і +${periodicRecovery.mana} ${periodicRecovery.mana === 1 ? "мана" : "мани"}</b> після повної хвилини поза боєм або завершення бойового обміну (кожен забирає хвилину дії).`,
+    `Далі <b>+${periodicRecovery.hp} HP і +${periodicRecovery.mana} ${periodicRecovery.mana === 1 ? "мана" : "мани"}</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії).`,
     "",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · ваша нова миска для цієї цілі через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
