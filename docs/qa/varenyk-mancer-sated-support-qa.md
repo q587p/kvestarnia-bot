@@ -4,7 +4,7 @@ Status: in progress. The caller-owned local dev-reset path, maximum-rank self-pr
 
 Automated presentation coverage now also pins the outside-combat Sated duration and recovery explanation to one em-dash line. This is not fresh Telegram PASS evidence; the latest-head card still needs the pending Telegram retest.
 
-Automated achievement coverage pins `Тринадцята миска` to the thirteenth fresh other-recipient feed event. Replays and recovery pulses remain excluded by the existing fresh-commit event boundary; Telegram unlock evidence is still pending.
+Checkpoint `b5b40ea7` temporarily added `Тринадцята миска` for a thirteenth other-recipient feed, but review found that the post-commit best-effort achievement hook cannot guarantee an activation-keyed durable count or reconstruct missed progress. That checkpoint is superseded for this milestone: the achievement is deferred to a separate durable-ledger design, no Telegram PASS is claimed, and the existing first fresh self-feed/other-feed achievements remain in `0.3.12`.
 
 ## Execution log
 
