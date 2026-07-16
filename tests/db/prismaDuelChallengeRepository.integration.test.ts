@@ -24,7 +24,6 @@ import {
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
-import { DuelChallengeService } from "../../src/services/duelChallengeService";
 
 describe("PrismaDuelChallengeRepository turn-based integration", () => {
   let dir: string;
@@ -163,6 +162,75 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       healing: 7,
       guard: 1,
       skillId: "ability.race.practical-improvisation"
+    });
+  });
+
+  it("round-trips resolved Sated recovery and post-round state through the public duel journal", async () => {
+    const session = await seedActiveSession("resolved-sated-journal", new Date("2026-06-17T18:00:23.000Z"));
+    const completedAt = new Date("2026-06-17T18:00:11.000Z");
+    const sated = {
+      version: 1 as const,
+      activationId: "resolved-journal-sated",
+      recipientCharacterId: session.challengerCharacterId,
+      recipientRemortCount: 0,
+      rank: 2,
+      expiresAt: "2026-06-17T18:11:11.000Z",
+      cursorAt: completedAt.toISOString(),
+      leaseStartedAt: "2026-06-17T18:00:00.000Z",
+      outsideRemainderMs: 30_000,
+      pulseIds: [`${session.id}:turn:1:${session.challengerCharacterId}`]
+    };
+    const action = {
+      actorCharacterId: session.challengerCharacterId,
+      defenderCharacterId: session.targetCharacterId,
+      action: "attack" as const,
+      outcome: "hit" as const,
+      damage: 3,
+      manaSpent: 0,
+      critical: false,
+      satedRecovery: { hpRestored: 2, manaRestored: 1 }
+    };
+    const round = {
+      turn: 1,
+      actions: [action],
+      varenykSatedAfter: { challenger: sated, target: null }
+    };
+    const terminalState = makeTerminalState(session.state, "challenger", "defeat");
+    terminalState.lastAction = action;
+    terminalState.lastRound = round;
+    terminalState.participants.challenger.varenykSated = sated;
+
+    await expect(repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
+      state: terminalState,
+      status: "resolved",
+      now: completedAt,
+      deadlineMode: "player-action",
+      turnExpiresAt: session.turnExpiresAt,
+      completedAt,
+      result: makeTerminalResult(session, "challenger", "defeat", { challenger: 4, target: 1 }),
+      action: {
+        actorCharacterId: session.challengerCharacterId,
+        turn: 1,
+        actionKey: "round",
+        result: round
+      }
+    })).resolves.toMatchObject({ status: "resolved" });
+
+    const service = new DuelChallengeService(
+      repository,
+      new PrismaCharacterRepository(prisma),
+      () => completedAt,
+      new FakeRandomSource([0.99])
+    );
+    const journal = await service.getTurnBasedJournalByToken("resolved-sated-journal");
+
+    expect(journal).toMatchObject({
+      state: "ready",
+      rounds: [{
+        turn: 1,
+        actions: [{ satedRecovery: { hpRestored: 2, manaRestored: 1 } }],
+        varenykSatedAfter: { challenger: sated, target: null }
+      }]
     });
   });
 
@@ -1127,6 +1195,16 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       outsideRemainderMs: 0,
       pulseIds: [`${session.id}:turn:1:${session.challengerCharacterId}`]
     };
+    await prisma.activeCombatLease.updateMany({
+      where: {
+        kind: "turn-based-duel",
+        referenceId: session.id
+      },
+      data: {
+        createdAt: new Date("2026-06-17T18:00:00.000Z"),
+        updatedAt: new Date("2026-06-17T18:00:00.000Z")
+      }
+    });
     const terminalState = makeTerminalState(session.state, "target", "surrender");
     const result = makeTerminalResult(session, "target", "surrender", { challenger: 1, target: 4 });
 
@@ -1291,6 +1369,23 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   it("repairs malformed active sessions and removes orphan turn-based duel leases", async () => {
     const session = await seedActiveSession("repair", new Date("2026-06-17T18:00:23.000Z"));
+    const malformedLeaseStartedAt = new Date("2026-06-17T18:00:30.000Z");
+    const malformedSated = makeSatedPayload(
+      session.challengerCharacterId,
+      new Date("2026-06-17T18:00:00.000Z")
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: session.challengerCharacterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(malformedSated.availableAt),
+        resultJson: malformedSated
+      }
+    });
+    await prisma.activeCombatLease.update({
+      where: { characterId: session.challengerCharacterId },
+      data: { createdAt: malformedLeaseStartedAt, updatedAt: malformedLeaseStartedAt }
+    });
     await prisma.duelCombatSession.update({
       where: { id: session.id },
       data: {
@@ -1346,7 +1441,21 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         }
       }
     });
-    expect((orphanStatus.resultJson as { cursorAt: string }).cursorAt).toBe("2026-06-17T18:00:30.000Z");
+    const malformedStatus = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: session.challengerCharacterId,
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    for (const status of [malformedStatus, orphanStatus]) {
+      const releasedPayload = status.resultJson as unknown as VarenykSatedPayloadV1;
+      expect(releasedPayload.cursorAt).toBe("2026-06-17T18:00:30.000Z");
+      expect(releasedPayload.expiresAt).toBe("2026-06-17T18:13:30.000Z");
+      expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+        .toBe(13 * 60_000);
+    }
   });
 
   it("releases a turn-duel orphan after round progress without losing its original remainder", async () => {
@@ -1406,6 +1515,9 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     });
     const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
     expect(releasedPayload.cursorAt).toBe("2026-06-17T19:05:00.000Z");
+    expect(releasedPayload.expiresAt).toBe("2026-06-17T19:18:00.000Z");
+    expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+      .toBe(13 * 60_000);
     expect(settleVarenykSatedOutsideCombat({
       payload: releasedPayload,
       resources: { hp: 1, hpMax: 33, mana: 1, manaMax: 16 },

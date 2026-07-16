@@ -162,6 +162,19 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     return;
   }
   const payloadExpiresAt = Date.parse(payload.expiresAt);
+  const payloadCursorAt = Date.parse(payload.cursorAt);
+  const payloadStartedAt = Date.parse(payload.startedAt);
+  const leaseStartedAt = input.leaseStartedAt?.getTime();
+  const activationWasActiveAtLeaseStart =
+    typeof leaseStartedAt === "number" &&
+    Number.isFinite(leaseStartedAt) &&
+    payload.recipientCharacterId === input.characterId &&
+    payloadStartedAt <= leaseStartedAt &&
+    payloadCursorAt <= leaseStartedAt &&
+    payloadExpiresAt > leaseStartedAt;
+  if (input.leaseStartedAt && !activationWasActiveAtLeaseStart) {
+    return;
+  }
   const combatExpiresAt = input.combatExpiresAt?.getTime();
   const combatCursorAt = input.combatCursorAt?.getTime();
   const hasFrozenCombatDuration =
@@ -169,33 +182,42 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
     Number.isFinite(combatExpiresAt) &&
     typeof combatCursorAt === "number" &&
     Number.isFinite(combatCursorAt);
-  const effectiveExpiresAt = hasFrozenCombatDuration
-    ? new Date(input.now.getTime() + Math.max(0, combatExpiresAt - combatCursorAt))
-    : new Date(Math.max(
-        Date.parse(payload.startedAt),
-        Math.min(
-          payloadExpiresAt,
-          typeof combatExpiresAt === "number" && Number.isFinite(combatExpiresAt)
-            ? combatExpiresAt
-            : payloadExpiresAt
-        )
-      ));
-  const through = new Date(Math.min(input.now.getTime(), effectiveExpiresAt.getTime()));
   const inferredRemainder = input.leaseStartedAt
-    ? input.leaseStartedAt.getTime() - Date.parse(payload.cursorAt)
+    ? input.leaseStartedAt.getTime() - payloadCursorAt
     : 0;
   const remainder = Math.max(0, Math.min(
     59_999,
     Math.floor(input.outsideRemainderMs ?? inferredRemainder)
   ));
-  const nextCursor = through.getTime() === effectiveExpiresAt.getTime()
-    ? through
-    : new Date(Math.max(
-        Date.parse(payload.cursorAt),
-        through.getTime() - remainder
-      ));
-  const expiryChanged = effectiveExpiresAt.getTime() < payloadExpiresAt;
-  if (nextCursor.getTime() <= Date.parse(payload.cursorAt) && !expiryChanged) {
+  const frozenDurationMs = hasFrozenCombatDuration
+    ? Math.max(0, combatExpiresAt - combatCursorAt)
+    : activationWasActiveAtLeaseStart
+      ? Math.max(0, payloadExpiresAt - payloadCursorAt)
+      : null;
+  const fallbackExpiresAt = new Date(Math.max(
+    payloadStartedAt,
+    Math.min(
+      payloadExpiresAt,
+      typeof combatExpiresAt === "number" && Number.isFinite(combatExpiresAt)
+        ? combatExpiresAt
+        : payloadExpiresAt
+    )
+  ));
+  const through = new Date(Math.min(input.now.getTime(), fallbackExpiresAt.getTime()));
+  const nextCursor = frozenDurationMs === null
+    ? through.getTime() === fallbackExpiresAt.getTime()
+      ? through
+      : new Date(Math.max(payloadCursorAt, through.getTime() - remainder))
+    : frozenDurationMs === 0
+      ? new Date(input.now)
+      : new Date(Math.max(payloadCursorAt, input.now.getTime() - remainder));
+  const effectiveExpiresAt = frozenDurationMs === null
+    ? fallbackExpiresAt
+    : frozenDurationMs === 0
+      ? new Date(nextCursor)
+      : new Date(nextCursor.getTime() + frozenDurationMs);
+  const expiryChanged = effectiveExpiresAt.getTime() !== payloadExpiresAt;
+  if (nextCursor.getTime() <= payloadCursorAt && !expiryChanged) {
     return;
   }
   const updated = await input.tx.characterCooldown.updateMany({
@@ -210,7 +232,7 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
         expiresAt: effectiveExpiresAt.toISOString(),
         cursorAt: new Date(Math.min(
           effectiveExpiresAt.getTime(),
-          Math.max(nextCursor.getTime(), Date.parse(payload.cursorAt))
+          Math.max(nextCursor.getTime(), payloadCursorAt)
         )).toISOString()
       } as unknown as Prisma.InputJsonValue
     }

@@ -131,6 +131,10 @@ describe("training doppelganger presenter", () => {
 
     expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
+    expect(journal).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>")
+    );
     expect(text).not.toContain("ранг 5");
   });
 

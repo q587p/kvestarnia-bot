@@ -93,7 +93,7 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.cooldowns.size).toBe(0);
   });
 
-  it("persists a Sated pulse on the Training Doppelganger turn before its response", async () => {
+  it("persists a Sated pulse on the Training Doppelganger turn after its hostile response", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);
     const service = buildService(world, new FakeRandomSource([0.9, 0.9, 0.9]));

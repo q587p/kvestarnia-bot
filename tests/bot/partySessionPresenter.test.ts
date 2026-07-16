@@ -797,6 +797,45 @@ describe("party session presenter", () => {
     );
   });
 
+  it("keeps identical Sated rows for distinct same-named Big Barrel participants", () => {
+    const leader = participant("leader", "Тезко");
+    const striker = participant("striker", "Тезко");
+    const session = makeBigBossSession({
+      participants: [leader, striker],
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [],
+        participantsAfter: [
+          { characterId: "leader", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 },
+          { characterId: "striker", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+    const cursorAt = "2026-07-16T13:00:00.000Z";
+    const makeSated = (characterId: string) => ({
+      version: 1 as const,
+      activationId: `same-name-${characterId}`,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: "2026-07-16T13:12:00.000Z",
+      cursorAt,
+      leaseStartedAt: cursorAt,
+      outsideRemainderMs: 0,
+      pulseIds: [`same-name:${characterId}:1`]
+    });
+    session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = makeSated("leader");
+    session.state.roundLog[0]!.participantsAfter![1]!.varenykSated = makeSated("striker");
+
+    const journal = presentPartyBossJournal(session, 0);
+    const identicalLine = "😋 Стан: <b>Ситий</b> у <b>Тезко</b> ще <b>12 ходів</b>";
+    expect(journal.split(identicalLine)).toHaveLength(3);
+  });
+
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {
     const leader = participant("leader", "Голова");
     leader.combatItems = {

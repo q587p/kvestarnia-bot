@@ -316,7 +316,7 @@ export function presentTrainingDoppelgangerJournal(
   const notices = presentJournalTurnNotices(entry);
 
   if (notices.length > 0) {
-    lines.push("", ...notices);
+    lines.push("", "<b>Кулдауни та ефекти:</b>", ...notices);
   }
 
   return lines.join("\n");

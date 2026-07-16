@@ -762,14 +762,14 @@ function presentPartyBossJournalNotices(
   round: PartyBossSessionRecord["state"]["roundLog"][number]
 ): string[] {
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
-  const notices = [
-    ...presentJournalCooldownLines(round, session.state.participants),
+  return [
+    ...new Set(presentJournalCooldownLines(round, session.state.participants)),
     ...presentPartyBossJournalSatedLines(round, session.state.participants),
-    ...(nextFocus ? [nextFocus] : []),
-    ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
+    ...new Set([
+      ...(nextFocus ? [nextFocus] : []),
+      ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
+    ])
   ];
-
-  return Array.from(new Set(notices));
 }
 
 function presentPartyBossJournalSatedLines(

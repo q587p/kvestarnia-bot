@@ -8,6 +8,8 @@ import { PrismaClassNoncombatRepository } from "../../src/db/repositories/prisma
 import type { CreateSoloCombatSessionInput } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CombatState } from "../../src/domain/combat";
 import {
+  getVarenykSatedRemainingCombatTurns,
+  settleVarenykSatedOutsideCombat,
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
@@ -410,7 +412,189 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         }
       }
     });
-    expect((stored.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
+    const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-07-14T10:05:00.000Z");
+    expect(releasedPayload.expiresAt).toBe("2026-07-14T10:18:00.000Z");
+    expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+      .toBe(13 * 60_000);
+    expect(getVarenykSatedRemainingCombatTurns({
+      expiresAt: releasedPayload.expiresAt,
+      cursorAt: releasedPayload.cursorAt
+    })).toBe(13);
+  });
+
+  it.each([
+    { label: "without a pulse", pulses: 0, remainingMinutes: 11 },
+    { label: "after one pulse", pulses: 1, remainingMinutes: 10 }
+  ])("rebases a valid solo Sated state $label without adding its outside remainder twice", async ({
+    pulses,
+    remainingMinutes
+  }) => {
+    const characterId = `character-exact-valid-${pulses}`;
+    const sessionId = `session-exact-valid-${pulses}`;
+    const startedAt = new Date("2026-07-14T10:00:00.000Z");
+    const durableCursorAt = new Date("2026-07-14T10:02:00.000Z");
+    const leaseStartedAt = new Date("2026-07-14T10:02:30.000Z");
+    const releasedAt = new Date("2026-07-14T10:05:00.000Z");
+    await seedCharacter(prisma, {
+      userId: `user-exact-valid-${pulses}`,
+      characterId,
+      telegramUserId: BigInt(42940 + pulses)
+    });
+    const payload = makeSoloSatedPayload(
+      characterId,
+      `exact-valid-${pulses}-activation`,
+      startedAt,
+      BigInt(42940 + pulses)
+    );
+    payload.cursorAt = durableCursorAt.toISOString();
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    const state = makeCombatState(sessionId, "monster.deadline-spider");
+    const combatCursorAt = pulses === 0
+      ? leaseStartedAt
+      : new Date("2026-07-14T10:04:00.000Z");
+    state.varenykSated = {
+      version: 1,
+      activationId: payload.activationId,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(combatCursorAt.getTime() + remainingMinutes * 60_000).toISOString(),
+      cursorAt: combatCursorAt.toISOString(),
+      leaseStartedAt: leaseStartedAt.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: pulses === 0 ? [] : [`${sessionId}:turn:1:${characterId}`]
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: sessionId,
+        characterId,
+        monsterId: state.monster.id,
+        stateJson: state,
+        status: "active",
+        turn: state.turn,
+        expiresAt: new Date("2026-07-14T10:23:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: `lease-exact-valid-${pulses}`,
+        characterId,
+        kind: "solo-combat",
+        referenceId: sessionId,
+        createdAt: leaseStartedAt,
+        updatedAt: leaseStartedAt
+      }
+    });
+
+    await expect(repository.releaseLeaseBySessionId(sessionId, releasedAt)).resolves.toBe(true);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-07-14T10:04:30.000Z");
+    expect(releasedPayload.expiresAt).toBe(
+      new Date(Date.parse(releasedPayload.cursorAt) + remainingMinutes * 60_000).toISOString()
+    );
+    expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+      .toBe(remainingMinutes * 60_000);
+    expect(getVarenykSatedRemainingCombatTurns({
+      expiresAt: releasedPayload.expiresAt,
+      cursorAt: releasedPayload.cursorAt
+    })).toBe(remainingMinutes);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 30, mana: 1, manaMax: 30 },
+      now: new Date(Date.parse(releasedPayload.expiresAt) - 1),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(remainingMinutes - 1);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 30, mana: 1, manaMax: 30 },
+      now: new Date(releasedPayload.expiresAt),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(remainingMinutes);
+  });
+
+  it("snaps a zero-duration solo Sated state to exact terminal expiry on release", async () => {
+    const characterId = "character-exact-terminal-sated";
+    const sessionId = "session-exact-terminal-sated";
+    const startedAt = new Date("2026-07-14T10:00:00.000Z");
+    const leaseStartedAt = new Date("2026-07-14T10:02:30.000Z");
+    const releasedAt = new Date("2026-07-14T10:05:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-exact-terminal-sated",
+      characterId,
+      telegramUserId: 42942n
+    });
+    const payload = makeSoloSatedPayload(
+      characterId,
+      "exact-terminal-activation",
+      startedAt,
+      42942n
+    );
+    payload.cursorAt = "2026-07-14T10:02:00.000Z";
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    const state = makeCombatState(sessionId, "monster.deadline-spider");
+    state.varenykSated = {
+      version: 1,
+      activationId: payload.activationId,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: leaseStartedAt.toISOString(),
+      cursorAt: leaseStartedAt.toISOString(),
+      leaseStartedAt: leaseStartedAt.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: Array.from({ length: 11 }, (_, index) => `${sessionId}:pulse:${index + 1}`)
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: sessionId,
+        characterId,
+        monsterId: state.monster.id,
+        stateJson: state,
+        status: "active",
+        turn: state.turn,
+        expiresAt: new Date("2026-07-14T10:23:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-exact-terminal-sated",
+        characterId,
+        kind: "solo-combat",
+        referenceId: sessionId,
+        createdAt: leaseStartedAt,
+        updatedAt: leaseStartedAt
+      }
+    });
+
+    await expect(repository.releaseLeaseBySessionId(sessionId, releasedAt)).resolves.toBe(true);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe(releasedAt.toISOString());
+    expect(releasedPayload.expiresAt).toBe(releasedAt.toISOString());
+    expect(getVarenykSatedRemainingCombatTurns({
+      expiresAt: releasedPayload.expiresAt,
+      cursorAt: releasedPayload.cursorAt
+    })).toBe(0);
   });
 
   it("retains the original remainder after combat progress when solo state later disappears or becomes malformed", async () => {
@@ -437,9 +621,6 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         }
       });
       const payload = makeSoloSatedPayload(characterId, `progress-${mode}-activation`, startedAt, telegramUserId);
-      if (mode === "malformed") {
-        payload.expiresAt = "2026-07-14T12:05:00.000Z";
-      }
       await prisma.characterCooldown.create({
         data: {
           characterId,
@@ -509,22 +690,28 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
         where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
       });
       expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(
-        mode === "missing" ? "2026-07-14T12:05:00.000Z" : payload.expiresAt
+        "2026-07-14T12:05:00.000Z"
       );
+      const releasedPayload = cooldown.resultJson as unknown as VarenykSatedPayloadV1;
+      expect(releasedPayload.expiresAt).toBe("2026-07-14T12:18:00.000Z");
+      expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+        .toBe(13 * 60_000);
+      expect(getVarenykSatedRemainingCombatTurns({
+        expiresAt: releasedPayload.expiresAt,
+        cursorAt: releasedPayload.cursorAt
+      })).toBe(13);
 
-      if (mode === "missing") {
-        const classNoncombat = new PrismaClassNoncombatRepository(prisma);
-        await expect(classNoncombat.settleVarenykSatedForTelegramUser(
-          telegramUserId,
-          new Date("2026-07-14T12:05:59.999Z"),
-          characterId
-        )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
-        await expect(classNoncombat.settleVarenykSatedForTelegramUser(
-          telegramUserId,
-          new Date("2026-07-14T12:06:00.000Z"),
-          characterId
-        )).resolves.toMatchObject({ hpRestored: 1, manaRestored: 1 });
-      }
+      const classNoncombat = new PrismaClassNoncombatRepository(prisma);
+      await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+        telegramUserId,
+        new Date("2026-07-14T12:05:59.999Z"),
+        characterId
+      )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+      await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+        telegramUserId,
+        new Date("2026-07-14T12:06:00.000Z"),
+        characterId
+      )).resolves.toMatchObject({ hpRestored: 1, manaRestored: 1 });
     }
   });
 
@@ -635,11 +822,11 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       recipientCharacterId: characterId,
       recipientRemortCount: 0,
       rank: 1,
-      expiresAt: new Date(Date.parse(payload.expiresAt) - 60_000).toISOString(),
+      expiresAt: new Date(leaseStartedAt.getTime() + 12 * 60_000).toISOString(),
       cursorAt: leaseStartedAt.toISOString(),
       leaseStartedAt: leaseStartedAt.toISOString(),
       outsideRemainderMs: 30_000,
-      pulseIds: []
+      pulseIds: [`${sessionId}:turn:1:${characterId}`]
     };
     await prisma.soloCombatSession.create({
       data: {
@@ -685,6 +872,10 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
     expect((cooldown.resultJson as { expiresAt: string }).expiresAt)
       .toBe("2026-07-14T10:17:00.000Z");
+    expect(
+      Date.parse((cooldown.resultJson as { expiresAt: string }).expiresAt) -
+      Date.parse((cooldown.resultJson as { cursorAt: string }).cursorAt)
+    ).toBe(12 * 60_000);
 
     await prisma.character.update({
       where: { id: characterId },
@@ -788,7 +979,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
     expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:29.000Z");
-    expect((cooldown.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:06:29.000Z");
+    expect((cooldown.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:05:59.000Z");
     await expect(prisma.activeCombatLease.count({ where: { referenceId: sessionId } }))
       .resolves.toBe(0);
     await expect(repository.releaseLeaseBySessionId(
@@ -799,7 +990,23 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
     expect((duplicate.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:29.000Z");
-    expect((duplicate.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:06:29.000Z");
+    expect((duplicate.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:05:59.000Z");
+
+    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+      42931n,
+      new Date("2026-07-14T10:05:58.999Z"),
+      characterId
+    )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+    await expect(classNoncombat.settleVarenykSatedForTelegramUser(
+      42931n,
+      new Date("2026-07-14T10:05:59.000Z"),
+      characterId
+    )).resolves.toMatchObject({ hpRestored: 0, manaRestored: 0 });
+    const terminal = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect((terminal.resultJson as { cursorAt: string }).cursorAt)
+      .toBe((terminal.resultJson as { expiresAt: string }).expiresAt);
   });
 
   it("persists pre-lease Sated recovery for ordinary and training solo lifecycles before malformed or missing cleanup", async () => {

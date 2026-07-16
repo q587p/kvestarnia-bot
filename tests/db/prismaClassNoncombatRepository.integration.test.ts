@@ -2470,7 +2470,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect((row?.resultJson as { cursorAt?: string } | null)?.cursorAt)
       .toBe(new Date(leaseEndedAt.getTime() - 30_000).toISOString());
     expect((row?.resultJson as { expiresAt?: string } | null)?.expiresAt)
-      .toBe(new Date(now.getTime() + 14 * 60_000 + 30_000).toISOString());
+      .toBe(new Date(now.getTime() + 14 * 60_000).toISOString());
   });
 
   it("returns bounded target-page metadata for class noncombat target lists", async () => {
