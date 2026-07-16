@@ -170,6 +170,49 @@ describe("ClassNoncombatService", () => {
     expect(achievements.events).toHaveLength(1);
   });
 
+  it("emits one other-feed achievement event with the committed activation only for a fresh completion", async () => {
+    const fresh = varenykSatedCompletion({ created: true });
+    fresh.action.targetCharacterId = "target";
+    const achievements = new FakeAchievementService();
+    const service = new ClassNoncombatService(
+      new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: fresh }),
+      () => now,
+      new FakeRandomSource([0]),
+      achievements.service
+    );
+
+    await service.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+
+    expect(achievements.events).toEqual([{
+      type: "varenyk.sated.other",
+      characterId: "actor",
+      occurredAt: now,
+      sourceId: "activation"
+    }]);
+
+    const replay = varenykSatedCompletion({ created: false });
+    replay.action.targetCharacterId = "target";
+    const replayService = new ClassNoncombatService(
+      new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: replay }),
+      () => now,
+      new FakeRandomSource([0]),
+      achievements.service
+    );
+    await replayService.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+
+    expect(achievements.events).toHaveLength(1);
+  });
+
   it("plans Priest target healing from nearby target HP and spends only mana on completion", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: priest({ manaCurrent: 20, statsJson: { charisma: 9, intelligence: 9 } }),

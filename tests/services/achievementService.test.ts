@@ -86,6 +86,22 @@ describe("AchievementService", () => {
     expect(levelFive.map((unlock) => unlock.id)).toEqual(["achievement.level.5"]);
   });
 
+  it("unlocks the first other-recipient Varenyk feed achievement", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const unlocks = await service.trackEvent({
+      type: "varenyk.sated.other",
+      characterId: "character-1",
+      occurredAt: new Date("2026-07-16T09:00:00.000Z"),
+      sourceId: "activation-1"
+    });
+
+    expect(unlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.varenyk.sated.other-first"
+    ]);
+  });
+
   it("ignores disabled definitions", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);
