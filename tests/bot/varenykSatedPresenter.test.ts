@@ -18,8 +18,9 @@ describe("Varenyk Sated presenter", () => {
     };
 
     expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).toBe(
-      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>\n<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)."
+      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b> — <b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)."
     );
+    expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).not.toContain("\n");
     expect(presentActiveVarenykSatedCombatState(combatState)).toBe(
       "😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)"
     );
