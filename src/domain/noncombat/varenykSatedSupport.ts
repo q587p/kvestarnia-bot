@@ -82,6 +82,19 @@ export interface SatedRecoveryResult {
   manaRestored: number;
 }
 
+export interface VarenykSatedPeriodicRecovery {
+  hp: number;
+  mana: number;
+}
+
+export function getVarenykSatedPeriodicRecovery(rank: number): VarenykSatedPeriodicRecovery {
+  const safeRank = clamp(safeInt(rank), 1, 5);
+  return {
+    hp: 1 + Math.floor(safeRank / 2),
+    mana: 1 + Math.floor((safeRank - 1) / 2)
+  };
+}
+
 export function buildVarenykSatedPlan(input: {
   effectiveIntelligence: number;
   effectiveCharisma: number;
@@ -151,9 +164,14 @@ export function settleVarenykSatedOutsideCombat(input: {
     : reachedExpiry
       ? expiresAt
       : new Date(cursorAt.getTime() + elapsedMinutes * 60_000);
+  const periodicRecovery = getVarenykSatedPeriodicRecovery(input.payload.rank);
   const recovered = input.combatBlocked || elapsedMinutes <= 0
     ? applyRecovery(input.resources, 0, 0)
-    : applyRecovery(input.resources, elapsedMinutes, elapsedMinutes);
+    : applyRecovery(
+        input.resources,
+        elapsedMinutes * periodicRecovery.hp,
+        elapsedMinutes * periodicRecovery.mana
+      );
 
   return {
     ...recovered,
@@ -216,7 +234,8 @@ export function applyVarenykSatedCombatPulse(input: {
     };
   }
 
-  const recovered = applyRecovery(input.resources, 1, 1);
+  const periodicRecovery = getVarenykSatedPeriodicRecovery(sated.rank);
+  const recovered = applyRecovery(input.resources, periodicRecovery.hp, periodicRecovery.mana);
   const nextExpiresAt = new Date(Math.max(
     input.now.getTime(),
     Date.parse(sated.expiresAt) - VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS

@@ -489,7 +489,10 @@ function presentJournalTurnNotices(
   state?: Extract<PersistentFightSnapshotResult, { state: "found" }>["session"]["state"]
 ): string[] {
   const satedBuff = state?.varenykSated
-    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(
+        new Date(state.varenykSated.expiresAt),
+        state.varenykSated.rank
+      )
     : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
@@ -515,7 +518,10 @@ function presentActiveFightEffectNotices(
     );
 
   const activeSatedBuff = state.varenykSated
-    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(
+        new Date(state.varenykSated.expiresAt),
+        state.varenykSated.rank
+      )
     : null;
   const satedNotice = activeSatedBuff ? [activeSatedBuff] : [];
 

@@ -5,6 +5,7 @@ import {
   buildVarenykSatedPlan,
   freezeVarenykSatedForCombat,
   getAffordableVarenykSatedPlan,
+  getVarenykSatedPeriodicRecovery,
   parseVarenykSatedCombatState,
   parseVarenykSatedPayload,
   settleVarenykSatedOutsideCombat,
@@ -40,6 +41,16 @@ describe("Varenyk-mancer Sated support", () => {
       hpRestored: 1,
       manaRestored: 0
     });
+  });
+
+  it.each([
+    [1, 1, 1],
+    [2, 2, 1],
+    [3, 2, 2],
+    [4, 3, 2],
+    [5, 3, 3]
+  ])("scales periodic recovery by the hidden rank", (rank, hp, mana) => {
+    expect(getVarenykSatedPeriodicRecovery(rank)).toEqual({ hp, mana });
   });
 
   it.each([
@@ -85,8 +96,8 @@ describe("Varenyk-mancer Sated support", () => {
       now: new Date(startedAt.getTime() + 20 * 60_000),
       combatBlocked: false
     });
-    expect(expired.hpRestored).toBe(13);
-    expect(expired.manaRestored).toBe(13);
+    expect(expired.hpRestored).toBe(26);
+    expect(expired.manaRestored).toBe(26);
     expect(expired.payload.cursorAt).toBe(new Date(startedAt.getTime() + 13 * 60_000).toISOString());
 
     const blocked = settleVarenykSatedOutsideCombat({
@@ -119,7 +130,7 @@ describe("Varenyk-mancer Sated support", () => {
       pulseId: "solo:session:turn:1:recipient",
       now: new Date(startedAt.getTime() + 60_000)
     });
-    expect(first.resources).toEqual({ hp: 5, hpMax: 10, mana: 1, manaMax: 10 });
+    expect(first.resources).toEqual({ hp: 6, hpMax: 10, mana: 2, manaMax: 10 });
     expect(first.applied).toBe(true);
     expect(first.sated?.expiresAt).toBe(new Date(startedAt.getTime() + 12 * 60_000).toISOString());
 

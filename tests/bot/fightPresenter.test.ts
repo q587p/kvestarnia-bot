@@ -2769,7 +2769,7 @@ describe("fight presenter", () => {
     const text = presentPersistentFightTurn(result as never);
     const journal = presentPersistentFightJournal({ ...result, state: "found" } as never, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+1 HP</b> і <b>+1 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+2 HP</b> і <b>+1 мани</b>");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
     expect(journal).toContain("😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 HP</b>.");
     expect(text).toContain("😋 «Ситий» відновив <b>Мандрівник</b>: <b>+1 HP</b>.");

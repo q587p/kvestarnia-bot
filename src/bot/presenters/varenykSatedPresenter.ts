@@ -1,3 +1,5 @@
+import { getVarenykSatedPeriodicRecovery } from "../../domain/noncombat/varenykSatedSupport";
+
 export interface VarenykSatedRecoveryView {
   hpRestored: number;
   manaRestored: number;
@@ -5,6 +7,7 @@ export interface VarenykSatedRecoveryView {
 
 export function presentActiveVarenykSatedBuff(
   expiresAt: Date,
+  rank: number,
   now = new Date(),
   subjectHtml = "Стан: <b>Ситий</b>",
   unit: "minutes" | "turns" = "minutes"
@@ -18,15 +21,17 @@ export function presentActiveVarenykSatedBuff(
   const remaining = unit === "turns"
     ? `${remainingMinutes} ${pluralize(remainingMinutes, "хід", "ходи", "ходів")}`
     : `${remainingMinutes} хв`;
-  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину).`;
+  const recovery = getVarenykSatedPeriodicRecovery(rank);
+  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину).`;
 }
 
 export function presentActiveVarenykSatedCombatState(
   expiresAt: Date,
+  rank: number,
   now = new Date(),
   subjectHtml = "Стан: <b>Ситий</b>"
 ): string | null {
-  return presentActiveVarenykSatedBuff(expiresAt, now, subjectHtml, "turns");
+  return presentActiveVarenykSatedBuff(expiresAt, rank, now, subjectHtml, "turns");
 }
 
 export function presentVarenykSatedRecoveryNotice(

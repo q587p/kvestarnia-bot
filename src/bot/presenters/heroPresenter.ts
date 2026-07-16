@@ -178,7 +178,7 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
 }
 
 function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
-  return sated ? presentActiveVarenykSatedBuff(sated.expiresAt) : null;
+  return sated ? presentActiveVarenykSatedBuff(sated.expiresAt, sated.rank) : null;
 }
 
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {

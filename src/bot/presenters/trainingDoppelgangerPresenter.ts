@@ -203,7 +203,10 @@ function presentTrainingDoppelgangerState(input: {
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     ...(state?.varenykSated
-      ? [presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))]
+      ? [presentActiveVarenykSatedCombatState(
+          new Date(state.varenykSated.expiresAt),
+          state.varenykSated.rank
+        )]
           .filter((line): line is string => line !== null)
       : [])
   ];
@@ -324,7 +327,10 @@ function presentJournalTurnNotices(
   state?: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"]["state"]
 ): string[] {
   const satedBuff = state?.varenykSated
-    ? presentActiveVarenykSatedCombatState(new Date(state.varenykSated.expiresAt))
+    ? presentActiveVarenykSatedCombatState(
+        new Date(state.varenykSated.expiresAt),
+        state.varenykSated.rank
+      )
     : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),

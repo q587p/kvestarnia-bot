@@ -395,6 +395,7 @@ export function presentTurnBasedDuel(
   ) {
     const satedBuff = presentActiveVarenykSatedCombatState(
       new Date(viewerParticipant.varenykSated.expiresAt),
+      viewerParticipant.varenykSated.rank,
       result.now
     );
     if (satedBuff) lines.push(satedBuff);
@@ -628,6 +629,7 @@ export function presentTurnBasedDuelJournal(
     if (!participant.varenykSated) return [];
     const line = presentActiveVarenykSatedCombatState(
       new Date(participant.varenykSated.expiresAt),
+      participant.varenykSated.rank,
       new Date(),
       `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
     );

@@ -11,6 +11,7 @@ import { presentCharacterDisplayName } from "./characterDisplay";
 import { presentManaSpentLine } from "./resourcePresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
+import { getVarenykSatedPeriodicRecovery } from "../../domain/noncombat/varenykSatedSupport";
 
 export function presentClassNoncombatOpen(result: ClassNoncombatOpenResult): string {
   if (result.state === "no-character") {
@@ -127,6 +128,7 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     return presentBlocked("🍽️", "Миска не дійшла", result.reason, result.availableAt);
   }
   const self = result.targetTelegramUserId === null;
+  const periodicRecovery = getVarenykSatedPeriodicRecovery(result.plan.rank);
   return [
     "🍽️ <b>Підтвердити годування?</b>",
     "",
@@ -134,7 +136,7 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу: до <b>+${result.plan.immediateHp} HP</b>.`,
-    "Далі: <b>+1 HP і +1 мана</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).",
+    `Далі: <b>+${periodicRecovery.hp} HP і +${periodicRecovery.mana} ${periodicRecovery.mana === 1 ? "мана" : "мани"}</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).`,
     "",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · ваша нова миска для цієї цілі через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
@@ -151,7 +153,7 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
   const timingLines = result.action.expiresAt.getTime() > now
     ? [
         "",
-        presentSatedActiveStatusLine(result.action.expiresAt),
+        presentSatedActiveStatusLine(result.action.expiresAt, result.action.rank),
         "",
         `Ви зможете нагодувати цю ціль знову <b>через ${formatRemaining(result.action.availableAt)}</b>.`
       ]
@@ -186,7 +188,7 @@ export function presentVarenykSatedTargetNotification(
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
       : "HP уже повне. Вареники вирішили працювати на перспективу.",
     "",
-    presentSatedActiveStatusLine(result.action.expiresAt)
+    presentSatedActiveStatusLine(result.action.expiresAt, result.action.rank)
   ].join("\n");
 }
 
@@ -516,7 +518,10 @@ function presentVarenykStatusAndWaitLines(
 ): string[] {
   const lines: string[] = [];
   if (result.varenykSatedSelf) {
-    const selfStatus = presentActiveVarenykSatedBuff(new Date(result.varenykSatedSelf.expiresAt));
+    const selfStatus = presentActiveVarenykSatedBuff(
+      new Date(result.varenykSatedSelf.expiresAt),
+      result.varenykSatedSelf.rank
+    );
     if (selfStatus) lines.push(selfStatus);
   }
   if (result.varenykSatedSelfAvailableAt) {
@@ -526,6 +531,7 @@ function presentVarenykStatusAndWaitLines(
     if (target.varenykSated) {
       const targetStatus = presentActiveVarenykSatedBuff(
         new Date(target.varenykSated.expiresAt),
+        target.varenykSated.rank,
         new Date(),
         `Стан: <b>Ситий</b> у <b>${escapeHtml(target.name)}</b>`
       );
@@ -546,8 +552,8 @@ function presentSatedRecoveryLine(hpRestored: number, manaRestored: number): str
   return `Відновлено: ${parts.join(" · ")}.`;
 }
 
-function presentSatedActiveStatusLine(expiresAt: Date): string {
-  const status = presentActiveVarenykSatedBuff(expiresAt);
+function presentSatedActiveStatusLine(expiresAt: Date, rank: number): string {
+  const status = presentActiveVarenykSatedBuff(expiresAt, rank);
   return status
     ? `${status} Видно в персонажі поруч з іншими станами.`
     : "Статус уже завершився.";

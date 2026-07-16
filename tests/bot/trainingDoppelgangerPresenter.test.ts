@@ -126,7 +126,7 @@ describe("training doppelganger presenter", () => {
       reward: null
     }, 0);
 
-    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+1 HP</b> і <b>+1 мани</b>");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> — <b>+3 HP</b> і <b>+3 мани</b>");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
     expect(text).not.toContain("ранг 5");
   });

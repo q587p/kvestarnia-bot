@@ -39,8 +39,8 @@ describe("party boss reducer", () => {
       actions: [{ characterId: "character-1", action: "defend", origin: "manual" }]
     });
 
-    expect(resolved.round.actions[0]?.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 1 });
-    expect(resolved.round.actions[0]?.hpAfter).toBe(21);
+    expect(resolved.round.actions[0]?.satedRecovery).toEqual({ hpRestored: 2, manaRestored: 1 });
+    expect(resolved.round.actions[0]?.hpAfter).toBe(22);
     expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);

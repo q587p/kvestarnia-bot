@@ -11,13 +11,14 @@ describe("Varenyk Sated presenter", () => {
     const now = new Date("2026-07-15T18:00:00.000Z");
     const expiresAt = new Date("2026-07-15T18:12:00.000Z");
 
-    expect(presentActiveVarenykSatedBuff(expiresAt, now)).toBe(
-      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину)."
+    expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).toBe(
+      "😋 Стан: <b>Ситий</b> ще <b>12 хв</b> — <b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину)."
     );
-    expect(presentActiveVarenykSatedCombatState(expiresAt, now)).toContain("ще <b>12 ходів</b>");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, now)).toContain("після власного ходу в бою");
-    expect(presentActiveVarenykSatedCombatState(expiresAt, now)).toContain("кожне бойове відновлення додатково скорочує дію на хвилину");
-    expect(presentActiveVarenykSatedBuff(now, now)).toBeNull();
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("ще <b>12 ходів</b>");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("після власного ходу в бою");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toContain("кожне бойове відновлення додатково скорочує дію на хвилину");
+    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).not.toMatch(/ранг/iu);
+    expect(presentActiveVarenykSatedBuff(now, 5, now)).toBeNull();
   });
 
   it("omits zero recovery components and an empty recovery notice", () => {
