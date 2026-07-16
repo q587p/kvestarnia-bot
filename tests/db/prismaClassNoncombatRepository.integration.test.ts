@@ -24,6 +24,7 @@ import {
 } from "../../src/db/repositories/prismaVarenykSated";
 import {
   getVarenykSatedPairWaitKey,
+  getVarenykSatedRemainingCombatTurns,
   parseVarenykSatedPayload,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
@@ -2445,6 +2446,9 @@ describe("PrismaClassNoncombatRepository integration", () => {
       leaseStartedAt: combatStartedAt.toISOString(),
       outsideRemainderMs: 30_000
     });
+    expect(Date.parse(frozen.sated!.expiresAt) - Date.parse(frozen.sated!.cursorAt))
+      .toBe(11 * 60_000);
+    expect(getVarenykSatedRemainingCombatTurns(frozen.sated!)).toBe(11);
     const leaseEndedAt = new Date(now.getTime() + 5 * 60_000);
     await prisma.$transaction((tx) => advanceVarenykSatedCursorThroughCombat({
       tx,

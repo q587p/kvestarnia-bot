@@ -147,6 +147,29 @@ describe("Varenyk-mancer Sated support", () => {
     expect(replay.sated?.expiresAt).toBe(first.sated?.expiresAt);
   });
 
+  it("keeps all combat turns when no outside minute completed before the lease", () => {
+    const combatStartedAt = new Date(startedAt.getTime() + 8_178);
+    const frozen = freezeVarenykSatedForCombat(
+      makePayload(),
+      "recipient",
+      2,
+      combatStartedAt
+    )!;
+
+    expect(frozen.outsideRemainderMs).toBe(8_178);
+    expect(Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt)).toBe(13 * 60_000);
+    expect(getVarenykSatedRemainingCombatTurns(frozen)).toBe(13);
+
+    const first = applyVarenykSatedCombatPulse({
+      sated: frozen,
+      resources: { hp: 10, hpMax: 10, mana: 10, manaMax: 10 },
+      pulseId: "combat:turn:1",
+      now: new Date(combatStartedAt.getTime() + 23_000)
+    });
+    expect(first.applied).toBe(true);
+    expect(getVarenykSatedRemainingCombatTurns(first.sated!)).toBe(12);
+  });
+
   it("spends one status minute per fresh combat pulse, including capped pulses", () => {
     let sated = freezeVarenykSatedForCombat(makePayload(), "recipient", 2, startedAt)!;
     for (let turn = 1; turn <= 3; turn += 1) {

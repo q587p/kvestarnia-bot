@@ -203,13 +203,17 @@ export function freezeVarenykSatedForCombat(
   recipientRemortCount: number,
   now: Date
 ): VarenykSatedCombatStateV1 | null {
+  const payloadExpiresAt = Date.parse(payload.expiresAt);
+  const payloadCursorAt = Date.parse(payload.cursorAt);
   if (
     payload.recipientCharacterId !== recipientCharacterId ||
     payload.recipientRemortCount !== recipientRemortCount ||
-    Date.parse(payload.expiresAt) <= now.getTime()
+    payloadExpiresAt <= now.getTime()
   ) {
     return null;
   }
+
+  const remainingDurationMs = Math.max(0, payloadExpiresAt - payloadCursorAt);
 
   return {
     version: 1,
@@ -217,10 +221,10 @@ export function freezeVarenykSatedForCombat(
     recipientCharacterId,
     recipientRemortCount,
     rank: clamp(safeInt(payload.rank), 1, 5),
-    expiresAt: payload.expiresAt,
+    expiresAt: new Date(now.getTime() + remainingDurationMs).toISOString(),
     cursorAt: now.toISOString(),
     leaseStartedAt: now.toISOString(),
-    outsideRemainderMs: Math.max(0, Math.min(59_999, now.getTime() - Date.parse(payload.cursorAt))),
+    outsideRemainderMs: Math.max(0, Math.min(59_999, now.getTime() - payloadCursorAt)),
     pulseIds: []
   };
 }
