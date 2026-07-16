@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.12] - 12026-07-16 - Varenyk-mancer Sated Support
+## [0.3.12] - 12026-07-17 - Varenyk-mancer Sated Support
 
 ### Added
 - Added level 3+ Varenyk-mancer `🍽️ Нагодувати` support from the hero and `Хто поруч` surfaces. Self-feeding and active exact-location recipients receive capped immediate `2 + rank` HP with no immediate mana refund, followed by `😋 Ситий`, which starts with 13 minutes. Each complete eligible outside-combat minute or completed supported combat exchange restores the committed rank's HP/mana portion (`1/1`, `2/1`, `2/2`, `3/2`, `3/3` for ranks 1-5); the exact values are visible but rank stays hidden. Stored combat pauses wall-clock duration and every fresh combat pulse consumes exactly one complete status minute. Each Varenyk-mancer has a separate 93-minute repeat wait for the same recipient, so another caster may replace the current status with a fresh activation.
