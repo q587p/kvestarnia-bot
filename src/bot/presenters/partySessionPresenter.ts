@@ -30,6 +30,7 @@ import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 import {
   presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
 
@@ -647,14 +648,10 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
-  const satedLines = session.state.participants.flatMap((participant) => {
-    if (!participant.varenykSated) return [];
-    const line = presentActiveVarenykSatedCombatState(
-      participant.varenykSated,
-      `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
-    );
-    return line ? [line] : [];
-  });
+  const satedLines = presentVarenykSatedCombatEffectLines(session.state.participants.map((participant) => ({
+    sated: participant.varenykSated,
+    subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
+  })));
 
   if (rounds.length === 0) {
     return presentBattleJournalPage({
@@ -705,7 +702,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
 
   return presentBattleJournalPage({
     title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
-    headerLines: ["", getBossStatusLine(session), ...satedLines],
+    headerLines: ["", getBossStatusLine(session)],
     turn: round.turn,
     page,
     totalPages: rounds.length,
@@ -767,11 +764,33 @@ function presentPartyBossJournalNotices(
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   const notices = [
     ...presentJournalCooldownLines(round, session.state.participants),
+    ...presentPartyBossJournalSatedLines(round, session.state.participants),
     ...(nextFocus ? [nextFocus] : []),
     ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
   ];
 
   return Array.from(new Set(notices));
+}
+
+function presentPartyBossJournalSatedLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
+  participants: PartyBossSessionRecord["state"]["participants"]
+): string[] {
+  const snapshots = new Map(round.participantsAfter?.map((participant) => [
+    participant.characterId,
+    participant
+  ]) ?? []);
+
+  return presentVarenykSatedCombatEffectLines(participants.map((participant) => {
+    const snapshot = snapshots.get(participant.characterId);
+    const sated = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
+      ? snapshot.varenykSated
+      : participant.varenykSated;
+    return {
+      sated,
+      subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
+    };
+  }));
 }
 
 function presentJournalCooldownLines(

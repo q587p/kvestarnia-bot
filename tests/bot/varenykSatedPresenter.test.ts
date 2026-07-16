@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentActiveVarenykSatedBuff,
   presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery,
   presentVarenykSatedRecoveryNotice
 } from "../../src/bot/presenters/varenykSatedPresenter";
@@ -42,6 +43,23 @@ describe("Varenyk Sated presenter", () => {
       rank: 5
     };
     expect(presentActiveVarenykSatedCombatState(turnFive)).toContain("ще <b>5 ходів</b>");
+  });
+
+  it("formats participant combat effects through one shared journal helper", () => {
+    const cursorAt = new Date("2026-07-16T13:00:00.000Z");
+    expect(presentVarenykSatedCombatEffectLines([
+      {
+        subjectHtml: "Стан: <b>Ситий</b> у <b>Голова</b>",
+        sated: {
+          expiresAt: new Date(cursorAt.getTime() + 12 * 60_000).toISOString(),
+          cursorAt: cursorAt.toISOString(),
+          rank: 5
+        }
+      },
+      { sated: null }
+    ])).toEqual([
+      "😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)"
+    ]);
   });
 
   it("omits zero recovery components and an empty recovery notice", () => {

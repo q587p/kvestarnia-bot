@@ -29,6 +29,7 @@ import {
   type TurnBasedDuelRoundSummary,
   type TurnBasedDuelState
 } from "../domain/duels/turnBasedDuel";
+import { parseVarenykSatedCombatState } from "../domain/noncombat/varenykSatedSupport";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
@@ -1686,11 +1687,39 @@ function parseTurnBasedDuelRoundSummary(value: unknown): TurnBasedDuelRoundSumma
   const actions = value.actions
     .map(parseTurnBasedDuelActionSummary)
     .filter((action): action is TurnBasedDuelRoundSummary["actions"][number] => action !== null);
+  const varenykSatedAfter = parseStoredTurnBasedSatedAfter(value.varenykSatedAfter);
+  if (varenykSatedAfter === null) {
+    return null;
+  }
 
   return {
     turn: Math.max(1, Math.floor(value.turn)),
-    actions
+    actions,
+    ...(varenykSatedAfter ? { varenykSatedAfter } : {})
   };
+}
+
+function parseStoredTurnBasedSatedAfter(
+  value: unknown
+): TurnBasedDuelRoundSummary["varenykSatedAfter"] | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = value.challenger === null
+    ? null
+    : parseVarenykSatedCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
 }
 
 function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSummary["actions"][number] | null {
@@ -1708,6 +1737,7 @@ function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSumm
   }
 
   const fumble = parseTurnBasedDuelFumbleSummary(value.fumble);
+  const satedRecovery = parseStoredTurnBasedSatedRecovery(value.satedRecovery);
 
   return {
     actorCharacterId: value.actorCharacterId,
@@ -1720,7 +1750,25 @@ function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSumm
     manaSpent: Math.max(0, Math.floor(value.manaSpent)),
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
-    ...(fumble ? { fumble } : {})
+    ...(fumble ? { fumble } : {}),
+    ...(satedRecovery ? { satedRecovery } : {})
+  };
+}
+
+function parseStoredTurnBasedSatedRecovery(
+  value: unknown
+): TurnBasedDuelRoundSummary["actions"][number]["satedRecovery"] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.hpRestored !== "number" ||
+    typeof value.manaRestored !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    hpRestored: Math.max(0, Math.floor(value.hpRestored)),
+    manaRestored: Math.max(0, Math.floor(value.manaRestored))
   };
 }
 

@@ -24,6 +24,7 @@ import { INSTANT_DUEL_BALANCE_VERSION, prepareBalancedDuelists, type DuelistBala
 import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
 import {
   applyVarenykSatedCombatPulse,
+  cloneVarenykSatedCombatState,
   type VarenykSatedCombatStateV1
 } from "../noncombat/varenykSatedSupport";
 
@@ -88,6 +89,10 @@ export interface TurnBasedDuelQueuedAction {
 export interface TurnBasedDuelRoundSummary {
   turn: number;
   actions: TurnBasedDuelActionSummary[];
+  varenykSatedAfter?: {
+    challenger: VarenykSatedCombatStateV1 | null;
+    target: VarenykSatedCombatStateV1 | null;
+  };
 }
 
 export interface TurnBasedDuelOutcome {
@@ -220,7 +225,11 @@ export function resolveTurnBasedDuelAction(input: {
     state.status = "forfeited";
     state.outcome = buildOutcome(state, defender.characterId, "surrender");
     state.lastAction = summary;
-    state.lastRound = { turn: state.turn, actions: [summary] };
+    state.lastRound = {
+      turn: state.turn,
+      actions: [summary],
+      varenykSatedAfter: snapshotTurnBasedDuelSated(state)
+    };
     return { ok: true, resolution: "resolved", state, round: state.lastRound };
   }
 
@@ -360,7 +369,8 @@ function resolveQueuedRound(
 
   const round = {
     turn: state.turn,
-    actions
+    actions,
+    varenykSatedAfter: snapshotTurnBasedDuelSated(state)
   };
   state.lastRound = round;
   const lastAction = actions.at(-1);
@@ -383,7 +393,8 @@ function resolveQueuedRound(
       state.lastAction = { ...last, outcome: "draw" };
       state.lastRound = {
         turn: round.turn,
-        actions: [...round.actions.slice(0, -1), state.lastAction]
+        actions: [...round.actions.slice(0, -1), state.lastAction],
+        varenykSatedAfter: round.varenykSatedAfter
       };
     }
     return { ok: true, resolution: "resolved", state, round: state.lastRound };
@@ -804,7 +815,19 @@ function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState 
       ? {
           lastRound: {
             turn: state.lastRound.turn,
-            actions: state.lastRound.actions.map((action) => ({ ...action }))
+            actions: state.lastRound.actions.map((action) => ({ ...action })),
+            ...(state.lastRound.varenykSatedAfter
+              ? {
+                  varenykSatedAfter: {
+                    challenger: state.lastRound.varenykSatedAfter.challenger
+                      ? cloneVarenykSatedCombatState(state.lastRound.varenykSatedAfter.challenger)
+                      : null,
+                    target: state.lastRound.varenykSatedAfter.target
+                      ? cloneVarenykSatedCombatState(state.lastRound.varenykSatedAfter.target)
+                      : null
+                  }
+                }
+              : {})
           }
         }
       : {}),
@@ -851,6 +874,19 @@ function cloneParticipant(
     ...(participant.varenykSated
       ? { varenykSated: { ...participant.varenykSated, pulseIds: [...participant.varenykSated.pulseIds] } }
       : {})
+  };
+}
+
+function snapshotTurnBasedDuelSated(
+  state: Pick<TurnBasedDuelState, "participants">
+): NonNullable<TurnBasedDuelRoundSummary["varenykSatedAfter"]> {
+  return {
+    challenger: state.participants.challenger.varenykSated
+      ? cloneVarenykSatedCombatState(state.participants.challenger.varenykSated)
+      : null,
+    target: state.participants.target.varenykSated
+      ? cloneVarenykSatedCombatState(state.participants.target.varenykSated)
+      : null
   };
 }
 

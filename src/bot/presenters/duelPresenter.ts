@@ -26,6 +26,7 @@ import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import {
   presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
 
@@ -625,21 +626,21 @@ export function presentTurnBasedDuelJournal(
 
   const page = clampPage(requestedPage, rounds.length);
   const round = rounds[page]!;
-  const satedLines = Object.values(state.participants).flatMap((participant) => {
-    if (!participant.varenykSated) return [];
-    const line = presentActiveVarenykSatedCombatState(
-      participant.varenykSated,
-      `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
-    );
-    return line ? [line] : [];
-  });
+  const satedLines = presentVarenykSatedCombatEffectLines(([
+    ["challenger", state.participants.challenger],
+    ["target", state.participants.target]
+  ] as const).map(([side, participant]) => ({
+    sated: round.varenykSatedAfter
+      ? round.varenykSatedAfter[side]
+      : participant.varenykSated,
+    subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
+  })));
 
   return presentBattleJournalPage({
     title: "📜 <b>Журнал дуелі</b>",
     headerLines: [
       "",
-      `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`,
-      ...satedLines
+      `${escapeHtml(state.participants.challenger.displayName)} проти ${escapeHtml(state.participants.target.displayName)}.`
     ],
     turn: round.turn,
     page,
@@ -656,7 +657,8 @@ export function presentTurnBasedDuelJournal(
             return recovery ? [recovery] : [];
           })
         ]
-      : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
+      : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."],
+    noticeLines: satedLines
   });
 }
 

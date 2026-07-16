@@ -1769,10 +1769,38 @@ function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | un
     : null;
 
   const parsedActions = actions?.filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null);
+  const varenykSatedAfter = parseTurnBasedSatedAfter(value.varenykSatedAfter);
 
-  return turn !== null && actions && parsedActions && parsedActions.length === actions.length
-    ? { turn, actions: parsedActions }
+  return turn !== null && actions && parsedActions && parsedActions.length === actions.length && varenykSatedAfter !== null
+    ? {
+        turn,
+        actions: parsedActions,
+        ...(varenykSatedAfter ? { varenykSatedAfter } : {})
+      }
     : null;
+}
+
+function parseTurnBasedSatedAfter(
+  value: unknown
+): NonNullable<NonNullable<TurnBasedDuelState["lastRound"]>["varenykSatedAfter"]> | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = value.challenger === null
+    ? null
+    : parseVarenykSatedCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
 }
 
 function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | null {

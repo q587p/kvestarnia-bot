@@ -336,12 +336,21 @@ describe("duel presenter", () => {
       outsideRemainderMs: 0,
       pulseIds: ["duel:pulse:1"]
     };
+    const storedSated = {
+      ...active.session.state.participants.challenger.varenykSated,
+      pulseIds: [...active.session.state.participants.challenger.varenykSated.pulseIds]
+    };
+    delete active.session.state.participants.challenger.varenykSated;
     const text = presentTurnBasedDuelJournal({
       state: "ready",
       session: active.session,
       rounds: [
         {
           turn: 2,
+          varenykSatedAfter: {
+            challenger: storedSated,
+            target: null
+          },
           actions: [
             {
               actorCharacterId: "challenger-character",
@@ -370,6 +379,9 @@ describe("duel presenter", () => {
     expect(text).toContain("📜 <b>Журнал дуелі</b>");
     expect(text).toContain("Ліва Рука проти Права Рука.");
     expect(text).toContain("😋 Стан: <b>Ситий</b> у <b>Ліва Рука</b> ще <b>12 ходів</b>");
+    expect(text.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      text.indexOf("😋 Стан: <b>Ситий</b> у <b>Ліва Рука</b>")
+    );
     expect(text).toContain("😋 Ліва Рука: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(text).toContain("Хід <b>2</b> · запис 1/1");
     expect(text).toContain("Ліва: HP 20/24 · мана 8/12");

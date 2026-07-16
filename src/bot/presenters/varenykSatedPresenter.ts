@@ -43,6 +43,22 @@ export function presentActiveVarenykSatedCombatState(
   return `😋 ${subjectHtml} ще <b>${remaining}</b> (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>)`;
 }
 
+export function presentVarenykSatedCombatEffectLines(
+  entries: ReadonlyArray<{
+    sated: Pick<VarenykSatedCombatStateV1, "expiresAt" | "cursorAt" | "rank"> | null | undefined;
+    subjectHtml?: string;
+  }>
+): string[] {
+  return entries.flatMap((entry) => {
+    if (!entry.sated) {
+      return [];
+    }
+
+    const line = presentActiveVarenykSatedCombatState(entry.sated, entry.subjectHtml);
+    return line ? [line] : [];
+  });
+}
+
 export function presentVarenykSatedRecoveryNotice(
   recovery: VarenykSatedRecoveryView
 ): string | null {

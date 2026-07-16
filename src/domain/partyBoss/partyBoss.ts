@@ -188,6 +188,7 @@ export interface PartyBossParticipantResourceSummary {
   manaMax: number;
   cooldowns?: CombatActorResourceState["cooldowns"];
   combatItems?: CombatState["combatItems"];
+  varenykSated?: VarenykSatedCombatStateV1 | null;
 }
 
 export interface PartyBossParticipantActionSummary {
@@ -586,7 +587,10 @@ export function resolvePartyBossRound(input: {
       mana: participant.resources.mana,
       manaMax: participant.resources.manaMax,
       ...(participant.resources.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.resources.cooldowns) } : {}),
-      ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {})
+      ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
+      varenykSated: participant.varenykSated
+        ? cloneVarenykSatedCombatState(participant.varenykSated)
+        : null
     })),
     statusAfter
   };
@@ -783,7 +787,12 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
             participantsAfter: round.participantsAfter.map((participant) => ({
               ...participant,
               ...(participant.cooldowns ? { cooldowns: cloneCombatCooldowns(participant.cooldowns) } : {}),
-              ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {})
+              ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
+              ...(participant.varenykSated
+                ? { varenykSated: cloneVarenykSatedCombatState(participant.varenykSated) }
+                : participant.varenykSated === null
+                  ? { varenykSated: null }
+                  : {})
             }))
           }
         : {})

@@ -17,6 +17,7 @@ import { presentRewardAmount } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import {
   presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
 
@@ -322,15 +323,10 @@ export function presentTrainingDoppelgangerJournal(
 }
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
-  const satedBuff = entry.varenykSated
-    ? presentActiveVarenykSatedCombatState(
-        entry.varenykSated
-      )
-    : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
     ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
-    ...(satedBuff ? [satedBuff] : [])
+    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }])
   ];
 }
 

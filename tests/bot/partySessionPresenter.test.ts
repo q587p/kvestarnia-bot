@@ -775,11 +775,19 @@ describe("party session presenter", () => {
     };
 
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
+    session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = {
+      ...session.state.participants[0]!.varenykSated,
+      pulseIds: [...session.state.participants[0]!.varenykSated.pulseIds]
+    };
+    delete session.state.participants[0]!.varenykSated;
     const journal = presentPartyBossJournal(session, 0);
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("😋 Стан: <b>Ситий</b> у <b>Голова</b>")
+    );
     expect(journal).toContain("😋 Голова: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(journal.indexOf("Старший Брат Бочки атакує Голова")).toBeLessThan(
       journal.indexOf("😋 Голова: <i>ситість</i> відновлює")

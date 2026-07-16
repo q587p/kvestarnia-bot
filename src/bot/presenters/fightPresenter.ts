@@ -34,7 +34,7 @@ import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSupportEffectLine } from "./combatActionPresenter";
 import {
-  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
 
@@ -485,15 +485,10 @@ export function presentPersistentFightJournal(
 }
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
-  const satedBuff = entry.varenykSated
-    ? presentActiveVarenykSatedCombatState(
-        entry.varenykSated
-      )
-    : null;
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
     ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
-    ...(satedBuff ? [satedBuff] : [])
+    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }])
   ];
 }
 
@@ -513,12 +508,7 @@ function presentActiveFightEffectNotices(
       `🩸 Кровотеча триває: ${bleed.damagePerActivation} шкоди, ще ${bleed.remainingHeroActivations} активац.`
     );
 
-  const activeSatedBuff = state.varenykSated
-    ? presentActiveVarenykSatedCombatState(
-        state.varenykSated
-      )
-    : null;
-  const satedNotice = activeSatedBuff ? [activeSatedBuff] : [];
+  const satedNotice = presentVarenykSatedCombatEffectLines([{ sated: state.varenykSated }]);
 
   return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice]));
 }

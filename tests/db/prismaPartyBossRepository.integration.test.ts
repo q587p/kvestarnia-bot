@@ -185,6 +185,11 @@ describe("PrismaPartyBossRepository integration", () => {
     ]);
     expect(afterRound.state.roundLog[0]?.actions.find((action) => action.characterId === leaderId)?.satedRecovery)
       .toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(afterRound.state.roundLog[0]?.participantsAfter?.find(
+      (participant) => participant.characterId === leaderId
+    )?.varenykSated?.pulseIds).toEqual([
+      `big-sated-activation:big-barrel:${afterRound.partySessionId}:1:${leaderId}`
+    ]);
 
     await expect(bossRepository.forceBigBarrelWinForTelegramUser(1003n, now()))
       .resolves.toMatchObject({ state: "primed" });

@@ -50,6 +50,9 @@ describe("party boss reducer", () => {
     expect(getVarenykSatedRemainingCombatTurns(
       resolved.state.participants[0]!.varenykSated!
     )).toBe(12);
+    expect(resolved.round.participantsAfter?.[0]?.varenykSated?.pulseIds).toEqual([
+      "sated-activation:big-barrel:big-barrel-sated:1:character-1"
+    ]);
   });
 
   it("resolves submitted actions and fills missing participants with timeout defend", () => {
@@ -1244,7 +1247,8 @@ describe("party boss reducer", () => {
       hp: entry.resources.hp,
       hpMax: entry.resources.hpMax,
       mana: entry.resources.mana,
-      manaMax: entry.resources.manaMax
+      manaMax: entry.resources.manaMax,
+      varenykSated: null
     })));
   });
 
