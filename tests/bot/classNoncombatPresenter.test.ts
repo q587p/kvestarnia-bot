@@ -66,7 +66,7 @@ describe("class noncombat presenter", () => {
       "",
       "Точна ціна: <b>16 мани</b>.",
       "Одразу: до <b>+5 HP</b>.",
-      "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або ходу в бою (кожен забирає хвилину дії).",
+      "Далі: <b>+1 HP і +1 мана</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).",
       "",
       "😋 «Ситий»: <b>13 хв</b> · ваша нова миска для цієї цілі через <b>93 хв</b>.",
       "",
@@ -76,7 +76,8 @@ describe("class noncombat presenter", () => {
     expect(preview).toContain("Точна ціна: <b>16 мани</b>");
     expect(preview).toContain("Одразу: до <b>+5 HP</b>.");
     expect(preview).not.toContain("Одразу: до <b>+5 HP</b> і");
-    expect(preview).toContain("після повної хвилини або ходу в бою");
+    expect(preview).toContain("після повної хвилини поза боєм або власного ходу в бою");
+    expect(preview).toContain("кожне бойове відновлення додатково скорочує «Ситого» на хвилину");
 
     const completed = {
       state: "completed",
@@ -92,7 +93,8 @@ describe("class noncombat presenter", () => {
         immediateManaRestored: 0,
         expiresAt: new Date("2026-07-03T09:13:00.000Z"),
         availableAt: new Date("2026-07-03T10:33:00.000Z")
-      }
+      },
+      target: { manaCurrent: 4, manaMax: 10 }
     } as never;
     const actorResult = presentVarenykSatedResult(completed);
     const targetNotification = presentVarenykSatedTargetNotification(completed);
@@ -100,11 +102,13 @@ describe("class noncombat presenter", () => {
     expect(targetNotification).not.toContain("Відновлено:");
     expect(actorResult).not.toMatch(/ранг/iu);
     expect(targetNotification).not.toMatch(/ранг/iu);
-    expect(actorResult).toContain("питань.\n\nРесурси повні");
+    expect(actorResult).toContain("питань.\n\nHP уже повне");
+    expect(actorResult).not.toContain("Ресурси повні");
     expect(actorResult).toContain("<b>Пан Вареник</b> нагодував <b>Сусід</b>");
     expect(actorResult).toContain("станами.\n\nВи зможете нагодувати цю ціль знову");
     expect(actorResult).toContain("\n\n💫 Мани витрачено: <b>16</b>.");
-    expect(targetNotification).toContain("турботою.\n\nРесурси вже повні");
+    expect(targetNotification).toContain("турботою.\n\nHP уже повне");
+    expect(targetNotification).not.toContain("Ресурси вже повні");
     expect(targetNotification).toContain("<b>Пан Вареник</b> передав вам вареники");
     expect(targetNotification).toContain("Видно в персонажі поруч з іншими станами.");
   });
@@ -132,9 +136,9 @@ describe("class noncombat presenter", () => {
       "",
       "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала.",
       "",
-      "Ресурси повні, зате статус акуратно загорнутий.",
+      "HP уже повне, зате стан акуратно загорнутий.",
       "",
-      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після ходу в бою (кожен забирає хвилину дії). Видно в персонажі поруч з іншими станами.",
+      "😋 Стан: <b>Ситий</b> ще <b>13 хв</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину). Видно в персонажі поруч з іншими станами.",
       "",
       "Ви зможете нагодувати цю ціль знову <b>через 93 хвилини</b>.",
       "",

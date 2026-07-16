@@ -35,7 +35,8 @@ import type {
   RoguePickpocketAttemptRecord,
   RoguePickpocketRepositoryResult,
   RogueRetaliationClaimResult,
-  VarenykPlanningSnapshot
+  VarenykPlanningSnapshot,
+  VarenykSatedRepositoryResult
 } from "./classNoncombatRepository";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
@@ -318,19 +319,19 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
       if (!payload || payload.recipientRemortCount !== remortCount || payload.recipientCharacterId !== character.id) {
         return toPublicSatedReadRecord(character, payload);
       }
-      const personalPairWait = payload.actorCharacterId === character.id
-        ? await findCooldown(tx, character.id, getVarenykSatedPairWaitKey(character.id))
-        : null;
-      const personalAvailableAt = payload.actorCharacterId === character.id
-        ? getActiveVarenykSatedPairWait(
-            personalPairWait,
-            character.id,
-            remortCount,
-            character.id,
-            remortCount,
-            now
-          )
-        : null;
+      const personalPairWait = await findCooldown(
+        tx,
+        character.id,
+        getVarenykSatedPairWaitKey(character.id)
+      );
+      const personalAvailableAt = getActiveVarenykSatedPairWait(
+        personalPairWait,
+        character.id,
+        remortCount,
+        character.id,
+        remortCount,
+        now
+      );
 
       const canonical = await getSatedCanonicalResources(tx, character, now);
       const passiveRecoveryNotice =
@@ -449,18 +450,10 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
     }
     const payload = parseVarenykSatedPayload(authoritativePair.statusRow?.resultJson);
     const record = toPublicSatedReadRecord(authoritativePair.character, payload);
-    if (payload?.actorCharacterId !== authoritativePair.character.id) {
-      return record;
-    }
-    const pairWait = await findCooldown(
-      this.prisma,
-      authoritativePair.character.id,
-      getVarenykSatedPairWaitKey(authoritativePair.character.id)
-    );
     return {
       ...record,
       personalAvailableAt: getActiveVarenykSatedPairWait(
-        pairWait,
+        authoritativePair.personalPairWait,
         authoritativePair.character.id,
         getIncludedRemortCount(authoritativePair.character),
         authoritativePair.character.id,
@@ -834,10 +827,16 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           const existing = await findCooldown(tx, target.id, VARENYK_SATED_STATUS_KEY);
           const existingPayload = parseVarenykSatedPayload(existing?.resultJson);
           if (existingPayload && matchesSatedReplay(existingPayload, input.previewToken, actor, target)) {
+            const replayPairWait = await findCooldown(
+              tx,
+              actor.id,
+              getVarenykSatedPairWaitKey(target.id)
+            );
             return mapSatedReplay(
               existingPayload,
               toCharacterRecord(actor),
-              toCharacterRecord(target)
+              toCharacterRecord(target),
+              getSatedReplayAvailableAt(replayPairWait, existingPayload, actor, target, input.now)
             );
           }
         }
@@ -865,6 +864,38 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         if (!preview || !matchesSatedPreview(preview, input, actor, target!)) {
           return { state: "blocked" as const, reason: "stale" as const, actor: actorRecord, target: targetRecord };
         }
+        const observedStatus = await findCooldown(tx, target!.id, VARENYK_SATED_STATUS_KEY);
+        const observedPayload = parseVarenykSatedPayload(observedStatus?.resultJson);
+        if ((observedPayload?.activationId ?? null) !== preview.targetSatedActivationId) {
+          return {
+            state: "blocked" as const,
+            reason: "stale" as const,
+            actor: actorRecord,
+            target: targetRecord
+          };
+        }
+        const observedPairWait = await findCooldown(
+          tx,
+          actor.id,
+          getVarenykSatedPairWaitKey(target!.id)
+        );
+        const observedPairAvailableAt = getActiveVarenykSatedPairWait(
+          observedPairWait,
+          actor.id,
+          actorRecord.remortCount ?? 0,
+          target!.id,
+          targetRecord.remortCount ?? 0,
+          input.now
+        );
+        if (observedPairAvailableAt) {
+          return {
+            state: "blocked" as const,
+            reason: "target-cooldown" as const,
+            actor: actorRecord,
+            target: targetRecord,
+            availableAt: observedPairAvailableAt
+          };
+        }
         const actorContext = await settleSatedForCommit(tx, actor, input.now);
         const targetContext = actor.id === target!.id
           ? actorContext
@@ -872,12 +903,12 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         const currentExisting = targetContext.cooldown;
         const currentPayload = targetContext.payload;
         if ((currentPayload?.activationId ?? null) !== preview.targetSatedActivationId) {
-          return {
+          throw new SatedCommitBlockedError({
             state: "blocked" as const,
             reason: "stale" as const,
-            actor: toCharacterRecord(actorContext.character),
-            target: toCharacterRecord(targetContext.character)
-          };
+            actor: actorRecord,
+            target: targetRecord
+          });
         }
         const pairWait = await findCooldown(tx, actor.id, getVarenykSatedPairWaitKey(target!.id));
         const pairAvailableAt = getActiveVarenykSatedPairWait(
@@ -889,22 +920,32 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
           input.now
         );
         if (pairAvailableAt) {
-          return {
+          throw new SatedCommitBlockedError({
             state: "blocked" as const,
             reason: "target-cooldown" as const,
-            actor: toCharacterRecord(actorContext.character),
-            target: toCharacterRecord(targetContext.character),
+            actor: actorRecord,
+            target: targetRecord,
             availableAt: pairAvailableAt
-          };
+          });
         }
         const actorCanonical = actorContext.canonical;
         const targetCanonical = targetContext.canonical;
         if (!matchesSatedPreviewPlan(preview, actorCanonical)) {
-          return { state: "blocked" as const, reason: "stale" as const, actor: actorRecord, target: targetRecord };
+          throw new SatedCommitBlockedError({
+            state: "blocked" as const,
+            reason: "stale" as const,
+            actor: actorRecord,
+            target: targetRecord
+          });
         }
         const exactPlan = preview.plan;
         if (actorCanonical.regeneration.resources.manaCurrent < exactPlan.manaCost) {
-          return { state: "blocked" as const, reason: "insufficient-mana" as const, actor: actorRecord, target: targetRecord };
+          throw new SatedCommitBlockedError({
+            state: "blocked" as const,
+            reason: "insufficient-mana" as const,
+            actor: actorRecord,
+            target: targetRecord
+          });
         }
 
         const expiresAt = addMinutes(input.now, VARENYK_SATED_DURATION_MINUTES);
@@ -1107,6 +1148,9 @@ export class PrismaClassNoncombatRepository implements ClassNoncombatRepository 
         };
       });
     } catch (error) {
+      if (error instanceof SatedCommitBlockedError) {
+        return error.result;
+      }
       if (error instanceof ResourceRaceError || error instanceof SatedClaimRaceError || isUniqueConstraintError(error)) {
         const replay = await resolveSatedReplayAfterRace(this.prisma, actorTelegramUserId, input);
         return replay ?? { state: "blocked" as const, reason: "stale" as const };
@@ -1627,7 +1671,12 @@ async function readStablePublicSatedPairCharacterFirst(
   telegramUserId: bigint,
   knownCharacterId?: string
 ): Promise<
-  | { state: "stable"; character: IncludedCharacter; statusRow: PublicSatedCooldownRow }
+  | {
+      state: "stable";
+      character: IncludedCharacter;
+      statusRow: PublicSatedCooldownRow;
+      personalPairWait: PublicSatedCooldownRow;
+    }
   | { state: "missing-character" }
   | { state: "exhausted" }
 > {
@@ -1638,10 +1687,23 @@ async function readStablePublicSatedPairCharacterFirst(
     if (!before) {
       return { state: "missing-character" };
     }
-    const statusRow = await findCooldown(client, before.id, VARENYK_SATED_STATUS_KEY);
+    const statusBefore = await findCooldown(client, before.id, VARENYK_SATED_STATUS_KEY);
+    const pairBefore = await findCooldown(client, before.id, getVarenykSatedPairWaitKey(before.id));
     const after = await findCharacterById(client, before.id);
-    if (after && samePublicCharacterObservation(before, after)) {
-      return { state: "stable", character: after, statusRow };
+    const statusAfter = await findCooldown(client, before.id, VARENYK_SATED_STATUS_KEY);
+    const pairAfter = await findCooldown(client, before.id, getVarenykSatedPairWaitKey(before.id));
+    if (
+      after &&
+      samePublicCharacterObservation(before, after) &&
+      samePublicSatedCooldownObservation(statusBefore, statusAfter) &&
+      samePublicSatedCooldownObservation(pairBefore, pairAfter)
+    ) {
+      return {
+        state: "stable",
+        character: after,
+        statusRow: statusAfter,
+        personalPairWait: pairAfter
+      };
     }
   }
   return { state: "exhausted" };
@@ -1651,7 +1713,11 @@ async function readStrongPublicSatedPair(
   client: PrismaClient,
   telegramUserId: bigint,
   knownCharacterId?: string
-): Promise<{ character: IncludedCharacter; statusRow: PublicSatedCooldownRow } | null> {
+): Promise<{
+  character: IncludedCharacter;
+  statusRow: PublicSatedCooldownRow;
+  personalPairWait: PublicSatedCooldownRow;
+} | null> {
   return client.$transaction(async (tx) => {
     const character = knownCharacterId
       ? await findCharacterById(tx, knownCharacterId) ?? await findCharacter(tx, telegramUserId)
@@ -1660,7 +1726,12 @@ async function readStrongPublicSatedPair(
       return null;
     }
     const statusRow = await findCooldown(tx, character.id, VARENYK_SATED_STATUS_KEY);
-    return { character, statusRow };
+    const personalPairWait = await findCooldown(
+      tx,
+      character.id,
+      getVarenykSatedPairWaitKey(character.id)
+    );
+    return { character, statusRow, personalPairWait };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
@@ -2314,7 +2385,8 @@ function matchesSatedReplay(
 function mapSatedReplay(
   payload: VarenykSatedPayloadV1,
   actor: CharacterRecord,
-  target: CharacterRecord
+  target: CharacterRecord,
+  availableAt: Date
 ) {
   return {
     state: "completed" as const,
@@ -2322,7 +2394,8 @@ function mapSatedReplay(
       payload,
       BigInt(payload.receipt.actorTelegramUserId),
       BigInt(payload.receipt.targetTelegramUserId),
-      false
+      false,
+      availableAt
     ),
     actor,
     target,
@@ -2335,7 +2408,8 @@ function mapSatedAction(
   payload: VarenykSatedPayloadV1,
   actorTelegramUserId: bigint,
   targetTelegramUserId: bigint,
-  created: boolean
+  created: boolean,
+  availableAt = new Date(payload.availableAt)
 ) {
   return {
     activationId: payload.activationId,
@@ -2353,7 +2427,7 @@ function mapSatedAction(
     immediateManaRestored: payload.receipt.immediateManaRestored,
     startedAt: new Date(payload.startedAt),
     expiresAt: new Date(payload.expiresAt),
-    availableAt: new Date(payload.availableAt),
+    availableAt,
     created
   };
 }
@@ -2363,17 +2437,47 @@ async function resolveSatedReplayAfterRace(
   actorTelegramUserId: bigint,
   input: Parameters<ClassNoncombatRepository["completeVarenykSated"]>[1]
 ) {
-  const actor = await findSatedCharacter(prisma, actorTelegramUserId);
-  if (!actor) return null;
-  const target = input.targetTelegramUserId === null
-    ? actor
-    : await findSatedCharacter(prisma, input.targetTelegramUserId);
-  if (!target) return null;
-  const row = await findCooldown(prisma, target.id, VARENYK_SATED_STATUS_KEY);
-  const payload = parseVarenykSatedPayload(row?.resultJson);
-  return payload && matchesSatedReplay(payload, input.previewToken, actor, target)
-    ? mapSatedReplay(payload, toCharacterRecord(actor), toCharacterRecord(target))
-    : null;
+  return prisma.$transaction(async (tx) => {
+    const actor = await findSatedCharacter(tx, actorTelegramUserId);
+    if (!actor) return null;
+    const target = input.targetTelegramUserId === null
+      ? actor
+      : await findSatedCharacter(tx, input.targetTelegramUserId);
+    if (!target) return null;
+    const row = await findCooldown(tx, target.id, VARENYK_SATED_STATUS_KEY);
+    const payload = parseVarenykSatedPayload(row?.resultJson);
+    if (!payload || !matchesSatedReplay(payload, input.previewToken, actor, target)) {
+      return null;
+    }
+    const pairWait = await findCooldown(tx, actor.id, getVarenykSatedPairWaitKey(target.id));
+    return mapSatedReplay(
+      payload,
+      toCharacterRecord(actor),
+      toCharacterRecord(target),
+      getSatedReplayAvailableAt(pairWait, payload, actor, target, input.now)
+    );
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+function getSatedReplayAvailableAt(
+  pairWait: Awaited<ReturnType<typeof findCooldown>>,
+  payload: VarenykSatedPayloadV1,
+  actor: IncludedCharacter,
+  target: IncludedCharacter,
+  now: Date
+): Date {
+  const pairPayload = parseVarenykSatedPairWait(pairWait?.resultJson);
+  if (pairPayload?.activationId !== payload.activationId) {
+    return now;
+  }
+  return getActiveVarenykSatedPairWait(
+    pairWait,
+    actor.id,
+    getIncludedRemortCount(actor),
+    target.id,
+    getIncludedRemortCount(target),
+    now
+  ) ?? now;
 }
 
 async function listActiveTargets(
@@ -2757,6 +2861,14 @@ function clampPage(page: number, totalPages: number): number {
 class ResourceRaceError extends Error {
   constructor() {
     super("Class noncombat resource mutation lost an optimistic race.");
+  }
+}
+
+class SatedCommitBlockedError extends Error {
+  constructor(
+    readonly result: Extract<VarenykSatedRepositoryResult, { state: "blocked" }>
+  ) {
+    super(`Varenyk Sated commit rolled back: ${result.reason}.`);
   }
 }
 

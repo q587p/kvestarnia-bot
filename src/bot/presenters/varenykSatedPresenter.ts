@@ -18,7 +18,7 @@ export function presentActiveVarenykSatedBuff(
   const remaining = unit === "turns"
     ? `${remainingMinutes} ${pluralize(remainingMinutes, "хід", "ходи", "ходів")}`
     : `${remainingMinutes} хв`;
-  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після ходу в бою (кожен забирає хвилину дії).`;
+  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+1 HP</b> і <b>+1 мани</b> щохвилини поза боєм або після власного ходу в бою (кожне бойове відновлення додатково скорочує дію на хвилину).`;
 }
 
 export function presentActiveVarenykSatedCombatState(

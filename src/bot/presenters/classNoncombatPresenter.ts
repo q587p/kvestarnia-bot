@@ -134,7 +134,7 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
     "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу: до <b>+${result.plan.immediateHp} HP</b>.`,
-    "Далі: <b>+1 HP і +1 мана</b> після повної хвилини або ходу в бою (кожен забирає хвилину дії).",
+    "Далі: <b>+1 HP і +1 мана</b> після повної хвилини поза боєм або власного ходу в бою (кожне бойове відновлення додатково скорочує «Ситого» на хвилину).",
     "",
     `😋 «Ситий»: <b>${result.durationMinutes} хв</b> · ваша нова миска для цієї цілі через <b>${result.recipientWaitMinutes} хв</b>.`,
     "",
@@ -167,7 +167,7 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     "",
     result.action.immediateHpRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
-      : "Ресурси повні, зате статус акуратно загорнутий.",
+      : "HP уже повне, зате стан акуратно загорнутий.",
     ...timingLines,
     "",
     presentManaSpentLine(result.action.manaCost)
@@ -184,7 +184,7 @@ export function presentVarenykSatedTargetNotification(
     "",
     result.action.immediateHpRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
-      : "Ресурси вже повні. Вареники вирішили працювати на перспективу.",
+      : "HP уже повне. Вареники вирішили працювати на перспективу.",
     "",
     presentSatedActiveStatusLine(result.action.expiresAt)
   ].join("\n");
