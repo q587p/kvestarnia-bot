@@ -6,6 +6,7 @@ import {
   freezeVarenykSatedForCombat,
   getAffordableVarenykSatedPlan,
   getVarenykSatedPeriodicRecovery,
+  getVarenykSatedRemainingCombatTurns,
   parseVarenykSatedCombatState,
   parseVarenykSatedPayload,
   settleVarenykSatedOutsideCombat,
@@ -132,7 +133,8 @@ describe("Varenyk-mancer Sated support", () => {
     });
     expect(first.resources).toEqual({ hp: 6, hpMax: 10, mana: 2, manaMax: 10 });
     expect(first.applied).toBe(true);
-    expect(first.sated?.expiresAt).toBe(new Date(startedAt.getTime() + 12 * 60_000).toISOString());
+    expect(first.sated?.cursorAt).toBe(new Date(startedAt.getTime() + 60_000).toISOString());
+    expect(getVarenykSatedRemainingCombatTurns(first.sated!)).toBe(12);
 
     const replay = applyVarenykSatedCombatPulse({
       sated: first.sated,
@@ -157,11 +159,36 @@ describe("Varenyk-mancer Sated support", () => {
       expect(pulse.applied).toBe(true);
       sated = pulse.sated!;
     }
-    expect(sated.expiresAt).toBe(new Date(startedAt.getTime() + 10 * 60_000).toISOString());
+    expect(getVarenykSatedRemainingCombatTurns(sated)).toBe(10);
     expect(sated.pulseIds).toHaveLength(3);
   });
 
-  it("does not pulse after expiry or resurrect at zero HP", () => {
+  it("pauses wall-clock expiry in combat and spends exactly one turn per fresh pulse", () => {
+    const frozen = freezeVarenykSatedForCombat(makePayload(), "recipient", 2, startedAt)!;
+    const fourth = applyVarenykSatedCombatPulse({
+      sated: {
+        ...frozen,
+        expiresAt: new Date(startedAt.getTime() + 7 * 60_000 + 8_606).toISOString(),
+        pulseIds: ["turn:1", "turn:2", "turn:3"]
+      },
+      resources: { hp: 40, hpMax: 68, mana: 33, manaMax: 34 },
+      pulseId: "turn:4",
+      now: new Date(startedAt.getTime() + 64_194)
+    });
+    expect(fourth.applied).toBe(true);
+    expect(getVarenykSatedRemainingCombatTurns(fourth.sated!)).toBe(6);
+
+    const fifth = applyVarenykSatedCombatPulse({
+      sated: fourth.sated,
+      resources: fourth.resources,
+      pulseId: "turn:5",
+      now: new Date(startedAt.getTime() + 92_142)
+    });
+    expect(fifth.applied).toBe(true);
+    expect(getVarenykSatedRemainingCombatTurns(fifth.sated!)).toBe(5);
+  });
+
+  it("does not spend a combat pulse at zero HP or without a complete status minute", () => {
     const frozen = freezeVarenykSatedForCombat(makePayload(), "recipient", 2, startedAt)!;
     expect(applyVarenykSatedCombatPulse({
       sated: frozen,
@@ -170,9 +197,12 @@ describe("Varenyk-mancer Sated support", () => {
       now: new Date(startedAt.getTime() + 60_000)
     }).applied).toBe(false);
     expect(applyVarenykSatedCombatPulse({
-      sated: frozen,
+      sated: {
+        ...frozen,
+        expiresAt: new Date(startedAt.getTime() + 59_999).toISOString()
+      },
       resources: { hp: 2, hpMax: 10, mana: 2, manaMax: 10 },
-      pulseId: "expired",
+      pulseId: "fractional",
       now: new Date(startedAt.getTime() + 13 * 60_000)
     }).applied).toBe(false);
   });

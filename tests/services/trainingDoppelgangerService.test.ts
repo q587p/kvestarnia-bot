@@ -111,8 +111,8 @@ describe("TrainingDoppelgangerService", () => {
       recipientRemortCount: 0,
       rank: 1,
       expiresAt: new Date(fixedNow().getTime() + 13 * 60_000).toISOString(),
-      cursorAt: new Date(fixedNow().getTime() - 60_000).toISOString(),
-      leaseStartedAt: new Date(fixedNow().getTime() - 60_000).toISOString(),
+      cursorAt: fixedNow().toISOString(),
+      leaseStartedAt: fixedNow().toISOString(),
       outsideRemainderMs: 0,
       pulseIds: []
     };

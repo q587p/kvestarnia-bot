@@ -760,15 +760,16 @@ describe("party session presenter", () => {
         statusAfter: "active"
       }]
     });
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
     session.state.participants[0]!.varenykSated = {
       version: 1,
       activationId: "barrel-journal-sated",
       recipientCharacterId: "leader",
       recipientRemortCount: 0,
       rank: 1,
-      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
-      cursorAt: new Date().toISOString(),
-      leaseStartedAt: new Date().toISOString(),
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
       outsideRemainderMs: 0,
       pulseIds: ["barrel:pulse:1"]
     };

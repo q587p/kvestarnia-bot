@@ -487,9 +487,7 @@ export function presentPersistentFightJournal(
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   const satedBuff = entry.varenykSated
     ? presentActiveVarenykSatedCombatState(
-        new Date(entry.varenykSated.expiresAt),
-        entry.varenykSated.rank,
-        new Date(entry.varenykSated.cursorAt)
+        entry.varenykSated
       )
     : null;
   return [
@@ -517,8 +515,7 @@ function presentActiveFightEffectNotices(
 
   const activeSatedBuff = state.varenykSated
     ? presentActiveVarenykSatedCombatState(
-        new Date(state.varenykSated.expiresAt),
-        state.varenykSated.rank
+        state.varenykSated
       )
     : null;
   const satedNotice = activeSatedBuff ? [activeSatedBuff] : [];

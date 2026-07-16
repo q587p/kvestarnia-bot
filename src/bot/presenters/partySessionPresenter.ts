@@ -543,10 +543,9 @@ export function presentPartyBoss(
   }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
-    if (viewer?.varenykSated && Date.parse(viewer.varenykSated.expiresAt) > Date.now()) {
+    if (viewer?.varenykSated) {
       const satedBuff = presentActiveVarenykSatedCombatState(
-        new Date(viewer.varenykSated.expiresAt),
-        viewer.varenykSated.rank
+        viewer.varenykSated
       );
       if (satedBuff) lines.push(satedBuff);
     }
@@ -651,9 +650,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const satedLines = session.state.participants.flatMap((participant) => {
     if (!participant.varenykSated) return [];
     const line = presentActiveVarenykSatedCombatState(
-      new Date(participant.varenykSated.expiresAt),
-      participant.varenykSated.rank,
-      new Date(),
+      participant.varenykSated,
       `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
     );
     return line ? [line] : [];

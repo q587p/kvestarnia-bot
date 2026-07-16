@@ -82,6 +82,20 @@ export interface SatedRecoveryResult {
   manaRestored: number;
 }
 
+export function getVarenykSatedRemainingCombatDurationMs(
+  sated: Pick<VarenykSatedCombatStateV1, "expiresAt" | "cursorAt">
+): number {
+  return Math.max(0, Date.parse(sated.expiresAt) - Date.parse(sated.cursorAt));
+}
+
+export function getVarenykSatedRemainingCombatTurns(
+  sated: Pick<VarenykSatedCombatStateV1, "expiresAt" | "cursorAt">
+): number {
+  return Math.max(0, Math.floor(
+    getVarenykSatedRemainingCombatDurationMs(sated) / VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS
+  ));
+}
+
 export interface VarenykSatedPeriodicRecovery {
   hp: number;
   mana: number;
@@ -218,33 +232,29 @@ export function applyVarenykSatedCombatPulse(input: {
   now: Date;
 }): SatedRecoveryResult & { sated?: VarenykSatedCombatStateV1; applied: boolean } {
   const sated = input.sated ? cloneVarenykSatedCombatState(input.sated) : undefined;
-  const through = sated
-    ? new Date(Math.min(input.now.getTime(), Date.parse(sated.expiresAt))).toISOString()
-    : null;
+  const remainingDurationMs = sated
+    ? getVarenykSatedRemainingCombatDurationMs(sated)
+    : 0;
   if (
     !sated ||
     input.resources.hp <= 0 ||
-    Date.parse(sated.expiresAt) <= input.now.getTime() ||
+    remainingDurationMs < VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS ||
     sated.pulseIds.includes(input.pulseId)
   ) {
     return {
       ...applyRecovery(input.resources, 0, 0),
-      ...(sated ? { sated: { ...sated, ...(through ? { cursorAt: through } : {}) } } : {}),
+      ...(sated ? { sated } : {}),
       applied: false
     };
   }
 
   const periodicRecovery = getVarenykSatedPeriodicRecovery(sated.rank);
   const recovered = applyRecovery(input.resources, periodicRecovery.hp, periodicRecovery.mana);
-  const nextExpiresAt = new Date(Math.max(
-    input.now.getTime(),
-    Date.parse(sated.expiresAt) - VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS
-  ));
+  const nextExpiresAt = new Date(
+    input.now.getTime() + remainingDurationMs - VARENYK_SATED_COMBAT_PULSE_DURATION_COST_MS
+  );
   sated.expiresAt = nextExpiresAt.toISOString();
-  sated.cursorAt = new Date(Math.min(
-    nextExpiresAt.getTime(),
-    through ? Date.parse(through) : input.now.getTime()
-  )).toISOString();
+  sated.cursorAt = input.now.toISOString();
   sated.pulseIds.push(input.pulseId);
   return { ...recovered, sated, applied: true };
 }

@@ -684,7 +684,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     });
     expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:00.000Z");
     expect((cooldown.resultJson as { expiresAt: string }).expiresAt)
-      .toBe(new Date(Date.parse(payload.expiresAt) - 60_000).toISOString());
+      .toBe("2026-07-14T10:17:00.000Z");
 
     await prisma.character.update({
       where: { id: characterId },
@@ -710,7 +710,7 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
       .resolves.toMatchObject({ hpCurrent: 2, manaCurrent: 2 });
   });
 
-  it("preserves the frozen remainder on a Hero read past Sated expiry and retires it on release", async () => {
+  it("preserves the frozen remainder on a Hero read past the original Sated expiry and resumes it on release", async () => {
     const characterId = "character-expired-lease-time";
     const sessionId = "expired-lease-time";
     const startedAt = new Date("2026-07-14T10:00:00.000Z");
@@ -787,7 +787,8 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     cooldown = await prisma.characterCooldown.findUniqueOrThrow({
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
-    expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe(payload.expiresAt);
+    expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:29.000Z");
+    expect((cooldown.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:06:29.000Z");
     await expect(prisma.activeCombatLease.count({ where: { referenceId: sessionId } }))
       .resolves.toBe(0);
     await expect(repository.releaseLeaseBySessionId(
@@ -797,7 +798,8 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     const duplicate = await prisma.characterCooldown.findUniqueOrThrow({
       where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
     });
-    expect((duplicate.resultJson as { cursorAt: string }).cursorAt).toBe(payload.expiresAt);
+    expect((duplicate.resultJson as { cursorAt: string }).cursorAt).toBe("2026-07-14T10:05:29.000Z");
+    expect((duplicate.resultJson as { expiresAt: string }).expiresAt).toBe("2026-07-14T10:06:29.000Z");
   });
 
   it("persists pre-lease Sated recovery for ordinary and training solo lifecycles before malformed or missing cleanup", async () => {

@@ -390,13 +390,10 @@ export function presentTurnBasedDuel(
   }
   if (
     result.session.status === "active" &&
-    viewerParticipant?.varenykSated &&
-    Date.parse(viewerParticipant.varenykSated.expiresAt) > result.now.getTime()
+    viewerParticipant?.varenykSated
   ) {
     const satedBuff = presentActiveVarenykSatedCombatState(
-      new Date(viewerParticipant.varenykSated.expiresAt),
-      viewerParticipant.varenykSated.rank,
-      result.now
+      viewerParticipant.varenykSated
     );
     if (satedBuff) lines.push(satedBuff);
   }
@@ -631,9 +628,7 @@ export function presentTurnBasedDuelJournal(
   const satedLines = Object.values(state.participants).flatMap((participant) => {
     if (!participant.varenykSated) return [];
     const line = presentActiveVarenykSatedCombatState(
-      new Date(participant.varenykSated.expiresAt),
-      participant.varenykSated.rank,
-      new Date(),
+      participant.varenykSated,
       `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
     );
     return line ? [line] : [];

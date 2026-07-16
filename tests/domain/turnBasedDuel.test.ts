@@ -9,6 +9,7 @@ import {
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
 import { findMantokAbilityGrantByKey } from "../../src/content";
+import { getVarenykSatedRemainingCombatTurns } from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("turn-based duel domain", () => {
   it("pulses Sated once after the committed duel exchange resolves", () => {
@@ -60,9 +61,9 @@ describe("turn-based duel domain", () => {
     expect(pulsed.participants.challenger.varenykSated?.pulseIds).toEqual([
       "sated-duel:turn-based-duel:duel-session:1:challenger"
     ]);
-    expect(pulsed.participants.challenger.varenykSated?.expiresAt).toBe(
-      new Date(now.getTime() + 11 * 60_000).toISOString()
-    );
+    expect(getVarenykSatedRemainingCombatTurns(
+      pulsed.participants.challenger.varenykSated!
+    )).toBe(12);
   });
 
   it("stores a stable first actor from initiative instead of always using the challenger", () => {

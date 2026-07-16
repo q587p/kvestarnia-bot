@@ -1,4 +1,8 @@
-import { getVarenykSatedPeriodicRecovery } from "../../domain/noncombat/varenykSatedSupport";
+import {
+  getVarenykSatedPeriodicRecovery,
+  getVarenykSatedRemainingCombatTurns,
+  type VarenykSatedCombatStateV1
+} from "../../domain/noncombat/varenykSatedSupport";
 
 export interface VarenykSatedRecoveryView {
   hpRestored: number;
@@ -26,19 +30,16 @@ export function presentActiveVarenykSatedBuff(
 }
 
 export function presentActiveVarenykSatedCombatState(
-  expiresAt: Date,
-  rank: number,
-  now = new Date(),
+  sated: Pick<VarenykSatedCombatStateV1, "expiresAt" | "cursorAt" | "rank">,
   subjectHtml = "Стан: <b>Ситий</b>"
 ): string | null {
-  const remainingMs = expiresAt.getTime() - now.getTime();
-  if (remainingMs <= 0) {
+  const remainingTurns = getVarenykSatedRemainingCombatTurns(sated);
+  if (remainingTurns <= 0) {
     return null;
   }
 
-  const remainingTurns = Math.max(1, Math.ceil(remainingMs / 60_000));
   const remaining = `${remainingTurns} ${pluralize(remainingTurns, "хід", "ходи", "ходів")}`;
-  const recovery = getVarenykSatedPeriodicRecovery(rank);
+  const recovery = getVarenykSatedPeriodicRecovery(sated.rank);
   return `😋 ${subjectHtml} ще <b>${remaining}</b> (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>)`;
 }
 

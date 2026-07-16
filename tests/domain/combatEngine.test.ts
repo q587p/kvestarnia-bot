@@ -29,7 +29,10 @@ import { findMantokAbilityGrantByKey } from "../../src/content";
 import type { MantokAbilityGrantDefinition } from "../../src/content/mantokAbilityGrants";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import { FakeRandomSource } from "../../src/shared/random";
-import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../../src/domain/noncombat/varenykSatedSupport";
+import {
+  applyVarenykSatedPulseAfterSoloEnemyResponse,
+  getVarenykSatedRemainingCombatTurns
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
   combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
@@ -183,9 +186,7 @@ describe("combat domain engine", () => {
     expect(result.summary.satedRecovery).toEqual({ hpRestored: 1, manaRestored: 0 });
     expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).toEqual(["enemy:1", "enemy:2"]);
     expect(result.summary.enemyActions?.[0]?.simultaneousFinalResponse).toBe(true);
-    expect(result.state.varenykSated?.expiresAt).toBe(
-      new Date(startedAt.getTime() + 12 * 60_000).toISOString()
-    );
+    expect(getVarenykSatedRemainingCombatTurns(result.state.varenykSated!)).toBe(12);
     expect(result.state.varenykSated?.pulseIds).toEqual([
       "multi-sated:persistent-pve:multi-session:1:hero"
     ]);

@@ -134,6 +134,7 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   outsideRemainderMs?: number;
   leaseStartedAt?: Date;
   combatExpiresAt?: Date;
+  combatCursorAt?: Date;
 }): Promise<void> {
   const row = await input.tx.characterCooldown.findUnique({
     where: {
@@ -162,15 +163,23 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   }
   const payloadExpiresAt = Date.parse(payload.expiresAt);
   const combatExpiresAt = input.combatExpiresAt?.getTime();
-  const effectiveExpiresAt = new Date(Math.max(
-    Date.parse(payload.startedAt),
-    Math.min(
-      payloadExpiresAt,
-      typeof combatExpiresAt === "number" && Number.isFinite(combatExpiresAt)
-        ? combatExpiresAt
-        : payloadExpiresAt
-    )
-  ));
+  const combatCursorAt = input.combatCursorAt?.getTime();
+  const hasFrozenCombatDuration =
+    typeof combatExpiresAt === "number" &&
+    Number.isFinite(combatExpiresAt) &&
+    typeof combatCursorAt === "number" &&
+    Number.isFinite(combatCursorAt);
+  const effectiveExpiresAt = hasFrozenCombatDuration
+    ? new Date(input.now.getTime() + Math.max(0, combatExpiresAt - combatCursorAt))
+    : new Date(Math.max(
+        Date.parse(payload.startedAt),
+        Math.min(
+          payloadExpiresAt,
+          typeof combatExpiresAt === "number" && Number.isFinite(combatExpiresAt)
+            ? combatExpiresAt
+            : payloadExpiresAt
+        )
+      ));
   const through = new Date(Math.min(input.now.getTime(), effectiveExpiresAt.getTime()));
   const inferredRemainder = input.leaseStartedAt
     ? input.leaseStartedAt.getTime() - Date.parse(payload.cursorAt)
@@ -222,7 +231,7 @@ export async function releaseVarenykSatedCombatLease(input: {
     updatedAt: Date;
   };
   releasedAt: Date;
-  sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs" | "expiresAt">;
+  sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs" | "expiresAt" | "cursorAt">;
 }): Promise<boolean> {
   const claimedAt = new Date(Math.max(
     input.releasedAt.getTime(),
@@ -265,7 +274,8 @@ export async function releaseVarenykSatedCombatLease(input: {
     ...(input.sated
       ? {
           outsideRemainderMs: input.sated.outsideRemainderMs,
-          combatExpiresAt: new Date(input.sated.expiresAt)
+          combatExpiresAt: new Date(input.sated.expiresAt),
+          combatCursorAt: new Date(input.sated.cursorAt)
         }
       : {})
   });

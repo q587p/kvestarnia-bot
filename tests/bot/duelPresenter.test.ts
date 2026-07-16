@@ -323,15 +323,16 @@ describe("duel presenter", () => {
 
   it("renders a paged turn-based duel journal from stored round summaries", () => {
     const active = makeTurnBasedDuelView({});
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
     active.session.state.participants.challenger.varenykSated = {
       version: 1,
       activationId: "duel-journal-sated",
       recipientCharacterId: "challenger-character",
       recipientRemortCount: 0,
       rank: 1,
-      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
-      cursorAt: new Date().toISOString(),
-      leaseStartedAt: new Date().toISOString(),
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
       outsideRemainderMs: 0,
       pulseIds: ["duel:pulse:1"]
     };

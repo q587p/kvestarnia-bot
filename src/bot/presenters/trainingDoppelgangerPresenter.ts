@@ -204,8 +204,7 @@ function presentTrainingDoppelgangerState(input: {
     `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
     ...(state?.varenykSated
       ? [presentActiveVarenykSatedCombatState(
-          new Date(state.varenykSated.expiresAt),
-          state.varenykSated.rank
+          state.varenykSated
         )]
           .filter((line): line is string => line !== null)
       : [])
@@ -325,9 +324,7 @@ export function presentTrainingDoppelgangerJournal(
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   const satedBuff = entry.varenykSated
     ? presentActiveVarenykSatedCombatState(
-        new Date(entry.varenykSated.expiresAt),
-        entry.varenykSated.rank,
-        new Date(entry.varenykSated.cursorAt)
+        entry.varenykSated
       )
     : null;
   return [

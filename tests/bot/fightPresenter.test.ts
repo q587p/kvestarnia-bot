@@ -2719,15 +2719,16 @@ describe("fight presenter", () => {
   });
 
   it("shows active Sated and a recovery line after a persistent combat turn", () => {
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
     const sated = {
       version: 1 as const,
       activationId: "sated",
       recipientCharacterId: "character-42",
       recipientRemortCount: 0,
       rank: 2,
-      expiresAt: new Date(Date.now() + 12 * 60_000).toISOString(),
-      cursorAt: new Date().toISOString(),
-      leaseStartedAt: new Date().toISOString(),
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
       outsideRemainderMs: 0,
       pulseIds: ["pulse"]
     };

@@ -6,6 +6,7 @@ import {
   resolvePartyBossRound
 } from "../../src/domain/partyBoss/partyBoss";
 import { findMantokAbilityGrantByKey } from "../../src/content";
+import { getVarenykSatedRemainingCombatTurns } from "../../src/domain/noncombat/varenykSatedSupport";
 
 const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
@@ -46,9 +47,9 @@ describe("party boss reducer", () => {
     expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);
-    expect(resolved.state.participants[0]?.varenykSated?.expiresAt).toBe(
-      new Date(startedAt.getTime() + 12 * 60_000).toISOString()
-    );
+    expect(getVarenykSatedRemainingCombatTurns(
+      resolved.state.participants[0]!.varenykSated!
+    )).toBe(12);
   });
 
   it("resolves submitted actions and fills missing participants with timeout defend", () => {

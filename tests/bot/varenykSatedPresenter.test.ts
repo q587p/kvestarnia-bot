@@ -10,15 +10,38 @@ describe("Varenyk Sated presenter", () => {
   it("describes the state consistently outside and inside combat", () => {
     const now = new Date("2026-07-15T18:00:00.000Z");
     const expiresAt = new Date("2026-07-15T18:12:00.000Z");
+    const combatState = {
+      expiresAt: expiresAt.toISOString(),
+      cursorAt: now.toISOString(),
+      rank: 5
+    };
 
     expect(presentActiveVarenykSatedBuff(expiresAt, 5, now)).toBe(
       "😋 Стан: <b>Ситий</b> ще <b>12 хв</b>\n<b>+3 HP</b> і <b>+3 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)."
     );
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).toBe(
+    expect(presentActiveVarenykSatedCombatState(combatState)).toBe(
       "😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)"
     );
-    expect(presentActiveVarenykSatedCombatState(expiresAt, 5, now)).not.toMatch(/ранг/iu);
+    expect(presentActiveVarenykSatedCombatState(combatState)).not.toMatch(/ранг/iu);
     expect(presentActiveVarenykSatedBuff(now, 5, now)).toBeNull();
+  });
+
+  it("shows frozen combat turns without subtracting wall-clock time between actions", () => {
+    const cursorAt = new Date("2026-07-16T13:09:59.518Z");
+    const turnFour = {
+      expiresAt: new Date(cursorAt.getTime() + 6 * 60_000 + 8_606).toISOString(),
+      cursorAt: cursorAt.toISOString(),
+      rank: 5
+    };
+    expect(presentActiveVarenykSatedCombatState(turnFour)).toContain("ще <b>6 ходів</b>");
+
+    const turnFiveCursor = new Date(cursorAt.getTime() + 27_948);
+    const turnFive = {
+      expiresAt: new Date(turnFiveCursor.getTime() + 5 * 60_000 + 8_606).toISOString(),
+      cursorAt: turnFiveCursor.toISOString(),
+      rank: 5
+    };
+    expect(presentActiveVarenykSatedCombatState(turnFive)).toContain("ще <b>5 ходів</b>");
   });
 
   it("omits zero recovery components and an empty recovery notice", () => {

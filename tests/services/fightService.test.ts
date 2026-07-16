@@ -933,8 +933,8 @@ describe("FightService", () => {
       recipientRemortCount: 0,
       rank: 1,
       expiresAt: addSeconds(fixedClock(), 13 * 60).toISOString(),
-      cursorAt: addSeconds(fixedClock(), -60).toISOString(),
-      leaseStartedAt: addSeconds(fixedClock(), -60).toISOString(),
+      cursorAt: fixedClock().toISOString(),
+      leaseStartedAt: fixedClock().toISOString(),
       outsideRemainderMs: 0,
       pulseIds: []
     };
