@@ -60,6 +60,7 @@ import {
   getCallbackPreviousMainMenuLocationId,
   refreshCallbackMainMenuLocationBeforeReplies
 } from "../modules/mainMenu";
+import { showCanonicalTurnBasedDuelCard } from "../turnBasedDuelCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -290,7 +291,7 @@ export async function handleDuelCallback(
         );
         await clearCurrentDuelCallbackKeyboard(ctx);
         await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
-        await sendTurnBasedDuelCard(ctx, "reply", result, service);
+        await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply");
       } else {
         await refreshRecordedTurnBasedDuelCard(ctx, result);
       }
@@ -542,7 +543,12 @@ export async function handleDuelCallback(
   const result = await service.getByToken(callback.token);
   await answerCallback();
   if (result.state === "active") {
-    await sendTurnBasedDuelCard(ctx, "edit", result, service);
+    if (isPrivateChat(ctx)) {
+      await clearCurrentDuelCallbackKeyboard(ctx);
+      await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply", { allowFallback: false });
+    } else {
+      await showCanonicalTurnBasedDuelCard(ctx, result, service, "edit");
+    }
     return;
   }
   await sendText(
@@ -850,20 +856,45 @@ async function notifyTurnBasedParticipant(
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: keyboard
     };
-    const messageId = options.includeIntro
-      ? (await ctx.api.sendMessage(Number(chatId), text, cardOptions)).message_id
-      : await editOrSendTurnBasedCard(ctx, {
-          chatId,
-          messageId: participant.messageId ?? null,
-          text,
-          options: cardOptions
-        });
-
-    if (messageId) {
-      await service.recordTurnBasedMessageReference(result.session.id, participant.participant, {
-        chatId,
-        messageId
+    if (options.includeIntro) {
+      const message = await ctx.api.sendMessage(Number(chatId), text, {
+        ...cardOptions,
+        reply_markup: { inline_keyboard: [] }
       });
+      if (message.message_id) {
+        const candidate = { chatId, messageId: message.message_id };
+        const claim = await service.claimTurnBasedMessageReference(
+          result.session.id,
+          participant.participant,
+          candidate
+        );
+        const canonicalReference = claim.claimed
+          ? candidate
+          : getTurnBasedParticipantReference(claim.session, participant.participant);
+
+        if (canonicalReference) {
+          await ctx.api.editMessageText(
+            Number(canonicalReference.chatId),
+            canonicalReference.messageId,
+            text,
+            cardOptions
+          );
+        }
+      }
+    } else {
+      const messageId = await editOrSendTurnBasedCard(ctx, {
+        chatId,
+        messageId: participant.messageId ?? null,
+        text,
+        options: cardOptions
+      });
+
+      if (messageId) {
+        await service.recordTurnBasedMessageReference(result.session.id, participant.participant, {
+          chatId,
+          messageId
+        });
+      }
     }
     await sendAchievementUnlocksToChat(
       ctx,
@@ -873,6 +904,20 @@ async function notifyTurnBasedParticipant(
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
   }
+}
+
+function getTurnBasedParticipantReference(
+  session: Extract<DuelChallengeView, { state: "active" }>["session"] | null,
+  participant: "challenger" | "target"
+): { chatId: bigint; messageId: number } | null {
+  if (!session) {
+    return null;
+  }
+
+  const chatId = participant === "challenger" ? session.challengerChatId : session.targetChatId;
+  const messageId = participant === "challenger" ? session.challengerMessageId : session.targetMessageId;
+
+  return chatId && messageId ? { chatId, messageId } : null;
 }
 
 async function clearCurrentDuelCallbackKeyboard(ctx: Context): Promise<void> {

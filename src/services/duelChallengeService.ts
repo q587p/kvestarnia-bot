@@ -1017,6 +1017,15 @@ export class DuelChallengeService {
     await this.challenges.recordTurnBasedMessageReference(sessionId, participant, reference);
   }
 
+  async claimTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    reference: { chatId: bigint; messageId: number },
+    expectedReference?: { chatId: bigint; messageId: number }
+  ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
+    return this.challenges.claimTurnBasedMessageReference(sessionId, participant, reference, expectedReference);
+  }
+
   async getInviteRotationForTelegramUser(
     telegramUserId: bigint,
     inviteToken: string

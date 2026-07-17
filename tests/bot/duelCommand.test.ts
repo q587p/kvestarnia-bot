@@ -615,6 +615,15 @@ describe("handleDuelCallback", () => {
     await handleDuelCallback(finalAccept.ctx, { type: "accept-risk", token: TOKEN }, service, { presence });
 
     expect(markAction).toHaveBeenCalledTimes(1);
+    expect(markAction).toHaveBeenCalledWith({
+      user: {
+        telegramUserId: 99n,
+        displayName: "Тест"
+      },
+      locationId: "location.korchma.fighting_corner",
+      currentRaidId: null,
+      currentAdventureId: "adventure.duel-challenge"
+    });
     expect(finalAccept.editMessageText).not.toHaveBeenCalled();
     expect(finalAccept.reply).toHaveBeenCalledTimes(3);
     expect(String(finalAccept.reply.mock.calls[0]?.[0])).toContain("бійцівського кутка");
@@ -699,7 +708,15 @@ describe("handleDuelCallback", () => {
       confirmed: true,
       ignoreResourceWarning: true
     });
-    expect(markAction).toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith({
+      user: {
+        telegramUserId: 99n,
+        displayName: "Тест"
+      },
+      locationId: "location.korchma.fighting_corner",
+      currentRaidId: null,
+      currentAdventureId: "adventure.duel-challenge"
+    });
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(editMessageText).toHaveBeenCalledTimes(1);
     const text = messageText(editMessageText);
@@ -735,11 +752,7 @@ describe("handleDuelCallback", () => {
 
   it("sends a separate turn-based duel intro when accepting starts active combat", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
-    const activeSession = {
-      ...makeTurnBasedSession("active", target),
-      challengerChatId: 42n,
-      challengerMessageId: 77
-    };
+    const activeSession = makeTurnBasedSession("active", target);
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "active",
       transitioned: true,
@@ -754,9 +767,14 @@ describe("handleDuelCallback", () => {
       now: NOW
     });
     const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const claimTurnBasedMessageReference = vi.fn().mockResolvedValue({
+      claimed: true,
+      session: activeSession
+    });
     const service = serviceWith({
       acceptForTelegramUser,
-      recordTurnBasedMessageReference
+      recordTurnBasedMessageReference,
+      claimTurnBasedMessageReference
     });
     const markAction = vi.fn().mockResolvedValue(undefined);
     const presence = createPresence(markAction, {
@@ -798,16 +816,31 @@ describe("handleDuelCallback", () => {
     expect(String(reply.mock.calls[2]?.[0])).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
     expect(String(reply.mock.calls[2]?.[0])).not.toContain("Порада дня:");
     expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(apiEditMessageReplyMarkup).toHaveBeenCalledWith(42, 77, {
-      reply_markup: {
-        inline_keyboard: []
-      }
-    });
-    expect(apiEditMessageText).not.toHaveBeenCalled();
+    expect(apiEditMessageReplyMarkup).not.toHaveBeenCalled();
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      99,
+      321,
+      expect.stringContaining("Покрокова дуель: хід 2"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("♟️ <b>Покрокова дуель</b>");
     expect(sendMessage.mock.calls[1]?.[0]).toBe(42);
     expect(String(sendMessage.mock.calls[1]?.[1])).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledWith("session-1", "target", {
+      chatId: 99n,
+      messageId: 321
+    });
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledWith("session-1", "challenger", {
+      chatId: 42n,
+      messageId: 123
+    });
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      123,
+      expect.stringContaining("Покрокова дуель: хід 2"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
   });
 
   it("refreshes only the recorded canonical card on duplicate final acceptance", async () => {
@@ -849,6 +882,90 @@ describe("handleDuelCallback", () => {
     expect(markAction).not.toHaveBeenCalled();
   });
 
+  it("keeps a stale pending owner Refresh inert and refreshes only the canonical combat card", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = {
+      ...makeTurnBasedSession("active", target),
+      challengerChatId: 42n,
+      challengerMessageId: 777
+    };
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const claimTurnBasedMessageReference = vi.fn();
+    const recordTurnBasedMessageReference = vi.fn();
+    const callback = createCallbackContext(42, "private");
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "view", token: TOKEN },
+      serviceWith({
+        getByToken: vi.fn().mockResolvedValue(active),
+        claimTurnBasedMessageReference,
+        recordTurnBasedMessageReference
+      }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageReplyMarkup).toHaveBeenCalledWith({
+      reply_markup: { inline_keyboard: [] }
+    });
+    expect(callback.editMessageText).not.toHaveBeenCalled();
+    expect(callback.reply).not.toHaveBeenCalled();
+    expect(callback.apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      777,
+      expect.stringContaining("Покрокова дуель: хід"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(claimTurnBasedMessageReference).not.toHaveBeenCalled();
+    expect(recordTurnBasedMessageReference).not.toHaveBeenCalled();
+  });
+
+  it("keeps stale owner Refresh inert while the winner has not recorded its canonical card yet", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = makeTurnBasedSession("active", target);
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const claimTurnBasedMessageReference = vi.fn();
+    const recordTurnBasedMessageReference = vi.fn();
+    const callback = createCallbackContext(42, "private");
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "view", token: TOKEN },
+      serviceWith({
+        getByToken: vi.fn().mockResolvedValue(active),
+        claimTurnBasedMessageReference,
+        recordTurnBasedMessageReference
+      }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageText).not.toHaveBeenCalled();
+    expect(callback.editMessageReplyMarkup).toHaveBeenCalledWith({
+      reply_markup: { inline_keyboard: [] }
+    });
+    expect(callback.reply).not.toHaveBeenCalled();
+    expect(callback.apiEditMessageReplyMarkup).not.toHaveBeenCalled();
+    expect(callback.apiEditMessageText).not.toHaveBeenCalled();
+    expect(claimTurnBasedMessageReference).not.toHaveBeenCalled();
+    expect(recordTurnBasedMessageReference).not.toHaveBeenCalled();
+  });
+
   it("keeps a deferred concurrent accept callback inert after the winner records the canonical card", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const session = makeTurnBasedSession("active", target);
@@ -882,7 +999,23 @@ describe("handleDuelCallback", () => {
 
       return Promise.resolve();
     });
-    const service = serviceWith({ acceptForTelegramUser, recordTurnBasedMessageReference });
+    const claimTurnBasedMessageReference = vi.fn((
+      _sessionId: string,
+      participant: "challenger" | "target",
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      if (participant === "target") {
+        session.targetChatId = reference.chatId;
+        session.targetMessageId = reference.messageId;
+      }
+
+      return Promise.resolve({ claimed: true, session });
+    });
+    const service = serviceWith({
+      acceptForTelegramUser,
+      recordTurnBasedMessageReference,
+      claimTurnBasedMessageReference
+    });
     const presence = createPresence();
     const winner = createCallbackContext(99, "private");
     const loser = createCallbackContext(99, "private");
@@ -913,7 +1046,7 @@ describe("handleDuelCallback", () => {
       expect.stringContaining("Покрокова дуель: хід"),
       expect.objectContaining({ parse_mode: "HTML" })
     );
-    expect(recordTurnBasedMessageReference.mock.calls.filter((call) => call[1] === "target")).toHaveLength(1);
+    expect(claimTurnBasedMessageReference.mock.calls.filter((call) => call[1] === "target")).toHaveLength(1);
   });
 
   it("does not notify the other quick-duel participant on replayed accept", async () => {
@@ -1565,7 +1698,10 @@ function createPresence(
 }
 
 function serviceWith(methods: Partial<DuelChallengeService>): DuelChallengeService {
-  return methods as DuelChallengeService;
+  return {
+    claimTurnBasedMessageReference: vi.fn().mockResolvedValue({ claimed: true, session: null }),
+    ...methods
+  } as DuelChallengeService;
 }
 
 function makeResolvedQuickView(questProgressUpdates: unknown[] = []): unknown {

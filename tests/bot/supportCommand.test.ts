@@ -133,19 +133,30 @@ describe("support command and start deep links", () => {
   });
 
   it("keeps active turn-based /start deep links private in private chats", async () => {
-    const acceptForTelegramUser = vi.fn().mockResolvedValue(makeActiveTurnBasedDuelView());
+    const active = makeActiveTurnBasedDuelView();
+    const claimTurnBasedMessageReference = vi.fn().mockImplementation((
+      _sessionId: string,
+      _participant: "challenger" | "target",
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      active.session.challengerChatId = reference.chatId;
+      active.session.challengerMessageId = reference.messageId;
+      return Promise.resolve({ claimed: true, session: active.session });
+    });
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
     const calls = await captureMessageCalls(
       "/start duel_turnbased_abc_DEF12",
       servicesWith({
         duel: {
-          acceptForTelegramUser
+          acceptForTelegramUser,
+          claimTurnBasedMessageReference
         }
       } as Partial<BotServices>),
       {
         botUsername: "kvestarnia_test_bot"
       }
     );
-    const message = calls.find((call) => call.method === "sendMessage");
+    const message = calls.find((call) => call.method === "editMessageText");
     const keyboard = JSON.stringify(message?.payload.reply_markup);
 
     expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
@@ -154,6 +165,10 @@ describe("support command and start deep links", () => {
     expect(String(message?.payload.text)).toContain("Покрокова дуель");
     expect(String(message?.payload.text)).toContain("Ваш вибір");
     expect(keyboard).toContain("Оновити");
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledWith("session-1", "challenger", {
+      chatId: 42n,
+      messageId: 100
+    });
   });
 
   it("keeps active turn-based /start deep links spectator-safe in group chats", async () => {
@@ -183,6 +198,82 @@ describe("support command and start deep links", () => {
     expect(keyboard).not.toContain("Здатися");
   });
 
+  it("reuses the recorded canonical card across repeated active turn-based deep links", async () => {
+    const active = makeActiveTurnBasedDuelView();
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
+    const claimTurnBasedMessageReference = vi.fn().mockImplementation((
+      _sessionId: string,
+      _participant: "challenger" | "target",
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      active.session.challengerChatId = reference.chatId;
+      active.session.challengerMessageId = reference.messageId;
+      return Promise.resolve({ claimed: true, session: active.session });
+    });
+    const calls = await captureMessageCalls(
+      ["/start duel_turnbased_abc_DEF12", "/start duel_turnbased_abc_DEF12"],
+      servicesWith({
+        duel: { acceptForTelegramUser, claimTurnBasedMessageReference }
+      } as Partial<BotServices>)
+    );
+
+    const combatCards = calls.filter((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Покрокова дуель: хід")
+    );
+    const canonicalRefreshes = calls.filter((call) => call.method === "editMessageText");
+
+    expect(combatCards).toHaveLength(1);
+    expect(canonicalRefreshes).toHaveLength(2);
+    expect(canonicalRefreshes.every((call) => call.payload.chat_id === 42)).toBe(true);
+    expect(canonicalRefreshes.every((call) => call.payload.message_id === 100)).toBe(true);
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves only the claimed canonical card actionable during concurrent active deep-link delivery", async () => {
+    const first = makeActiveTurnBasedDuelView();
+    const second = makeActiveTurnBasedDuelView();
+    const acceptForTelegramUser = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    let canonicalSession: ReturnType<typeof makeTurnBasedSession> | null = null;
+    const claimTurnBasedMessageReference = vi.fn((
+      _sessionId: string,
+      _participant: "challenger" | "target",
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      if (!canonicalSession) {
+        canonicalSession = {
+          ...first.session,
+          challengerChatId: reference.chatId,
+          challengerMessageId: reference.messageId
+        };
+        return Promise.resolve({ claimed: true, session: canonicalSession });
+      }
+
+      return Promise.resolve({ claimed: false, session: canonicalSession });
+    });
+    const calls = await captureMessageCalls(
+      ["/start duel_turnbased_abc_DEF12", "/start duel_turnbased_abc_DEF12"],
+      servicesWith({
+        duel: { acceptForTelegramUser, claimTurnBasedMessageReference }
+      } as Partial<BotServices>),
+      { concurrent: true }
+    );
+
+    const sentCards = calls.filter((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Покрокова дуель: хід")
+    );
+    const canonicalActivations = calls.filter((call) => call.method === "editMessageText");
+
+    expect(sentCards).toHaveLength(2);
+    expect(sentCards.every((call) =>
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toBe(true);
+    expect(canonicalActivations).toHaveLength(2);
+    expect(new Set(canonicalActivations.map((call) => call.payload.message_id)).size).toBe(1);
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2);
+  });
+
   it("explains a self-opened duel link as the player's existing invite", async () => {
     const onboardingStart = vi.fn();
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
@@ -203,6 +294,8 @@ describe("support command and start deep links", () => {
     );
     const message = calls.find((call) => call.method === "sendMessage");
     const text = String(message?.payload.text);
+    const keyboard = message?.payload.reply_markup as { inline_keyboard?: Array<Array<{ callback_data?: string }>> };
+    const callbacks = keyboard.inline_keyboard?.flat().map((button) => button.callback_data) ?? [];
 
     expect(onboardingStart).not.toHaveBeenCalled();
     expect(text).toContain("⚡ <b>Це ваш виклик</b>");
@@ -210,6 +303,41 @@ describe("support command and start deep links", () => {
     expect(text).toContain("Перешліть запрошення або дочекайтеся відповіді.");
     expect(text).not.toContain("Самодуель");
     expect(text).not.toContain("Сумлінний Допельґанґер");
+    expect(callbacks).toEqual([
+      "v1:duel:cancel:abc_DEF12",
+      "v1:duel:view:abc_DEF12"
+    ]);
+  });
+
+  it("renders a pending turn-based self-challenge deep link with owner controls only", async () => {
+    const challenge = {
+      ...makeDuelChallenge("abc_DEF12"),
+      mode: "turn-based" as const,
+      status: "pending" as const,
+      resolvedAt: null,
+      result: null
+    };
+    const calls = await captureMessageCalls(
+      "/start duel_turnbased_abc_DEF12",
+      servicesWith({
+        duel: {
+          acceptForTelegramUser: vi.fn().mockResolvedValue({
+            state: "self-challenge",
+            challenge,
+            challenger: makeCharacterSummary("Kyjivan BooksDragon")
+          })
+        }
+      } as Partial<BotServices>)
+    );
+    const message = calls.find((call) => call.method === "sendMessage");
+    const keyboard = message?.payload.reply_markup as { inline_keyboard?: Array<Array<{ callback_data?: string }>> };
+
+    expect(keyboard.inline_keyboard?.flat().map((button) => button.callback_data)).toEqual([
+      "v1:duel:cancel:abc_DEF12",
+      "v1:duel:view:abc_DEF12"
+    ]);
+    expect(JSON.stringify(keyboard)).not.toContain("v1:duel:accept:");
+    expect(JSON.stringify(keyboard)).not.toContain("v1:duel:decline:");
   });
 
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {
@@ -241,13 +369,14 @@ interface ApiCall {
 }
 
 async function captureMessageCalls(
-  text: string,
+  text: string | string[],
   services: BotServices,
   options: {
     supportJarUrl?: string;
     supportJarStatus?: { currentUah?: number; goalUah?: number; updatedAt?: string };
     botUsername?: string;
     chatType?: "private" | "group" | "supergroup";
+    concurrent?: boolean;
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services, options);
@@ -271,6 +400,15 @@ async function captureMessageCalls(
       });
     }
 
+    if (method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: 99 + calls.filter((call) => call.method === "sendMessage").length
+        }
+      });
+    }
+
     return Promise.resolve({
       ok: true,
       result: true
@@ -278,17 +416,18 @@ async function captureMessageCalls(
   });
 
   await bot.init();
-  await bot.handleUpdate({
-    update_id: 1,
+  const texts = Array.isArray(text) ? text : [text];
+  const updates = texts.map((updateText, index) => ({
+    update_id: index + 1,
     message: {
-      message_id: 10,
+      message_id: index + 10,
       date: 0,
-      text,
+      text: updateText,
       entities: [
         {
           type: "bot_command",
           offset: 0,
-          length: text.split(/\s/, 1)[0]?.length ?? text.length
+          length: updateText.split(/\s/, 1)[0]?.length ?? updateText.length
         }
       ],
       chat: {
@@ -301,7 +440,14 @@ async function captureMessageCalls(
         first_name: "Тест"
       }
     }
-  });
+  }));
+  if (options.concurrent) {
+    await Promise.all(updates.map((update) => bot.handleUpdate(update)));
+  } else {
+    for (const update of updates) {
+      await bot.handleUpdate(update);
+    }
+  }
 
   return calls;
 }

@@ -265,6 +265,13 @@ export interface DuelChallengeRepository {
     reference: { chatId: bigint; messageId: number }
   ): Promise<DuelCombatSessionRecord | null>;
 
+  claimTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    reference: { chatId: bigint; messageId: number },
+    expectedReference?: { chatId: bigint; messageId: number }
+  ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }>;
+
   repairTurnBasedCombatState(now: Date): Promise<{
     repairedSessions: number;
     removedOrphanLeases: number;

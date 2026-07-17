@@ -62,6 +62,27 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
+  it("atomically claims one canonical participant card from a null-reference session", async () => {
+    const session = await seedActiveSession("card-claim", new Date("2026-06-17T18:00:23.000Z"));
+
+    const claims = await Promise.all([
+      repository.claimTurnBasedMessageReference(session.id, "challenger", {
+        chatId: 42n,
+        messageId: 101
+      }),
+      repository.claimTurnBasedMessageReference(session.id, "challenger", {
+        chatId: 42n,
+        messageId: 102
+      })
+    ]);
+    const stored = await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } });
+
+    expect(claims.filter((claim) => claim.claimed)).toHaveLength(1);
+    expect([101, 102]).toContain(stored.challengerMessageId);
+    expect(stored.challengerChatId).toBe(42n);
+    expect(claims.every((claim) => claim.session?.challengerMessageId === stored.challengerMessageId)).toBe(true);
+  });
+
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
     const before = await repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {

@@ -229,6 +229,7 @@ describe("presence routing", () => {
     ["inventory", {}],
     ["online", {}],
     ["look", {}],
+    ["duel", {}],
     ["support", {}],
     ["restart", {}],
     ["dev_raid_stop", {}],
@@ -272,6 +273,14 @@ describe("presence routing", () => {
   it("keeps duel start deep links neutral so they do not move the player outside", () => {
     expect(getTextPresenceContext("/start duel_abc_DEF12")).toEqual({});
     expect(getTextPresenceContext("/start@kvestarnia_test_bot duel_abc_DEF12")).toEqual({});
+    expect(getTextPresenceContext("/start duel_turnbased_abc_DEF12")).toEqual({});
+  });
+
+  it("keeps every duel callback neutral until the handler commits a final transition", () => {
+    expect(getCallbackPresenceContext("v1:duel:new")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:view:abc_DEF12")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:accept-risk:abc_DEF12")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:t:abc_DEF12:2:4:a")).toEqual({});
   });
 
   it("keeps regular start neutral so it does not move existing characters", () => {

@@ -9,6 +9,7 @@ import {
 } from "../keyboards/fightKeyboard";
 import { presentPersistentFightIntro } from "../presenters/fightPresenter";
 import { presentPassageSearch } from "../presenters/passageSearchPresenter";
+import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -61,6 +62,13 @@ export async function showActivePassageSearchIfNeeded(
     await safeEditMessageText(ctx, presentPassageSearch(activeSearch), options);
   } else {
     await ctx.reply(presentPassageSearch(activeSearch), options);
+  }
+
+  if (activeSearch.state === "completed") {
+    const achievementText = presentAchievementUnlockNotification(activeSearch.achievementUnlocks);
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
   }
 
   if (activeSearch.state === "monster-attack") {

@@ -58,6 +58,10 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (data.startsWith("v1:duel:")) {
+    return {};
+  }
+
   if (data.startsWith("v1:cellar:")) {
     return {};
   }
@@ -274,7 +278,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     return {};
   }
 
-  if (command === "tavern") {
+  if (command === "tavern" || command === "duel") {
     return {};
   }
 

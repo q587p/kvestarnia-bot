@@ -2,6 +2,56 @@ import { describe, expect, it } from "vitest";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
 
 describe("PrismaDuelChallengeRepository", () => {
+  it("claims a participant card only while the expected canonical reference is still current", async () => {
+    const updates: unknown[] = [];
+    const repository = new PrismaDuelChallengeRepository({
+      duelCombatSession: {
+        updateMany: (query: unknown) => {
+          updates.push(query);
+          return Promise.resolve({ count: 1 });
+        },
+        findUnique: () => Promise.resolve(null)
+      }
+    } as unknown as ConstructorParameters<typeof PrismaDuelChallengeRepository>[0]);
+
+    await expect(repository.claimTurnBasedMessageReference(
+      "session-1",
+      "challenger",
+      { chatId: 42n, messageId: 101 }
+    )).resolves.toEqual({ claimed: true, session: null });
+    await repository.claimTurnBasedMessageReference(
+      "session-1",
+      "challenger",
+      { chatId: 42n, messageId: 102 },
+      { chatId: 42n, messageId: 101 }
+    );
+
+    expect(updates).toEqual([
+      {
+        where: {
+          id: "session-1",
+          challengerChatId: null,
+          challengerMessageId: null
+        },
+        data: {
+          challengerChatId: 42n,
+          challengerMessageId: 101
+        }
+      },
+      {
+        where: {
+          id: "session-1",
+          challengerChatId: 42n,
+          challengerMessageId: 101
+        },
+        data: {
+          challengerChatId: 42n,
+          challengerMessageId: 102
+        }
+      }
+    ]);
+  });
+
   it("uses a bounded existence lookup for resolved turn-based round actions", async () => {
     const queries: unknown[] = [];
     const repository = new PrismaDuelChallengeRepository({

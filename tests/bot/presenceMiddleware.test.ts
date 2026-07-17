@@ -157,7 +157,12 @@ describe("presence middleware", () => {
     await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
 
     expect(createCount).toBe(1);
-    expect(presence.marks).toEqual([]);
+    expect(presence.marks).toEqual([{
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    }]);
   });
 
   it("opens /duel without moving presence before acceptance", async () => {
@@ -175,7 +180,12 @@ describe("presence middleware", () => {
 
     await bot.handleUpdate(messageUpdate("/duel"));
 
-    expect(presence.marks).toEqual([]);
+    expect(presence.marks).toEqual([{
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    }]);
   });
 
   it("does not teleport presence to the quest table when an outside duel-new callback is blocked", async () => {
@@ -187,7 +197,12 @@ describe("presence middleware", () => {
 
     await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
 
-    expect(presence.marks).toEqual([]);
+    expect(presence.marks).toEqual([{
+      user: {
+        telegramUserId: 42n,
+        displayName: "Тест"
+      }
+    }]);
   });
 
   it("marks handled callbacks with raid context", async () => {

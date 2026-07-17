@@ -2725,6 +2725,10 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     return Promise.resolve(null);
   }
 
+  claimTurnBasedMessageReference(): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
+    return Promise.resolve({ claimed: false, session: null });
+  }
+
   private refreshChallenge(
     challenge: DuelChallengeRecord | undefined | null
   ): DuelChallengeRecord | null {

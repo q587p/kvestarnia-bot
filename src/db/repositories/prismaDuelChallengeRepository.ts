@@ -882,6 +882,45 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return mapDuelCombatSession(record);
   }
 
+  async claimTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    reference: { chatId: bigint; messageId: number },
+    expectedReference?: { chatId: bigint; messageId: number }
+  ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
+    const claimed = await this.prisma.duelCombatSession.updateMany({
+      where: participant === "challenger"
+        ? {
+            id: sessionId,
+            challengerChatId: expectedReference?.chatId ?? null,
+            challengerMessageId: expectedReference?.messageId ?? null
+          }
+        : {
+            id: sessionId,
+            targetChatId: expectedReference?.chatId ?? null,
+            targetMessageId: expectedReference?.messageId ?? null
+          },
+      data: participant === "challenger"
+        ? {
+            challengerChatId: reference.chatId,
+            challengerMessageId: reference.messageId
+          }
+        : {
+            targetChatId: reference.chatId,
+            targetMessageId: reference.messageId
+          }
+    });
+    const session = await this.prisma.duelCombatSession.findUnique({
+      where: { id: sessionId },
+      include: sessionInclude
+    });
+
+    return {
+      claimed: claimed.count === 1,
+      session: mapDuelCombatSession(session)
+    };
+  }
+
   async repairTurnBasedCombatState(now: Date): Promise<{
     repairedSessions: number;
     removedOrphanLeases: number;
