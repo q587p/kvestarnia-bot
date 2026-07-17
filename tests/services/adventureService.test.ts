@@ -980,6 +980,14 @@ describe("AdventureService", () => {
       state: "combat-blocked"
     });
     await expect(
+      service.selectAdventureProblem(telegramUserId, {
+        periodToken: offer.periodToken,
+        problemId: offer.choices[0].id
+      })
+    ).resolves.toMatchObject({
+      state: "combat-blocked"
+    });
+    await expect(
       service.completeAdventureApproach(telegramUserId, {
         periodToken: offer.periodToken,
         problemId: offer.choices[0].id,

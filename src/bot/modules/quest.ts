@@ -19,6 +19,7 @@ PRESENCE_LOCATION_KORCHMA_YARD
 } from "../../services/presenceService";
 import { isYegerUnquietTarget } from "../../services/yegerQuestService";
 import { RESPONSIBLE_PANIC_BANDAGE_ITEM_ID } from "../../domain/itemCraft";
+import { shouldMarkAdventureChoiceCallbackPresence } from "../adventureCallbackPresence";
 import type { BotServices } from "../botServices";
 import { parseAdventureCallbackData,type AdventureCallback } from "../callbacks/adventureCallbackData";
 import { parseHuntCallbackData,type HuntCallback } from "../callbacks/huntCallbackData";
@@ -932,7 +933,7 @@ async function handleAdventureCallback(
       return;
     }
 
-    if (result.state !== "active-fight") {
+    if (shouldMarkAdventureChoiceCallbackPresence(result)) {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
         currentRaidId: null,
@@ -964,7 +965,7 @@ async function handleAdventureCallback(
       return;
     }
 
-    if (result.state !== "active-fight") {
+    if (shouldMarkAdventureChoiceCallbackPresence(result)) {
       await markScenePresence(ctx, services.presence, {
         locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
         currentRaidId: null,
@@ -1157,11 +1158,7 @@ async function handleAdventureCallback(
     return;
   }
 
-  const preservesExistingPresence =
-    result.state === "active-fight" ||
-    result.state === "already-completed";
-
-  if (!preservesExistingPresence) {
+  if (shouldMarkAdventureChoiceCallbackPresence(result)) {
     await markScenePresence(ctx, services.presence, {
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

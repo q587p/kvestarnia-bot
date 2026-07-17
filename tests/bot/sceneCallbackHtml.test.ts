@@ -83,6 +83,7 @@ import type {
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
 import {
+  PRESENCE_ADVENTURE_CHOICE,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_FRONT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -552,7 +553,11 @@ describe("scene callback HTML options", () => {
     expect(markAction).toHaveBeenCalledTimes(1);
     expect(markAction).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE })
+      expect.objectContaining({
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      })
     );
   });
 
@@ -3416,6 +3421,22 @@ describe("scene callback HTML options", () => {
       }
     },
     {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({
+            state: "active-fight" as const,
+            character,
+            session: persistentSession("monster.deadline-spider")
+          }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
       name: "approach",
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
@@ -3453,6 +3474,193 @@ describe("scene callback HTML options", () => {
       markAction.mock.calls.some(([input]) => "locationId" in input)
     ).toBe(false);
   });
+
+  it.each([
+    {
+      name: "problem",
+      callbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
+      name: "approach",
+      callbackData: makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      adventure: {
+        selectAdventureProblem: () => Promise.resolve({ state: "no-character" as const }),
+        completeAdventureApproach: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character })
+      }
+    }
+  ])("does not write presence for combat-blocked Adventure $name callbacks", async ({
+    callbackData,
+    adventure
+  }) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        adventure,
+        presence: { markAction }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Спершу завершіть поточний бій.");
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "problem",
+      callbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      })
+    },
+    {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      })
+    }
+  ])("keeps ordinary selected Adventure $name navigation at the Quest Table", async ({
+    callbackData
+  }) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    await captureApiCalls(
+      callbackData,
+      servicesWith({
+        adventure: {
+          selectAdventureProblem: () =>
+            Promise.resolve({
+              state: "selected" as const,
+              character,
+              offer: adventureOffer,
+              choice: adventureChoice,
+              approaches: [adventureApproach]
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(markAction).toHaveBeenCalledTimes(1);
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      })
+    );
+  });
+
+  it.each([
+    {
+      name: "problem",
+      delayedCallbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_FRONT
+    },
+    {
+      name: "problem-help",
+      delayedCallbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_YARD
+    }
+  ] as const)(
+    "keeps durable fight presence when delayed $name returns already-completed after the winner marks its origin",
+    async ({ delayedCallbackData, originLocationId }) => {
+      let releaseDelayedStarted!: () => void;
+      const delayedStarted = new Promise<void>((resolve) => {
+        releaseDelayedStarted = resolve;
+      });
+      let releaseWinnerPresence!: () => void;
+      const winnerPresenceMarked = new Promise<void>((resolve) => {
+        releaseWinnerPresence = resolve;
+      });
+      let delayedReturnedAfterWinnerPresence = false;
+      const selectAdventureProblem = vi.fn(async () => {
+        releaseDelayedStarted();
+        await winnerPresenceMarked;
+        delayedReturnedAfterWinnerPresence = true;
+        return { state: "already-completed" as const, character };
+      });
+      const completeAdventureApproach = vi.fn(async () => {
+        await delayedStarted;
+        return completedAdventureFightHandoffResult(originLocationId);
+      });
+      let finalLocationId = originLocationId;
+      const markAction = vi.fn((input: MarkPresenceInput) => {
+        if (input.locationId) {
+          finalLocationId = input.locationId;
+        }
+        if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+          releaseWinnerPresence();
+        }
+        return Promise.resolve();
+      });
+      const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+        Promise.resolve(startedAdventurePersistentFight(originLocationId))
+      );
+      const approachCallbackData = makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      });
+
+      await captureConcurrentApiCalls(
+        [delayedCallbackData, approachCallbackData],
+        servicesWith({
+          adventure: {
+            selectAdventureProblem,
+            completeAdventureApproach
+          },
+          fight: { getOrStartPersistentFightForTelegramUser },
+          presence: { markAction }
+        }),
+        42
+      );
+      const durableLocationMarks = markAction.mock.calls
+        .map(([input]) => input.locationId)
+        .filter((locationId): locationId is string => locationId !== undefined);
+
+      expect(delayedReturnedAfterWinnerPresence).toBe(true);
+      expect(selectAdventureProblem).toHaveBeenCalledTimes(1);
+      expect(completeAdventureApproach).toHaveBeenCalledTimes(1);
+      expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+      expect(durableLocationMarks).toEqual([originLocationId]);
+      expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+      expect(finalLocationId).toBe(originLocationId);
+    }
+  );
 
   it("records the edited callback message as the active persistent fight card", async () => {
     rememberLatestMessageForChat(42, 10);
@@ -8512,6 +8720,66 @@ function persistentSessionWithOrigin(originLocationId: string) {
         }
       ]
     }
+  };
+}
+
+function completedAdventureFightHandoffResult(originLocationId: string) {
+  return {
+    state: "completed" as const,
+    character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+    choice: adventureChoice,
+    approach: adventureApproach,
+    reward: {
+      xp: 0,
+      gold: 0,
+      localDate: "12026-06-12",
+      itemGrants: []
+    },
+    levelChange: noLevelChange,
+    complication: true,
+    grade: "complication" as const,
+    consequence: "fight-handoff" as const,
+    outcome: {
+      headline: "⚠️ Справа дійшла до бійки",
+      body: ["Горщик викликав вас на чесний бій ложками."]
+    },
+    spentGold: 0,
+    hpLoss: null,
+    fightHandoff: true,
+    fightEncounter: { monsterId: "monster.borshch-slime" },
+    claim: {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    },
+    check: {
+      roll: 13,
+      target: 45,
+      total: 13,
+      statBonus: 0,
+      grade: "complication" as const
+    }
+  };
+}
+
+function startedAdventurePersistentFight(originLocationId: string) {
+  const session = persistentSessionWithOrigin(originLocationId);
+
+  return {
+    state: "persistent-active" as const,
+    started: true,
+    character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+    session: {
+      ...session,
+      state: { ...session.state, source: "adventure" as const }
+    },
+    monster: {
+      id: "monster.borshch-slime",
+      name: "Борщовий слиз",
+      description: "Булькає статутом і буряком.",
+      level: 3,
+      tags: ["slime", "food"]
+    },
+    questProgress: null
   };
 }
 
