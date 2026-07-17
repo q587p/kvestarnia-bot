@@ -27,6 +27,7 @@ import {
   FIGHTING_CORNER_QUEST_KEYS,
   FightingCornerQuestService
 } from "../../src/services/fightingCornerQuestService";
+import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
 
@@ -1634,20 +1635,12 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     const dailyActions = new PrismaDailyActionRepository(prisma);
     const characterRepository = new PrismaCharacterRepository(prisma);
     const rogueTokens = new Set<string>();
-    const fightingCornerQuest = new FightingCornerQuestService(
-      characterRepository,
-      dailyActions,
-      {
-        isRogueRetaliationDuelInviteToken: (token: string) =>
-          Promise.resolve(rogueTokens.has(token))
-      },
-      { enabled: true, devHelpersEnabled: false }
-    );
     const runCase = async (input: {
       label: string;
       acceptedAt: Date;
       resolvedAt: Date;
       rogue?: boolean;
+      acceptThroughService?: boolean;
     }) => {
       const token = `quick-quest-${input.label}`;
       const seeded = await seedPendingChallenge(token);
@@ -1655,22 +1648,48 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         where: { inviteToken: token },
         data: { mode: "quick" }
       });
-      await prisma.dailyAction.createMany({
-        data: [seeded.challenger, seeded.target].map((participant, index) => ({
-          id: `quest-accepted-${input.label}-${index}`,
-          characterId: participant.id,
-          key: FIGHTING_CORNER_QUEST_KEYS.accepted,
-          localDate: "life:0",
-          rewardXp: 0,
-          rewardGold: 0,
-          resultJson: {
-            kind: "fighting-corner-quest-accepted",
-            version: 2,
-            questId: "fighting_corner_first_rule",
-            acceptedAt: input.acceptedAt.toISOString()
-          }
-        }))
-      });
+      const fightingCornerQuest = new FightingCornerQuestService(
+        characterRepository,
+        dailyActions,
+        {
+          isRogueRetaliationDuelInviteToken: (candidateToken: string) =>
+            Promise.resolve(rogueTokens.has(candidateToken))
+        },
+        { enabled: true, devHelpersEnabled: false },
+        () => input.acceptedAt
+      );
+      if (input.acceptThroughService) {
+        await prisma.user.updateMany({
+          where: {
+            telegramUserId: {
+              in: [seeded.challenger.telegramUserId, seeded.target.telegramUserId]
+            }
+          },
+          data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE }
+        });
+        const accepted = await Promise.all([
+          fightingCornerQuest.acceptForTelegramUser(seeded.challenger.telegramUserId),
+          fightingCornerQuest.acceptForTelegramUser(seeded.target.telegramUserId)
+        ]);
+        expect(accepted.map((result) => result.state)).toEqual(["accepted", "accepted"]);
+      } else {
+        await prisma.dailyAction.createMany({
+          data: [seeded.challenger, seeded.target].map((participant, index) => ({
+            id: `quest-accepted-${input.label}-${index}`,
+            characterId: participant.id,
+            key: FIGHTING_CORNER_QUEST_KEYS.accepted,
+            localDate: "life:0",
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: {
+              kind: "fighting-corner-quest-accepted",
+              version: 2,
+              questId: "fighting_corner_first_rule",
+              acceptedAt: input.acceptedAt.toISOString()
+            }
+          }))
+        });
+      }
       if (input.rogue) {
         rogueTokens.add(token);
       }
@@ -1701,15 +1720,39 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
           localDate: "life:0"
         }
       });
+      const acceptedRows = await prisma.dailyAction.findMany({
+        where: {
+          characterId: { in: [seeded.challenger.id, seeded.target.id] },
+          key: FIGHTING_CORNER_QUEST_KEYS.accepted,
+          localDate: "life:0"
+        }
+      });
+      const storedChallenge = await prisma.duelChallenge.findUniqueOrThrow({
+        where: { inviteToken: token }
+      });
 
-      return { first, replay, progressRows, seeded };
+      return { acceptedRows, first, progressRows, replay, seeded, storedChallenge };
     };
 
+    const exactBoundary = new Date("2026-06-17T18:00:00.000Z");
     const normal = await runCase({
       label: "normal",
-      acceptedAt: new Date("2026-06-17T17:59:59.999Z"),
-      resolvedAt: new Date("2026-06-17T18:00:00.000Z")
+      acceptedAt: exactBoundary,
+      resolvedAt: exactBoundary,
+      acceptThroughService: true
     });
+    const storedAcceptedAtValues = normal.acceptedRows.map((row) => {
+      const result = row.resultJson as { acceptedAt?: unknown } | null;
+      return result?.acceptedAt;
+    });
+    expect(storedAcceptedAtValues).toEqual([
+      exactBoundary.toISOString(),
+      exactBoundary.toISOString()
+    ]);
+    expect(normal.storedChallenge.resolvedAt?.toISOString()).toBe(exactBoundary.toISOString());
+    expect(storedAcceptedAtValues.every((acceptedAt) =>
+      Date.parse(String(acceptedAt)) === normal.storedChallenge.resolvedAt?.getTime()
+    )).toBe(true);
     expect(normal.first).toMatchObject({ state: "resolved", transitioned: true });
     const normalProgressTelegramUserIds = normal.first.state === "resolved"
       ? (normal.first.questProgressUpdates ?? []).map((update) => update.telegramUserId)
@@ -1734,7 +1777,8 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       label: "rogue-retaliation",
       acceptedAt: new Date("2026-06-17T17:59:59.999Z"),
       resolvedAt: new Date("2026-06-17T18:00:00.000Z"),
-      rogue: true
+      rogue: true,
+      acceptThroughService: true
     });
     expect(retaliation.first).not.toHaveProperty("questProgressUpdates");
     expect(retaliation.replay).not.toHaveProperty("questProgressUpdates");

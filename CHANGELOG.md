@@ -14,7 +14,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Adventure quest monster handoff no longer writes the first Niz layer into presence. The Prisma daily-action claim now carries normalized `User.lastSeenLocationId` into the completed Adventure result; the bot persists it as fight `originLocationId`, reuses it for redraw/result presence, and returns front, yard or Quest Table encounters to their actual origin after victory or flee. Genuinely missing or invalid locations retain the Quest Table fallback, and ordinary Niz combat keeps its existing route.
 - Instant Quick Duel completion at the exact quest-acceptance timestamp is now eligible for the shared Fighting Corner duel-progress recorder. The existing per-life objective key continues to make Quick Duel, turn-duel and durable-result replays exact-once.
 - Doppelganger training comments now use an escaped HTML `<blockquote>` with the established italic voice inside it; command-level tests verify the actual `parse_mode: HTML` Telegram payload.
-- Barrel tutorial, clue, active Quest Hub row and `🗺️ Квести` overview now explicitly require the player to serve beer to everyone and drink their own beer instead of leaving «пінна формальність» unexplained.
+- Barrel tutorial and clue now spell out the full formality. Before the round is offered, Quest Hub and `🗺️ Квести` require serving beer to everyone and drinking the player's own beer; after the round is offered, only drinking the player's own mug remains.
 
 ### Balance and persistence
 - Adventure quest monsters now use the character's current level before the canonical remort-aware combat stat derivation. The derived monster state remains frozen in the persistent battle, so duplicate callbacks, redraws and session replay cannot apply remort pressure twice.
@@ -23,7 +23,6 @@ This project follows a simple pre-1.0 versioning policy:
 ### Focused adjacent fixes
 - Added the missing quest-fight return route for the Korchma yard, preventing a correctly preserved yard-origin encounter from offering Niz navigation after settlement or flee.
 - Bard repository location checks and audience queries now normalize the legacy presence aliases already supported by the public presence service, so stored pre-canonical location values cannot hide or reject a valid same-place performance.
-- Once the Barrel beer round has already been offered, Quest Hub and `🗺️ Квести` now ask only for the player's own mug instead of repeating the completed serve-everyone step.
 
 ### Compatibility
 - No schema, migration, dependency, new action, achievement, lore promise, production flag or dev helper was added. Existing Shynok performances, ordinary Niz fights, Training, Quick Duel and turn-duel mechanics retain their prior contracts outside the corrected state/copy paths.

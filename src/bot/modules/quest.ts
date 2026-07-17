@@ -1157,7 +1157,11 @@ async function handleAdventureCallback(
     return;
   }
 
-  if (result.state !== "active-fight") {
+  const preservesExistingPresence =
+    result.state === "active-fight" ||
+    (result.state === "already-completed" && result.claimCollision === true);
+
+  if (!preservesExistingPresence) {
     await markScenePresence(ctx, services.presence, {
       locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
       currentRaidId: null,

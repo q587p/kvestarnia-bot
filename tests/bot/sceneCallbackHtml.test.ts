@@ -74,9 +74,21 @@ import {
   makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { CharacterRecord, CharacterRepository } from "../../src/db/repositories/characterRepository";
+import type {
+  ClaimDailyActionInput,
+  DailyActionRecord,
+  DailyActionRepository
+} from "../../src/db/repositories/dailyActionRepository";
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
-import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
+import {
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_YARD
+} from "../../src/services/presenceService";
+import { AdventureService } from "../../src/services/adventureService";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -454,6 +466,7 @@ describe("scene callback HTML options", () => {
   });
 
   it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const completeAdventureApproach = vi
       .fn()
       .mockResolvedValueOnce({
@@ -505,7 +518,8 @@ describe("scene callback HTML options", () => {
       servicesWith({
         adventure: {
           completeAdventureApproach
-        }
+        },
+        presence: { markAction }
       })
     );
     const edits = calls.filter((call) => call.method === "editMessageText");
@@ -535,7 +549,174 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("XP");
     expect(String(edits[1]?.payload.text)).toContain("/hero");
     expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
+    expect(markAction).toHaveBeenCalledTimes(2);
+    expect(markAction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE })
+    );
   });
+
+  it.each([
+    ["front", PRESENCE_LOCATION_KORCHMA_FRONT],
+    ["yard", PRESENCE_LOCATION_KORCHMA_YARD]
+  ] as const)(
+    "keeps durable %s fight presence when concurrent Adventure callbacks race one claim",
+    async (_label, originLocationId) => {
+      const telegramUserId = 41n;
+      const characterRecord: CharacterRecord = {
+        id: "character-41",
+        userId: "user-41",
+        currentLocationId: originLocationId,
+        name: "Мандрівник",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 3,
+        xp: 25,
+        gold: 10,
+        hpCurrent: 28,
+        hpMax: 28,
+        manaCurrent: 14,
+        manaMax: 14,
+        statsJson: {
+          strength: 9,
+          dexterity: 6,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6
+        }
+      };
+      const characters: CharacterRepository = {
+        findByUserId: () => Promise.resolve(characterRecord),
+        findByTelegramUserId: () => Promise.resolve(characterRecord),
+        deleteByTelegramUserId: () => Promise.resolve(false),
+        createForTelegramUserIfMissing: () =>
+          Promise.resolve({ character: characterRecord, created: false })
+      };
+      let preflightReads = 0;
+      let releasePreflights!: () => void;
+      const bothPreflightsReached = new Promise<void>((resolve) => {
+        releasePreflights = resolve;
+      });
+      let releaseClaimLoser!: () => void;
+      const winnerFightStarted = new Promise<void>((resolve) => {
+        releaseClaimLoser = resolve;
+      });
+      let claimCalls = 0;
+      let loserReturnedAfterFightStart = false;
+      const action: DailyActionRecord = {
+        id: "adventure-race-claim",
+        characterId: characterRecord.id,
+        key: "adventure.choice",
+        localDate: "2026-06-12T10:23",
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: null,
+        createdAt: new Date("2026-06-12T10:30:00.000Z")
+      };
+      const dailyActions: DailyActionRepository = {
+        findForTelegramUser: async () => {
+          preflightReads += 1;
+          if (preflightReads === 2) {
+            releasePreflights();
+          }
+          await bothPreflightsReached;
+          return null;
+        },
+        claimForTelegramUser: async (_userId: bigint, input: ClaimDailyActionInput) => {
+          claimCalls += 1;
+          if (claimCalls === 1) {
+            return {
+              state: "created",
+              action: { ...action, key: input.key, localDate: input.localDate },
+              character: characterRecord,
+              levelChange: { oldLevel: 3, newLevel: 3, leveledUp: false },
+              itemGrants: input.itemGrants ?? [],
+              hpLoss: null
+            };
+          }
+
+          await winnerFightStarted;
+          loserReturnedAfterFightStart = true;
+          return {
+            state: "existing",
+            action: { ...action, key: input.key, localDate: input.localDate },
+            character: characterRecord,
+            levelChange: null,
+            itemGrants: []
+          };
+        }
+      };
+      const adventure = new AdventureService(
+        characters,
+        dailyActions,
+        () => new Date("2026-06-12T10:30:00.000Z"),
+        { findActiveByTelegramUserId: () => Promise.resolve(null) }
+      );
+      let finalLocationId = originLocationId;
+      const markAction = vi.fn((input: MarkPresenceInput) => {
+        if (input.locationId) {
+          finalLocationId = input.locationId;
+        }
+        if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+          releaseClaimLoser();
+        }
+        return Promise.resolve();
+      });
+      const getOrStartPersistentFightForTelegramUser = vi.fn(
+        (_userId: bigint, options: { originLocationId: string }) => {
+          const session = persistentSessionWithOrigin(options.originLocationId);
+          return Promise.resolve({
+            state: "persistent-active" as const,
+            started: true,
+            character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+            session: {
+              ...session,
+              state: { ...session.state, source: "adventure" as const }
+            },
+            monster: {
+              id: "monster.borshch-slime",
+              name: "Борщовий слиз",
+              description: "Булькає статутом і буряком.",
+              level: 3,
+              tags: ["slime", "food"]
+            },
+            questProgress: null
+          });
+        }
+      );
+      const callbackData = makeAdventureApproachCallbackData({
+        periodToken: "6uba",
+        problemId: "rug",
+        methodId: "q1drg067"
+      });
+      const calls = await captureConcurrentApiCalls(
+        [callbackData, callbackData],
+        servicesWith({
+          adventure,
+          fight: { getOrStartPersistentFightForTelegramUser },
+          presence: { markAction }
+        }),
+        Number(telegramUserId)
+      );
+      const durableLocationMarks = markAction.mock.calls
+        .map(([input]) => input.locationId)
+        .filter((locationId): locationId is string => locationId !== undefined);
+
+      expect(preflightReads).toBe(2);
+      expect(claimCalls).toBe(2);
+      expect(loserReturnedAfterFightStart).toBe(true);
+      expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+      expect(durableLocationMarks).toEqual([originLocationId]);
+      expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+      expect(finalLocationId).toBe(originLocationId);
+      const edits = calls.filter((call) => call.method === "editMessageText");
+      expect(edits).toHaveLength(2);
+      expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+    }
+  );
 
   it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
     const complete = vi
@@ -8772,6 +8953,62 @@ async function captureRepeatedApiCalls(
       }
     });
   }
+
+  return calls;
+}
+
+async function captureConcurrentApiCalls(
+  callbackDataList: string[],
+  services: BotServices,
+  telegramUserId: number
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", services);
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({ method, payload });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "Квестарня",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    return Promise.resolve({ ok: true, result: true });
+  });
+
+  await bot.init();
+  await Promise.all(callbackDataList.map((callbackData, index) =>
+    bot.handleUpdate({
+      update_id: index + 1,
+      callback_query: {
+        id: `concurrent-callback-${index + 1}`,
+        from: {
+          id: telegramUserId,
+          is_bot: false,
+          first_name: "Тест"
+        },
+        chat_instance: "chat-instance",
+        data: callbackData,
+        message: {
+          message_id: 10,
+          date: 0,
+          chat: {
+            id: telegramUserId,
+            type: "private",
+            first_name: "Тест"
+          },
+          text: "old"
+        }
+      }
+    })
+  ));
 
   return calls;
 }

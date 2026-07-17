@@ -225,7 +225,7 @@ export type AdventureResult =
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
   | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "stale"; character: CharacterSummary; offer: AdventureOffer }
-  | { state: "already-completed"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary; claimCollision?: true }
   | {
       state: "completed";
       character: CharacterSummary;
@@ -574,7 +574,8 @@ export class AdventureService {
     if (claim.state === "existing") {
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character, { equippedItems })
+        character: summarizeCharacter(claim.character, { equippedItems }),
+        claimCollision: true
       };
     }
 
