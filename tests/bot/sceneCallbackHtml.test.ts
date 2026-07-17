@@ -465,7 +465,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
   });
 
-  it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+  it("routes duplicate v2 adventure method taps without a second completion card or presence rewrite", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const completeAdventureApproach = vi
       .fn()
@@ -549,9 +549,9 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("XP");
     expect(String(edits[1]?.payload.text)).toContain("/hero");
     expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
-    expect(markAction).toHaveBeenCalledTimes(2);
+    expect(markAction).toHaveBeenCalledTimes(1);
     expect(markAction).toHaveBeenNthCalledWith(
-      2,
+      1,
       expect.objectContaining({ locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE })
     );
   });
@@ -717,6 +717,187 @@ describe("scene callback HTML options", () => {
       expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
     }
   );
+
+  it("keeps durable Yard fight presence when the loser discovers the committed claim during preflight", async () => {
+    const telegramUserId = 41n;
+    const originLocationId = PRESENCE_LOCATION_KORCHMA_YARD;
+    const characterRecord: CharacterRecord = {
+      id: "character-41",
+      userId: "user-41",
+      currentLocationId: originLocationId,
+      name: "Мандрівник",
+      pronoun: "they",
+      path: "boundary",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 3,
+      xp: 25,
+      gold: 10,
+      hpCurrent: 28,
+      hpMax: 28,
+      manaCurrent: 14,
+      manaMax: 14,
+      statsJson: {
+        strength: 9,
+        dexterity: 6,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    };
+    const characters: CharacterRepository = {
+      findByUserId: () => Promise.resolve(characterRecord),
+      findByTelegramUserId: () => Promise.resolve(characterRecord),
+      deleteByTelegramUserId: () => Promise.resolve(false),
+      createForTelegramUserIfMissing: () =>
+        Promise.resolve({ character: characterRecord, created: false })
+    };
+    let releaseLoserPreflight!: () => void;
+    const loserPreflightStarted = new Promise<void>((resolve) => {
+      releaseLoserPreflight = resolve;
+    });
+    let releaseWinnerClaim!: () => void;
+    const winnerClaimCommitted = new Promise<void>((resolve) => {
+      releaseWinnerClaim = resolve;
+    });
+    let releaseLoserResult!: () => void;
+    const loserResultPrepared = new Promise<void>((resolve) => {
+      releaseLoserResult = resolve;
+    });
+    let releaseWinnerPresence!: () => void;
+    const winnerFightPresenceMarked = new Promise<void>((resolve) => {
+      releaseWinnerPresence = resolve;
+    });
+    let activeFightReads = 0;
+    let preflightReads = 0;
+    let claimCalls = 0;
+    let loserObservedPreflightClaim = false;
+    let loserResumedAfterFightPresence = false;
+    const action: DailyActionRecord = {
+      id: "adventure-preflight-race-claim",
+      characterId: characterRecord.id,
+      key: "adventure.choice",
+      localDate: "2026-06-12T10:23",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: new Date("2026-06-12T10:30:00.000Z")
+    };
+    const dailyActions: DailyActionRepository = {
+      findForTelegramUser: async () => {
+        preflightReads += 1;
+        if (preflightReads === 1) {
+          releaseLoserPreflight();
+          await winnerClaimCommitted;
+          loserObservedPreflightClaim = true;
+          return action;
+        }
+        return null;
+      },
+      claimForTelegramUser: (_userId: bigint, input: ClaimDailyActionInput) => {
+        claimCalls += 1;
+        releaseWinnerClaim();
+        return Promise.resolve({
+          state: "created",
+          action: { ...action, key: input.key, localDate: input.localDate },
+          character: characterRecord,
+          levelChange: { oldLevel: 3, newLevel: 3, leveledUp: false },
+          itemGrants: input.itemGrants ?? [],
+          hpLoss: null
+        });
+      }
+    };
+    const adventureService = new AdventureService(
+      characters,
+      dailyActions,
+      () => new Date("2026-06-12T10:30:00.000Z"),
+      {
+        findActiveByTelegramUserId: async () => {
+          activeFightReads += 1;
+          if (activeFightReads === 2) {
+            await loserPreflightStarted;
+          }
+          return null;
+        }
+      }
+    );
+    const completeAdventureApproach = vi.fn(
+      async (...args: Parameters<AdventureService["completeAdventureApproach"]>) => {
+        const result = await adventureService.completeAdventureApproach(...args);
+        if (result.state === "already-completed") {
+          expect(result).not.toHaveProperty("claimCollision");
+          releaseLoserResult();
+          await winnerFightPresenceMarked;
+          loserResumedAfterFightPresence = true;
+        }
+        return result;
+      }
+    );
+    let finalLocationId = originLocationId;
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if (input.locationId) {
+        finalLocationId = input.locationId;
+      }
+      if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+        releaseWinnerPresence();
+      }
+      return Promise.resolve();
+    });
+    const getOrStartPersistentFightForTelegramUser = vi.fn(
+      async (_userId: bigint, options: { originLocationId: string }) => {
+        await loserResultPrepared;
+        const session = persistentSessionWithOrigin(options.originLocationId);
+        return {
+          state: "persistent-active" as const,
+          started: true,
+          character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+          session: {
+            ...session,
+            state: { ...session.state, source: "adventure" as const }
+          },
+          monster: {
+            id: "monster.borshch-slime",
+            name: "Борщовий слиз",
+            description: "Булькає статутом і буряком.",
+            level: 3,
+            tags: ["slime", "food"]
+          },
+          questProgress: null
+        };
+      }
+    );
+    const callbackData = makeAdventureApproachCallbackData({
+      periodToken: "6uba",
+      problemId: "rug",
+      methodId: "q1drg067"
+    });
+    const calls = await captureConcurrentApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        adventure: { completeAdventureApproach },
+        fight: { getOrStartPersistentFightForTelegramUser },
+        presence: { markAction }
+      }),
+      Number(telegramUserId)
+    );
+    const durableLocationMarks = markAction.mock.calls
+      .map(([input]) => input.locationId)
+      .filter((locationId): locationId is string => locationId !== undefined);
+
+    expect(activeFightReads).toBe(2);
+    expect(preflightReads).toBe(2);
+    expect(claimCalls).toBe(1);
+    expect(loserObservedPreflightClaim).toBe(true);
+    expect(loserResumedAfterFightPresence).toBe(true);
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(durableLocationMarks).toEqual([originLocationId]);
+    expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    expect(finalLocationId).toBe(originLocationId);
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    expect(edits).toHaveLength(2);
+    expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+  });
 
   it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
     const complete = vi

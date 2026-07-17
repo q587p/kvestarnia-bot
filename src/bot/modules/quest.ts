@@ -1159,7 +1159,7 @@ async function handleAdventureCallback(
 
   const preservesExistingPresence =
     result.state === "active-fight" ||
-    (result.state === "already-completed" && result.claimCollision === true);
+    result.state === "already-completed";
 
   if (!preservesExistingPresence) {
     await markScenePresence(ctx, services.presence, {
