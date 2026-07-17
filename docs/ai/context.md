@@ -40,7 +40,7 @@
 
 - Priest level 3+ noncombat heal/blessing uses active exact-location targets, transactional mana spend and replay-safe records. Do not rebalance it through adjacent class work.
 - Rogue level 3+ `🗡️ Тиха кишеня` is same-location, recipient-level protected, actor-cooldown and actor-target/day scoped, with bounded gold and private retaliation.
-- Bard Performance is a bounded location-scoped noncombat event; Shynok alone may receive its existing small house payout.
+- Bard Performance is a bounded location-scoped noncombat event; Shynok alone may receive its existing small house payout, and live cards explicitly label the next-performance wait as applying to the current location.
 - Bard Performance callbacks preserve the current normalized location. Quest-spawned persistent fights store and reuse their origin location. Adventure problem, problem-help and approach callbacks share one presence policy: `active-fight`, `combat-blocked` and `already-completed` never write presence, while explicit navigation, selected problem/help and newly completed non-fight results keep Quest Table movement. Quest monsters scale to the current level before canonical once-only remort derivation and show quest remort pressure only in the opening message.
 - Final turn-duel acceptance makes callback location refresh part of the ordered result delivery: an actual Fighting Corner transition precedes the intro/advice card, the combat card is a new final message, and the generic callback refresh cannot append a duplicate transition. Replayed active cards retain edit-in-place refresh.
 - Bureaucramancer `Протокол 13-З`, Kharakternyk ward signs and Warrior `🛡️ На мене!` are narrow Big Barrel mechanics, not generic engines.

@@ -255,7 +255,7 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
           : "На старті слухачів не було, тому записок не роздали.",
       "",
       "Нові слухачі зможуть застати вже наступний виступ.",
-      `Наступний новий виступ: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
+      `Наступний новий виступ у цій місцині: ${formatRemainingMinutes(performance.cooldownAvailableAt)}.`
     );
 
     return lines.join("\n");
