@@ -7,7 +7,7 @@ import type {
 import { enrichRewardItemGrants } from "../../services/itemGrant";
 import { findItemContent } from "../../content/itemLookup";
 import { presentItemEffect } from "./itemEffectPresenter";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
@@ -194,8 +194,11 @@ export function presentItemUpgradeUnlock(result: ItemUpgradeUnlockServiceResult)
     "",
     "Іскрокамінь тримає іскру, донорські манатки можуть допомогти, а невдачі памʼятає Жалісливий молот.",
     "",
-    presentQuestRewardAmount({ xp: result.rewardXp, gold: 0 }),
-    ...enrichRewardItemGrants(result.itemGrants).map((grant) => presentRewardItemGrant(grant))
+    presentQuestRewardBlock({
+      xp: result.rewardXp,
+      gold: 0,
+      itemGrants: enrichRewardItemGrants(result.itemGrants)
+    })
   ].join("\n");
 }
 

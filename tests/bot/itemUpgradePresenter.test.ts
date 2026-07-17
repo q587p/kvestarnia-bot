@@ -27,7 +27,7 @@ describe("item upgrade presenter", () => {
       state: "unlocked",
       character,
       rewardXp: 38,
-      itemGrants: [],
+      itemGrants: [{ itemId: "item.iskrokamin", quantity: 2 }],
       action: null,
       levelChange: {
         oldLevel: 5,
@@ -37,6 +37,7 @@ describe("item upgrade presenter", () => {
     } as Parameters<typeof presentItemUpgradeUnlock>[0]);
 
     expect(text).toContain("<i>Отримано:</i>\n+38 XP");
+    expect(text).toContain("+38 XP\n\nЗдобуто: <i>Іскрокамінь ×2</i>");
     expect(text).not.toContain("Отримано: <b>+38 XP</b>");
     expect(text).not.toContain("Рівень лишився на місці");
   });

@@ -7,7 +7,7 @@ import type {
   FightingCornerQuestReward
 } from "../../services/fightingCornerQuestService";
 import { PINK_SOAP_OF_FIRST_RULE_ITEM_ID } from "../../services/itemGrant";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock } from "./rewardPresenter";
 
 export function presentFightingCornerQuestLookup(result: FightingCornerQuestLookupResult): string {
   if (result.state === "disabled") {
@@ -137,7 +137,6 @@ function presentCompleted(reward: FightingCornerQuestReward, replay = false): st
   const soapLine = itemGrants.some((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID)
     ? "🧼 Рожеве мило першого правила відтепер числиться інструментом. Бійцівський куток уперше занепокоївся."
     : null;
-  const itemGrantLines = itemGrants.map(presentRewardItemGrant);
   return [
     "🎁 <b>Перше правило перевірено</b>",
     "",
@@ -146,8 +145,7 @@ function presentCompleted(reward: FightingCornerQuestReward, replay = false): st
       : "Корчмар ставить три галочки й відсуває нагороду подалі від ліктів Бійцівського кутка.",
     "",
     ...(soapLine ? [soapLine, ""] : []),
-    presentQuestRewardAmount(reward),
-    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
+    presentQuestRewardBlock({ ...reward, itemGrants })
   ].join("\n");
 }
 

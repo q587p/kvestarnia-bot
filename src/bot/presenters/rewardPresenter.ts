@@ -24,6 +24,17 @@ export function presentRewardItemGrant(input: { name: string; quantity: number }
   return `Здобуто: <i>${presentItemNameWithQuantity(input)}</i>`;
 }
 
+export function presentQuestRewardBlock(input: Pick<RewardAmountInput, "xp" | "gold"> & {
+  itemGrants: ReadonlyArray<{ name: string; quantity: number }>;
+}): string {
+  const itemGrantLines = input.itemGrants.map(presentRewardItemGrant);
+
+  return [
+    presentQuestRewardAmount(input),
+    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
+  ].join("\n");
+}
+
 function presentQuestRewardLines(input: Pick<RewardAmountInput, "xp" | "gold">): string[] {
   if (input.xp <= 0 && input.gold <= 0) {
     return ["0 XP", "0 золота"];
