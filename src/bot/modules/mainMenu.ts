@@ -164,7 +164,8 @@ export function registerMainMenuKeyboard(
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
-      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });
@@ -184,15 +185,25 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
-      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
     });
   });
 }
 
-export function shouldIncludeAdminMainMenu(services: Pick<BotServices, "devGrant">): boolean {
-  return services.devGrant?.isEnabled() ?? false;
+export function shouldIncludeAdminMainMenu(
+  services: Pick<
+    BotServices,
+    "devReset" | "devGrant" | "partySessions" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  >
+): boolean {
+  return services.devReset.isEnabled()
+    || (services.devGrant?.isEnabled() ?? false)
+    || (services.partySessions?.areDevHelpersEnabled() ?? false)
+    || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
+    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);
 }
 
 export async function buildCurrentMainMenuKeyboard(

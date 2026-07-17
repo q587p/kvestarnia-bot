@@ -158,7 +158,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 
-Ці команди не потрапляють у бокове меню Telegram і не показуються у звичайному `/help`. `/dev_help` показує dev-команди тільки тоді, коли їхні non-production gates реально enabled; за `DEV_GRANT_COMMANDS_ENABLED=true` у non-production основна клавіатура також показує кнопку `🧰 Адмінка` для цієї dev-довідки.
+Ці команди не потрапляють у бокове меню Telegram і не показуються у звичайному `/help`. `/dev_help` і кнопка `🧰 Адмінка` показують лише ті dev-команди, чиї non-production gates реально enabled; кнопка зникає, коли не ввімкнена жодна родина dev-команд.
 
 ## Prisma
 

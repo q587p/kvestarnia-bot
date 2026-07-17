@@ -6,6 +6,7 @@ export interface HelpVisibility {
   includePartySessions?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
+  includeHpRecovery?: boolean;
 }
 
 export function presentHelp(visibility: boolean | HelpVisibility): string {
@@ -68,7 +69,8 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includeDevGrant: visibility,
       includePartySessions: visibility,
       includeTavernGames: visibility,
-      includeFightingCornerQuest: visibility
+      includeFightingCornerQuest: visibility,
+      includeHpRecovery: visibility
     };
   }
 
@@ -77,6 +79,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
-    includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false
+    includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
+    includeHpRecovery: visibility.includeHpRecovery ?? false
   };
 }

@@ -4,7 +4,7 @@ export interface BotCommandCatalogEntry {
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party" | "fighting-corner";
+  devOnly?: "reset" | "grant" | "party" | "fighting-corner" | "hp-recovery";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -278,6 +278,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_hp_recovery_due",
+    icon: "❤️‍🩹",
+    description: "підготувати сповіщення про відновлення HP локально",
+    includeInMenu: false,
+    devOnly: "hp-recovery"
+  },
+  {
     command: "dev_add_level",
     icon: "🪜",
     description: "додати рівні локально",
@@ -488,6 +495,7 @@ export interface DevCommandVisibility {
   includePartySessions?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
+  includeHpRecovery?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -504,6 +512,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "fighting-corner") {
       return normalized.includeFightingCornerQuest;
+    }
+
+    if (entry.devOnly === "hp-recovery") {
+      return normalized.includeHpRecovery;
     }
 
     return entry.devOnly === "grant"
@@ -533,7 +545,8 @@ function normalizeDevCommandVisibility(
       includeDevGrant: visibility,
       includePartySessions: visibility,
       includeTavernGames: visibility,
-      includeFightingCornerQuest: visibility
+      includeFightingCornerQuest: visibility,
+      includeHpRecovery: visibility
     };
   }
 
@@ -542,6 +555,7 @@ function normalizeDevCommandVisibility(
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
-    includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false
+    includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
+    includeHpRecovery: visibility.includeHpRecovery ?? false
   };
 }
