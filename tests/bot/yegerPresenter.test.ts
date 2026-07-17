@@ -592,6 +592,22 @@ describe("Yeger presenter", () => {
     expect(capped).toContain("Бинти теж мають робочий день");
   });
 
+  it("labels an actual bandage purchase once instead of nesting a grant label", () => {
+    const text = presentYegerBandageBuy({
+      state: "bought",
+      character,
+      spentGold: 14,
+      itemGrants: [{
+        itemId: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        quantity: 2
+      }]
+    });
+
+    expect(text).toContain("Куплено: <i>Бинт відповідальної паніки ×2</i>.");
+    expect(text).not.toContain("Куплено: Здобуто:");
+  });
+
   it("renders an affordable paid bandage fallback after insufficient gold", () => {
     const text = presentYegerBandageBuy({
       state: "insufficient-gold",

@@ -335,7 +335,10 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     "🩹 Бинти Єгеря",
     presentCharacterHeader(result.character),
     "",
-    `Куплено: ${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `${result.itemGrants.map((grant) => presentRewardItemGrant(
+      { name: escapeHtml(grant.name), quantity: grant.quantity },
+      { label: "Куплено" }
+    )).join(", ")}.`,
     `Витрачено: <b>${result.spentGold} золота</b>.`,
     result.state === "replayed" ? "Цей чек уже проведено. Другий раз золото не зникло." : "",
     "",

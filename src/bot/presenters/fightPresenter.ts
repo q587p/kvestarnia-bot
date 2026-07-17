@@ -28,7 +28,7 @@ import type {
 import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -245,8 +245,14 @@ export function presentFightResult(result: Exclude<FightResult, { state: "no-cha
     ...presentOutcome(result),
     ...presentVictoryFlavor(result),
     "",
-    presentRewardAmount({ ...result.reward, label: "Винагорода за бій" }),
-    ...presentItemGrantBlock(result.reward.itemGrants)
+    presentRewardBlock({
+      ...result.reward,
+      label: "Винагорода за бій",
+      itemGrants: result.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   ];
 
   return lines.join("\n");
@@ -770,22 +776,6 @@ function presentVictoryFlavor(
   return ["", `🎉 Ви перемогли.${flavor ? ` ${escapeHtml(flavor.text)}` : ""}`];
 }
 
-function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {
-  if (itemGrants.length === 0) {
-    return [];
-  }
-
-  return [
-    "",
-    ...itemGrants.map((grant) =>
-      presentRewardItemGrant({
-        name: escapeHtml(grant.name),
-        quantity: grant.quantity
-      })
-    )
-  ];
-}
-
 function presentPersistentFightState(input: {
   character: CharacterSummary;
   session: {
@@ -1060,10 +1050,14 @@ function presentPersistentFightReward(
     lines.push("🎒 Винагорода вже видана. Корчмар перегортає журнал і показує той самий запис.", "");
   }
 
-  lines.push(
-    presentRewardAmount({ ...reward.reward, label: "Винагорода за бій" }),
-    ...presentItemGrantBlock(reward.reward.itemGrants)
-  );
+  lines.push(presentRewardBlock({
+    ...reward.reward,
+    label: "Винагорода за бій",
+    itemGrants: reward.reward.itemGrants.map((grant) => ({
+      name: escapeHtml(grant.name),
+      quantity: grant.quantity
+    }))
+  }));
 
   if (reward.itemReplayUnavailable) {
     lines.push("", "Детальний лут уже в торбі або журналі; повторно його не перекидаємо.");
@@ -1117,8 +1111,14 @@ export function presentProblemQuestTurnIn(result: Exclude<ProblemQuestTurnInLook
     "",
     `<i>${escapeHtml(result.result.stage.title)}</i> закрито. Корчмар ставить печатку так, ніби вона сама просила.`,
     "",
-    presentRewardAmount({ ...result.result.reward, label: "Нагорода за справу" }),
-    ...presentItemGrantBlock(result.result.reward.itemGrants)
+    presentRewardBlock({
+      ...result.result.reward,
+      label: "Нагорода за справу",
+      itemGrants: result.result.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   ];
 
   if (result.result.state === "already-claimed") {

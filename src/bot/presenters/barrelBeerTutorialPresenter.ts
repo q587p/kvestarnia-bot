@@ -7,7 +7,8 @@ import {
   type BarrelBeerTutorialProgress,
   type BarrelBeerTutorialTurnInResult
 } from "../../services/barrelBeerTutorialService";
-import { presentQuestRewardAmount } from "./rewardPresenter";
+import { presentQuestRewardAmount, presentQuestRewardBlock } from "./rewardPresenter";
+import { escapeHtml } from "./telegramHtml";
 
 export function presentBarrelBeerTutorialLookup(
   result: BarrelBeerTutorialLookupResult
@@ -130,10 +131,6 @@ export function presentBarrelBeerTutorialTurnIn(
     return `«${BARREL_BEER_TUTORIAL_TITLE}» уже зараховано. Стіл не приймає другі фінальні повернення.`;
   }
 
-  const rewardLines = result.reward.itemGrants.map(
-    (grant) => `+${grant.quantity} ${grant.name}`
-  );
-
   return [
     "Ти встигаєш повернутися до столу, поки пивний ефект ще гріє кров.",
     "",
@@ -141,8 +138,14 @@ export function presentBarrelBeerTutorialTurnIn(
     "",
     "Під запискою лишився маленький перстень. Не схоже, що він зробить тебе невидимим, але після Бочки й так не всіх хочеться бачити.",
     "",
-    presentQuestRewardAmount({ xp: result.reward.xp, gold: 0 }),
-    ...rewardLines
+    presentQuestRewardBlock({
+      xp: result.reward.xp,
+      gold: result.reward.gold,
+      itemGrants: result.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   ].join("\n");
 }
 
