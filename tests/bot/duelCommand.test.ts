@@ -505,7 +505,7 @@ describe("handleDuelCallback", () => {
       "Ви: <b>Ціль Виклику</b> · <i>Пересічні Пригодники</i> · рівень 3"
     );
     expect(messageText(editMessageText)).toContain(
-      "у безпечному корчемному порядку.\nРезультат з’явиться одразу після згоди."
+      "у безпечному корчемному порядку.\n\nРезультат з’явиться одразу після згоди."
     );
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept-risk:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:decline:${TOKEN}`);

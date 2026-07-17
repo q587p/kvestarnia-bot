@@ -130,6 +130,7 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
       presentDuelParticipantWithItalicTitle("Ви", result.target),
       "",
       `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
+      "",
       result.challenge.mode === "turn-based"
         ? "Після згоди почнеться бій із закритими виборами за раунд."
         : "Результат з’явиться одразу після згоди.",
