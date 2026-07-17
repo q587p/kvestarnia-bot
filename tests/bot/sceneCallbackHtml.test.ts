@@ -47,6 +47,7 @@ import {
 } from "../../src/bot/callbacks/mantokChestCallbackData";
 import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makePassageSearchCheckCallbackData } from "../../src/bot/callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
   makeRemortConfirmCallbackData,
@@ -5234,6 +5235,27 @@ describe("scene callback HTML options", () => {
     expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
   });
 
+  it("delivers fresh Passage Search achievement unlocks after the callback result", async () => {
+    const checkSearch = vi.fn().mockResolvedValue(passageSearchCompletedResult([{
+      id: "achievement.iskrokamin.first-owned",
+      title: "Іскра в кишені",
+      cosmeticTitleGrantId: null,
+      unlockedAt: new Date("2026-06-27T09:00:42.000Z")
+    }]));
+    const calls = await captureApiCalls(
+      makePassageSearchCheckCallbackData("searchtok13"),
+      servicesWith({ passageSearch: { checkSearch } })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage");
+
+    expect(checkSearch).toHaveBeenCalledWith(42n, "searchtok13");
+    expect(String(edits[0]?.payload.text)).toContain("Щось знайшлося");
+    expect(messages).toHaveLength(1);
+    expect(String(messages[0]?.payload.text)).toContain("Іскра в кишені");
+    expect(messages[0]?.payload.parse_mode).toBe("HTML");
+  });
+
   it("blocks item-use preview creation while a passage search is running", async () => {
     const createPreviewForTelegramUser = vi.fn();
     const calls = await captureApiCalls(
@@ -6213,6 +6235,44 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("/dev_help");
     expect(String(reply?.payload.text)).toContain("/dev_add_xp");
     expect(JSON.stringify(reply?.payload.reply_markup)).toContain(mainMenuButtons.admin);
+  });
+
+  it("primes deterministic natural Iskrokamin loot through the existing Passage Search reset command", async () => {
+    const devReset = vi.fn().mockResolvedValue({
+      state: "cleared",
+      character,
+      actions: 1,
+      cooldowns: 2,
+      nextLootFixture: "iskrokamin"
+    });
+    const calls = await captureTextApiCalls(
+      "/dev_reset_passage_search iskrokamin",
+      servicesWith({
+        devGrant: { isEnabled: () => true },
+        passageSearch: { devReset }
+      }),
+      { asCommand: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(devReset).toHaveBeenCalledWith(42n, { nextLoot: "iskrokamin" });
+    expect(String(reply?.payload.text)).toContain("природний пошук гарантовано знайде Іскрокамінь");
+  });
+
+  it("keeps the Passage Search loot fixture disabled with production dev grants", async () => {
+    const devReset = vi.fn();
+    const calls = await captureTextApiCalls(
+      "/dev_reset_passage_search iskrokamin",
+      servicesWith({
+        devGrant: { isEnabled: () => false },
+        passageSearch: { devReset }
+      }),
+      { asCommand: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(devReset).not.toHaveBeenCalled();
+    expect(String(reply?.payload.text)).toContain("лише в локальній майстерні");
   });
 
   it("lets persistent, training, and starter combat callbacks reach their handlers", async () => {
@@ -8881,7 +8941,12 @@ function passageSearchRunningResult() {
   };
 }
 
-function passageSearchCompletedResult() {
+function passageSearchCompletedResult(achievementUnlocks: Array<{
+  id: string;
+  title: string;
+  cosmeticTitleGrantId: string | null;
+  unlockedAt: Date;
+}> = []) {
   return {
     state: "completed" as const,
     character: {
@@ -8898,7 +8963,8 @@ function passageSearchCompletedResult() {
     loot: {
       gold: 3,
       itemGrants: []
-    }
+    },
+    achievementUnlocks
   };
 }
 
@@ -9574,7 +9640,7 @@ async function captureTextApiCalls(
               {
                 type: "bot_command" as const,
                 offset: 0,
-                length: text.length
+                length: text.split(/\s/, 1)[0]?.length ?? text.length
               }
             ]
           }

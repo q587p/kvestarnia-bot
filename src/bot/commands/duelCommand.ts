@@ -5,6 +5,7 @@ import {
   getNextDuelInviteTemplateIndex
 } from "../../content/duelInviteFlavor";
 import type {
+  DuelAcceptResult,
   DuelChallengeService,
   DuelChallengeView,
   DuelDeclineResult
@@ -275,13 +276,12 @@ export async function handleDuelCallback(
       return;
     }
 
-    if (result.state !== "active") {
+    if (isFreshDuelAcceptTransition(result)) {
       await markDuelPresence(ctx, options.presence);
     }
     await answerCallback();
     if (result.state === "active") {
       if (result.transitioned) {
-        await markDuelPresence(ctx, options.presence);
         await refreshCallbackMainMenuLocationBeforeReplies(
           ctx,
           PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
@@ -291,7 +291,7 @@ export async function handleDuelCallback(
         await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
         await sendTurnBasedDuelCard(ctx, "reply", result, service);
       } else {
-        await sendTurnBasedDuelCard(ctx, "edit", result, service);
+        await refreshRecordedTurnBasedDuelCard(ctx, result);
       }
       if (result.transitioned) {
         await notifyTurnBasedParticipants(ctx, result, service, { includeIntro: true });
@@ -565,6 +565,10 @@ export async function handleDuelCallback(
   }
 }
 
+function isFreshDuelAcceptTransition(result: DuelAcceptResult): boolean {
+  return (result.state === "active" || result.state === "resolved") && result.transitioned === true;
+}
+
 async function notifyFightingCornerQuestProgress(
   ctx: Context,
   updates: NonNullable<Extract<DuelChallengeView, { state: "resolved" }>["questProgressUpdates"]>
@@ -701,6 +705,60 @@ async function sendTurnBasedDuelCard(
       chatId: BigInt(ctx.chat.id),
       messageId: message.message_id
     });
+  }
+}
+
+async function refreshRecordedTurnBasedDuelCard(
+  ctx: Context,
+  result: Extract<DuelChallengeView, { state: "active" }>
+): Promise<void> {
+  if (!isPrivateChat(ctx)) {
+    return;
+  }
+
+  const viewerCharacterId = getViewerCharacterId(ctx, result);
+  if (!viewerCharacterId) {
+    return;
+  }
+
+  const reference = viewerCharacterId === result.session.challengerCharacterId
+    ? {
+        chatId: result.session.challengerChatId,
+        messageId: result.session.challengerMessageId
+      }
+    : {
+        chatId: result.session.targetChatId,
+        messageId: result.session.targetMessageId
+      };
+
+  if (!reference.chatId || !reference.messageId) {
+    return;
+  }
+
+  const skillParticipant = getParticipantForSkill(result, viewerCharacterId);
+  const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);
+  const skill = getCombatSkillDisplay(skillProfile.id);
+
+  try {
+    await ctx.api.editMessageText(
+      Number(reference.chatId),
+      reference.messageId,
+      presentTurnBasedDuel(result, { viewerCharacterId }),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildTurnBasedDuelKeyboard(
+          result,
+          viewerCharacterId,
+          `${skill.icon} ${skill.name}`
+        )
+      }
+    );
+  } catch (error) {
+    if (isMessageNotModifiedError(error)) {
+      return;
+    }
+
+    // A duplicate accept must never replace the inert confirmation or create a second combat card.
   }
 }
 

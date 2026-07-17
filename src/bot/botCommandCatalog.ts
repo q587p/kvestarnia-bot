@@ -469,7 +469,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_reset_passage_search",
     icon: "🔎",
-    description: "скинути пошук у проходах локально",
+    description: "скинути пошук; [iskrokamin] готує природну знахідку локально",
     includeInMenu: false,
     devOnly: "grant"
   },

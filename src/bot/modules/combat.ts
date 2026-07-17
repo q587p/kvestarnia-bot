@@ -776,6 +776,13 @@ async function handlePassageSearchCallback(
   if (result.state === "monster-attack") {
     await sendPassageSearchMonsterAttackFight(ctx, services, result);
   }
+
+  if (result.state === "completed") {
+    const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+    if (achievementText) {
+      await ctx.reply(achievementText, HTML_MESSAGE_OPTIONS);
+    }
+  }
 }
 
 function getSearchNotificationChatId(ctx: Context): string | null {

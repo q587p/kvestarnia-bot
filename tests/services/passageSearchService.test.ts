@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   PassageSearchActionRecord,
   DuePassageSearchActionRecord,
@@ -272,6 +272,7 @@ describe("PassageSearchService", () => {
 
     await expect(service.checkSearch(telegramUserId, "iskro1")).resolves.toMatchObject({
       state: "completed",
+      achievementUnlocks: [],
       loot: {
         gold: 1,
         itemGrants: [{
@@ -281,6 +282,111 @@ describe("PassageSearchService", () => {
         }]
       }
     });
+  });
+
+  it("tracks a natural fixture Iskrokamin only for the winning resolution and exposes its unlock", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const unlock = {
+      id: "achievement.iskrokamin.first-owned",
+      title: "Іскра в кишені",
+      cosmeticTitleGrantId: null,
+      unlockedAt: now
+    };
+    const trackEventSafely = vi.fn().mockResolvedValue([unlock]);
+    const service = new PassageSearchService(
+      repo,
+      fight as never,
+      () => now,
+      { trackEventSafely } as never
+    );
+
+    await expect(service.devReset(telegramUserId, { nextLoot: "iskrokamin" })).resolves.toMatchObject({
+      state: "cleared",
+      nextLootFixture: "iskrokamin"
+    });
+    await expect(service.startDeepLevelOneSearch(telegramUserId, {
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1
+    })).resolves.toMatchObject({ state: "started" });
+    repo.action!.endsAt = new Date(now.getTime() - 1);
+
+    const winner = await service.checkSearch(telegramUserId, repo.action!.token);
+    const replay = await service.checkSearch(telegramUserId, repo.action!.token);
+
+    expect(winner).toMatchObject({
+      state: "completed",
+      achievementUnlocks: [unlock],
+      loot: {
+        itemGrants: [{ itemId: "item.iskrokamin", quantity: 1 }]
+      }
+    });
+    expect(replay).toMatchObject({ state: "completed", achievementUnlocks: [] });
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+      type: "item.received",
+      characterId: "character-1",
+      itemIds: ["item.iskrokamin"],
+      sourceId: expect.any(String) as string
+    }));
+  });
+
+  it("expands ordinary bandage quantities once and never tracks a concurrent loser", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const trackEventSafely = vi.fn().mockResolvedValue([]);
+    const service = new PassageSearchService(
+      repo,
+      fight as never,
+      () => now,
+      { trackEventSafely } as never
+    );
+    repo.resolvedResultOverride = {
+      outcome: "loot",
+      loot: {
+        gold: 0,
+        itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 2 }]
+      }
+    };
+    repo.action = makeAction({
+      token: "bandage1",
+      status: "running",
+      endsAt: new Date(now.getTime() - 1),
+      payload: makeSnapshot()
+    });
+
+    await expect(service.checkSearch(telegramUserId, "bandage1")).resolves.toMatchObject({
+      state: "completed",
+      achievementUnlocks: []
+    });
+    expect(trackEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+      type: "item.received",
+      itemIds: [
+        "item.responsible-panic-bandage",
+        "item.responsible-panic-bandage"
+      ]
+    }));
+
+    trackEventSafely.mockClear();
+    repo.action = makeAction({
+      token: "iskroloser",
+      status: "running",
+      endsAt: new Date(now.getTime() - 1),
+      payload: makeSnapshot()
+    });
+    repo.resolvedResultOverride = {
+      outcome: "loot",
+      loot: {
+        gold: 0,
+        itemGrants: [{ itemId: "item.iskrokamin", quantity: 1 }]
+      }
+    };
+    repo.resolutionState = "already-handled";
+
+    await expect(service.checkSearch(telegramUserId, "iskroloser")).resolves.toMatchObject({
+      state: "completed",
+      achievementUnlocks: []
+    });
+    expect(trackEventSafely).not.toHaveBeenCalled();
   });
 
   it("keeps risky danger tied to the frozen encounter and skips the first hero turn", async () => {
@@ -331,6 +437,8 @@ class FakePassageSearchRepository implements PassageSearchRepository {
   cooldowns = new Map<string, Date>();
   startCalls = 0;
   findRunningCalls = 0;
+  resolutionState: "resolved" | "already-handled" = "resolved";
+  resolvedResultOverride: PassageSearchStoredResult | null = null;
 
   startForTelegramUser(
     _telegramUserId: bigint,
@@ -411,6 +519,21 @@ class FakePassageSearchRepository implements PassageSearchRepository {
     return Promise.resolve({ state: "found", character: this.character, action: this.action });
   }
 
+  clearSearchStateForTelegramUser(): Promise<{
+    state: "cleared";
+    character: CharacterRecord;
+    actions: number;
+    cooldowns: number;
+  }> {
+    const actions = this.action || this.runningAction ? 1 : 0;
+    const cooldowns = this.cooldowns.size;
+    this.action = null;
+    this.runningAction = null;
+    this.cooldowns.clear();
+
+    return Promise.resolve({ state: "cleared", character: this.character, actions, cooldowns });
+  }
+
   async cancelByTokenForTelegramUser(): Promise<PassageSearchResolutionResult> {
     return this.resolveByTokenForTelegramUser(telegramUserId, "token", {
       now,
@@ -431,18 +554,19 @@ class FakePassageSearchRepository implements PassageSearchRepository {
       return Promise.resolve({ state: "not-found", character: this.character });
     }
 
+    const storedResult = this.resolvedResultOverride ?? input.result;
     this.action = {
       ...this.action,
-      status: input.result.outcome === "cancelled" ? "cancelled" : "resolved",
-      result: input.result,
+      status: storedResult.outcome === "cancelled" ? "cancelled" : "resolved",
+      result: storedResult,
       updatedAt: input.now
     };
 
     return Promise.resolve({
-      state: "resolved",
+      state: this.resolutionState,
       character: this.character,
       action: this.action,
-      levelChange: null
+      ...(this.resolutionState === "resolved" ? { levelChange: null } : {})
     });
   }
 }

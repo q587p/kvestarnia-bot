@@ -29,6 +29,9 @@ import {
 } from "./presenceService";
 import { SeededRandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+import { trackRewardAchievementsSafely } from "./achievementTracking";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 export const PASSAGE_SEARCH_NODE_DESCENT = "location:descent-to-nyz";
 export const PASSAGE_SEARCH_NODE_DEEP_LEVEL1 = "location:deep-level1";
@@ -50,7 +53,13 @@ export type PassageSearchStartResult =
 
 export type PassageSearchCheckResult =
   | { state: "running"; character: CharacterSummary; action: PassageSearchActionRecord; remainingSeconds: number }
-  | { state: "completed"; character: CharacterSummary; action: PassageSearchActionRecord; loot: PresentedPassageSearchLoot }
+  | {
+      state: "completed";
+      character: CharacterSummary;
+      action: PassageSearchActionRecord;
+      loot: PresentedPassageSearchLoot;
+      achievementUnlocks: AchievementUnlock[];
+    }
   | { state: "nothing"; character: CharacterSummary; action: PassageSearchActionRecord }
   | { state: "cancelled"; character: CharacterSummary; action: PassageSearchActionRecord }
   | { state: "monster-attack"; character: CharacterSummary; action: PassageSearchActionRecord; fight: PersistentFightPassageAttackResult }
@@ -73,10 +82,14 @@ export type PassageSearchNodeAvailability = Record<
 >;
 
 export class PassageSearchService {
+  private readonly devLootFixtures = new Map<bigint, "iskrokamin">();
+
   constructor(
     private readonly searches: PassageSearchRepository,
     private readonly fights: FightService,
-    private readonly clock: Clock = systemClock
+    private readonly clock: Clock = systemClock,
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   async startPassageSearch(
@@ -493,10 +506,19 @@ export class PassageSearchService {
     return this.presentResolution(telegramUserId, resolved);
   }
 
-  async devReset(telegramUserId: bigint): Promise<
+  async devReset(
+    telegramUserId: bigint,
+    input: { nextLoot?: "iskrokamin" } = {}
+  ): Promise<
     | { state: "disabled" }
     | { state: "no-character" }
-    | { state: "cleared"; character: CharacterSummary; actions: number; cooldowns: number }
+    | {
+        state: "cleared";
+        character: CharacterSummary;
+        actions: number;
+        cooldowns: number;
+        nextLootFixture: "iskrokamin" | null;
+      }
   > {
     if (!this.searches.clearSearchStateForTelegramUser) {
       return { state: "disabled" };
@@ -504,14 +526,23 @@ export class PassageSearchService {
 
     const result = await this.searches.clearSearchStateForTelegramUser(telegramUserId, this.clock());
 
-    return result.state === "cleared"
-      ? {
-          state: "cleared",
-          character: summarizeCharacter(result.character),
-          actions: result.actions,
-          cooldowns: result.cooldowns
-        }
-      : result;
+    if (result.state !== "cleared") {
+      return result;
+    }
+
+    if (input.nextLoot === "iskrokamin") {
+      this.devLootFixtures.set(telegramUserId, input.nextLoot);
+    } else {
+      this.devLootFixtures.delete(telegramUserId);
+    }
+
+    return {
+      state: "cleared",
+      character: summarizeCharacter(result.character),
+      actions: result.actions,
+      cooldowns: result.cooldowns,
+      nextLootFixture: input.nextLoot ?? null
+    };
   }
 
   private async startWithSnapshot(
@@ -519,9 +550,12 @@ export class PassageSearchService {
     snapshot: PassageSearchSnapshot
   ): Promise<PassageSearchStartResult> {
     const now = this.clock();
+    const fixture = this.devLootFixtures.get(telegramUserId);
     const result = await this.searches.startForTelegramUser(telegramUserId, {
       now,
-      token: createSearchToken(),
+      token: fixture === "iskrokamin"
+        ? createIskrokaminSearchToken(snapshot)
+        : createSearchToken(),
       nodeKey: snapshot.nodeKey,
       nodeKind: snapshot.nodeKind,
       cooldownKey: getCooldownKey(snapshot.nodeKey as PassageSearchNodeKey),
@@ -531,6 +565,7 @@ export class PassageSearchService {
 
     switch (result.state) {
       case "started":
+        this.devLootFixtures.delete(telegramUserId);
         return { state: "started", character: summarizeCharacter(result.character), action: result.action };
       case "active":
         return {
@@ -565,17 +600,32 @@ export class PassageSearchService {
       return { state: "not-found", character: summarizeCharacter(result.character) };
     }
 
+    const storedResult = result.action.result;
+    const achievementUnlocks = result.state === "resolved" && storedResult?.outcome === "loot"
+      ? await trackRewardAchievementsSafely(this.achievements, {
+          characterId: result.character.id,
+          actorDisplayName: result.character.name,
+          sourceId: result.action.id,
+          sourceType: "passage-search",
+          occurredAt: result.action.updatedAt,
+          itemGrants: storedResult.loot.itemGrants,
+          activityEvents: this.activityEvents
+        })
+      : [];
+
     return this.presentStoredResult(
       telegramUserId,
       summarizeCharacter(result.character),
-      result.action
+      result.action,
+      achievementUnlocks
     );
   }
 
   private async presentStoredResult(
     telegramUserId: bigint,
     character: CharacterSummary,
-    action: PassageSearchActionRecord
+    action: PassageSearchActionRecord,
+    achievementUnlocks: AchievementUnlock[] = []
   ): Promise<PassageSearchCheckResult> {
     const result = action.result;
 
@@ -620,7 +670,8 @@ export class PassageSearchService {
       state: "completed",
       character,
       action,
-      loot: presentLoot(result.loot)
+      loot: presentLoot(result.loot),
+      achievementUnlocks
     };
   }
 }
@@ -717,6 +768,35 @@ function getRemainingSeconds(endsAt: Date, now: Date): number {
 
 function createSearchToken(): string {
   return randomUUID().replace(/-/g, "").slice(0, 16);
+}
+
+function createIskrokaminSearchToken(snapshot: PassageSearchSnapshot): string {
+  const nonce = randomUUID().replace(/-/g, "").slice(0, 8);
+  const modifiers = getPassageSearchModifiers({ luck: snapshot.playerLuckSnapshot });
+
+  for (let attempt = 0; attempt < 100_000; attempt += 1) {
+    const token = `${nonce}${attempt.toString(36).padStart(4, "0")}`;
+    const rng = new SeededRandomSource(`passage-search:${token}:resolve`);
+    const danger = rollPassageSearchDanger({ snapshot, modifiers, rng });
+
+    if (danger && snapshot.encounterToken && snapshot.passage) {
+      continue;
+    }
+
+    const loot = rollPassageSearchLoot({
+      snapshot,
+      modifiers,
+      rng,
+      bandageItemId: BANDAGE_ITEM_ID,
+      iskrokaminItemId: ISKROKAMIN_ITEM_ID
+    });
+
+    if (loot.itemGrants.some((grant) => grant.itemId === ISKROKAMIN_ITEM_ID && grant.quantity > 0)) {
+      return token;
+    }
+  }
+
+  throw new Error("Unable to prepare a deterministic Iskrokamin passage-search fixture.");
 }
 
 function presentLoot(loot: PassageSearchLoot): PresentedPassageSearchLoot {

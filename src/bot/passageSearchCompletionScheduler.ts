@@ -7,6 +7,7 @@ import type {
 import { buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
 import { presentPersistentFight, presentPersistentFightIntro } from "./presenters/fightPresenter";
 import { presentPassageSearch } from "./presenters/passageSearchPresenter";
+import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -81,6 +82,13 @@ async function notifySearchCompletion(
 ): Promise<void> {
   try {
     await bot.api.sendMessage(chatId, presentPassageSearch(result), HTML_MESSAGE_OPTIONS);
+
+    if (result.state === "completed") {
+      const achievementText = presentAchievementUnlockNotification(result.achievementUnlocks);
+      if (achievementText) {
+        await bot.api.sendMessage(chatId, achievementText, HTML_MESSAGE_OPTIONS);
+      }
+    }
 
     if (result.state === "monster-attack") {
       await sendPassageAttackFightCard(fight, bot, telegramUserId, chatId, result);
