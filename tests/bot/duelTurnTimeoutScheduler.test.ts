@@ -59,7 +59,12 @@ describe("duel turn timeout scheduler", () => {
   it("keeps one canonical card when an active deep link races the timeout scheduler", async () => {
     const view = makeActiveView();
     const session = view.session;
+    let current = view;
     let canonical: { chatId: bigint; messageId: number } | null = null;
+    let notifyClaimStarted!: () => void;
+    const claimStarted = new Promise<void>((resolve) => {
+      notifyClaimStarted = resolve;
+    });
     let releaseClaims: (() => void) | null = null;
     const claimsReady = new Promise<void>((resolve) => {
       releaseClaims = resolve;
@@ -69,24 +74,29 @@ describe("duel turn timeout scheduler", () => {
       _participant: "challenger" | "target",
       candidate: { chatId: bigint; messageId: number }
     ) => {
+      notifyClaimStarted();
       await claimsReady;
       const claimed = canonical === null;
       if (claimed) {
         canonical = candidate;
+        current = {
+          ...current,
+          session: {
+            ...current.session,
+            challengerChatId: candidate.chatId,
+            challengerMessageId: candidate.messageId
+          }
+        };
       }
       return {
         claimed,
-        session: {
-          ...session,
-          challengerChatId: canonical?.chatId ?? null,
-          challengerMessageId: canonical?.messageId ?? null
-        }
+        session: current.session
       };
     });
     const service = {
       listDueTurnBasedSessions: vi.fn().mockResolvedValue([session]),
       resolveDueTurnBasedSession: vi.fn().mockResolvedValue({ state: "updated", session }),
-      getByToken: vi.fn().mockResolvedValue(view),
+      getByToken: vi.fn(() => Promise.resolve(current)),
       claimTurnBasedMessageReference,
       releaseTurnBasedMessageReference: vi.fn()
     } as unknown as DuelChallengeService;
@@ -101,8 +111,10 @@ describe("duel turn timeout scheduler", () => {
 
     scheduler.start();
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    await claimStarted;
 
     const deepLinkEdits: number[] = [];
+    const deepLinkSend = vi.fn().mockResolvedValue(502);
     const deepLinkDelivery = deliverCanonicalTurnBasedDuelParticipantCard({
       service,
       view,
@@ -113,18 +125,21 @@ describe("duel turn timeout scheduler", () => {
           deepLinkEdits.push(reference.messageId);
           return Promise.resolve();
         }),
-        sendInertMessage: vi.fn().mockResolvedValue(502)
+        sendInertMessage: deepLinkSend
       }
     });
-    await vi.waitFor(() => expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2));
     releaseClaims?.();
     await deepLinkDelivery;
-    await vi.waitFor(() => expect([...schedulerEdits, ...deepLinkEdits]).toHaveLength(1));
+    await vi.waitFor(() => expect([...schedulerEdits, ...deepLinkEdits]).toHaveLength(2));
     scheduler.stop();
 
     expect(canonical).not.toBeNull();
-    expect([...schedulerEdits, ...deepLinkEdits]).toEqual([canonical?.messageId]);
-    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2);
+    expect([...schedulerEdits, ...deepLinkEdits]).toEqual([
+      canonical?.messageId,
+      canonical?.messageId
+    ]);
+    expect(deepLinkSend).not.toHaveBeenCalled();
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(1);
   });
 });
 

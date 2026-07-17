@@ -47,45 +47,65 @@ export interface CanonicalTurnBasedDuelDeliveryInput {
 
 export type CanonicalTurnBasedDuelDeliveryResult =
   | { state: "edited" | "unchanged" | "activated"; reference: TurnBasedDuelMessageReference }
-  | { state: "retryable-edit-failure" | "fallback-disabled"; reference: TurnBasedDuelMessageReference | null }
+  | { state: "retryable-edit-failure" | "retryable-activation-failure" | "fallback-disabled"; reference: TurnBasedDuelMessageReference | null }
   | { state: "candidate-lost"; reference: TurnBasedDuelMessageReference | null }
   | { state: "activation-failed" | "view-changed"; reference: null };
+
+const deliveryTails = new Map<string, Promise<void>>();
+const MAX_CONVERGENCE_EDITS = 4;
 
 export async function deliverCanonicalTurnBasedDuelParticipantCard(
   input: CanonicalTurnBasedDuelDeliveryInput
 ): Promise<CanonicalTurnBasedDuelDeliveryResult> {
-  const session = input.view.state === "active" ? input.view.session : input.session;
-  if (!session) {
+  const seedSession = input.view.state === "active" ? input.view.session : input.session;
+  if (!seedSession) {
     return { state: "view-changed", reference: null };
   }
 
-  const initialCard = buildCard(input.view, input.participant, input.presentActive);
-  const existingReference = getTurnBasedDuelParticipantReference(session, input.participant);
+  return withParticipantDeliveryLock(
+    `${seedSession.id}:${input.participant}`,
+    () => deliverCanonicalTurnBasedDuelParticipantCardLocked(input, seedSession)
+  );
+}
+
+async function deliverCanonicalTurnBasedDuelParticipantCardLocked(
+  input: CanonicalTurnBasedDuelDeliveryInput,
+  seedSession: DuelCombatSessionRecord
+): Promise<CanonicalTurnBasedDuelDeliveryResult> {
+  let current = await loadAuthoritativeView(input, seedSession.id);
+  if (!current) {
+    return { state: "view-changed", reference: null };
+  }
+
+  let currentSession = current.state === "active" ? current.session : seedSession;
+  let existingReference = getTurnBasedDuelParticipantReference(currentSession, input.participant);
 
   if (existingReference && existingReference.chatId === input.chatId) {
-    try {
-      await input.transport.editMessage(existingReference, initialCard.text, initialCard.options);
-      return { state: "edited", reference: existingReference };
-    } catch (error) {
-      if (isMessageNotModifiedError(error)) {
-        return { state: "unchanged", reference: existingReference };
-      }
-
-      if (!isMessageUnavailableForEditError(error)) {
-        return { state: "retryable-edit-failure", reference: existingReference };
-      }
+    const editResult = await editExistingReferenceUntilCurrent(
+      input,
+      seedSession,
+      existingReference,
+      current
+    );
+    if (editResult.state !== "missing") {
+      return editResult;
     }
+
+    current = editResult.current;
+    currentSession = current.state === "active" ? current.session : seedSession;
+    existingReference = getTurnBasedDuelParticipantReference(currentSession, input.participant);
   }
 
   if (input.allowFallback === false) {
     return { state: "fallback-disabled", reference: existingReference };
   }
 
+  const candidateCard = buildCard(current, input.participant, input.presentActive);
   const candidateMessageId = await input.transport.sendInertMessage(
     input.chatId,
-    initialCard.text,
+    candidateCard.text,
     {
-      ...initialCard.options,
+      ...candidateCard.options,
       reply_markup: { inline_keyboard: [] }
     }
   );
@@ -96,13 +116,13 @@ export async function deliverCanonicalTurnBasedDuelParticipantCard(
   const candidate = { chatId: input.chatId, messageId: candidateMessageId };
   const claim = existingReference
     ? await input.service.claimTurnBasedMessageReference(
-        session.id,
+        seedSession.id,
         input.participant,
         candidate,
         existingReference
       )
     : await input.service.claimTurnBasedMessageReference(
-        session.id,
+        seedSession.id,
         input.participant,
         candidate
       );
@@ -113,19 +133,15 @@ export async function deliverCanonicalTurnBasedDuelParticipantCard(
     };
   }
 
-  let freshView: Awaited<ReturnType<DuelChallengeService["getByToken"]>>;
-  try {
-    freshView = await input.service.getByToken(input.view.challenge.inviteToken);
-  } catch (error) {
-    await input.service.releaseTurnBasedMessageReference(session.id, input.participant, candidate);
-    throw error;
+  const freshView = await loadAuthoritativeView(input, seedSession.id);
+  if (!freshView) {
+    return { state: "retryable-activation-failure", reference: candidate };
   }
 
   if (
-    (freshView.state !== "active" && freshView.state !== "resolved") ||
-    (freshView.state === "active" && freshView.session.id !== session.id)
+    (freshView.state === "active" && freshView.session.id !== seedSession.id)
   ) {
-    await input.service.releaseTurnBasedMessageReference(session.id, input.participant, candidate);
+    await input.service.releaseTurnBasedMessageReference(seedSession.id, input.participant, candidate);
     return { state: "view-changed", reference: null };
   }
 
@@ -138,8 +154,108 @@ export async function deliverCanonicalTurnBasedDuelParticipantCard(
       return { state: "activated", reference: candidate };
     }
 
-    await input.service.releaseTurnBasedMessageReference(session.id, input.participant, candidate);
+    if (!isMessageUnavailableForEditError(error)) {
+      return { state: "retryable-activation-failure", reference: candidate };
+    }
+
+    await input.service.releaseTurnBasedMessageReference(seedSession.id, input.participant, candidate);
     return { state: "activation-failed", reference: null };
+  }
+}
+
+type ExistingEditResult =
+  | { state: "edited" | "unchanged"; reference: TurnBasedDuelMessageReference }
+  | { state: "retryable-edit-failure"; reference: TurnBasedDuelMessageReference }
+  | { state: "missing"; current: TurnBasedDuelCardView };
+
+async function editExistingReferenceUntilCurrent(
+  input: CanonicalTurnBasedDuelDeliveryInput,
+  seedSession: DuelCombatSessionRecord,
+  reference: TurnBasedDuelMessageReference,
+  initialView: TurnBasedDuelCardView
+): Promise<ExistingEditResult> {
+  let current = initialView;
+  let lastState: "edited" | "unchanged" = "edited";
+
+  for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
+    const card = buildCard(current, input.participant, input.presentActive);
+    try {
+      await input.transport.editMessage(reference, card.text, card.options);
+      lastState = "edited";
+    } catch (error) {
+      if (isMessageNotModifiedError(error)) {
+        lastState = "unchanged";
+      } else if (isMessageUnavailableForEditError(error)) {
+        return { state: "missing", current };
+      } else {
+        return { state: "retryable-edit-failure", reference };
+      }
+    }
+
+    const latest = await loadAuthoritativeView(input, seedSession.id);
+    if (!latest || getViewRevision(latest) === getViewRevision(current)) {
+      return { state: lastState, reference };
+    }
+
+    current = latest;
+  }
+
+  const finalCard = buildCard(current, input.participant, input.presentActive);
+  try {
+    await input.transport.editMessage(reference, finalCard.text, finalCard.options);
+    return { state: "edited", reference };
+  } catch (error) {
+    if (isMessageNotModifiedError(error)) {
+      return { state: "unchanged", reference };
+    }
+    if (isMessageUnavailableForEditError(error)) {
+      return { state: "missing", current };
+    }
+    return { state: "retryable-edit-failure", reference };
+  }
+}
+
+async function loadAuthoritativeView(
+  input: CanonicalTurnBasedDuelDeliveryInput,
+  sessionId: string
+): Promise<TurnBasedDuelCardView | null> {
+  try {
+    const current = await input.service.getByToken(input.view.challenge.inviteToken);
+    if (
+      (current.state !== "active" && current.state !== "resolved") ||
+      (current.state === "active" && current.session.id !== sessionId)
+    ) {
+      return null;
+    }
+    return current;
+  } catch {
+    return null;
+  }
+}
+
+function getViewRevision(view: TurnBasedDuelCardView): string {
+  return view.state === "resolved"
+    ? `terminal:${view.challenge.status}`
+    : `active:${view.session.id}:${view.session.version}:${view.session.turn}`;
+}
+
+async function withParticipantDeliveryLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const previous = deliveryTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => gate);
+  deliveryTails.set(key, tail);
+
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (deliveryTails.get(key) === tail) {
+      deliveryTails.delete(key);
+    }
   }
 }
 

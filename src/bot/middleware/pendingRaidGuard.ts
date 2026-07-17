@@ -22,10 +22,16 @@ export async function editPendingRaidBlockIfNeeded(
     return false;
   }
 
-  await safeAnswerCallbackQuery(ctx);
-  await safeEditMessageText(ctx, presentPendingRaidActionBlock(pending), {
+  const text = presentPendingRaidActionBlock(pending);
+  const options = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildTavernResultKeyboard("pending")
-  });
+  };
+  if (ctx.callbackQuery) {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, text, options);
+  } else {
+    await ctx.reply(text, options);
+  }
   return true;
 }

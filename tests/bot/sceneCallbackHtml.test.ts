@@ -6058,9 +6058,8 @@ describe("scene callback HTML options", () => {
   });
 
   it("keeps remort callbacks inside an active turn-based duel", async () => {
-    const getActiveTurnBasedForTelegramUser = vi.fn(() =>
-      Promise.resolve(activeTurnBasedDuel())
-    );
+    const active = activeTurnBasedDuel();
+    const getActiveTurnBasedForTelegramUser = vi.fn(() => Promise.resolve(active));
     const openForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "locked" as const,
@@ -6072,7 +6071,8 @@ describe("scene callback HTML options", () => {
       makeRemortOpenCallbackData(),
       servicesWith({
         duel: {
-          getActiveTurnBasedForTelegramUser
+          getActiveTurnBasedForTelegramUser,
+          getByToken: vi.fn(() => Promise.resolve(active))
         },
         remort: {
           openForTelegramUser
@@ -6239,6 +6239,70 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.duel-challenge"
       }
     ]);
+  });
+
+  it.each([
+    ["persistent", "Quick create", "callback", "v1:duel:new"],
+    ["persistent", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["persistent", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["persistent", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["persistent", "/duel", "command", "/duel"],
+    ["persistent", "turn create", "callback", "v1:duel:new-t"],
+    ["persistent", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["persistent", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["training", "Quick create", "callback", "v1:duel:new"],
+    ["training", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["training", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["training", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["training", "/duel", "command", "/duel"],
+    ["training", "turn create", "callback", "v1:duel:new-t"],
+    ["training", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["training", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["party-boss", "Quick create", "callback", "v1:duel:new"],
+    ["party-boss", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["party-boss", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["party-boss", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["party-boss", "/duel", "command", "/duel"],
+    ["party-boss", "turn create", "callback", "v1:duel:new-t"],
+    ["party-boss", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["party-boss", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["pending-raid", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["pending-raid", "turn deep link", "command", "/start duel_turnbased_turnABC12"]
+  ] as const)("keeps %s combat isolation for %s", async (lock, _route, kind, input) => {
+    const mutations = {
+      create: vi.fn(() => Promise.reject(new Error("blocked duel create reached handler"))),
+      accept: vi.fn(() => Promise.reject(new Error("blocked duel accept reached handler"))),
+      rematch: vi.fn(() => Promise.reject(new Error("blocked duel rematch reached handler"))),
+      open: vi.fn(() => Promise.reject(new Error("blocked duel open reached handler")))
+    };
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const services = servicesWith({
+      ...duelCombatLockServices(lock),
+      duel: {
+        getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+        createOpenChallengeForTelegramUser: mutations.create,
+        acceptForTelegramUser: mutations.accept,
+        createRematchForTelegramUser: mutations.rematch,
+        getByToken: mutations.open
+      } as unknown as BotServices["duel"],
+      presence: {
+        ...base.presence,
+        markAction
+      }
+    });
+
+    if (kind === "callback") {
+      await captureApiCalls(input, services);
+    } else {
+      await captureTextApiCalls(input, services, { asCommand: true, messageResults: true });
+    }
+
+    expect(mutations.create).not.toHaveBeenCalled();
+    expect(mutations.accept).not.toHaveBeenCalled();
+    expect(mutations.rematch).not.toHaveBeenCalled();
+    expect(mutations.open).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
   });
 
   it("keeps main-menu text inside an active training fight", async () => {
@@ -9252,6 +9316,151 @@ function trainingMonster() {
 }
 
 type ActiveTurnBasedDuelView = Extract<DuelChallengeView, { state: "active" }>;
+
+function duelCombatLockServices(lock: "persistent" | "training" | "party-boss" | "pending-raid"): Partial<BotServices> {
+  if (lock === "persistent") {
+    return {
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({
+          state: "persistent-active" as const,
+          character,
+          session: persistentSession("monster.deadline-spider"),
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з термінових справ.",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: null
+        })
+      } as unknown as BotServices["fight"]
+    };
+  }
+
+  if (lock === "training") {
+    return {
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({
+          state: "training-active" as const,
+          character,
+          session: trainingSession(),
+          questProgress: null
+        })
+      } as unknown as BotServices["fight"],
+      trainingDoppelganger: {
+        getStartOptionsForTelegramUser: () => Promise.resolve({
+          state: "active" as const,
+          character,
+          session: trainingSession(),
+          monster: trainingMonster()
+        })
+      } as unknown as BotServices["trainingDoppelganger"]
+    };
+  }
+
+  if (lock === "pending-raid") {
+    return {
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({
+          state: "pending" as const,
+          character,
+          availableAt: new Date("2026-07-17T12:13:00.000Z"),
+          now: new Date("2026-07-17T12:00:00.000Z")
+        })
+      } as unknown as BotServices["tavern"]
+    };
+  }
+
+  const active = partyBossCombatLockSession();
+  return {
+    partyBoss: {
+      getActiveForTelegramUser: vi.fn().mockResolvedValue(active),
+      hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false),
+      areDevHelpersEnabled: () => false
+    } as unknown as BotServices["partyBoss"]
+  };
+}
+
+function partyBossCombatLockSession() {
+  const participant = {
+    id: "character-42",
+    userId: "user-42",
+    telegramUserId: 42n,
+    name: "Тест",
+    currentLocationId: "location.korchma.hall",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    remortCount: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12
+  };
+  return {
+    id: "party-boss-1",
+    partySessionId: "party-1",
+    partyInviteToken: "partyABC12",
+    leaderCharacterId: participant.id,
+    status: "active" as const,
+    turn: 1,
+    version: 1,
+    rulesVersion: "party-boss-proof-v1",
+    bossKey: "party-boss-proof-one",
+    result: null,
+    turnExpiresAt: new Date("2026-07-17T12:00:23.000Z"),
+    completedAt: null,
+    participants: [participant],
+    state: {
+      rulesVersion: "party-boss-proof-v1",
+      partySessionId: "party-1",
+      status: "active" as const,
+      turn: 1,
+      boss: {
+        monsterId: "party-boss-proof-one",
+        name: "Контрольний бос",
+        level: 3,
+        hp: 42,
+        hpMax: 42,
+        attack: 8,
+        armor: 2,
+        resist: 1,
+        dexterity: 5,
+        tags: ["party-boss-proof"]
+      },
+      participants: [{
+        characterId: participant.id,
+        name: participant.name,
+        remortCount: 0,
+        status: "active" as const,
+        combatStats: {
+          level: 3,
+          hpMax: 24,
+          manaMax: 12,
+          hpCurrent: 24,
+          manaCurrent: 12,
+          strength: 7,
+          dexterity: 7,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6,
+          raceId: participant.raceId,
+          classId: participant.classId
+        },
+        resources: { hp: 24, hpMax: 24, mana: 12, manaMax: 12 },
+        contribution: {
+          submittedActions: 0,
+          timeoutActions: 0,
+          damageDealt: 0,
+          damageTaken: 0
+        }
+      }],
+      roundLog: [],
+      startedAt: "2026-07-17T12:00:00.000Z"
+    }
+  };
+}
 
 function activeTurnBasedDuel(references: {
   challengerChatId?: bigint | null;

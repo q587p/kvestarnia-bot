@@ -85,6 +85,6 @@ describe("safeEditMessageText", () => {
     expect(isMessageUnavailableForEditError(new Error("message to edit not found"))).toBe(true);
     expect(isMessageUnavailableForEditError(new Error("Bad Request: MESSAGE_ID_INVALID"))).toBe(true);
     expect(isMessageUnavailableForEditError(new Error("Telegram gateway timeout"))).toBe(false);
-    expect(isMessageUnavailableForEditError(new Error("message can't be edited"))).toBe(false);
+    expect(isMessageUnavailableForEditError(new Error("message can't be edited"))).toBe(true);
   });
 });

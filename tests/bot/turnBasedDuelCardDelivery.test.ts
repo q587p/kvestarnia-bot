@@ -64,11 +64,11 @@ describe("canonical turn-based duel card delivery", () => {
     expect(service.claim).not.toHaveBeenCalled();
   });
 
-  it("releases a newly claimed inert candidate when activation fails", async () => {
+  it("releases a newly claimed inert candidate only when Telegram proves it is missing", async () => {
     const view = activeView();
     const service = deliveryService(view);
     const transport = deliveryTransport({
-      editErrors: [new Error("activation failed")],
+      editErrors: [new Error("Bad Request: message to edit not found")],
       sentMessageIds: [20]
     });
 
@@ -86,6 +86,61 @@ describe("canonical turn-based duel card delivery", () => {
       "challenger",
       { chatId: 42n, messageId: 20 }
     );
+  });
+
+  it.each([
+    "Telegram gateway timeout after upstream apply",
+    "500 Internal Server Error after upstream apply"
+  ])("keeps an ambiguously activated candidate canonical and retries that same message: %s", async (failure) => {
+    let current = activeView();
+    const claim = vi.fn<DuelChallengeService["claimTurnBasedMessageReference"]>((
+      _sessionId,
+      _participant,
+      reference
+    ) => {
+      current = activeView({
+        challengerChatId: reference.chatId,
+        challengerMessageId: reference.messageId
+      });
+      return Promise.resolve({ claimed: true, session: current.session });
+    });
+    const releaseTurnBasedMessageReference = vi.fn();
+    const service = {
+      claimTurnBasedMessageReference: claim,
+      releaseTurnBasedMessageReference,
+      getByToken: vi.fn(() => Promise.resolve(current))
+    } as unknown as DuelChallengeService;
+    const transport = deliveryTransport({
+      editErrors: [new Error(failure)],
+      sentMessageIds: [20]
+    });
+
+    const first = await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: current,
+      participant: "challenger",
+      chatId: 42n,
+      transport: transport.value
+    });
+    const second = await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: current,
+      participant: "challenger",
+      chatId: 42n,
+      transport: transport.value
+    });
+
+    expect(first).toEqual({
+      state: "retryable-activation-failure",
+      reference: { chatId: 42n, messageId: 20 }
+    });
+    expect(second).toEqual({ state: "edited", reference: { chatId: 42n, messageId: 20 } });
+    expect(transport.sendInertMessage).toHaveBeenCalledTimes(1);
+    expect(transport.editMessage.mock.calls.map((call) => call[0])).toEqual([
+      { chatId: 42n, messageId: 20 },
+      { chatId: 42n, messageId: 20 }
+    ]);
+    expect(releaseTurnBasedMessageReference).not.toHaveBeenCalled();
   });
 
   it("renders a terminal card instead of stale active controls when resolution wins after the claim", async () => {
@@ -159,6 +214,121 @@ describe("canonical turn-based duel card delivery", () => {
     expect(edits).toEqual([canonical?.messageId]);
     expect(canonical).not.toBeNull();
   });
+
+  it("converges an existing canonical card from active N to active N+1", async () => {
+    const activeN = activeView({ challengerChatId: 42n, challengerMessageId: 10, turn: 1, version: 1 });
+    const activeNext = activeView({ challengerChatId: 42n, challengerMessageId: 10, turn: 2, version: 2 });
+    let current = activeN;
+    let releaseFirstEdit!: () => void;
+    const firstEditStarted = new Promise<void>((resolve) => {
+      releaseFirstEdit = resolve;
+    });
+    let unblockFirstEdit!: () => void;
+    const firstEditBlocked = new Promise<void>((resolve) => {
+      unblockFirstEdit = resolve;
+    });
+    let editCount = 0;
+    const edits: Array<{ text: string; options: unknown }> = [];
+    const sendInertMessage = vi.fn<TurnBasedDuelDeliveryTransport["sendInertMessage"]>();
+    const transport: TurnBasedDuelDeliveryTransport = {
+      editMessage: vi.fn<TurnBasedDuelDeliveryTransport["editMessage"]>(async (_reference, text, options) => {
+        editCount += 1;
+        edits.push({ text, options });
+        if (editCount === 1) {
+          unblockFirstEdit();
+          await firstEditStarted;
+        }
+      }),
+      sendInertMessage
+    };
+    const service = {
+      getByToken: vi.fn(() => Promise.resolve(current)),
+      claimTurnBasedMessageReference: vi.fn(),
+      releaseTurnBasedMessageReference: vi.fn()
+    } as unknown as DuelChallengeService;
+
+    const olderDelivery = deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: activeN,
+      participant: "challenger",
+      chatId: 42n,
+      transport
+    });
+    await firstEditBlocked;
+    current = activeNext;
+    const newerDelivery = deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: activeNext,
+      participant: "challenger",
+      chatId: 42n,
+      transport
+    });
+    releaseFirstEdit();
+    await Promise.all([olderDelivery, newerDelivery]);
+
+    const finalEdit = edits.at(-1);
+    expect(finalEdit?.text).toContain("хід 2");
+    expect(JSON.stringify(finalEdit?.options)).toContain("v1:duel:t:abcDEF12:atk:2:2");
+    expect(sendInertMessage).not.toHaveBeenCalled();
+  });
+
+  it("makes a resolved terminal card win an existing-reference race against active controls", async () => {
+    const active = activeView({ challengerChatId: 42n, challengerMessageId: 10 });
+    const resolved = resolvedView();
+    let current: ActiveView | ResolvedView = active;
+    let releaseFirstEdit!: () => void;
+    const firstEditGate = new Promise<void>((resolve) => {
+      releaseFirstEdit = resolve;
+    });
+    let notifyFirstEdit!: () => void;
+    const firstEditStarted = new Promise<void>((resolve) => {
+      notifyFirstEdit = resolve;
+    });
+    let editCount = 0;
+    const edits: Array<{ text: string; options: unknown }> = [];
+    const sendInertMessage = vi.fn<TurnBasedDuelDeliveryTransport["sendInertMessage"]>();
+    const transport: TurnBasedDuelDeliveryTransport = {
+      editMessage: vi.fn<TurnBasedDuelDeliveryTransport["editMessage"]>(async (_reference, text, options) => {
+        editCount += 1;
+        edits.push({ text, options });
+        if (editCount === 1) {
+          notifyFirstEdit();
+          await firstEditGate;
+        }
+      }),
+      sendInertMessage
+    };
+    const service = {
+      getByToken: vi.fn(() => Promise.resolve(current)),
+      claimTurnBasedMessageReference: vi.fn(),
+      releaseTurnBasedMessageReference: vi.fn()
+    } as unknown as DuelChallengeService;
+
+    const activeDelivery = deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: active,
+      participant: "challenger",
+      chatId: 42n,
+      transport
+    });
+    await firstEditStarted;
+    current = resolved;
+    const terminalDelivery = deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: resolved,
+      session: active.session,
+      participant: "challenger",
+      chatId: 42n,
+      transport
+    });
+    releaseFirstEdit();
+    await Promise.all([activeDelivery, terminalDelivery]);
+
+    const finalEdit = edits.at(-1);
+    expect(finalEdit?.text).toContain("Результат покрокової дуелі");
+    expect(JSON.stringify(finalEdit?.options)).not.toContain("v1:duel:t:");
+    expect(sendInertMessage).not.toHaveBeenCalled();
+  });
 });
 
 function deliveryService(currentView: ActiveView | ResolvedView) {
@@ -213,6 +383,8 @@ function activeView(references: {
   challengerMessageId?: number | null;
   targetChatId?: bigint | null;
   targetMessageId?: number | null;
+  turn?: number;
+  version?: number;
 } = {}): ActiveView {
   const participant = (characterId: string, displayName: string) => ({
     characterId,
@@ -248,8 +420,8 @@ function activeView(references: {
     targetCharacterId: "character-2",
     status: "active",
     actingCharacterId: "character-1",
-    turn: 1,
-    version: 1,
+    turn: references.turn ?? 1,
+    version: references.version ?? 1,
     turnExpiresAt: new Date("2026-07-17T12:00:23.000Z"),
     completedAt: null,
     challengerChatId: references.challengerChatId ?? null,
@@ -263,7 +435,7 @@ function activeView(references: {
       status: "active",
       rulesVersion: "turn-based-duel-v1",
       balanceVersion: "instant-duel-v2",
-      turn: 1,
+      turn: references.turn ?? 1,
       actingCharacterId: "character-1",
       participants: {
         challenger: participant("character-1", "Перший Кухоль"),

@@ -41,5 +41,6 @@ export function isMessageUnavailableForEditError(error: unknown): boolean {
 
   const message = error.message.toLowerCase();
   return message.includes("message to edit not found") ||
-    message.includes("message_id_invalid");
+    message.includes("message_id_invalid") ||
+    message.includes("message can't be edited");
 }

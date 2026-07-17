@@ -240,7 +240,7 @@ describe("support command and start deep links", () => {
     expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves only the claimed canonical card actionable during concurrent active deep-link delivery", async () => {
+  it("serializes concurrent active deep links onto one claimed canonical card", async () => {
     const first = makeActiveTurnBasedDuelView();
     const second = makeActiveTurnBasedDuelView();
     const acceptForTelegramUser = vi.fn()
@@ -286,13 +286,13 @@ describe("support command and start deep links", () => {
     );
     const canonicalActivations = calls.filter((call) => call.method === "editMessageText");
 
-    expect(sentCards).toHaveLength(2);
+    expect(sentCards).toHaveLength(1);
     expect(sentCards.every((call) =>
       JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
     )).toBe(true);
-    expect(canonicalActivations).toHaveLength(1);
+    expect(canonicalActivations).toHaveLength(2);
     expect(new Set(canonicalActivations.map((call) => call.payload.message_id)).size).toBe(1);
-    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2);
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(1);
   });
 
   it("explains a self-opened duel link as the player's existing invite", async () => {

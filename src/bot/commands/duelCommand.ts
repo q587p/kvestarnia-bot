@@ -58,9 +58,12 @@ import {
 } from "../modules/mainMenu";
 import {
   deliverCanonicalTurnBasedDuelParticipantCard,
+  getTurnBasedDuelParticipantReference,
   showCanonicalTurnBasedDuelCard,
-  showCanonicalTurnBasedDuelResultCard
+  showCanonicalTurnBasedDuelResultCard,
+  type TurnBasedDuelParticipant
 } from "../turnBasedDuelCardDelivery";
+import type { DuelCombatSessionRecord } from "../../db/repositories/duelChallengeRepository";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -293,7 +296,7 @@ export async function handleDuelCallback(
         await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
         await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply");
       } else {
-        await clearCurrentDuelCallbackKeyboard(ctx);
+        await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, result.session, getViewerParticipant(ctx, result));
         await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply", { allowFallback: false });
       }
       if (result.transitioned) {
@@ -388,7 +391,7 @@ export async function handleDuelCallback(
     }
 
     if (current.state === "active") {
-      await clearCurrentDuelCallbackKeyboard(ctx);
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, current.session, getViewerParticipant(ctx, current));
       await sendTurnBasedDuelCard(ctx, "edit", current, service);
       if (result.state === "updated") {
         await sendTurnBasedAchievementUnlocks(ctx, current, result);
@@ -398,7 +401,11 @@ export async function handleDuelCallback(
     }
 
     if (current.state === "resolved" && result.state === "updated") {
-      await clearCurrentDuelCallbackKeyboard(ctx);
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+        ctx,
+        result.session,
+        getViewerParticipant(ctx, current)
+      );
       await showCanonicalTurnBasedDuelResultCard(ctx, current, result.session, service, "edit");
     } else {
       await sendText(
@@ -551,7 +558,7 @@ export async function handleDuelCallback(
   await answerCallback();
   if (result.state === "active") {
     if (isPrivateChat(ctx)) {
-      await clearCurrentDuelCallbackKeyboard(ctx);
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, result.session, getViewerParticipant(ctx, result));
       await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply", { allowFallback: false });
     } else {
       await showCanonicalTurnBasedDuelCard(ctx, result, service, "edit");
@@ -803,6 +810,46 @@ async function clearCurrentDuelCallbackKeyboard(ctx: Context): Promise<void> {
   } catch {
     // The duel is already active; a stale source keyboard is safe to leave if Telegram rejects the cleanup.
   }
+}
+
+async function clearCurrentDuelCallbackKeyboardIfNonCanonical(
+  ctx: Context,
+  session: DuelCombatSessionRecord,
+  participant: TurnBasedDuelParticipant | null
+): Promise<void> {
+  const sourceChatId = ctx.callbackQuery?.message?.chat.id;
+  const sourceMessageId = ctx.callbackQuery?.message?.message_id;
+  const canonical = participant
+    ? getTurnBasedDuelParticipantReference(session, participant)
+    : null;
+
+  if (
+    canonical &&
+    sourceChatId != null &&
+    sourceMessageId != null &&
+    canonical.chatId === BigInt(sourceChatId) &&
+    canonical.messageId === sourceMessageId
+  ) {
+    return;
+  }
+
+  await clearCurrentDuelCallbackKeyboard(ctx);
+}
+
+function getViewerParticipant(
+  ctx: Context,
+  view: Extract<DuelChallengeView, { state: "active" | "resolved" }>
+): TurnBasedDuelParticipant | null {
+  const telegramUserId = ctx.from?.id ? BigInt(ctx.from.id) : null;
+  if (!telegramUserId) {
+    return null;
+  }
+
+  if (view.challenge.challenger.telegramUserId === telegramUserId) {
+    return "challenger";
+  }
+
+  return view.challenge.target?.telegramUserId === telegramUserId ? "target" : null;
 }
 
 async function clearRemoteTurnBasedDuelKeyboard(

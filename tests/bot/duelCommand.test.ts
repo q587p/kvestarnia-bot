@@ -928,6 +928,160 @@ describe("handleDuelCallback", () => {
     expect(recordTurnBasedMessageReference).not.toHaveBeenCalled();
   });
 
+  it("does not clear the canonical Refresh source before a transient rewrite failure", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = {
+      ...makeTurnBasedSession("active", target),
+      challengerChatId: 42n,
+      challengerMessageId: 10
+    };
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const callback = createCallbackContext(42, "private");
+    callback.apiEditMessageText.mockRejectedValue(new Error("Telegram gateway timeout"));
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "view", token: TOKEN },
+      serviceWith({ getByToken: vi.fn().mockResolvedValue(active) }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageReplyMarkup).not.toHaveBeenCalled();
+    expect(callback.apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      10,
+      expect.stringContaining("Покрокова дуель"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(callback.reply).not.toHaveBeenCalled();
+  });
+
+  it("does not clear the canonical action source before a transient rewrite failure", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = {
+      ...makeTurnBasedSession("active", target),
+      targetChatId: 99n,
+      targetMessageId: 10
+    };
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const callback = createCallbackContext(99, "private");
+    callback.apiEditMessageText.mockRejectedValue(new Error("Telegram gateway timeout"));
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "turn", token: TOKEN, action: "attack", turn: 2, version: 4 },
+      serviceWith({
+        resolveTurnBasedActionForTelegramUser: vi.fn().mockResolvedValue({ state: "stale", session }),
+        getByToken: vi.fn().mockResolvedValue(active)
+      }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageReplyMarkup).not.toHaveBeenCalled();
+    expect(callback.apiEditMessageText).toHaveBeenCalledWith(
+      99,
+      10,
+      expect.stringContaining("Покрокова дуель"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(callback.reply).not.toHaveBeenCalled();
+  });
+
+  it("clears a stale Refresh source but preserves the separate canonical card on transient failure", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = {
+      ...makeTurnBasedSession("active", target),
+      challengerChatId: 42n,
+      challengerMessageId: 777
+    };
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const callback = createCallbackContext(42, "private");
+    callback.apiEditMessageText.mockRejectedValue(new Error("Telegram gateway timeout"));
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "view", token: TOKEN },
+      serviceWith({ getByToken: vi.fn().mockResolvedValue(active) }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageReplyMarkup).toHaveBeenCalledWith({
+      reply_markup: { inline_keyboard: [] }
+    });
+    expect(callback.apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      777,
+      expect.stringContaining("Покрокова дуель"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(callback.reply).not.toHaveBeenCalled();
+  });
+
+  it("clears a stale action source but preserves the separate canonical card on transient failure", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const session = {
+      ...makeTurnBasedSession("active", target),
+      targetChatId: 99n,
+      targetMessageId: 777
+    };
+    const active = {
+      state: "active" as const,
+      challenge: { ...makeChallenge("active", target), mode: "turn-based" as const },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session,
+      turnExpiresAt: session.turnExpiresAt,
+      now: NOW
+    };
+    const callback = createCallbackContext(99, "private");
+    callback.apiEditMessageText.mockRejectedValue(new Error("Telegram gateway timeout"));
+
+    await handleDuelCallback(
+      callback.ctx,
+      { type: "turn", token: TOKEN, action: "attack", turn: 2, version: 4 },
+      serviceWith({
+        resolveTurnBasedActionForTelegramUser: vi.fn().mockResolvedValue({ state: "stale", session }),
+        getByToken: vi.fn().mockResolvedValue(active)
+      }),
+      { presence: createPresence() }
+    );
+
+    expect(callback.editMessageReplyMarkup).toHaveBeenCalledWith({
+      reply_markup: { inline_keyboard: [] }
+    });
+    expect(callback.apiEditMessageText).toHaveBeenCalledWith(
+      99,
+      777,
+      expect.stringContaining("Покрокова дуель"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(callback.reply).not.toHaveBeenCalled();
+  });
+
   it("keeps stale owner Refresh inert while the winner has not recorded its canonical card yet", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const session = makeTurnBasedSession("active", target);
