@@ -446,7 +446,7 @@ function presentBarrelBeerTutorialRow(
   }
 
   if (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk) {
-    return `${title} — рейд позаду. Тепер вистав пива й не забудь випити свій кухоль.`;
+    return `${title} — рейд позаду. Тепер вистав пиво всім і випий своє.`;
   }
 
   if (!quest.progress.activeBeer) {

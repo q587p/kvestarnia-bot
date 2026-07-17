@@ -76,9 +76,9 @@ describe("FightingCornerQuestService", () => {
 
   it.each([
     ["before", "2026-07-13T18:00:00.122Z", false],
-    ["equal", "2026-07-13T18:00:00.123Z", false],
+    ["equal", "2026-07-13T18:00:00.123Z", true],
     ["after", "2026-07-13T18:00:00.124Z", true]
-  ] as const)("enforces the strict post-accept boundary for an event %s acceptance", async (_label, completedAt, counts) => {
+  ] as const)("accepts the inclusive post-accept boundary for an event %s acceptance", async (_label, completedAt, counts) => {
     const world = new TestWorld();
     await world.accept();
 
@@ -108,6 +108,25 @@ describe("FightingCornerQuestService", () => {
     await retaliationWorld.accept(84n);
     retaliationWorld.retaliationTokens.add("duel-token");
     expect(await retaliationWorld.service().recordResolvedDuelSafely(duel(retaliationWorld))).toEqual([]);
+  });
+
+  it("credits an instant quick duel exactly once when it resolves at the acceptance timestamp", async () => {
+    const world = new TestWorld();
+    await world.accept(42n);
+    await world.accept(84n);
+    const challenge = {
+      ...duel(world),
+      resolvedAt: ACCEPTED_AT,
+      updatedAt: ACCEPTED_AT
+    };
+    const service = world.service();
+
+    const first = await service.recordResolvedDuelSafely(challenge);
+    const replay = await service.recordResolvedDuelSafely(challenge);
+
+    expect(first.map((update) => update.telegramUserId)).toEqual([42n, 84n]);
+    expect(first.every((update) => update.objective === "quick-duel")).toBe(true);
+    expect(replay).toEqual([]);
   });
 
   it.each(["pending", "declined", "cancelled", "expired", "forfeited"] as const)(

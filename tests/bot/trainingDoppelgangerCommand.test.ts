@@ -194,11 +194,24 @@ describe("training doppelganger command", () => {
   it("marks active training at the fighting corner", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = capturingPresence();
+    const session = trainingSession();
+    session.state = {
+      ...session.state,
+      turn: 2,
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "hit",
+        heroDamage: 3,
+        monsterDamage: 2,
+        manaSpent: 0,
+        critical: false
+      }
+    } as SoloCombatSessionRecord["state"];
     const service = new FakeTrainingDoppelgangerService({
       state: "active",
       character: character(),
       doppelganger: doppelganger(),
-      session: trainingSession()
+      session
     });
 
     await sendTrainingDoppelganger(
@@ -226,6 +239,8 @@ describe("training doppelganger command", () => {
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:spar:turn");
     expect(replies[1]?.text).toContain("❤️ Ви:");
     expect(replies[1]?.text).toContain("що робимо?");
+    expect(replies[1]?.text).toContain("<blockquote><i>");
+    expect((replies[1]?.options as { parse_mode?: string }).parse_mode).toBe("HTML");
     expect(JSON.stringify(replies[1]?.options)).toContain("v1:spar:turn");
   });
 

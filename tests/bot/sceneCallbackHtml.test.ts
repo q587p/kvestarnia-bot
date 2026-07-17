@@ -6419,17 +6419,31 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("fight-normal");
   });
 
-  it("marks canonical solo-fight presence when an adventure complication starts a new fight", async () => {
+  it.each([
+    ["front", "location.korchma.front"],
+    ["yard", "location.korchma.yard"]
+  ] as const)("keeps an adventure complication fight at the current %s location", async (_name, locationId) => {
     const markAction = vi.fn(() => Promise.resolve());
-    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
-      Promise.resolve({
+    const getOrStartPersistentFightForTelegramUser = vi.fn(
+      (_telegramUserId: bigint, options: { originLocationId: string }) => {
+        const baseSession = persistentSessionWithOrigin(options.originLocationId);
+
+        return Promise.resolve({
         state: "persistent-active" as const,
         started: true,
         character: {
           ...character,
+          currentLocationId: locationId,
           level: 3
         },
-        session: persistentSession("monster.borshch-slime"),
+        session: {
+          ...baseSession,
+          state: {
+            ...baseSession.state,
+            source: "adventure" as const,
+            life: { remortCount: 4 }
+          }
+        },
         monster: {
           id: "monster.borshch-slime",
           name: "Борщовий слиз",
@@ -6438,7 +6452,8 @@ describe("scene callback HTML options", () => {
           tags: ["slime", "food"]
         },
         questProgress: null
-      })
+        });
+      }
     );
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() => Promise.resolve("missing" as const));
     const calls = await captureApiCalls(
@@ -6452,7 +6467,7 @@ describe("scene callback HTML options", () => {
           completeAdventureApproach: () =>
             Promise.resolve({
               state: "completed" as const,
-              character,
+              character: { ...character, currentLocationId: locationId },
               choice: adventureChoice,
               approach: adventureApproach,
               reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
@@ -6483,13 +6498,23 @@ describe("scene callback HTML options", () => {
     );
 
     expect(rollbackCurrentAdventureClaimForTelegramUser).not.toHaveBeenCalled();
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      source: "adventure",
+      originLocationId: locationId,
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
+    });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        locationId: "location.korchma.deep.level1",
+        locationId,
         currentAdventureId: "adventure.solo-fight"
       })
     );
     expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
+    const visibleRemortNotices = calls
+      .filter((call) => call.method === "sendMessage")
+      .flatMap((call) => String(call.payload.text).match(/Відплата за минулі пригоди/gu) ?? []);
+    expect(visibleRemortNotices).toHaveLength(1);
   });
 
   it("opens the selected Nyz passage preview without starting a fight", async () => {

@@ -813,11 +813,6 @@ function presentPersistentFightState(input: {
     }),
     ...enemyRows
   ];
-  const remortPressureLines = state ? presentRemortMonsterPressureLines(state) : [];
-  if (state?.status === "active" && remortPressureLines.length > 0) {
-    lines.push("", ...remortPressureLines);
-  }
-
   if (input.statusNote) {
     lines.push("", input.statusNote);
   }
@@ -1373,6 +1368,12 @@ function presentRemortMonsterPressureLines(state: CombatState | null | undefined
 
   if (!state || remortCount <= visiblePressureFreeRanks || normalizeCombatEnemies(state).length > 1) {
     return [];
+  }
+
+  if (state.source === "adventure") {
+    return [
+      "🧿 Відплата за минулі пригоди: монстр бʼється з поправкою на ремортну памʼять."
+    ];
   }
 
   const label = state.source === "yeger"

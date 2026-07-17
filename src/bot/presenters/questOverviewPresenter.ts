@@ -822,7 +822,7 @@ function getBarrelBeerTutorialBody(
   if (!progress.beerRoundOffered || !progress.beerDrunk) {
     return [
       "<i>Зроблено:</i> рейд біля Бочки пережито.",
-      "<i>Далі:</i> проведіть пінну формальність.",
+      "<i>Далі:</i> проведіть пінну формальність (виставте пиво всім і випийте своє).",
       "<i>Де:</i> шинок."
     ].join("\n");
   }

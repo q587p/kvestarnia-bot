@@ -7,6 +7,25 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.13] - 12026-07-17 - Location-Safe Quest and Combat Fixes
+
+### Fixed
+- Bard Performance no longer inherits the generic Shynok callback location assignment. Starting, responding to, refreshing and completing a performance now preserve the character's current normalized location; existing Shynok-only house behavior still applies when the performance genuinely starts there.
+- Adventure quest monster handoff no longer writes the first Niz layer into presence. It snapshots the triggering Character location into persistent fight `originLocationId`, reuses that durable origin for redraw/result presence, and returns front, yard or Quest Table encounters to their actual origin after victory or flee. Ordinary Niz combat keeps its existing route.
+- Instant Quick Duel completion at the exact quest-acceptance timestamp is now eligible for the shared Fighting Corner duel-progress recorder. The existing per-life objective key continues to make Quick Duel, turn-duel and durable-result replays exact-once.
+- Doppelganger training comments now use an escaped HTML `<blockquote>` with the established italic voice inside it; command-level tests verify the actual `parse_mode: HTML` Telegram payload.
+- Barrel tutorial, clue, active Quest Hub row and `🗺️ Квести` overview now explicitly require the player to serve beer to everyone and drink their own beer instead of leaving «пінна формальність» unexplained.
+
+### Balance and persistence
+- Adventure quest monsters now use the character's current level before the canonical remort-aware combat stat derivation. The derived monster state remains frozen in the persistent battle, so duplicate callbacks, redraws and session replay cannot apply remort pressure twice.
+- The quest-specific remort notice appears only in the opening battle message and only when pressure actually applies; reusable monster cards and later redraws do not repeat it. No reward, PvP combat or ordinary authored-monster balance changed.
+
+### Focused adjacent fixes
+- Added the missing quest-fight return route for the Korchma yard, preventing a correctly preserved yard-origin encounter from offering Niz navigation after settlement or flee.
+
+### Compatibility
+- No schema, migration, dependency, new action, achievement, lore promise, production flag or dev helper was added. Existing Shynok performances, ordinary Niz fights, Training, Quick Duel and turn-duel mechanics retain their prior contracts outside the corrected state/copy paths.
+
 ## [0.3.12] - 12026-07-17 - Varenyk-mancer Sated Support
 
 ### Added

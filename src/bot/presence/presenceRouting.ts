@@ -112,6 +112,15 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (
+    data === "v1:sh:bp" ||
+    data.startsWith("v1:sh:ba:") ||
+    data.startsWith("v1:sh:bd:") ||
+    data.startsWith("v1:sh:bt:")
+  ) {
+    return {};
+  }
+
   if (data.startsWith("v1:sh:")) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BAR,

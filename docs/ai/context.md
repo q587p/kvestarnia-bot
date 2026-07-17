@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.12` — Varenyk-mancer `🍽️ Нагодувати` / `😋 Ситий` support.
+- Current version: `0.3.13` — location-safe Bard/quest encounters, complete duel quest progress and Telegram-copy fixes.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -41,6 +41,7 @@
 - Priest level 3+ noncombat heal/blessing uses active exact-location targets, transactional mana spend and replay-safe records. Do not rebalance it through adjacent class work.
 - Rogue level 3+ `🗡️ Тиха кишеня` is same-location, recipient-level protected, actor-cooldown and actor-target/day scoped, with bounded gold and private retaliation.
 - Bard Performance is a bounded location-scoped noncombat event; Shynok alone may receive its existing small house payout.
+- Bard Performance callbacks preserve the current normalized location. Quest-spawned persistent fights store and reuse their origin location, scale their monster to the current level before canonical once-only remort derivation, and show quest remort pressure only in the opening message.
 - Bureaucramancer `Протокол 13-З`, Kharakternyk ward signs and Warrior `🛡️ На мене!` are narrow Big Barrel mechanics, not generic engines.
 - Varenyk-mancer level 3+ `🍽️ Нагодувати` works on self or an active exact-normalized-location recipient from existing locations. Attunement-aware INT/CHA/level determine stat rank; after canonical passive mana settlement, the highest affordable rank uses costs `8/12/16/20/23`. Public open/preview capture one `now`; the successful preview returns actor/target resources, natural/effective maxima, stats, blessing, exact attuned rows, rank and cost from the transaction that persists both planning snapshots, so regeneration occurs once and preliminary interleavings cannot mix views across inclusive `readyAt`.
 - A fresh feed applies capped immediate `2 + rank HP` with no immediate mana refund. One recipient `CharacterCooldown` owns the current activation/receipt; actor-owned pair rows hold each caster's 93-minute repeat wait for that recipient. `😋 Ситий` starts with 13 minutes and does not stack, but a permitted same-caster refresh or another caster's fresh feed replaces it with a new activation/rank/timer after settling the old payload. The server-owned preview binds the exact applied rank/cost, effective stats, attuned row/slot/version identity, Shynok snapshot, target/lives, expiry and observed target activation; concurrent old previews yield one winner. Confirmation prechecks activation/pair state before settlement and rolls back all preparatory settlement on plan, affordability or late-CAS loss. Pair-row `availableAt` is authoritative when explicitly shortened. Current-life duplicates replay only the durable current receipt before mutable gates and display the matching current-life pair wait, or immediate availability after expiry/deletion.
@@ -70,8 +71,8 @@
 
 ## Key docs
 
-- `docs/tasks/0.3.12-varenyk-mancer-sated-support.md` — active version contract and pending manual QA.
-- `docs/qa/varenyk-mancer-sated-support-qa.md` — compact Telegram checklist; no fabricated results.
+- `docs/tasks/0.3.13-bugfix-release.md` — current patch-release contract.
+- `docs/qa/0.3.13-bugfix-release-qa.md` — compact Telegram regression checklist; no fabricated results.
 - `docs/design/game-design.md`, `docs/design/player-identity-abilities.md`, `docs/design/noncombat-techniques.md` — gameplay/design anchors.
 - `docs/design/achievements-catalog.md` — achievement catalog.
 - `docs/content/kvestarnia-lore-current-canon.md`, `src/content/loreBoard.ts` — current lore/reference surfaces.

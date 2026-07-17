@@ -548,7 +548,7 @@ function presentTrainingCounterFlavor(
     action: getMonsterCounterAction(lastTurn)
   });
 
-  return `<i>${escapeHtml(flavor.text)}</i>`;
+  return `<blockquote><i>${escapeHtml(flavor.text)}</i></blockquote>`;
 }
 
 function ratio(current: number, max: number): number {

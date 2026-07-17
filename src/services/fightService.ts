@@ -1880,7 +1880,12 @@ export class FightService {
     const baseMonster = options.target
       ? selectTargetedSoloFightMonster(characterSummary, this.rng, options.target)
       : selectSoloFightMonster(characterSummary, encounterRng, difficulty, recentMonsterIds);
-    const monster = applyPersistentFightDifficulty(baseMonster, characterSummary, difficulty);
+    const monster = applyPersistentFightEncounterScaling(
+      baseMonster,
+      characterSummary,
+      difficulty,
+      options.source ?? "normal"
+    );
     const enemyCount = options.enemyCount ?? threatDecision.enemyCount;
     const devThreatSecondEnemyLevelBonus = options.devBypassAvailability
       ? normalizeDevThreatSecondEnemyLevelBonus(options.devThreatSecondEnemyLevelBonus)
@@ -5171,6 +5176,23 @@ function applyPersistentFightDifficulty(
   });
 
   return level === baseMonster.level ? baseMonster : { ...baseMonster, level };
+}
+
+function applyPersistentFightEncounterScaling(
+  baseMonster: MonsterContent,
+  character: CharacterSummary,
+  difficulty: PersistentFightDifficultyConfig,
+  source: NonNullable<PersistentFightStartOptions["source"]>
+): MonsterContent {
+  const difficultyScaled = applyPersistentFightDifficulty(baseMonster, character, difficulty);
+
+  if (source !== "adventure" || difficulty.id !== "normal") {
+    return difficultyScaled;
+  }
+
+  const level = Math.max(1, Math.floor(character.level));
+
+  return level === difficultyScaled.level ? difficultyScaled : { ...difficultyScaled, level };
 }
 
 function applyThreatSecondEnemyLevelBonus(input: {

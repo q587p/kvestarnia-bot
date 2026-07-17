@@ -75,6 +75,10 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
+    ["v1:sh:bp", {}],
+    ["v1:sh:ba:12345678-1234-4234-9234-123456789abc", {}],
+    ["v1:sh:bd:12345678-1234-4234-9234-123456789abc", {}],
+    ["v1:sh:bt:12345678-1234-4234-9234-123456789abc:13", {}],
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],

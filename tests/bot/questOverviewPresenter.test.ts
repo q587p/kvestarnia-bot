@@ -422,6 +422,26 @@ describe("quest overview presenter", () => {
     expect(rows.map((row) => row.id)).not.toContain("cellar");
   });
 
+  it("spells out the beer-round and own-drink steps in the active Barrel quest", () => {
+    const rows = buildQuestOverviewRows(makeSnapshot({
+      barrelBeerTutorial: {
+        state: "in-progress",
+        character,
+        progress: {
+          ...barrelProgress(true),
+          beerRoundOffered: false,
+          beerDrunk: false,
+          activeBeer: false
+        }
+      }
+    }));
+    const body = rows.find((row) => row.id === "barrel-beer-tutorial")?.body;
+
+    expect(body).toContain(
+      "<i>Далі:</i> проведіть пінну формальність (виставте пиво всім і випийте своє)."
+    );
+  });
+
   it("shows available and paused grownup cellar stages in the quest overview", () => {
     const highLevel = characterAtLevel(13);
     const offeredRows = buildQuestOverviewRows(makeSnapshot({

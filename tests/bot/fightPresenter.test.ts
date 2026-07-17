@@ -369,9 +369,37 @@ describe("fight presenter", () => {
     const text = presentPersistentFight(result);
 
     expect(intro).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
-    expect(text).toContain("🧿 <i>Відплата за минулі пригоди:</i> монстр бʼється з поправкою на ремортну памʼять.");
+    expect(intro.match(/Відплата за минулі пригоди/gu)).toHaveLength(1);
+    expect(text).not.toContain("Відплата за минулі пригоди");
     expect(intro).not.toContain("Натиск Низу");
     expect(text).not.toContain("Натиск Низу");
+  });
+
+  it("shows adventure remort pressure once in the battle intro and only when applied", () => {
+    const buildResult = (remortCount: number) => ({
+      state: "persistent-active" as const,
+      character,
+      session: persistentSession({
+        source: "adventure",
+        life: { remortCount }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Борщовий слиз",
+        description: "Тестовий монстр.",
+        level: 7,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+    const unadjusted = buildResult(0);
+    const adjusted = buildResult(4);
+    const intro = presentPersistentFightIntro(adjusted);
+
+    expect(presentPersistentFightIntro(unadjusted)).not.toContain("ремортну памʼять");
+    expect(intro).toContain("🧿 Відплата за минулі пригоди: монстр бʼється з поправкою на ремортну памʼять.");
+    expect(intro.match(/ремортну памʼять/gu)).toHaveLength(1);
+    expect(presentPersistentFight(adjusted)).not.toContain("ремортну памʼять");
   });
 
   it("marks the reloaded living primary enemy as the target", () => {

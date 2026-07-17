@@ -266,11 +266,37 @@ describe("training doppelganger presenter", () => {
       reward: null
     });
 
-    expect(text).toContain("<i>");
-    expect(text).toContain("</i>");
+    expect(text).toContain("<blockquote><i>");
+    expect(text).toContain("</i></blockquote>");
     expect(text).toContain("Вміння 📄 <i>Форма 13-А</i>: влучає на 4 шкоди.");
     expect(text).not.toContain("undefined");
     expect(text).not.toContain("Останній хід");
+  });
+
+  it("escapes dynamic doppelganger comments inside a Telegram HTML block quote", () => {
+    const character = buildCharacter({ name: "Мандрівник <&>" });
+    const text = presentTrainingDoppelgangerTurn({
+      state: "updated",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 4,
+          monsterDamage: 2,
+          manaSpent: 0,
+          critical: false
+        }
+      }),
+      reward: null
+    });
+
+    expect(text).toContain("<blockquote><i>");
+    expect(text).toContain("Мандрівник &lt;&amp;&gt;");
+    expect(text).not.toContain("Мандрівник <&>");
+    expect(text.match(/<blockquote>/gu)).toHaveLength(1);
+    expect(text.match(/<\/blockquote>/gu)).toHaveLength(1);
   });
 
   it("uses stored random mage identity for counter flavor after a hero basic attack", () => {

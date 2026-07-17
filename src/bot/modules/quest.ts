@@ -8,6 +8,7 @@ PRESENCE_ADVENTURE_CHOICE,
 PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
 PRESENCE_ADVENTURE_SOLO_FIGHT,
 PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
+normalizePresenceLocationId,
 PRESENCE_LOCATION_KORCHMA_BAR,
 PRESENCE_LOCATION_KORCHMA_DEEP,
 PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
@@ -80,7 +81,8 @@ buildBarrelBeerTutorialKeyboard
 } from "../keyboards/barrelBeerTutorialKeyboard";
 import { buildFightingCornerQuestKeyboard } from "../keyboards/fightingCornerQuestKeyboard";
 import {
-buildPersistentFightResultKeyboard
+buildPersistentFightResultKeyboard,
+resolvePersistentFightPresenceLocation
 } from "../keyboards/fightKeyboard";
 import {
 buildEnterKorchmaKeyboard,
@@ -1026,11 +1028,14 @@ async function handleAdventureCallback(
       | null = null;
 
     if (result.fightHandoff) {
+      const originLocationId = normalizePresenceLocationId(
+        result.character.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+      );
       complicationFight = await services.fight.getOrStartPersistentFightForTelegramUser(
         telegramUserId,
         {
           source: "adventure",
-          originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+          originLocationId,
           difficulty: "normal",
           ...(result.fightEncounter
             ? { target: { monsterIds: [result.fightEncounter.monsterId] } }
@@ -1038,10 +1043,10 @@ async function handleAdventureCallback(
         }
       );
 
-      const handoffStarted =
-        complicationFight.state === "persistent-active" && complicationFight.started === true;
-
-      if (!handoffStarted) {
+      if (
+        complicationFight.state !== "persistent-active" ||
+        complicationFight.started !== true
+      ) {
         await services.adventure.rollbackCurrentAdventureClaimForTelegramUser(telegramUserId, result.claim);
         await safeAnswerCallbackQuery(ctx);
 
@@ -1050,7 +1055,7 @@ async function handleAdventureCallback(
           complicationFight.state === "persistent-terminal"
         ) {
           await markScenePresence(ctx, services.presence, {
-            locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+            locationId: resolvePersistentFightPresenceLocation(complicationFight.session),
             currentRaidId: null,
             currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
           });
@@ -1112,7 +1117,7 @@ async function handleAdventureCallback(
       }
 
       await markScenePresence(ctx, services.presence, {
-        locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
+        locationId: resolvePersistentFightPresenceLocation(complicationFight.session),
         currentRaidId: null,
         currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
       });
@@ -1136,22 +1141,17 @@ async function handleAdventureCallback(
     }
 
     if (complicationFight) {
-      if (
-        complicationFight.state === "persistent-active" ||
-        complicationFight.state === "persistent-terminal"
-      ) {
-        if (complicationFight.state === "persistent-active" && complicationFight.started) {
-          await ctx.reply(presentPersistentFightIntro(complicationFight), HTML_MESSAGE_OPTIONS);
-        }
-
-        await ctx.reply(presentPersistentFight(complicationFight), {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightResultKeyboard(
-            complicationFight.session,
-            complicationFight.character
-          )
-        });
+      if (complicationFight.started) {
+        await ctx.reply(presentPersistentFightIntro(complicationFight), HTML_MESSAGE_OPTIONS);
       }
+
+      await ctx.reply(presentPersistentFight(complicationFight), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightResultKeyboard(
+          complicationFight.session,
+          complicationFight.character
+        )
+      });
     }
     return;
   }

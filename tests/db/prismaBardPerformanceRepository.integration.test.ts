@@ -205,6 +205,9 @@ describe("PrismaBardPerformanceRepository integration", () => {
     expect(result.performance.housePayoutGold).toBe(0);
     expect(result.audience.map((notice) => notice.telegramUserId)).toEqual([162n]);
     expect(duplicate.state).toBe("live");
+    await expect(prisma.user.findUnique({ where: { id: "user-bard" } })).resolves.toMatchObject({
+      lastSeenLocationId: "location.korchma.front"
+    });
     await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
       gold: 10
     });
