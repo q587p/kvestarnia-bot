@@ -6991,9 +6991,16 @@ describe("scene callback HTML options", () => {
 
   it.each([
     ["front", "location.korchma.front"],
-    ["yard", "location.korchma.yard"]
+    ["yard", "location.korchma.yard"],
+    ["Quest Table", "location.korchma.quest_table"]
   ] as const)("keeps an adventure complication fight at the current %s location", async (_name, locationId) => {
-    const markAction = vi.fn(() => Promise.resolve());
+    let currentLocationId = locationId;
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if (input.locationId) {
+        currentLocationId = input.locationId;
+      }
+      return Promise.resolve();
+    });
     const getOrStartPersistentFightForTelegramUser = vi.fn(
       (_telegramUserId: bigint, options: { originLocationId: string }) => {
         const baseSession = persistentSessionWithOrigin(options.originLocationId);
@@ -7062,7 +7069,14 @@ describe("scene callback HTML options", () => {
           getOrStartPersistentFightForTelegramUser
         },
         presence: {
-          markAction
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: currentLocationId,
+              locationName: "Поточна місцина",
+              insideKorchma: true
+            })
         }
       })
     );
@@ -7080,6 +7094,14 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.solo-fight"
       })
     );
+    expect(currentLocationId).toBe(locationId);
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "sendMessage" &&
+          String(call.payload.text).includes("Ви спустилися до Сутеренів Корчми.")
+      )
+    ).toBe(false);
     expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
     const visibleRemortNotices = calls
       .filter((call) => call.method === "sendMessage")
