@@ -118,7 +118,6 @@ export async function sendDuelEntry(
     }
   }
 
-  await markDuelPresence(ctx, options.presence);
   await sendText(ctx, mode, presentDuelEntry(), "entry");
 }
 
@@ -224,9 +223,6 @@ export async function handleDuelCallback(
       ...(mode === "turn-based" ? { mode } : {})
     });
     const inviteUrl = getInviteUrl(options.botUsername, result);
-    if (result.state !== "resource-warning") {
-      await markDuelPresence(ctx, options.presence);
-    }
     await answerCallback();
     await sendText(
       ctx,
@@ -476,10 +472,6 @@ export async function handleDuelCallback(
     }
 
     const inviteUrl = getInviteUrl(options.botUsername, result);
-
-    if (result.state === "pending") {
-      await markDuelPresence(ctx, options.presence);
-    }
 
     await answerCallback();
     await sendText(

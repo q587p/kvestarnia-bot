@@ -25,7 +25,6 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import {
   PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND,
-  PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -139,7 +138,7 @@ describe("presence middleware", () => {
     expect(createCount).toBe(0);
   });
 
-  it("creates a duel challenge from duel-new callbacks inside the korchma", async () => {
+  it("creates a duel challenge without moving presence before acceptance", async () => {
     const presence = new CapturingPresenceService();
     presence.currentPlace = {
       state: "ready",
@@ -158,12 +157,25 @@ describe("presence middleware", () => {
     await bot.handleUpdate(callbackUpdate(makeDuelNewCallbackData()));
 
     expect(createCount).toBe(1);
-    expect(presence.marks).toHaveLength(1);
-    expect(presence.marks[0]).toMatchObject({
-      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("opens /duel without moving presence before acceptance", async () => {
+    const presence = new CapturingPresenceService();
+    presence.currentPlace = {
+      state: "ready",
+      locationId: PRESENCE_LOCATION_KORCHMA_HALL,
+      locationName: "Зала корчми",
+      insideKorchma: true
+    };
+    const bot = createTestBot(presence, {
+      duel: duelServiceWithCreateCounter()
     });
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("/duel"));
+
+    expect(presence.marks).toEqual([]);
   });
 
   it("does not teleport presence to the quest table when an outside duel-new callback is blocked", async () => {

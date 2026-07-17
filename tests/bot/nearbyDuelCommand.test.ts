@@ -21,6 +21,7 @@ describe("handleNearbyDuelCallback", () => {
       expiresAt: EXPIRES_AT,
       now: NOW
     });
+    const markAction = vi.fn().mockResolvedValue(undefined);
     const { ctx, editMessageText, sendMessage } = createCallbackContext(42);
 
     await handleNearbyDuelCallback(
@@ -33,7 +34,7 @@ describe("handleNearbyDuelCallback", () => {
         page: 0
       },
       {
-        presence: createPresence(),
+        presence: createPresence(markAction),
         duel: {
           createTargetedChallengeForTelegramUser
         } as unknown as DuelChallengeService
@@ -62,6 +63,7 @@ describe("handleNearbyDuelCallback", () => {
     expect(notificationKeyboard).not.toContain("🤝 Прийняти");
     expect(notificationKeyboard).toContain("v1:duel:accept:abcDEF12");
     expect(notificationKeyboard).not.toContain("v1:duel:cancel:abcDEF12");
+    expect(markAction).not.toHaveBeenCalled();
   });
 
   it("shows resource warning before creating the targeted invite", async () => {
@@ -136,8 +138,9 @@ function createCallbackContext(userId: number): {
   return { ctx, editMessageText, sendMessage };
 }
 
-function createPresence(): PresenceService {
+function createPresence(markAction = vi.fn().mockResolvedValue(undefined)): PresenceService {
   return {
+    markAction,
     getNearbyDuelCandidatesForTelegramUser: vi.fn().mockResolvedValue({
       state: "ready",
       location: {

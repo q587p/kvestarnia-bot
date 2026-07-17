@@ -27,10 +27,11 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       createOpenChallengeForTelegramUser
     });
+    const markAction = vi.fn().mockResolvedValue(undefined);
     const { ctx, editMessageText, reply } = createCallbackContext(42);
 
     await handleDuelCallback(ctx, { type: "new" }, service, {
-      presence: createPresence(),
+      presence: createPresence(markAction),
       botUsername: "kvestarnia_dev_bot"
     });
 
@@ -56,6 +57,7 @@ describe("handleDuelCallback", () => {
     expect(reply.mock.calls[0]?.[1]).toMatchObject({ parse_mode: "HTML" });
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("🎲 Інший текст");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain(`v1:duel:inv:${TOKEN}:`);
+    expect(markAction).not.toHaveBeenCalled();
   });
 
   it("explains missing bot username instead of silently hiding the invite link", async () => {
@@ -1334,7 +1336,7 @@ describe("handleDuelCallback", () => {
       contextChatId: -100n,
       ignoreResourceWarning: false
     });
-    expect(markAction).toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
     expect(messageText(editMessageText)).toContain("Виклик уже на столі");
     expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
     expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");

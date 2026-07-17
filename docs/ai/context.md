@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.13` — location-safe Bard/quest encounters, role-correct non-mutating duel cards with idempotent ordered turn-duel startup, formatted Fighting Corner rules, crossed-out quest checklists, shared readable completed-reward paragraphs and exact-once achievement-aware Nyz search material finds.
+- Current version: `0.3.13` — location-safe Bard/quest encounters, location-neutral pending duel cards with role-correct controls and idempotent ordered final startup, formatted Fighting Corner rules, crossed-out quest checklists, shared readable completed-reward paragraphs and exact-once achievement-aware Nyz search material finds.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
