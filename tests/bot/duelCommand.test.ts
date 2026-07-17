@@ -498,6 +498,8 @@ describe("handleDuelCallback", () => {
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept-risk:${TOKEN}`);
     expect(keyboardJson(editMessageText)).toContain(`v1:duel:decline:${TOKEN}`);
     expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:rematch:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain("🤝 Так, прийняти");
+    expect(keyboardJson(editMessageText)).not.toContain("📖 Детальніше");
   });
 
   it("lets a confirmed accept resolve the card", async () => {

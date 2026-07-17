@@ -110,8 +110,8 @@ export function presentNearbyDuelTargetNotification(
     `Запрошує: ${presentCharacterDisplayName(result.challenger)} · ${escapeHtml(result.challenger.title)} · рівень ${result.challenger.level}`,
     "",
     result.challenge.mode === "turn-based"
-      ? "Покрокова дуель: гравці таємно обирають дії за раунд."
-      : "Миттєва дуель: результат з’явиться після згоди.",
+      ? "Покрокова дуель: таємні дії за раунд; початок — після остаточної згоди в деталях."
+      : "Миттєва дуель: результат з’явиться після остаточної згоди в деталях.",
     "",
     result.challenge.mode === "turn-based"
       ? "Трохи досвіду за час у протоколі; без золота, ставок і втрат манаток."

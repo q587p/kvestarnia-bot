@@ -51,8 +51,14 @@ describe("handleNearbyDuelCallback", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(77);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Вам кинули виклик");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:duel:accept:abcDEF12");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain("v1:duel:cancel:abcDEF12");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("після остаточної згоди в деталях");
+    const notificationKeyboard = JSON.stringify(sendMessage.mock.calls[0]?.[2]);
+    expect(notificationKeyboard).toContain("📖 Детальніше");
+    expect(notificationKeyboard).toContain("🙅 Відмовитись");
+    expect(notificationKeyboard).toContain("🔄 Оновити");
+    expect(notificationKeyboard).not.toContain("🤝 Прийняти");
+    expect(notificationKeyboard).toContain("v1:duel:accept:abcDEF12");
+    expect(notificationKeyboard).not.toContain("v1:duel:cancel:abcDEF12");
   });
 
   it("shows resource warning before creating the targeted invite", async () => {

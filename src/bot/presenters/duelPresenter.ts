@@ -327,7 +327,7 @@ function presentPendingDuel(
       : "Результат з’явиться одразу після згоди.",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
-    `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
+    `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має відкрити деталі й дати остаточну згоду.`,
     result.challenge.mode === "turn-based"
       ? "За покрокову дуель лишиться трохи досвіду. Ставок, золота й втрат немає."
       : "Нагород, ставок і втрат немає: це безпечний запис бійцівського кутка."
