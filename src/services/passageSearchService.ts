@@ -13,7 +13,12 @@ import {
 } from "../domain/passageSearch";
 import type { PassageSearchActionRecord, PassageSearchRepository } from "../db/repositories/passageSearchRepository";
 import type { PersistentFightDifficultyId, PersistentFightPassageAttackResult, FightService } from "./fightService";
-import { BANDAGE_ITEM_ID, enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
+import {
+  BANDAGE_ITEM_ID,
+  enrichRewardItemGrants,
+  ISKROKAMIN_ITEM_ID,
+  type RewardItemGrant
+} from "./itemGrant";
 import {
   PRESENCE_LOCATION_KORCHMA_DEEP,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1,
@@ -426,7 +431,8 @@ export class PassageSearchService {
       snapshot: action.payload,
       modifiers,
       rng: seeded,
-      bandageItemId: BANDAGE_ITEM_ID
+      bandageItemId: BANDAGE_ITEM_ID,
+      iskrokaminItemId: ISKROKAMIN_ITEM_ID
     });
     const result = isEmptyPassageSearchLoot(loot)
       ? { outcome: "nothing" as const, loot }

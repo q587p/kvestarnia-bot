@@ -4,6 +4,7 @@ import type {
   PassageSearchStartResult
 } from "../../services/passageSearchService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1 } from "../../services/presenceService";
+import { presentRewardItemBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 type SearchResult = PassageSearchStartResult | PassageSearchCheckResult | PassageSearchCancelPreviewResult;
@@ -119,8 +120,12 @@ function presentLootLines(loot: { gold: number; itemGrants: Array<{ name: string
     lines.push(`💰 Золото: <b>${loot.gold}</b>`);
   }
 
-  for (const grant of loot.itemGrants) {
-    lines.push(`🎒 ${escapeHtml(grant.name)}${grant.quantity > 1 ? ` ×${grant.quantity}` : ""}`);
+  const itemBlock = presentRewardItemBlock(loot.itemGrants.map((grant) => ({
+    name: escapeHtml(grant.name),
+    quantity: grant.quantity
+  })));
+  if (itemBlock.length > 0) {
+    lines.push(...(lines.length > 0 ? itemBlock : itemBlock.slice(1)));
   }
 
   return lines.length > 0 ? lines : ["Здобич: нічого, але з характером."];

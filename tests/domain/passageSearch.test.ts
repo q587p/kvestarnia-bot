@@ -9,6 +9,7 @@ import {
   rollPassageSearchLoot,
   SEARCH_NODE_COOLDOWN_MS
 } from "../../src/domain/passageSearch";
+import { FakeRandomSource } from "../../src/shared/random";
 
 describe("passage search domain", () => {
   it("keeps the MVP timers in one place", () => {
@@ -54,15 +55,32 @@ describe("passage search domain", () => {
     const loot = rollPassageSearchLoot({
       snapshot: { nodeKind: "location", searchTier: 0 },
       modifiers: getPassageSearchModifiers({ luck: 0 }),
-      rng: {
-        nextFloat: () => 0,
-        nextInt: (_min, max) => max
-      },
-      bandageItemId: "item.responsible-panic-bandage"
+      rng: new FakeRandomSource([0, 0, 0.999, 0, 0.5]),
+      bandageItemId: "item.responsible-panic-bandage",
+      iskrokaminItemId: "item.iskrokamin"
     });
 
     expect(loot.gold).toBeLessThanOrEqual(2);
-    expect(loot.itemGrants).toEqual([{ itemId: "item.responsible-panic-bandage", quantity: 1 }]);
+    expect(loot.itemGrants).toEqual([{
+      itemId: "item.responsible-panic-bandage",
+      quantity: 1
+    }]);
+  });
+
+  it("rarely replaces a found bandage slot with Iskrokamin without adding a second item", () => {
+    const loot = rollPassageSearchLoot({
+      snapshot: { nodeKind: "location", searchTier: 0 },
+      modifiers: getPassageSearchModifiers({ luck: 0 }),
+      rng: new FakeRandomSource([0, 0, 0.999, 0, 0]),
+      bandageItemId: "item.responsible-panic-bandage",
+      iskrokaminItemId: "item.iskrokamin"
+    });
+
+    expect(loot.itemGrants).toEqual([{ itemId: "item.iskrokamin", quantity: 1 }]);
+    expect(loot.itemGrants).not.toContainEqual({
+      itemId: "item.responsible-panic-bandage",
+      quantity: 1
+    });
   });
 
   it("can represent an empty result without grants", () => {

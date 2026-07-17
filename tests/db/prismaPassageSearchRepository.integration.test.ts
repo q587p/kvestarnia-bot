@@ -135,7 +135,7 @@ describe("PrismaPassageSearchRepository integration", () => {
     });
   });
 
-  it("grants loot once and replays duplicate resolution without a second mutation", async () => {
+  it("grants Iskrokamin loot once and replays duplicate resolution without a second mutation", async () => {
     await seedCharacter();
     const now = new Date("2026-06-26T10:00:00.000Z");
     await startSearch("loottoken1", now, new Date("2026-06-26T10:13:00.000Z"));
@@ -144,17 +144,17 @@ describe("PrismaPassageSearchRepository integration", () => {
       now: new Date("2026-06-26T10:01:00.000Z"),
       result: {
         outcome: "loot",
-        loot: { gold: 3, itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }] }
+        loot: { gold: 3, itemGrants: [{ itemId: "item.iskrokamin", quantity: 1 }] }
       },
-      loot: { gold: 3, itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }] }
+      loot: { gold: 3, itemGrants: [{ itemId: "item.iskrokamin", quantity: 1 }] }
     });
     const replay = await repository.resolveByTokenForTelegramUser(telegramUserId, "loottoken1", {
       now: new Date("2026-06-26T10:02:00.000Z"),
       result: {
         outcome: "loot",
-        loot: { gold: 99, itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 9 }] }
+        loot: { gold: 99, itemGrants: [{ itemId: "item.iskrokamin", quantity: 9 }] }
       },
-      loot: { gold: 99, itemGrants: [{ itemId: "item.responsible-panic-bandage", quantity: 9 }] }
+      loot: { gold: 99, itemGrants: [{ itemId: "item.iskrokamin", quantity: 9 }] }
     });
 
     expect(first).toMatchObject({ state: "resolved", action: { status: "resolved" } });
@@ -164,7 +164,7 @@ describe("PrismaPassageSearchRepository integration", () => {
       where: {
         characterId_itemId: {
           characterId,
-          itemId: "item.responsible-panic-bandage"
+          itemId: "item.iskrokamin"
         }
       }
     })).resolves.toMatchObject({ quantity: 1 });

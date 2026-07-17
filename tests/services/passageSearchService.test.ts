@@ -252,6 +252,37 @@ describe("PassageSearchService", () => {
     expect(repo.action.result?.outcome).not.toBe("monster-attack");
   });
 
+  it("replays stored Iskrokamin search loot with its canonical item name", async () => {
+    const repo = new FakePassageSearchRepository();
+    const fight = new FakeFightService();
+    const service = new PassageSearchService(repo, fight as never, () => now);
+    repo.action = makeAction({
+      token: "iskro1",
+      status: "resolved",
+      endsAt: new Date(now.getTime() - 1),
+      payload: makeSnapshot()
+    });
+    repo.action.result = {
+      outcome: "loot",
+      loot: {
+        gold: 1,
+        itemGrants: [{ itemId: "item.iskrokamin", quantity: 1 }]
+      }
+    };
+
+    await expect(service.checkSearch(telegramUserId, "iskro1")).resolves.toMatchObject({
+      state: "completed",
+      loot: {
+        gold: 1,
+        itemGrants: [{
+          itemId: "item.iskrokamin",
+          name: "Іскрокамінь",
+          quantity: 1
+        }]
+      }
+    });
+  });
+
   it("keeps risky danger tied to the frozen encounter and skips the first hero turn", async () => {
     const repo = new FakePassageSearchRepository();
     const fight = new FakeFightService();
