@@ -572,7 +572,11 @@ describe("handleDuelCallback", () => {
 
   it("sends a separate turn-based duel intro when accepting starts active combat", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
-    const activeSession = makeTurnBasedSession("active", target);
+    const activeSession = {
+      ...makeTurnBasedSession("active", target),
+      challengerChatId: 42n,
+      challengerMessageId: 77
+    };
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "active",
       transitioned: true,
@@ -591,21 +595,52 @@ describe("handleDuelCallback", () => {
       acceptForTelegramUser,
       recordTurnBasedMessageReference
     });
-    const { ctx, answerCallbackQuery, editMessageText, reply, sendMessage } = createCallbackContext(99, "private");
+    const markAction = vi.fn().mockResolvedValue(undefined);
+    const presence = createPresence(markAction, {
+      locationId: "location.korchma.hall",
+      locationName: "Зала корчми",
+      insideKorchma: true
+    });
+    const {
+      ctx,
+      answerCallbackQuery,
+      apiEditMessageReplyMarkup,
+      apiEditMessageText,
+      editMessageReplyMarkup,
+      editMessageText,
+      reply,
+      sendMessage
+    } = createCallbackContext(99, "private");
 
     await handleDuelCallback(ctx, { type: "accept", token: TOKEN }, service, {
-      presence: createPresence()
+      presence
     });
 
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
-    expect(reply).toHaveBeenCalledTimes(1);
-    expect(String(reply.mock.calls[0]?.[0])).toContain("♟️ <b>Покрокова дуель</b>");
-    expect(String(reply.mock.calls[0]?.[0])).toContain("Перший кухоль: <b>Автор Виклику</b>");
-    expect(String(reply.mock.calls[0]?.[0])).toContain("Другий кухоль: <b>Ціль Виклику</b>");
-    expect(String(reply.mock.calls[0]?.[0])).toContain("<i>Порада дня:");
-    expect(messageText(editMessageText)).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
-    expect(messageText(editMessageText)).not.toContain("Порада дня:");
+    expect(markAction).toHaveBeenCalledWith(expect.objectContaining({
+      locationId: "location.korchma.fighting_corner"
+    }));
+    expect(editMessageReplyMarkup).toHaveBeenCalledWith({
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledTimes(3);
+    expect(String(reply.mock.calls[0]?.[0])).toBe("Ви рушили до бійцівського кутка.");
+    expect(String(reply.mock.calls[1]?.[0])).toContain("♟️ <b>Покрокова дуель</b>");
+    expect(String(reply.mock.calls[1]?.[0])).toContain("Перший кухоль: <b>Автор Виклику</b>");
+    expect(String(reply.mock.calls[1]?.[0])).toContain("Другий кухоль: <b>Ціль Виклику</b>");
+    expect(String(reply.mock.calls[1]?.[0])).toContain("<i>Порада дня:");
+    expect(String(reply.mock.calls[2]?.[0])).toContain("♟️ <b>Покрокова дуель: хід 2</b>");
+    expect(String(reply.mock.calls[2]?.[0])).not.toContain("Порада дня:");
     expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(apiEditMessageReplyMarkup).toHaveBeenCalledWith(42, 77, {
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+    expect(apiEditMessageText).not.toHaveBeenCalled();
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("♟️ <b>Покрокова дуель</b>");
     expect(sendMessage.mock.calls[1]?.[0]).toBe(42);
@@ -1178,15 +1213,19 @@ describe("handleDuelCallback", () => {
 function createCallbackContext(userId: number, chatType: "private" | "group" | "supergroup" = "group"): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
+  editMessageReplyMarkup: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
   apiEditMessageText: ReturnType<typeof vi.fn>;
+  apiEditMessageReplyMarkup: ReturnType<typeof vi.fn>;
   reply: ReturnType<typeof vi.fn>;
   sendMessage: ReturnType<typeof vi.fn>;
 } {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+  const editMessageReplyMarkup = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn().mockResolvedValue(true);
   const apiEditMessageText = vi.fn().mockResolvedValue(true);
-  const reply = vi.fn().mockResolvedValue(true);
+  const apiEditMessageReplyMarkup = vi.fn().mockResolvedValue(true);
+  const reply = vi.fn().mockResolvedValue({ message_id: 321 });
   const sendMessage = vi.fn().mockResolvedValue({ message_id: 123 });
   const chatId = chatType === "private" ? userId : -100;
   const ctx = {
@@ -1210,15 +1249,26 @@ function createCallbackContext(userId: number, chatType: "private" | "group" | "
       }
     },
     api: {
+      editMessageReplyMarkup: apiEditMessageReplyMarkup,
       editMessageText: apiEditMessageText,
       sendMessage
     },
     answerCallbackQuery,
+    editMessageReplyMarkup,
     editMessageText,
     reply
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText, apiEditMessageText, reply, sendMessage };
+  return {
+    ctx,
+    answerCallbackQuery,
+    editMessageReplyMarkup,
+    editMessageText,
+    apiEditMessageText,
+    apiEditMessageReplyMarkup,
+    reply,
+    sendMessage
+  };
 }
 
 function createPresence(

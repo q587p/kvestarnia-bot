@@ -54,6 +54,10 @@ import { presentAchievementUnlockNotification } from "../presenters/achievementP
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { isMessageNotModifiedError, safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
+import {
+  getCallbackPreviousMainMenuLocationId,
+  refreshCallbackMainMenuLocationBeforeReplies
+} from "../modules/mainMenu";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -251,6 +255,7 @@ export async function handleDuelCallback(
   }
 
   if (callback.type === "accept" || callback.type === "accept-risk") {
+    const previousLocationId = await getCallbackPreviousMainMenuLocationId(ctx, options.presence);
     const result = await service.acceptForTelegramUser(telegramUserId, callback.token, {
       confirmed: callback.type === "accept-risk",
       ignoreResourceWarning: callback.type === "accept-risk"
@@ -276,9 +281,18 @@ export async function handleDuelCallback(
     await answerCallback();
     if (result.state === "active") {
       if (result.transitioned) {
+        await markDuelPresence(ctx, options.presence);
+        await refreshCallbackMainMenuLocationBeforeReplies(
+          ctx,
+          PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+          previousLocationId
+        );
+        await clearCurrentDuelCallbackKeyboard(ctx);
         await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+        await sendTurnBasedDuelCard(ctx, "reply", result, service);
+      } else {
+        await sendTurnBasedDuelCard(ctx, "edit", result, service);
       }
-      await sendTurnBasedDuelCard(ctx, "edit", result, service);
       if (result.transitioned) {
         await notifyTurnBasedParticipants(ctx, result, service, { includeIntro: true });
       }
@@ -758,6 +772,7 @@ async function notifyTurnBasedParticipant(
 
   try {
     if (options.includeIntro) {
+      await clearRemoteTurnBasedDuelKeyboard(ctx, chatId, participant.messageId ?? null);
       await ctx.api.sendMessage(Number(chatId), presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
     }
 
@@ -771,15 +786,18 @@ async function notifyTurnBasedParticipant(
       `${skill.icon} ${skill.name}`
     );
 
-    const messageId = await editOrSendTurnBasedCard(ctx, {
-      chatId,
-      messageId: participant.messageId ?? null,
-      text,
-      options: {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: keyboard
-      }
-    });
+    const cardOptions = {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: keyboard
+    };
+    const messageId = options.includeIntro
+      ? (await ctx.api.sendMessage(Number(chatId), text, cardOptions)).message_id
+      : await editOrSendTurnBasedCard(ctx, {
+          chatId,
+          messageId: participant.messageId ?? null,
+          text,
+          options: cardOptions
+        });
 
     if (messageId) {
       await service.recordTurnBasedMessageReference(result.session.id, participant.participant, {
@@ -794,6 +812,38 @@ async function notifyTurnBasedParticipant(
     );
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
+  }
+}
+
+async function clearCurrentDuelCallbackKeyboard(ctx: Context): Promise<void> {
+  try {
+    await ctx.editMessageReplyMarkup({
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+  } catch {
+    // The duel is already active; a stale source keyboard is safe to leave if Telegram rejects the cleanup.
+  }
+}
+
+async function clearRemoteTurnBasedDuelKeyboard(
+  ctx: Context,
+  chatId: bigint,
+  messageId: number | null
+): Promise<void> {
+  if (!messageId) {
+    return;
+  }
+
+  try {
+    await ctx.api.editMessageReplyMarkup(Number(chatId), messageId, {
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+  } catch {
+    // The new intro and combat card remain deliverable even when the old keyboard cannot be cleared.
   }
 }
 

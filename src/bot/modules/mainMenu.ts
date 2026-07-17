@@ -231,6 +231,13 @@ async function buildCurrentMainMenuKeyboardWithQuestMarkers(
   });
 }
 
+interface CallbackMainMenuLocationRefreshState {
+  previousLocationId: string | null;
+  handled: boolean;
+}
+
+const callbackMainMenuLocationRefreshState = new WeakMap<Context, CallbackMainMenuLocationRefreshState>();
+
 export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceService: PresenceService): void {
   bot.on("callback_query:data", async (ctx, next) => {
     const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
@@ -255,17 +262,56 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
+    if (previousLocationId !== undefined) {
+      callbackMainMenuLocationRefreshState.set(ctx, {
+        previousLocationId,
+        handled: false
+      });
+    }
+
     await next();
 
     if (previousLocationId === undefined) {
       return;
     }
 
-    if (!suppressMovementNotice) {
+    const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+
+    if (!suppressMovementNotice && refreshState?.handled !== true) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, presenceService, {
         previousLocationId
       });
     }
+  });
+}
+
+export async function getCallbackPreviousMainMenuLocationId(
+  ctx: Context,
+  presenceService: PresenceService
+): Promise<string | null | undefined> {
+  const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+
+  return refreshState
+    ? refreshState.previousLocationId
+    : getCurrentMainMenuLocationId(ctx, presenceService);
+}
+
+export async function refreshCallbackMainMenuLocationBeforeReplies(
+  ctx: Context,
+  locationId: string | null,
+  previousLocationId: string | null | undefined
+): Promise<void> {
+  const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+  if (refreshState) {
+    refreshState.handled = true;
+  }
+
+  if (previousLocationId === undefined) {
+    return;
+  }
+
+  await refreshMainMenuLocationKeyboard(ctx, locationId, {
+    previousLocationId
   });
 }
 
