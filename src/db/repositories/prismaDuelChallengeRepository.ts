@@ -17,13 +17,36 @@ import type {
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
+import {
+  getCombatMantokAbilityGrantsForEquippedItems,
+  items,
+  resolveActiveCosmeticTitleLabel
+} from "../../content";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CharacterStats, StatKey } from "../../domain/characters/starterStats";
 import type { CombatGearAbilityInput, CombatSkillProfile } from "../../domain/combat";
-import type { TurnBasedDuelState, TurnBasedDuelStatus } from "../../domain/duels/turnBasedDuel";
+import type { DuelistSummary } from "../../domain/duels/duelResolver";
+import {
+  startTurnBasedDuel,
+  type TurnBasedDuelState,
+  type TurnBasedDuelStatus
+} from "../../domain/duels/turnBasedDuel";
+import {
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+  getActiveEquipmentRows
+} from "../../domain/equipment/equipmentAttunement";
+import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
+import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { CryptoRandomSource, type RandomSource } from "../../shared/random";
+import {
+  freezeVarenykSatedFromCooldown,
+  releaseVarenykSatedCombatLease,
+  VarenykSatedCasError
+} from "./prismaVarenykSated";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
@@ -33,7 +56,8 @@ type DuelCombatSessionWithChallenge =
 export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   async createOpenForTelegramUser(
@@ -170,7 +194,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
   }
 
-  async findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
+  async findCharacterByTelegramUser(
+    telegramUserId: bigint,
+    equipmentAt?: Date
+  ): Promise<DuelCharacterSnapshot | null> {
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -180,7 +207,29 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       ...characterInclude
     });
 
-    return character ? mapCharacter(character) : null;
+    if (!character) {
+      return null;
+    }
+
+    const localDates = equipmentAt
+      ? character.equipment.map((row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`)
+      : [];
+    const attunementPayloads = localDates.length > 0
+      ? await this.prisma.dailyAction.findMany({
+          where: {
+            characterId: character.id,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: { in: localDates }
+          },
+          select: { resultJson: true }
+        })
+      : [];
+
+    return mapCharacter(
+      character,
+      equipmentAt,
+      attunementPayloads.map((row) => row.resultJson)
+    );
   }
 
   async markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null> {
@@ -397,9 +446,109 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         data: participantIds.map((characterId) => ({
           characterId,
           kind: "turn-based-duel",
-          referenceId: sessionId
+          referenceId: sessionId,
+          createdAt: now,
+          updatedAt: now
         }))
       });
+
+      const canonicalParticipants = {} as Record<
+        "challenger" | "target",
+        { duelist: DuelistSummary; sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]> }
+      >;
+      for (const side of ["challenger", "target"] as const) {
+        const participantId = side === "challenger"
+          ? challenge.challengerCharacterId
+          : target.id;
+        const canonical = await tx.character.findUnique({
+          where: { id: participantId },
+          include: {
+            equipment: true,
+            _count: { select: { remorts: true } }
+          }
+        });
+        if (!canonical) {
+          throw new VarenykSatedCasError("duel-character-missing");
+        }
+        const remortCount = getIncludedRemortCount(canonical);
+        const natural = await getDuelCanonicalPreparation(tx, canonical, remortCount, now);
+        const sated = await freezeVarenykSatedFromCooldown({
+          tx,
+          characterId: participantId,
+          remortCount,
+          resources: {
+            hp: natural.duelist.hpCurrent,
+            hpMax: natural.duelist.hpMax,
+            mana: natural.duelist.manaCurrent,
+            manaMax: natural.duelist.manaMax
+          },
+          now
+        });
+        const hpRegenAt = sated.hpRestored > 0 && sated.resources.hp >= sated.resources.hpMax
+          ? now
+          : natural.hpRegenAt;
+        const manaRegenAt = sated.manaRestored > 0 && sated.resources.mana >= sated.resources.manaMax
+          ? now
+          : natural.manaRegenAt;
+        const resourcesChanged =
+          sated.resources.hp !== canonical.hpCurrent ||
+          sated.resources.mana !== canonical.manaCurrent ||
+          hpRegenAt.getTime() !== canonical.hpRegenAt?.getTime() ||
+          manaRegenAt.getTime() !== canonical.manaRegenAt?.getTime();
+        if (resourcesChanged) {
+          const persisted = await tx.character.updateMany({
+            where: {
+              id: participantId,
+              hpCurrent: canonical.hpCurrent,
+              manaCurrent: canonical.manaCurrent,
+              hpRegenAt: canonical.hpRegenAt,
+              manaRegenAt: canonical.manaRegenAt,
+              updatedAt: canonical.updatedAt
+            },
+            data: {
+              hpCurrent: sated.resources.hp,
+              manaCurrent: sated.resources.mana,
+              hpRegenAt,
+              manaRegenAt
+            }
+          });
+          if (persisted.count !== 1) {
+            throw new VarenykSatedCasError("duel-character-resources");
+          }
+          if (
+            natural.passiveResourceChanged &&
+            natural.duelist.hpCurrent >= natural.duelist.hpMax
+          ) {
+            await this.hpRecoveryProducer.record(
+              tx,
+              participantId,
+              natural.hpRegenAt,
+              "suppress",
+              { errorCode: "lazy-sync-full" }
+            );
+          }
+        }
+        canonicalParticipants[side] = {
+          duelist: {
+            ...natural.duelist,
+            hpCurrent: sated.resources.hp,
+            manaCurrent: sated.resources.mana
+          },
+          ...(sated.sated ? { sated: sated.sated } : {})
+        };
+      }
+
+      const state = startTurnBasedDuel({
+        challenger: canonicalParticipants.challenger.duelist,
+        target: canonicalParticipants.target.duelist,
+        rng: this.rng
+      });
+      for (const side of ["challenger", "target"] as const) {
+        const sated = canonicalParticipants[side].sated;
+        if (sated) {
+          state.participants[side].varenykSated = sated;
+        }
+      }
 
       const record = await tx.duelCombatSession.create({
         data: {
@@ -408,9 +557,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           challengerCharacterId: challenge.challengerCharacterId,
           targetCharacterId: target.id,
           status: "active",
-          actingCharacterId: input.state.actingCharacterId,
-          stateJson: input.state as unknown as Prisma.InputJsonValue,
-          turn: input.state.turn,
+          actingCharacterId: state.actingCharacterId,
+          stateJson: state as unknown as Prisma.InputJsonValue,
+          turn: state.turn,
           version: 1,
           turnExpiresAt: input.turnExpiresAt,
           targetChatId: input.targetChatId ?? null,
@@ -656,7 +805,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             );
           }
 
-          await tx.activeCombatLease.deleteMany({
+          const leases = await tx.activeCombatLease.findMany({
             where: {
               characterId: {
                 in: [current.challengerCharacterId, current.targetCharacterId]
@@ -665,6 +814,16 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               referenceId: sessionId
             }
           });
+          for (const lease of leases) {
+            const participant = Object.values(input.state.participants)
+              .find((entry) => entry.characterId === lease.characterId);
+            await releaseVarenykSatedCombatLease({
+              tx,
+              lease,
+              releasedAt: input.completedAt ?? input.now,
+              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+            });
+          }
         }
       }
 
@@ -778,12 +937,23 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           }
         });
 
-        await tx.activeCombatLease.deleteMany({
+        const repairLeases = await tx.activeCombatLease.findMany({
           where: {
             kind: "turn-based-duel",
             referenceId: session.id
           }
         });
+        for (const lease of repairLeases) {
+          const participant = state
+            ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
+            : undefined;
+          await releaseVarenykSatedCombatLease({
+            tx,
+            lease,
+            releasedAt: now,
+            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+          });
+        }
       });
 
       repairedSessions += 1;
@@ -819,18 +989,18 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         continue;
       }
 
-      const deleted = await this.prisma.activeCombatLease.deleteMany({
-        where: {
-          id: lease.id,
-          kind: "turn-based-duel"
-        }
+      const deleted = await this.prisma.$transaction(async (tx) => {
+        const released = await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
+        return { count: released ? 1 : 0 };
       });
       removedOrphanLeases += deleted.count;
-      console.warn("Квестарня: removed orphan turn-based duel lease.", {
-        leaseId: lease.id,
-        characterId: lease.characterId,
-        referenceId: lease.referenceId
-      });
+      if (deleted.count === 1) {
+        console.warn("Квестарня: removed orphan turn-based duel lease.", {
+          leaseId: lease.id,
+          characterId: lease.characterId,
+          referenceId: lease.referenceId
+        });
+      }
     }
 
     return { repairedSessions, removedOrphanLeases };
@@ -850,6 +1020,85 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
     });
   }
+}
+
+async function getDuelCanonicalPreparation(
+  tx: Prisma.TransactionClient,
+  canonical: Character & { equipment: CharacterEquipment[]; _count: { remorts: number } },
+  remortCount: number,
+  now: Date
+): Promise<{
+  duelist: DuelistSummary;
+  hpRegenAt: Date;
+  manaRegenAt: Date;
+  passiveResourceChanged: boolean;
+}> {
+  const localDates = canonical.equipment.map(
+    (row) => `${row.slot}:${row.id}:${row.updatedAt.getTime()}`
+  );
+  const actions = localDates.length > 0
+    ? await tx.dailyAction.findMany({
+        where: {
+          characterId: canonical.id,
+          key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+          localDate: { in: localDates }
+        },
+        select: { resultJson: true }
+      })
+    : [];
+  const actionPayloads = actions.map((row) => row.resultJson);
+  const activeEquipment = getActiveEquipmentRows({
+    rows: canonical.equipment,
+    actionPayloads,
+    now
+  });
+  const equippedItems = activeEquipment.flatMap((row) => {
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const { equipment, _count, ...record } = canonical;
+  void equipment;
+  void _count;
+  const summary = summarizeCharacter({
+    ...record,
+    currentLocationId: null,
+    remortCount
+  }, { equippedItems, remortCount });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: canonical.hpRegenAt,
+      manaRegenAt: canonical.manaRegenAt
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now
+  });
+  const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+    itemIds: activeEquipment.map((row) => row.itemId),
+    characterLevel: summary.level
+  }).map((grant) => grant.id);
+  const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(canonical.activeCosmeticTitleGrantId);
+  return {
+    duelist: {
+      ...summary,
+      id: canonical.id,
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
+      ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
+      ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
+    },
+    hpRegenAt: regeneration.resources.hpRegenAt ?? now,
+    manaRegenAt: regeneration.resources.manaRegenAt ?? now,
+    passiveResourceChanged: regeneration.changed
+  };
 }
 
 async function awardTurnBasedDuelXp(
@@ -1060,17 +1309,22 @@ function mapCharacter(
     user: { lastSeenLocationId: string | null; telegramUserId: bigint };
     equipment: CharacterEquipment[];
     _count?: { remorts?: number };
-  }
+  },
+  equipmentAt?: Date,
+  attunementPayloads: readonly unknown[] = []
 ): DuelCharacterSnapshot {
   const { user, equipment, ...character } = record;
   delete (character as { _count?: unknown })._count;
+  const activeEquipment = equipmentAt
+    ? getActiveEquipmentRows({ rows: equipment, actionPayloads: attunementPayloads, now: equipmentAt })
+    : equipment;
 
   return {
     ...character,
     telegramUserId: user.telegramUserId,
     currentLocationId: user.lastSeenLocationId,
     remortCount: getIncludedRemortCount(record),
-    equipment: equipment.map(mapEquipment)
+    equipment: activeEquipment.map(mapEquipment)
   };
 }
 
@@ -1254,6 +1508,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const equipmentAbilityGrantIds = hasOwn(value, "equipmentAbilityGrantIds")
     ? parseStringList(value.equipmentAbilityGrantIds)
     : undefined;
+  const varenykSated = hasOwn(value, "varenykSated")
+    ? parseVarenykSatedCombatState(value.varenykSated)
+    : undefined;
 
   if (
     !characterId ||
@@ -1275,7 +1532,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     cooldowns === null ||
     playerAbilityFumbles === null ||
     equipmentEffects === null ||
-    equipmentAbilityGrantIds === null
+    equipmentAbilityGrantIds === null ||
+    varenykSated === null
   ) {
     return null;
   }
@@ -1304,7 +1562,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     balanceAudit,
     ...(equipmentEffects ? { equipmentEffects } : {}),
-    ...(equipmentAbilityGrantIds ? { equipmentAbilityGrantIds } : {})
+    ...(equipmentAbilityGrantIds ? { equipmentAbilityGrantIds } : {}),
+    ...(varenykSated ? { varenykSated } : {})
   };
 }
 
@@ -1510,10 +1769,38 @@ function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | un
     : null;
 
   const parsedActions = actions?.filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null);
+  const varenykSatedAfter = parseTurnBasedSatedAfter(value.varenykSatedAfter);
 
-  return turn !== null && actions && parsedActions && parsedActions.length === actions.length
-    ? { turn, actions: parsedActions }
+  return turn !== null && actions && parsedActions && parsedActions.length === actions.length && varenykSatedAfter !== null
+    ? {
+        turn,
+        actions: parsedActions,
+        ...(varenykSatedAfter ? { varenykSatedAfter } : {})
+      }
     : null;
+}
+
+function parseTurnBasedSatedAfter(
+  value: unknown
+): NonNullable<NonNullable<TurnBasedDuelState["lastRound"]>["varenykSatedAfter"]> | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = value.challenger === null
+    ? null
+    : parseVarenykSatedCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
 }
 
 function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | null {
@@ -1527,6 +1814,7 @@ function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | 
   const guard = parseNonNegativeInt(value.guard);
   const manaSpent = parseNonNegativeInt(value.manaSpent);
   const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
+  const satedRecovery = parseTurnBasedSatedRecovery(value.satedRecovery);
   const action = isTurnBasedSummaryAction(value.action) ? value.action : null;
   const outcome = isTurnBasedSummaryOutcome(value.outcome) ? value.outcome : null;
 
@@ -1553,8 +1841,20 @@ function parseActionSummary(value: unknown): TurnBasedDuelState["lastAction"] | 
     manaSpent,
     critical: value.critical === true,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
-    ...(fumble ? { fumble } : {})
+    ...(fumble ? { fumble } : {}),
+    ...(satedRecovery ? { satedRecovery } : {})
   };
+}
+
+function parseTurnBasedSatedRecovery(
+  value: unknown
+): NonNullable<TurnBasedDuelState["lastAction"]>["satedRecovery"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const hpRestored = parseNonNegativeInt(value.hpRestored);
+  const manaRestored = parseNonNegativeInt(value.manaRestored);
+  return hpRestored !== null && manaRestored !== null ? { hpRestored, manaRestored } : null;
 }
 
 function parsePlayerAbilityFumbleSummary(

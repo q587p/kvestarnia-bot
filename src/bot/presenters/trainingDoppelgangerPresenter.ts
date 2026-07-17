@@ -15,6 +15,11 @@ import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentLevelUpCelebration } from "./levelGrowthPresenter";
 import { presentRewardAmount } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 export function presentTrainingDoppelgangerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Допельґанґер не копіює порожні анкети.";
@@ -197,7 +202,13 @@ function presentTrainingDoppelgangerState(input: {
       : "🥊 <b>Бій: завершено</b>",
     "",
     `❤️ Ви: ${state?.hero.hp ?? "?"}/${state?.hero.hpMax ?? "?"} · мана ${state?.hero.mana ?? "?"}/${state?.hero.manaMax ?? "?"}`,
-    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`
+    `🪞 Копія: ${state?.monster.hp ?? "?"}/${state?.monster.hpMax ?? "?"}`,
+    ...(state?.varenykSated
+      ? [presentActiveVarenykSatedCombatState(
+          state.varenykSated
+        )]
+          .filter((line): line is string => line !== null)
+      : [])
   ];
 
   if (state?.status === "active") {
@@ -210,6 +221,15 @@ function presentTrainingDoppelgangerState(input: {
 
   if (state?.lastTurn) {
     lines.push("", presentTrainingTurnSummary(state.lastTurn));
+    if (state.lastTurn.satedRecovery) {
+      const satedRecovery = presentVarenykSatedJournalRecovery(
+        state.lastTurn.satedRecovery,
+        escapeHtml(input.character.name)
+      );
+      if (satedRecovery) {
+        lines.push(satedRecovery);
+      }
+    }
     const flavor = presentTrainingCounterFlavor(input.character, input.doppelganger, state);
 
     if (flavor) {
@@ -284,10 +304,19 @@ export function presentTrainingDoppelgangerJournal(
     "",
     presentTrainingTurnSummary(entry.summary)
   ];
+  if (entry.summary.satedRecovery) {
+    const satedRecovery = presentVarenykSatedJournalRecovery(
+      entry.summary.satedRecovery,
+      escapeHtml(result.character.name)
+    );
+    if (satedRecovery) {
+      lines.push(satedRecovery);
+    }
+  }
   const notices = presentJournalTurnNotices(entry);
 
   if (notices.length > 0) {
-    lines.push("", ...notices);
+    lines.push("", "<b>Кулдауни та ефекти:</b>", ...notices);
   }
 
   return lines.join("\n");
@@ -296,7 +325,8 @@ export function presentTrainingDoppelgangerJournal(
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
-    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`)
+    ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
+    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }])
   ];
 }
 

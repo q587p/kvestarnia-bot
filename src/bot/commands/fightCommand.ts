@@ -189,6 +189,7 @@ export async function sendFight(
         result.state === "persistent-ready" ||
         result.state === "persistent-active" ||
         result.state === "persistent-terminal",
+      persistentActive: result.state === "persistent-active",
       locationId: persistentLocationId
     }));
   }
@@ -292,7 +293,7 @@ async function recordPersistentFightMessage(
 async function markFightPresence(
   ctx: Context,
   presence: PresenceService,
-  options?: { persistent?: boolean; locationId?: string }
+  options?: { persistent?: boolean; persistentActive?: boolean; locationId?: string }
 ): Promise<void> {
   const player = playerFromContext(ctx.from);
 
@@ -307,7 +308,9 @@ async function markFightPresence(
       : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
     currentRaidId: null,
     currentAdventureId: options?.persistent
-      ? PRESENCE_ADVENTURE_SOLO_FIGHT
+      ? options.persistentActive
+        ? PRESENCE_ADVENTURE_SOLO_FIGHT
+        : null
       : PRESENCE_ADVENTURE_MIMIC_FIGHT
   });
 }

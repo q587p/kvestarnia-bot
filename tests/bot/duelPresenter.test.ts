@@ -323,12 +323,34 @@ describe("duel presenter", () => {
 
   it("renders a paged turn-based duel journal from stored round summaries", () => {
     const active = makeTurnBasedDuelView({});
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
+    active.session.state.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: "duel-journal-sated",
+      recipientCharacterId: "challenger-character",
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["duel:pulse:1"]
+    };
+    const storedSated = {
+      ...active.session.state.participants.challenger.varenykSated,
+      pulseIds: [...active.session.state.participants.challenger.varenykSated.pulseIds]
+    };
+    delete active.session.state.participants.challenger.varenykSated;
     const text = presentTurnBasedDuelJournal({
       state: "ready",
       session: active.session,
       rounds: [
         {
           turn: 2,
+          varenykSatedAfter: {
+            challenger: storedSated,
+            target: null
+          },
           actions: [
             {
               actorCharacterId: "challenger-character",
@@ -336,6 +358,16 @@ describe("duel presenter", () => {
               action: "attack",
               outcome: "hit",
               damage: 7,
+              manaSpent: 0,
+              critical: false,
+              satedRecovery: { hpRestored: 1, manaRestored: 1 }
+            },
+            {
+              actorCharacterId: "target-character",
+              defenderCharacterId: "challenger-character",
+              action: "attack",
+              outcome: "hit",
+              damage: 4,
               manaSpent: 0,
               critical: false
             }
@@ -346,9 +378,17 @@ describe("duel presenter", () => {
 
     expect(text).toContain("📜 <b>Журнал дуелі</b>");
     expect(text).toContain("Ліва Рука проти Права Рука.");
+    expect(text).toContain("😋 Стан: <b>Ситий</b> у <b>Ліва Рука</b> ще <b>12 ходів</b>");
+    expect(text.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      text.indexOf("😋 Стан: <b>Ситий</b> у <b>Ліва Рука</b>")
+    );
+    expect(text).toContain("😋 Ліва Рука: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(text).toContain("Хід <b>2</b> · запис 1/1");
     expect(text).toContain("Ліва: HP 20/24 · мана 8/12");
     expect(text).toContain("Ліва Рука атакує влучає на <b>7</b> шкоди.");
+    expect(text.indexOf("Права Рука атакує влучає на <b>4</b> шкоди.")).toBeLessThan(
+      text.indexOf("😋 Ліва Рука: <i>ситість</i> відновлює")
+    );
   });
 });
 

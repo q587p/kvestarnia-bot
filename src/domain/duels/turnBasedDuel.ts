@@ -22,6 +22,11 @@ import type { EquipmentEffectSummary } from "../progression/effectiveStats";
 import type { RandomSource } from "../../shared/random";
 import { INSTANT_DUEL_BALANCE_VERSION, prepareBalancedDuelists, type DuelistBalanceAudit } from "./duelBalance";
 import type { DuelistSummary, DuelOutcomeSide } from "./duelResolver";
+import {
+  applyVarenykSatedCombatPulse,
+  cloneVarenykSatedCombatState,
+  type VarenykSatedCombatStateV1
+} from "../noncombat/varenykSatedSupport";
 
 export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
 export const TURN_BASED_DUEL_TURN_SECONDS = 23;
@@ -56,6 +61,7 @@ export interface TurnBasedDuelParticipantSnapshot {
   cooldowns?: CombatState["cooldowns"];
   guard?: CombatState["guard"];
   playerAbilityFumbles?: CombatState["playerAbilityFumbles"];
+  varenykSated?: VarenykSatedCombatStateV1;
   balanceAudit: DuelistBalanceAudit;
 }
 
@@ -71,6 +77,7 @@ export interface TurnBasedDuelActionSummary {
   critical: boolean;
   skillId?: string;
   fumble?: CombatTurnSummary["fumble"];
+  satedRecovery?: { hpRestored: number; manaRestored: number };
 }
 
 export interface TurnBasedDuelQueuedAction {
@@ -82,6 +89,10 @@ export interface TurnBasedDuelQueuedAction {
 export interface TurnBasedDuelRoundSummary {
   turn: number;
   actions: TurnBasedDuelActionSummary[];
+  varenykSatedAfter?: {
+    challenger: VarenykSatedCombatStateV1 | null;
+    target: VarenykSatedCombatStateV1 | null;
+  };
 }
 
 export interface TurnBasedDuelOutcome {
@@ -135,6 +146,21 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
         ? input.challenger.id
         : input.target.id;
 
+  return buildTurnBasedDuelState({
+    prepared,
+    actingCharacterId
+  });
+}
+
+export function buildTurnBasedDuelState(input: {
+  prepared: ReturnType<typeof prepareBalancedDuelists>;
+  actingCharacterId: string;
+}): TurnBasedDuelState {
+  const actingCharacterId =
+    input.actingCharacterId === input.prepared.challenger.id ||
+    input.actingCharacterId === input.prepared.target.id
+      ? input.actingCharacterId
+      : input.prepared.challenger.id;
   return {
     mode: "turn-based",
     status: "active",
@@ -143,8 +169,8 @@ export function startTurnBasedDuel(input: StartTurnBasedDuelInput): TurnBasedDue
     turn: 1,
     actingCharacterId,
     participants: {
-      challenger: buildParticipantSnapshot(prepared.challenger),
-      target: buildParticipantSnapshot(prepared.target)
+      challenger: buildParticipantSnapshot(input.prepared.challenger),
+      target: buildParticipantSnapshot(input.prepared.target)
     }
   };
 }
@@ -163,6 +189,7 @@ export function resolveTurnBasedDuelAction(input: {
   actorCharacterId: string;
   action: TurnBasedDuelAction;
   gearAbility?: CombatGearAbilityInput;
+  sated?: { sessionId: string; committedTurn: number; now: Date };
   rng: RandomSource;
 }): ResolveTurnBasedDuelActionResult {
   const state = cloneTurnBasedDuelState(input.state);
@@ -198,7 +225,11 @@ export function resolveTurnBasedDuelAction(input: {
     state.status = "forfeited";
     state.outcome = buildOutcome(state, defender.characterId, "surrender");
     state.lastAction = summary;
-    state.lastRound = { turn: state.turn, actions: [summary] };
+    state.lastRound = {
+      turn: state.turn,
+      actions: [summary],
+      varenykSatedAfter: snapshotTurnBasedDuelSated(state)
+    };
     return { ok: true, resolution: "resolved", state, round: state.lastRound };
   }
 
@@ -242,11 +273,12 @@ export function resolveTurnBasedDuelAction(input: {
     return { ok: true, resolution: "queued", state, queuedAction };
   }
 
-  return resolveQueuedRound(state, input.rng);
+  return resolveQueuedRound(state, input.rng, { ...(input.sated ? { sated: input.sated } : {}) });
 }
 
 export function resolveTurnBasedDuelTimeout(input: {
   state: TurnBasedDuelState;
+  sated?: { sessionId: string; committedTurn: number; now: Date };
   rng: RandomSource;
 }): ResolveTurnBasedDuelActionResult {
   const state = cloneTurnBasedDuelState(input.state);
@@ -279,14 +311,18 @@ export function resolveTurnBasedDuelTimeout(input: {
     timeoutCharacterIds: [
       ...(input.state.pendingActions?.challenger ? [] : [state.participants.challenger.characterId]),
       ...(input.state.pendingActions?.target ? [] : [state.participants.target.characterId])
-    ]
+    ],
+    ...(input.sated ? { sated: input.sated } : {})
   });
 }
 
 function resolveQueuedRound(
   state: TurnBasedDuelState,
   rng: RandomSource,
-  options: { timeoutCharacterIds?: string[] } = {}
+  options: {
+    timeoutCharacterIds?: string[];
+    sated?: { sessionId: string; committedTurn: number; now: Date };
+  } = {}
 ): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
   const pending = state.pendingActions;
   const mitigation = {
@@ -313,16 +349,28 @@ function resolveQueuedRound(
       continue;
     }
 
-    actions.push(resolveQueuedCombatAction(state, side, queued, rng, {
+    const summary = resolveQueuedCombatAction(state, side, queued, rng, {
       timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
       incomingDamageReduction: mitigation[defenderSideOf(side)],
       incomingDamageMultiplier: mitigationMultiplier[defenderSideOf(side)]
-    }));
+    });
+    actions.push(summary);
+  }
+
+  if (options.sated) {
+    for (let index = 0; index < actions.length; index += 1) {
+      const summary = actions[index]!;
+      const side = findParticipantSide(state, summary.actorCharacterId);
+      if (side) {
+        actions[index] = applySatedPulseAfterDuelExchange(state, side, summary, options.sated);
+      }
+    }
   }
 
   const round = {
     turn: state.turn,
-    actions
+    actions,
+    varenykSatedAfter: snapshotTurnBasedDuelSated(state)
   };
   state.lastRound = round;
   const lastAction = actions.at(-1);
@@ -345,7 +393,8 @@ function resolveQueuedRound(
       state.lastAction = { ...last, outcome: "draw" };
       state.lastRound = {
         turn: round.turn,
-        actions: [...round.actions.slice(0, -1), state.lastAction]
+        actions: [...round.actions.slice(0, -1), state.lastAction],
+        varenykSatedAfter: round.varenykSatedAfter
       };
     }
     return { ok: true, resolution: "resolved", state, round: state.lastRound };
@@ -766,7 +815,19 @@ function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState 
       ? {
           lastRound: {
             turn: state.lastRound.turn,
-            actions: state.lastRound.actions.map((action) => ({ ...action }))
+            actions: state.lastRound.actions.map((action) => ({ ...action })),
+            ...(state.lastRound.varenykSatedAfter
+              ? {
+                  varenykSatedAfter: {
+                    challenger: state.lastRound.varenykSatedAfter.challenger
+                      ? cloneVarenykSatedCombatState(state.lastRound.varenykSatedAfter.challenger)
+                      : null,
+                    target: state.lastRound.varenykSatedAfter.target
+                      ? cloneVarenykSatedCombatState(state.lastRound.varenykSatedAfter.target)
+                      : null
+                  }
+                }
+              : {})
           }
         }
       : {}),
@@ -809,6 +870,59 @@ function cloneParticipant(
     ...(participant.guard ? { guard: { ...participant.guard } } : {}),
     ...(participant.playerAbilityFumbles
       ? { playerAbilityFumbles: clonePlayerAbilityFumblesState(participant.playerAbilityFumbles) }
+      : {}),
+    ...(participant.varenykSated
+      ? { varenykSated: { ...participant.varenykSated, pulseIds: [...participant.varenykSated.pulseIds] } }
       : {})
   };
+}
+
+function snapshotTurnBasedDuelSated(
+  state: Pick<TurnBasedDuelState, "participants">
+): NonNullable<TurnBasedDuelRoundSummary["varenykSatedAfter"]> {
+  return {
+    challenger: state.participants.challenger.varenykSated
+      ? cloneVarenykSatedCombatState(state.participants.challenger.varenykSated)
+      : null,
+    target: state.participants.target.varenykSated
+      ? cloneVarenykSatedCombatState(state.participants.target.varenykSated)
+      : null
+  };
+}
+
+function applySatedPulseAfterDuelExchange(
+  state: TurnBasedDuelState,
+  side: "challenger" | "target",
+  summary: TurnBasedDuelActionSummary,
+  input: { sessionId: string; committedTurn: number; now: Date }
+): TurnBasedDuelActionSummary {
+  const participant = state.participants[side];
+  const pulse = applyVarenykSatedCombatPulse({
+    sated: participant.varenykSated,
+    resources: {
+      hp: participant.hp,
+      hpMax: participant.hpMax,
+      mana: participant.mana,
+      manaMax: participant.manaMax
+    },
+    pulseId: [
+      participant.varenykSated?.activationId ?? "none",
+      "turn-based-duel",
+      input.sessionId,
+      input.committedTurn,
+      participant.characterId
+    ].join(":"),
+    now: input.now
+  });
+  if (!pulse.sated) {
+    return summary;
+  }
+  participant.varenykSated = pulse.sated;
+  if (pulse.applied) {
+    participant.hp = pulse.resources.hp;
+    participant.mana = pulse.resources.mana;
+  }
+  return pulse.hpRestored > 0 || pulse.manaRestored > 0
+    ? { ...summary, satedRecovery: { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored } }
+    : summary;
 }

@@ -5,6 +5,8 @@ import {
   makePriestHealCallbackData,
   makeRoguePickpocketCallbackData,
   makeRogueRetaliationDuelCallbackData,
+  makeVarenykFeedConfirmCallbackData,
+  makeVarenykFeedPreviewCallbackData,
   parseClassNoncombatCallbackData
 } from "../../src/bot/callbacks/classNoncombatCallbackData";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
@@ -134,6 +136,52 @@ describe("class noncombat callback data", () => {
     expect(parseClassNoncombatCallbackData("v1:nc:rd:q:abc123xy:extra")).toEqual({
       ok: false,
       error: "invalid-prefix"
+    });
+  });
+
+  it("encodes Varenyk preview and confirmation while rejecting forged confirmation shapes", () => {
+    const preview = makeVarenykFeedPreviewCallbackData({
+      targetTelegramUserId: 123456789n,
+      actorRemortCount: 2,
+      targetRemortCount: 3,
+      page: 1
+    });
+    const confirmation = makeVarenykFeedConfirmCallbackData({
+      targetTelegramUserId: null,
+      actorRemortCount: 2,
+      targetRemortCount: 2,
+      page: 0,
+      previewToken: "abc123xy"
+    });
+
+    expect(parseClassNoncombatCallbackData(preview)).toEqual({
+      ok: true,
+      value: {
+        type: "varenyk-feed-preview",
+        targetTelegramUserId: 123456789n,
+        actorRemortCount: 2,
+        targetRemortCount: 3,
+        page: 1
+      }
+    });
+    expect(parseClassNoncombatCallbackData(confirmation)).toEqual({
+      ok: true,
+      value: {
+        type: "varenyk-feed-confirm",
+        targetTelegramUserId: null,
+        actorRemortCount: 2,
+        targetRemortCount: 2,
+        page: 0,
+        previewToken: "abc123xy"
+      }
+    });
+    expect(parseClassNoncombatCallbackData("v1:nc:c:s:2:2:0:short")).toEqual({
+      ok: false,
+      error: "invalid-target"
+    });
+    expect(parseClassNoncombatCallbackData("v1:nc:c:s:2:2:0:abc123xy:extra")).toEqual({
+      ok: false,
+      error: "invalid-target"
     });
   });
 });

@@ -949,12 +949,12 @@ export class AdventureService {
     }
 
     if (lookup?.state === "terminal-completed" || lookup?.state === "terminal-forfeited") {
-      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id, this.clock());
       return { state: "none" };
     }
 
     if (lookup?.state === "missing-session") {
-      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId, this.clock());
       return { state: "none" };
     }
 

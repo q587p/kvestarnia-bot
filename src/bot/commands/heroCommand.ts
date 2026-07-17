@@ -7,13 +7,15 @@ import {
 } from "../../domain/noncombat/classNoncombatTechniques";
 import {
   makePriestBlessCallbackData,
-  makePriestHealCallbackData
+  makePriestHealCallbackData,
+  makeVarenykFeedPreviewCallbackData
 } from "../callbacks/classNoncombatCallbackData";
 import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
+import { presentVarenykSatedRecoveryNotice } from "../presenters/varenykSatedPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 export interface HeroCommandOptions {
@@ -57,6 +59,9 @@ export async function sendHero(
     const heroText = presentHero(result.character, {
       activeDrink: result.activeDrink,
       activePriestBlessing: result.activePriestBlessing,
+      activeVarenykSated: result.activeVarenykSated,
+      varenykSatedAvailableAt: result.varenykSatedAvailableAt,
+      ...(result.recoveryNotice ? { recoveryNotice: result.recoveryNotice } : {}),
       activeCosmeticTitle: result.activeCosmeticTitle,
       inventoryGoldValue: result.inventoryGoldValue
     });
@@ -68,6 +73,11 @@ export async function sendHero(
         classNoncombatBlocked: result.classNoncombatBlocked,
         priestSelfBlessAvailableAt:
           result.priestSelfBlessAvailableAt ?? result.activePriestBlessing?.expiresAt ?? null
+      }),
+      varenykSelfFeedCallbackData: getVarenykSelfFeedCallbackData({
+        character: result.character,
+        classNoncombatBlocked: result.classNoncombatBlocked,
+        availableAt: result.varenykSatedAvailableAt
       }),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
@@ -83,10 +93,41 @@ export async function sendHero(
       true,
       heroKeyboard ?? options.mainMenuKeyboard
     );
+    const satedRecoveryNotice = result.satedRecovery
+      ? presentVarenykSatedRecoveryNotice(result.satedRecovery)
+      : null;
+    if (satedRecoveryNotice) {
+      await ctx.reply(satedRecoveryNotice, { parse_mode: "HTML" });
+    }
     return;
   }
 
   await sendText(ctx, mode, presentHeroMissing(), false);
+}
+
+function getVarenykSelfFeedCallbackData(input: {
+  character: CharacterSummary;
+  classNoncombatBlocked?: boolean;
+  availableAt?: Date | null;
+}): string | null {
+  const { character } = input;
+  if (
+    input.classNoncombatBlocked ||
+    input.availableAt ||
+    character.classId !== "class.varenyk-mancer" ||
+    character.level < CLASS_NONCOMBAT_MIN_LEVEL ||
+    character.hpCurrent <= 0 ||
+    character.manaCurrent < 8
+  ) {
+    return null;
+  }
+  const remortCount = character.remortCount ?? 0;
+  return makeVarenykFeedPreviewCallbackData({
+    targetTelegramUserId: null,
+    actorRemortCount: remortCount,
+    targetRemortCount: remortCount,
+    page: 0
+  });
 }
 
 function getPriestSelfBlessCallbackData(input: {

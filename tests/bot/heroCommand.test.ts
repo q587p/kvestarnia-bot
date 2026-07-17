@@ -5,7 +5,7 @@ import type { CharacterSummary } from "../../src/domain/characters/characterSumm
 import type { HeroService } from "../../src/services/heroService";
 
 describe("hero command", () => {
-  it("does not send stale lazy recovery notice before the hero card", async () => {
+  it("renders the authoritative full-HP recovery notice once in a replied hero card", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {
       findByTelegramUserId: () =>
@@ -31,7 +31,7 @@ describe("hero command", () => {
     await sendHero(makeReplyContext(replies), heroService, "reply");
 
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
+    expect(replies[0]?.text.match(/Здоров’я знову повне/g)).toHaveLength(1);
     expect(replies[0]?.text).toContain("<b>Мандрівник</b>");
     expect(replies[0]?.text).toContain("❤️ HP 24/24");
     const options = replies[0]?.options as {
@@ -43,7 +43,7 @@ describe("hero command", () => {
     expect(options.reply_markup?.inline_keyboard).toBeDefined();
   });
 
-  it("does not prefix edited hero cards with stale lazy recovery notice", async () => {
+  it("renders the authoritative full-HP recovery notice once in an edited hero card", async () => {
     const edits: Array<{ text: string; options: unknown }> = [];
     const heroService = {
       findByTelegramUserId: () =>
@@ -65,11 +65,41 @@ describe("hero command", () => {
     await sendHero(makeEditContext(edits), heroService, "edit");
 
     expect(edits).toHaveLength(1);
-    expect(edits[0]?.text).not.toContain("Здоров’я знову повне");
+    expect(edits[0]?.text.match(/Здоров’я знову повне/g)).toHaveLength(1);
     expect(edits[0]?.text).toContain("<b>Мандрівник</b>");
     expect(edits[0]?.options).toMatchObject({
       parse_mode: "HTML"
     });
+  });
+
+  it("sends Sated recovery after the replied Hero card as one separate message", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = makeHeroServiceWithSatedRecovery();
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(replies).toHaveLength(2);
+    expect(replies[0]?.text).toContain("👤 <b>Мандрівник</b>");
+    expect(replies[0]?.text).not.toContain("Ситість відновила");
+    expect(replies[1]).toEqual({
+      text: "😋 Ситість відновила: <b>+1 HP</b> · <b>+1 мани</b>.",
+      options: { parse_mode: "HTML" }
+    });
+  });
+
+  it("sends Sated recovery separately after editing the Hero card", async () => {
+    const edits: Array<{ text: string; options: unknown }> = [];
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = makeHeroServiceWithSatedRecovery();
+
+    await sendHero(makeEditContext(edits, replies), heroService, "edit");
+
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.text).not.toContain("Ситість відновила");
+    expect(replies).toEqual([{
+      text: "😋 Ситість відновила: <b>+1 HP</b> · <b>+1 мани</b>.",
+      options: { parse_mode: "HTML" }
+    }]);
   });
 
   it("shows Priest self-heal on the hero card when wounded and mana is available", async () => {
@@ -253,6 +283,54 @@ describe("hero command", () => {
 
     expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("⚕️ Полікувати себе");
   });
+
+  it("omits the full-HP recovery notice when no recovery occurred", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
+  });
+
+  it("hides Varenyk self-feeding when the Hero lookup reports the class-specific adventure gate", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character: {
+          ...character,
+          classId: "class.varenyk-mancer",
+          className: "Вареник-мант",
+          level: 3,
+          hpCurrent: 24,
+          manaCurrent: 12,
+          manaMax: 16
+        },
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        activePriestBlessing: null,
+        varenykSatedAvailableAt: null,
+        classNoncombatBlocked: true,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("🍽️ Нагодувати себе");
+  });
 });
 
 function makeReplyContext(replies: Array<{ text: string; options: unknown }>): Context {
@@ -269,7 +347,10 @@ function makeReplyContext(replies: Array<{ text: string; options: unknown }>): C
   } as unknown as Context;
 }
 
-function makeEditContext(edits: Array<{ text: string; options: unknown }>): Context {
+function makeEditContext(
+  edits: Array<{ text: string; options: unknown }>,
+  replies: Array<{ text: string; options: unknown }> = []
+): Context {
   return {
     from: {
       id: 42,
@@ -279,8 +360,26 @@ function makeEditContext(edits: Array<{ text: string; options: unknown }>): Cont
     editMessageText: (text: string, options: unknown) => {
       edits.push({ text, options });
       return Promise.resolve({});
+    },
+    reply: (text: string, options: unknown) => {
+      replies.push({ text, options });
+      return Promise.resolve({});
     }
   } as unknown as Context;
+}
+
+function makeHeroServiceWithSatedRecovery(): HeroService {
+  return {
+    findByTelegramUserId: () => Promise.resolve({
+      state: "existing-character" as const,
+      character: { ...character, hpCurrent: 20, manaCurrent: 8 },
+      inventoryGoldValue: 0,
+      activeDrink: null,
+      activeCosmeticTitle: null,
+      restoreToFullItemId: null,
+      satedRecovery: { hpRestored: 1, manaRestored: 1 }
+    })
+  } as unknown as HeroService;
 }
 
 function inlineButtonRows(options: unknown): string[][] {

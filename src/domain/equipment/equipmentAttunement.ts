@@ -156,3 +156,19 @@ export function isEquipmentAttunementPendingForRow(input: {
     );
   });
 }
+
+export function getActiveEquipmentRows<T extends {
+  slot: string;
+  itemId: string;
+  updatedAt: Date;
+}>(input: {
+  rows: readonly T[];
+  actionPayloads: readonly unknown[];
+  now: Date;
+}): T[] {
+  return input.rows.filter((row) => !isEquipmentAttunementPendingForRow({
+    row,
+    actionPayloads: input.actionPayloads,
+    now: input.now
+  }));
+}

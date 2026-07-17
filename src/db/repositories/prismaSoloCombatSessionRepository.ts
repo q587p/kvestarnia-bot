@@ -27,9 +27,14 @@ import {
   THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
+import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import {
+  freezeVarenykSatedForSoloCombatStart,
+  releaseVarenykSatedCombatLease
+} from "./prismaVarenykSated";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
@@ -586,7 +591,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           }
         },
         select: {
-          id: true
+          id: true,
+          hpCurrent: true,
+          manaCurrent: true,
+          hpRegenAt: true,
+          manaRegenAt: true,
+          updatedAt: true
         }
       });
 
@@ -594,12 +604,23 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
-      const committedState = await applyCombatDrinkStateCommit(
+      let committedState = await applyCombatDrinkStateCommit(
         tx,
         character.id,
         input.state,
         input.drinkStateCommit
       );
+      const combatStartedAt = committedState.life?.startedAt
+        ? new Date(committedState.life.startedAt)
+        : null;
+      if (combatStartedAt && Number.isFinite(combatStartedAt.getTime())) {
+        committedState = await freezeVarenykSatedForSoloCombatStart({
+          tx,
+          character,
+          state: committedState,
+          now: combatStartedAt
+        });
+      }
 
       const session = await tx.soloCombatSession.create({
         data: {
@@ -617,7 +638,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         data: {
           characterId: character.id,
           kind: "solo-combat",
-          referenceId: session.id
+          referenceId: session.id,
+          createdAt: combatStartedAt ?? session.createdAt,
+          updatedAt: combatStartedAt ?? session.createdAt
         }
       });
 
@@ -666,7 +689,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
   async markStatusById(
     sessionId: string,
-    status: SoloCombatSessionStatus
+    status: SoloCombatSessionStatus,
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null> {
     if (!hasTransaction(this.prisma)) {
       const record = await this.prisma.soloCombatSession.update({
@@ -698,10 +722,16 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (status !== "active") {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+        const state = parseCombatState(updated.stateJson);
+        const completedAt = state?.completedAt ? new Date(state.completedAt) : null;
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state,
+          releasedAt: status === "expired"
+            ? new Date(Math.min((observedAt ?? new Date()).getTime(), updated.expiresAt.getTime()))
+            : completedAt && Number.isFinite(completedAt.getTime())
+              ? completedAt
+              : observedAt ?? new Date()
         });
       }
 
@@ -756,11 +786,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      const releasingLease = input.status !== "active" && input.releaseLease;
+
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -800,11 +832,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return null;
       }
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      const releasingLease = input.status !== "active" && input.releaseLease;
+
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -896,6 +930,8 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "stale-turn", session: null };
       }
 
+      const releasingLease = input.status !== "active" && input.releaseLease;
+
       const consumed = await tx.characterItem.updateMany({
         where: {
           characterId: input.characterId,
@@ -918,11 +954,11 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (input.status !== "active" && input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+      if (releasingLease) {
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state,
+          releasedAt: getSatedLeaseThrough(input)
         });
       }
 
@@ -963,10 +999,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            referenceId: sessionId
-          }
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: input.state ?? parseCombatState(updated.stateJson),
+          releasedAt: input.claimedAt
         });
       }
 
@@ -1054,15 +1090,19 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return { state: "terminal-pending", session };
   }
 
-  async releaseLeaseBySessionId(sessionId: string): Promise<boolean> {
-    const deleted = await this.prisma.activeCombatLease.deleteMany({
-      where: {
-        kind: "solo-combat",
-        referenceId: sessionId
-      }
+  async releaseLeaseBySessionId(sessionId: string, now?: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.soloCombatSession.findUnique({
+        where: { id: sessionId },
+        select: { stateJson: true }
+      });
+      const state = current ? parseCombatState(current.stateJson) : null;
+      return releaseSoloCombatLease(tx, {
+        sessionId,
+        state,
+        releasedAt: now ?? new Date()
+      });
     });
-
-    return deleted.count > 0;
   }
 
   async completeSettlementById(
@@ -1460,11 +1500,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (state?.settlement?.status === "completed") {
         if (input.releaseLease) {
-          await tx.activeCombatLease.deleteMany({
-            where: {
-              kind: "solo-combat",
-              referenceId: sessionId
-            }
+          await releaseSoloCombatLease(tx, {
+            sessionId,
+            state,
+            releasedAt: input.settledAt
           });
         }
 
@@ -1476,11 +1515,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (state?.settlement?.status === "forfeited-by-remort") {
         if (input.releaseLease) {
-          await tx.activeCombatLease.deleteMany({
-            where: {
-              kind: "solo-combat",
-              referenceId: sessionId
-            }
+          await releaseSoloCombatLease(tx, {
+            sessionId,
+            state,
+            releasedAt: input.settledAt
           });
         }
 
@@ -1558,11 +1596,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (input.releaseLease) {
-        await tx.activeCombatLease.deleteMany({
-          where: {
-            kind: "solo-combat",
-            referenceId: sessionId
-          }
+        await releaseSoloCombatLease(tx, {
+          sessionId,
+          state: nextState ?? state,
+          releasedAt: input.settledAt
         });
       }
 
@@ -1701,6 +1738,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
+  const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1738,7 +1776,8 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(turnLog.length > 0 ? { turnLog } : {}),
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     ...(equipmentAbilities ? { equipmentAbilities } : {}),
-    ...(enemyStatuses ? { enemyStatuses } : {})
+    ...(enemyStatuses ? { enemyStatuses } : {}),
+    ...(varenykSated ? { varenykSated } : {})
   };
 }
 
@@ -2666,6 +2705,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const fumble = parsePlayerAbilityFumbleSummary(value.fumble);
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
   const enemyPressureSkips = parseEnemyPressureSkipSummaries(value.enemyPressureSkips);
+  const satedRecovery = parseSatedRecovery(value.satedRecovery);
 
   if (
     !action ||
@@ -2709,8 +2749,60 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(enemyPressureSkips.length > 0 ? { enemyPressureSkips } : {}),
-    ...(debugTrace ? { debugTrace } : {})
+    ...(debugTrace ? { debugTrace } : {}),
+    ...(satedRecovery ? { satedRecovery } : {})
   };
+}
+
+async function releaseSoloCombatLease(
+  tx: TxClient,
+  input: {
+    sessionId: string;
+    state: CombatState | null;
+    releasedAt: Date;
+  }
+): Promise<boolean> {
+  const lease = await tx.activeCombatLease.findFirst({
+    where: {
+      kind: "solo-combat",
+      referenceId: input.sessionId
+    },
+    select: {
+      id: true,
+      characterId: true,
+      kind: true,
+      referenceId: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+  if (!lease) {
+    return false;
+  }
+
+  return releaseVarenykSatedCombatLease({
+    tx,
+    lease,
+    releasedAt: input.releasedAt,
+    ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {})
+  });
+}
+
+function getSatedLeaseThrough(input: UpdateSoloCombatSessionInput): Date {
+  const completedAt = input.state.completedAt;
+  return input.satedLeaseAt ??
+    (completedAt ? new Date(completedAt) : new Date(input.state.varenykSated?.cursorAt ?? 0));
+}
+
+function parseSatedRecovery(value: unknown): CombatTurnSummary["satedRecovery"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const hpRestored = intOrNull(value.hpRestored);
+  const manaRestored = intOrNull(value.manaRestored);
+  return hpRestored !== null && hpRestored >= 0 && manaRestored !== null && manaRestored >= 0
+    ? { hpRestored, manaRestored }
+    : null;
 }
 
 function parsePlayerAbilityFumbleSummary(value: unknown): CombatTurnSummary["fumble"] | null {
@@ -2868,6 +2960,7 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const eventId = parseTurnLogEventId(entry.eventId);
     const notices = parseTurnLogNotices(entry.notices);
     const cooldowns = parseCooldowns(entry.cooldowns);
+    const varenykSated = parseVarenykSatedCombatState(entry.varenykSated);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
@@ -2879,7 +2972,8 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           ...(cooldowns ? { cooldowns } : {}),
           hero,
           monster,
-          ...(enemies.length > 0 ? { enemies } : {})
+          ...(enemies.length > 0 ? { enemies } : {}),
+          ...(varenykSated ? { varenykSated } : {})
         }];
   });
 }

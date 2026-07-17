@@ -134,7 +134,7 @@ export async function sendTrainingDoppelganger(
   }
 
   if (result.state === "active") {
-    await markTrainingPresence(ctx, options.presence);
+    await markTrainingPresence(ctx, options.presence, true);
     await sendText(ctx, mode, presentTrainingDoppelgangerIntro(result));
     const messageId = await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
       type: "session",
@@ -149,7 +149,7 @@ export async function sendTrainingDoppelganger(
     telegramUserId,
     result.session
   ) ?? [];
-  await markTrainingPresence(ctx, options.presence);
+  await markTrainingPresence(ctx, options.presence, false);
   const messageId = await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     type: "session",
     session: result.session,
@@ -182,7 +182,11 @@ async function recordTrainingMessage(
   });
 }
 
-async function markTrainingPresence(ctx: Context, presence: PresenceService): Promise<void> {
+async function markTrainingPresence(
+  ctx: Context,
+  presence: PresenceService,
+  active: boolean
+): Promise<void> {
   const player = playerFromContext(ctx.from);
 
   if (!player) {
@@ -193,7 +197,7 @@ async function markTrainingPresence(ctx: Context, presence: PresenceService): Pr
     user: player,
     locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
     currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+    currentAdventureId: active ? PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER : null
   });
 }
 

@@ -4,17 +4,26 @@ import {
   buildLevelGrowthBonus,
   createEmptyEquipmentEffectSummary
 } from "../../domain/progression/effectiveStats";
-import type { HeroActiveDrink, HeroActivePriestBlessing } from "../../services/heroService";
+import type {
+  HeroActiveDrink,
+  HeroActivePriestBlessing,
+  HeroActiveVarenykSated
+} from "../../services/heroService";
+import type { ResourceRecoveryNotice } from "../../services/characterResourceService";
 import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
 import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
+import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentHero(
   summary: CharacterSummary,
   options: {
     activeDrink?: HeroActiveDrink | null;
     activePriestBlessing?: HeroActivePriestBlessing | null;
+    activeVarenykSated?: HeroActiveVarenykSated | null;
+    varenykSatedAvailableAt?: Date | null;
+    recoveryNotice?: ResourceRecoveryNotice;
     activeCosmeticTitle?: string | null;
     inventoryGoldValue?: number;
   } = {}
@@ -60,14 +69,31 @@ export function presentHero(
   const resourceRecoveryLines = presentResourceRecovery(summary);
   const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
   const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
+  const activeVarenykSated = options.activeVarenykSated &&
+    options.activeVarenykSated.expiresAt.getTime() > Date.now()
+    ? options.activeVarenykSated
+    : null;
+  const activeVarenykSatedLine = presentActiveVarenykSated(activeVarenykSated);
+  const varenykSatedWaitLine = !activeVarenykSated && options.varenykSatedAvailableAt
+    ? `🍽️ Нагодувати знову через <b>${formatRemainingMinutes(options.varenykSatedAvailableAt)}</b>.`
+    : null;
   const activeStatusLines = [
     activeDrinkLine,
     activePriestBlessingLine,
+    activeVarenykSatedLine,
+    varenykSatedWaitLine,
     ...presentEquipmentAttunementLines(summary)
   ]
     .filter((line): line is string => Boolean(line));
 
   return [
+    ...(options.recoveryNotice
+      ? [
+          `❤️ <b>Здоров’я знову повне: ${options.recoveryNotice.hpCurrent}/${options.recoveryNotice.hpMax}</b>.`,
+          "Корчмар мовчки підсунув кухоль води й записав це як сервіс.",
+          ""
+        ]
+      : []),
     `👤 <b>${escapeHtml(summary.name)}</b>`,
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
@@ -151,6 +177,10 @@ function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null):
   return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>.`;
 }
 
+function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
+  return sated ? presentActiveVarenykSatedBuff(sated.expiresAt, sated.rank) : null;
+}
+
 function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   if (!drink) {
     return null;
@@ -159,7 +189,7 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   const effects = presentActiveDrinkEffects(drink);
   const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
 
-  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще ${formatRemainingMinutes(drink.expiresAt)}${effectText}.`;
+  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще <b>${formatRemainingMinutes(drink.expiresAt)}</b>${effectText}.`;
 }
 
 function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
@@ -170,17 +200,17 @@ function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {
   if (drink.phase === "queued") {
-    return ["чекає бою з монстром", "завдана й отримана шкода +13%"];
+    return ["чекає бою з монстром", "завдана й отримана шкода <b>+13%</b>"];
   }
 
   const effects: string[] = [];
 
   if (drink.recoveryMultiplierBp && drink.recoveryMultiplierBp !== 10000) {
-    effects.push(`відновлення швидше на ${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%`);
+    effects.push(`відновлення швидше на <b>${formatRecoveryBonusPercent(drink.recoveryMultiplierBp)}%</b>`);
   }
 
   if (drink.accuracyPenaltyPp) {
-    effects.push(`точність −${drink.accuracyPenaltyPp}`);
+    effects.push(`точність <b>−${drink.accuracyPenaltyPp}</b>`);
   }
 
   return effects;

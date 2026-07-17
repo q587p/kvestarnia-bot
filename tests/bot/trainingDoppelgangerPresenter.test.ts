@@ -53,6 +53,91 @@ describe("training doppelganger presenter", () => {
     expect(text).not.toContain("<b>Мандрівник</b>");
   });
 
+  it("omits zero-valued Sated recovery components", () => {
+    const character = buildCharacter();
+    const text = presentTrainingDoppelganger({
+      state: "active",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        lastTurn: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 3,
+          monsterDamage: 1,
+          manaSpent: 0,
+          critical: false,
+          satedRecovery: { hpRestored: 0, manaRestored: 1 }
+        }
+      })
+    });
+
+    expect(text).toContain("😋 Мандрівник: <i>ситість</i> відновлює +1 мани.");
+    expect(text).not.toContain("+0 HP");
+  });
+
+  it("shows active Sated without exposing its technical rank", () => {
+    const character = buildCharacter();
+    const session = buildSession();
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
+    const sated = {
+      version: 1 as const,
+      activationId: "sated-active",
+      recipientCharacterId: "character-42",
+      recipientRemortCount: 0,
+      rank: 5,
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["pulse:1"]
+    };
+    const activeSession = {
+      ...session,
+      state: {
+        ...session.state,
+        turnLog: [{
+          eventId: "turn:sated-active",
+          turn: 1,
+          hero: { hp: 18, mana: 6 },
+          monster: { hp: 18 },
+          varenykSated: sated,
+          summary: {
+            action: "attack" as const,
+            heroOutcome: "hit" as const,
+            heroDamage: 4,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            satedRecovery: { hpRestored: 1, manaRestored: 1 }
+          }
+        }],
+        varenykSated: sated
+      }
+    };
+    const text = presentTrainingDoppelganger({
+      state: "active",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: activeSession
+    });
+    const journal = presentTrainingDoppelgangerJournal({
+      state: "found",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: activeSession,
+      reward: null
+    }, 0);
+
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b> (<b>+3 HP / +3 мани</b>)");
+    expect(journal).toContain("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>");
+    expect(journal).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("😋 Стан: <b>Ситий</b> ще <b>12 ходів</b>")
+    );
+    expect(text).not.toContain("ранг 5");
+  });
+
   it("renders a training battle journal page", () => {
     const character = buildCharacter();
     const text = presentTrainingDoppelgangerJournal({
@@ -85,6 +170,45 @@ describe("training doppelganger presenter", () => {
     expect(text).toContain("❤️ Ви після ходу: 17/22 · мана 5/10");
     expect(text).toContain("🪞 Копія після ходу: 18/22");
     expect(text).toContain("Атака влучає на 4 шкоди.");
+  });
+
+  it.each([
+    [{ hpRestored: 1, manaRestored: 0 }, "😋 Мандрівник: <i>ситість</i> відновлює +1 HP."],
+    [{ hpRestored: 0, manaRestored: 1 }, "😋 Мандрівник: <i>ситість</i> відновлює +1 мани."],
+    [{ hpRestored: 0, manaRestored: 0 }, null]
+  ] as const)("renders stored journal Sated recovery without zero components: %j", (satedRecovery, expectedLine) => {
+    const character = buildCharacter();
+    const text = presentTrainingDoppelgangerJournal({
+      state: "found",
+      character,
+      doppelganger: buildDoppelganger(character),
+      session: buildSession({
+        turnLog: [{
+          eventId: "turn:sated",
+          turn: 1,
+          hero: { hp: 17, mana: 5 },
+          monster: { hp: 18 },
+          summary: {
+            action: "attack",
+            heroOutcome: "hit",
+            heroDamage: 4,
+            monsterDamage: 1,
+            manaSpent: 0,
+            critical: false,
+            satedRecovery
+          }
+        }]
+      }),
+      reward: null
+    }, 0);
+
+    if (expectedLine) {
+      expect(text).toContain(expectedLine);
+      expect(text.match(/😋 Мандрівник: <i>ситість<\/i> відновлює/g)).toHaveLength(1);
+    } else {
+      expect(text).not.toContain("ситість відновлює");
+    }
+    expect(text).not.toContain("+0");
   });
 
   it("renders terminal XP without gold or manatky", () => {

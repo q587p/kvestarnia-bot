@@ -91,8 +91,8 @@ function prepareDuelist(
   const temporaryStats = subtractStats(targetBudget.stats, budget.stats);
   const hpMax = character.hpMax + temporaryHpMax;
   const manaMax = character.manaMax + temporaryManaMax;
-  const hpCurrent = preserveRatio(character.hpCurrent, character.hpMax, hpMax);
-  const manaCurrent = preserveRatio(character.manaCurrent, character.manaMax, manaMax);
+  const hpCurrent = preserveDuelResourceRatio(character.hpCurrent, character.hpMax, hpMax);
+  const manaCurrent = preserveDuelResourceRatio(character.manaCurrent, character.manaMax, manaMax);
   const stats = addStats(character.stats, temporaryStats);
   const prepared: PreparedDuelist = {
     ...character,
@@ -184,14 +184,18 @@ function buildProgressionBudget(
   };
 }
 
-function preserveRatio(current: number, oldMax: number, newMax: number): number {
-  const safeNewMax = Math.max(0, Math.floor(newMax));
+export function preserveDuelResourceRatio(
+  current: number,
+  naturalMax: number,
+  balancedMax: number
+): number {
+  const safeNewMax = Math.max(0, Math.floor(balancedMax));
 
   if (safeNewMax <= 0) {
     return 0;
   }
 
-  const safeOldMax = Math.max(1, Math.floor(oldMax));
+  const safeOldMax = Math.max(1, Math.floor(naturalMax));
   const ratio = clampRatio(current / safeOldMax);
 
   return Math.min(safeNewMax, Math.max(0, Math.round(ratio * safeNewMax)));

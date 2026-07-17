@@ -22,7 +22,6 @@ import {
   resolveTurnBasedDuelAction,
   resolveTurnBasedDuelTimeout,
   rollTurnBasedDuelXpRewards,
-  startTurnBasedDuel,
   TURN_BASED_DUEL_RULES_VERSION,
   TURN_BASED_DUEL_TURN_SECONDS,
   type TurnBasedDuelAction,
@@ -30,6 +29,7 @@ import {
   type TurnBasedDuelRoundSummary,
   type TurnBasedDuelState
 } from "../domain/duels/turnBasedDuel";
+import { parseVarenykSatedCombatState } from "../domain/noncombat/varenykSatedSupport";
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { summarizeAndSyncCharacterResources } from "./characterResourceService";
@@ -236,13 +236,23 @@ export class DuelChallengeService {
     input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
   ): Promise<DuelCreateResult> {
     const now = this.clock();
-    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const mode = input.mode ?? "quick";
+    const equipmentAt = mode === "turn-based" ? now : undefined;
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!challengerSnapshot) {
       return { state: "no-character" };
     }
 
-    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+    const challenger = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      challengerSnapshot,
+      now,
+      equipmentAt
+    );
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -264,7 +274,7 @@ export class DuelChallengeService {
 
     const challenge = await this.challenges.createOpenForTelegramUser(telegramUserId, {
       inviteToken: createInviteToken(),
-      mode: input.mode ?? "quick",
+      mode,
       contextChatId: input.contextChatId ?? null,
       expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
     });
@@ -301,7 +311,12 @@ export class DuelChallengeService {
       return { state: "not-resolved", challenge: original, challenger };
     }
 
-    const currentCharacter = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const rematchMode = original.result.mode ?? original.mode;
+    const equipmentAt = rematchMode === "turn-based" ? now : undefined;
+    const currentCharacter = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!currentCharacter) {
       return { state: "no-character" };
@@ -318,7 +333,12 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = await this.syncDuelCharacterForTelegramUser(telegramUserId, currentCharacter, now);
+    const current = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      currentCharacter,
+      now,
+      equipmentAt
+    );
 
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -362,7 +382,7 @@ export class DuelChallengeService {
       rematchTarget.id,
       {
         inviteToken: createInviteToken(),
-        mode: original.result.mode ?? original.mode,
+        mode: rematchMode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       }
@@ -427,17 +447,34 @@ export class DuelChallengeService {
       };
     }
 
-    const targetCharacter = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const equipmentAt = challenge.mode === "turn-based" ? now : undefined;
+    const [targetCharacter, currentChallenger] = await Promise.all([
+      this.challenges.findCharacterByTelegramUser(telegramUserId, equipmentAt),
+      challenge.mode === "turn-based"
+        ? this.challenges.findCharacterByTelegramUser(
+            challenge.challenger.telegramUserId,
+            equipmentAt
+          )
+        : Promise.resolve(challenge.challenger)
+    ]);
 
-    if (!targetCharacter) {
+    if (!targetCharacter || !currentChallenger) {
       return { state: "no-character" };
     }
 
-    const currentTarget = await this.syncDuelCharacterForTelegramUser(telegramUserId, targetCharacter, now);
+    const currentTarget = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      targetCharacter,
+      now,
+      equipmentAt,
+      challenge.mode !== "turn-based"
+    );
     challenger = await this.syncDuelCharacterForTelegramUser(
       challenge.challenger.telegramUserId,
-      challenge.challenger,
-      now
+      currentChallenger,
+      now,
+      equipmentAt,
+      challenge.mode !== "turn-based"
     );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
@@ -482,18 +519,12 @@ export class DuelChallengeService {
     }
 
     if (challenge.mode === "turn-based") {
-      const duelState = startTurnBasedDuel({
-        challenger: { ...challenger, id: challenge.challenger.id },
-        target: { ...currentTarget, id: targetCharacter.id },
-        rng: this.rng
-      });
       const started = await this.challenges.startTurnBasedByTokenForTelegramUser(
         inviteToken,
         telegramUserId,
         now,
         {
           sessionId: randomUUID(),
-          state: duelState,
           turnExpiresAt: getNextTurnExpiry(now),
           targetChatId: options.chatId ?? null,
           targetMessageId: options.messageId ?? null
@@ -745,8 +776,10 @@ export class DuelChallengeService {
   }
 
   async resolveDueTurnBasedSession(session: DuelCombatSessionRecord): Promise<TurnBasedDuelTurnResult> {
+    const now = this.clock();
     const resolved = resolveTurnBasedDuelTimeout({
       state: session.state,
+      sated: { sessionId: session.id, committedTurn: session.turn, now },
       rng: this.rng
     });
 
@@ -755,7 +788,6 @@ export class DuelChallengeService {
     }
 
     const state = resolved.state;
-    const now = this.clock();
     const result = buildStoredTurnBasedResult(
       state,
       rollTurnBasedDuelXpRewards(state, this.rng)
@@ -812,6 +844,7 @@ export class DuelChallengeService {
       actorCharacterId,
       action,
       ...(gearAbility ? { gearAbility } : {}),
+      sated: { sessionId: session.id, committedTurn: session.turn, now },
       rng: this.rng
     });
 
@@ -830,23 +863,24 @@ export class DuelChallengeService {
       };
     }
 
+    const committedState = resolved.state;
     const result = buildStoredTurnBasedResult(
-      resolved.state,
-      rollTurnBasedDuelXpRewards(resolved.state, this.rng)
+      committedState,
+      rollTurnBasedDuelXpRewards(committedState, this.rng)
     );
     const updated = await this.challenges.updateTurnBasedIfActiveVersion(
       session.id,
       session.turn,
       session.version,
       {
-        state: resolved.state,
-        status: resolved.state.status,
+        state: committedState,
+        status: committedState.status,
         now,
         deadlineMode: "player-action",
-        turnExpiresAt: resolved.resolution === "resolved" && resolved.state.status === "active"
+        turnExpiresAt: resolved.resolution === "resolved" && committedState.status === "active"
           ? getNextTurnExpiry(now)
           : session.turnExpiresAt,
-        completedAt: resolved.state.status === "active" ? null : now,
+        completedAt: committedState.status === "active" ? null : now,
         result,
         ...(resolved.resolution === "resolved"
           ? {
@@ -1146,13 +1180,23 @@ export class DuelChallengeService {
     input: { contextChatId?: bigint | null; ignoreResourceWarning?: boolean; mode?: DuelMode } = {}
   ): Promise<DuelTargetedCreateResult> {
     const now = this.clock();
-    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+    const mode = input.mode ?? "quick";
+    const equipmentAt = mode === "turn-based" ? now : undefined;
+    const challengerSnapshot = await this.challenges.findCharacterByTelegramUser(
+      telegramUserId,
+      equipmentAt
+    );
 
     if (!challengerSnapshot) {
       return { state: "no-character" };
     }
 
-    const challenger = await this.syncDuelCharacterForTelegramUser(telegramUserId, challengerSnapshot, now);
+    const challenger = await this.syncDuelCharacterForTelegramUser(
+      telegramUserId,
+      challengerSnapshot,
+      now,
+      equipmentAt
+    );
 
     if (challenger.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -1162,7 +1206,10 @@ export class DuelChallengeService {
       };
     }
 
-    const target = await this.challenges.findCharacterByTelegramUser(targetTelegramUserId);
+    const target = await this.challenges.findCharacterByTelegramUser(
+      targetTelegramUserId,
+      equipmentAt
+    );
 
     if (!target) {
       return { state: "target-not-found", character: challenger };
@@ -1197,7 +1244,7 @@ export class DuelChallengeService {
       target.id,
       {
         inviteToken: createInviteToken(),
-        mode: input.mode ?? "quick",
+        mode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       }
@@ -1220,8 +1267,11 @@ export class DuelChallengeService {
   private async syncDuelCharacterForTelegramUser(
     telegramUserId: bigint,
     character: DuelCharacterSnapshot,
-    now: Date
+    now: Date,
+    equipmentAt?: Date,
+    persistResources = true
   ): Promise<DuelistSummary> {
+    let effectiveSnapshot = character;
     const result = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
@@ -1229,12 +1279,17 @@ export class DuelChallengeService {
       equippedItems: getEquippedItemContents(character.equipment),
       ...(character.remortCount !== undefined ? { remortCount: character.remortCount } : {}),
       now,
+      persist: persistResources,
       reloadLatest: async () => {
-        const latest = await this.challenges.findCharacterByTelegramUser(telegramUserId);
+        const latest = await this.challenges.findCharacterByTelegramUser(
+          telegramUserId,
+          equipmentAt
+        );
 
         if (!latest) {
           return null;
         }
+        effectiveSnapshot = latest;
 
         return {
           character: latest,
@@ -1245,8 +1300,11 @@ export class DuelChallengeService {
     });
 
     return withActiveCosmeticTitle(
-      withDuelEquipmentAbilityGrantIds({ ...result.character, id: character.id }, character),
-      character.activeCosmeticTitleGrantId
+      withDuelEquipmentAbilityGrantIds(
+        { ...result.character, id: effectiveSnapshot.id },
+        effectiveSnapshot
+      ),
+      effectiveSnapshot.activeCosmeticTitleGrantId
     );
   }
 
@@ -1629,11 +1687,39 @@ function parseTurnBasedDuelRoundSummary(value: unknown): TurnBasedDuelRoundSumma
   const actions = value.actions
     .map(parseTurnBasedDuelActionSummary)
     .filter((action): action is TurnBasedDuelRoundSummary["actions"][number] => action !== null);
+  const varenykSatedAfter = parseStoredTurnBasedSatedAfter(value.varenykSatedAfter);
+  if (varenykSatedAfter === null) {
+    return null;
+  }
 
   return {
     turn: Math.max(1, Math.floor(value.turn)),
-    actions
+    actions,
+    ...(varenykSatedAfter ? { varenykSatedAfter } : {})
   };
+}
+
+function parseStoredTurnBasedSatedAfter(
+  value: unknown
+): TurnBasedDuelRoundSummary["varenykSatedAfter"] | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const challenger = value.challenger === null
+    ? null
+    : parseVarenykSatedCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
 }
 
 function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSummary["actions"][number] | null {
@@ -1651,6 +1737,7 @@ function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSumm
   }
 
   const fumble = parseTurnBasedDuelFumbleSummary(value.fumble);
+  const satedRecovery = parseStoredTurnBasedSatedRecovery(value.satedRecovery);
 
   return {
     actorCharacterId: value.actorCharacterId,
@@ -1663,7 +1750,25 @@ function parseTurnBasedDuelActionSummary(value: unknown): TurnBasedDuelRoundSumm
     manaSpent: Math.max(0, Math.floor(value.manaSpent)),
     critical: value.critical,
     ...(typeof value.skillId === "string" ? { skillId: value.skillId } : {}),
-    ...(fumble ? { fumble } : {})
+    ...(fumble ? { fumble } : {}),
+    ...(satedRecovery ? { satedRecovery } : {})
+  };
+}
+
+function parseStoredTurnBasedSatedRecovery(
+  value: unknown
+): TurnBasedDuelRoundSummary["actions"][number]["satedRecovery"] | null {
+  if (
+    !isRecord(value) ||
+    typeof value.hpRestored !== "number" ||
+    typeof value.manaRestored !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    hpRestored: Math.max(0, Math.floor(value.hpRestored)),
+    manaRestored: Math.max(0, Math.floor(value.manaRestored))
   };
 }
 

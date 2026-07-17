@@ -3,6 +3,7 @@ import {
   makeClassNoncombatOpenCallbackData,
   makePriestHealCallbackData,
   makeRogueRetaliationDuelCallbackData,
+  makeVarenykFeedConfirmCallbackData,
   type ClassNoncombatCallback
 } from "../callbacks/classNoncombatCallbackData";
 import type {
@@ -30,7 +31,10 @@ import {
   presentPriestHealResult,
   presentPriestHealTargetNotification,
   presentRoguePickpocketResult,
-  presentRoguePickpocketTargetNotification
+  presentRoguePickpocketTargetNotification,
+  presentVarenykSatedPreview,
+  presentVarenykSatedResult,
+  presentVarenykSatedTargetNotification
 } from "../presenters/classNoncombatPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { presentDuelAccept, presentTurnBasedDuel } from "../presenters/duelPresenter";
@@ -102,6 +106,54 @@ export async function handleClassNoncombatCallback(
     return;
   }
 
+  if (callback.type === "varenyk-feed-preview") {
+    const result = await service.previewVarenykSatedForTelegramUser(telegramUserId, {
+      targetTelegramUserId: callback.targetTelegramUserId,
+      expectedActorRemortCount: callback.actorRemortCount,
+      expectedTargetRemortCount: callback.targetRemortCount,
+      page: callback.page
+    });
+    const keyboard = result.state === "preview"
+      ? new InlineKeyboard()
+          .text("🍽️ Нагодувати", makeVarenykFeedConfirmCallbackData({
+            targetTelegramUserId: result.targetTelegramUserId,
+            actorRemortCount: result.actorRemortCount,
+            targetRemortCount: result.targetRemortCount,
+            page: result.page,
+            previewToken: result.previewToken
+          }))
+          .row()
+          .text("↩️ Назад", makeClassNoncombatOpenCallbackData("varenyk", result.page))
+      : new InlineKeyboard().text("↩️ До мисок", makeClassNoncombatOpenCallbackData("varenyk", callback.page));
+    await safeEditMessageText(ctx, presentVarenykSatedPreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: keyboard
+    });
+    return;
+  }
+
+  if (callback.type === "varenyk-feed-confirm") {
+    const result = await service.feedVarenykSatedForTelegramUser(telegramUserId, {
+      targetTelegramUserId: callback.targetTelegramUserId,
+      expectedActorRemortCount: callback.actorRemortCount,
+      expectedTargetRemortCount: callback.targetRemortCount,
+      previewToken: callback.previewToken
+    });
+    await safeEditMessageText(ctx, presentVarenykSatedResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildClassNoncombatRefreshKeyboard("varenyk", callback.page)
+    });
+    if (
+      result.state === "completed" &&
+      result.created &&
+      result.action.actorTelegramUserId !== result.action.targetTelegramUserId
+    ) {
+      await notifyTarget(ctx, result.action.targetTelegramUserId, presentVarenykSatedTargetNotification(result));
+    }
+    await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
+    return;
+  }
+
   const result = await service.pickpocketForTelegramUser(telegramUserId, {
     targetTelegramUserId: callback.targetTelegramUserId,
     expectedActorRemortCount: callback.actorRemortCount,
@@ -126,7 +178,7 @@ export async function handleClassNoncombatCallback(
   await notifyActorAchievements(ctx, result.state === "completed" ? result.unlocks : []);
 }
 
-function buildClassNoncombatRefreshKeyboard(mode: "priest" | "rogue", page: number): InlineKeyboard {
+function buildClassNoncombatRefreshKeyboard(mode: "priest" | "rogue" | "varenyk", page: number): InlineKeyboard {
   return new InlineKeyboard()
     .text("🔄 Оновити", makeClassNoncombatOpenCallbackData(mode, page));
 }
@@ -135,7 +187,7 @@ async function editOpen(
   ctx: Context,
   service: ClassNoncombatService,
   telegramUserId: bigint,
-  mode: "priest" | "rogue",
+  mode: "priest" | "rogue" | "varenyk",
   page: number
 ): Promise<void> {
   const result = await service.openForTelegramUser(telegramUserId, mode, page);

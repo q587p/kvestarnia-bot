@@ -45,6 +45,9 @@ export type HeroLookupResult =
       inventoryGoldValue: number;
       activeDrink: HeroActiveDrink | null;
       activePriestBlessing: HeroActivePriestBlessing | null;
+      activeVarenykSated: HeroActiveVarenykSated | null;
+      varenykSatedAvailableAt: Date | null;
+      satedRecovery: { hpRestored: number; manaRestored: number } | null;
       priestSelfBlessAvailableAt: Date | null;
       classNoncombatBlocked: boolean;
       activeCosmeticTitle: string | null;
@@ -73,6 +76,12 @@ export interface HeroActivePriestBlessing {
   bonusAmount: number;
 }
 
+export interface HeroActiveVarenykSated {
+  activationId: string;
+  rank: number;
+  expiresAt: Date;
+}
+
 export class HeroService {
   private readonly shynok:
     | Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">
@@ -89,7 +98,10 @@ export class HeroService {
     private readonly achievements?: AchievementService,
     private readonly classNoncombat?: Pick<
       ClassNoncombatRepository,
-      "getActivePriestBlessingForTelegramUser" | "getPriestSelfBlessAvailableAtForTelegramUser" | "isActorBlockedForTelegramUser"
+      | "getActivePriestBlessingForTelegramUser"
+      | "getPriestSelfBlessAvailableAtForTelegramUser"
+      | "isActorBlockedForTelegramUser"
+      | "settleVarenykSatedForTelegramUser"
     >
   ) {
     if (typeof shynokOrClock === "function") {
@@ -102,13 +114,20 @@ export class HeroService {
   }
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<HeroLookupResult> {
+    const now = this.clock();
     const character = await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return { state: "no-character" };
     }
+    const satedSettlement = await this.classNoncombat?.settleVarenykSatedForTelegramUser(
+      telegramUserId,
+      now,
+      character.id,
+      character
+    ) ?? null;
+    const authoritativeCharacter = satedSettlement?.character ?? character;
 
-    const now = this.clock();
     const [
       inventoryRows,
       equipmentSnapshot,
@@ -155,7 +174,7 @@ export class HeroService {
     const resourceAware = await summarizeAndSyncCharacterResources({
       characters: this.characters,
       telegramUserId,
-      character,
+      character: authoritativeCharacter,
       equippedItems,
       equipmentAttunements,
       remortCount,
@@ -169,6 +188,7 @@ export class HeroService {
       presentedPriestBlessing,
       now
     );
+    const recoveryNotice = satedSettlement?.passiveRecoveryNotice ?? resourceAware.recoveryNotice;
 
     return {
       state: "existing-character",
@@ -176,12 +196,23 @@ export class HeroService {
       inventoryGoldValue: inventoryRows ? calculateInventoryRowsGoldValue(inventoryRows) : 0,
       activeDrink: presentHeroActiveDrink(activeDrink),
       activePriestBlessing: presentedPriestBlessing,
+      activeVarenykSated: satedSettlement?.payload && Date.parse(satedSettlement.payload.expiresAt) > now.getTime()
+        ? {
+            activationId: satedSettlement.payload.activationId,
+            rank: satedSettlement.payload.rank,
+            expiresAt: new Date(satedSettlement.payload.expiresAt)
+          }
+        : null,
+      varenykSatedAvailableAt: satedSettlement?.personalAvailableAt ?? null,
+      satedRecovery: satedSettlement && (satedSettlement.hpRestored > 0 || satedSettlement.manaRestored > 0)
+        ? { hpRestored: satedSettlement.hpRestored, manaRestored: satedSettlement.manaRestored }
+        : null,
       priestSelfBlessAvailableAt,
       classNoncombatBlocked,
       activeCosmeticTitle,
       restoreToFullItemId: resolveRestoreToFullItemId(resourceAware.character, inventoryRows ?? []),
-      ...(resourceAware.recoveryNotice
-        ? { recoveryNotice: resourceAware.recoveryNotice }
+      ...(recoveryNotice
+        ? { recoveryNotice }
         : {})
     };
   }

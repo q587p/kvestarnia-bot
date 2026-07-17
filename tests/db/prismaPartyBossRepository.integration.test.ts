@@ -107,6 +107,111 @@ describe("PrismaPartyBossRepository integration", () => {
     })).toBe(2);
   });
 
+  it("shortens Big Barrel Sated by one minute per durable round pulse and persists it on lease release", async () => {
+    const leaderId = "big-sated-leader-character";
+    await seedCharacter(prisma, "big-sated-leader", 1003n, "Ситий Лідер", {
+      hpCurrent: 20,
+      hpMax: 25,
+      manaCurrent: 5,
+      manaMax: 10,
+      level: 8
+    });
+    await seedCharacter(prisma, "big-sated-joiner", 1004n, "Свідок", { hp: 300, level: 8 });
+    const expiresAt = new Date(now().getTime() + 13 * 60_000);
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-sated-cooldown",
+        characterId: leaderId,
+        key: "class.varenyk-mancer.sated-support.recipient",
+        availableAt: new Date(now().getTime() + 93 * 60_000),
+        resultJson: {
+          kind: "varenyk-sated-support-v1",
+          version: 1,
+          activationId: "big-sated-activation",
+          actorCharacterId: leaderId,
+          actorRemortCount: 0,
+          recipientCharacterId: leaderId,
+          recipientRemortCount: 0,
+          rank: 1,
+          manaCost: 8,
+          effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+          startedAt: now().toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          availableAt: new Date(now().getTime() + 93 * 60_000).toISOString(),
+          cursorAt: now().toISOString(),
+          receipt: {
+            version: 1,
+            previewToken: "big-sated-preview",
+            actorTelegramUserId: "1003",
+            targetTelegramUserId: "1003",
+            actorName: "Ситий Лідер",
+            targetName: "Ситий Лідер",
+            immediateHpRestored: 0,
+            immediateManaRestored: 0,
+            actorManaAfter: 5,
+            targetHpAfter: 20,
+            targetManaAfter: 5
+          }
+        }
+      }
+    });
+    await partyRepository.createForTelegramUser(1003n, {
+      ...partyInput("party-token-big-sated"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(1004n, "party-token-big-sated", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1003n, {
+      partyInviteToken: "party-token-big-sated",
+      now: now(),
+      turnExpiresAt: new Date(now().getTime() + 23_000)
+    });
+    expect(started.state).toBe("started");
+    const startedLeader = expectPartyBossSession(started).state.participants.find(
+      (participant) => participant.characterId === leaderId
+    );
+    expect(startedLeader?.varenykSated).toMatchObject({
+      expiresAt: expiresAt.toISOString(),
+      pulseIds: []
+    });
+
+    await bossRepository.submitActionForTelegramUser(1003n, "party-token-big-sated", 1, "defend", resolveInput());
+    const resolved = await bossRepository.submitActionForTelegramUser(1004n, "party-token-big-sated", 1, "defend", resolveInput());
+    const afterRound = expectPartyBossSession(resolved);
+    const leader = afterRound.state.participants.find((entry) => entry.characterId === leaderId);
+    expect(leader?.varenykSated?.expiresAt).toBe(new Date(expiresAt.getTime() - 60_000).toISOString());
+    expect(leader?.varenykSated?.pulseIds).toEqual([
+      `big-sated-activation:big-barrel:${afterRound.partySessionId}:1:${leaderId}`
+    ]);
+    expect(afterRound.state.roundLog[0]?.actions.find((action) => action.characterId === leaderId)?.satedRecovery)
+      .toEqual({ hpRestored: 1, manaRestored: 1 });
+    expect(afterRound.state.roundLog[0]?.participantsAfter?.find(
+      (participant) => participant.characterId === leaderId
+    )?.varenykSated?.pulseIds).toEqual([
+      `big-sated-activation:big-barrel:${afterRound.partySessionId}:1:${leaderId}`
+    ]);
+
+    await expect(bossRepository.forceBigBarrelWinForTelegramUser(1003n, now()))
+      .resolves.toMatchObject({ state: "primed" });
+    const terminal = await bossRepository.resolveTimedOutByToken(
+      "party-token-big-sated",
+      resolveInput(),
+      "due"
+    );
+    const terminalSession = expectPartyBossSession(terminal);
+    expect(terminalSession.status).toBe("won");
+    expect(terminalSession.state.participants.find((entry) => entry.characterId === leaderId)?.varenykSated?.pulseIds)
+      .toEqual([
+        `big-sated-activation:big-barrel:${afterRound.partySessionId}:1:${leaderId}`,
+        `big-sated-activation:big-barrel:${afterRound.partySessionId}:2:${leaderId}`
+      ]);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: leaderId, key: "class.varenyk-mancer.sated-support.recipient" } }
+    });
+    expect((stored.resultJson as { expiresAt: string }).expiresAt)
+      .toBe(new Date(expiresAt.getTime() - 2 * 60_000).toISOString());
+  });
+
   it("commits only the latest eligible Big Barrel Warrior Taunt and rejects stale or ineligible replays", async () => {
     await seedCharacter(prisma, "taunt-warrior-user", 1051n, "Воїн Виклику", {
       hp: 500,

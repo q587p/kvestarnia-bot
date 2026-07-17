@@ -4,15 +4,27 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
+import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { PrismaClassNoncombatRepository } from "../../src/db/repositories/prismaClassNoncombatRepository";
+import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
+import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
+import { HeroService } from "../../src/services/heroService";
+import {
+  settleVarenykSatedOutsideCombat,
+  VARENYK_SATED_STATUS_KEY,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
 
 describe("PrismaRemortRepository integration", () => {
   let dir: string;
   let prisma: PrismaClient;
   let repository: PrismaRemortRepository;
   let passages: PrismaPendingPassageEncounterRepository;
+  let partyBosses: PrismaPartyBossRepository;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "kvestarnia-remort-repo-"));
@@ -26,6 +38,7 @@ describe("PrismaRemortRepository integration", () => {
     await createMinimalSchema(prisma);
     repository = new PrismaRemortRepository(prisma);
     passages = new PrismaPendingPassageEncounterRepository(prisma);
+    partyBosses = new PrismaPartyBossRepository(prisma);
   }, 60_000);
 
   afterAll(async () => {
@@ -181,8 +194,8 @@ describe("PrismaRemortRepository integration", () => {
       }
     });
     await prisma.$executeRaw`
-      INSERT INTO daily_actions (id, character_id, key, value_json, created_at, updated_at)
-      VALUES ('daily-remort-bandage', 'character-remort-solo', 'yeger.bandage.purchase.confirm', '{}', ${new Date(now.getTime() - 60_000)}, ${new Date(now.getTime() - 60_000)})
+      INSERT INTO daily_actions (id, character_id, key, local_date, reward_xp, reward_gold, result_json, created_at)
+      VALUES ('daily-remort-bandage', 'character-remort-solo', 'yeger.bandage.purchase.confirm', '2026-06-22', 0, 0, '{}', ${new Date(now.getTime() - 60_000)})
     `;
     await prisma.characterCooldown.create({
       data: {
@@ -614,69 +627,75 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(1);
   });
 
-  it("cancels active party boss proof and clears leases during remort", async () => {
+  it("keeps canonically persisted Big Barrel pre-lease Sated recovery when another participant remorts", async () => {
+    const startAt = new Date("2026-06-22T12:25:00.000Z");
     const now = new Date("2026-06-22T12:30:00.000Z");
+    const actorId = "character-remort-party-boss";
+    const survivorId = "character-remort-party-survivor";
     await seedCharacter(prisma, {
       userId: "user-remort-party-boss",
-      characterId: "character-remort-party-boss",
+      characterId: actorId,
       telegramUserId: 9315n
     });
-    await seedDraft(prisma, "character-remort-party-boss", "token-remort-party-boss", now);
-    await prisma.partySession.create({
+    await seedDraft(prisma, actorId, "token-remort-party-boss", now);
+    await seedCharacter(prisma, {
+      userId: "user-remort-party-survivor",
+      characterId: survivorId,
+      telegramUserId: 9316n
+    });
+    await prisma.character.update({
+      where: { id: survivorId },
       data: {
-        id: "party-remort-boss",
-        inviteToken: "party-remort-boss-token",
-        status: "active",
-        leaderCharacterId: "character-remort-party-boss",
-        participantCap: 8,
-        minimumParticipants: 1,
-        joinUntilAt: new Date(now.getTime() + 60_000),
-        expiresAt: new Date(now.getTime() + 60_000),
-        activeLeaderKey: "party-leader:character-remort-party-boss",
-        participants: {
-          create: {
-            id: "participant-remort-party-boss",
-            characterId: "character-remort-party-boss",
-            status: "joined",
-            joinSource: "leader",
-            joinedAt: now,
-            activeMembershipKey: "party-member:character-remort-party-boss"
-          }
-        }
+        hpCurrent: 112,
+        manaCurrent: 54,
+        hpRegenAt: new Date(startAt.getTime() - 60 * 60_000),
+        manaRegenAt: new Date(startAt.getTime() - 60 * 60_000)
       }
     });
-    await prisma.partyBossSession.create({
+    const survivorPayload = makeSatedPayload(
+      survivorId,
+      new Date(startAt.getTime() - 2 * 60_000 - 30_000)
+    );
+    await prisma.characterCooldown.create({
       data: {
-        id: "boss-remort-party",
-        partySessionId: "party-remort-boss",
-        leaderCharacterId: "character-remort-party-boss",
-        status: "active",
-        turn: 1,
-        version: 1,
-        rulesVersion: "party-boss-proof-v1",
-        bossKey: "party-boss-proof-one",
-        stateJson: {
-          status: "active",
-          turn: 1,
-          participants: [{ characterId: "character-remort-party-boss" }]
-        },
-        turnExpiresAt: new Date(now.getTime() + 23_000)
+        characterId: survivorId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(survivorPayload.availableAt),
+        resultJson: survivorPayload
       }
     });
-    await prisma.activeCombatLease.create({
-      data: {
-        id: "lease-remort-party-boss",
-        characterId: "character-remort-party-boss",
-        kind: "party-boss",
-        referenceId: "party-remort-boss"
-      }
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-boss",
+      inviteToken: "party-remort-boss-token",
+      actorId,
+      survivorId,
+      joinedAt: startAt
+    });
+    const started = await partyBosses.startFromRecruitingPartyForTelegramUser(9315n, {
+      partyInviteToken: "party-remort-boss-token",
+      now: startAt,
+      turnExpiresAt: new Date(startAt.getTime() + 23_000)
+    });
+    expect(started.state).toBe("started");
+    const leasesAtStart = await prisma.activeCombatLease.findMany({
+      where: { kind: "party-boss", referenceId: "party-remort-boss" }
+    });
+    expect(leasesAtStart).toHaveLength(2);
+    expect(leasesAtStart.every((lease) => lease.createdAt.getTime() === startAt.getTime())).toBe(true);
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
     });
 
     await expect(repository.completeDraftForTelegramUser(
       9315n,
       makeCompletionInput("token-remort-party-boss", now)
     )).resolves.toMatchObject({ state: "completed" });
-    const bossSession = await prisma.partyBossSession.findUnique({ where: { id: "boss-remort-party" } });
+    const bossSession = await prisma.partyBossSession.findUnique({
+      where: { partySessionId: "party-remort-boss" }
+    });
     const bossResult = bossSession?.resultJson;
 
     expect(bossSession?.status).toBe("cancelled");
@@ -687,6 +706,230 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.partyParticipant.findUnique({ where: { id: "participant-remort-party-boss" } })).resolves.toMatchObject({
       activeMembershipKey: null
     });
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
+    });
+    const survivorCooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = survivorCooldown.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-06-22T12:29:30.000Z");
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
+      now: new Date(now.getTime() + 29_000),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(0);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
+      now: new Date(now.getTime() + 30_000),
+      combatBlocked: false
+    })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
+  });
+
+  it("returns only the new-life Hero snapshot when real remort deletes Sated between preliminary Character and absence guard", async () => {
+    const now = new Date("2026-07-15T09:00:00.000Z");
+    const telegramUserId = 9320n;
+    const characterId = "character-remort-public-sated";
+    await seedCharacter(prisma, {
+      userId: "user-remort-public-sated",
+      characterId,
+      telegramUserId
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: {
+        classId: "class.varenyk-mancer",
+        hpRegenAt: now,
+        manaRegenAt: now
+      }
+    });
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-remort-public-sated",
+        characterId,
+        slot: "head",
+        itemId: "item.mantok.coverage.class.varenyk-mancer.dough-crown"
+      }
+    });
+    const payload = makeSatedPayload(characterId, new Date(now.getTime() - 60_000));
+    await prisma.characterCooldown.create({
+      data: {
+        id: "cooldown-remort-public-sated",
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await seedDraft(prisma, characterId, "token-remort-public-sated", now);
+    let remortResult: Awaited<ReturnType<PrismaRemortRepository["completeDraftForTelegramUser"]>> | null = null;
+    const characters = withFirstCharacterReadInterleaving(
+      new PrismaCharacterRepository(prisma),
+      async () => {
+        remortResult = await repository.completeDraftForTelegramUser(
+          telegramUserId,
+          makeCompletionInput("token-remort-public-sated", now)
+        );
+      }
+    );
+    const satedRepository = new PrismaClassNoncombatRepository(prisma);
+    let satedSettlement: Awaited<
+      ReturnType<PrismaClassNoncombatRepository["settleVarenykSatedForTelegramUser"]>
+    > = null;
+    const hero = new HeroService(
+      characters,
+      { listByTelegramUserId: () => Promise.resolve([]) },
+      new PrismaEquipmentRepository(prisma),
+      repository,
+      undefined,
+      () => now,
+      undefined,
+      {
+        settleVarenykSatedForTelegramUser: async (...args) => {
+          satedSettlement = await satedRepository.settleVarenykSatedForTelegramUser(...args);
+          return satedSettlement;
+        },
+        getActivePriestBlessingForTelegramUser: () => Promise.resolve(null),
+        getPriestSelfBlessAvailableAtForTelegramUser: () => Promise.resolve(null),
+        isActorBlockedForTelegramUser: () => Promise.resolve(false)
+      }
+    );
+
+    const result = await hero.findByTelegramUserId(telegramUserId);
+    expect(remortResult).toMatchObject({ state: "completed" });
+    expect(satedSettlement).toMatchObject({
+      character: {
+        id: characterId,
+        classId: "class.mage",
+        hpCurrent: 31,
+        hpMax: 31,
+        manaCurrent: 12,
+        manaMax: 12,
+        remortCount: 1
+      },
+      payload: null,
+      hpRestored: 0,
+      manaRestored: 0
+    });
+    expect(result).toMatchObject({
+      state: "existing-character",
+      character: {
+        classId: "class.mage",
+        level: 1,
+        hpCurrent: 31,
+        hpMax: 31,
+        manaCurrent: 12,
+        manaMax: 12,
+        remortCount: 1,
+        stats: { intelligence: 10 }
+      },
+      activeVarenykSated: null,
+      varenykSatedAvailableAt: null,
+      satedRecovery: null
+    });
+    expect(result).not.toHaveProperty("recoveryNotice");
+    await expect(prisma.character.findUnique({ where: { id: characterId } })).resolves.toMatchObject({
+      classId: "class.mage",
+      hpCurrent: 31,
+      hpMax: 31,
+      manaCurrent: 12,
+      manaMax: 12,
+      hpRegenAt: null,
+      manaRegenAt: null,
+      statsJson: { intelligence: 9 }
+    });
+    await expect(prisma.characterRemort.count({ where: { characterId } })).resolves.toBe(1);
+    await expect(prisma.characterEquipment.count({ where: { characterId } })).resolves.toBe(0);
+    await expect(prisma.characterCooldown.findUnique({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resolves.toBeNull();
+  });
+
+  it("does not write raid-time resources back after a real Big Barrel round and participant remort", async () => {
+    const startAt = new Date("2026-06-22T15:00:00.000Z");
+    const now = new Date("2026-06-22T15:00:20.000Z");
+    const actorId = "character-remort-party-round-actor";
+    const survivorId = "character-remort-party-round-survivor";
+    await seedCharacter(prisma, { userId: "user-remort-party-round-actor", characterId: actorId, telegramUserId: 9317n });
+    await seedCharacter(prisma, { userId: "user-remort-party-round-survivor", characterId: survivorId, telegramUserId: 9318n });
+    await seedDraft(prisma, actorId, "token-remort-party-round", now);
+    await prisma.character.update({
+      where: { id: survivorId },
+      data: {
+        hpCurrent: 112,
+        manaCurrent: 54,
+        hpRegenAt: new Date(startAt.getTime() - 60 * 60_000),
+        manaRegenAt: new Date(startAt.getTime() - 60 * 60_000)
+      }
+    });
+    const payload = makeSatedPayload(survivorId, new Date(startAt.getTime() - 2 * 60_000 - 30_000));
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: survivorId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-after-round",
+      inviteToken: "party-remort-after-round-token",
+      actorId,
+      survivorId,
+      joinedAt: startAt
+    });
+    const started = await partyBosses.startFromRecruitingPartyForTelegramUser(9317n, {
+      partyInviteToken: "party-remort-after-round-token",
+      now: startAt,
+      turnExpiresAt: new Date(startAt.getTime() + 23_000)
+    });
+    expect(started.state).toBe("started");
+    await partyBosses.submitActionForTelegramUser(9317n, "party-remort-after-round-token", 1, "attack", {
+      now: new Date(startAt.getTime() + 10_000),
+      nextTurnExpiresAt: new Date(startAt.getTime() + 33_000)
+    });
+    const resolved = await partyBosses.submitActionForTelegramUser(9318n, "party-remort-after-round-token", 1, "defend", {
+      now: new Date(startAt.getTime() + 11_000),
+      nextTurnExpiresAt: new Date(startAt.getTime() + 34_000)
+    });
+    expect(resolved.state).toBe("resolved");
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
+    });
+
+    const first = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+    const cursorAfterFirst = ((await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
+    const replay = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+    const cursorAfterReplay = ((await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
+
+    expect(first).toMatchObject({ state: "completed" });
+    expect(replay).toMatchObject({
+      state: "replayed",
+      remort: { id: first.state === "completed" ? first.remort.id : undefined }
+    });
+    expect(cursorAfterFirst).toBe("2026-06-22T14:59:50.000Z");
+    expect(cursorAfterReplay).toBe(cursorAfterFirst);
+    await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
+      hpCurrent: 114,
+      manaCurrent: 56,
+      hpRegenAt: startAt,
+      manaRegenAt: startAt
+    });
+    await expect(prisma.activeCombatLease.count({
+      where: { kind: "party-boss", referenceId: "party-remort-after-round" }
+    })).resolves.toBe(0);
   });
 
   it("expires unreadable legacy solo state without rewards or character resource rollback", async () => {
@@ -796,9 +1039,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,
       key TEXT NOT NULL,
-      value_json JSONB NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL,
+      reward_gold INTEGER NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      UNIQUE(character_id, key, local_date)
     )`,
     `CREATE TABLE character_remort_drafts (
       id TEXT PRIMARY KEY,
@@ -1137,6 +1384,29 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
   }
 }
 
+function withFirstCharacterReadInterleaving(
+  repository: CharacterRepository,
+  afterRead: () => Promise<void>
+): CharacterRepository {
+  let interleaved = false;
+  return new Proxy(repository, {
+    get(target, property, receiver) {
+      if (property === "findByTelegramUserId") {
+        return async (telegramUserId: bigint) => {
+          const character = await target.findByTelegramUserId(telegramUserId);
+          if (!interleaved) {
+            interleaved = true;
+            await afterRead();
+          }
+          return character;
+        };
+      }
+      const value = Reflect.get(target, property, receiver) as unknown;
+      return typeof value === "function" ? value.bind(target) as unknown : value;
+    }
+  });
+}
+
 async function seedCharacter(
   prisma: PrismaClient,
   input: { userId: string; characterId: string; telegramUserId: bigint }
@@ -1195,6 +1465,78 @@ async function seedDraft(
       expiresAt: new Date(now.getTime() + 30 * 60_000),
       createdAt: now,
       updatedAt: now
+    }
+  });
+}
+
+function makeSatedPayload(characterId: string, startedAt: Date): VarenykSatedPayloadV1 {
+  return {
+    kind: "varenyk-sated-support-v1",
+    version: 1,
+    activationId: `${characterId}-sated`,
+    actorCharacterId: characterId,
+    actorRemortCount: 0,
+    recipientCharacterId: characterId,
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: startedAt.toISOString(),
+    expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(startedAt.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: startedAt.toISOString(),
+    receipt: {
+      version: 1,
+      previewToken: `${characterId}-preview`,
+      actorTelegramUserId: "9316",
+      targetTelegramUserId: "9316",
+      actorName: "Пан Вареник",
+      targetName: "Пан Вареник",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 12,
+      targetHpAfter: 44,
+      targetManaAfter: 7
+    }
+  };
+}
+
+async function seedRecruitingBigBarrel(
+  prisma: PrismaClient,
+  input: {
+    partyId: string;
+    inviteToken: string;
+    actorId: string;
+    survivorId: string;
+    joinedAt: Date;
+  }
+): Promise<void> {
+  await prisma.partySession.create({
+    data: {
+      id: input.partyId,
+      inviteToken: input.inviteToken,
+      status: "recruiting",
+      leaderCharacterId: input.actorId,
+      periodId: `12026-06-22:${input.partyId}`,
+      originLocationId: "barrel.big-brother",
+      participantCap: 8,
+      minimumParticipants: 1,
+      joinUntilAt: new Date(input.joinedAt.getTime() + 13 * 60_000),
+      expiresAt: new Date(input.joinedAt.getTime() + 13 * 60_000),
+      activeLeaderKey: `party-leader:${input.actorId}`,
+      createdAt: input.joinedAt,
+      updatedAt: input.joinedAt,
+      participants: {
+        create: [input.actorId, input.survivorId].map((characterId, index) => ({
+          id: `participant-${characterId.replace(/^character-/, "")}`,
+          characterId,
+          remortCount: 0,
+          status: "joined",
+          joinSource: index === 0 ? "leader" : "invite",
+          joinedAt: input.joinedAt,
+          activeMembershipKey: `party-member:${characterId}`
+        }))
+      }
     }
   });
 }

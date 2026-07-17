@@ -139,6 +139,12 @@ export function presentDevGrantResult(result: DevGrantResult | DevGrantItemsResu
       : "🧪 Dev: Протокол 13-З і так без активного cooldown.";
   }
 
+  if (result.kind === "varenyk-sated") {
+    return result.cleared
+      ? "🍽️ <b>Ситість скинуто</b>\n\nПоточний стан і пауза цієї життєвої спроби прибрані."
+      : "🍽️ <b>Ситість уже порожня</b>\n\nДля поточного життя немає стану чи паузи.";
+  }
+
   if (result.kind === "rogue-reset") {
     if (result.clearedCooldown || result.deletedAttempts > 0) {
       return [

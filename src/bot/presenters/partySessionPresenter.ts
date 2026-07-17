@@ -28,6 +28,11 @@ import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -539,6 +544,12 @@ export function presentPartyBoss(
   }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
+    if (viewer?.varenykSated) {
+      const satedBuff = presentActiveVarenykSatedCombatState(
+        viewer.varenykSated
+      );
+      if (satedBuff) lines.push(satedBuff);
+    }
   }
 
   const lastRound = state.roundLog.at(-1);
@@ -637,22 +648,31 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
   const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const satedLines = presentVarenykSatedCombatEffectLines(session.state.participants.map((participant) => ({
+    sated: participant.varenykSated,
+    subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
+  })));
 
   if (rounds.length === 0) {
     return presentBattleJournalPage({
       title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
-      headerLines: ["", getBossStatusLine(session)],
+      headerLines: ["", getBossStatusLine(session), ...satedLines],
       emptyText: "Журнал поки порожній. Корчмар уже відкрив чорнильницю, але хід ще не розписався."
     });
   }
 
   const round = rounds[page]!;
   const actionLines: string[] = [];
+  const satedRecoveryLines: string[] = [];
   if (round.actions.length === 0) {
     actionLines.push("Журнал не знайшов записаних дій учасників.");
   } else {
     for (const action of round.actions) {
       actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
+      const recovery = presentVarenykSatedRecoveryLine(action, names.get(action.characterId));
+      if (recovery) {
+        satedRecoveryLines.push(recovery);
+      }
     }
   }
 
@@ -678,6 +698,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   if (round.warriorTaunt) {
     actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
   }
+  actionLines.push(...satedRecoveryLines);
 
   return presentBattleJournalPage({
     title: isBigPartyBossSession(session) ? "📜 <b>Журнал бою</b>" : "📜 <b>Журнал тестового бою</b>",
@@ -741,13 +762,35 @@ function presentPartyBossJournalNotices(
   round: PartyBossSessionRecord["state"]["roundLog"][number]
 ): string[] {
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
-  const notices = [
-    ...presentJournalCooldownLines(round, session.state.participants),
-    ...(nextFocus ? [nextFocus] : []),
-    ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
+  return [
+    ...new Set(presentJournalCooldownLines(round, session.state.participants)),
+    ...presentPartyBossJournalSatedLines(round, session.state.participants),
+    ...new Set([
+      ...(nextFocus ? [nextFocus] : []),
+      ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
+    ])
   ];
+}
 
-  return Array.from(new Set(notices));
+function presentPartyBossJournalSatedLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number],
+  participants: PartyBossSessionRecord["state"]["participants"]
+): string[] {
+  const snapshots = new Map(round.participantsAfter?.map((participant) => [
+    participant.characterId,
+    participant
+  ]) ?? []);
+
+  return presentVarenykSatedCombatEffectLines(participants.map((participant) => {
+    const snapshot = snapshots.get(participant.characterId);
+    const sated = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
+      ? snapshot.varenykSated
+      : participant.varenykSated;
+    return {
+      sated,
+      subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
+    };
+  }));
 }
 
 function presentJournalCooldownLines(
@@ -826,9 +869,15 @@ function presentLastRoundLines(
   options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
   const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
-  const lines = round.actions.map((action) =>
-    presentPartyBossActionLine(action, byCharacterId.get(action.characterId), options.viewerCharacterId)
-  );
+  const lines = round.actions.map((action) => presentPartyBossActionLine(
+    action,
+    byCharacterId.get(action.characterId),
+    options.viewerCharacterId
+  ));
+  const satedRecoveryLines = round.actions.flatMap((action) => {
+    const recovery = presentVarenykSatedRecoveryLine(action, byCharacterId.get(action.characterId)?.name);
+    return recovery ? [recovery] : [];
+  });
 
   if (round.bossRetaliations.length > 0) {
     if (options.isBig && round.bossRetaliations.length > 1) {
@@ -852,6 +901,7 @@ function presentLastRoundLines(
   if (round.personalProtocol) {
     lines.push(presentBureaucramancerProtocolTriggeredLine(round.personalProtocol));
   }
+  lines.push(...satedRecoveryLines);
   if (round.warriorTaunt) {
     lines.push(...presentWarriorRaidTauntRoundLines(
       round.warriorTaunt,
@@ -1452,6 +1502,16 @@ function presentPartyBossActionLine(
         ? `${subject} влучає на ${action.damage} шкоди.${support}`
         : `${subject} спрацьовує без прямої шкоди.${support}`;
   }
+}
+
+function presentVarenykSatedRecoveryLine(
+  action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
+  recipientName?: string
+): string | null {
+  const recovery = action.satedRecovery;
+  return recovery && recipientName
+    ? presentVarenykSatedJournalRecovery(recovery, escapeHtml(recipientName))
+    : null;
 }
 
 function presentPartyBossActionSupport(

@@ -744,7 +744,8 @@ describe("party session presenter", () => {
             damage: 0,
             manaSpent: 0,
             skillId: "gear.barrel-counter-shield",
-            guard: 2
+            guard: 2,
+            satedRecovery: { hpRestored: 1, manaRestored: 1 }
           }
         ],
         bossDamage: 0,
@@ -759,12 +760,80 @@ describe("party session presenter", () => {
         statusAfter: "active"
       }]
     });
+    const satedCursorAt = new Date("2026-07-16T13:00:00.000Z");
+    session.state.participants[0]!.varenykSated = {
+      version: 1,
+      activationId: "barrel-journal-sated",
+      recipientCharacterId: "leader",
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(satedCursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["barrel:pulse:1"]
+    };
 
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
+    session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = {
+      ...session.state.participants[0]!.varenykSated,
+      pulseIds: [...session.state.participants[0]!.varenykSated.pulseIds]
+    };
+    delete session.state.participants[0]!.varenykSated;
     const journal = presentPartyBossJournal(session, 0);
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
+    expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("😋 Стан: <b>Ситий</b> у <b>Голова</b>")
+    );
+    expect(journal).toContain("😋 Голова: <i>ситість</i> відновлює +1 HP і +1 мани.");
+    expect(journal.indexOf("Старший Брат Бочки атакує Голова")).toBeLessThan(
+      journal.indexOf("😋 Голова: <i>ситість</i> відновлює")
+    );
+    expect(active.indexOf("Старший Брат Бочки атакує вас")).toBeLessThan(
+      active.indexOf("😋 Голова: <i>ситість</i> відновлює")
+    );
+  });
+
+  it("keeps identical Sated rows for distinct same-named Big Barrel participants", () => {
+    const leader = participant("leader", "Тезко");
+    const striker = participant("striker", "Тезко");
+    const session = makeBigBossSession({
+      participants: [leader, striker],
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [],
+        participantsAfter: [
+          { characterId: "leader", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 },
+          { characterId: "striker", status: "active", hp: 60, hpMax: 60, mana: 20, manaMax: 20 }
+        ],
+        statusAfter: "active"
+      }]
+    });
+    const cursorAt = "2026-07-16T13:00:00.000Z";
+    const makeSated = (characterId: string) => ({
+      version: 1 as const,
+      activationId: `same-name-${characterId}`,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: "2026-07-16T13:12:00.000Z",
+      cursorAt,
+      leaseStartedAt: cursorAt,
+      outsideRemainderMs: 0,
+      pulseIds: [`same-name:${characterId}:1`]
+    });
+    session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = makeSated("leader");
+    session.state.roundLog[0]!.participantsAfter![1]!.varenykSated = makeSated("striker");
+
+    const journal = presentPartyBossJournal(session, 0);
+    const identicalLine = "😋 Стан: <b>Ситий</b> у <b>Тезко</b> ще <b>12 ходів</b>";
+    expect(journal.split(identicalLine)).toHaveLength(3);
   });
 
   it("uses per-round item cooldown snapshots in Big Barrel journal pages", () => {

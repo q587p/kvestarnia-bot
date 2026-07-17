@@ -6249,7 +6249,7 @@ describe("scene callback HTML options", () => {
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: "location.korchma.deep.level1",
-        currentAdventureId: "adventure.solo-fight"
+        currentAdventureId: null
       })
     );
     expect(String(tier?.payload.text)).toContain("Ярус I: Сутерени Корчми");

@@ -48,6 +48,11 @@ import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { isMedicalCombatItemId } from "../../services/combatItemUse";
 import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerProtocol";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import {
+  freezeVarenykSatedFromCooldown,
+  releaseVarenykSatedCombatLease,
+  VarenykSatedCasError
+} from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -305,11 +310,59 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         })
       });
 
+      if (isBigBarrelParty) {
+        for (const participant of state.participants) {
+          const joinedParticipant = joined.find((entry) => entry.characterId === participant.characterId);
+          if (!joinedParticipant) {
+            throw new Error("Big Barrel participant disappeared before Sated freeze.");
+          }
+          const canonical = joinedParticipant.character;
+          const frozen = await freezeVarenykSatedFromCooldown({
+            tx,
+            characterId: participant.characterId,
+            remortCount: participant.remortCount,
+            resources: participant.resources,
+            now: input.now
+          });
+          if (frozen.hpRestored > 0 || frozen.manaRestored > 0) {
+            const persisted = await tx.character.updateMany({
+              where: {
+                id: canonical.id,
+                hpCurrent: canonical.hpCurrent,
+                manaCurrent: canonical.manaCurrent,
+                hpRegenAt: canonical.hpRegenAt,
+                manaRegenAt: canonical.manaRegenAt,
+                updatedAt: canonical.updatedAt
+              },
+              data: {
+                hpCurrent: frozen.resources.hp,
+                manaCurrent: frozen.resources.mana,
+                hpRegenAt: frozen.resources.hp >= frozen.resources.hpMax
+                  ? input.now
+                  : canonical.hpRegenAt,
+                manaRegenAt: frozen.resources.mana >= frozen.resources.manaMax
+                  ? input.now
+                  : canonical.manaRegenAt
+              }
+            });
+            if (persisted.count !== 1) {
+              throw new VarenykSatedCasError("party-character-resources");
+            }
+          }
+          participant.resources = { ...participant.resources, ...frozen.resources };
+          if (frozen.sated) {
+            participant.varenykSated = frozen.sated;
+          }
+        }
+      }
+
       await tx.activeCombatLease.createMany({
         data: joined.map((participant) => ({
           characterId: participant.characterId,
           kind: PARTY_BOSS_LEASE_KIND,
-          referenceId: party.id
+          referenceId: party.id,
+          createdAt: input.now,
+          updatedAt: input.now
         }))
       });
 
@@ -860,7 +913,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           ...achievementEvents,
           ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now, this.hpRecoveryProducer)
         ];
-        await releasePartyBossLocks(tx, session.partySessionId);
+        await releasePartyBossLocks(tx, session.partySessionId, input.now, resolved.state);
       }
 
       const current = await tx.partyBossSession.findUnique({
@@ -1332,7 +1385,12 @@ function buildBigBarrelReward(
   };
 }
 
-async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Promise<void> {
+async function releasePartyBossLocks(
+  tx: TxClient,
+  partySessionId: string,
+  releasedAt: Date,
+  state: PartyBossState
+): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
       id: partySessionId,
@@ -1347,12 +1405,21 @@ async function releasePartyBossLocks(tx: TxClient, partySessionId: string): Prom
   if (transitioned.count !== 1) {
     return;
   }
-  await tx.activeCombatLease.deleteMany({
+  const leases = await tx.activeCombatLease.findMany({
     where: {
       kind: PARTY_BOSS_LEASE_KIND,
       referenceId: partySessionId
     }
   });
+  for (const lease of leases) {
+    const participant = state.participants.find((entry) => entry.characterId === lease.characterId);
+    await releaseVarenykSatedCombatLease({
+      tx,
+      lease,
+      releasedAt,
+      ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+    });
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId: partySessionId,

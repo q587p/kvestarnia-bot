@@ -59,6 +59,7 @@ export interface UpdateSoloCombatSessionInput {
   status: SoloCombatSessionStatus;
   expiresAt?: Date;
   releaseLease?: boolean;
+  satedLeaseAt?: Date;
 }
 
 export interface ApplyCombatItemTurnInput extends UpdateSoloCombatSessionInput {
@@ -227,7 +228,7 @@ export interface AdoptLegacySoloCombatSettlementResult {
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
   findLeasedByTelegramUserId?(telegramUserId: bigint): Promise<SoloCombatLeaseLookupResult>;
-  releaseLeaseBySessionId?(sessionId: string): Promise<boolean>;
+  releaseLeaseBySessionId?(sessionId: string, now?: Date): Promise<boolean>;
   listDueActiveSessions?(
     now: Date,
     options?: {
@@ -318,6 +319,7 @@ export interface SoloCombatSessionRepository {
   resolveLifeById?(sessionId: string): Promise<SoloCombatSessionLifeRecord | null>;
   markStatusById(
     sessionId: string,
-    status: SoloCombatSessionStatus
+    status: SoloCombatSessionStatus,
+    observedAt?: Date
   ): Promise<SoloCombatSessionRecord | null>;
 }

@@ -136,6 +136,11 @@ async function buildNearbyActionsKeyboard(
     hasActions = true;
   }
 
+  if (options.classNoncombatEnabled && isEligibleNearbyVarenyk(snapshot, telegramUserId)) {
+    keyboard.text("🍽️ Нагодувати", makeClassNoncombatOpenCallbackData("varenyk")).row();
+    hasActions = true;
+  }
+
   if (hasNearby && options.classNoncombatEnabled && isEligibleNearbyRogue(snapshot, telegramUserId)) {
     keyboard.text("🗡️ Тиха кишеня", makeClassNoncombatOpenCallbackData("rogue")).row();
     hasActions = true;
@@ -193,7 +198,9 @@ function isEligibleClassNoncombat(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   telegramUserId: bigint
 ): boolean {
-  return isEligibleNearbyPriest(snapshot, telegramUserId) || isEligibleNearbyRogue(snapshot, telegramUserId);
+  return isEligibleNearbyPriest(snapshot, telegramUserId) ||
+    isEligibleNearbyRogue(snapshot, telegramUserId) ||
+    isEligibleNearbyVarenyk(snapshot, telegramUserId);
 }
 
 function isEligibleNearbyPriest(
@@ -210,6 +217,14 @@ function isEligibleNearbyRogue(
 ): boolean {
   const self = findSelf(snapshot, telegramUserId);
   return self?.classId === "class.rogue" && (self.level ?? 0) >= 3;
+}
+
+function isEligibleNearbyVarenyk(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): boolean {
+  const self = findSelf(snapshot, telegramUserId);
+  return self?.classId === "class.varenyk-mancer" && (self.level ?? 0) >= 3;
 }
 
 function findSelf(

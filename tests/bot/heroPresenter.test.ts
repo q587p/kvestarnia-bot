@@ -82,6 +82,34 @@ describe("hero presenter", () => {
     expect(text.split("\n").length).toBeLessThanOrEqual(18);
   });
 
+  it("shows the Sated effect with bold values and no embedded recovery notice", () => {
+    const text = presentHero(summary, {
+      activeVarenykSated: {
+        activationId: "sated",
+        rank: 3,
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      }
+    });
+
+    expect(text).toContain("😋 Стан: <b>Ситий</b> ще <b>13 хв</b> — <b>+2 HP</b> і <b>+2 мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії).");
+    expect(text).not.toContain("ранг <b>3</b>");
+    expect(text).not.toContain("Ситість відновила");
+  });
+
+  it("shows the recipient wait without calling an expired status active", () => {
+    const text = presentHero(summary, {
+      activeVarenykSated: {
+        activationId: "expired-sated",
+        rank: 3,
+        expiresAt: new Date("2026-06-23T10:00:00.000Z")
+      },
+      varenykSatedAvailableAt: new Date("2026-06-23T11:33:00.000Z")
+    });
+
+    expect(text).toContain("🍽️ Нагодувати знову через <b>93 хв</b>");
+    expect(text).not.toContain("😋 <b>Ситий</b>");
+  });
+
   it("shows an active cosmetic title separately from the generated title", () => {
     const text = presentHero(summary, {
       activeCosmeticTitle: "Де тут вихід?"
@@ -141,8 +169,36 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще 42 хв — відновлення швидше на 42%, точність −10.\n\nСили 9"
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🍻 Баф: <b>Якісне &lt;пиво&gt;</b> ще <b>42 хв</b> — відновлення швидше на <b>42%</b>, точність <b>−10</b>.\n\nСили 9"
     );
+  });
+
+  it.each([
+    ["drink.thyme-tea", "Чай із чебрецем", "🍵", 42, 11300, undefined, "відновлення швидше на <b>13%</b>"],
+    ["drink.simple-beer", "Просте пиво", "🍺", 23, 12300, 5, "відновлення швидше на <b>23%</b>, точність <b>−5</b>"]
+  ] as const)("bolds active drink duration and modifiers for %s", (
+    key,
+    name,
+    emoji,
+    minutes,
+    recoveryMultiplierBp,
+    accuracyPenaltyPp,
+    effect
+  ) => {
+    const text = presentHero(summary, {
+      activeDrink: {
+        key,
+        name,
+        emoji,
+        phase: "timed",
+        startedAt: new Date("2026-06-23T10:00:00.000Z"),
+        expiresAt: new Date(`2026-06-23T10:${minutes}:00.000Z`),
+        recoveryMultiplierBp,
+        ...(accuracyPenaltyPp ? { accuracyPenaltyPp } : {})
+      }
+    });
+
+    expect(text).toContain(`${emoji} Баф: <b>${name}</b> ще <b>${minutes} хв</b> — ${effect}.`);
   });
 
   it("shows the active Priest blessing near other timed statuses", () => {
@@ -183,7 +239,7 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "🍻 Баф: <b>Якісне пиво</b> ще 42 хв — відновлення швидше на 42%.\n✨ Стан: <b>Жрецьке благословення</b> ще <b>13 хв</b>"
+      "🍻 Баф: <b>Якісне пиво</b> ще <b>42 хв</b> — відновлення швидше на <b>42%</b>.\n✨ Стан: <b>Жрецьке благословення</b> ще <b>13 хв</b>"
     );
   });
 
@@ -222,7 +278,7 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще 23 хв — чекає бою з монстром, завдана й отримана шкода +13%."
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n🥃 Баф: <b>Горілка з перцем</b> ще <b>23 хв</b> — чекає бою з монстром, завдана й отримана шкода <b>+13%</b>."
     );
     expect(text).not.toContain("PvE");
     expect(text).not.toContain("×1.13");

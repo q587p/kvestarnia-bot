@@ -150,7 +150,6 @@ export interface CreateDuelChallengeInput {
 
 export interface StartTurnBasedDuelSessionInput {
   sessionId: string;
-  state: TurnBasedDuelState;
   turnExpiresAt: Date;
   targetChatId?: bigint | null;
   targetMessageId?: number | null;
@@ -192,7 +191,8 @@ export interface DuelChallengeRepository {
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;
 
   findCharacterByTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    equipmentAt?: Date
   ): Promise<DuelCharacterSnapshot | null>;
 
   markExpiredByToken(inviteToken: string, now: Date): Promise<DuelChallengeRecord | null>;

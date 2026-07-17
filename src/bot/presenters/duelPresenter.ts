@@ -24,6 +24,11 @@ import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combat
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
+import {
+  presentActiveVarenykSatedCombatState,
+  presentVarenykSatedCombatEffectLines,
+  presentVarenykSatedJournalRecovery
+} from "./varenykSatedPresenter";
 
 export function presentDuelEntry(): string {
   return [
@@ -384,6 +389,15 @@ export function presentTurnBasedDuel(
   if (result.session.status === "active" && viewerParticipant?.cooldowns) {
     lines.push(...presentAbilityCooldowns(viewerParticipant.cooldowns));
   }
+  if (
+    result.session.status === "active" &&
+    viewerParticipant?.varenykSated
+  ) {
+    const satedBuff = presentActiveVarenykSatedCombatState(
+      viewerParticipant.varenykSated
+    );
+    if (satedBuff) lines.push(satedBuff);
+  }
 
   lines.push("", actionLine, "");
 
@@ -559,11 +573,20 @@ function presentTurnBasedRoundState(
   }
 
   if (state.lastRound) {
-    return state.lastRound.actions.map((action) => presentTurnBasedActionLine(action, state)).join("\n");
+    return [
+      ...state.lastRound.actions.map((action) => presentTurnBasedActionLine(action, state)),
+      ...state.lastRound.actions.flatMap((action) => {
+        const recovery = presentTurnBasedSatedRecoveryLine(action, state);
+        return recovery ? [recovery] : [];
+      })
+    ].join("\n");
   }
 
   if (state.lastAction) {
-    return presentTurnBasedActionLine(state.lastAction, state);
+    return [
+      presentTurnBasedActionLine(state.lastAction, state),
+      presentTurnBasedSatedRecoveryLine(state.lastAction, state)
+    ].filter(Boolean).join("\n");
   }
 
   return "Корчмар відкрив чистий рядок. Поки що в ньому тільки очікування й пляма від кухля.";
@@ -603,6 +626,15 @@ export function presentTurnBasedDuelJournal(
 
   const page = clampPage(requestedPage, rounds.length);
   const round = rounds[page]!;
+  const satedLines = presentVarenykSatedCombatEffectLines(([
+    ["challenger", state.participants.challenger],
+    ["target", state.participants.target]
+  ] as const).map(([side, participant]) => ({
+    sated: round.varenykSatedAfter
+      ? round.varenykSatedAfter[side]
+      : participant.varenykSated,
+    subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
+  })));
 
   return presentBattleJournalPage({
     title: "📜 <b>Журнал дуелі</b>",
@@ -618,8 +650,15 @@ export function presentTurnBasedDuelJournal(
       presentDuelVitals(state.participants.target)
     ],
     actionLines: round.actions.length > 0
-      ? round.actions.map((action) => presentTurnBasedActionLine(action, state))
-      : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."]
+      ? [
+          ...round.actions.map((action) => presentTurnBasedActionLine(action, state)),
+          ...round.actions.flatMap((action) => {
+            const recovery = presentTurnBasedSatedRecoveryLine(action, state);
+            return recovery ? [recovery] : [];
+          })
+        ]
+      : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."],
+    noticeLines: satedLines
   });
 }
 
@@ -705,6 +744,17 @@ function presentTurnBasedActionLine(
   const supportLine = presentCombatSupportEffectLine(action, { boldNumbers: true });
 
   return [`${actorName} ${actionLine} ${hitLine}`, supportLine].filter(Boolean).join("\n");
+}
+
+function presentTurnBasedSatedRecoveryLine(action: {
+  actorCharacterId: string;
+  satedRecovery?: { hpRestored: number; manaRestored: number };
+}, state: Extract<DuelChallengeView, { state: "active" }>["session"]["state"]): string | null {
+  const recovery = action.satedRecovery;
+  const recipient = findTurnBasedParticipant(state, action.actorCharacterId);
+  return recovery && recipient
+    ? presentVarenykSatedJournalRecovery(recovery, escapeHtml(recipient.displayName))
+    : null;
 }
 
 function findTurnBasedParticipant(

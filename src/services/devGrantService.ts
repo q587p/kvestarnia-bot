@@ -24,6 +24,10 @@ import {
 } from "./dailyActionKeys";
 import { getKyivDayKey } from "../shared/kyivDate";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "./bureaucramancerProtocol";
+import {
+  VARENYK_SATED_PAIR_WAIT_KEY_PREFIX,
+  VARENYK_SATED_STATUS_KEY
+} from "../domain/noncombat/varenykSatedSupport";
 
 const PRIEST_BLESSING_COOLDOWN_KEYS = [
   "technique.class.priest.blessing",
@@ -86,7 +90,8 @@ export type DevGrantResult =
         | "cellar-mouse-cooldown"
         | "priest-blessing-cooldown"
         | "quiet-pocket-cooldown"
-        | "bureaucramancer-protocol-cooldown";
+        | "bureaucramancer-protocol-cooldown"
+        | "varenyk-sated";
       character: CharacterRecord;
       cleared: boolean;
     }
@@ -433,6 +438,19 @@ export class DevGrantService {
           character: result.character,
           cleared: result.cleared
         }
+      : { state: "no-character" };
+  }
+
+  async resetVarenykSated(telegramUserId: bigint): Promise<DevGrantResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+    const result = await this.grants.clearCooldownsForTelegramUser(telegramUserId, {
+      keys: [VARENYK_SATED_STATUS_KEY],
+      keyPrefixes: [VARENYK_SATED_PAIR_WAIT_KEY_PREFIX]
+    });
+    return result
+      ? { state: "updated", kind: "varenyk-sated", character: result.character, cleared: result.cleared }
       : { state: "no-character" };
   }
 

@@ -8,8 +8,14 @@ import type {
   PriestHealRepositoryResult,
   RoguePickpocketAttemptRecord,
   RoguePickpocketRepositoryResult,
-  RogueRetaliationClaimResult
+  RogueRetaliationClaimResult,
+  VarenykSatedPreviewRepositoryResult,
+  VarenykSatedRepositoryResult
 } from "../../src/db/repositories/classNoncombatRepository";
+import {
+  buildVarenykSatedPlan,
+  getAffordableVarenykSatedPlan
+} from "../../src/domain/noncombat/varenykSatedSupport";
 import type { CharacterRecord } from "../../src/db/repositories/characterRepository";
 import type {
   CharacterEquipmentRecord,
@@ -19,12 +25,194 @@ import type {
 import { ClassNoncombatService } from "../../src/services/classNoncombatService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { AchievementService } from "../../src/services/achievementService";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
 
 const now = new Date("2026-07-03T09:00:00.000Z");
 const actorTelegramUserId = 1001n;
 const targetTelegramUserId = 1002n;
 
 describe("ClassNoncombatService", () => {
+  it("previews the highest affordable Varenyk rank after deterministic stat planning", async () => {
+    const repository = new FakeClassNoncombatRepository({
+      actor: varenyk({
+        manaCurrent: 19,
+        statsJson: { intelligence: 20, charisma: 9 }
+      })
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0.4]));
+
+    const result = await service.previewVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    });
+
+    expect(result).toMatchObject({
+      state: "preview",
+      statRank: 5,
+      plan: { rank: 3, manaCost: 16, immediateHp: 5, immediateMana: 0 },
+      durationMinutes: 13,
+      recipientWaitMinutes: 93
+    });
+  });
+
+  it("captures one logical now and skips the second equipment read for Varenyk preview", async () => {
+    const beforeReady = new Date("2026-07-03T09:12:59.999Z");
+    const readyAt = new Date("2026-07-03T09:13:00.000Z");
+    let clockCalls = 0;
+    const repository = new FakeClassNoncombatRepository({
+      actor: varenyk({ manaCurrent: 8 })
+    });
+    const equipment = new FakeEquipmentRepository([]);
+    const service = new ClassNoncombatService(
+      repository,
+      () => clockCalls++ === 0 ? beforeReady : readyAt,
+      new FakeRandomSource([0.4]),
+      undefined,
+      equipment
+    );
+
+    await expect(service.previewVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    })).resolves.toMatchObject({ state: "preview", plan: { rank: 1, manaCost: 8 } });
+
+    expect(clockCalls).toBe(1);
+    expect(repository.lastSnapshotInput?.now).toEqual(beforeReady);
+    expect(repository.lastSatedPreviewInput?.now).toEqual(beforeReady);
+    expect(equipment.lookupTelegramUserIds).toEqual([]);
+  });
+
+  it("uses the persisted repository planning snapshot instead of preliminary open summaries", async () => {
+    const preliminary = varenyk({ manaCurrent: 8, manaMax: 20, statsJson: { intelligence: 8, charisma: 8 } });
+    const canonicalSummary = {
+      ...summarizeCharacter(preliminary),
+      manaCurrent: 12,
+      manaMax: 26,
+      stats: { ...summarizeCharacter(preliminary).stats, intelligence: 11 }
+    };
+    const planning = {
+      summary: canonicalSummary,
+      activeCosmeticTitleGrantId: null,
+      naturalHpMax: canonicalSummary.hpMax,
+      naturalManaMax: canonicalSummary.manaMax,
+      equipmentItemIds: ["item.mantok.coverage.class.varenyk-mancer.dough-crown"],
+      attunedEquipmentRows: [{
+        rowId: "replacement-row",
+        slot: "head",
+        itemId: "item.mantok.coverage.class.varenyk-mancer.dough-crown",
+        updatedAt: now.toISOString()
+      }],
+      activePriestBlessing: null
+    };
+    const repository = new FakeClassNoncombatRepository({
+      actor: preliminary,
+      satedPreviewResult: {
+        state: "saved",
+        statRank: 2,
+        plan: { rank: 2, manaCost: 12, immediateHp: 4, immediateMana: 0 },
+        actor: planning,
+        target: planning,
+        actorRemortCount: 0,
+        targetRemortCount: 0
+      }
+    });
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0.4]));
+
+    await expect(service.previewVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    })).resolves.toMatchObject({
+      state: "preview",
+      actor: { manaCurrent: 12, manaMax: 26, stats: { intelligence: 11 } },
+      target: { manaCurrent: 12, manaMax: 26, stats: { intelligence: 11 } },
+      statRank: 2,
+      plan: { rank: 2, manaCost: 12 }
+    });
+  });
+
+  it("awards Varenyk achievements only for a fresh durable completion", async () => {
+    const fresh = varenykSatedCompletion({ created: true });
+    const repository = new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: fresh });
+    const achievements = new FakeAchievementService();
+    const service = new ClassNoncombatService(repository, () => now, new FakeRandomSource([0]), achievements.service);
+
+    const result = await service.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+    expect(result).toMatchObject({ state: "completed", created: true });
+    expect(achievements.events.map((event) => event.type)).toEqual(["varenyk.sated.self"]);
+
+    const replayRepository = new FakeClassNoncombatRepository({
+      actor: varenyk(),
+      satedResult: varenykSatedCompletion({ created: false })
+    });
+    const replayService = new ClassNoncombatService(
+      replayRepository,
+      () => now,
+      new FakeRandomSource([0]),
+      achievements.service
+    );
+    await replayService.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId: null,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+    expect(achievements.events).toHaveLength(1);
+  });
+
+  it("emits one other-feed achievement event with the committed activation only for a fresh completion", async () => {
+    const fresh = varenykSatedCompletion({ created: true });
+    fresh.action.targetCharacterId = "target";
+    const achievements = new FakeAchievementService();
+    const service = new ClassNoncombatService(
+      new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: fresh }),
+      () => now,
+      new FakeRandomSource([0]),
+      achievements.service
+    );
+
+    await service.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+
+    expect(achievements.events).toEqual([{
+      type: "varenyk.sated.other",
+      characterId: "actor",
+      occurredAt: now,
+      sourceId: "activation"
+    }]);
+
+    const replay = varenykSatedCompletion({ created: false });
+    replay.action.targetCharacterId = "target";
+    const replayService = new ClassNoncombatService(
+      new FakeClassNoncombatRepository({ actor: varenyk(), satedResult: replay }),
+      () => now,
+      new FakeRandomSource([0]),
+      achievements.service
+    );
+    await replayService.feedVarenykSatedForTelegramUser(actorTelegramUserId, {
+      targetTelegramUserId,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: "preview"
+    });
+
+    expect(achievements.events).toHaveLength(1);
+  });
+
   it("plans Priest target healing from nearby target HP and spends only mana on completion", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: priest({ manaCurrent: 20, statsJson: { charisma: 9, intelligence: 9 } }),
@@ -375,6 +563,21 @@ describe("ClassNoncombatService", () => {
     });
   });
 
+  it("does not settle or query Sated rows when opening Priest and Rogue support", async () => {
+    const priestRepository = new FakeClassNoncombatRepository({ actor: priest() });
+    const rogueRepository = new FakeClassNoncombatRepository({ actor: rogue() });
+
+    await new ClassNoncombatService(priestRepository, () => now, new FakeRandomSource([0]))
+      .openForTelegramUser(actorTelegramUserId, "priest");
+    await new ClassNoncombatService(rogueRepository, () => now, new FakeRandomSource([0]))
+      .openForTelegramUser(actorTelegramUserId, "rogue");
+
+    expect(priestRepository.satedSettlementCalls).toBe(0);
+    expect(rogueRepository.satedSettlementCalls).toBe(0);
+    expect(priestRepository.lastSnapshotInput?.mode).toBe("priest");
+    expect(rogueRepository.lastSnapshotInput?.mode).toBe("rogue");
+  });
+
   it("opens Rogue target lists without loading effective equipment or Priest blessings", async () => {
     const repository = new FakeClassNoncombatRepository({
       actor: rogue({ level: 3, statsJson: { dexterity: 7, luck: 5 } }),
@@ -456,13 +659,17 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
   lastPickpocketInput: Parameters<ClassNoncombatRepository["completeRoguePickpocket"]>[1] | null = null;
   lastClaimRetaliationInput: Parameters<ClassNoncombatRepository["claimRogueRetaliation"]>[1] | null = null;
   lastRetaliationDuelInput: Parameters<ClassNoncombatRepository["recordRogueRetaliationDuel"]>[1] | null = null;
+  lastSatedPreviewInput: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1] | null = null;
   readonly activeBlessingLookupTelegramUserIds: bigint[] = [];
+  satedSettlementCalls = 0;
 
   private readonly actor: CharacterRecord;
   private readonly target: CharacterRecord;
   private readonly healResult?: PriestHealRepositoryResult;
   private readonly blessResult?: PriestBlessRepositoryResult;
   private readonly pickpocketResult?: RoguePickpocketRepositoryResult;
+  private readonly satedResult?: VarenykSatedRepositoryResult;
+  private readonly satedPreviewResult?: VarenykSatedPreviewRepositoryResult;
   private readonly actorBlocked: boolean;
   private readonly activeBlessings: Map<bigint, PriestBlessingRecord>;
 
@@ -472,6 +679,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     healResult?: PriestHealRepositoryResult;
     blessResult?: PriestBlessRepositoryResult;
     pickpocketResult?: RoguePickpocketRepositoryResult;
+    satedResult?: VarenykSatedRepositoryResult;
+    satedPreviewResult?: VarenykSatedPreviewRepositoryResult;
     actorBlocked?: boolean;
     activeBlessings?: Map<bigint, PriestBlessingRecord>;
   } = {}) {
@@ -480,6 +689,8 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
     this.healResult = options.healResult;
     this.blessResult = options.blessResult;
     this.pickpocketResult = options.pickpocketResult;
+    this.satedResult = options.satedResult;
+    this.satedPreviewResult = options.satedPreviewResult;
     this.actorBlocked = options.actorBlocked ?? false;
     this.activeBlessings = options.activeBlessings ?? new Map<bigint, PriestBlessingRecord>();
   }
@@ -504,7 +715,20 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
         gold: this.target.gold,
         remortCount: this.target.remortCount ?? 0,
         priestBlessAvailableAt: null,
-        rogueAttemptedToday: false
+        rogueAttemptedToday: false,
+        ...(this.actor.classId === "class.varenyk-mancer"
+          ? {
+              varenykPlanning: {
+                summary: summarizeCharacter(this.target),
+                activeCosmeticTitleGrantId: this.target.activeCosmeticTitleGrantId ?? null,
+                equipmentItemIds: [],
+                attunedEquipmentRows: [],
+                naturalHpMax: summarizeCharacter(this.target).hpMax,
+                naturalManaMax: summarizeCharacter(this.target).manaMax,
+                activePriestBlessing: null
+              }
+            }
+          : {})
       }],
       targetPage: 0,
       targetTotalPages: 1,
@@ -512,13 +736,84 @@ class FakeClassNoncombatRepository implements ClassNoncombatRepository {
       locationName: "Перед Корчмою",
       priestBlessCooldownAvailableAt: null,
       priestSelfBlessAvailableAt: null,
-      roguePickpocketCooldownAvailableAt: null
+      roguePickpocketCooldownAvailableAt: null,
+      varenykStatRank: null,
+      varenykPlan: null,
+      ...(this.actor.classId === "class.varenyk-mancer"
+        ? {
+            varenykPlanning: {
+              summary: summarizeCharacter(this.actor),
+              activeCosmeticTitleGrantId: this.actor.activeCosmeticTitleGrantId ?? null,
+              equipmentItemIds: [],
+              attunedEquipmentRows: [],
+              naturalHpMax: summarizeCharacter(this.actor).hpMax,
+              naturalManaMax: summarizeCharacter(this.actor).manaMax,
+              activePriestBlessing: null
+            }
+          }
+        : {})
     });
   }
 
   getActivePriestBlessingForTelegramUser(telegramUserId: bigint) {
     this.activeBlessingLookupTelegramUserIds.push(telegramUserId);
     return Promise.resolve(this.activeBlessings.get(telegramUserId) ?? null);
+  }
+
+  settleVarenykSatedForTelegramUser() {
+    this.satedSettlementCalls += 1;
+    return Promise.resolve(null);
+  }
+
+  saveVarenykSatedPreview(
+    _actorTelegramUserId: bigint,
+    input: Parameters<ClassNoncombatRepository["saveVarenykSatedPreview"]>[1]
+  ) {
+    this.lastSatedPreviewInput = input;
+    if (this.satedPreviewResult) {
+      return Promise.resolve(this.satedPreviewResult);
+    }
+    const stats = this.actor.statsJson as { intelligence?: unknown; charisma?: unknown };
+    const statPlan = buildVarenykSatedPlan({
+      effectiveIntelligence: typeof stats.intelligence === "number" ? stats.intelligence : 0,
+      effectiveCharisma: typeof stats.charisma === "number" ? stats.charisma : 0,
+      level: this.actor.level
+    });
+    const statRank = statPlan.rank;
+    const plan = getAffordableVarenykSatedPlan(statRank, this.actor.manaCurrent);
+    const actorSummary = summarizeCharacter(this.actor);
+    const targetSummary = summarizeCharacter(this.target);
+    return Promise.resolve(plan
+      ? {
+          state: "saved" as const,
+          statRank,
+          plan,
+          actor: {
+            summary: actorSummary,
+            activeCosmeticTitleGrantId: this.actor.activeCosmeticTitleGrantId ?? null,
+            naturalHpMax: actorSummary.hpMax,
+            naturalManaMax: actorSummary.manaMax,
+            equipmentItemIds: [],
+            attunedEquipmentRows: [],
+            activePriestBlessing: null
+          },
+          target: {
+            summary: targetSummary,
+            activeCosmeticTitleGrantId: this.target.activeCosmeticTitleGrantId ?? null,
+            naturalHpMax: targetSummary.hpMax,
+            naturalManaMax: targetSummary.manaMax,
+            equipmentItemIds: [],
+            attunedEquipmentRows: [],
+            activePriestBlessing: null
+          },
+          actorRemortCount: this.actor.remortCount ?? 0,
+          targetRemortCount: this.target.remortCount ?? 0
+        }
+      : { state: "blocked" as const, reason: "insufficient-mana" as const });
+  }
+
+  completeVarenykSated(): ReturnType<ClassNoncombatRepository["completeVarenykSated"]> {
+    return Promise.resolve(this.satedResult ?? { state: "blocked", reason: "stale" });
   }
 
   isActorBlockedForTelegramUser() {
@@ -638,6 +933,79 @@ function priest(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
 
 function rogue(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
   return character({ id: "actor", classId: "class.rogue", name: "Тихий Кут", statsJson: { dexterity: 10, luck: 8 }, ...overrides });
+}
+
+function varenyk(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
+  return character({
+    id: "actor",
+    classId: "class.varenyk-mancer",
+    name: "Пан Вареник",
+    statsJson: { intelligence: 11, charisma: 9 },
+    ...overrides
+  });
+}
+
+function varenykSatedCompletion(
+  options: { created: boolean }
+): Extract<VarenykSatedRepositoryResult, { state: "completed" }> {
+  const actor = varenyk({ manaCurrent: 12 });
+  const expiresAt = new Date(now.getTime() + 13 * 60_000);
+  const availableAt = new Date(now.getTime() + 93 * 60_000);
+  const payload = {
+    kind: "varenyk-sated-support-v1" as const,
+    version: 1 as const,
+    activationId: "activation",
+    actorCharacterId: actor.id,
+    actorRemortCount: 0,
+    recipientCharacterId: actor.id,
+    recipientRemortCount: 0,
+    rank: 2,
+    manaCost: 12,
+    effectiveStats: { intelligence: 11, charisma: 9, level: 3, equipmentItemIds: [] },
+    startedAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    availableAt: availableAt.toISOString(),
+    cursorAt: now.toISOString(),
+    receipt: {
+      version: 1 as const,
+      previewToken: "preview",
+      actorTelegramUserId: actorTelegramUserId.toString(),
+      targetTelegramUserId: actorTelegramUserId.toString(),
+      actorName: actor.name,
+      targetName: actor.name,
+      immediateHpRestored: 4,
+      immediateManaRestored: 0,
+      actorManaAfter: 12,
+      targetHpAfter: 14,
+      targetManaAfter: 12
+    }
+  };
+  return {
+    state: "completed",
+    action: {
+      activationId: "activation",
+      actorCharacterId: actor.id,
+      targetCharacterId: actor.id,
+      actorTelegramUserId,
+      targetTelegramUserId: actorTelegramUserId,
+      actorName: actor.name,
+      targetName: actor.name,
+      actorRemortCount: 0,
+      targetRemortCount: 0,
+      rank: 2,
+      manaCost: 12,
+      immediateHpRestored: 4,
+      immediateManaRestored: 0,
+      startedAt: now,
+      expiresAt,
+      availableAt,
+      created: options.created
+    },
+    actor,
+    target: actor,
+    status: payload,
+    created: options.created
+  };
 }
 
 function target(overrides: Partial<CharacterRecord> = {}): CharacterRecord {

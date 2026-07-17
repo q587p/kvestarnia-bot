@@ -43,6 +43,7 @@ import {
 import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
+import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
@@ -260,6 +261,7 @@ export class TrainingDoppelgangerService {
     }
 
     const timeoutMode = getNextTrainingTimeoutMode(mode);
+    const committedTurn = session.state.turn;
 
     const resolved = resolveCombatTurn({
       state: session.state,
@@ -267,6 +269,14 @@ export class TrainingDoppelgangerService {
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+        state,
+        combatKind: "training-doppelganger",
+        sessionId: session.id,
+        committedTurn,
+        recipientCharacterId: session.characterId,
+        now
+      }),
       rng: this.rng
     });
     const state = resolved.ok
@@ -292,7 +302,7 @@ export class TrainingDoppelgangerService {
     session: SoloCombatSessionRecord
   ): Promise<SoloCombatSessionRecord> {
     if (!session.state) {
-      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+      return await this.combatSessions.markStatusById(session.id, "expired", this.clock()) ?? {
         ...session,
         status: "expired"
       };
@@ -643,7 +653,7 @@ export class TrainingDoppelgangerService {
     }
 
     if (!session.state) {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character,
@@ -709,11 +719,20 @@ export class TrainingDoppelgangerService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolved = resolveCombatTurn({
       state: currentSession.state,
       action: input.action,
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+        state,
+        combatKind: "training-doppelganger",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      }),
       rng: this.rng
     });
 
@@ -739,8 +758,8 @@ export class TrainingDoppelgangerService {
     }
 
     const resolvedState = withTrainingTerminalCompletedAt(
-      withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      withNextTrainingTurnExpiry(resetCombatTimeout(resolved.state), resolvedAt),
+      resolvedAt
     );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
@@ -990,9 +1009,9 @@ export class TrainingDoppelgangerService {
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
-      await this.combatSessions.releaseLeaseBySessionId?.(lookup.session.id);
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.session.id, this.clock());
     } else if (lookup.state === "missing-session") {
-      await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId);
+      await this.combatSessions.releaseLeaseBySessionId?.(lookup.referenceId, this.clock());
     } else if (lookup.state === "unsupported") {
       return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     } else {
@@ -1027,7 +1046,7 @@ export class TrainingDoppelgangerService {
     });
 
     if (adopted.outcome === "life-mismatch") {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return expired ?? adopted.session ?? session;
     }
 
@@ -1045,7 +1064,7 @@ export class TrainingDoppelgangerService {
     options: { expiredTurnMode?: "auto-attack" | "skip" } = {}
   ): Promise<Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }>> {
     if (!session.state) {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
 
       return {
         state: "terminal",

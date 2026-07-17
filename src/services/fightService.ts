@@ -73,6 +73,7 @@ import {
   type MonsterCombatStats
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
+import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import {
   getItemDropChance,
   rollBandageDropQuantity,
@@ -648,6 +649,14 @@ export class FightService {
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, activeSession.state),
       ...withPersistentEnemyCombatStats(activeSession.state),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+        state,
+        combatKind: "persistent-pve",
+        sessionId: activeSession.id,
+        committedTurn: activeSession.state.turn,
+        recipientCharacterId: activeSession.characterId,
+        now
+      }),
       rng: this.rng
     });
     const resolvedState = resolved.ok
@@ -686,7 +695,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      return await this.combatSessions.markStatusById(session.id, "expired") ?? {
+      return await this.combatSessions.markStatusById(session.id, "expired", now) ?? {
         ...session,
         status: "expired"
       };
@@ -1297,7 +1306,7 @@ export class FightService {
     }
 
     if (!activeSession.state) {
-      const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired");
+      const expiredSession = await this.combatSessions.markStatusById(activeSession.id, "expired", this.clock());
       const fallbackSession = expiredSession ?? activeSession;
       const monster = findPersistentFightMonster(fallbackSession);
 
@@ -1723,7 +1732,7 @@ export class FightService {
       }
 
       if (!activeSession.state) {
-        await this.combatSessions.markStatusById(activeSession.id, "expired");
+        await this.combatSessions.markStatusById(activeSession.id, "expired", this.clock());
       } else if (isExpired(activeSession, this.clock())) {
         const expiredState = stampCombatCompletedAt(expireCombat(activeSession.state), this.clock());
         const expiredSession = await this.combatSessions.updateById(activeSession.id, {
@@ -2284,7 +2293,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      await this.combatSessions.markStatusById(session.id, "expired");
+      await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character: characterSummary,
@@ -2464,11 +2473,20 @@ export class FightService {
       };
     }
 
+    const resolvedAt = this.clock();
     const commonTurnInput = {
       state: currentSession.state,
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
+      afterCommittedHeroAction: (state: CombatState) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+        state,
+        combatKind: "persistent-pve",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      }),
       rng: this.rng
     };
     const resolved = grant?.combat
@@ -2519,8 +2537,8 @@ export class FightService {
     }
 
     const resolvedState = withNextTurnExpiry(
-      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      stampCombatCompletedAt(resetCombatTimeout(resolved.state), resolvedAt),
+      resolvedAt
     );
     const updated = await this.combatSessions.updateByIdIfActiveTurn(currentSession.id, input.turn, {
       state: resolvedState,
@@ -2666,7 +2684,7 @@ export class FightService {
     }
 
     if (!session.state) {
-      await this.combatSessions.markStatusById(session.id, "expired");
+      await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return {
         state: "terminal",
         character: characterSummary,
@@ -2812,6 +2830,7 @@ export class FightService {
       };
     }
 
+    const resolvedAt = this.clock();
     const resolved = resolveCombatItemTurn({
       state: currentSession.state,
       item: {
@@ -2822,6 +2841,14 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
+      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+        state,
+        combatKind: "persistent-pve",
+        sessionId: currentSession.id,
+        committedTurn: input.turn,
+        recipientCharacterId: currentSession.characterId,
+        now: resolvedAt
+      }),
       rng: this.rng
     });
 
@@ -2864,8 +2891,8 @@ export class FightService {
     }
 
     const resolvedState = withNextTurnExpiry(
-      stampCombatCompletedAt(resetCombatTimeout(resolved.state), this.clock()),
-      this.clock()
+      stampCombatCompletedAt(resetCombatTimeout(resolved.state), resolvedAt),
+      resolvedAt
     );
     const itemUpdate = await this.combatSessions.applyCombatItemTurnById?.(currentSession.id, input.turn, {
       telegramUserId,
@@ -3716,9 +3743,9 @@ export class FightService {
     }
 
     if (lookup.state === "terminal-completed" || lookup.state === "terminal-forfeited") {
-      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id);
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.session.id, this.clock());
     } else if (lookup.state === "missing-session") {
-      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId);
+      await this.combatSessions?.releaseLeaseBySessionId?.(lookup.referenceId, this.clock());
     } else if (lookup.state === "unsupported") {
       return { state: "unsupported", kind: lookup.kind, referenceId: lookup.referenceId };
     } else {
@@ -3753,7 +3780,7 @@ export class FightService {
     });
 
     if (adopted.outcome === "life-mismatch") {
-      const expired = await this.combatSessions.markStatusById(session.id, "expired");
+      const expired = await this.combatSessions.markStatusById(session.id, "expired", this.clock());
       return expired ?? adopted.session ?? session;
     }
 

@@ -1,5 +1,7 @@
 import type { CharacterRecord } from "./characterRepository";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type { RoguePickpocketOutcome } from "../../domain/noncombat/classNoncombatTechniques";
+import type { VarenykSatedPayloadV1, VarenykSatedPlan } from "../../domain/noncombat/varenykSatedSupport";
 
 export interface NoncombatTargetRecord {
   telegramUserId: bigint;
@@ -14,6 +16,29 @@ export interface NoncombatTargetRecord {
   remortCount: number;
   priestBlessAvailableAt: Date | null;
   rogueAttemptedToday: boolean;
+  varenykSatedAvailableAt: Date | null;
+  varenykSated: VarenykSatedPayloadV1 | null;
+  varenykPlanning?: VarenykPlanningSnapshot;
+}
+
+export interface VarenykPlanningSnapshot {
+  summary: CharacterSummary;
+  activeCosmeticTitleGrantId: string | null;
+  naturalHpMax: number;
+  naturalManaMax: number;
+  equipmentItemIds: string[];
+  attunedEquipmentRows: Array<{
+    rowId: string;
+    slot: string;
+    itemId: string;
+    updatedAt: string;
+  }>;
+  activePriestBlessing: {
+    id: string;
+    bonusStat: string | null;
+    bonusAmount: number;
+    expiresAt: string;
+  } | null;
 }
 
 export interface NoncombatActionSnapshot {
@@ -27,6 +52,11 @@ export interface NoncombatActionSnapshot {
   priestBlessCooldownAvailableAt: Date | null;
   priestSelfBlessAvailableAt: Date | null;
   roguePickpocketCooldownAvailableAt: Date | null;
+  varenykSatedSelfAvailableAt: Date | null;
+  varenykSatedSelf: VarenykSatedPayloadV1 | null;
+  varenykStatRank: number | null;
+  varenykPlan: VarenykSatedPlan | null;
+  varenykPlanning?: VarenykPlanningSnapshot;
 }
 
 export interface PriestAidRecord {
@@ -72,12 +102,62 @@ export interface RoguePickpocketAttemptRecord {
   completedAt: Date;
 }
 
+export interface VarenykSatedActionRecord {
+  activationId: string;
+  actorCharacterId: string;
+  targetCharacterId: string;
+  actorTelegramUserId: bigint;
+  targetTelegramUserId: bigint;
+  actorName: string;
+  targetName: string;
+  actorRemortCount: number;
+  targetRemortCount: number;
+  rank: number;
+  manaCost: number;
+  immediateHpRestored: number;
+  immediateManaRestored: number;
+  startedAt: Date;
+  expiresAt: Date;
+  availableAt: Date;
+  created: boolean;
+}
+
+export interface VarenykSatedStatusRecord {
+  payload: VarenykSatedPayloadV1 | null;
+  personalAvailableAt: Date | null;
+  hpRestored: number;
+  manaRestored: number;
+  character: CharacterRecord;
+  passiveRecoveryNotice: {
+    type: "hp-full";
+    hpCurrent: number;
+    hpMax: number;
+  } | null;
+}
+
+export type VarenykSatedPreviewRepositoryResult =
+  | {
+      state: "saved";
+      statRank: number;
+      plan: VarenykSatedPlan;
+      actor: VarenykPlanningSnapshot;
+      target: VarenykPlanningSnapshot;
+      actorRemortCount: number;
+      targetRemortCount: number;
+    }
+  | {
+      state: "blocked";
+      reason: NoncombatGateReason;
+      availableAt?: Date;
+    };
+
 export type NoncombatGateReason =
   | "no-character"
   | "target-not-found"
   | "self-target"
   | "not-priest"
   | "not-rogue"
+  | "not-varenyk-mancer"
   | "level-locked"
   | "target-level-locked"
   | "actor-remort-mismatch"
@@ -87,9 +167,11 @@ export type NoncombatGateReason =
   | "actor-blocked"
   | "target-blocked"
   | "actor-defeated"
+  | "target-defeated"
   | "full-hp"
   | "insufficient-mana"
   | "already-blessed"
+  | "already-sated"
   | "cooldown"
   | "target-cooldown"
   | "pair-daily-used"
@@ -114,6 +196,17 @@ export type RoguePickpocketRepositoryResult =
   | { state: "completed"; attempt: RoguePickpocketAttemptRecord; actor: CharacterRecord; target: CharacterRecord; created: boolean }
   | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date };
 
+export type VarenykSatedRepositoryResult =
+  | {
+      state: "completed";
+      action: VarenykSatedActionRecord;
+      actor: CharacterRecord;
+      target: CharacterRecord;
+      status: VarenykSatedPayloadV1;
+      created: boolean;
+    }
+  | { state: "blocked"; reason: NoncombatGateReason; actor?: CharacterRecord; target?: CharacterRecord; availableAt?: Date };
+
 export type RogueRetaliationClaimReason =
   | "not-found"
   | "not-target"
@@ -131,7 +224,14 @@ export interface ClassNoncombatRepository {
 
   getSnapshotForTelegramUser(
     telegramUserId: bigint,
-    input: { activeSince: Date; page: number; pageSize: number; now: Date; rogueAttemptedLocalDate?: string }
+    input: {
+      activeSince: Date;
+      page: number;
+      pageSize: number;
+      now: Date;
+      mode: "priest" | "rogue" | "varenyk";
+      rogueAttemptedLocalDate?: string;
+    }
   ): Promise<NoncombatActionSnapshot | null>;
 
   getActivePriestBlessingForTelegramUser(
@@ -143,6 +243,29 @@ export interface ClassNoncombatRepository {
     telegramUserId: bigint,
     now: Date
   ): Promise<Date | null>;
+
+  settleVarenykSatedForTelegramUser(
+    telegramUserId: bigint,
+    now: Date,
+    knownCharacterId?: string,
+    expectedCharacter?: Pick<
+      CharacterRecord,
+      "hpCurrent" | "manaCurrent" | "hpRegenAt" | "manaRegenAt" | "remortCount"
+    >
+  ): Promise<VarenykSatedStatusRecord | null>;
+
+  saveVarenykSatedPreview(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      previewToken: string;
+      activeSince: Date;
+      now: Date;
+      expiresAt: Date;
+    }
+  ): Promise<VarenykSatedPreviewRepositoryResult>;
 
   isActorBlockedForTelegramUser(telegramUserId: bigint): Promise<boolean>;
 
@@ -194,6 +317,18 @@ export interface ClassNoncombatRepository {
       statSnapshot: unknown;
     }
   ): Promise<RoguePickpocketRepositoryResult>;
+
+  completeVarenykSated(
+    actorTelegramUserId: bigint,
+    input: {
+      targetTelegramUserId: bigint | null;
+      expectedActorRemortCount: number;
+      expectedTargetRemortCount: number;
+      activeSince: Date;
+      now: Date;
+      previewToken: string;
+    }
+  ): Promise<VarenykSatedRepositoryResult>;
 
   claimRogueRetaliation(
     targetTelegramUserId: bigint,

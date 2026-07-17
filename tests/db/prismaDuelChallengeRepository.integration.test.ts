@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
 import type {
   DuelCombatSessionRecord,
@@ -11,7 +12,18 @@ import type {
 } from "../../src/db/repositories/duelChallengeRepository";
 import { startTurnBasedDuel, type TurnBasedDuelState } from "../../src/domain/duels/turnBasedDuel";
 import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
+import {
+  buildEquipmentAttunementPayload,
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY
+} from "../../src/domain/equipment/equipmentAttunement";
+import {
+  settleVarenykSatedOutsideCombat,
+  VARENYK_SATED_STATUS_KEY,
+  type VarenykSatedPayloadV1
+} from "../../src/domain/noncombat/varenykSatedSupport";
+import { DuelChallengeService } from "../../src/services/duelChallengeService";
 import { FakeRandomSource } from "../../src/shared/random";
+import type { RandomSource } from "../../src/shared/random";
 
 describe("PrismaDuelChallengeRepository turn-based integration", () => {
   let dir: string;
@@ -153,6 +165,75 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     });
   });
 
+  it("round-trips resolved Sated recovery and post-round state through the public duel journal", async () => {
+    const session = await seedActiveSession("resolved-sated-journal", new Date("2026-06-17T18:00:23.000Z"));
+    const completedAt = new Date("2026-06-17T18:00:11.000Z");
+    const sated = {
+      version: 1 as const,
+      activationId: "resolved-journal-sated",
+      recipientCharacterId: session.challengerCharacterId,
+      recipientRemortCount: 0,
+      rank: 2,
+      expiresAt: "2026-06-17T18:11:11.000Z",
+      cursorAt: completedAt.toISOString(),
+      leaseStartedAt: "2026-06-17T18:00:00.000Z",
+      outsideRemainderMs: 30_000,
+      pulseIds: [`${session.id}:turn:1:${session.challengerCharacterId}`]
+    };
+    const action = {
+      actorCharacterId: session.challengerCharacterId,
+      defenderCharacterId: session.targetCharacterId,
+      action: "attack" as const,
+      outcome: "hit" as const,
+      damage: 3,
+      manaSpent: 0,
+      critical: false,
+      satedRecovery: { hpRestored: 2, manaRestored: 1 }
+    };
+    const round = {
+      turn: 1,
+      actions: [action],
+      varenykSatedAfter: { challenger: sated, target: null }
+    };
+    const terminalState = makeTerminalState(session.state, "challenger", "defeat");
+    terminalState.lastAction = action;
+    terminalState.lastRound = round;
+    terminalState.participants.challenger.varenykSated = sated;
+
+    await expect(repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
+      state: terminalState,
+      status: "resolved",
+      now: completedAt,
+      deadlineMode: "player-action",
+      turnExpiresAt: session.turnExpiresAt,
+      completedAt,
+      result: makeTerminalResult(session, "challenger", "defeat", { challenger: 4, target: 1 }),
+      action: {
+        actorCharacterId: session.challengerCharacterId,
+        turn: 1,
+        actionKey: "round",
+        result: round
+      }
+    })).resolves.toMatchObject({ status: "resolved" });
+
+    const service = new DuelChallengeService(
+      repository,
+      new PrismaCharacterRepository(prisma),
+      () => completedAt,
+      new FakeRandomSource([0.99])
+    );
+    const journal = await service.getTurnBasedJournalByToken("resolved-sated-journal");
+
+    expect(journal).toMatchObject({
+      state: "ready",
+      rounds: [{
+        turn: 1,
+        actions: [{ satedRecovery: { hpRestored: 2, manaRestored: 1 } }],
+        varenykSatedAfter: { challenger: sated, target: null }
+      }]
+    });
+  });
+
   it("round-trips defended and critical-fumble duel action summaries", async () => {
     const session = await seedActiveSession("summary-outcomes-json", new Date("2026-06-17T18:00:23.000Z"));
     const nextState = JSON.parse(JSON.stringify(session.state)) as TurnBasedDuelState;
@@ -263,24 +344,31 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   it("starts one turn-based session and two leases under concurrent accept attempts", async () => {
     const seeded = await seedPendingChallenge("start-race");
+    const initiativeRng = {
+      nextFloat: vi.fn(() => 0),
+      nextInt: vi.fn(() => 1)
+    };
+    const raceRepository = new PrismaDuelChallengeRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(false),
+      initiativeRng
+    );
     const [first, second] = await Promise.all([
-      repository.startTurnBasedByTokenForTelegramUser(
+      raceRepository.startTurnBasedByTokenForTelegramUser(
         "start-race",
         seeded.target.telegramUserId,
         new Date("2026-06-17T18:00:00.000Z"),
         {
           sessionId: "session-start-race-a",
-          state: seeded.state,
           turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
         }
       ),
-      repository.startTurnBasedByTokenForTelegramUser(
+      raceRepository.startTurnBasedByTokenForTelegramUser(
         "start-race",
         seeded.target.telegramUserId,
         new Date("2026-06-17T18:00:00.000Z"),
         {
           sessionId: "session-start-race-b",
-          state: seeded.state,
           turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
         }
       )
@@ -289,6 +377,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
     expect(started).toHaveLength(1);
     expect([first.transitioned, second.transitioned].filter(Boolean)).toHaveLength(1);
+    expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
     await expect(prisma.duelCombatSession.count({
       where: {
         duelChallenge: {
@@ -314,9 +403,808 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     });
   });
 
+  it("uses the same attunement boundary for the public acceptance preview, sync, initiative and stored duel", async () => {
+    const readyAt = new Date("2026-06-17T18:00:00.000Z");
+    const equipmentUpdatedAt = new Date("2026-06-17T17:18:00.000Z");
+
+    for (const boundary of ["before", "ready"] as const) {
+      const acceptedAt = boundary === "before" ? new Date(readyAt.getTime() - 1) : readyAt;
+      const seeded = await seedPendingChallenge(`service-attunement-${boundary}`);
+      await prisma.character.update({
+        where: { id: seeded.challenger.id },
+        data: {
+          level: 13,
+          hpCurrent: 75,
+          manaCurrent: 36,
+          hpRegenAt: acceptedAt,
+          manaRegenAt: acceptedAt
+        }
+      });
+      await prisma.character.update({
+        where: { id: seeded.target.id },
+        data: {
+          level: 13,
+          hpCurrent: 71,
+          manaCurrent: 36,
+          hpRegenAt: acceptedAt,
+          manaRegenAt: acceptedAt
+        }
+      });
+
+      const equipmentRows = [
+        {
+          id: `service-greaves-${boundary}`,
+          slot: "legs",
+          itemId: "item.set.barrel-brother.greaves",
+          itemName: "Поножі нижнього обруча"
+        },
+        {
+          id: `service-shield-${boundary}`,
+          slot: "offhand",
+          itemId: "item.set.barrel-brother.shield",
+          itemName: "Щит бочкового контраргументу"
+        },
+        {
+          id: `service-parry-spoon-${boundary}`,
+          slot: "weapon",
+          itemId: "item.mantok.coverage.universal.parry-spoon",
+          itemName: "Ложка парирування"
+        }
+      ];
+      for (const row of equipmentRows) {
+        await prisma.characterEquipment.create({
+          data: {
+            id: row.id,
+            characterId: seeded.challenger.id,
+            slot: row.slot,
+            itemId: row.itemId,
+            createdAt: equipmentUpdatedAt,
+            updatedAt: equipmentUpdatedAt
+          }
+        });
+        await prisma.dailyAction.create({
+          data: {
+            characterId: seeded.challenger.id,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: `${row.slot}:${row.id}:${equipmentUpdatedAt.getTime()}`,
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: buildEquipmentAttunementPayload({
+              slot: row.slot,
+              itemId: row.itemId,
+              itemName: row.itemName,
+              equipmentUpdatedAt,
+              strength: "strong",
+              startedAt: equipmentUpdatedAt,
+              readyAt
+            })
+          }
+        });
+      }
+
+      const initiativeRng = new CountingRandomSource([0.5, 0.5, 0.9]);
+      const boundaryRepository = new PrismaDuelChallengeRepository(
+        prisma,
+        new HpRecoveryNotificationProducer(false),
+        initiativeRng
+      );
+      const service = new DuelChallengeService(
+        boundaryRepository,
+        new PrismaCharacterRepository(prisma),
+        () => acceptedAt,
+        new FakeRandomSource([0.1])
+      );
+      const warning = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        `service-attunement-${boundary}`,
+        { expectedMode: "turn-based" }
+      );
+      expect(warning).toMatchObject({
+        state: "resource-warning",
+        challenger: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72, manaCurrent: 36, manaMax: 36 }
+          : { hpCurrent: 75, hpMax: 77, manaCurrent: 36, manaMax: 36 },
+        target: { hpCurrent: 71, hpMax: 72 },
+        warning: { hpBelowMax: true, manaBelowMax: false }
+      });
+      expect(initiativeRng.calls).toBe(0);
+
+      const confirmation = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        `service-attunement-${boundary}`,
+        { expectedMode: "turn-based", ignoreResourceWarning: true }
+      );
+      expect(confirmation).toMatchObject({
+        state: "confirmation",
+        challenger: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72 }
+          : { hpCurrent: 75, hpMax: 77 }
+      });
+      expect(initiativeRng.calls).toBe(0);
+
+      const accepted = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        `service-attunement-${boundary}`,
+        {
+          expectedMode: "turn-based",
+          ignoreResourceWarning: true,
+          confirmed: true
+        }
+      );
+      expect(accepted.state).toBe("active");
+      if (accepted.state !== "active") {
+        throw new Error("Expected public turn-duel acceptance to start a session.");
+      }
+      const challenger = accepted.session.state.participants.challenger;
+      expect(challenger).toMatchObject(boundary === "before"
+        ? { hpMax: 72 }
+        : {
+            hpMax: 77,
+            equipmentAbilityGrantIds: ["mantok-ability.barrel-counter-shield"]
+          });
+      expect(challenger.equipmentAbilityGrantIds ?? []).toEqual(
+        boundary === "before" ? [] : ["mantok-ability.barrel-counter-shield"]
+      );
+      expect(challenger.stats.dexterity).toBe(boundary === "before" ? 9 : 10);
+      expect(challenger.stats.luck).toBe(boundary === "before" ? 9 : 10);
+      expect(accepted.session.actingCharacterId).toBe(
+        boundary === "before" ? seeded.target.id : seeded.challenger.id
+      );
+      expect(initiativeRng.calls).toBe(boundary === "before" ? 3 : 2);
+      const initiativeCalls = initiativeRng.calls;
+      const replay = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        `service-attunement-${boundary}`,
+        { expectedMode: "turn-based", confirmed: true, ignoreResourceWarning: true }
+      );
+      expect(replay).toMatchObject({
+        state: "active",
+        session: { actingCharacterId: accepted.session.actingCharacterId }
+      });
+      expect(initiativeRng.calls).toBe(initiativeCalls);
+      await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+        .resolves.toMatchObject({
+          hpCurrent: boundary === "before" ? 72 : 75,
+          hpMax: 24,
+          manaCurrent: 36,
+          manaMax: 12,
+          hpRegenAt: acceptedAt,
+          manaRegenAt: acceptedAt
+        });
+    }
+  });
+
+  it("persists exact pre-lease Sated minutes once and preserves the outside remainder on duel start replay", async () => {
+    const seeded = await seedPendingChallenge("sated-prelease");
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    for (const side of ["challenger", "target"] as const) {
+      const participant = seeded.state.participants[side];
+      participant.hp = 10;
+      participant.mana = 5;
+      await prisma.character.update({
+        where: { id: participant.characterId },
+        data: { hpCurrent: 10, manaCurrent: 5 }
+      });
+      const payload = makeSatedPayload(participant.characterId, cursorAt);
+      await prisma.characterCooldown.create({
+        data: {
+          characterId: participant.characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+    }
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "sated-prelease",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-sated-prelease",
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+    const restartedRepository = new PrismaDuelChallengeRepository(prisma);
+    const replay = await restartedRepository.startTurnBasedByTokenForTelegramUser(
+      "sated-prelease",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-sated-prelease-replay",
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started).toMatchObject({ transitioned: true });
+    expect(replay).toEqual({ record: null, transitioned: false });
+    for (const side of ["challenger", "target"] as const) {
+      const participant = started.record?.state.participants[side];
+      expect(participant).toMatchObject({
+        hp: 12,
+        mana: 7,
+        varenykSated: { outsideRemainderMs: 30_000 }
+      });
+      await expect(prisma.character.findUnique({
+        where: { id: seeded.state.participants[side].characterId }
+      })).resolves.toMatchObject({ hpCurrent: 12, manaCurrent: 7 });
+      const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+        where: {
+          characterId_key: {
+            characterId: seeded.state.participants[side].characterId,
+            key: VARENYK_SATED_STATUS_KEY
+          }
+        }
+      });
+      expect((cooldown.resultJson as { cursorAt: string }).cursorAt).toBe("2026-06-17T17:59:30.000Z");
+    }
+  });
+
+  it("preserves the exact asymmetric balanced snapshot when neither participant has Sated", async () => {
+    const seeded = await seedPendingChallenge("asymmetric-without-sated");
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 }
+    });
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "asymmetric-without-sated",
+      seeded.target.telegramUserId,
+      new Date("2026-06-17T18:00:00.000Z"),
+      {
+        sessionId: "session-asymmetric-without-sated",
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started.record?.state.participants.challenger).toMatchObject({
+      hp: 27,
+      hpMax: 72,
+      mana: 14,
+      manaMax: 36
+    });
+    expect(started.record?.state.participants.target).toMatchObject({
+      hp: 60,
+      hpMax: 108,
+      mana: 30,
+      manaMax: 54
+    });
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 12, hpMax: 24, manaCurrent: 6, manaMax: 12 });
+    await expect(prisma.character.findUnique({ where: { id: seeded.target.id } }))
+      .resolves.toMatchObject({ hpCurrent: 60, hpMax: 60, manaCurrent: 30, manaMax: 30 });
+  });
+
+  it("uses one attunement-aware equipment snapshot immediately before and exactly at duel acceptance", async () => {
+    const readyAt = new Date("2026-06-17T18:00:00.000Z");
+    const equipmentUpdatedAt = new Date("2026-06-17T17:18:00.000Z");
+
+    for (const boundary of ["before", "ready"] as const) {
+      const seeded = await seedPendingChallenge(`attunement-${boundary}`);
+      const challengerId = seeded.challenger.id;
+      const acceptedAt = boundary === "before"
+        ? new Date(readyAt.getTime() - 1)
+        : readyAt;
+      await prisma.character.updateMany({
+        where: { id: { in: [seeded.challenger.id, seeded.target.id] } },
+        data: { level: 13, hpCurrent: 60, manaCurrent: 30 }
+      });
+      const equipmentRows = [
+        {
+          id: `attunement-greaves-${boundary}`,
+          slot: "legs",
+          itemId: "item.set.barrel-brother.greaves",
+          itemName: "Поножі нижнього обруча"
+        },
+        {
+          id: `attunement-shield-${boundary}`,
+          slot: "offhand",
+          itemId: "item.set.barrel-brother.shield",
+          itemName: "Щит бочкового контраргументу"
+        }
+      ];
+      for (const row of equipmentRows) {
+        await prisma.characterEquipment.create({
+          data: {
+            id: row.id,
+            characterId: challengerId,
+            slot: row.slot,
+            itemId: row.itemId,
+            createdAt: equipmentUpdatedAt,
+            updatedAt: equipmentUpdatedAt
+          }
+        });
+        await prisma.dailyAction.create({
+          data: {
+            characterId: challengerId,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: `${row.slot}:${row.id}:${equipmentUpdatedAt.getTime()}`,
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: buildEquipmentAttunementPayload({
+              slot: row.slot,
+              itemId: row.itemId,
+              itemName: row.itemName,
+              equipmentUpdatedAt,
+              strength: "strong",
+              startedAt: equipmentUpdatedAt,
+              readyAt
+            })
+          }
+        });
+      }
+      if (boundary === "ready") {
+        const payload = makeSatedPayload(
+          challengerId,
+          new Date(readyAt.getTime() - 2 * 60_000 - 30_000)
+        );
+        await prisma.characterCooldown.create({
+          data: {
+            characterId: challengerId,
+            key: VARENYK_SATED_STATUS_KEY,
+            availableAt: new Date(payload.availableAt),
+            resultJson: payload
+          }
+        });
+      }
+
+      const started = await repository.startTurnBasedByTokenForTelegramUser(
+        `attunement-${boundary}`,
+        seeded.target.telegramUserId,
+        acceptedAt,
+        {
+          sessionId: `session-attunement-${boundary}`,
+          turnExpiresAt: new Date(acceptedAt.getTime() + 23_000)
+        }
+      );
+      const challenger = started.record?.state.participants.challenger;
+
+      expect(started.transitioned).toBe(true);
+      expect(challenger).toMatchObject(boundary === "before"
+        ? { hp: 60, hpMax: 72, mana: 30, manaMax: 36 }
+        : {
+            hp: 62,
+            hpMax: 77,
+            mana: 32,
+            manaMax: 36,
+            equipmentAbilityGrantIds: ["mantok-ability.barrel-counter-shield"],
+            varenykSated: { outsideRemainderMs: 30_000 }
+          });
+      expect(challenger?.equipmentAbilityGrantIds ?? []).toEqual(
+        boundary === "before" ? [] : ["mantok-ability.barrel-counter-shield"]
+      );
+      await expect(prisma.character.findUnique({ where: { id: challengerId } }))
+        .resolves.toMatchObject(boundary === "before"
+          ? { hpCurrent: 60, hpMax: 24, manaCurrent: 30, manaMax: 12 }
+          : { hpCurrent: 62, hpMax: 24, manaCurrent: 32, manaMax: 12 });
+      const leases = await prisma.activeCombatLease.findMany({
+        where: { referenceId: `session-attunement-${boundary}` }
+      });
+      expect(leases).toHaveLength(2);
+      expect(leases.every((lease) => lease.createdAt.getTime() === acceptedAt.getTime())).toBe(true);
+    }
+  });
+
+  it("uses the same inclusive attunement boundary across public acceptance sync, warning, initiative, and storage", async () => {
+    const readyAt = new Date("2026-06-17T18:00:00.000Z");
+    const equipmentUpdatedAt = new Date("2026-06-17T17:18:00.000Z");
+    const oldHpAnchor = new Date("2026-06-17T17:57:30.000Z");
+    const tuningEquipment = [
+      ["weapon", "item.set.red-line.left-dagger", "Кинджал червоного рядка"],
+      ["offhand", "item.set.red-line.margin-dagger", "Кинджал червоного поля"],
+      ["head", "item.set.barrel-brother.helm", "Шолом бочкового дзвону"],
+      ["chest", "item.set.barrel-brother.cuirass", "Нагрудник старшого обруча"],
+      ["legs", "item.set.barrel-brother.greaves", "Поножі нижнього обруча"]
+    ] as const;
+
+    for (const boundary of ["before", "ready"] as const) {
+      const token = `service-inclusive-attunement-${boundary}`;
+      const seeded = await seedPendingChallenge(token);
+      const acceptedAt = boundary === "before"
+        ? new Date(readyAt.getTime() - 1)
+        : readyAt;
+      await prisma.character.update({
+        where: { id: seeded.challenger.id },
+        data: {
+          level: 13,
+          hpCurrent: 72,
+          manaCurrent: 36,
+          statsJson: {
+            strength: 7,
+            dexterity: 8,
+            intelligence: 6,
+            charisma: 6,
+            luck: 4
+          }
+        }
+      });
+      await prisma.character.update({
+        where: { id: seeded.target.id },
+        data: {
+          level: 13,
+          hpCurrent: 72,
+          manaCurrent: 35,
+          hpRegenAt: oldHpAnchor,
+          manaRegenAt: acceptedAt,
+          statsJson: {
+            strength: 7,
+            dexterity: 6,
+            intelligence: 6,
+            charisma: 6,
+            luck: 5
+          }
+        }
+      });
+      for (const [slot, itemId, itemName] of tuningEquipment) {
+        const id = `${token}-${slot}`;
+        await prisma.characterEquipment.create({
+          data: {
+            id,
+            characterId: seeded.target.id,
+            slot,
+            itemId,
+            createdAt: equipmentUpdatedAt,
+            updatedAt: equipmentUpdatedAt
+          }
+        });
+        await prisma.dailyAction.create({
+          data: {
+            characterId: seeded.target.id,
+            key: EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            localDate: `${slot}:${id}:${equipmentUpdatedAt.getTime()}`,
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: buildEquipmentAttunementPayload({
+              slot,
+              itemId,
+              itemName,
+              equipmentUpdatedAt,
+              strength: "strong",
+              startedAt: equipmentUpdatedAt,
+              readyAt
+            })
+          }
+        });
+      }
+
+      const initiativeRng = {
+        nextFloat: vi.fn(() => 0),
+        nextInt: vi.fn(() => 1)
+      };
+      const boundaryRepository = new PrismaDuelChallengeRepository(
+        prisma,
+        new HpRecoveryNotificationProducer(false),
+        initiativeRng
+      );
+      const characterRepository = new PrismaCharacterRepository(prisma);
+      const resourceUpdateSpy = vi.spyOn(
+        characterRepository,
+        "updateResourcesForTelegramUser"
+      );
+      const service = new DuelChallengeService(
+        boundaryRepository,
+        characterRepository,
+        () => acceptedAt,
+        new FakeRandomSource([0.99])
+      );
+
+      const warned = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        { expectedMode: "turn-based" }
+      );
+      expect(warned).toMatchObject({
+        state: "resource-warning",
+        target: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72, manaCurrent: 35, manaMax: 36 }
+          : { hpCurrent: 82, hpMax: 82, manaCurrent: 35, manaMax: 36 },
+        warning: { hpBelowMax: false, manaBelowMax: true }
+      });
+      if (warned.state !== "resource-warning") {
+        throw new Error("Expected public turn-duel resource warning.");
+      }
+      expect(warned.target.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      expect(warned.target.equipmentAbilityGrantIds ?? []).toEqual(
+        boundary === "before" ? [] : ["mantok-ability.red-line-dagger"]
+      );
+      expect(warned.target.equipmentEffects?.contributions.map((entry) => entry.itemId) ?? [])
+        .toEqual(boundary === "before"
+          ? []
+          : expect.arrayContaining([
+              "mantok-set.red-line-duel:2",
+              "mantok-set.barrel-brother-bulwark:2",
+              "mantok-set.barrel-brother-bulwark:3"
+            ]));
+
+      const canonicalAfterWarning = await prisma.character.findUniqueOrThrow({
+        where: { id: seeded.target.id }
+      });
+      expect(canonicalAfterWarning).toMatchObject({
+        hpCurrent: 72,
+        manaCurrent: 35,
+        hpRegenAt: oldHpAnchor,
+        manaRegenAt: acceptedAt
+      });
+
+      const confirmation = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        { expectedMode: "turn-based", ignoreResourceWarning: true }
+      );
+      expect(confirmation).toMatchObject({
+        state: "confirmation",
+        target: boundary === "before"
+          ? { hpCurrent: 72, hpMax: 72, manaCurrent: 35, manaMax: 36 }
+          : { hpCurrent: 82, hpMax: 82, manaCurrent: 35, manaMax: 36 }
+      });
+      if (confirmation.state !== "confirmation") {
+        throw new Error("Expected public turn-duel confirmation.");
+      }
+      expect(confirmation.target.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      expect(resourceUpdateSpy).not.toHaveBeenCalled();
+
+      const accepted = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        {
+          expectedMode: "turn-based",
+          confirmed: true,
+          ignoreResourceWarning: true
+        }
+      );
+      if (accepted.state !== "active") {
+        throw new Error(`Expected active public turn duel, got ${accepted.state}.`);
+      }
+      const storedTarget = accepted.session.state.participants.target;
+      expect(accepted.session.actingCharacterId).toBe(
+        boundary === "before" ? seeded.challenger.id : seeded.target.id
+      );
+      expect(storedTarget).toMatchObject(boundary === "before"
+        ? { hp: 72, hpMax: 72, mana: 35, manaMax: 36 }
+        : {
+            hp: 82,
+            hpMax: 82,
+            mana: 35,
+            manaMax: 36,
+            equipmentAbilityGrantIds: ["mantok-ability.red-line-dagger"]
+          });
+      expect(storedTarget.equipmentEffects).toMatchObject(boundary === "before"
+        ? {
+            hpMax: 0,
+            armor: 0,
+            resist: 0,
+            weaponDamage: 0,
+            stats: { dexterity: 0, luck: 0 }
+          }
+        : {
+            hpMax: 10,
+            armor: 8,
+            resist: 2,
+            weaponDamage: 7,
+            stats: { dexterity: 2, luck: 1 }
+          });
+      expect(storedTarget.stats).toMatchObject(boundary === "before"
+        ? { dexterity: 8, luck: 8 }
+        : { dexterity: 10, luck: 9 });
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.target.id } }))
+        .resolves.toMatchObject(boundary === "before"
+          ? {
+              hpCurrent: 72,
+              manaCurrent: 35,
+              hpRegenAt: oldHpAnchor,
+              manaRegenAt: acceptedAt
+            }
+          : {
+              hpCurrent: 82,
+              manaCurrent: 35,
+              hpRegenAt: acceptedAt,
+              manaRegenAt: acceptedAt
+            });
+      expect(resourceUpdateSpy).not.toHaveBeenCalled();
+      expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
+
+      const duplicate = await service.acceptForTelegramUser(
+        seeded.target.telegramUserId,
+        token,
+        {
+          expectedMode: "turn-based",
+          confirmed: true,
+          ignoreResourceWarning: true
+        }
+      );
+      expect(duplicate).toMatchObject({
+        state: "active",
+        session: {
+          id: accepted.session.id,
+          actingCharacterId: accepted.session.actingCharacterId
+        }
+      });
+      expect(initiativeRng.nextInt).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("settles asymmetric pre-lease Sated against natural maxima before rebuilding balanced ratios", async () => {
+    const seeded = await seedPendingChallenge("asymmetric-with-sated");
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 25, hpMax: 25, manaCurrent: 14, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 }
+    });
+    await prisma.characterEquipment.create({
+      data: {
+        id: "equipment-asymmetric-with-sated",
+        characterId: seeded.challenger.id,
+        slot: "accessory",
+        itemId: "item.mantok.coverage.universal.bead-of-pocket-weather"
+      }
+    });
+    const effectiveState = startTurnBasedDuel({
+      challenger: makeDuelist(seeded.challenger.id, {
+        hpCurrent: 25,
+        hpMax: 33,
+        manaCurrent: 14,
+        manaMax: 17
+      }),
+      target: makeDuelist(seeded.target.id, {
+        level: 13,
+        hpCurrent: 108,
+        hpMax: 108,
+        manaCurrent: 54,
+        manaMax: 54
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    effectiveState.actingCharacterId = seeded.challenger.id;
+    for (const characterId of [seeded.challenger.id, seeded.target.id]) {
+      const payload = makeSatedPayload(characterId, cursorAt);
+      await prisma.characterCooldown.create({
+        data: {
+          characterId,
+          key: VARENYK_SATED_STATUS_KEY,
+          availableAt: new Date(payload.availableAt),
+          resultJson: payload
+        }
+      });
+    }
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "asymmetric-with-sated",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-asymmetric-with-sated",
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+    const balancedChallenger = effectiveState.participants.challenger;
+
+    expect(started.record?.state.participants.challenger).toMatchObject({
+      hp: Math.round((27 / 33) * balancedChallenger.hpMax),
+      hpMax: balancedChallenger.hpMax,
+      mana: Math.round((16 / 17) * balancedChallenger.manaMax),
+      manaMax: balancedChallenger.manaMax,
+      varenykSated: { outsideRemainderMs: 30_000 }
+    });
+    expect(started.record?.state.participants.target).toMatchObject({
+      hp: effectiveState.participants.target.hp,
+      hpMax: effectiveState.participants.target.hpMax,
+      mana: effectiveState.participants.target.mana,
+      manaMax: effectiveState.participants.target.manaMax,
+      varenykSated: { outsideRemainderMs: 30_000 }
+    });
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 27, hpMax: 25, manaCurrent: 16, manaMax: 12 });
+    await expect(prisma.character.findUnique({ where: { id: seeded.target.id } }))
+      .resolves.toMatchObject({ hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 });
+  });
+
+  it("keeps a level-three partial effective HP pool partial while settling pre-lease Sated", async () => {
+    const seeded = await seedPendingChallenge("effective-partial-sated");
+    const acceptedAt = new Date("2026-06-17T18:00:00.000Z");
+    const cursorAt = new Date("2026-06-17T17:57:30.000Z");
+    await prisma.character.update({
+      where: { id: seeded.challenger.id },
+      data: { hpCurrent: 24, hpMax: 25, manaCurrent: 12, manaMax: 12 }
+    });
+    await prisma.character.update({
+      where: { id: seeded.target.id },
+      data: { level: 13, hpCurrent: 108, hpMax: 60, manaCurrent: 54, manaMax: 30 }
+    });
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist(seeded.challenger.id, {
+        hpCurrent: 24,
+        hpMax: 33,
+        manaCurrent: 12,
+        manaMax: 16
+      }),
+      target: makeDuelist(seeded.target.id, {
+        level: 13,
+        hpCurrent: 108,
+        hpMax: 108,
+        manaCurrent: 54,
+        manaMax: 54
+      }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = seeded.challenger.id;
+    const payload = makeSatedPayload(seeded.challenger.id, cursorAt);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: seeded.challenger.id,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+
+    const started = await repository.startTurnBasedByTokenForTelegramUser(
+      "effective-partial-sated",
+      seeded.target.telegramUserId,
+      acceptedAt,
+      {
+        sessionId: "session-effective-partial-sated",
+        turnExpiresAt: new Date("2026-06-17T18:00:23.000Z")
+      }
+    );
+
+    expect(started.record?.state.participants.challenger.hp).toBe(
+      Math.round((26 / 33) * state.participants.challenger.hpMax)
+    );
+    await expect(prisma.character.findUnique({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({ hpCurrent: 26, hpMax: 25, manaCurrent: 14, manaMax: 12 });
+  });
+
   it("resolves terminal sessions, grants XP once and releases both leases", async () => {
     const session = await seedActiveSession("terminal-surrender", new Date("2026-06-17T18:00:23.000Z"));
     const completedAt = new Date("2026-06-17T18:00:11.000Z");
+    const satedPayload = makeSatedPayload(
+      session.challengerCharacterId,
+      new Date("2026-06-17T17:59:00.000Z")
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: session.challengerCharacterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(satedPayload.availableAt),
+        resultJson: satedPayload
+      }
+    });
+    session.state.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: satedPayload.activationId,
+      recipientCharacterId: session.challengerCharacterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: new Date(Date.parse(satedPayload.expiresAt) - 60_000).toISOString(),
+      cursorAt: completedAt.toISOString(),
+      leaseStartedAt: new Date("2026-06-17T18:00:00.000Z").toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: [`${session.id}:turn:1:${session.challengerCharacterId}`]
+    };
+    await prisma.activeCombatLease.updateMany({
+      where: {
+        kind: "turn-based-duel",
+        referenceId: session.id
+      },
+      data: {
+        createdAt: new Date("2026-06-17T18:00:00.000Z"),
+        updatedAt: new Date("2026-06-17T18:00:00.000Z")
+      }
+    });
     const terminalState = makeTerminalState(session.state, "target", "surrender");
     const result = makeTerminalResult(session, "target", "surrender", { challenger: 1, target: 4 });
 
@@ -350,6 +1238,16 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       completedAt
     });
     expect(replay).toBeNull();
+    const storedSated = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: session.challengerCharacterId,
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    expect((storedSated.resultJson as { expiresAt: string }).expiresAt)
+      .toBe(new Date(Date.parse(satedPayload.expiresAt) - 60_000).toISOString());
     const challenge = await prisma.duelChallenge.findUnique({
       where: {
         inviteToken: "terminal-surrender"
@@ -471,6 +1369,23 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
 
   it("repairs malformed active sessions and removes orphan turn-based duel leases", async () => {
     const session = await seedActiveSession("repair", new Date("2026-06-17T18:00:23.000Z"));
+    const malformedLeaseStartedAt = new Date("2026-06-17T18:00:30.000Z");
+    const malformedSated = makeSatedPayload(
+      session.challengerCharacterId,
+      new Date("2026-06-17T18:00:00.000Z")
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: session.challengerCharacterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(malformedSated.availableAt),
+        resultJson: malformedSated
+      }
+    });
+    await prisma.activeCombatLease.update({
+      where: { characterId: session.challengerCharacterId },
+      data: { createdAt: malformedLeaseStartedAt, updatedAt: malformedLeaseStartedAt }
+    });
     await prisma.duelCombatSession.update({
       where: { id: session.id },
       data: {
@@ -478,11 +1393,23 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
       }
     });
     await seedCharacter("char-orphan", 999_001n);
+    const orphanLeaseStartedAt = new Date("2026-06-17T18:00:30.000Z");
+    const orphanSated = makeSatedPayload("char-orphan", new Date("2026-06-17T18:00:00.000Z"));
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: "char-orphan",
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(orphanSated.availableAt),
+        resultJson: orphanSated
+      }
+    });
     await prisma.activeCombatLease.create({
       data: {
         characterId: "char-orphan",
         kind: "turn-based-duel",
-        referenceId: "missing-session"
+        referenceId: "missing-session",
+        createdAt: orphanLeaseStartedAt,
+        updatedAt: orphanLeaseStartedAt
       }
     });
 
@@ -506,6 +1433,144 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         }
       }
     })).resolves.toBe(0);
+    const orphanStatus = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "char-orphan",
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    const malformedStatus = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: session.challengerCharacterId,
+          key: VARENYK_SATED_STATUS_KEY
+        }
+      }
+    });
+    for (const status of [malformedStatus, orphanStatus]) {
+      const releasedPayload = status.resultJson as unknown as VarenykSatedPayloadV1;
+      expect(releasedPayload.cursorAt).toBe("2026-06-17T18:00:30.000Z");
+      expect(releasedPayload.expiresAt).toBe("2026-06-17T18:13:30.000Z");
+      expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+        .toBe(13 * 60_000);
+    }
+  });
+
+  it("releases a turn-duel orphan after round progress without losing its original remainder", async () => {
+    const session = await seedActiveSession("orphan-after-round", new Date("2026-06-17T19:23:00.000Z"));
+    const characterId = session.challengerCharacterId;
+    const startedAt = new Date("2026-06-17T19:00:00.000Z");
+    const leaseStartedAt = new Date("2026-06-17T19:00:30.000Z");
+    const payload = makeSatedPayload(characterId, startedAt);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await prisma.activeCombatLease.update({
+      where: { characterId },
+      data: { createdAt: leaseStartedAt, updatedAt: leaseStartedAt }
+    });
+    const progressed = JSON.parse(JSON.stringify(session.state)) as TurnBasedDuelState;
+    progressed.turn = 2;
+    progressed.participants.challenger.varenykSated = {
+      version: 1,
+      activationId: payload.activationId,
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      rank: 1,
+      expiresAt: payload.expiresAt,
+      cursorAt: "2026-06-17T19:03:00.000Z",
+      leaseStartedAt: leaseStartedAt.toISOString(),
+      outsideRemainderMs: 30_000,
+      pulseIds: [`${session.id}:turn:1:${characterId}`]
+    };
+    await expect(repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
+      state: progressed,
+      status: "active",
+      now: new Date("2026-06-17T19:03:00.000Z"),
+      deadlineMode: "player-action",
+      turnExpiresAt: new Date("2026-06-17T19:23:00.000Z")
+    })).resolves.toMatchObject({ turn: 2, version: 2 });
+    let stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect((stored.resultJson as { cursorAt: string }).cursorAt).toBe(startedAt.toISOString());
+    await prisma.duelCombatSession.delete({ where: { id: session.id } });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const first = await repository.repairTurnBasedCombatState(new Date("2026-06-17T19:05:30.000Z"));
+    const duplicate = await repository.repairTurnBasedCombatState(new Date("2026-06-17T19:06:30.000Z"));
+    warn.mockRestore();
+
+    expect(first.removedOrphanLeases).toBe(2);
+    expect(duplicate.removedOrphanLeases).toBe(0);
+    stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    const releasedPayload = stored.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(releasedPayload.cursorAt).toBe("2026-06-17T19:05:00.000Z");
+    expect(releasedPayload.expiresAt).toBe("2026-06-17T19:18:00.000Z");
+    expect(Date.parse(releasedPayload.expiresAt) - Date.parse(releasedPayload.cursorAt))
+      .toBe(13 * 60_000);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 33, mana: 1, manaMax: 16 },
+      now: new Date("2026-06-17T19:05:59.999Z"),
+      combatBlocked: false
+    }).elapsedMinutes).toBe(0);
+    expect(settleVarenykSatedOutsideCombat({
+      payload: releasedPayload,
+      resources: { hp: 1, hpMax: 33, mana: 1, manaMax: 16 },
+      now: new Date("2026-06-17T19:06:00.000Z"),
+      combatBlocked: false
+    })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
+  });
+
+  it("treats a concurrent losing turn-duel orphan release as an idempotent repair", async () => {
+    const characterId = "char-parallel-orphan";
+    const startedAt = new Date("2026-06-17T20:00:00.000Z");
+    const leaseStartedAt = new Date("2026-06-17T20:00:30.000Z");
+    const cleanupAt = new Date("2026-06-17T20:01:00.000Z");
+    await seedCharacter(characterId, 999_002n);
+    const payload = makeSatedPayload(characterId, startedAt);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: VARENYK_SATED_STATUS_KEY,
+        availableAt: new Date(payload.availableAt),
+        resultJson: payload
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId,
+        kind: "turn-based-duel",
+        referenceId: "missing-parallel-session",
+        createdAt: leaseStartedAt,
+        updatedAt: leaseStartedAt
+      }
+    });
+    const competingRepository = new PrismaDuelChallengeRepository(prisma);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const repairs = await Promise.all([
+      repository.repairTurnBasedCombatState(cleanupAt),
+      competingRepository.repairTurnBasedCombatState(cleanupAt)
+    ]);
+    warn.mockRestore();
+
+    expect(repairs.reduce((sum, repair) => sum + repair.removedOrphanLeases, 0)).toBe(1);
+    await expect(prisma.activeCombatLease.count({ where: { characterId } })).resolves.toBe(0);
+    const cooldown = await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId, key: VARENYK_SATED_STATUS_KEY } }
+    });
+    expect((cooldown.resultJson as { cursorAt: string }).cursorAt)
+      .toBe("2026-06-17T20:00:30.000Z");
   });
 
   it("repairs active sessions whose acting participant or optional state blocks are malformed", async () => {
@@ -769,6 +1834,27 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(session_id, turn)
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key)
+    )`,
+    `CREATE TABLE daily_actions (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL,
+      reward_gold INTEGER NOT NULL,
+      spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(character_id, key, local_date)
+    )`,
     `CREATE TABLE active_combat_leases (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL UNIQUE,
@@ -866,7 +1952,39 @@ function makeTerminalResult(
   };
 }
 
-function makeDuelist(id: string): DuelistSummary {
+function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayloadV1 {
+  return {
+    kind: "varenyk-sated-support-v1",
+    version: 1,
+    activationId: `${characterId}-sated`,
+    actorCharacterId: characterId,
+    actorRemortCount: 0,
+    recipientCharacterId: characterId,
+    recipientRemortCount: 0,
+    rank: 1,
+    manaCost: 8,
+    effectiveStats: { intelligence: 8, charisma: 8, level: 3, equipmentItemIds: [] },
+    startedAt: cursorAt.toISOString(),
+    expiresAt: new Date(cursorAt.getTime() + 13 * 60_000).toISOString(),
+    availableAt: new Date(cursorAt.getTime() + 93 * 60_000).toISOString(),
+    cursorAt: cursorAt.toISOString(),
+    receipt: {
+      version: 1,
+      previewToken: `${characterId}-preview`,
+      actorTelegramUserId: "999001",
+      targetTelegramUserId: "999001",
+      actorName: "Пан Вареник",
+      targetName: "Пан Вареник",
+      immediateHpRestored: 0,
+      immediateManaRestored: 0,
+      actorManaAfter: 12,
+      targetHpAfter: 24,
+      targetManaAfter: 12
+    }
+  };
+}
+
+function makeDuelist(id: string, overrides: Partial<DuelistSummary> = {}): DuelistSummary {
   return {
     id,
     name: id,
@@ -904,6 +2022,28 @@ function makeDuelist(id: string): DuelistSummary {
         charisma: 0,
         luck: 0
       }
-    }
+    },
+    ...overrides
   };
+}
+
+class CountingRandomSource implements RandomSource {
+  private readonly delegate: FakeRandomSource;
+  calls = 0;
+
+  constructor(values: readonly number[]) {
+    this.delegate = new FakeRandomSource(values);
+  }
+
+  nextFloat(): number {
+    this.calls += 1;
+    return this.delegate.nextFloat();
+  }
+
+  nextInt(minInclusive: number, maxInclusive: number): number {
+    this.calls += 1;
+    return minInclusive + Math.floor(
+      this.delegate.nextFloat() * (maxInclusive - minInclusive + 1)
+    );
+  }
 }

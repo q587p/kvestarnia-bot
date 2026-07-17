@@ -16,8 +16,12 @@ import type {
   UpdateCharacterResourcesInput
 } from "../../src/db/repositories/characterRepository";
 import type { CharacterEquipmentRecord } from "../../src/db/repositories/equipmentRepository";
+import { getCombatMantokAbilityGrantsForEquippedItems } from "../../src/content";
+import { summarizeCharacter } from "../../src/domain/characters/characterSummary";
+import { startTurnBasedDuel } from "../../src/domain/duels/turnBasedDuel";
 import { getLevelForXp } from "../../src/domain/progression/level";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import { getEquippedItemContents } from "../../src/services/equipmentService";
 import type { AchievementService } from "../../src/services/achievementService";
 import type { NearbyDuelTargetValidator } from "../../src/services/presenceService";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
@@ -1328,6 +1332,74 @@ describe("DuelChallengeService", () => {
       .resolves.toEqual({ state: "not-ready" });
   });
 
+  it("keeps stored Sated recovery and effect snapshots in resolved duel journals", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n);
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true,
+      mode: "turn-based"
+    });
+    if (created.state !== "pending") throw new Error("Expected pending invite.");
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    if (accepted.state !== "active") throw new Error("Expected active duel.");
+
+    const cursorAt = new Date("2026-07-16T13:00:00.000Z");
+    const sated = {
+      version: 1 as const,
+      activationId: "stored-duel-sated",
+      recipientCharacterId: accepted.session.challengerCharacterId,
+      recipientRemortCount: 0,
+      rank: 5,
+      expiresAt: new Date(cursorAt.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: cursorAt.toISOString(),
+      leaseStartedAt: cursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["stored-duel-pulse"]
+    };
+    world.sessions.set(accepted.session.id, {
+      ...accepted.session,
+      status: "resolved",
+      state: { ...accepted.session.state, status: "resolved" },
+      completedAt: fixedNow()
+    });
+    world.turnActions.set(accepted.session.id, [{
+      id: "stored-duel-round",
+      sessionId: accepted.session.id,
+      actorCharacterId: accepted.session.challengerCharacterId,
+      turn: 1,
+      actionKey: "round",
+      result: {
+        turn: 1,
+        actions: [{
+          actorCharacterId: accepted.session.challengerCharacterId,
+          defenderCharacterId: accepted.session.targetCharacterId,
+          action: "attack",
+          outcome: "hit",
+          damage: 3,
+          manaSpent: 0,
+          critical: false,
+          satedRecovery: { hpRestored: 3, manaRestored: 2 }
+        }],
+        varenykSatedAfter: { challenger: sated, target: null }
+      },
+      createdAt: fixedNow()
+    }]);
+
+    const journal = await service.getTurnBasedJournalByToken(created.challenge.inviteToken);
+    expect(journal).toMatchObject({
+      state: "ready",
+      rounds: [{
+        actions: [{ satedRecovery: { hpRestored: 3, manaRestored: 2 } }],
+        varenykSatedAfter: { challenger: { activationId: "stored-duel-sated" }, target: null }
+      }]
+    });
+  });
+
   it("accepts the second same-round choice from the original older-version button", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -2238,7 +2310,11 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     return Promise.resolve(challenge);
   }
 
-  findCharacterByTelegramUser(telegramUserId: bigint): Promise<DuelCharacterSnapshot | null> {
+  findCharacterByTelegramUser(
+    telegramUserId: bigint,
+    equipmentAt?: Date
+  ): Promise<DuelCharacterSnapshot | null> {
+    void equipmentAt;
     return Promise.resolve(this.characters.get(telegramUserId) ?? null);
   }
 
@@ -2447,15 +2523,20 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       status: "active",
       updatedAt: now
     };
+    const state = startTurnBasedDuel({
+      challenger: buildFakeDuelist(activeChallenge.challenger),
+      target: buildFakeDuelist(target),
+      rng: new FakeRandomSource([0.5])
+    });
     const session: DuelCombatSessionRecord = {
       id: input.sessionId,
       duelChallengeId: activeChallenge.id,
       challengerCharacterId: activeChallenge.challengerCharacterId,
       targetCharacterId: target.id,
       status: "active",
-      actingCharacterId: input.state.actingCharacterId,
-      state: cloneState(input.state),
-      turn: input.state.turn,
+      actingCharacterId: state.actingCharacterId,
+      state: cloneState(state),
+      turn: state.turn,
       version: 1,
       turnExpiresAt: input.turnExpiresAt,
       completedAt: null,
@@ -2691,6 +2772,22 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       level: Math.max(character.level, getLevelForXp(xp, { remortCount: character.remortCount ?? 0 }))
     });
   }
+}
+
+function buildFakeDuelist(character: DuelCharacterSnapshot) {
+  const summary = summarizeCharacter(character, {
+    equippedItems: getEquippedItemContents(character.equipment)
+  });
+  const equipmentAbilityGrantIds = getCombatMantokAbilityGrantsForEquippedItems({
+    itemIds: character.equipment.map((row) => row.itemId),
+    characterLevel: summary.level
+  }).map((grant) => grant.id);
+
+  return {
+    ...summary,
+    id: character.id,
+    ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})
+  };
 }
 
 class FakeNearbyDuelTargetValidator implements NearbyDuelTargetValidator {

@@ -4,7 +4,8 @@ import {
   makeClassNoncombatOpenCallbackData,
   makePriestBlessCallbackData,
   makePriestHealCallbackData,
-  makeRoguePickpocketCallbackData
+  makeRoguePickpocketCallbackData,
+  makeVarenykFeedPreviewCallbackData
 } from "../callbacks/classNoncombatCallbackData";
 import { addPaginationControls } from "./pagination";
 
@@ -71,7 +72,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       totalPages: result.targetTotalPages,
       makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
     });
-  } else {
+  } else if (result.mode === "rogue") {
     for (const target of result.targets.filter((candidate) => candidate.level >= 3)) {
       if (target.canRoguePickpocket) {
         keyboard.text(`🗡️ ${formatName(target.name)}`, makeRoguePickpocketCallbackData({
@@ -88,6 +89,42 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       keyboard.row();
     }
 
+    addPaginationControls(keyboard, {
+      page: result.targetPage,
+      totalPages: result.targetTotalPages,
+      makeCallbackData: (targetPage) => makeClassNoncombatOpenCallbackData(result.mode, targetPage)
+    });
+  } else {
+    if (!result.varenykSatedSelfAvailableAt && result.varenykPlan) {
+      keyboard.text(
+        result.varenykSatedSelf ? "🍽️ Нагодувати себе — оновити стан" : "🍽️ Нагодувати себе",
+        makeVarenykFeedPreviewCallbackData({
+          targetTelegramUserId: null,
+          actorRemortCount,
+          targetRemortCount: actorRemortCount,
+          page: currentPage
+        })
+      ).row();
+    }
+    for (const target of result.targets) {
+      if (target.canVarenykFeed && result.varenykPlan) {
+        keyboard.text(
+          target.varenykSated
+            ? `🍽️ ${formatName(target.name)} — оновити стан`
+            : `🍽️ ${formatName(target.name)}`,
+          makeVarenykFeedPreviewCallbackData({
+            targetTelegramUserId: target.telegramUserId,
+            actorRemortCount,
+            targetRemortCount: target.remortCount,
+            page: currentPage
+          })
+        ).row();
+      } else if (target.varenykSated) {
+        keyboard.text(`😋 ${formatName(target.name)} — Ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+      } else if (target.varenykSatedAvailableAt) {
+        keyboard.text(`🍽️ ${formatName(target.name)} — пауза`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+      }
+    }
     addPaginationControls(keyboard, {
       page: result.targetPage,
       totalPages: result.targetTotalPages,
