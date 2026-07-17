@@ -18,9 +18,12 @@ describe("Fighting Corner quest presenter", () => {
     } satisfies FightingCornerQuestLookupResult);
 
     expect(text).toContain("<b>Перше правило Бійцівського кутка</b>");
+    expect(text).toContain("<i>«Не говорити про Бійцівський куток»</i>");
+    expect(text).toContain("<i>«Говорити. Інакше звідки візьметься другий боєць?»</i>");
+    expect(text).toContain("<b>Друге правило:</b>");
     expect(text).toContain("перешліть посилання-запрошення");
-    expect(text).toContain("«👀 Хто поруч» → «Кинути виклик присутнім»");
-    expect(text).toContain("присутнім».\n\nТретє правило:");
+    expect(text).toContain("<i>«👀 Хто поруч» → «Кинути виклик присутнім»</i>");
+    expect(text).toContain("присутнім»</i>.\n\n<b>Третє правило:</b>");
     expect(text).toContain("обидва бійці заходять добровільно");
     expect(text).toContain("а корчмар — із журналом");
     expect(text).not.toContain("за Столом зі справами");
