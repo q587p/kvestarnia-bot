@@ -53,6 +53,11 @@ export function buildDuelChallengeKeyboard(
     .row()
     .text("🙅 Відмовитись", makeDuelDeclineCallbackData(token))
     .row()
+    .text("🔄 Оновити", makeDuelViewCallbackData(token));
+}
+
+export function buildDuelOwnerChallengeKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
     .text("🧹 Скасувати виклик", makeDuelCancelCallbackData(token))
     .row()
     .text("🔄 Оновити", makeDuelViewCallbackData(token));

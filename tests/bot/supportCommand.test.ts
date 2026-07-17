@@ -183,7 +183,7 @@ describe("support command and start deep links", () => {
     expect(keyboard).not.toContain("Здатися");
   });
 
-  it("explains that self-duel links should be forwarded to another adventurer", async () => {
+  it("explains a self-opened duel link as the player's existing invite", async () => {
     const onboardingStart = vi.fn();
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "self-challenge",
@@ -205,9 +205,11 @@ describe("support command and start deep links", () => {
     const text = String(message?.payload.text);
 
     expect(onboardingStart).not.toHaveBeenCalled();
-    expect(text).toContain("🥊 <b>Самодуель відхилено</b>");
-    expect(text).toContain("Для цього вже є Сумлінний Допельґанґер.\n\nПерешліть це повідомлення іншому пригоднику.");
-    expect(text).toContain("дві різні чашки й одна спільна згода");
+    expect(text).toContain("⚡ <b>Це ваш виклик</b>");
+    expect(text).toContain("Приймати його самому не потрібно.");
+    expect(text).toContain("Перешліть запрошення або дочекайтеся відповіді.");
+    expect(text).not.toContain("Самодуель");
+    expect(text).not.toContain("Сумлінний Допельґанґер");
   });
 
   it("keeps regular /start and unknown payloads on the onboarding path", async () => {

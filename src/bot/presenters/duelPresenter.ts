@@ -91,13 +91,12 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "self-challenge") {
     return [
-      "🥊 <b>Самодуель відхилено</b>",
-      presentCharacterHeader(result.challenger),
+      `${presentDuelModeBadge(result.challenge.mode)} <b>Це ваш виклик</b>`,
+      presentDuelParticipant("Запрошує", result.challenger),
       "",
-      "Корчмар дозволяє внутрішні конфлікти, але не записує їх як соціяльний бій.",
-      "Для цього вже є Сумлінний Допельґанґер.",
+      "Виклик уже відкритий для інших пригодників. Приймати його самому не потрібно.",
       "",
-      "Перешліть це повідомлення іншому пригоднику. Корчмару для дуелі потрібні дві різні чашки й одна спільна згода."
+      "Перешліть запрошення або дочекайтеся відповіді. Якщо передумали — скасуйте запис."
     ].join("\n");
   }
 

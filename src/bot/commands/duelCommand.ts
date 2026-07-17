@@ -25,6 +25,7 @@ import {
   buildDuelInviteShareKeyboard,
   buildDuelJournalKeyboard,
   buildDuelNavigationKeyboard,
+  buildDuelOwnerChallengeKeyboard,
   buildDuelRematchResourceWarningKeyboard,
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard,
@@ -232,7 +233,7 @@ export async function handleDuelCallback(
       "edit",
       presentDuelCreate(result, { inviteUrl, mode }),
       result.state === "pending"
-        ? { state: "pending", result }
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
         : result.state === "level-gated"
           ? "navigation"
           : result.state === "resource-warning"
@@ -263,9 +264,13 @@ export async function handleDuelCallback(
     });
 
     if (result.state === "self-challenge") {
-      await answerCallback({
-        text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
-      });
+      await answerCallback();
+      await sendText(
+        ctx,
+        "edit",
+        presentDuelAccept(result),
+        { state: "pending-owner", token: result.challenge.inviteToken }
+      );
       return;
     }
 
@@ -482,7 +487,7 @@ export async function handleDuelCallback(
       "edit",
       presentDuelRematch(result, { inviteUrl }),
       result.state === "pending"
-        ? { state: "pending", result }
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
         : result.state === "resource-warning"
           ? { state: "rematch-resource-warning", token: callback.token }
           : result.state === "level-gated"
@@ -555,7 +560,9 @@ export async function handleDuelCallback(
       ? "Виклик не знайшовся."
       : presentDuelView(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
     result.state === "pending"
-      ? { state: "pending", result }
+      ? result.challenge.challenger.telegramUserId === telegramUserId
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
+        : { state: "pending", result }
       : result.state === "resolved"
         ? { state: "result", token: result.challenge.inviteToken, mode: result.challenge.mode }
         : "result"
@@ -617,6 +624,7 @@ async function sendText(
     | { state: "result"; token?: string; mode?: "quick" | "turn-based" }
     | { state: "journal"; token: string; page: number; totalPages: number }
     | { state: "pending"; result: Parameters<typeof buildDuelChallengeKeyboard>[0] }
+    | { state: "pending-owner"; token: string }
     | false = false
 ): Promise<void> {
   const options = {
@@ -644,6 +652,8 @@ async function sendText(
                         ? buildDuelJournalKeyboard(keyboard.token, keyboard.page, keyboard.totalPages)
                       : keyboard.state === "result"
                         ? buildDuelResultKeyboard(keyboard.token, keyboard.mode)
+                        : keyboard.state === "pending-owner"
+                          ? buildDuelOwnerChallengeKeyboard(keyboard.token)
                         : buildDuelChallengeKeyboard(keyboard.result)
         }
       : {})

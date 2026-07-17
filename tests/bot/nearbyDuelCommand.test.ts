@@ -48,6 +48,9 @@ describe("handleNearbyDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("♟️ <b>Виклик надіслано</b>");
     expect(messageText(editMessageText)).toContain("Кому: <b>Ціль Дуелі</b>");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:cancel:abcDEF12");
+    expect(keyboardJson(editMessageText)).toContain("v1:duel:view:abcDEF12");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:duel:accept:abcDEF12");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:duel:decline:abcDEF12");
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(77);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Вам кинули виклик");

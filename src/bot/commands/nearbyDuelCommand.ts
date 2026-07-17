@@ -4,7 +4,7 @@ import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import { telegramUserIdFromContext } from "../context";
-import { buildDuelChallengeKeyboard, buildDuelTargetedInviteKeyboard } from "../keyboards/duelKeyboard";
+import { buildDuelOwnerChallengeKeyboard, buildDuelTargetedInviteKeyboard } from "../keyboards/duelKeyboard";
 import {
   buildNearbyDuelCandidatesKeyboard,
   buildNearbyDuelModeKeyboard,
@@ -141,7 +141,7 @@ export async function handleNearbyDuelCallback(
   }), {
     ...HTML_MESSAGE_OPTIONS,
     ...(result.state === "pending"
-      ? { reply_markup: buildDuelChallengeKeyboard(result) }
+      ? { reply_markup: buildDuelOwnerChallengeKeyboard(result.challenge.inviteToken) }
       : {})
   });
 

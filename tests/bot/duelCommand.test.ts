@@ -43,6 +43,10 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("Запрошує: <b>Автор Виклику</b> · Пересічні Пригодники · рівень 3");
     expect(messageText(editMessageText)).toContain("Виклик уже на столі. Погляд такий, ніби це стратегія.");
     expect(messageText(editMessageText)).not.toContain("Автор Виклику ставить виклик");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:cancel:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:decline:${TOKEN}`);
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0]).toContain("<b>Автор Виклику</b>");
     expect(reply.mock.calls[0]?.[0]).toContain("⚡ Формат: миттєва дуель — результат одразу після згоди.");
@@ -351,7 +355,7 @@ describe("handleDuelCallback", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("keeps a pending open invite card stable when the challenger accepts their own invite", async () => {
+  it("redraws a stale Details callback on the challenger's own card as an inert owner card", async () => {
     const challenger = makeCharacterSummary("Автор Виклику");
     const acceptForTelegramUser = vi.fn().mockResolvedValue({
       state: "self-challenge",
@@ -372,10 +376,16 @@ describe("handleDuelCallback", () => {
       confirmed: false,
       ignoreResourceWarning: false
     });
-    expect(answerCallbackQuery).toHaveBeenCalledWith({
-      text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
-    });
-    expect(editMessageText).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(messageText(editMessageText)).toContain("Це ваш виклик");
+    expect(messageText(editMessageText)).toContain("Приймати його самому не потрібно");
+    expect(messageText(editMessageText)).not.toContain("Самодуель");
+    expect(messageText(editMessageText)).not.toContain("внутрішніх конфліктів");
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:cancel:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:decline:${TOKEN}`);
     expect(markAction).not.toHaveBeenCalled();
   });
 
@@ -536,6 +546,29 @@ describe("handleDuelCallback", () => {
     expect(acceptForTelegramUser).toHaveBeenCalledTimes(1);
     expect(declineForTelegramUser).toHaveBeenCalledTimes(1);
     expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps the challenger's refreshed pending card role-correct", async () => {
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "pending",
+      challenge: makeChallenge("pending"),
+      challenger: makeCharacterSummary("Автор Виклику"),
+      challengerResourceWarning: null,
+      expiresAt: EXPIRES_AT,
+      now: NOW
+    });
+    const service = serviceWith({ getByToken });
+    const { ctx, editMessageText } = createCallbackContext(42);
+
+    await handleDuelCallback(ctx, { type: "view", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(getByToken).toHaveBeenCalledWith(TOKEN);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:cancel:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:decline:${TOKEN}`);
   });
 
   it.each([
@@ -1305,7 +1338,10 @@ describe("handleDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("Виклик уже на столі");
     expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
     expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");
-    expect(keyboardJson(editMessageText)).toContain(`v1:duel:accept:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:cancel:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).toContain(`v1:duel:view:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:accept:${TOKEN}`);
+    expect(keyboardJson(editMessageText)).not.toContain(`v1:duel:decline:${TOKEN}`);
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply.mock.calls[0]?.[0]).toContain(`https://t.me/kvestarnia_dev_bot?start=duel_turnbased_${TOKEN}`);
     expect(sendMessage).toHaveBeenCalledTimes(1);

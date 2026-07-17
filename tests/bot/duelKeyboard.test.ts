@@ -9,6 +9,7 @@ import {
 import {
   buildDuelAcceptConfirmationKeyboard,
   buildDuelChallengeKeyboard,
+  buildDuelOwnerChallengeKeyboard,
   buildDuelTargetedInviteKeyboard
 } from "../../src/bot/keyboards/duelKeyboard";
 import type { DuelChallengeView } from "../../src/services/duelChallengeService";
@@ -24,12 +25,18 @@ describe("duel decision keyboards", () => {
     expect(buildDuelChallengeKeyboard(pending).inline_keyboard).toEqual([
       [{ text: "📖 Детальніше", callback_data: makeDuelAcceptCallbackData(TOKEN) }],
       [{ text: "🙅 Відмовитись", callback_data: makeDuelDeclineCallbackData(TOKEN) }],
-      [{ text: "🧹 Скасувати виклик", callback_data: makeDuelCancelCallbackData(TOKEN) }],
       [{ text: "🔄 Оновити", callback_data: makeDuelViewCallbackData(TOKEN) }]
     ]);
     expect(buildDuelTargetedInviteKeyboard(pending).inline_keyboard).toEqual([
       [{ text: "📖 Детальніше", callback_data: makeDuelAcceptCallbackData(TOKEN) }],
       [{ text: "🙅 Відмовитись", callback_data: makeDuelDeclineCallbackData(TOKEN) }],
+      [{ text: "🔄 Оновити", callback_data: makeDuelViewCallbackData(TOKEN) }]
+    ]);
+  });
+
+  it("keeps decision actions off the invite owner's status card", () => {
+    expect(buildDuelOwnerChallengeKeyboard(TOKEN).inline_keyboard).toEqual([
+      [{ text: "🧹 Скасувати виклик", callback_data: makeDuelCancelCallbackData(TOKEN) }],
       [{ text: "🔄 Оновити", callback_data: makeDuelViewCallbackData(TOKEN) }]
     ]);
   });
