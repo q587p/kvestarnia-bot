@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import type { DuelChallengeService, DuelChallengeView } from "../../src/services/duelChallengeService";
+import type { PresenceService } from "../../src/services/presenceService";
 import {
   clearMessageFreshnessTracking,
   rememberLatestMessageForChat
@@ -6085,6 +6087,160 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
   });
 
+  it("routes repeated active turn-duel deep links and stale owner Refresh to one canonical private card", async () => {
+    const active = activeTurnBasedDuel({
+      challengerChatId: null,
+      challengerMessageId: null
+    });
+    const production = productionTurnDuelService(active);
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const services = servicesWith({
+      duel: production.service,
+      presence: {
+        ...base.presence,
+        markAction
+      }
+    });
+
+    const first = await captureTextApiCalls(
+      "/start duel_turnbased_abcDEF12",
+      services,
+      { asCommand: true, messageResults: true }
+    );
+    const canonicalMessageId = production.current().session.challengerMessageId;
+    const second = await captureTextApiCalls(
+      "/start duel_turnbased_abcDEF12",
+      services,
+      { asCommand: true, messageResults: true }
+    );
+    const staleRefresh = await captureApiCalls(
+      "v1:duel:view:abcDEF12",
+      services,
+      { messageResults: true }
+    );
+
+    expect(canonicalMessageId).not.toBeNull();
+    const firstFallback = first.find((call) => call.method === "sendMessage");
+    expect(firstFallback?.payload.reply_markup).toEqual({ inline_keyboard: [] });
+    expect(first.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === canonicalMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(second.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+    expect(second.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === canonicalMessageId
+    )).toBe(true);
+    expect(staleRefresh.some((call) =>
+      call.method === "editMessageReplyMarkup" &&
+      call.payload.message_id === 10 &&
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toBe(true);
+    expect(staleRefresh.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === canonicalMessageId
+    )).toBe(true);
+    expect(staleRefresh.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+    expect(production.current().session.challengerMessageId).toBe(canonicalMessageId);
+    expect(markAction.mock.calls.map((call) => call[0])).toEqual([
+      { user: { telegramUserId: 42n, displayName: "Тест" } },
+      { user: { telegramUserId: 42n, displayName: "Тест" } },
+      { user: { telegramUserId: 42n, displayName: "Тест" } }
+    ]);
+  });
+
+  it("lets a losing concurrent final accept pass an active pre-handler lock check without creating a second card", async () => {
+    const active = activeTurnBasedDuel({
+      challengerChatId: null,
+      challengerMessageId: null,
+      targetChatId: null,
+      targetMessageId: null
+    });
+    let current: ReturnType<typeof activeTurnBasedDuel> | null = null;
+    let resolveWinnerStarted!: () => void;
+    const winnerStarted = new Promise<void>((resolve) => {
+      resolveWinnerStarted = resolve;
+    });
+    let resolveLoserAccepted!: () => void;
+    const loserAccepted = new Promise<void>((resolve) => {
+      resolveLoserAccepted = resolve;
+    });
+    let precheckCount = 0;
+    const observedPrechecks: Array<"none" | "active"> = [];
+    const getActiveTurnBasedForTelegramUser = vi.fn(async () => {
+      precheckCount += 1;
+      if (precheckCount === 1) {
+        observedPrechecks.push("none");
+        return null;
+      }
+      await winnerStarted;
+      observedPrechecks.push(current?.state === "active" ? "active" : "none");
+      return current;
+    });
+    let acceptCount = 0;
+    const acceptForTelegramUser = vi.fn(async () => {
+      acceptCount += 1;
+      if (acceptCount === 1) {
+        current = active;
+        resolveWinnerStarted();
+        await loserAccepted;
+        return { ...active, transitioned: true };
+      }
+      resolveLoserAccepted();
+      return { ...active, transitioned: false };
+    });
+    const production = productionTurnDuelService(active, {
+      getActiveTurnBasedForTelegramUser,
+      acceptForTelegramUser,
+      getCurrent: () => current ?? active
+    });
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const calls = await captureConcurrentApiCalls(
+      ["v1:duel:accept-risk:abcDEF12", "v1:duel:accept-risk:abcDEF12"],
+      servicesWith({
+        duel: production.service,
+        presence: { ...base.presence, markAction }
+      }),
+      99,
+      { messageResults: true }
+    );
+    const canonical = production.current().session.targetMessageId;
+    const targetSends = calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 99
+    );
+    const actionableTargetCards = calls.filter((call) =>
+      call.method === "editMessageText" &&
+      call.payload.chat_id === 99 &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    );
+
+    expect(observedPrechecks).toEqual(["none", "active"]);
+    expect(acceptForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) =>
+      call.method === "editMessageReplyMarkup" &&
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toHaveLength(2);
+    expect(targetSends.filter((call) =>
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toHaveLength(1);
+    expect(actionableTargetCards).toHaveLength(1);
+    expect(actionableTargetCards[0]?.payload.message_id).toBe(canonical);
+    expect(production.current().session.targetMessageId).toBe(canonical);
+    expect(markAction.mock.calls.filter((call) => call[0]?.locationId === undefined).map((call) => call[0])).toEqual([
+      { user: { telegramUserId: 99n, displayName: "Тест" } },
+      { user: { telegramUserId: 99n, displayName: "Тест" } }
+    ]);
+    expect(markAction.mock.calls.filter((call) => call[0]?.locationId !== undefined).map((call) => call[0])).toEqual([
+      {
+        user: { telegramUserId: 99n, displayName: "Тест" },
+        locationId: "location.korchma.fighting_corner",
+        currentRaidId: null,
+        currentAdventureId: "adventure.duel-challenge"
+      }
+    ]);
+  });
+
   it("keeps main-menu text inside an active training fight", async () => {
     const calls = await captureTextApiCalls(
       mainMenuButtons.tavern,
@@ -9095,11 +9251,21 @@ function trainingMonster() {
   };
 }
 
-function activeTurnBasedDuel() {
+type ActiveTurnBasedDuelView = Extract<DuelChallengeView, { state: "active" }>;
+
+function activeTurnBasedDuel(references: {
+  challengerChatId?: bigint | null;
+  challengerMessageId?: number | null;
+  targetChatId?: bigint | null;
+  targetMessageId?: number | null;
+} = {}): ActiveTurnBasedDuelView {
   return {
     state: "active",
     challenge: {
+      id: "duel-1",
       inviteToken: "abcDEF12",
+      mode: "turn-based",
+      status: "active",
       challengerCharacterId: "character-1",
       targetCharacterId: "character-2",
       challenger: {
@@ -9121,11 +9287,21 @@ function activeTurnBasedDuel() {
     now: new Date("2026-06-19T12:00:00.000Z"),
     session: {
       id: "session-1",
+      duelChallengeId: "duel-1",
       status: "active",
       challengerCharacterId: "character-1",
       targetCharacterId: "character-2",
+      actingCharacterId: "character-1",
       turn: 1,
       version: 1,
+      turnExpiresAt: new Date("2026-06-19T12:00:23.000Z"),
+      completedAt: null,
+      challengerChatId: references.challengerChatId === undefined ? 42n : references.challengerChatId,
+      challengerMessageId: references.challengerMessageId === undefined ? 501 : references.challengerMessageId,
+      targetChatId: references.targetChatId === undefined ? 99n : references.targetChatId,
+      targetMessageId: references.targetMessageId === undefined ? 502 : references.targetMessageId,
+      createdAt: new Date("2026-06-19T12:00:00.000Z"),
+      updatedAt: new Date("2026-06-19T12:00:00.000Z"),
       state: {
         mode: "turn-based",
         status: "active",
@@ -9139,7 +9315,84 @@ function activeTurnBasedDuel() {
         }
       }
     }
-  } as never;
+  } as unknown as ActiveTurnBasedDuelView;
+}
+
+function productionTurnDuelService(
+  initial: ActiveTurnBasedDuelView,
+  overrides: {
+    getActiveTurnBasedForTelegramUser?: DuelChallengeService["getActiveTurnBasedForTelegramUser"];
+    acceptForTelegramUser?: DuelChallengeService["acceptForTelegramUser"];
+    getCurrent?: () => ActiveTurnBasedDuelView;
+  } = {}
+) {
+  let current = initial;
+  const getCurrent = (): ActiveTurnBasedDuelView => overrides.getCurrent ? overrides.getCurrent() : current;
+  const claimTurnBasedMessageReference = vi.fn<DuelChallengeService["claimTurnBasedMessageReference"]>((
+    _sessionId: string,
+    participant: "challenger" | "target",
+    candidate: { chatId: bigint; messageId: number },
+    expected?: { chatId: bigint; messageId: number }
+  ) => {
+    const session = getCurrent().session;
+    const actual = participant === "challenger"
+      ? { chatId: session.challengerChatId, messageId: session.challengerMessageId }
+      : { chatId: session.targetChatId, messageId: session.targetMessageId };
+    const matches = expected
+      ? actual.chatId === expected.chatId && actual.messageId === expected.messageId
+      : actual.chatId == null && actual.messageId == null;
+    if (matches) {
+      if (participant === "challenger") {
+        session.challengerChatId = candidate.chatId;
+        session.challengerMessageId = candidate.messageId;
+      } else {
+        session.targetChatId = candidate.chatId;
+        session.targetMessageId = candidate.messageId;
+      }
+      current = getCurrent();
+    }
+    return Promise.resolve({ claimed: matches, session });
+  });
+  const releaseTurnBasedMessageReference = vi.fn<DuelChallengeService["releaseTurnBasedMessageReference"]>((
+    _sessionId: string,
+    participant: "challenger" | "target",
+    expected: { chatId: bigint; messageId: number }
+  ) => {
+    const session = getCurrent().session;
+    const matches = participant === "challenger"
+      ? session.challengerChatId === expected.chatId && session.challengerMessageId === expected.messageId
+      : session.targetChatId === expected.chatId && session.targetMessageId === expected.messageId;
+    if (matches) {
+      if (participant === "challenger") {
+        session.challengerChatId = null;
+        session.challengerMessageId = null;
+      } else {
+        session.targetChatId = null;
+        session.targetMessageId = null;
+      }
+    }
+    return Promise.resolve({ released: matches, session });
+  });
+  const getActiveTurnBasedForTelegramUser = overrides.getActiveTurnBasedForTelegramUser ??
+    vi.fn<DuelChallengeService["getActiveTurnBasedForTelegramUser"]>(() => Promise.resolve(getCurrent()));
+  const acceptForTelegramUser = overrides.acceptForTelegramUser ??
+    vi.fn<DuelChallengeService["acceptForTelegramUser"]>(() =>
+      Promise.resolve({ ...getCurrent(), transitioned: false })
+    );
+  const getByToken = vi.fn<DuelChallengeService["getByToken"]>(() => Promise.resolve(getCurrent()));
+
+  return {
+    current: getCurrent,
+    claimTurnBasedMessageReference,
+    releaseTurnBasedMessageReference,
+    service: {
+      getActiveTurnBasedForTelegramUser,
+      acceptForTelegramUser,
+      getByToken,
+      claimTurnBasedMessageReference,
+      releaseTurnBasedMessageReference
+    } as unknown as BotServices["duel"]
+  };
 }
 
 function turnBasedParticipant(characterId: string, displayName: string) {
@@ -9497,7 +9750,8 @@ async function captureRepeatedApiCalls(
 async function captureConcurrentApiCalls(
   callbackDataList: string[],
   services: BotServices,
-  telegramUserId: number
+  telegramUserId: number,
+  options: { messageResults?: boolean } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot("123456:test-token", services);
   const calls: ApiCall[] = [];
@@ -9513,6 +9767,20 @@ async function captureConcurrentApiCalls(
           is_bot: true,
           first_name: "Квестарня",
           username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    if (options.messageResults && method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: calls.length,
+          date: 0,
+          chat: {
+            id: Number(payload.chat_id),
+            type: "private"
+          }
         }
       });
     }

@@ -1,12 +1,7 @@
 import type { Bot } from "grammy";
 import type { DuelChallengeService } from "../services/duelChallengeService";
-import { getCombatSkillDisplay } from "../services/fightService";
-import { getCombatSkillProfile } from "../domain/combat";
-import { buildTurnBasedDuelKeyboard } from "./keyboards/duelKeyboard";
-import { buildDuelResultKeyboard } from "./keyboards/duelKeyboard";
-import { presentDuelView, presentTurnBasedDuel } from "./presenters/duelPresenter";
 import { presentFightingCornerQuestProgressNotification } from "./presenters/fightingCornerQuestPresenter";
-import { isMessageNotModifiedError } from "./safeEditMessageText";
+import { deliverCanonicalTurnBasedDuelParticipantCard } from "./turnBasedDuelCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -123,42 +118,26 @@ async function notifyParticipant(
     ? view.session.challengerChatId
     : view.session.targetChatId;
   const chatId = getPrivateParticipantChatId(storedChatId, telegramUserId);
-  const messageId = participant === "challenger"
-    ? view.session.challengerMessageId
-    : view.session.targetMessageId;
-  const characterId = participant === "challenger"
-    ? view.session.challengerCharacterId
-    : view.session.targetCharacterId;
-  const duelParticipant = characterId === view.session.state.participants.target.characterId
-    ? view.session.state.participants.target
-    : view.session.state.participants.challenger;
-  const skill = getCombatSkillDisplay(getCombatSkillProfile(duelParticipant.combatStats.classId).id);
-  const skillLabel = `${skill.icon} ${skill.name}`;
-  const text = presentTurnBasedDuel(view, { viewerCharacterId: characterId });
-
   if (!chatId) {
     return;
   }
 
-  const keyboard = buildTurnBasedDuelKeyboard(view, characterId, skillLabel);
-
   try {
-    const deliveredMessageId = await editOrSend(bot, {
+    await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view,
+      participant,
       chatId,
-      messageId,
-      text,
-      options: {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: keyboard
+      transport: {
+        editMessage: async (reference, text, options) => {
+          await bot.api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+        },
+        sendInertMessage: async (destinationChatId, text, options) => {
+          const message = await bot.api.sendMessage(Number(destinationChatId), text, options);
+          return message.message_id ?? null;
+        }
       }
     });
-
-    if (deliveredMessageId) {
-      await service.recordTurnBasedMessageReference(view.session.id, participant, {
-        chatId,
-        messageId: deliveredMessageId
-      });
-    }
   } catch {
     // Delivery is best-effort; the persisted duel state remains canonical.
   }
@@ -178,31 +157,27 @@ async function notifyResolvedParticipant(
     ? session.challengerChatId
     : session.targetChatId;
   const chatId = getPrivateParticipantChatId(storedChatId, telegramUserId);
-  const messageId = participant === "challenger"
-    ? session.challengerMessageId
-    : session.targetMessageId;
-
   if (!chatId) {
     return;
   }
 
   try {
-    const deliveredMessageId = await editOrSend(bot, {
+    await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view,
+      session,
+      participant,
       chatId,
-      messageId,
-      text: presentDuelView(view),
-      options: {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildDuelResultKeyboard(view.challenge.inviteToken)
+      transport: {
+        editMessage: async (reference, text, options) => {
+          await bot.api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+        },
+        sendInertMessage: async (destinationChatId, text, options) => {
+          const message = await bot.api.sendMessage(Number(destinationChatId), text, options);
+          return message.message_id ?? null;
+        }
       }
     });
-
-    if (deliveredMessageId) {
-      await service.recordTurnBasedMessageReference(session.id, participant, {
-        chatId,
-        messageId: deliveredMessageId
-      });
-    }
   } catch {
     // Delivery is best-effort; the persisted duel state remains canonical.
   }
@@ -217,33 +192,4 @@ function getPrivateParticipantChatId(
   }
 
   return storedChatId === telegramUserId ? storedChatId : telegramUserId;
-}
-
-async function editOrSend(
-  bot: Bot,
-  input: {
-    chatId: bigint;
-    messageId: number | null;
-    text: string;
-    options: Parameters<Bot["api"]["editMessageText"]>[3];
-  }
-): Promise<number | null> {
-  if (input.messageId) {
-    try {
-      await bot.api.editMessageText(Number(input.chatId), input.messageId, input.text, input.options);
-      return input.messageId;
-    } catch (error) {
-      if (isMessageNotModifiedError(error)) {
-        return input.messageId;
-      }
-    }
-  }
-
-  const sent = await bot.api.sendMessage(
-    Number(input.chatId),
-    input.text,
-    input.options
-  );
-
-  return sent.message_id;
 }

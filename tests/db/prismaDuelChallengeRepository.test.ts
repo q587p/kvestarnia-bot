@@ -52,6 +52,36 @@ describe("PrismaDuelChallengeRepository", () => {
     ]);
   });
 
+  it("releases only the inert candidate that still owns the canonical reference", async () => {
+    const updates: unknown[] = [];
+    const repository = new PrismaDuelChallengeRepository({
+      duelCombatSession: {
+        updateMany: (query: unknown) => {
+          updates.push(query);
+          return Promise.resolve({ count: 1 });
+        },
+        findUnique: () => Promise.resolve(null)
+      }
+    } as unknown as ConstructorParameters<typeof PrismaDuelChallengeRepository>[0]);
+
+    await expect(repository.releaseTurnBasedMessageReference(
+      "session-1",
+      "target",
+      { chatId: 99n, messageId: 202 }
+    )).resolves.toEqual({ released: true, session: null });
+    expect(updates).toEqual([{
+      where: {
+        id: "session-1",
+        targetChatId: 99n,
+        targetMessageId: 202
+      },
+      data: {
+        targetChatId: null,
+        targetMessageId: null
+      }
+    }]);
+  });
+
   it("uses a bounded existence lookup for resolved turn-based round actions", async () => {
     const queries: unknown[] = [];
     const repository = new PrismaDuelChallengeRepository({

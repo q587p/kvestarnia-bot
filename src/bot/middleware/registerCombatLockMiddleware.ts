@@ -1,6 +1,5 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { BotServices } from "../botServices";
-import { getCombatSkillProfile } from "../../domain/combat";
 import {
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
@@ -11,7 +10,6 @@ import {
   type PresenceService
 } from "../../services/presenceService";
 import type { FightService } from "../../services/fightService";
-import { getCombatSkillDisplay } from "../../services/fightService";
 import { playerFromContext } from "../context";
 import {
   buildFightKeyboard,
@@ -19,7 +17,6 @@ import {
   resolvePersistentFightPresenceLocation
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
 import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
@@ -30,6 +27,7 @@ import { presentTurnBasedDuel } from "../presenters/duelPresenter";
 import { presentPartyBoss } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { showCanonicalTurnBasedDuelCard } from "../turnBasedDuelCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -54,6 +52,14 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
     }
 
     if (isRestartOrRemortRoute(ctx) && await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+      return;
+    }
+
+    if (isDuelOwnedRoute(ctx)) {
+      if (services.duel && typeof services.duel.getActiveTurnBasedForTelegramUser === "function") {
+        await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+      }
+      await next();
       return;
     }
 
@@ -88,8 +94,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:fight:item:") &&
       !data.startsWith("v1:fight:gear:") &&
       !data.startsWith("v1:spar:turn:") &&
-      !data.startsWith("v1:duel:t:") &&
-      !data.startsWith("v1:duel:g:") &&
+      !data.startsWith("v1:duel:") &&
       !data.startsWith("v1:party:ba:") &&
       !data.startsWith("v1:party:bg:") &&
       !data.startsWith("v1:party:bm:") &&
@@ -101,6 +106,9 @@ function shouldCheckCombatLock(ctx: Context): boolean {
   }
 
   const text = ctx.message?.text?.trim();
+  if (isDuelStartRoute(text)) {
+    return false;
+  }
   const command = text?.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+.*)?$/i)?.[1]?.toLowerCase();
 
   if (command) {
@@ -168,8 +176,26 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "look" ||
     command === "restart" ||
     command === "remort" ||
-    command === "support"
+    command === "support" ||
+    command === "duel"
   );
+}
+
+function isDuelStartRoute(text: string | undefined): boolean {
+  return /^\/start(?:@\w+)?\s+duel_(?:turnbased_)?[A-Za-z0-9_-]+$/i.test(text ?? "");
+}
+
+function isDuelOwnedRoute(ctx: Context): boolean {
+  if (ctx.callbackQuery?.data?.startsWith("v1:duel:")) {
+    return true;
+  }
+
+  const text = ctx.message?.text?.trim();
+  if (isDuelStartRoute(text)) {
+    return true;
+  }
+
+  return /^\/duel(?:@\w+)?(?:\s|$)/i.test(text ?? "");
 }
 
 function isRestartOrRemortRoute(ctx: Context): boolean {
@@ -354,23 +380,17 @@ async function redirectTurnBasedDuelLockIfNeeded(
     currentRaidId: null,
     currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
   });
-  const viewerCharacterId =
-    activeDuel.challenge.challenger.telegramUserId === telegramUserId
-      ? activeDuel.session.challengerCharacterId
-      : activeDuel.challenge.target?.telegramUserId === telegramUserId
-        ? activeDuel.session.targetCharacterId
-        : null;
-  const privateCard = ctx.chat?.type === "private" && viewerCharacterId !== null;
-  const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
-    ? activeDuel.session.state.participants.target
-    : activeDuel.session.state.participants.challenger;
-  const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
-
-  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, {
-    viewerCharacterId: privateCard ? viewerCharacterId : null
-  })), {
-    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, privateCard ? viewerCharacterId : null, `${skill.icon} ${skill.name}`)
-  });
+  await showCanonicalTurnBasedDuelCard(
+    ctx,
+    activeDuel,
+    services.duel,
+    ctx.callbackQuery ? "edit" : "reply",
+    {
+      presentActive: (view, viewerCharacterId) => presentCombatLockRedirect(
+        presentTurnBasedDuel(view, { viewerCharacterId })
+      )
+    }
+  );
 
   return true;
 }

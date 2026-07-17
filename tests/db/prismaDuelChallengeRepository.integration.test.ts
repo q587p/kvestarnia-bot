@@ -83,6 +83,29 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(claims.every((claim) => claim.session?.challengerMessageId === stored.challengerMessageId)).toBe(true);
   });
 
+  it("releases a failed inert candidate without clearing a newer canonical winner", async () => {
+    const session = await seedActiveSession("card-release", new Date("2026-06-17T18:00:23.000Z"));
+    const candidate = { chatId: 42n, messageId: 201 };
+    await repository.claimTurnBasedMessageReference(session.id, "challenger", candidate);
+
+    await expect(repository.releaseTurnBasedMessageReference(
+      session.id,
+      "challenger",
+      { chatId: 42n, messageId: 999 }
+    )).resolves.toMatchObject({ released: false });
+    expect((await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } })).challengerMessageId)
+      .toBe(201);
+
+    await expect(repository.releaseTurnBasedMessageReference(
+      session.id,
+      "challenger",
+      candidate
+    )).resolves.toMatchObject({ released: true });
+    const released = await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(released.challengerChatId).toBeNull();
+    expect(released.challengerMessageId).toBeNull();
+  });
+
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
     const before = await repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {

@@ -144,12 +144,16 @@ describe("support command and start deep links", () => {
       return Promise.resolve({ claimed: true, session: active.session });
     });
     const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
+    const getByToken = vi.fn().mockResolvedValue(active);
+    const releaseTurnBasedMessageReference = vi.fn().mockResolvedValue({ released: true, session: null });
     const calls = await captureMessageCalls(
       "/start duel_turnbased_abc_DEF12",
       servicesWith({
         duel: {
           acceptForTelegramUser,
-          claimTurnBasedMessageReference
+          claimTurnBasedMessageReference,
+          getByToken,
+          releaseTurnBasedMessageReference
         }
       } as Partial<BotServices>),
       {
@@ -201,6 +205,8 @@ describe("support command and start deep links", () => {
   it("reuses the recorded canonical card across repeated active turn-based deep links", async () => {
     const active = makeActiveTurnBasedDuelView();
     const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
+    const getByToken = vi.fn().mockResolvedValue(active);
+    const releaseTurnBasedMessageReference = vi.fn().mockResolvedValue({ released: true, session: null });
     const claimTurnBasedMessageReference = vi.fn().mockImplementation((
       _sessionId: string,
       _participant: "challenger" | "target",
@@ -213,7 +219,12 @@ describe("support command and start deep links", () => {
     const calls = await captureMessageCalls(
       ["/start duel_turnbased_abc_DEF12", "/start duel_turnbased_abc_DEF12"],
       servicesWith({
-        duel: { acceptForTelegramUser, claimTurnBasedMessageReference }
+        duel: {
+          acceptForTelegramUser,
+          claimTurnBasedMessageReference,
+          getByToken,
+          releaseTurnBasedMessageReference
+        }
       } as Partial<BotServices>)
     );
 
@@ -252,10 +263,20 @@ describe("support command and start deep links", () => {
 
       return Promise.resolve({ claimed: false, session: canonicalSession });
     });
+    const getByToken = vi.fn(() => Promise.resolve({
+      ...first,
+      session: canonicalSession ?? first.session
+    }));
+    const releaseTurnBasedMessageReference = vi.fn().mockResolvedValue({ released: true, session: null });
     const calls = await captureMessageCalls(
       ["/start duel_turnbased_abc_DEF12", "/start duel_turnbased_abc_DEF12"],
       servicesWith({
-        duel: { acceptForTelegramUser, claimTurnBasedMessageReference }
+        duel: {
+          acceptForTelegramUser,
+          claimTurnBasedMessageReference,
+          getByToken,
+          releaseTurnBasedMessageReference
+        }
       } as Partial<BotServices>),
       { concurrent: true }
     );
@@ -269,7 +290,7 @@ describe("support command and start deep links", () => {
     expect(sentCards.every((call) =>
       JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
     )).toBe(true);
-    expect(canonicalActivations).toHaveLength(2);
+    expect(canonicalActivations).toHaveLength(1);
     expect(new Set(canonicalActivations.map((call) => call.payload.message_id)).size).toBe(1);
     expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2);
   });

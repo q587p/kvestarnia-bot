@@ -6,6 +6,7 @@ import {
 } from "../../src/bot/messageFreshness";
 import {
   isMessageNotModifiedError,
+  isMessageUnavailableForEditError,
   safeEditMessageText
 } from "../../src/bot/safeEditMessageText";
 
@@ -78,5 +79,12 @@ describe("safeEditMessageText", () => {
   it("recognizes message-not-modified errors by message", () => {
     expect(isMessageNotModifiedError(new Error("message is not modified"))).toBe(true);
     expect(isMessageNotModifiedError(new Error("message to edit not found"))).toBe(false);
+  });
+
+  it("distinguishes deleted or invalid message references from retryable edit failures", () => {
+    expect(isMessageUnavailableForEditError(new Error("message to edit not found"))).toBe(true);
+    expect(isMessageUnavailableForEditError(new Error("Bad Request: MESSAGE_ID_INVALID"))).toBe(true);
+    expect(isMessageUnavailableForEditError(new Error("Telegram gateway timeout"))).toBe(false);
+    expect(isMessageUnavailableForEditError(new Error("message can't be edited"))).toBe(false);
   });
 });

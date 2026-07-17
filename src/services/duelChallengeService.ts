@@ -1009,14 +1009,6 @@ export class DuelChallengeService {
     return this.challenges.repairTurnBasedCombatState(this.clock());
   }
 
-  async recordTurnBasedMessageReference(
-    sessionId: string,
-    participant: "challenger" | "target",
-    reference: { chatId: bigint; messageId: number }
-  ): Promise<void> {
-    await this.challenges.recordTurnBasedMessageReference(sessionId, participant, reference);
-  }
-
   async claimTurnBasedMessageReference(
     sessionId: string,
     participant: "challenger" | "target",
@@ -1024,6 +1016,14 @@ export class DuelChallengeService {
     expectedReference?: { chatId: bigint; messageId: number }
   ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
     return this.challenges.claimTurnBasedMessageReference(sessionId, participant, reference, expectedReference);
+  }
+
+  async releaseTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    expectedReference: { chatId: bigint; messageId: number }
+  ): Promise<{ released: boolean; session: DuelCombatSessionRecord | null }> {
+    return this.challenges.releaseTurnBasedMessageReference(sessionId, participant, expectedReference);
   }
 
   async getInviteRotationForTelegramUser(

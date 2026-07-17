@@ -854,34 +854,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return sessions.map(mapDuelCombatSession).filter((session): session is DuelCombatSessionRecord => session !== null);
   }
 
-  async recordTurnBasedMessageReference(
-    sessionId: string,
-    participant: "challenger" | "target",
-    reference: { chatId: bigint; messageId: number }
-  ): Promise<DuelCombatSessionRecord | null> {
-    const record = await this.prisma.duelCombatSession.update({
-      where: { id: sessionId },
-      data: participant === "challenger"
-        ? {
-            challengerChatId: reference.chatId,
-            challengerMessageId: reference.messageId
-          }
-        : {
-            targetChatId: reference.chatId,
-            targetMessageId: reference.messageId
-          },
-      include: sessionInclude
-    }).catch((error: unknown) => {
-      if (isPrismaNotFound(error)) {
-        return null;
-      }
-
-      throw error;
-    });
-
-    return mapDuelCombatSession(record);
-  }
-
   async claimTurnBasedMessageReference(
     sessionId: string,
     participant: "challenger" | "target",
@@ -917,6 +889,44 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     return {
       claimed: claimed.count === 1,
+      session: mapDuelCombatSession(session)
+    };
+  }
+
+  async releaseTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    expectedReference: { chatId: bigint; messageId: number }
+  ): Promise<{ released: boolean; session: DuelCombatSessionRecord | null }> {
+    const released = await this.prisma.duelCombatSession.updateMany({
+      where: participant === "challenger"
+        ? {
+            id: sessionId,
+            challengerChatId: expectedReference.chatId,
+            challengerMessageId: expectedReference.messageId
+          }
+        : {
+            id: sessionId,
+            targetChatId: expectedReference.chatId,
+            targetMessageId: expectedReference.messageId
+          },
+      data: participant === "challenger"
+        ? {
+            challengerChatId: null,
+            challengerMessageId: null
+          }
+        : {
+            targetChatId: null,
+            targetMessageId: null
+          }
+    });
+    const session = await this.prisma.duelCombatSession.findUnique({
+      where: { id: sessionId },
+      include: sessionInclude
+    });
+
+    return {
+      released: released.count === 1,
       session: mapDuelCombatSession(session)
     };
   }
@@ -2275,8 +2285,4 @@ function parseTargetScope(value: unknown) {
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function isPrismaNotFound(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
 }
