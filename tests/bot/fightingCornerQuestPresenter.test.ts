@@ -46,35 +46,49 @@ describe("Fighting Corner quest presenter", () => {
     expect(text).toContain("Поверніться до столу зі справами");
   });
 
-  it("presents the exact stored claim reward on replay", () => {
-    const result = {
-      state: "already-completed",
-      character: {} as never,
-      progress: progress({ accepted: true, completedObjectives: 3, readyToClaim: true }),
-      reward: {
-        xp: 11,
-        gold: 37,
-        itemGrants: [
-          {
-            itemId: "item.pink-soap-of-first-rule",
-            name: "Рожеве мило першого правила",
-            quantity: 1
-          },
-          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 },
-          { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 }
-        ]
-      },
-      levelChange: null
-    } satisfies FightingCornerQuestClaimResult;
-    const text = presentFightingCornerQuestClaim(result);
+  it.each(["completed", "already-completed"] as const)(
+    "groups the exact stored claim reward into readable paragraphs for %s",
+    (state) => {
+      const result = {
+        state,
+        character: {} as never,
+        progress: progress({ accepted: true, completedObjectives: 3, readyToClaim: true }),
+        reward: {
+          xp: 42,
+          gold: 91,
+          itemGrants: [
+            {
+              itemId: "item.pink-soap-of-first-rule",
+              name: "Рожеве мило першого правила",
+              quantity: 1
+            },
+            { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 },
+            { itemId: "item.iskrokamin", name: "Іскрокамінь", quantity: 1 }
+          ]
+        },
+        levelChange: null
+      } satisfies FightingCornerQuestClaimResult;
+      const text = presentFightingCornerQuestClaim(result);
 
-    expect(text).toContain("Нагорода та сама");
-    expect(text).toContain("Рожеве мило першого правила відтепер числиться інструментом");
-    expect(text).toContain("11 XP");
-    expect(text).toContain("37");
-    expect(text).toContain("Іскрокамінь ×2");
-    expect(text.match(/Іскрокамінь ×2/g)).toHaveLength(1);
-  });
+      expect(text).toBe([
+        "🎁 <b>Перше правило перевірено</b>",
+        "",
+        state === "already-completed"
+          ? "Корчмар показує вже закритий запис. Нагорода та сама; ще раз видати її цей папірець не дозволяє."
+          : "Корчмар ставить три галочки й відсуває нагороду подалі від ліктів Бійцівського кутка.",
+        "",
+        "🧼 Рожеве мило першого правила відтепер числиться інструментом. Бійцівський куток уперше занепокоївся.",
+        "",
+        "<i>Отримано:</i>",
+        "+42 XP",
+        "+91 золота",
+        "",
+        "Здобуто: <i>Рожеве мило першого правила</i>",
+        "Здобуто: <i>Іскрокамінь ×2</i>"
+      ].join("\n"));
+      expect(text.match(/Іскрокамінь ×2/g)).toHaveLength(1);
+    }
+  );
 });
 
 function progress(overrides: Partial<ReturnType<typeof baseProgress>> = {}) {

@@ -137,6 +137,7 @@ function presentCompleted(reward: FightingCornerQuestReward, replay = false): st
   const soapLine = itemGrants.some((grant) => grant.itemId === PINK_SOAP_OF_FIRST_RULE_ITEM_ID)
     ? "🧼 Рожеве мило першого правила відтепер числиться інструментом. Бійцівський куток уперше занепокоївся."
     : null;
+  const itemGrantLines = itemGrants.map(presentRewardItemGrant);
   return [
     "🎁 <b>Перше правило перевірено</b>",
     "",
@@ -144,9 +145,9 @@ function presentCompleted(reward: FightingCornerQuestReward, replay = false): st
       ? "Корчмар показує вже закритий запис. Нагорода та сама; ще раз видати її цей папірець не дозволяє."
       : "Корчмар ставить три галочки й відсуває нагороду подалі від ліктів Бійцівського кутка.",
     "",
+    ...(soapLine ? [soapLine, ""] : []),
     presentQuestRewardAmount(reward),
-    ...(soapLine ? [soapLine] : []),
-    ...itemGrants.map(presentRewardItemGrant)
+    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
   ].join("\n");
 }
 
