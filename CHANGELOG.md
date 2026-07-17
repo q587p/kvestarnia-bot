@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Instant Quick Duel completion at the exact quest-acceptance timestamp is now eligible for the shared Fighting Corner duel-progress recorder. The existing per-life objective key continues to make Quick Duel, turn-duel and durable-result replays exact-once.
 - Doppelganger training comments now use an escaped HTML `<blockquote>` with the established italic voice inside it; command-level tests verify the actual `parse_mode: HTML` Telegram payload.
 - Barrel tutorial and clue now spell out the full formality. Before the round is offered, Quest Hub and `🗺️ Квести` require serving beer to everyone and drinking the player's own beer; after the round is offered, only drinking the player's own mug remains.
+- `🗺️ Квести` now keeps every Fighting Corner objective and every current `Корчмарський обхід` location visible, crossing out completed entries so the unfinished training, duel or route stops remain obvious. The Korchma row also states the two-of-three contract directly and preserves separate Quest Table turn-in guidance.
 
 ### Balance and persistence
 - Adventure quest monsters now use the character's current level before the canonical remort-aware combat stat derivation. The derived monster state remains frozen in the persistent battle, so duplicate callbacks, redraws and session replay cannot apply remort pressure twice.

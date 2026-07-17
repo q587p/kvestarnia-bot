@@ -25,7 +25,12 @@ describe("quest overview presenter", () => {
       fightingCornerQuest: {
         state: "in-progress",
         character,
-        progress: { ...baseProgress, accepted: true }
+        progress: {
+          ...baseProgress,
+          accepted: true,
+          trainingCompleted: true,
+          completedObjectives: 1
+        }
       },
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
@@ -33,12 +38,26 @@ describe("quest overview presenter", () => {
       id: "fighting-corner-onboarding",
       priority: "active"
     }));
+    const activeRow = active.find((row) => row.id === "fighting-corner-onboarding");
+    expect(activeRow?.body).toContain(
+      "<i>Далі:</i> завершіть <s>тренування</s>, миттєву дуель і покрокову дуель в будь-якому порядку."
+    );
+    expect(activeRow?.body).not.toContain("<s>миттєву дуель</s>");
+    expect(activeRow?.body).not.toContain("<s>покрокову дуель</s>");
 
     const ready = buildQuestOverviewRows(makeSnapshot({
       fightingCornerQuest: {
         state: "turn-in-ready",
         character,
-        progress: { ...baseProgress, accepted: true, completedObjectives: 3, readyToClaim: true }
+        progress: {
+          ...baseProgress,
+          accepted: true,
+          trainingCompleted: true,
+          quickDuelCompleted: true,
+          turnBasedDuelCompleted: true,
+          completedObjectives: 3,
+          readyToClaim: true
+        }
       },
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
@@ -48,6 +67,9 @@ describe("quest overview presenter", () => {
     }));
     const readyRow = ready.find((row) => row.id === "fighting-corner-onboarding");
     expect(readyRow?.title).toContain("3/3");
+    expect(readyRow?.body).toContain(
+      "<i>Зроблено:</i> <s>тренування</s>, <s>миттєву дуель</s> і <s>покрокову дуель</s>."
+    );
     expect(readyRow?.body).toContain("фізичний стіл зі справами");
   });
 
@@ -319,7 +341,15 @@ describe("quest overview presenter", () => {
     expect(text).not.toContain("Папір <підозри> & печатка");
   });
 
-  it("shows active daily Korchma round progress, done step, next step and turn-in guidance", () => {
+  it("shows all daily Korchma round locations and crosses out only completed scenes", () => {
+    const freshText = presentQuestOverview(makeSnapshot({
+      dailyKorchmaRound: {
+        state: "ready",
+        character,
+        offer: dailyOffer([])
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
     const text = presentQuestOverview(makeSnapshot({
       dailyKorchmaRound: {
         state: "ready",
@@ -329,11 +359,14 @@ describe("quest overview presenter", () => {
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
 
+    expect(freshText).toContain("<i>Далі:</i> владнайте дві дрібниці з трьох.");
+    expect(freshText).toContain("<i>Де:</i> Задвірок корчми, Шинок, Зала корчми.");
+    expect(freshText).not.toContain("<s>");
     expect(text).toContain("🧾 <b>Корчмарський обхід</b> — 1/2");
-    expect(text).toContain("<i>Зроблено:</i> Вивіска сперечається з цвяхом.");
-    expect(text).toContain("<i>Далі:</i> владнайте ще 1 дрібницю.");
-    expect(text).toContain("<i>Де:</i> шукайте сьогоднішні сцени у відповідних місцинах корчми.");
-    expect(text).toContain("Здати — за столом зі справами.");
+    expect(text).toContain("<i>Далі:</i> владнайте дві дрібниці з трьох.");
+    expect(text).toContain("<i>Де:</i> Задвірок корчми, Шинок, <s>Зала корчми</s>.");
+    expect(text).not.toContain("<s>Задвірок корчми</s>");
+    expect(text).not.toContain("<s>Шинок</s>");
   });
 
   it("shows turn-in-ready daily Korchma round as claimable", () => {
@@ -353,6 +386,9 @@ describe("quest overview presenter", () => {
     });
     expect(rows[0]?.title).toContain("2/2");
     expect(rows[0]?.body).toContain("<i>Далі:</i> здайте обхід");
+    expect(rows[0]?.body).toContain(
+      "<i>Де:</i> <s>Задвірок корчми</s>, Шинок, <s>Зала корчми</s>. Здати — за столом зі справами."
+    );
   });
 
   it("shows active and claimable problem quests, then hides reward-claimed problem quests", () => {
@@ -599,19 +635,27 @@ function dailyOffer(completedSceneIds: string[]) {
     omittedSceneId: null,
     scenes: [
       {
-        id: "scene.sign",
-        icon: "🪧",
-        title: "Вивіска сперечається з цвяхом",
-        locationId: "location.korchma.hall",
-        hook: "Вивіска має думку.",
-        actions: []
-      },
-      {
         id: "scene.well",
         icon: "🪣",
         title: "Криниця рахує відлуння",
         locationId: "location.korchma.yard",
         hook: "Криниця має бухгалтерський настрій.",
+        actions: []
+      },
+      {
+        id: "scene.mug",
+        icon: "🍺",
+        title: "Кухоль просить посаду",
+        locationId: "location.korchma.bar",
+        hook: "Шинок має кадровий настрій.",
+        actions: []
+      },
+      {
+        id: "scene.sign",
+        icon: "🪧",
+        title: "Вивіска сперечається з цвяхом",
+        locationId: "location.korchma.hall",
+        hook: "Вивіска має думку.",
         actions: []
       }
     ]
