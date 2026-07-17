@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
+import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import type {
   DuelCombatSessionRecord,
   DuelResultPayload
@@ -22,6 +23,10 @@ import {
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import {
+  FIGHTING_CORNER_QUEST_KEYS,
+  FightingCornerQuestService
+} from "../../src/services/fightingCornerQuestService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
 
@@ -1625,6 +1630,117 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     })).resolves.toBe(0);
   });
 
+  it("records Quick Duel quest progress through real duel and daily-action repositories exactly once", async () => {
+    const dailyActions = new PrismaDailyActionRepository(prisma);
+    const characterRepository = new PrismaCharacterRepository(prisma);
+    const rogueTokens = new Set<string>();
+    const fightingCornerQuest = new FightingCornerQuestService(
+      characterRepository,
+      dailyActions,
+      {
+        isRogueRetaliationDuelInviteToken: (token: string) =>
+          Promise.resolve(rogueTokens.has(token))
+      },
+      { enabled: true, devHelpersEnabled: false }
+    );
+    const runCase = async (input: {
+      label: string;
+      acceptedAt: Date;
+      resolvedAt: Date;
+      rogue?: boolean;
+    }) => {
+      const token = `quick-quest-${input.label}`;
+      const seeded = await seedPendingChallenge(token);
+      await prisma.duelChallenge.update({
+        where: { inviteToken: token },
+        data: { mode: "quick" }
+      });
+      await prisma.dailyAction.createMany({
+        data: [seeded.challenger, seeded.target].map((participant, index) => ({
+          id: `quest-accepted-${input.label}-${index}`,
+          characterId: participant.id,
+          key: FIGHTING_CORNER_QUEST_KEYS.accepted,
+          localDate: "life:0",
+          rewardXp: 0,
+          rewardGold: 0,
+          resultJson: {
+            kind: "fighting-corner-quest-accepted",
+            version: 2,
+            questId: "fighting_corner_first_rule",
+            acceptedAt: input.acceptedAt.toISOString()
+          }
+        }))
+      });
+      if (input.rogue) {
+        rogueTokens.add(token);
+      }
+      const service = new DuelChallengeService(
+        repository,
+        characterRepository,
+        () => input.resolvedAt,
+        new FakeRandomSource([0.1]),
+        undefined,
+        undefined,
+        undefined,
+        fightingCornerQuest
+      );
+      const first = await service.acceptForTelegramUser(seeded.target.telegramUserId, token, {
+        confirmed: true,
+        ignoreResourceWarning: true,
+        expectedMode: "quick"
+      });
+      const replay = await service.acceptForTelegramUser(seeded.target.telegramUserId, token, {
+        confirmed: true,
+        ignoreResourceWarning: true,
+        expectedMode: "quick"
+      });
+      const progressRows = await prisma.dailyAction.findMany({
+        where: {
+          characterId: { in: [seeded.challenger.id, seeded.target.id] },
+          key: FIGHTING_CORNER_QUEST_KEYS.quickDuel,
+          localDate: "life:0"
+        }
+      });
+
+      return { first, replay, progressRows, seeded };
+    };
+
+    const normal = await runCase({
+      label: "normal",
+      acceptedAt: new Date("2026-06-17T17:59:59.999Z"),
+      resolvedAt: new Date("2026-06-17T18:00:00.000Z")
+    });
+    expect(normal.first).toMatchObject({ state: "resolved", transitioned: true });
+    const normalProgressTelegramUserIds = normal.first.state === "resolved"
+      ? (normal.first.questProgressUpdates ?? []).map((update) => update.telegramUserId)
+      : [];
+    expect(new Set(normalProgressTelegramUserIds)).toEqual(new Set([
+      normal.seeded.challenger.telegramUserId,
+      normal.seeded.target.telegramUserId
+    ]));
+    expect(normal.replay).not.toHaveProperty("questProgressUpdates");
+    expect(normal.progressRows).toHaveLength(2);
+
+    const beforeAcceptance = await runCase({
+      label: "before-acceptance",
+      acceptedAt: new Date("2026-06-17T18:00:00.001Z"),
+      resolvedAt: new Date("2026-06-17T18:00:00.000Z")
+    });
+    expect(beforeAcceptance.first).not.toHaveProperty("questProgressUpdates");
+    expect(beforeAcceptance.replay).not.toHaveProperty("questProgressUpdates");
+    expect(beforeAcceptance.progressRows).toHaveLength(0);
+
+    const retaliation = await runCase({
+      label: "rogue-retaliation",
+      acceptedAt: new Date("2026-06-17T17:59:59.999Z"),
+      resolvedAt: new Date("2026-06-17T18:00:00.000Z"),
+      rogue: true
+    });
+    expect(retaliation.first).not.toHaveProperty("questProgressUpdates");
+    expect(retaliation.replay).not.toHaveProperty("questProgressUpdates");
+    expect(retaliation.progressRows).toHaveLength(0);
+  });
+
   async function seedPendingChallenge(token: string) {
     const tokenId = [...token].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const challenger = await seedCharacter(`char-a-${token}`, BigInt(30_000 + tokenId));
@@ -1844,7 +1960,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       UNIQUE(character_id, key)
     )`,
     `CREATE TABLE daily_actions (
-      id TEXT PRIMARY KEY,
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       character_id TEXT NOT NULL,
       key TEXT NOT NULL,
       local_date TEXT NOT NULL,

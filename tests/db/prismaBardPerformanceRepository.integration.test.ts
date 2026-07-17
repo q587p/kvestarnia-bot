@@ -76,6 +76,43 @@ describe("PrismaBardPerformanceRepository integration", () => {
     });
   });
 
+  it("normalizes legacy presence aliases for Bard start, audience matching and response", async () => {
+    await seedCharacter({
+      telegramUserId: 111n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3,
+      locationId: "location.tavern"
+    });
+    await seedCharacter({
+      telegramUserId: 112n,
+      userId: "user-audience",
+      characterId: "character-audience",
+      locationId: "location.korchma.hall"
+    });
+
+    const started = await repository.startPerformanceForTelegramUser(111n, startInput({
+      token: "12345678-1234-4234-9234-000000000111",
+      rawHousePayoutGold: 0,
+      locationId: "location.korchma.hall"
+    }));
+
+    expect(started.state).toBe("started");
+    if (started.state !== "started") {
+      throw new Error(`Expected alias-safe Bard start, got ${started.state}.`);
+    }
+    expect(started.audience.map((notice) => notice.telegramUserId)).toEqual([112n]);
+
+    await expect(repository.respondToPerformanceForTelegramUser(112n, {
+      reactionId: started.audience[0]!.reaction.id,
+      action: "decline",
+      tipGold: 0,
+      now: now(),
+      result: { action: "decline" }
+    })).resolves.toMatchObject({ state: "declined" });
+  });
+
   it("requires real active same-location audience before creating a performance", async () => {
     await seedCharacter({
       telegramUserId: 151n,

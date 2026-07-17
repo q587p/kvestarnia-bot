@@ -445,8 +445,12 @@ function presentBarrelBeerTutorialRow(
     return `${title} — ти вже біля Бочки. Для початку пройди місцевий новачковий соло-рейд.`;
   }
 
-  if (!quest.progress.beerRoundOffered || !quest.progress.beerDrunk) {
+  if (!quest.progress.beerRoundOffered) {
     return `${title} — рейд позаду. Тепер вистав пиво всім і випий своє.`;
+  }
+
+  if (!quest.progress.beerDrunk) {
+    return `${title} — пиво всім уже виставлено. Тепер випий своє.`;
   }
 
   if (!quest.progress.activeBeer) {

@@ -3,7 +3,10 @@ import {
   buildQuestOverviewRows,
   presentQuestOverview
 } from "../../src/bot/presenters/questOverviewPresenter";
-import type { QuestHubSnapshot } from "../../src/bot/presenters/questHubPresenter";
+import {
+  presentQuestHub,
+  type QuestHubSnapshot
+} from "../../src/bot/presenters/questHubPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("quest overview presenter", () => {
@@ -422,24 +425,46 @@ describe("quest overview presenter", () => {
     expect(rows.map((row) => row.id)).not.toContain("cellar");
   });
 
-  it("spells out the beer-round and own-drink steps in the active Barrel quest", () => {
-    const rows = buildQuestOverviewRows(makeSnapshot({
+  it.each([
+    {
+      label: "before the round is offered",
+      beerRoundOffered: false,
+      overview: "проведіть пінну формальність (виставте пиво всім і випийте своє)",
+      hub: "Тепер вистав пиво всім і випий своє",
+      absent: "пиво всім уже виставлено"
+    },
+    {
+      label: "after the round is offered",
+      beerRoundOffered: true,
+      overview: "<i>Далі:</i> випийте своє пиво.",
+      hub: "пиво всім уже виставлено. Тепер випий своє",
+      absent: "виставте пиво всім і випийте своє"
+    }
+  ])("distinguishes the Barrel own-drink instruction $label in both presenters", ({
+    beerRoundOffered,
+    overview,
+    hub,
+    absent
+  }) => {
+    const snapshot = makeSnapshot({
       barrelBeerTutorial: {
         state: "in-progress",
         character,
         progress: {
           ...barrelProgress(true),
-          beerRoundOffered: false,
+          beerRoundOffered,
           beerDrunk: false,
           activeBeer: false
         }
       }
-    }));
+    });
+    const rows = buildQuestOverviewRows(snapshot);
     const body = rows.find((row) => row.id === "barrel-beer-tutorial")?.body;
+    const hubText = presentQuestHub(snapshot);
 
-    expect(body).toContain(
-      "<i>Далі:</i> проведіть пінну формальність (виставте пиво всім і випийте своє)."
-    );
+    expect(body).toContain(overview);
+    expect(hubText).toContain(hub);
+    expect(`${body}\n${hubText}`).not.toContain(absent);
   });
 
   it("shows available and paused grownup cellar stages in the quest overview", () => {

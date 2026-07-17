@@ -17,6 +17,7 @@ import {
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { normalizePresenceLocationId } from "../../services/presenceService";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(
@@ -61,17 +62,28 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (tx) => {
-        const character = await tx.character.findFirst({
+        const claimedCharacter = await tx.character.findFirst({
           where: {
             user: {
               telegramUserId
             }
+          },
+          include: {
+            user: {
+              select: {
+                lastSeenLocationId: true
+              }
+            }
           }
         });
 
-        if (!character) {
+        if (!claimedCharacter) {
           return null;
         }
+        const { user, ...character } = claimedCharacter;
+        const currentLocationId = user?.lastSeenLocationId
+          ? normalizePresenceLocationId(user.lastSeenLocationId)
+          : null;
 
         const where = {
           characterId_key_localDate: {
@@ -95,7 +107,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           return {
             state: "existing",
             action: existing,
-            character: { ...character, remortCount },
+            character: { ...character, currentLocationId, remortCount },
             levelChange: null,
             itemGrants: []
           };
@@ -167,7 +179,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
           if (debit.count !== 1) {
             return {
               state: "insufficient-gold",
-              character: { ...character, remortCount },
+              character: { ...character, currentLocationId, remortCount },
               requiredGold: spentGold
             };
           }
@@ -318,7 +330,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         return {
           state: "created",
           action,
-          character: { ...updatedCharacter, remortCount },
+          character: { ...updatedCharacter, currentLocationId, remortCount },
           levelChange: {
             oldLevel,
             newLevel,
@@ -775,17 +787,28 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: ClaimDailyActionInput
   ): Promise<ClaimDailyActionResult | null> {
-    const character = await this.prisma.character.findFirst({
+    const claimedCharacter = await this.prisma.character.findFirst({
       where: {
         user: {
           telegramUserId
         }
+      },
+      include: {
+        user: {
+          select: {
+            lastSeenLocationId: true
+          }
+        }
       }
     });
 
-    if (!character) {
+    if (!claimedCharacter) {
       return null;
     }
+    const { user, ...character } = claimedCharacter;
+    const currentLocationId = user?.lastSeenLocationId
+      ? normalizePresenceLocationId(user.lastSeenLocationId)
+      : null;
 
     const action = await this.prisma.dailyAction.findUnique({
       where: {
@@ -810,7 +833,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     return {
       state: "existing",
       action,
-      character: { ...character, remortCount },
+      character: { ...character, currentLocationId, remortCount },
       levelChange: null,
       itemGrants: []
     };

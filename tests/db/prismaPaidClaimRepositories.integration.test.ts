@@ -30,6 +30,11 @@ import {
   FightingCornerQuestService
 } from "../../src/services/fightingCornerQuestService";
 import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
+import {
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_YARD
+} from "../../src/services/presenceService";
+import { AdventureService } from "../../src/services/adventureService";
 
 describe("paid Prisma claim repositories", () => {
   let dir: string;
@@ -57,6 +62,70 @@ describe("paid Prisma claim repositories", () => {
   afterAll(async () => {
     await prisma?.$disconnect();
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("carries the Prisma user's Front and Yard locations through Adventure complication claims", async () => {
+    const telegramUserId = 41n;
+    const characterId = `character-${telegramUserId.toString()}`;
+    await seedCharacter(prisma, {
+      userId: `user-${telegramUserId.toString()}`,
+      characterId,
+      telegramUserId,
+      gold: 10,
+      hpCurrent: 28,
+      hpMax: 28,
+      level: 3
+    });
+    await prisma.character.update({
+      where: { id: characterId },
+      data: {
+        xp: 25,
+        manaCurrent: 14,
+        manaMax: 14,
+        statsJson: {
+          strength: 9,
+          dexterity: 6,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6
+        }
+      }
+    });
+    const service = new AdventureService(
+      characters,
+      dailyActions,
+      () => new Date("2026-06-12T10:30:00.000Z"),
+      { findActiveByTelegramUserId: () => Promise.resolve(null) }
+    );
+    for (const locationId of [
+      PRESENCE_LOCATION_KORCHMA_FRONT,
+      PRESENCE_LOCATION_KORCHMA_YARD
+    ]) {
+      await prisma.user.update({
+        where: { telegramUserId },
+        data: { lastSeenLocationId: locationId }
+      });
+      const completed = await service.completeAdventureApproach(telegramUserId, {
+        periodToken: "6uba",
+        problemId: "rug",
+        methodId: "q1drg067"
+      });
+
+      expect(completed).toMatchObject({
+        state: "completed",
+        fightHandoff: true,
+        character: { currentLocationId: locationId }
+      });
+      if (completed.state !== "completed") {
+        throw new Error(`Expected an Adventure complication, got ${completed.state}.`);
+      }
+      await expect(service.rollbackCurrentAdventureClaimForTelegramUser(
+        telegramUserId,
+        completed.claim
+      )).resolves.toBe("deleted");
+    }
+    await prisma.character.delete({ where: { id: characterId } });
+    await prisma.user.delete({ where: { telegramUserId } });
   });
 
   it("does not create a daily action, reward, item, or debit when paid daily claim lacks gold", async () => {

@@ -8,6 +8,7 @@ PRESENCE_ADVENTURE_CHOICE,
 PRESENCE_ADVENTURE_MIMIC_SHAWARMA,
 PRESENCE_ADVENTURE_SOLO_FIGHT,
 PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
+getPublicPresenceLocation,
 normalizePresenceLocationId,
 PRESENCE_LOCATION_KORCHMA_BAR,
 PRESENCE_LOCATION_KORCHMA_DEEP,
@@ -1028,8 +1029,8 @@ async function handleAdventureCallback(
       | null = null;
 
     if (result.fightHandoff) {
-      const originLocationId = normalizePresenceLocationId(
-        result.character.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
+      const originLocationId = resolveAdventureFightOriginLocationId(
+        result.character.currentLocationId
       );
       complicationFight = await services.fight.getOrStartPersistentFightForTelegramUser(
         telegramUserId,
@@ -1172,6 +1173,19 @@ async function handleAdventureCallback(
         ? buildAdventureResultKeyboard({ state: "active-fight" })
         : buildAdventureResultKeyboard(result)
   });
+}
+
+export function resolveAdventureFightOriginLocationId(
+  currentLocationId: string | null | undefined
+): string {
+  if (!currentLocationId) {
+    return PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  }
+
+  const normalized = normalizePresenceLocationId(currentLocationId);
+  return getPublicPresenceLocation(normalized).isSpecific
+    ? normalized
+    : PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
 }
 
 async function handleHuntCallback(
