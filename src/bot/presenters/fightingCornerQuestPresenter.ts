@@ -7,7 +7,7 @@ import type {
   FightingCornerQuestReward
 } from "../../services/fightingCornerQuestService";
 import { PINK_SOAP_OF_FIRST_RULE_ITEM_ID } from "../../services/itemGrant";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock } from "./rewardPresenter";
 
 export function presentFightingCornerQuestLookup(result: FightingCornerQuestLookupResult): string {
   if (result.state === "disabled") {
@@ -110,11 +110,11 @@ function presentQuestCard(progress: FightingCornerQuestProgress, available: bool
   return [
     "📜 <b>Перше правило Бійцівського кутка</b>",
     "",
-    "На аркуші написано: «Не говорити про Бійцівський куток». Корчмар закреслив «не»: «Говорити. Інакше звідки візьметься другий боєць?»",
+    "На аркуші написано: <i>«Не говорити про Бійцівський куток»</i>. Корчмар закреслив «не»: <i>«Говорити. Інакше звідки візьметься другий боєць?»</i>",
     "",
-    "Друге правило: перешліть посилання-запрошення іншому гравцеві або відкрийте «👀 Хто поруч» → «Кинути виклик присутнім».",
+    "<b>Друге правило:</b> перешліть посилання-запрошення іншому гравцеві або відкрийте <i>«👀 Хто поруч» → «Кинути виклик присутнім»</i>.",
     "",
-    "Третє правило: обидва бійці заходять добровільно, а корчмар — із журналом. Сорочки, чоботи й манатки не знімають: гігієна Корчми перемогла драматизм.",
+    "<b>Третє правило:</b> обидва бійці заходять добровільно, а корчмар — із журналом. Сорочки, чоботи й манатки не знімають: гігієна Корчми перемогла драматизм.",
     "",
     objectiveLine(progress.trainingCompleted, "Потренуватися із Сумлінним Допельґанґером"),
     objectiveLine(progress.quickDuelCompleted, "Завершити миттєву дуель"),
@@ -144,9 +144,8 @@ function presentCompleted(reward: FightingCornerQuestReward, replay = false): st
       ? "Корчмар показує вже закритий запис. Нагорода та сама; ще раз видати її цей папірець не дозволяє."
       : "Корчмар ставить три галочки й відсуває нагороду подалі від ліктів Бійцівського кутка.",
     "",
-    presentQuestRewardAmount(reward),
-    ...(soapLine ? [soapLine] : []),
-    ...itemGrants.map(presentRewardItemGrant)
+    ...(soapLine ? [soapLine, ""] : []),
+    presentQuestRewardBlock({ ...reward, itemGrants })
   ].join("\n");
 }
 

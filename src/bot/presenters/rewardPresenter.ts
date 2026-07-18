@@ -20,8 +20,47 @@ export function presentQuestRewardAmount(input: Pick<RewardAmountInput, "xp" | "
   return ["<i>Отримано:</i>", ...presentQuestRewardLines(input)].join("\n");
 }
 
-export function presentRewardItemGrant(input: { name: string; quantity: number }): string {
-  return `Здобуто: <i>${presentItemNameWithQuantity(input)}</i>`;
+export function presentRewardItemGrant(
+  input: { name: string; quantity: number },
+  options: { label?: string } = {}
+): string {
+  return `${options.label ?? "Здобуто"}: <i>${presentItemNameWithQuantity(input)}</i>`;
+}
+
+export function presentRewardItemBlock(
+  itemGrants: ReadonlyArray<{ name: string; quantity: number }>,
+  options: { label?: string } = {}
+): string[] {
+  if (itemGrants.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    ...itemGrants.map((grant) => presentRewardItemGrant(grant, options))
+  ];
+}
+
+export function presentRewardBlock(input: RewardAmountInput & {
+  itemGrants: ReadonlyArray<{ name: string; quantity: number }>;
+  itemLabel?: string;
+}): string {
+  return [
+    presentRewardAmount(input),
+    ...presentRewardItemBlock(
+      input.itemGrants,
+      input.itemLabel === undefined ? {} : { label: input.itemLabel }
+    )
+  ].join("\n");
+}
+
+export function presentQuestRewardBlock(input: Pick<RewardAmountInput, "xp" | "gold"> & {
+  itemGrants: ReadonlyArray<{ name: string; quantity: number }>;
+}): string {
+  return [
+    presentQuestRewardAmount(input),
+    ...presentRewardItemBlock(input.itemGrants)
+  ].join("\n");
 }
 
 function presentQuestRewardLines(input: Pick<RewardAmountInput, "xp" | "gold">): string[] {

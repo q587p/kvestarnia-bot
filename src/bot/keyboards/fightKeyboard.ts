@@ -24,6 +24,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_NEWS_CORNER,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER,
+  PRESENCE_LOCATION_KORCHMA_YARD,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
@@ -254,6 +255,8 @@ function getPersistentFightReturnNavigation(session: SoloCombatSessionRecord): {
   switch (origin) {
     case PRESENCE_LOCATION_KORCHMA_HALL:
       return { allowNewFight: false, newFightPlace: "deep-straight", returnLabel: "↩️ Повернутися до зали", returnPlace: "hall" };
+    case PRESENCE_LOCATION_KORCHMA_YARD:
+      return { allowNewFight: false, newFightPlace: "deep-straight", returnLabel: "↩️ Повернутися до задвірка", returnPlace: "yard" };
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
       return { allowNewFight: false, newFightPlace: "deep-straight", returnLabel: "↩️ Повернутися до столу", returnPlace: "quest-table" };
     case PRESENCE_LOCATION_KORCHMA_BAR:

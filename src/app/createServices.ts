@@ -218,7 +218,13 @@ export function createServices(
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
     mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, publicActivityEvents),
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, publicActivityEvents),
-    passageSearch: new PassageSearchService(repositories.passageSearches, fight),
+    passageSearch: new PassageSearchService(
+      repositories.passageSearches,
+      fight,
+      undefined,
+      achievements,
+      publicActivityEvents
+    ),
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,

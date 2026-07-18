@@ -1095,7 +1095,7 @@ describe("party session presenter", () => {
 
     expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
     expect(text).toContain("Ваша винагорода за рейд:\n<b>+2 XP\n+4 золота</b>");
-    expect(text).toContain("Здобуто: <i>Дзеркальце Самоперевірки</i>");
+    expect(text).toContain("</b>\n\nЗдобуто: <i>Дзеркальце Самоперевірки</i>");
     expect(text).not.toContain("нагороди збережено");
   });
 
@@ -1160,7 +1160,7 @@ describe("party session presenter", () => {
 
     expect(text).toContain("🎉 Ватага перемогла. Проблема закрита, журнал задоволено хрумтить сторінкою.");
     expect(text).toContain("Загальна винагорода рейду:\n<b>+5 XP\n+9 золота</b>");
-    expect(text).toContain("Здобуто загалом: <i>Дзеркальце Самоперевірки ×3</i>");
+    expect(text).toContain("</b>\n\nЗдобуто загалом: <i>Дзеркальце Самоперевірки ×3</i>");
     expect(text).not.toContain("Ваша винагорода за рейд:");
     expect(bystanderText).toContain("Загальна винагорода рейду:\n<b>+5 XP\n+9 золота</b>");
     expect(bystanderText).not.toContain("Ваша винагорода за рейд:");

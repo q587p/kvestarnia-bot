@@ -58,6 +58,18 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
+  if (
+    data.startsWith("v1:duel:accept-risk:") ||
+    data.startsWith("v1:duel:rematch:") ||
+    data.startsWith("v1:duel:rematch-risk:")
+  ) {
+    return null;
+  }
+
+  if (data.startsWith("v1:duel:")) {
+    return {};
+  }
+
   if (data.startsWith("v1:cellar:")) {
     return {};
   }
@@ -108,6 +120,15 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     data.startsWith("v1:equip:") ||
     data.startsWith("v1:chest:") ||
     data.startsWith("v1:lvlx:")
+  ) {
+    return {};
+  }
+
+  if (
+    data === "v1:sh:bp" ||
+    data.startsWith("v1:sh:ba:") ||
+    data.startsWith("v1:sh:bd:") ||
+    data.startsWith("v1:sh:bt:")
   ) {
     return {};
   }
@@ -265,7 +286,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     return {};
   }
 
-  if (command === "tavern") {
+  if (command === "tavern" || command === "duel") {
     return {};
   }
 

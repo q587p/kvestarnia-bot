@@ -9,6 +9,10 @@ import {
   makeSafePassageSearchStartCallbackData
 } from "../../src/bot/callbacks/passageSearchCallbackData";
 import { sendPersistentFightPassagePreview } from "../../src/bot/modules/persistentFightNavigation";
+import {
+  buildPersistentFightResultKeyboard,
+  resolvePersistentFightPresenceLocation
+} from "../../src/bot/keyboards/fightKeyboard";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
@@ -22,6 +26,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_YARD,
   type MarkPlayerPresenceInput
 } from "../../src/services/presenceService";
 
@@ -931,6 +936,40 @@ describe("fight command", () => {
       }
     });
     expect(presence.marks).toEqual([]);
+  });
+
+  it.each([
+    [PRESENCE_LOCATION_KORCHMA_FRONT, "front", "↩️ Повернутися надвір"],
+    [PRESENCE_LOCATION_KORCHMA_YARD, "yard", "↩️ Повернутися до задвірка"],
+    [PRESENCE_LOCATION_KORCHMA_QUEST_TABLE, "quest-table", "↩️ Повернутися до столу"]
+  ] as const)("keeps quest-fight redraw and terminal navigation at %s", (locationId, place, label) => {
+    const active = persistentSession();
+    active.state = {
+      ...active.state!,
+      source: "adventure",
+      originLocationId: locationId
+    };
+    const terminal = terminalPersistentSession(locationId);
+    const cancelled = {
+      ...terminal,
+      status: "fled" as const,
+      state: { ...terminal.state!, status: "fled" as const }
+    };
+    const buttons = buildPersistentFightResultKeyboard(terminal, character).inline_keyboard.flat();
+    const cancelledButtons = buildPersistentFightResultKeyboard(cancelled, character).inline_keyboard.flat();
+
+    expect(resolvePersistentFightPresenceLocation(active)).toBe(locationId);
+    expect(resolvePersistentFightPresenceLocation(terminal)).toBe(locationId);
+    expect(resolvePersistentFightPresenceLocation(cancelled)).toBe(locationId);
+    expect(buttons).toContainEqual({
+      text: label,
+      callback_data: makePlaceCallbackData(place)
+    });
+    expect(cancelledButtons).toContainEqual({
+      text: label,
+      callback_data: makePlaceCallbackData(place)
+    });
+    expect(buttons.some((button) => button.text === "⚔️ Новий бій")).toBe(false);
   });
 });
 

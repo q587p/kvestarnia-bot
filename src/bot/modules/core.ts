@@ -58,6 +58,7 @@ export function registerCoreBotModule(
     partySessionService: services.partySessions,
     tavernGameService: services.tavernGames,
     fightingCornerQuestService: services.fightingCornerQuest,
+    healthRecoveryNotificationService: services.healthRecoveryNotifications,
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
       includeAdmin: shouldIncludeAdminMainMenu(services)
     })
@@ -107,7 +108,8 @@ async function handleMenuCallback(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
-      includeTavernGames: services.tavernGames?.isEnabled() ?? false
+      includeTavernGames: services.tavernGames?.isEnabled() ?? false,
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }));
     return;
   }

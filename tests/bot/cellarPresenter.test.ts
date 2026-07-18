@@ -146,6 +146,7 @@ describe("cellar presenter", () => {
     expect(text).not.toContain("\nВтрачено здоров’я: 2");
     expect(text).toContain("<i>Отримано:</i>");
     expect(text).toContain("+2 XP\n+1 золота");
+    expect(text).toContain("+2 XP\n+1 золота\n\nЗдобуто:");
     expect(text).toContain("Здобуто: <i>Сир процедурного сумніву</i>");
     expect(text).not.toContain("Підпис методу");
     expect(text).not.toContain("race+class");

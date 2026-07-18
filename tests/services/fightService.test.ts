@@ -1100,6 +1100,79 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(1);
   });
 
+  it.each([
+    [3, 25, 3],
+    [8, 250, 8]
+  ] as const)("scales a targeted adventure monster to player level %i", async (level, xp, expectedMonsterLevel) => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { level, xp });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
+
+    const started = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+      source: "adventure",
+      target: { monsterIds: ["monster.borshch-slime"] }
+    });
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state === "persistent-active") {
+      expect(started.monster.level).toBe(expectedMonsterLevel);
+      expect(started.session.state?.monster.level).toBe(expectedMonsterLevel);
+    }
+  });
+
+  it("applies adventure remort pressure once and reuses the frozen battle state on replay", async () => {
+    const start = async (remortCount: number) => {
+      const characters = new FakeCharacterRepository();
+      characters.add(telegramUserId, { level: 8, xp: 250, remortCount });
+      const dailyActions = new FakeDailyActionRepository(characters);
+      const sessions = new FakeSoloCombatSessionRepository(characters);
+      const service = new FightService({
+        characters,
+        dailyActions,
+        clock: fixedClock,
+        combatSessions: sessions,
+        rng: new FakeRandomSource([0.1])
+      });
+      const first = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+        source: "adventure",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        target: { monsterIds: ["monster.borshch-slime"] }
+      });
+      const replay = await service.getOrStartPersistentFightForTelegramUser(telegramUserId, {
+        source: "adventure",
+        originLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        target: { monsterIds: ["monster.borshch-slime"] }
+      });
+
+      if (first.state !== "persistent-active" || replay.state !== "persistent-active") {
+        throw new Error("Expected an active adventure fight.");
+      }
+
+      return { first, replay, sessions };
+    };
+    const baseline = await start(0);
+    const remorted = await start(4);
+
+    expect(remorted.first.session.state?.monster.hpMax).toBeGreaterThan(
+      baseline.first.session.state?.monster.hpMax ?? 0
+    );
+    expect(remorted.first.session.state?.monster.attack).toBeGreaterThanOrEqual(
+      baseline.first.session.state?.monster.attack ?? 0
+    );
+    expect(remorted.first.session.state?.life?.remortCount).toBe(4);
+    expect(remorted.replay.session.id).toBe(remorted.first.session.id);
+    expect(remorted.replay.session.state?.monster).toEqual(remorted.first.session.state?.monster);
+    expect(remorted.sessions.createCount).toBe(1);
+  });
+
   it("syncs passive resources before starting a new persistent fight", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, {

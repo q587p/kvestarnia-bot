@@ -1,4 +1,5 @@
 import type { RandomSource } from "../shared/random";
+import { rollPostFightBandageSlotReward } from "./loot/lootEngine";
 
 export const SEARCH_NODE_COOLDOWN_MS = 13 * 60 * 1000;
 export const PASSAGE_SEARCH_DURATION_MS = 42 * 1000;
@@ -85,6 +86,7 @@ export function rollPassageSearchLoot(input: {
   modifiers: PassageSearchModifiers;
   rng: Pick<RandomSource, "nextFloat" | "nextInt">;
   bandageItemId: string;
+  iskrokaminItemId: string;
 }): PassageSearchLoot {
   const tier = Math.max(0, Math.floor(input.snapshot.searchTier));
   const luckNudge = Math.min(0.12, Math.max(0, input.modifiers.luck - 6) * 0.012);
@@ -102,7 +104,7 @@ export function rollPassageSearchLoot(input: {
 
     return {
       gold,
-      itemGrants: bandage > 0 ? [{ itemId: input.bandageItemId, quantity: bandage }] : []
+      itemGrants: resolvePassageSearchItemSlot(input, bandage)
     };
   }
 
@@ -115,8 +117,33 @@ export function rollPassageSearchLoot(input: {
 
   return {
     gold,
-    itemGrants: bandageQuantity > 0 ? [{ itemId: input.bandageItemId, quantity: bandageQuantity }] : []
+    itemGrants: resolvePassageSearchItemSlot(input, bandageQuantity)
   };
+}
+
+function resolvePassageSearchItemSlot(
+  input: {
+    modifiers: PassageSearchModifiers;
+    rng: Pick<RandomSource, "nextFloat" | "nextInt">;
+    bandageItemId: string;
+    iskrokaminItemId: string;
+  },
+  bandageQuantity: number
+): PassageSearchLoot["itemGrants"] {
+  const slot = rollPostFightBandageSlotReward({
+    bandageQuantity,
+    luck: input.modifiers.luck,
+    rng: input.rng
+  });
+
+  if (!slot) {
+    return [];
+  }
+
+  return [{
+    itemId: slot.kind === "iskrokamin" ? input.iskrokaminItemId : input.bandageItemId,
+    quantity: slot.quantity
+  }];
 }
 
 export function isEmptyPassageSearchLoot(loot: PassageSearchLoot): boolean {

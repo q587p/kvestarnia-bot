@@ -407,6 +407,52 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("пораз");
   });
 
+  it("separates a claimed tournament item from gold as an actual grant", () => {
+    const board = makeTournamentBoard({
+      period: "day",
+      currentKey: "2026-07-08",
+      previousKey: "2026-07-07",
+      currentLabel: "Денний турнір",
+      previousLabel: "Денний турнір"
+    });
+    const claimedAt = new Date("2026-07-08T10:00:00.000Z");
+    const text = presentDuelTournamentBoard(board, {
+      state: "claimed",
+      board,
+      claim: {
+        id: "claim-1",
+        characterId: "character-1",
+        period: "day",
+        periodKey: "2026-07-07",
+        points: 3,
+        rank: 1,
+        rewardGold: 3,
+        rewardItems: [],
+        result: null,
+        claimedAt,
+        createdAt: claimedAt,
+        updatedAt: claimedAt
+      },
+      created: true,
+      reward: {
+        gold: 3,
+        items: [{
+          itemId: "item.responsible-panic-bandage",
+          name: "Бинт відповідальної паніки",
+          quantity: 1
+        }]
+      }
+    });
+
+    expect(text).toContain([
+      "<i>Отримано:</i>",
+      "+3 золота",
+      "",
+      "Здобуто: <i>Бинт відповідальної паніки</i>"
+    ].join("\n"));
+    expect(text).not.toContain("Отримано: 3 зол., 1 шт.");
+  });
+
   it("shows duel tournament week and month period keys as Holocene dates", () => {
     const weekText = presentDuelTournamentBoard(makeTournamentBoard({
       period: "week",
@@ -888,10 +934,13 @@ describe("tavern presenter", () => {
       levelChange: null
     };
 
-    expect(presentTavernRaidResult(completed)).toContain("<b>+25 XP\n+10 золота</b>");
-    expect(presentTavernRaidResult(completed)).toContain(
+    expect(presentTavernRaidResult(completed)).toContain([
+      "Винагорода за рейд:",
+      "<b>+25 XP",
+      "+10 золота</b>",
+      "",
       "Здобуто: <i>Квиток мокрого пригодника</i>"
-    );
+    ].join("\n"));
     expect(presentTavernRaidResult(completed)).not.toContain("×1");
     expect(presentTavernRaidResult(repeated)).toContain("уже зараховано");
     expect(presentTavernRaidResult(repeated)).toContain("23-й хвилині");

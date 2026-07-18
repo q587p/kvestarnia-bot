@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
+import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import type {
   DuelCombatSessionRecord,
   DuelResultPayload
@@ -22,6 +23,11 @@ import {
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
 import { DuelChallengeService } from "../../src/services/duelChallengeService";
+import {
+  FIGHTING_CORNER_QUEST_KEYS,
+  FightingCornerQuestService
+} from "../../src/services/fightingCornerQuestService";
+import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
 
@@ -55,6 +61,312 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     await prisma?.$disconnect();
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
+
+  it("atomically claims one canonical participant card from a null-reference session", async () => {
+    const session = await seedActiveSession("card-claim", new Date("2026-06-17T18:00:23.000Z"));
+
+    const claims = await Promise.all([
+      repository.claimTurnBasedMessageReference(session.id, "challenger", {
+        chatId: 42n,
+        messageId: 101
+      }),
+      repository.claimTurnBasedMessageReference(session.id, "challenger", {
+        chatId: 42n,
+        messageId: 102
+      })
+    ]);
+    const stored = await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } });
+
+    expect(claims.filter((claim) => claim.claimed)).toHaveLength(1);
+    expect([101, 102]).toContain(stored.challengerMessageId);
+    expect(stored.challengerChatId).toBe(42n);
+    expect(claims.every((claim) => claim.session?.challengerMessageId === stored.challengerMessageId)).toBe(true);
+  });
+
+  it("releases a failed inert candidate without clearing a newer canonical winner", async () => {
+    const session = await seedActiveSession("card-release", new Date("2026-06-17T18:00:23.000Z"));
+    const candidate = { chatId: 42n, messageId: 201 };
+    await repository.claimTurnBasedMessageReference(session.id, "challenger", candidate);
+
+    await expect(repository.releaseTurnBasedMessageReference(
+      session.id,
+      "challenger",
+      { chatId: 42n, messageId: 999 }
+    )).resolves.toMatchObject({ released: false });
+    expect((await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } })).challengerMessageId)
+      .toBe(201);
+
+    await expect(repository.releaseTurnBasedMessageReference(
+      session.id,
+      "challenger",
+      candidate
+    )).resolves.toMatchObject({ released: true });
+    const released = await prisma.duelCombatSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(released.challengerChatId).toBeNull();
+    expect(released.challengerMessageId).toBeNull();
+  });
+
+  it.each([
+    ["persistent combat", "persistent-fight"],
+    ["Training", "training-doppelganger"],
+    ["party boss", "party-boss"]
+  ])("keeps a Quick challenge pending when the challenger enters %s", async (_label, leaseKind) => {
+    const token = `quick-block-${leaseKind}`;
+    const seeded = await seedPendingChallenge(token, "quick");
+    const before = await prisma.character.findMany({
+      where: { id: { in: [seeded.challenger.id, seeded.target.id] } },
+      orderBy: { id: "asc" }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: seeded.challenger.id,
+        kind: leaseKind,
+        referenceId: `combat-${leaseKind}`
+      }
+    });
+
+    const accepted = await repository.acceptByTokenForTelegramUser(
+      token,
+      seeded.target.telegramUserId,
+      new Date("2026-06-17T18:00:23.000Z"),
+      makeQuickDuelResult(seeded.challenger.id, seeded.target.id)
+    );
+    const stored = await prisma.duelChallenge.findUniqueOrThrow({ where: { inviteToken: token } });
+    const after = await prisma.character.findMany({
+      where: { id: { in: [seeded.challenger.id, seeded.target.id] } },
+      orderBy: { id: "asc" }
+    });
+
+    expect(accepted).toMatchObject({
+      transitioned: false,
+      busyCharacterId: seeded.challenger.id,
+      record: { status: "pending" }
+    });
+    expect(stored.status).toBe("pending");
+    expect(stored.resolvedAt).toBeNull();
+    expect(stored.resultJson).toBeNull();
+    expect(after).toEqual(before);
+  });
+
+  it.each([
+    ["a newer turn duel", "turn-based-duel"],
+    ["persistent combat", "persistent-fight"],
+    ["Training", "training-doppelganger"],
+    ["party-boss combat", "party-boss"]
+  ])("atomically rejects rematch creation after %s acquires the actor lease", async (_label, leaseKind) => {
+    const token = `rematch-fence-${leaseKind}`;
+    const seeded = await seedPendingChallenge(token, "turn-based");
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: seeded.challenger.id }
+    });
+    const challengeCount = await prisma.duelChallenge.count();
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: seeded.challenger.id,
+        kind: leaseKind,
+        referenceId: `late-${leaseKind}`
+      }
+    });
+
+    await expect(repository.createTargetedRematchForTelegramUser(
+      seeded.challenger.telegramUserId,
+      seeded.target.id,
+      {
+        inviteToken: `${token}-new`,
+        mode: "turn-based",
+        expiresAt: new Date("2026-06-17T18:13:00.000Z")
+      },
+      {
+        hpCurrent: Math.max(0, before.hpCurrent - 1),
+        hpMax: before.hpMax,
+        manaCurrent: Math.max(0, before.manaCurrent - 1),
+        manaMax: before.manaMax,
+        hpRegenAt: new Date("2026-06-17T18:00:00.000Z"),
+        manaRegenAt: new Date("2026-06-17T18:00:00.000Z"),
+        expected: {
+          hpCurrent: before.hpCurrent,
+          manaCurrent: before.manaCurrent,
+          hpRegenAt: before.hpRegenAt,
+          manaRegenAt: before.manaRegenAt
+        }
+      }
+    )).resolves.toEqual({
+      record: null,
+      busyCharacterId: seeded.challenger.id
+    });
+
+    expect(await prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+      .toEqual(before);
+    await expect(prisma.duelChallenge.count()).resolves.toBe(challengeCount);
+    expect(producerRecord).not.toHaveBeenCalled();
+    await prisma.activeCombatLease.delete({ where: { characterId: seeded.challenger.id } });
+  });
+
+  it("commits allowed rematch resource sync and challenge creation under one temporary lease", async () => {
+    const seeded = await seedPendingChallenge("rematch-fence-allowed", "turn-based");
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: seeded.challenger.id }
+    });
+    const hpRegenAt = new Date("2026-06-17T18:00:00.000Z");
+    const manaRegenAt = new Date("2026-06-17T18:01:00.000Z");
+
+    const result = await repository.createTargetedRematchForTelegramUser(
+      seeded.challenger.telegramUserId,
+      seeded.target.id,
+      {
+        inviteToken: "rematch-fence-allowed-new",
+        mode: "turn-based",
+        expiresAt: new Date("2026-06-17T18:13:00.000Z")
+      },
+      {
+        hpCurrent: before.hpMax,
+        hpMax: before.hpMax,
+        manaCurrent: before.manaMax,
+        manaMax: before.manaMax,
+        hpRegenAt,
+        manaRegenAt,
+        expected: {
+          hpCurrent: before.hpCurrent,
+          manaCurrent: before.manaCurrent,
+          hpRegenAt: before.hpRegenAt,
+          manaRegenAt: before.manaRegenAt
+        }
+      }
+    );
+
+    expect(result.record).toMatchObject({
+      inviteToken: "rematch-fence-allowed-new",
+      challengerCharacterId: seeded.challenger.id,
+      targetCharacterId: seeded.target.id,
+      status: "pending"
+    });
+    await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({
+        hpCurrent: before.hpMax,
+        manaCurrent: before.manaMax,
+        hpRegenAt,
+        manaRegenAt
+      });
+    await expect(prisma.activeCombatLease.count({ where: { characterId: seeded.challenger.id } }))
+      .resolves.toBe(0);
+    expect(producerRecord).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["ordinary resource warning after a newer turn duel", "resource-warning", false, "turn-based-duel"],
+    ["ordinary resource warning after persistent combat", "resource-warning", false, "persistent-fight"],
+    ["ordinary resource warning after Training", "resource-warning", false, "training-doppelganger"],
+    ["ordinary resource warning after party-boss combat", "resource-warning", false, "party-boss"],
+    ["ordinary resource warning without combat", "resource-warning", false, null],
+    ["rematch pair limit after persistent combat", "pair-limited", false, "persistent-fight"],
+    ["rematch-risk pair limit after persistent combat", "pair-limited", true, "persistent-fight"],
+    ["rematch pair limit without combat", "pair-limited", false, null],
+    ["rematch-risk pair limit without combat", "pair-limited", true, null],
+    ["rematch level gate after Training", "level-gated", false, "training-doppelganger"],
+    ["rematch-risk level gate after Training", "level-gated", true, "training-doppelganger"],
+    ["rematch level gate without combat", "level-gated", false, null],
+    ["rematch-risk level gate without combat", "level-gated", true, null]
+  ] as const)(
+    "makes the actor lease authoritative for %s",
+    async (label, earlyState, ignoreResourceWarning, leaseKind) => {
+      const token = `rematch-decision-${label.replace(/[^a-z]+/gi, "-")}`;
+      const now = new Date("2026-06-17T18:00:00.000Z");
+      const seeded = await seedPendingChallenge(token, "quick");
+      const resultPayload = makeQuickDuelResult(seeded.challenger.id, seeded.target.id);
+      await prisma.duelChallenge.update({
+        where: { inviteToken: token },
+        data: {
+          status: "resolved",
+          resolvedAt: now,
+          resultJson: resultPayload
+        }
+      });
+
+      if (earlyState === "resource-warning") {
+        await prisma.character.update({
+          where: { id: seeded.challenger.id },
+          data: {
+            hpCurrent: 7,
+            hpRegenAt: new Date("2026-06-17T18:23:00.000Z")
+          }
+        });
+      } else if (earlyState === "level-gated") {
+        await prisma.character.update({
+          where: { id: seeded.challenger.id },
+          data: { level: 2, xp: 0 }
+        });
+      } else {
+        await prisma.duelChallenge.createMany({
+          data: [1, 2].map((index) => ({
+            inviteToken: `${token}-pair-${index}`,
+            challengerCharacterId: seeded.challenger.id,
+            targetCharacterId: seeded.target.id,
+            mode: "quick",
+            status: "resolved",
+            expiresAt: new Date("2026-06-17T18:13:00.000Z"),
+            resolvedAt: now,
+            resultJson: resultPayload
+          }))
+        });
+      }
+
+      const historicalBefore = await prisma.duelChallenge.findUniqueOrThrow({
+        where: { inviteToken: token }
+      });
+      const characterBefore = await prisma.character.findUniqueOrThrow({
+        where: { id: seeded.challenger.id }
+      });
+      const countsBefore = {
+        challenges: await prisma.duelChallenge.count(),
+        quest: await prisma.dailyAction.count()
+      };
+
+      if (leaseKind) {
+        await prisma.activeCombatLease.create({
+          data: {
+            characterId: seeded.challenger.id,
+            kind: leaseKind,
+            referenceId: `late-${token}`
+          }
+        });
+      }
+
+      const service = new DuelChallengeService(
+        repository,
+        new PrismaCharacterRepository(prisma),
+        () => now,
+        new FakeRandomSource([0.1])
+      );
+      const result = await service.createRematchForTelegramUser(
+        seeded.challenger.telegramUserId,
+        token,
+        { ignoreResourceWarning }
+      );
+
+      expect(result.state).toBe(leaseKind ? "busy" : earlyState);
+      await expect(prisma.duelChallenge.findUniqueOrThrow({ where: { inviteToken: token } }))
+        .resolves.toEqual(historicalBefore);
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+        .resolves.toEqual(characterBefore);
+      await expect(prisma.duelChallenge.count()).resolves.toBe(countsBefore.challenges);
+      await expect(prisma.dailyAction.count()).resolves.toBe(countsBefore.quest);
+      expect(producerRecord).not.toHaveBeenCalled();
+
+      const leases = await prisma.activeCombatLease.findMany({
+        where: { characterId: seeded.challenger.id }
+      });
+      expect(leases).toHaveLength(leaseKind ? 1 : 0);
+      if (leaseKind) {
+        expect(leases[0]).toMatchObject({
+          kind: leaseKind,
+          referenceId: `late-${token}`
+        });
+        await prisma.activeCombatLease.delete({
+          where: { characterId: seeded.challenger.id }
+        });
+      }
+    }
+  );
 
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
@@ -1625,7 +1937,161 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     })).resolves.toBe(0);
   });
 
-  async function seedPendingChallenge(token: string) {
+  it("records Quick Duel quest progress through real duel and daily-action repositories exactly once", async () => {
+    const dailyActions = new PrismaDailyActionRepository(prisma);
+    const characterRepository = new PrismaCharacterRepository(prisma);
+    const rogueTokens = new Set<string>();
+    const runCase = async (input: {
+      label: string;
+      acceptedAt: Date;
+      resolvedAt: Date;
+      rogue?: boolean;
+      acceptThroughService?: boolean;
+    }) => {
+      const token = `quick-quest-${input.label}`;
+      const seeded = await seedPendingChallenge(token);
+      await prisma.duelChallenge.update({
+        where: { inviteToken: token },
+        data: { mode: "quick" }
+      });
+      const fightingCornerQuest = new FightingCornerQuestService(
+        characterRepository,
+        dailyActions,
+        {
+          isRogueRetaliationDuelInviteToken: (candidateToken: string) =>
+            Promise.resolve(rogueTokens.has(candidateToken))
+        },
+        { enabled: true, devHelpersEnabled: false },
+        () => input.acceptedAt
+      );
+      if (input.acceptThroughService) {
+        await prisma.user.updateMany({
+          where: {
+            telegramUserId: {
+              in: [seeded.challenger.telegramUserId, seeded.target.telegramUserId]
+            }
+          },
+          data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE }
+        });
+        const accepted = await Promise.all([
+          fightingCornerQuest.acceptForTelegramUser(seeded.challenger.telegramUserId),
+          fightingCornerQuest.acceptForTelegramUser(seeded.target.telegramUserId)
+        ]);
+        expect(accepted.map((result) => result.state)).toEqual(["accepted", "accepted"]);
+      } else {
+        await prisma.dailyAction.createMany({
+          data: [seeded.challenger, seeded.target].map((participant, index) => ({
+            id: `quest-accepted-${input.label}-${index}`,
+            characterId: participant.id,
+            key: FIGHTING_CORNER_QUEST_KEYS.accepted,
+            localDate: "life:0",
+            rewardXp: 0,
+            rewardGold: 0,
+            resultJson: {
+              kind: "fighting-corner-quest-accepted",
+              version: 2,
+              questId: "fighting_corner_first_rule",
+              acceptedAt: input.acceptedAt.toISOString()
+            }
+          }))
+        });
+      }
+      if (input.rogue) {
+        rogueTokens.add(token);
+      }
+      const service = new DuelChallengeService(
+        repository,
+        characterRepository,
+        () => input.resolvedAt,
+        new FakeRandomSource([0.1]),
+        undefined,
+        undefined,
+        undefined,
+        fightingCornerQuest
+      );
+      const first = await service.acceptForTelegramUser(seeded.target.telegramUserId, token, {
+        confirmed: true,
+        ignoreResourceWarning: true,
+        expectedMode: "quick"
+      });
+      const replay = await service.acceptForTelegramUser(seeded.target.telegramUserId, token, {
+        confirmed: true,
+        ignoreResourceWarning: true,
+        expectedMode: "quick"
+      });
+      const progressRows = await prisma.dailyAction.findMany({
+        where: {
+          characterId: { in: [seeded.challenger.id, seeded.target.id] },
+          key: FIGHTING_CORNER_QUEST_KEYS.quickDuel,
+          localDate: "life:0"
+        }
+      });
+      const acceptedRows = await prisma.dailyAction.findMany({
+        where: {
+          characterId: { in: [seeded.challenger.id, seeded.target.id] },
+          key: FIGHTING_CORNER_QUEST_KEYS.accepted,
+          localDate: "life:0"
+        }
+      });
+      const storedChallenge = await prisma.duelChallenge.findUniqueOrThrow({
+        where: { inviteToken: token }
+      });
+
+      return { acceptedRows, first, progressRows, replay, seeded, storedChallenge };
+    };
+
+    const exactBoundary = new Date("2026-06-17T18:00:00.000Z");
+    const normal = await runCase({
+      label: "normal",
+      acceptedAt: exactBoundary,
+      resolvedAt: exactBoundary,
+      acceptThroughService: true
+    });
+    const storedAcceptedAtValues = normal.acceptedRows.map((row) => {
+      const result = row.resultJson as { acceptedAt?: unknown } | null;
+      return result?.acceptedAt;
+    });
+    expect(storedAcceptedAtValues).toEqual([
+      exactBoundary.toISOString(),
+      exactBoundary.toISOString()
+    ]);
+    expect(normal.storedChallenge.resolvedAt?.toISOString()).toBe(exactBoundary.toISOString());
+    expect(storedAcceptedAtValues.every((acceptedAt) =>
+      Date.parse(String(acceptedAt)) === normal.storedChallenge.resolvedAt?.getTime()
+    )).toBe(true);
+    expect(normal.first).toMatchObject({ state: "resolved", transitioned: true });
+    const normalProgressTelegramUserIds = normal.first.state === "resolved"
+      ? (normal.first.questProgressUpdates ?? []).map((update) => update.telegramUserId)
+      : [];
+    expect(new Set(normalProgressTelegramUserIds)).toEqual(new Set([
+      normal.seeded.challenger.telegramUserId,
+      normal.seeded.target.telegramUserId
+    ]));
+    expect(normal.replay).not.toHaveProperty("questProgressUpdates");
+    expect(normal.progressRows).toHaveLength(2);
+
+    const beforeAcceptance = await runCase({
+      label: "before-acceptance",
+      acceptedAt: new Date("2026-06-17T18:00:00.001Z"),
+      resolvedAt: new Date("2026-06-17T18:00:00.000Z")
+    });
+    expect(beforeAcceptance.first).not.toHaveProperty("questProgressUpdates");
+    expect(beforeAcceptance.replay).not.toHaveProperty("questProgressUpdates");
+    expect(beforeAcceptance.progressRows).toHaveLength(0);
+
+    const retaliation = await runCase({
+      label: "rogue-retaliation",
+      acceptedAt: new Date("2026-06-17T17:59:59.999Z"),
+      resolvedAt: new Date("2026-06-17T18:00:00.000Z"),
+      rogue: true,
+      acceptThroughService: true
+    });
+    expect(retaliation.first).not.toHaveProperty("questProgressUpdates");
+    expect(retaliation.replay).not.toHaveProperty("questProgressUpdates");
+    expect(retaliation.progressRows).toHaveLength(0);
+  });
+
+  async function seedPendingChallenge(token: string, mode: "quick" | "turn-based" = "turn-based") {
     const tokenId = [...token].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const challenger = await seedCharacter(`char-a-${token}`, BigInt(30_000 + tokenId));
     const target = await seedCharacter(`char-b-${token}`, BigInt(40_000 + tokenId));
@@ -1636,7 +2102,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         inviteToken: token,
         challengerCharacterId: challenger.id,
         targetCharacterId: target.id,
-        mode: "turn-based",
+        mode,
         status: "pending",
         expiresAt: new Date("2026-06-17T18:13:00.000Z")
       }
@@ -1844,7 +2310,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       UNIQUE(character_id, key)
     )`,
     `CREATE TABLE daily_actions (
-      id TEXT PRIMARY KEY,
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       character_id TEXT NOT NULL,
       key TEXT NOT NULL,
       local_date TEXT NOT NULL,
@@ -1949,6 +2415,43 @@ function makeTerminalResult(
     targetScore: outcome === "target" ? 1 : 0,
     swing: 0,
     flavorKey: "integration-test"
+  };
+}
+
+function makeQuickDuelResult(challengerId: string, targetId: string): DuelResultPayload {
+  return {
+    mode: "quick",
+    outcome: "draw",
+    winnerCharacterId: null,
+    loserCharacterId: null,
+    challengerScore: 13,
+    targetScore: 13,
+    swing: 0,
+    flavorKey: "dramatic-draw",
+    participants: {
+      challenger: {
+        characterId: challengerId,
+        displayName: challengerId,
+        title: "title",
+        raceId: "race.human-ish",
+        raceName: "race",
+        classId: "class.warrior",
+        className: "class",
+        level: 3,
+        remortCount: 0
+      },
+      target: {
+        characterId: targetId,
+        displayName: targetId,
+        title: "title",
+        raceId: "race.human-ish",
+        raceName: "race",
+        classId: "class.warrior",
+        className: "class",
+        level: 3,
+        remortCount: 0
+      }
+    }
   };
 }
 

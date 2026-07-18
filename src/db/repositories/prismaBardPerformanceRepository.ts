@@ -1,6 +1,10 @@
 import { Prisma, type Character, type PrismaClient } from "@prisma/client";
 import { applyBardPerformanceDailyHouseCap } from "../../domain/noncombat/bardPerformance";
-import { PRESENCE_ACTIVE_MS } from "../../services/presenceService";
+import {
+  getPresenceLocationQueryIds,
+  normalizePresenceLocationId,
+  PRESENCE_ACTIVE_MS
+} from "../../services/presenceService";
 import type { CharacterRecord } from "./characterRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import type {
@@ -65,7 +69,10 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         const record = toCharacterRecord(character);
         const remortCount = getIncludedRemortCount(character);
 
-        if (character.user.lastSeenLocationId !== input.locationId) {
+        if (
+          normalizePresenceLocationId(character.user.lastSeenLocationId) !==
+          normalizePresenceLocationId(input.locationId)
+        ) {
           return { state: "wrong-place", character: record };
         }
         if (character.activeCombatLease) {
@@ -299,7 +306,10 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         if (reaction.remortCount !== remortCount) {
           return { state: "remort-mismatch", reaction, performance };
         }
-        if (character.user.lastSeenLocationId !== performance.locationId) {
+        if (
+          normalizePresenceLocationId(character.user.lastSeenLocationId) !==
+          normalizePresenceLocationId(performance.locationId)
+        ) {
           return { state: "wrong-place", reaction, performance };
         }
         if (character.activeCombatLease) {
@@ -316,7 +326,10 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         if (getIncludedRemortCount(performer) !== performance.remortCount) {
           return { state: "performer-remorted", reaction, performance };
         }
-        if (performer.user.lastSeenLocationId !== performance.locationId) {
+        if (
+          normalizePresenceLocationId(performer.user.lastSeenLocationId) !==
+          normalizePresenceLocationId(performance.locationId)
+        ) {
           return { state: "performer-wrong-place", reaction, performance };
         }
         if (performer.activeCombatLease) {
@@ -435,7 +448,7 @@ async function listAudience(
 ): Promise<Array<{ characterId: string; telegramUserId: bigint; name: string; remortCount: number }>> {
   const users = await tx.user.findMany({
     where: {
-      lastSeenLocationId: locationId,
+      lastSeenLocationId: { in: getPresenceLocationQueryIds(locationId) },
       currentRaidId: null,
       lastActionAt: { gte: activeAudienceSince },
       character: {

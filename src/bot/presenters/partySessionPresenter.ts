@@ -23,7 +23,7 @@ import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft
 import { getCombatSkillDisplay } from "../../services/fightService";
 import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -1254,18 +1254,15 @@ function presentBigBarrelVictoryResult(
     return lines.join("\n");
   }
 
-  lines.push("", presentRewardAmount({
+  lines.push("", presentRewardBlock({
     xp: reward.xp,
     gold: reward.gold,
-    label: "Ваша винагорода за рейд"
-  }));
-
-  for (const grant of reward.itemGrants) {
-    lines.push(presentRewardItemGrant({
+    label: "Ваша винагорода за рейд",
+    itemGrants: reward.itemGrants.map((grant) => ({
       name: escapeHtml(grant.name),
       quantity: grant.quantity
-    }));
-  }
+    }))
+  }));
 
   return lines.join("\n");
 }
@@ -1298,20 +1295,16 @@ function summarizeBigBarrelRewards(session: PartyBossSessionRecord): PartyBossRe
 }
 
 function presentBigBarrelPublicReward(reward: PartyBossRewardSnapshot): string {
-  const lines = [presentRewardAmount({
+  return presentRewardBlock({
     xp: reward.xp,
     gold: reward.gold,
-    label: "Загальна винагорода рейду"
-  })];
-
-  for (const grant of reward.itemGrants) {
-    lines.push(presentRewardItemGrant({
+    label: "Загальна винагорода рейду",
+    itemLabel: "Здобуто загалом",
+    itemGrants: reward.itemGrants.map((grant) => ({
       name: escapeHtml(grant.name),
       quantity: grant.quantity
-    }).replace("Здобуто:", "Здобуто загалом:"));
-  }
-
-  return lines.join("\n");
+    }))
+  });
 }
 
 function presentBigBarrelLossResult(

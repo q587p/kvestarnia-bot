@@ -279,6 +279,10 @@ describe("DuelChallengeService", () => {
       ignoreResourceWarning: true
     });
     if (accepted.state !== "active") throw new Error("Expected active turn-based duel.");
+    await expect(service.getTurnBasedRouteForTelegramUser(1n, created.challenge.inviteToken))
+      .resolves.toMatchObject({ state: "active", session: { id: accepted.session.id } });
+    await expect(service.getTurnBasedRouteForTelegramUser(3n, created.challenge.inviteToken))
+      .resolves.toEqual({ state: "not-found" });
 
     setSessionHitPoints(world, accepted.session.id, 1);
     const firstActor = accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
@@ -301,6 +305,8 @@ describe("DuelChallengeService", () => {
       session: { status: "resolved" },
       questProgressUpdates: [{ telegramUserId: 1n, objective: "turn-based-duel" }]
     });
+    await expect(service.getTurnBasedRouteForTelegramUser(1n, created.challenge.inviteToken))
+      .resolves.toMatchObject({ state: "resolved", session: { status: "resolved" } });
     expect(world.resolvedRoundLookupCount).toBe(1);
     expect(world.fullJournalLookupCount).toBe(0);
 
@@ -413,6 +419,7 @@ describe("DuelChallengeService", () => {
     if (created.state !== "pending") {
       throw new Error(`Expected pending invite, got ${created.state}`);
     }
+    world.resourceUpdates.length = 0;
 
     const prompt = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
 
@@ -423,7 +430,7 @@ describe("DuelChallengeService", () => {
       expect(prompt.target.hpCurrent).toBe(prompt.target.hpMax);
       expect(prompt.target.manaCurrent).toBe(prompt.target.manaMax);
     }
-    expect(world.resourceUpdates.length).toBeGreaterThanOrEqual(1);
+    expect(world.resourceUpdates).toEqual([]);
   });
 
   it("uses equipment-adjusted resource maxima when warning the recipient", async () => {
@@ -511,6 +518,13 @@ describe("DuelChallengeService", () => {
       expect(prompt.target.hpCurrent).toBe(prompt.target.hpMax);
       expect(prompt.target.manaCurrent).toBe(prompt.target.manaMax);
     }
+    expect(world.resourceUpdates).toEqual([]);
+    expect(world.characters.get(2n)).toMatchObject({
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
   });
 
   it("prevents self-accept and replays resolved challenges", async () => {
@@ -875,6 +889,39 @@ describe("DuelChallengeService", () => {
     expect(rematch.challenge.contextChatId).toBe(-200n);
     expect(rematch.expiresAt).toEqual(new Date("2026-06-17T18:13:00.000Z"));
     expect(rematch.challenge.inviteToken).not.toBe(created.challenge.inviteToken);
+  });
+
+  it("keeps a late combat-blocked rematch non-mutating after the read-only resource preview", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      hpCurrent: 1,
+      hpMax: 24,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    world.resourceUpdates.length = 0;
+    world.lateRematchBusyCharacterId = "character-1";
+    const before = structuredClone(world.characters.get(1n));
+    const challengeCount = world.challenges.size;
+
+    await expect(service.createRematchForTelegramUser(1n, created.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    })).resolves.toEqual({ state: "busy" });
+
+    expect(world.resourceUpdates).toHaveLength(0);
+    expect(world.challenges.size).toBe(challengeCount);
+    expect(world.characters.get(1n)).toEqual(before);
   });
 
   it("allows another rematch from a resolved rematch result", async () => {
@@ -1975,6 +2022,118 @@ describe("DuelChallengeService", () => {
     });
   });
 
+  it("keeps Quick final acceptance non-mutating when the challenger is combat-blocked", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Зайнятий Автор" });
+    world.addCharacter(2n, { name: "Вільна Ціль" });
+    const activityEvents = new FakeDuelActivityEvents();
+    const recordResolvedDuelSafely = vi.fn().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      undefined,
+      activityEvents,
+      {
+        isEnabled: () => true,
+        recordResolvedDuelSafely
+      }
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+    world.resourceUpdates.length = 0;
+    world.busyCharacterIds.add("character-1");
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted).toMatchObject({
+      state: "busy",
+      busyCharacter: { name: "Зайнятий Автор" }
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+    expect(world.resourceUpdates).toEqual([]);
+    expect(activityEvents.duelCompletions).toEqual([]);
+    expect(recordResolvedDuelSafely).not.toHaveBeenCalled();
+  });
+
+  it("keeps due Quick Details read-only before participant-wide busy rejection", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Зайнятий Автор" });
+    world.addCharacter(2n, { name: "Вільна Ціль" });
+    const activityEvents = new FakeDuelActivityEvents();
+    const recordResolvedDuelSafely = vi.fn().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      undefined,
+      activityEvents,
+      {
+        isEnabled: () => true,
+        recordResolvedDuelSafely
+      }
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+
+    for (const telegramUserId of [1n, 2n]) {
+      const character = world.characters.get(telegramUserId);
+      if (!character) throw new Error("Expected duel character.");
+      character.hpCurrent = 1;
+      character.manaCurrent = 1;
+      character.hpRegenAt = new Date("2026-06-17T17:00:00.000Z");
+      character.manaRegenAt = new Date("2026-06-17T17:00:00.000Z");
+    }
+    world.resourceUpdates.length = 0;
+    world.busyCharacterIds.add("character-1");
+
+    const details = await service.acceptForTelegramUser(2n, created.challenge.inviteToken);
+
+    expect(details).toMatchObject({
+      state: "confirmation",
+      challenger: { hpCurrent: 32, manaCurrent: 16 },
+      target: { hpCurrent: 32, manaCurrent: 16 }
+    });
+    expect(world.resourceUpdates).toEqual([]);
+    expect(world.characters.get(1n)).toMatchObject({
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+    expect(world.characters.get(2n)).toMatchObject({
+      hpCurrent: 1,
+      manaCurrent: 1,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z"),
+      manaRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted).toMatchObject({
+      state: "busy",
+      busyCharacter: { name: "Зайнятий Автор" }
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+    expect(world.resourceUpdates).toEqual([]);
+    expect(activityEvents.duelCompletions).toEqual([]);
+    expect(recordResolvedDuelSafely).not.toHaveBeenCalled();
+  });
+
   it("enforces turn deadlines at the update boundary for actions and timeouts", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -2207,6 +2366,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly busyCharacterIds = new Set<string>();
   readonly nearbyTargets = new FakeNearbyDuelTargetValidator();
   failNextResourceUpdate = false;
+  lateRematchBusyCharacterId: string | null = null;
   failNextTurnUpdateWithConcurrentOpponentChoice = false;
   turnUpdateAttempts = 0;
   resolvedRoundLookupCount = 0;
@@ -2308,6 +2468,30 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     this.challenges.set(input.inviteToken, challenge);
 
     return Promise.resolve(challenge);
+  }
+
+  async createTargetedRematchForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date },
+    resourceUpdate?: UpdateCharacterResourcesInput,
+    options: { authorizeOnly?: boolean } = {}
+  ) {
+    if (this.lateRematchBusyCharacterId) {
+      return { record: null, busyCharacterId: this.lateRematchBusyCharacterId };
+    }
+    if (options.authorizeOnly === true) {
+      return { record: null, leaseAcquired: true };
+    }
+    if (resourceUpdate) {
+      const updated = await this.updateResourcesForTelegramUser(telegramUserId, resourceUpdate);
+      if (!updated) {
+        return { record: null, resourceConflict: true };
+      }
+    }
+    return {
+      record: await this.createTargetedForTelegramUser(telegramUserId, targetCharacterId, input)
+    };
   }
 
   findCharacterByTelegramUser(
@@ -2431,7 +2615,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean; busyCharacterId?: string }> {
     const challenge = this.challenges.get(inviteToken);
     const target = this.characters.get(telegramUserId);
 
@@ -2444,6 +2628,16 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
     ) {
       return Promise.resolve({ record: challenge ?? null, transitioned: false });
+    }
+
+    const busyCharacterId = [challenge.challengerCharacterId, target.id]
+      .find((characterId) => this.busyCharacterIds.has(characterId));
+    if (busyCharacterId) {
+      return Promise.resolve({
+        record: this.refreshChallenge(challenge),
+        transitioned: false,
+        busyCharacterId
+      });
     }
 
     const updated = {
@@ -2723,6 +2917,14 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
 
   recordTurnBasedMessageReference(): Promise<DuelCombatSessionRecord | null> {
     return Promise.resolve(null);
+  }
+
+  claimTurnBasedMessageReference(): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
+    return Promise.resolve({ claimed: false, session: null });
+  }
+
+  releaseTurnBasedMessageReference(): Promise<{ released: boolean; session: DuelCombatSessionRecord | null }> {
+    return Promise.resolve({ released: false, session: null });
   }
 
   private refreshChallenge(

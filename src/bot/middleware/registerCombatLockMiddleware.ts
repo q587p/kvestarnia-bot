@@ -1,6 +1,5 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { BotServices } from "../botServices";
-import { getCombatSkillProfile } from "../../domain/combat";
 import {
   PRESENCE_ADVENTURE_DUEL_CHALLENGE,
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
@@ -11,7 +10,6 @@ import {
   type PresenceService
 } from "../../services/presenceService";
 import type { FightService } from "../../services/fightService";
-import { getCombatSkillDisplay } from "../../services/fightService";
 import { playerFromContext } from "../context";
 import {
   buildFightKeyboard,
@@ -19,7 +17,6 @@ import {
   resolvePersistentFightPresenceLocation
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
-import { buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
 import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
@@ -30,6 +27,15 @@ import { presentTurnBasedDuel } from "../presenters/duelPresenter";
 import { presentPartyBoss } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { showCanonicalTurnBasedDuelCard } from "../turnBasedDuelCardDelivery";
+import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
+import { parseStartPayload } from "../startPayload";
+import type { DuelChallengeView } from "../../services/duelChallengeService";
+import {
+  classifyTurnBasedDuelRoute,
+  isTurnBasedDuelCardCallback,
+  rememberTurnBasedDuelRouteClassification
+} from "../turnBasedDuelRouteClassification";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -57,21 +63,66 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       return;
     }
 
+    const parsedDuelCallback = parseDuelCallbackData(callbackData);
+    const cardRoute = parsedDuelCallback.ok && services.duel
+      ? await classifyTurnBasedDuelRoute(
+          ctx,
+          parsedDuelCallback.value,
+          telegramUserId,
+          services.duel
+        )
+      : null;
+    const preservesHistoricalCanonicalSource =
+      cardRoute?.state === "resolved" && cardRoute.sourceIsCanonical;
+
+    const duelRouteToken = getDuelRouteToken(ctx);
+    const precheckedActiveDuel = duelRouteToken
+      ? await getActiveTurnBasedDuel(telegramUserId, services)
+      : undefined;
+    if (duelRouteToken && precheckedActiveDuel?.challenge.inviteToken === duelRouteToken) {
+      if (
+        parsedDuelCallback.ok &&
+        cardRoute?.state === "active" &&
+        isTurnBasedDuelCardCallback(parsedDuelCallback.value)
+      ) {
+        rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+      }
+      await next();
+      return;
+    }
+
+    if (
+      parsedDuelCallback.ok &&
+      cardRoute?.state === "active" &&
+      cardRoute.sourceIsCanonical &&
+      isTurnBasedDuelCardCallback(parsedDuelCallback.value)
+    ) {
+      rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+      await next();
+      return;
+    }
+
     if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;
     }
 
     if (
-      ctx.callbackQuery &&
+      (ctx.callbackQuery || isDuelRoute(ctx)) &&
       !isPendingRaidSafeCallback(callbackData) &&
       typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
-      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
+        preserveCallbackSource: preservesHistoricalCanonicalSource
+      }))
     ) {
       return;
     }
 
-    if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services)) {
+    if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services, {
+      refreshPresence: !isDuelRoute(ctx),
+      preserveCallbackSource: preservesHistoricalCanonicalSource,
+      ...(duelRouteToken ? { activeDuel: precheckedActiveDuel ?? null } : {})
+    })) {
       return;
     }
 
@@ -88,8 +139,6 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:fight:item:") &&
       !data.startsWith("v1:fight:gear:") &&
       !data.startsWith("v1:spar:turn:") &&
-      !data.startsWith("v1:duel:t:") &&
-      !data.startsWith("v1:duel:g:") &&
       !data.startsWith("v1:party:ba:") &&
       !data.startsWith("v1:party:bg:") &&
       !data.startsWith("v1:party:bm:") &&
@@ -172,6 +221,42 @@ function isCombatLockSafeCommand(command: string): boolean {
   );
 }
 
+function isDuelStartRoute(text: string | undefined): boolean {
+  return /^\/start(?:@\w+)?\s+duel_(?:turnbased_)?[A-Za-z0-9_-]+$/i.test(text ?? "");
+}
+
+function isDuelRoute(ctx: Context): boolean {
+  const text = ctx.message?.text?.trim();
+  return (
+    ctx.callbackQuery?.data?.startsWith("v1:duel:") === true ||
+    isDuelStartRoute(text) ||
+    /^\/duel(?:@\w+)?(?:\s|$)/i.test(text ?? "")
+  );
+}
+
+function getDuelRouteToken(ctx: Context): string | null {
+  const callback = parseDuelCallbackData(ctx.callbackQuery?.data);
+  if (callback.ok && "token" in callback.value) {
+    return callback.value.token;
+  }
+
+  const text = ctx.message?.text?.trim();
+  const startPayload = text?.match(/^\/start(?:@\w+)?\s+(.+)$/i)?.[1];
+  const parsedPayload = parseStartPayload(startPayload);
+  return parsedPayload.type === "duel" ? parsedPayload.token : null;
+}
+
+async function getActiveTurnBasedDuel(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<Extract<DuelChallengeView, { state: "active" }> | null> {
+  if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
+    return null;
+  }
+
+  return services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+}
+
 function isRestartOrRemortRoute(ctx: Context): boolean {
   const data = ctx.callbackQuery?.data;
 
@@ -195,13 +280,18 @@ function isLockedMainMenuText(text: string | undefined): boolean {
 async function redirectCombatLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  services: BotServices
+  services: BotServices,
+  options: {
+    refreshPresence: boolean;
+    preserveCallbackSource?: boolean;
+    activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
+  } = { refreshPresence: true }
 ): Promise<boolean> {
-  if (await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+  if (await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services, options)) {
     return true;
   }
 
-  if (await redirectPartyBossLockIfNeeded(ctx, telegramUserId, services)) {
+  if (await redirectPartyBossLockIfNeeded(ctx, telegramUserId, services, options)) {
     return true;
   }
 
@@ -213,13 +303,16 @@ async function redirectCombatLockIfNeeded(
 
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);
-    await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: resolvePersistentFightPresenceLocation(lock.session),
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
-    });
+    if (options.refreshPresence) {
+      await refreshCombatLockPresence(ctx, services.presence, {
+        locationId: resolvePersistentFightPresenceLocation(lock.session),
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+      });
+    }
     const messageId = await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
-      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
+      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character),
+      preserveCallbackSource: options.preserveCallbackSource
     });
     await recordCombatLockPersistentFightMessage(ctx, services.fight, telegramUserId, lock.session.id, messageId);
     return true;
@@ -233,22 +326,26 @@ async function redirectCombatLockIfNeeded(
       : null;
 
     await answerCombatLockCallback(ctx);
-    await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
-    });
+    if (options.refreshPresence) {
+      await refreshCombatLockPresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
+      });
+    }
 
     if (training?.state === "active") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
     }
 
     if (training?.state === "terminal") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
     }
@@ -257,7 +354,8 @@ async function redirectCombatLockIfNeeded(
       ctx,
       "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
       {
-        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character),
+        preserveCallbackSource: options.preserveCallbackSource
       }
     );
     return true;
@@ -268,13 +366,16 @@ async function redirectCombatLockIfNeeded(
     (await isStarterFightPresenceActive(services.presence, telegramUserId))
   ) {
     await answerCombatLockCallback(ctx);
-    await refreshCombatLockPresence(ctx, services.presence, {
-      locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
-      currentRaidId: null,
-      currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
-    });
+    if (options.refreshPresence) {
+      await refreshCombatLockPresence(ctx, services.presence, {
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_MIMIC_FIGHT
+      });
+    }
     await sendCombatLockText(ctx, presentCombatLockRedirect(presentFightStart(lock.character)), {
-      reply_markup: buildFightKeyboard(lock.character)
+      reply_markup: buildFightKeyboard(lock.character),
+      preserveCallbackSource: options.preserveCallbackSource
     });
     return true;
   }
@@ -285,7 +386,8 @@ async function redirectCombatLockIfNeeded(
 async function redirectPartyBossLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  services: BotServices
+  services: BotServices,
+  options: { refreshPresence: boolean; preserveCallbackSource?: boolean } = { refreshPresence: true }
 ): Promise<boolean> {
   if (!services.partyBoss || typeof services.partyBoss.getActiveForTelegramUser !== "function") {
     return false;
@@ -298,11 +400,13 @@ async function redirectPartyBossLockIfNeeded(
 
   const viewerCharacterId = active.participants.find((participant) => participant.telegramUserId === telegramUserId)?.id ?? null;
   await answerCombatLockCallback(ctx);
-  await refreshCombatLockPresence(ctx, services.presence, {
-    locationId: active.participants.find((participant) => participant.telegramUserId === telegramUserId)?.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-    currentRaidId: active.id,
-    currentAdventureId: null
-  });
+  if (options.refreshPresence) {
+    await refreshCombatLockPresence(ctx, services.presence, {
+      locationId: active.participants.find((participant) => participant.telegramUserId === telegramUserId)?.currentLocationId ?? PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+      currentRaidId: active.id,
+      currentAdventureId: null
+    });
+  }
   await sendCombatLockText(ctx, presentCombatLockRedirect(presentPartyBoss(active, { viewerCharacterId })), {
     reply_markup: buildPartyBossKeyboard(active, viewerCharacterId, {
       includeCombatItems: await resolvePartyBossCombatItemShortcut(
@@ -311,7 +415,8 @@ async function redirectPartyBossLockIfNeeded(
         active
       ),
       includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
-    })
+    }),
+    preserveCallbackSource: options.preserveCallbackSource
   });
 
   return true;
@@ -336,41 +441,43 @@ async function resolvePartyBossCombatItemShortcut(
 async function redirectTurnBasedDuelLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  services: BotServices
+  services: BotServices,
+  options: {
+    refreshPresence: boolean;
+    activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
+  } = { refreshPresence: true }
 ): Promise<boolean> {
   if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
     return false;
   }
 
-  const activeDuel = await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+  const activeDuel = "activeDuel" in options
+    ? options.activeDuel
+    : await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
 
   if (!activeDuel) {
     return false;
   }
 
   await answerCombatLockCallback(ctx);
-  await refreshCombatLockPresence(ctx, services.presence, {
-    locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
-    currentRaidId: null,
-    currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
-  });
-  const viewerCharacterId =
-    activeDuel.challenge.challenger.telegramUserId === telegramUserId
-      ? activeDuel.session.challengerCharacterId
-      : activeDuel.challenge.target?.telegramUserId === telegramUserId
-        ? activeDuel.session.targetCharacterId
-        : null;
-  const privateCard = ctx.chat?.type === "private" && viewerCharacterId !== null;
-  const participant = viewerCharacterId === activeDuel.session.state.participants.target.characterId
-    ? activeDuel.session.state.participants.target
-    : activeDuel.session.state.participants.challenger;
-  const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
-
-  await sendCombatLockText(ctx, presentCombatLockRedirect(presentTurnBasedDuel(activeDuel, {
-    viewerCharacterId: privateCard ? viewerCharacterId : null
-  })), {
-    reply_markup: buildTurnBasedDuelKeyboard(activeDuel, privateCard ? viewerCharacterId : null, `${skill.icon} ${skill.name}`)
-  });
+  if (options.refreshPresence) {
+    await refreshCombatLockPresence(ctx, services.presence, {
+      locationId: PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_DUEL_CHALLENGE
+    });
+  }
+  await showCanonicalTurnBasedDuelCard(
+    ctx,
+    activeDuel,
+    services.duel,
+    ctx.callbackQuery ? "edit" : "reply",
+    {
+      presentActive: (view, viewerCharacterId) => presentCombatLockRedirect(
+        presentTurnBasedDuel(view, { viewerCharacterId })
+      )
+    }
+  );
 
   return true;
 }
@@ -435,14 +542,14 @@ async function answerCombatLockCallback(ctx: Context): Promise<void> {
 async function sendCombatLockText(
   ctx: Context,
   text: string,
-  options: { reply_markup: InlineKeyboard }
+  options: { reply_markup: InlineKeyboard; preserveCallbackSource?: boolean | undefined }
 ): Promise<number | null> {
   const messageOptions = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: options.reply_markup
   };
 
-  if (ctx.callbackQuery) {
+  if (ctx.callbackQuery && !options.preserveCallbackSource) {
     if (getCallbackMessageFreshness(ctx) === "stale") {
       const message = await ctx.reply(text, messageOptions);
       return message.message_id;

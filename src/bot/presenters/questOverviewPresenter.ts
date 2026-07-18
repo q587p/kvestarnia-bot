@@ -5,6 +5,7 @@ import {
   STARTER_ACTIVITY_MAX_LEVEL,
   meetsActivityLevel
 } from "../../domain/progression/activityGates";
+import { getLocationName } from "../../services/presenceService";
 import type { QuestHubSnapshot } from "./questHubPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentYegerQuestTitle } from "./yegerQuestTitle";
@@ -115,15 +116,27 @@ function getFightingCornerQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOve
     title: `📜 <b>Перше правило Бійцівського кутка</b> — ${quest.progress.completedObjectives}/3`,
     body: quest.state === "turn-in-ready"
       ? [
-          "<i>Зроблено:</i> усі три правила перевірено.",
+          `<i>Зроблено:</i> ${formatFightingCornerObjectives(quest.progress)}.`,
           "<i>Далі:</i> заберіть збережену нагороду.",
           "<i>Де:</i> фізичний стіл зі справами."
         ].join("\n")
       : [
-          "<i>Далі:</i> завершіть тренування, миттєву й покрокову дуелі в будь-якому порядку.",
+          `<i>Далі:</i> завершіть ${formatFightingCornerObjectives(quest.progress)} в будь-якому порядку.`,
           "<i>Де:</i> Бійцівський куток; виклик можна переслати або знайти суперника через «Хто поруч»."
         ].join("\n")
   };
+}
+
+function formatFightingCornerObjectives(progress: {
+  trainingCompleted: boolean;
+  quickDuelCompleted: boolean;
+  turnBasedDuelCompleted: boolean;
+}): string {
+  return formatChecklist([
+    { label: "тренування", completed: progress.trainingCompleted },
+    { label: "миттєву дуель", completed: progress.quickDuelCompleted },
+    { label: "покрокову дуель", completed: progress.turnBasedDuelCompleted }
+  ], ", ", " і ");
 }
 
 function getFirstKorchmaQuestOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow | null {
@@ -246,11 +259,7 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
 
   const completed = daily.offer.completedSceneIds.length;
   const total = daily.offer.requiredSteps;
-  const doneLine = formatDoneLine(
-    getCompletedDailySceneTitles(daily.offer),
-    completed,
-    pluralize(completed, "дрібницю", "дрібниці", "дрібниць")
-  );
+  const locations = formatDailyKorchmaRoundLocations(daily.offer);
 
   if (daily.state === "turn-in-ready") {
     return {
@@ -258,9 +267,8 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       priority: "claimable",
       title: `${title} — ${completed}/${total}`,
       body: [
-        doneLine,
         "<i>Далі:</i> здайте обхід, поки Книга не додала ще одну пляму як свідка.",
-        "<i>Де:</i> здати — за столом зі справами."
+        `<i>Де:</i> ${locations}. Здати — за столом зі справами.`
       ].join("\n")
     };
   }
@@ -271,9 +279,8 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
       priority: "completed",
       title: `${title} — виконано`,
       body: [
-        doneLine,
         "<i>Далі:</i> сьогодні Книга вже закрилась і робить вигляд, що не підглядала.",
-        "<i>Де:</i> новий обхід чекатиме за столом зі справами іншого київського дня."
+        `<i>Де:</i> ${locations}. Новий обхід чекатиме за столом зі справами іншого київського дня.`
       ].join("\n")
     };
   }
@@ -283,9 +290,8 @@ function getDailyKorchmaRoundOverviewRow(snapshot: QuestHubSnapshot): QuestOverv
     priority: "active",
     title: `${title} — ${completed}/${total}`,
     body: [
-      doneLine,
-      `<i>Далі:</i> владнайте ще ${total - completed} ${pluralize(total - completed, "дрібницю", "дрібниці", "дрібниць")}.`,
-      "<i>Де:</i> шукайте сьогоднішні сцени у відповідних місцинах корчми. Здати — за столом зі справами."
+      "<i>Далі:</i> владнайте дві дрібниці з трьох.",
+      `<i>Де:</i> ${locations}.`
     ].join("\n")
   };
 }
@@ -819,10 +825,18 @@ function getBarrelBeerTutorialBody(
     ].join("\n");
   }
 
-  if (!progress.beerRoundOffered || !progress.beerDrunk) {
+  if (!progress.beerRoundOffered) {
     return [
       "<i>Зроблено:</i> рейд біля Бочки пережито.",
-      "<i>Далі:</i> проведіть пінну формальність.",
+      "<i>Далі:</i> проведіть пінну формальність (виставте пиво всім і випийте своє).",
+      "<i>Де:</i> шинок."
+    ].join("\n");
+  }
+
+  if (!progress.beerDrunk) {
+    return [
+      "<i>Зроблено:</i> рейд пережито й пиво всім виставлено.",
+      "<i>Далі:</i> випийте своє пиво.",
       "<i>Де:</i> шинок."
     ].join("\n");
   }
@@ -834,27 +848,30 @@ function getBarrelBeerTutorialBody(
   ].join("\n");
 }
 
-function getCompletedDailySceneTitles(offer: {
+function formatDailyKorchmaRoundLocations(offer: {
   completedSceneIds: readonly string[];
-  scenes: readonly { id: string; title: string }[];
-}): string[] {
-  const titlesById = new Map(offer.scenes.map((scene) => [scene.id, scene.title]));
+  scenes: readonly { id: string; locationId: string }[];
+}): string {
+  const completedSceneIds = new Set(offer.completedSceneIds);
 
-  return offer.completedSceneIds
-    .map((sceneId) => titlesById.get(sceneId))
-    .filter((title): title is string => Boolean(title));
+  return formatChecklist(offer.scenes.map((scene) => ({
+    label: getLocationName(scene.locationId),
+    completed: completedSceneIds.has(scene.id)
+  })), ", ");
 }
 
-function formatDoneLine(labels: string[], count: number, fallbackNoun: string): string {
-  if (labels.length > 0) {
-    return `<i>Зроблено:</i> ${labels.map(escapeHtml).join(", ")}.`;
+function formatChecklist(
+  items: readonly { label: string; completed: boolean }[],
+  separator: string,
+  lastSeparator = separator
+): string {
+  const labels = items
+    .map((item) => item.completed ? `<s>${escapeHtml(item.label)}</s>` : escapeHtml(item.label));
+  if (labels.length < 2) {
+    return labels[0] ?? "";
   }
 
-  if (count > 0) {
-    return `<i>Зроблено:</i> ${count} ${fallbackNoun}.`;
-  }
-
-  return "<i>Зроблено:</i> ще нічого, журнал аж підозріло чистий.";
+  return `${labels.slice(0, -1).join(separator)}${lastSeparator}${labels[labels.length - 1]}`;
 }
 
 function formatCooldown(availableAt: Date, now: Date): string {

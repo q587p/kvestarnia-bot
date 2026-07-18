@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   presentNearbyDuelCandidates,
-  presentNearbyDuelMode
+  presentNearbyDuelMode,
+  presentNearbyDuelTargetNotification
 } from "../../src/bot/presenters/nearbyDuelPresenter";
+import type { DuelCreateResult } from "../../src/services/duelChallengeService";
 import type { PresencePerson } from "../../src/services/presenceService";
 
 describe("nearby duel presenter", () => {
@@ -30,5 +32,22 @@ describe("nearby duel presenter", () => {
 
     expect(candidates).toContain("— Дара &lt;&amp;&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) · рівень 4");
     expect(mode).toContain("<b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) · рівень 4");
+  });
+
+  it.each([
+    ["quick", "Миттєва дуель: результат з’явиться після остаточної згоди в деталях."],
+    ["turn-based", "Покрокова дуель: таємні дії за раунд; початок — після остаточної згоди в деталях."]
+  ] as const)("makes the %s invite preview explicitly non-final", (mode, expected) => {
+    const result = {
+      state: "pending",
+      challenge: { mode },
+      challenger: {
+        name: "Автор Виклику",
+        title: "Пригодник місцевого значення",
+        level: 13
+      }
+    } as unknown as Extract<DuelCreateResult, { state: "pending" }>;
+
+    expect(presentNearbyDuelTargetNotification(result)).toContain(expected);
   });
 });

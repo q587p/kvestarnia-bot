@@ -164,7 +164,8 @@ export function registerMainMenuKeyboard(
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
-      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: replyMarkup
     });
@@ -184,15 +185,25 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
-      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
     });
   });
 }
 
-export function shouldIncludeAdminMainMenu(services: Pick<BotServices, "devGrant">): boolean {
-  return services.devGrant?.isEnabled() ?? false;
+export function shouldIncludeAdminMainMenu(
+  services: Pick<
+    BotServices,
+    "devReset" | "devGrant" | "partySessions" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  >
+): boolean {
+  return services.devReset.isEnabled()
+    || (services.devGrant?.isEnabled() ?? false)
+    || (services.partySessions?.areDevHelpersEnabled() ?? false)
+    || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
+    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);
 }
 
 export async function buildCurrentMainMenuKeyboard(
@@ -231,6 +242,13 @@ async function buildCurrentMainMenuKeyboardWithQuestMarkers(
   });
 }
 
+interface CallbackMainMenuLocationRefreshState {
+  previousLocationId: string | null;
+  handled: boolean;
+}
+
+const callbackMainMenuLocationRefreshState = new WeakMap<Context, CallbackMainMenuLocationRefreshState>();
+
 export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceService: PresenceService): void {
   bot.on("callback_query:data", async (ctx, next) => {
     const isPlaceCallback = parsePlaceCallbackData(ctx.callbackQuery.data).ok;
@@ -255,17 +273,56 @@ export function registerCallbackMainMenuLocationRefresh(bot: Bot, presenceServic
 
     const previousLocationId = await getCurrentMainMenuLocationId(ctx, presenceService);
 
+    if (previousLocationId !== undefined) {
+      callbackMainMenuLocationRefreshState.set(ctx, {
+        previousLocationId,
+        handled: false
+      });
+    }
+
     await next();
 
     if (previousLocationId === undefined) {
       return;
     }
 
-    if (!suppressMovementNotice) {
+    const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+
+    if (!suppressMovementNotice && refreshState?.handled !== true) {
       await refreshCurrentMainMenuLocationKeyboard(ctx, presenceService, {
         previousLocationId
       });
     }
+  });
+}
+
+export async function getCallbackPreviousMainMenuLocationId(
+  ctx: Context,
+  presenceService: PresenceService
+): Promise<string | null | undefined> {
+  const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+
+  return refreshState
+    ? refreshState.previousLocationId
+    : getCurrentMainMenuLocationId(ctx, presenceService);
+}
+
+export async function refreshCallbackMainMenuLocationBeforeReplies(
+  ctx: Context,
+  locationId: string | null,
+  previousLocationId: string | null | undefined
+): Promise<void> {
+  const refreshState = callbackMainMenuLocationRefreshState.get(ctx);
+  if (refreshState) {
+    refreshState.handled = true;
+  }
+
+  if (previousLocationId === undefined) {
+    return;
+  }
+
+  await refreshMainMenuLocationKeyboard(ctx, locationId, {
+    previousLocationId
   });
 }
 

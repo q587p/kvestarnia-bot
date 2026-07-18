@@ -49,13 +49,18 @@ export function buildDuelChallengeKeyboard(
   const token = result.challenge.inviteToken;
 
   return new InlineKeyboard()
-    .text("🤝 Прийняти", makeDuelAcceptCallbackData(token))
+    .text("📖 Детальніше", makeDuelAcceptCallbackData(token))
     .row()
-    .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
+    .text("🙅 Відмовитись", makeDuelDeclineCallbackData(token))
     .row()
+    .text("🔄 Оновити", makeDuelViewCallbackData(token));
+}
+
+export function buildDuelOwnerChallengeKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
     .text("🧹 Скасувати виклик", makeDuelCancelCallbackData(token))
     .row()
-    .text("🔎 Оновити", makeDuelViewCallbackData(token));
+    .text("🔄 Оновити", makeDuelViewCallbackData(token));
 }
 
 export function buildDuelTargetedInviteKeyboard(
@@ -64,11 +69,11 @@ export function buildDuelTargetedInviteKeyboard(
   const token = result.challenge.inviteToken;
 
   return new InlineKeyboard()
-    .text("🤝 Прийняти", makeDuelAcceptCallbackData(token))
+    .text("📖 Детальніше", makeDuelAcceptCallbackData(token))
     .row()
-    .text("🙅 Не зараз", makeDuelDeclineCallbackData(token))
+    .text("🙅 Відмовитись", makeDuelDeclineCallbackData(token))
     .row()
-    .text("🔎 Оновити", makeDuelViewCallbackData(token));
+    .text("🔄 Оновити", makeDuelViewCallbackData(token));
 }
 
 export function buildDuelInviteShareKeyboard(token: string, templateIndex: number): InlineKeyboard {

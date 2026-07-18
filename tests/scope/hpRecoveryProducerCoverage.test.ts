@@ -50,8 +50,17 @@ describe("HP recovery producer coverage", () => {
     expect(references.sort()).toEqual([
       "botServices.ts",
       "commands/devHpRecoveryCommand.ts",
-      "modules/character.ts"
+      "modules/character.ts",
+      "modules/core.ts",
+      "modules/mainMenu.ts"
     ]);
+
+    for (const path of ["src/bot/modules/core.ts", "src/bot/modules/mainMenu.ts"]) {
+      const source = await readFile(path, "utf8");
+      expect(source).toContain("healthRecoveryNotifications?.areDevHelpersEnabled()");
+      expect(source).not.toContain("prepareDueForTelegramUser");
+      expect(source).not.toContain("healthRecoveryNotifications?.runBatch");
+    }
   });
 });
 

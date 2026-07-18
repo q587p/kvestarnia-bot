@@ -156,6 +156,11 @@ describe("bot command catalog", () => {
       includeDevGrant: false,
       includePartySessions: true
     });
+    const hpRecoveryOnly = getHelpCommandEntries({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includeHpRecovery: true
+    });
 
     expect(resetOnly.some((entry) => entry.command === "dev_help")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_party")).toBe(false);
@@ -179,6 +184,16 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
     expect(partyOnly.some((entry) => entry.command === "dev_party")).toBe(true);
+    expect(hpRecoveryOnly.find((entry) => entry.command === "dev_hp_recovery_due")).toMatchObject({
+      icon: "❤️‍🩹",
+      description: "підготувати сповіщення про відновлення HP локально"
+    });
+    expect(resetOnly.some((entry) => entry.command === "dev_hp_recovery_due")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_hp_recovery_due")).toBe(false);
+    expect(getTelegramMenuCommands({
+      includeDevReset: false,
+      includeHpRecovery: true
+    }).some((entry) => entry.command === "dev_hp_recovery_due")).toBe(false);
     expect(getTelegramMenuCommands({
       includeDevReset: true,
       includeDevGrant: true,

@@ -1,4 +1,7 @@
-import type { CharacterRecord } from "./characterRepository";
+import type {
+  CharacterRecord,
+  UpdateCharacterResourcesInput
+} from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats } from "../../domain/characters/starterStats";
 import type {
@@ -160,6 +163,21 @@ export interface TransitionResult<T> {
   transitioned: boolean;
 }
 
+export interface QuickDuelAcceptTransitionResult extends TransitionResult<DuelChallengeRecord> {
+  busyCharacterId?: string;
+}
+
+export interface DuelRematchCreateResult {
+  record: DuelChallengeRecord | null;
+  busyCharacterId?: string;
+  resourceConflict?: boolean;
+  leaseAcquired?: boolean;
+}
+
+export interface DuelRematchCreateOptions {
+  authorizeOnly?: boolean;
+}
+
 export interface UpdateTurnBasedDuelSessionInput {
   state: TurnBasedDuelState;
   status: TurnBasedDuelStatus;
@@ -188,6 +206,14 @@ export interface DuelChallengeRepository {
     input: CreateDuelChallengeInput
   ): Promise<DuelChallengeRecord | null>;
 
+  createTargetedRematchForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: CreateDuelChallengeInput,
+    resourceUpdate?: UpdateCharacterResourcesInput,
+    options?: DuelRematchCreateOptions
+  ): Promise<DuelRematchCreateResult>;
+
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;
 
   findCharacterByTelegramUser(
@@ -214,7 +240,7 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<TransitionResult<DuelChallengeRecord>>;
+  ): Promise<QuickDuelAcceptTransitionResult>;
 
   countResolvedBetweenCharacterPairSince(
     characterAId: string,
@@ -259,11 +285,18 @@ export interface DuelChallengeRepository {
 
   listDueTurnBasedSessions(now: Date, limit?: number): Promise<DuelCombatSessionRecord[]>;
 
-  recordTurnBasedMessageReference(
+  claimTurnBasedMessageReference(
     sessionId: string,
     participant: "challenger" | "target",
-    reference: { chatId: bigint; messageId: number }
-  ): Promise<DuelCombatSessionRecord | null>;
+    reference: { chatId: bigint; messageId: number },
+    expectedReference?: { chatId: bigint; messageId: number }
+  ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }>;
+
+  releaseTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    expectedReference: { chatId: bigint; messageId: number }
+  ): Promise<{ released: boolean; session: DuelCombatSessionRecord | null }>;
 
   repairTurnBasedCombatState(now: Date): Promise<{
     repairedSessions: number;

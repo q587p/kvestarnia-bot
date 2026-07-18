@@ -91,13 +91,12 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
 
   if (result.state === "self-challenge") {
     return [
-      "🥊 <b>Самодуель відхилено</b>",
-      presentCharacterHeader(result.challenger),
+      `${presentDuelModeBadge(result.challenge.mode)} <b>Це ваш виклик</b>`,
+      presentDuelParticipant("Запрошує", result.challenger),
       "",
-      "Корчмар дозволяє внутрішні конфлікти, але не записує їх як соціяльний бій.",
-      "Для цього вже є Сумлінний Допельґанґер.",
+      "Виклик уже відкритий для інших пригодників. Приймати його самому не потрібно.",
       "",
-      "Перешліть це повідомлення іншому пригоднику. Корчмару для дуелі потрібні дві різні чашки й одна спільна згода."
+      "Перешліть запрошення або дочекайтеся відповіді. Якщо передумали — скасуйте запис."
     ].join("\n");
   }
 
@@ -131,6 +130,7 @@ export function presentDuelAccept(result: DuelAcceptResult): string {
       presentDuelParticipantWithItalicTitle("Ви", result.target),
       "",
       `${presentDuelFlavorName(result.challenger)} виходить проти вас у безпечному корчемному порядку.`,
+      "",
       result.challenge.mode === "turn-based"
         ? "Після згоди почнеться бій із закритими виборами за раунд."
         : "Результат з’явиться одразу після згоди.",
@@ -279,6 +279,10 @@ export function presentDuelRematch(
     ].join("\n");
   }
 
+  if (result.state === "busy") {
+    return "⚔️ Спершу завершіть поточний бій, тоді реванш знову дочекається своєї черги.";
+  }
+
   return presentPendingDuel(result, options);
 }
 
@@ -327,7 +331,7 @@ function presentPendingDuel(
       : "Результат з’явиться одразу після згоди.",
     DUEL_INVITE_FAIRNESS_LINE,
     "",
-    `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має натиснути «Прийняти».`,
+    `Виклик відкритий ще <b>${formatRemaining(result.expiresAt, result.now)}</b>. Інший пригодник має відкрити деталі й дати остаточну згоду.`,
     result.challenge.mode === "turn-based"
       ? "За покрокову дуель лишиться трохи досвіду. Ставок, золота й втрат немає."
       : "Нагород, ставок і втрат немає: це безпечний запис бійцівського кутка."

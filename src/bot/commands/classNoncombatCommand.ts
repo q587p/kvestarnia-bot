@@ -13,17 +13,14 @@ import type {
   RogueRetaliationResult
 } from "../../services/classNoncombatService";
 import type {
-  DuelChallengeView,
   DuelAcceptResult,
   DuelChallengeService,
   DuelTargetedCreateResult
 } from "../../services/duelChallengeService";
 import { buildPriestHealPlan } from "../../domain/noncombat/classNoncombatTechniques";
-import { getCombatSkillDisplay } from "../../services/fightService";
-import { getCombatSkillProfile } from "../../domain/combat";
 import { telegramUserIdFromContext } from "../context";
 import { buildClassNoncombatKeyboard } from "../keyboards/classNoncombatKeyboard";
-import { buildDuelResultKeyboard, buildTurnBasedDuelKeyboard } from "../keyboards/duelKeyboard";
+import { buildDuelResultKeyboard } from "../keyboards/duelKeyboard";
 import {
   presentClassNoncombatOpen,
   presentPriestBlessResult,
@@ -40,6 +37,7 @@ import { presentAchievementUnlockNotification } from "../presenters/achievementP
 import { presentDuelAccept, presentTurnBasedDuel } from "../presenters/duelPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { deliverCanonicalTurnBasedDuelParticipantCard } from "../turnBasedDuelCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -380,21 +378,27 @@ async function editRogueRetaliationTurnBasedCard(
   duelService: DuelChallengeService,
   viewer: "challenger" | "target"
 ): Promise<void> {
-  const viewerCharacterId = viewer === "challenger"
-    ? result.session.challengerCharacterId
-    : result.session.targetCharacterId;
-  const editResult = await safeEditMessageText(
-    ctx,
-    presentRogueRetaliationTurnBased(result, viewerCharacterId),
-    buildRogueRetaliationTurnBasedMessageOptions(result, viewerCharacterId)
-  );
-
-  if (editResult !== "sent" && ctx.chat?.id && ctx.callbackQuery?.message?.message_id) {
-    await duelService.recordTurnBasedMessageReference(result.session.id, viewer, {
-      chatId: BigInt(ctx.chat.id),
-      messageId: ctx.callbackQuery.message.message_id
-    });
+  if (ctx.chat?.type !== "private") {
+    return;
   }
+
+  await clearRogueRetaliationSourceKeyboard(ctx);
+  await deliverCanonicalTurnBasedDuelParticipantCard({
+    service: duelService,
+    view: result,
+    participant: viewer,
+    chatId: BigInt(ctx.chat.id),
+    presentActive: presentRogueRetaliationTurnBased,
+    transport: {
+      editMessage: async (reference, text, options) => {
+        await ctx.api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+      },
+      sendInertMessage: async (_chatId, text, options) => {
+        const message = await ctx.reply(text, options);
+        return message.message_id ?? null;
+      }
+    }
+  });
 }
 
 async function notifyRogueRetaliationTurnBasedParticipant(
@@ -406,27 +410,27 @@ async function notifyRogueRetaliationTurnBasedParticipant(
   const chatId = participant === "challenger"
     ? result.challenge.challenger.telegramUserId
     : result.challenge.target?.telegramUserId;
-  const viewerCharacterId = participant === "challenger"
-    ? result.session.challengerCharacterId
-    : result.session.targetCharacterId;
-
   if (!chatId || (ctx.chat?.id && BigInt(ctx.chat.id) === chatId)) {
     return;
   }
 
   try {
-    const message = await ctx.api.sendMessage(
-      Number(chatId),
-      presentRogueRetaliationTurnBased(result, viewerCharacterId),
-      buildRogueRetaliationTurnBasedMessageOptions(result, viewerCharacterId)
-    );
-
-    if (message.message_id) {
-      await duelService.recordTurnBasedMessageReference(result.session.id, participant, {
-        chatId,
-        messageId: message.message_id
-      });
-    }
+    await deliverCanonicalTurnBasedDuelParticipantCard({
+      service: duelService,
+      view: result,
+      participant,
+      chatId,
+      presentActive: presentRogueRetaliationTurnBased,
+      transport: {
+        editMessage: async (reference, text, options) => {
+          await ctx.api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+        },
+        sendInertMessage: async (destinationChatId, text, options) => {
+          const message = await ctx.api.sendMessage(Number(destinationChatId), text, options);
+          return message.message_id ?? null;
+        }
+      }
+    });
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
   }
@@ -443,27 +447,12 @@ function presentRogueRetaliationTurnBased(
   ].join("\n");
 }
 
-function buildRogueRetaliationTurnBasedMessageOptions(
-  result: Extract<DuelAcceptResult, { state: "active" }>,
-  viewerCharacterId: string
-) {
-  const participant = getTurnBasedParticipantForSkill(result, viewerCharacterId);
-  const skillProfile = getCombatSkillProfile(participant.combatStats.classId);
-  const skill = getCombatSkillDisplay(skillProfile.id);
-
-  return {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildTurnBasedDuelKeyboard(result, viewerCharacterId, `${skill.icon} ${skill.name}`)
-  };
-}
-
-function getTurnBasedParticipantForSkill(
-  result: Extract<DuelChallengeView, { state: "active" }>,
-  viewerCharacterId: string
-): Extract<DuelChallengeView, { state: "active" }>["session"]["state"]["participants"]["challenger"] {
-  return viewerCharacterId === result.session.state.participants.target.characterId
-    ? result.session.state.participants.target
-    : result.session.state.participants.challenger;
+async function clearRogueRetaliationSourceKeyboard(ctx: Context): Promise<void> {
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } });
+  } catch {
+    // The canonical delivery never activates this source message.
+  }
 }
 
 function buildDuelResultMessageOptions(result: DuelAcceptResult) {

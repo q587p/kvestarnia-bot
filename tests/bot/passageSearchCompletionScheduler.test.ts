@@ -34,6 +34,37 @@ describe("passage search completion scheduler", () => {
     expect(sendMessage.mock.calls[0]?.[2]).toEqual({ parse_mode: "HTML" });
   });
 
+  it("sends Passage Search achievement unlocks after the scheduled completion card", async () => {
+    const action = makeAction({ chatId: "42" });
+    const result = completedResult(action, [{
+      id: "achievement.iskrokamin.first-owned",
+      title: "Іскра в кишені",
+      cosmeticTitleGrantId: null,
+      unlockedAt: new Date("2026-06-27T09:00:42.000Z")
+    }]);
+    const passageSearch = {
+      listDueRunningSearches: vi.fn()
+        .mockResolvedValueOnce([{ telegramUserId: 42587n, action }])
+        .mockResolvedValue([]),
+      resolveDueSearch: vi.fn().mockResolvedValue(result)
+    };
+    const { bot, sendMessage } = fakeBot();
+    const scheduler = createPassageSearchCompletionScheduler(
+      { passageSearch: passageSearch as never, fight: {} as never },
+      bot,
+      { intervalMs: 60_000 }
+    );
+
+    scheduler.start();
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    scheduler.stop();
+
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("Щось знайшлося");
+    expect(sendMessage.mock.calls[1]?.[1]).toContain("Іскра в кишені");
+    expect(sendMessage.mock.calls[1]?.[2]).toEqual({ parse_mode: "HTML" });
+  });
+
   it("does not resolve a due search without a chat target", async () => {
     const action = makeAction();
     const passageSearch = {
@@ -108,11 +139,15 @@ function fakeBot(): { bot: Bot; sendMessage: ReturnType<typeof vi.fn> } {
   };
 }
 
-function completedResult(action: PassageSearchActionRecord): PassageSearchCheckResult {
+function completedResult(
+  action: PassageSearchActionRecord,
+  achievementUnlocks: Extract<PassageSearchCheckResult, { state: "completed" }>["achievementUnlocks"] = []
+): PassageSearchCheckResult {
   return {
     state: "completed",
     character,
     action,
+    achievementUnlocks,
     loot: {
       gold: 1,
       itemGrants: []

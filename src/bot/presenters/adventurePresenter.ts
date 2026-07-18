@@ -8,7 +8,7 @@ import type {
 import { buildStarterMethodOptions, getAdventureProblemIcon } from "../../services/adventureService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 
 export function presentAdventureOffer(
@@ -244,6 +244,8 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   const [sceneLine = "", maybeBlankLine, ...remainingOutcomeLines] = outcome.body.map(escapeHtml);
   const outcomeDetailLines =
     maybeBlankLine === "" ? remainingOutcomeLines : [maybeBlankLine, ...remainingOutcomeLines];
+  const itemGrantLines = presentItemGrantLines(result.reward.itemGrants);
+  const hasStandardReward = !result.fightHandoff && result.consequence !== "local-failure";
   const lines = [
     escapeHtml(outcome.headline),
     "",
@@ -261,9 +263,17 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
             "Винагорода за справу:\n<b>0 XP\n0 золота</b>",
             "Наступний набір справ відкриється в наступний 93-хвилинний період."
           ]
-        : ["", presentQuestRewardAmount(result.reward)]),
-    "",
-    ...presentItemGrantLines(result.reward.itemGrants)
+        : [
+            "",
+            presentQuestRewardBlock({
+              ...result.reward,
+              itemGrants: result.reward.itemGrants.map((grant) => ({
+                ...grant,
+                name: escapeHtml(grant.name)
+              }))
+            })
+          ]),
+    ...(hasStandardReward ? [] : ["", ...itemGrantLines])
   ];
 
   return lines.join("\n");
@@ -299,7 +309,6 @@ export function presentMimicShawarmaResult(
     body: ["Підозріла шаурма дала свідчення й записалась у навчальні пригоди."]
   };
   const methodLabel = result.method?.label ?? String(result.action);
-  const itemGrantLines = presentItemGrantLines(result.reward.itemGrants);
   const lines = [
     escapeHtml(outcome.headline),
     "",
@@ -308,8 +317,13 @@ export function presentMimicShawarmaResult(
     `<i>Метод:</i> ${escapeHtml(methodLabel)}`,
     ...presentHpLossLines(result.hpLoss, result.character),
     "",
-    presentQuestRewardAmount(result.reward),
-    ...(itemGrantLines.length > 0 ? ["", ...itemGrantLines] : [])
+    presentQuestRewardBlock({
+      ...result.reward,
+      itemGrants: result.reward.itemGrants.map((grant) => ({
+        ...grant,
+        name: escapeHtml(grant.name)
+      }))
+    })
   ];
 
   return lines.join("\n");

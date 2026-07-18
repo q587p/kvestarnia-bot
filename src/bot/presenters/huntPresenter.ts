@@ -1,5 +1,5 @@
 import type { HuntLookupResult, HuntResult } from "../../services/huntService";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 
 export function presentHuntBoard(result: Extract<HuntLookupResult, { state: "ready" }>): string {
@@ -55,12 +55,15 @@ export function presentHuntAlreadyCompleted(
 
   if (result.reward) {
     lines.push(
-      "Вже отримано:",
-      presentRewardAmount({
+      presentRewardBlock({
         xp: result.reward.xp,
-        gold: result.reward.gold
-      }),
-      ...presentItemGrantBlock(result.reward.itemGrants)
+        gold: result.reward.gold,
+        label: "Вже отримано",
+        itemGrants: result.reward.itemGrants.map((grant) => ({
+          name: escapeHtml(grant.name),
+          quantity: grant.quantity
+        }))
+      })
     );
 
     if (result.reward.itemReplayUnavailable) {
@@ -139,8 +142,14 @@ export function presentHuntResult(result: Exclude<HuntResult, { state: "no-chara
     ...presentOutcomeFlavor(result.outcomeFlavor),
     ...presentRewardScaleHint(result),
     "",
-    presentRewardAmount({ ...result.reward, label: "Нагорода" }),
-    ...presentItemGrantBlock(result.reward.itemGrants)
+    presentRewardBlock({
+      ...result.reward,
+      label: "Нагорода",
+      itemGrants: result.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   ];
 
   return lines.join("\n");
@@ -187,20 +196,4 @@ function presentRewardScaleHint(result: Extract<HuntResult, { state: "completed"
 
 function presentOutcomeFlavor(flavor: string | null): string[] {
   return flavor ? ["", escapeHtml(flavor)] : [];
-}
-
-function presentItemGrantBlock(itemGrants: Array<{ name: string; quantity: number }>): string[] {
-  if (itemGrants.length === 0) {
-    return [];
-  }
-
-  return [
-    "",
-    ...itemGrants.map((grant) =>
-      presentRewardItemGrant({
-        name: escapeHtml(grant.name),
-        quantity: grant.quantity
-      })
-    )
-  ];
 }

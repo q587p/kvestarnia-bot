@@ -63,12 +63,24 @@ describe("daily Korchma round presenter", () => {
     expect(text).not.toContain("Подушка додала табурету гідності");
   });
 
-  it("renders quest Iskrokamin grants on reward cards", () => {
-    const text = presentDailyKorchmaRoundClaim(rewardClaimWithIskrokamin());
+  it.each(["reward-claimed", "reward-replayed"] as const)(
+    "separates Korchma round reward amounts from item grants for %s",
+    (state) => {
+      const text = presentDailyKorchmaRoundClaim(rewardClaimWithIskrokamin(state));
 
-    expect(text).toContain("<i>Отримано:</i>");
-    expect(text).toContain("Здобуто: <i>Іскрокамінь</i>");
-  });
+      expect(text).toBe([
+        "🧾 Корчмарський обхід здано",
+        "",
+        "Корчмар прийняв два підписи, подивився на третю катастрофу й вирішив не провокувати.",
+        "",
+        "<i>Отримано:</i>",
+        "+8 XP",
+        "+5 золота",
+        "",
+        "Здобуто: <i>Іскрокамінь</i>"
+      ].join("\n"));
+    }
+  );
 });
 
 function turnInReadyRound(): DailyKorchmaRoundLookupResult {
@@ -170,9 +182,11 @@ function stoolScene(): DailyKorchmaRoundSceneLookupResult {
   };
 }
 
-function rewardClaimWithIskrokamin(): DailyKorchmaRoundClaimResult {
+function rewardClaimWithIskrokamin(
+  state: "reward-claimed" | "reward-replayed" = "reward-claimed"
+): DailyKorchmaRoundClaimResult {
   return {
-    state: "reward-claimed",
+    state,
     character: dailyRoundCharacter(),
     offer: dailyRoundOffer(),
     reward: {

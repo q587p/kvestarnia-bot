@@ -13,18 +13,15 @@ import { playerFromContext } from "../context";
 import {
   buildDuelAcceptConfirmationKeyboard,
   buildDuelChallengeKeyboard,
+  buildDuelOwnerChallengeKeyboard,
   buildDuelResourceWarningKeyboard,
-  buildDuelResultKeyboard,
-  buildTurnBasedDuelKeyboard
+  buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
-import { getCombatSkillDisplay } from "../../services/fightService";
-import { getCombatSkillProfile } from "../../domain/combat";
 import {
   presentDuelAccept,
   presentDuelView,
-  presentTurnBasedDuel,
   presentTurnBasedDuelIntro
 } from "../presenters/duelPresenter";
 import { presentHero } from "../presenters/heroPresenter";
@@ -38,6 +35,10 @@ import {
   buildTavernGameInviteUrl,
   notifyTavernGameParticipants
 } from "../tavernGameNotifications";
+import {
+  showCanonicalTurnBasedDuelCard,
+  showCanonicalTurnBasedDuelResultCard
+} from "../turnBasedDuelCardDelivery";
 
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
@@ -117,28 +118,21 @@ export function registerStartCommand(
         return;
       }
 
+      if (result.state === "self-challenge") {
+        await ctx.reply(presentDuelAccept(result), {
+          parse_mode: "HTML",
+          reply_markup: buildDuelOwnerChallengeKeyboard(result.challenge.inviteToken)
+        });
+        return;
+      }
+
       if (result.state === "active") {
         if (result.transitioned) {
           await ctx.reply(presentTurnBasedDuelIntro(result), {
             parse_mode: "HTML"
           });
         }
-        const viewerCharacterId = isPrivateChat(ctx)
-          ? getTurnBasedDuelViewerCharacterId(player.telegramUserId, result)
-          : null;
-        const participant = viewerCharacterId === result.session.state.participants.target.characterId
-          ? result.session.state.participants.target
-          : result.session.state.participants.challenger;
-        const skill = getCombatSkillDisplay(getCombatSkillProfile(participant.combatStats.classId).id);
-
-        await ctx.reply(presentTurnBasedDuel(result, { viewerCharacterId }), {
-          parse_mode: "HTML",
-          reply_markup: buildTurnBasedDuelKeyboard(
-            result,
-            viewerCharacterId,
-            `${skill.icon} ${skill.name}`
-          )
-        });
+        await showCanonicalTurnBasedDuelCard(ctx, result, options.duel, "reply");
         return;
       }
 
@@ -156,6 +150,20 @@ export function registerStartCommand(
           reply_markup: buildDuelAcceptConfirmationKeyboard(result.challenge.inviteToken)
         });
         return;
+      }
+
+      if (result.state === "resolved" && result.challenge.mode === "turn-based") {
+        const session = await options.duel.getTurnBasedSessionByToken(result.challenge.inviteToken);
+        if (session) {
+          await showCanonicalTurnBasedDuelResultCard(
+            ctx,
+            result,
+            session,
+            options.duel,
+            "reply"
+          );
+          return;
+        }
       }
 
       await ctx.reply(
@@ -229,21 +237,6 @@ export async function sendTavernGameJoinFromStartPayload(
   });
 }
 
-function getTurnBasedDuelViewerCharacterId(
-  telegramUserId: bigint,
-  result: Extract<Awaited<ReturnType<NonNullable<StartCommandOptions["duel"]>["acceptForTelegramUser"]>>, { state: "active" }>
-): string | null {
-  if (result.challenge.challenger.telegramUserId === telegramUserId) {
-    return result.session.challengerCharacterId;
-  }
-
-  if (result.challenge.target?.telegramUserId === telegramUserId) {
-    return result.session.targetCharacterId;
-  }
-
-  return null;
-}
-
 function buildDuelInviteUrl(
   botUsername: string | undefined,
   token: string,
@@ -254,10 +247,6 @@ function buildDuelInviteUrl(
   }
 
   return `https://t.me/${botUsername}?start=${mode === "turn-based" ? "duel_turnbased_" : "duel_"}${token}`;
-}
-
-function isPrivateChat(ctx: Context): boolean {
-  return ctx.chat?.type === "private";
 }
 
 export function buildExistingCharacterReplyOptions(): {

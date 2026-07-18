@@ -8,7 +8,7 @@ import type {
 } from "../../services/dailyKorchmaRoundService";
 import type { DailyKorchmaRoundAction } from "../../content/dailyKorchmaRoundContent";
 import { getLocationName } from "../../services/presenceService";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentDailyKorchmaRound(result: DailyKorchmaRoundOverviewResult): string {
@@ -196,8 +196,7 @@ export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResu
       "",
       "Корчмар прийняв два підписи, подивився на третю катастрофу й вирішив не провокувати.",
       "",
-      presentQuestRewardAmount(result.reward),
-      ...result.reward.itemGrants.map((grant) => presentRewardItemGrant(grant))
+      presentQuestRewardBlock(result.reward)
     ].join("\n");
   }
 

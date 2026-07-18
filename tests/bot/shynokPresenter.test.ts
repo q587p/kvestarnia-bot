@@ -427,7 +427,7 @@ describe("shynokPresenter", () => {
       expect(html).toContain("Реакції на цей виступ: ще 8 хв.");
       expect(html).toContain("Публіка поки складається з корчмаря й дуже критичної полиці.");
       expect(html).toContain("Нові слухачі зможуть застати вже наступний виступ.");
-      expect(html).toContain("Наступний новий виступ: 88 хв.");
+      expect(html).toContain("Наступний новий виступ у цій місцині: 88 хв.");
       expect(html).not.toContain("Слухачів поруч");
       expect(html).not.toContain("Наступний виступ: 93 хв.");
     } finally {

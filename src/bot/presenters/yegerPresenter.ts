@@ -11,7 +11,7 @@ import type {
   YegerRangerSupplyKind
 } from "../../services/yegerQuestService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { presentQuestRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock, presentRewardItemGrant } from "./rewardPresenter";
 import { escapeHtml, npcQuote, presentCharacterHeader } from "./telegramHtml";
 import { presentItemNameWithQuantity } from "./itemStackPresenter";
 import { presentYegerQuestTitle } from "./yegerQuestTitle";
@@ -335,7 +335,10 @@ export function presentYegerBandageBuy(result: YegerBandageSupplyResult): string
     "🩹 Бинти Єгеря",
     presentCharacterHeader(result.character),
     "",
-    `Куплено: ${result.itemGrants.map((grant) => presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })).join(", ")}.`,
+    `${result.itemGrants.map((grant) => presentRewardItemGrant(
+      { name: escapeHtml(grant.name), quantity: grant.quantity },
+      { label: "Куплено" }
+    )).join(", ")}.`,
     `Витрачено: <b>${result.spentGold} золота</b>.`,
     result.state === "replayed" ? "Цей чек уже проведено. Другий раз золото не зникло." : "",
     "",
@@ -699,10 +702,14 @@ function presentYegerCompleted(input: {
 
   lines.push(
     "",
-    presentQuestRewardAmount({ xp: input.reward.xp, gold: input.reward.gold }),
-    ...input.reward.itemGrants.map((grant) =>
-      presentRewardItemGrant({ name: escapeHtml(grant.name), quantity: grant.quantity })
-    )
+    presentQuestRewardBlock({
+      xp: input.reward.xp,
+      gold: input.reward.gold,
+      itemGrants: input.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   );
 
   if (input.progress.target === 5) {

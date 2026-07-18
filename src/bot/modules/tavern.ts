@@ -1118,7 +1118,16 @@ function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): 
       return;
     }
 
-    const result = await services.passageSearch.devReset(telegramUserId);
+    const fixture = typeof ctx.match === "string" ? ctx.match.trim() : "";
+    if (fixture !== "" && fixture !== "iskrokamin") {
+      await ctx.reply("Формат: /dev_reset_passage_search [iskrokamin].");
+      return;
+    }
+
+    const result = await services.passageSearch.devReset(
+      telegramUserId,
+      fixture === "iskrokamin" ? { nextLoot: "iskrokamin" } : {}
+    );
     if (result.state === "no-character") {
       await ctx.reply(presentDevGrantNoCharacter());
       return;
@@ -1129,7 +1138,12 @@ function registerPassageSearchDevResetHandler(bot: Bot, services: BotServices): 
       return;
     }
 
-    await ctx.reply(`🔎 Пошук у проходах скинуто локально. Збито пошуків: ${result.actions}. Cooldown-ів прибрано: ${result.cooldowns}.`);
+    await ctx.reply([
+      `🔎 Пошук у проходах скинуто локально. Збито пошуків: ${result.actions}. Cooldown-ів прибрано: ${result.cooldowns}.`,
+      ...(result.nextLootFixture === "iskrokamin"
+        ? ["Наступний завершений природний пошук гарантовано знайде Іскрокамінь."]
+        : [])
+    ].join("\n"));
   });
 }
 

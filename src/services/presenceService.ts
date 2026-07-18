@@ -538,7 +538,9 @@ export class PresenceService {
     since: Date
   ): Promise<PresenceRecord[]> {
     const records = await Promise.all(
-      getLocationQueryIds(locationId).map((id) => this.presence.listByLocationSeenSince(id, since))
+      getPresenceLocationQueryIds(locationId).map((id) =>
+        this.presence.listByLocationSeenSince(id, since)
+      )
     );
 
     return uniquePresenceRecords(records.flat());
@@ -840,7 +842,7 @@ export function isKorchmaInteriorLocation(locationId: string | null | undefined)
   );
 }
 
-function getLocationQueryIds(locationId: string): string[] {
+export function getPresenceLocationQueryIds(locationId: string): string[] {
   const id = normalizePresenceLocationId(locationId);
 
   if (id === PRESENCE_LOCATION_KORCHMA_HALL) {

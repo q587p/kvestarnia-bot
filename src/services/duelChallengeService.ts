@@ -130,6 +130,7 @@ export type DuelRematchResult =
   | { state: "not-resolved"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
   | { state: "not-participant"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
+  | { state: "busy" }
   | ({ state: "pair-limited"; challenge: DuelChallengeRecord } & DuelPairLimit)
   | {
       state: "resource-warning";
@@ -198,6 +199,19 @@ export type DuelTurnBasedJournalResult =
       state: "ready";
       session: DuelCombatSessionRecord;
       rounds: TurnBasedDuelRoundSummary[];
+    };
+
+export type TurnBasedDuelRouteView =
+  | { state: "not-found" }
+  | {
+      state: "active";
+      session: DuelCombatSessionRecord;
+      view: Extract<DuelChallengeView, { state: "active" }>;
+    }
+  | {
+      state: "resolved";
+      session: DuelCombatSessionRecord;
+      view: Extract<DuelChallengeView, { state: "resolved" }>;
     };
 
 export type TurnBasedDuelTurnResult =
@@ -333,15 +347,17 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = await this.syncDuelCharacterForTelegramUser(
+    const resourcePreview = await this.previewDuelCharacterResourceSync(
       telegramUserId,
       currentCharacter,
       now,
       equipmentAt
     );
+    const current = resourcePreview.character;
 
+    let preCreationResult: DuelRematchResult | null = null;
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
-      return {
+      preCreationResult = {
         state: "level-gated",
         character: current,
         minLevel: DUEL_INVITE_MIN_LEVEL
@@ -350,34 +366,33 @@ export class DuelChallengeService {
 
     const originalView = this.viewChallenge(original, now);
 
-    if (originalView.state !== "resolved") {
+    if (!preCreationResult && originalView.state !== "resolved") {
       return { state: "not-resolved", challenge: original, challenger };
     }
 
-    const pairLimit = await this.getPairLimit(currentCharacter.id, rematchTarget.id, now);
-
-    if (pairLimit) {
-      return {
-        state: "pair-limited",
-        challenge: original,
-        challenger: current,
-        target: summarizeDuelCharacter(rematchTarget),
-        ...pairLimit
-      };
-    }
-
     const warning = getResourceWarning(current);
+    if (!preCreationResult) {
+      const pairLimit = await this.getPairLimit(currentCharacter.id, rematchTarget.id, now);
 
-    if (warning && input.ignoreResourceWarning !== true) {
-      return {
-        state: "resource-warning",
-        character: current,
-        warning,
-        original: originalView
-      };
+      if (pairLimit) {
+        preCreationResult = {
+          state: "pair-limited",
+          challenge: original,
+          challenger: current,
+          target: summarizeDuelCharacter(rematchTarget),
+          ...pairLimit
+        };
+      } else if (warning && input.ignoreResourceWarning !== true && originalView.state === "resolved") {
+        preCreationResult = {
+          state: "resource-warning",
+          character: current,
+          warning,
+          original: originalView
+        };
+      }
     }
 
-    const challenge = await this.challenges.createTargetedForTelegramUser(
+    const created = await this.challenges.createTargetedRematchForTelegramUser(
       telegramUserId,
       rematchTarget.id,
       {
@@ -385,8 +400,20 @@ export class DuelChallengeService {
         mode: rematchMode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
-      }
+      },
+      preCreationResult ? undefined : resourcePreview.resourceUpdate,
+      { authorizeOnly: preCreationResult !== null }
     );
+
+    if (created.busyCharacterId || created.resourceConflict) {
+      return { state: "busy" };
+    }
+
+    if (preCreationResult) {
+      return created.leaseAcquired ? preCreationResult : { state: "not-found" };
+    }
+
+    const challenge = created.record;
 
     if (!challenge) {
       return { state: "not-found" };
@@ -462,19 +489,20 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
+    const persistAcceptancePreviewResources = false;
     const currentTarget = await this.syncDuelCharacterForTelegramUser(
       telegramUserId,
       targetCharacter,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based"
+      persistAcceptancePreviewResources
     );
     challenger = await this.syncDuelCharacterForTelegramUser(
       challenge.challenger.telegramUserId,
       currentChallenger,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based"
+      persistAcceptancePreviewResources
     );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
@@ -574,6 +602,17 @@ export class DuelChallengeService {
       }, "quick")
     );
 
+    if (accepted.busyCharacterId) {
+      return {
+        state: "busy",
+        challenge: accepted.record ?? challenge,
+        challenger,
+        target: currentTarget,
+        busyCharacter:
+          accepted.busyCharacterId === challenge.challenger.id ? challenger : currentTarget
+      };
+    }
+
     if (!accepted.record) {
       return { state: "no-character" };
     }
@@ -670,6 +709,40 @@ export class DuelChallengeService {
     const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(inviteToken, telegramUserId);
 
     return session ? this.buildActiveView(session, this.clock()) : { state: "not-found" };
+  }
+
+  async getTurnBasedSessionByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
+    return this.challenges.findTurnBasedByToken(inviteToken);
+  }
+
+  async getTurnBasedRouteForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<TurnBasedDuelRouteView> {
+    const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+      inviteToken,
+      telegramUserId
+    );
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    const now = this.clock();
+    if (session.status === "active" && session.challenge.status === "active") {
+      return {
+        state: "active",
+        session,
+        view: this.buildActiveView(session, now)
+      };
+    }
+
+    const view = this.viewChallenge(session.challenge, now);
+    if (view.state === "resolved") {
+      return { state: "resolved", session, view };
+    }
+
+    return { state: "not-found" };
   }
 
   async getTurnBasedJournalByToken(inviteToken: string): Promise<DuelTurnBasedJournalResult> {
@@ -1009,12 +1082,21 @@ export class DuelChallengeService {
     return this.challenges.repairTurnBasedCombatState(this.clock());
   }
 
-  async recordTurnBasedMessageReference(
+  async claimTurnBasedMessageReference(
     sessionId: string,
     participant: "challenger" | "target",
-    reference: { chatId: bigint; messageId: number }
-  ): Promise<void> {
-    await this.challenges.recordTurnBasedMessageReference(sessionId, participant, reference);
+    reference: { chatId: bigint; messageId: number },
+    expectedReference?: { chatId: bigint; messageId: number }
+  ): Promise<{ claimed: boolean; session: DuelCombatSessionRecord | null }> {
+    return this.challenges.claimTurnBasedMessageReference(sessionId, participant, reference, expectedReference);
+  }
+
+  async releaseTurnBasedMessageReference(
+    sessionId: string,
+    participant: "challenger" | "target",
+    expectedReference: { chatId: bigint; messageId: number }
+  ): Promise<{ released: boolean; session: DuelCombatSessionRecord | null }> {
+    return this.challenges.releaseTurnBasedMessageReference(sessionId, participant, expectedReference);
   }
 
   async getInviteRotationForTelegramUser(
@@ -1306,6 +1388,56 @@ export class DuelChallengeService {
       ),
       effectiveSnapshot.activeCosmeticTitleGrantId
     );
+  }
+
+  private async previewDuelCharacterResourceSync(
+    telegramUserId: bigint,
+    character: DuelCharacterSnapshot,
+    now: Date,
+    equipmentAt?: Date
+  ): Promise<{
+    character: DuelistSummary;
+    resourceUpdate?: import("../db/repositories/characterRepository").UpdateCharacterResourcesInput;
+  }> {
+    void equipmentAt;
+    const result = await summarizeAndSyncCharacterResources({
+      characters: this.characters,
+      telegramUserId,
+      character,
+      equippedItems: getEquippedItemContents(character.equipment),
+      ...(character.remortCount !== undefined ? { remortCount: character.remortCount } : {}),
+      now,
+      persist: false
+    });
+    const summary = withActiveCosmeticTitle(
+      withDuelEquipmentAbilityGrantIds(
+        { ...result.character, id: character.id },
+        character
+      ),
+      character.activeCosmeticTitleGrantId
+    );
+
+    return {
+      character: summary,
+      ...(result.regeneration.changed
+        ? {
+            resourceUpdate: {
+              hpCurrent: result.regeneration.resources.hpCurrent,
+              hpMax: result.regeneration.resources.hpMax,
+              manaCurrent: result.regeneration.resources.manaCurrent,
+              manaMax: result.regeneration.resources.manaMax,
+              hpRegenAt: result.regeneration.resources.hpRegenAt ?? now,
+              manaRegenAt: result.regeneration.resources.manaRegenAt ?? now,
+              expected: {
+                hpCurrent: character.hpCurrent,
+                manaCurrent: character.manaCurrent,
+                hpRegenAt: character.hpRegenAt ?? null,
+                manaRegenAt: character.manaRegenAt ?? null
+              }
+            }
+          }
+        : {})
+    };
   }
 
 }

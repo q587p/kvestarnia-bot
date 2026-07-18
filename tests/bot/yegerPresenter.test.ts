@@ -87,6 +87,7 @@ describe("Yeger presenter", () => {
 
     expect(text).toContain("<i>Отримано:</i>");
     expect(text).toContain("+35 XP\n+120 золота");
+    expect(text).toContain("+35 XP\n+120 золота\n\nЗдобуто:");
     expect(text).toContain("Здобуто: <i>Єгерська риска на дощечці</i>");
     expect(text).toContain(
       "Здобуто: <i>Єгерська риска на дощечці</i>\n\n<i>Відкрито:</i> Єгер перестав вдавати, що ящик із бинтами є частиною меблів."
@@ -589,6 +590,22 @@ describe("Yeger presenter", () => {
 
     expect(capped).toContain("Сьогодні куплено: <b>93/93</b>.");
     expect(capped).toContain("Бинти теж мають робочий день");
+  });
+
+  it("labels an actual bandage purchase once instead of nesting a grant label", () => {
+    const text = presentYegerBandageBuy({
+      state: "bought",
+      character,
+      spentGold: 14,
+      itemGrants: [{
+        itemId: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        quantity: 2
+      }]
+    });
+
+    expect(text).toContain("Куплено: <i>Бинт відповідальної паніки ×2</i>.");
+    expect(text).not.toContain("Куплено: Здобуто:");
   });
 
   it("renders an affordable paid bandage fallback after insufficient gold", () => {

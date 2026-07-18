@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import { DuelChallengeService, type DuelChallengeView } from "../../src/services/duelChallengeService";
+import type {
+  DuelChallengeRecord,
+  DuelChallengeRepository,
+  DuelCharacterSnapshot
+} from "../../src/db/repositories/duelChallengeRepository";
+import type { PresenceService } from "../../src/services/presenceService";
 import {
   clearMessageFreshnessTracking,
   rememberLatestMessageForChat
@@ -28,6 +35,8 @@ import {
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
+import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
+import { buildDuelResultKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import {
   makeEquipItemCallbackData,
   makeInventoryCallbackData,
@@ -47,6 +56,7 @@ import {
 } from "../../src/bot/callbacks/mantokChestCallbackData";
 import { makeConfirmCallbackData } from "../../src/bot/callbacks/onboardingCallbackData";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
+import { makePassageSearchCheckCallbackData } from "../../src/bot/callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../../src/bot/callbacks/questCallbackData";
 import {
   makeRemortConfirmCallbackData,
@@ -74,9 +84,22 @@ import {
   makeYegerTurnInCallbackData
 } from "../../src/bot/callbacks/yegerCallbackData";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import type { CharacterRecord, CharacterRepository } from "../../src/db/repositories/characterRepository";
+import type {
+  ClaimDailyActionInput,
+  DailyActionRecord,
+  DailyActionRepository
+} from "../../src/db/repositories/dailyActionRepository";
 import { ITEM_CRAFT_RECIPES } from "../../src/domain/itemCraft";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
-import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
+import {
+  PRESENCE_ADVENTURE_CHOICE,
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_FRONT,
+  PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+  PRESENCE_LOCATION_KORCHMA_YARD
+} from "../../src/services/presenceService";
+import { AdventureService } from "../../src/services/adventureService";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
 import { startQuickDicePoker } from "../../src/domain/dicePoker";
 import { mainMenuButtons, mainMenuLocationButtons } from "../../src/bot/keyboards/mainMenuKeyboard";
@@ -453,7 +476,8 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("<i>Метод:</i> 🎵 Продиригувати юшкою");
   });
 
-  it("routes duplicate v2 adventure method taps through the bot without a second completion card", async () => {
+  it("routes duplicate v2 adventure method taps without a second completion card or presence rewrite", async () => {
+    const markAction = vi.fn(() => Promise.resolve());
     const completeAdventureApproach = vi
       .fn()
       .mockResolvedValueOnce({
@@ -505,7 +529,8 @@ describe("scene callback HTML options", () => {
       servicesWith({
         adventure: {
           completeAdventureApproach
-        }
+        },
+        presence: { markAction }
       })
     );
     const edits = calls.filter((call) => call.method === "editMessageText");
@@ -535,6 +560,358 @@ describe("scene callback HTML options", () => {
     expect(String(edits[0]?.payload.text)).toContain("XP");
     expect(String(edits[1]?.payload.text)).toContain("/hero");
     expect(String(edits[1]?.payload.text)).not.toContain("Казанок стишився");
+    expect(markAction).toHaveBeenCalledTimes(1);
+    expect(markAction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      })
+    );
+  });
+
+  it.each([
+    ["front", PRESENCE_LOCATION_KORCHMA_FRONT],
+    ["yard", PRESENCE_LOCATION_KORCHMA_YARD]
+  ] as const)(
+    "keeps durable %s fight presence when concurrent Adventure callbacks race one claim",
+    async (_label, originLocationId) => {
+      const telegramUserId = 41n;
+      const characterRecord: CharacterRecord = {
+        id: "character-41",
+        userId: "user-41",
+        currentLocationId: originLocationId,
+        name: "Мандрівник",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 3,
+        xp: 25,
+        gold: 10,
+        hpCurrent: 28,
+        hpMax: 28,
+        manaCurrent: 14,
+        manaMax: 14,
+        statsJson: {
+          strength: 9,
+          dexterity: 6,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6
+        }
+      };
+      const characters: CharacterRepository = {
+        findByUserId: () => Promise.resolve(characterRecord),
+        findByTelegramUserId: () => Promise.resolve(characterRecord),
+        deleteByTelegramUserId: () => Promise.resolve(false),
+        createForTelegramUserIfMissing: () =>
+          Promise.resolve({ character: characterRecord, created: false })
+      };
+      let preflightReads = 0;
+      let releasePreflights!: () => void;
+      const bothPreflightsReached = new Promise<void>((resolve) => {
+        releasePreflights = resolve;
+      });
+      let releaseClaimLoser!: () => void;
+      const winnerFightStarted = new Promise<void>((resolve) => {
+        releaseClaimLoser = resolve;
+      });
+      let claimCalls = 0;
+      let loserReturnedAfterFightStart = false;
+      const action: DailyActionRecord = {
+        id: "adventure-race-claim",
+        characterId: characterRecord.id,
+        key: "adventure.choice",
+        localDate: "2026-06-12T10:23",
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: null,
+        createdAt: new Date("2026-06-12T10:30:00.000Z")
+      };
+      const dailyActions: DailyActionRepository = {
+        findForTelegramUser: async () => {
+          preflightReads += 1;
+          if (preflightReads === 2) {
+            releasePreflights();
+          }
+          await bothPreflightsReached;
+          return null;
+        },
+        claimForTelegramUser: async (_userId: bigint, input: ClaimDailyActionInput) => {
+          claimCalls += 1;
+          if (claimCalls === 1) {
+            return {
+              state: "created",
+              action: { ...action, key: input.key, localDate: input.localDate },
+              character: characterRecord,
+              levelChange: { oldLevel: 3, newLevel: 3, leveledUp: false },
+              itemGrants: input.itemGrants ?? [],
+              hpLoss: null
+            };
+          }
+
+          await winnerFightStarted;
+          loserReturnedAfterFightStart = true;
+          return {
+            state: "existing",
+            action: { ...action, key: input.key, localDate: input.localDate },
+            character: characterRecord,
+            levelChange: null,
+            itemGrants: []
+          };
+        }
+      };
+      const adventure = new AdventureService(
+        characters,
+        dailyActions,
+        () => new Date("2026-06-12T10:30:00.000Z"),
+        { findActiveByTelegramUserId: () => Promise.resolve(null) }
+      );
+      let finalLocationId = originLocationId;
+      const markAction = vi.fn((input: MarkPresenceInput) => {
+        if (input.locationId) {
+          finalLocationId = input.locationId;
+        }
+        if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+          releaseClaimLoser();
+        }
+        return Promise.resolve();
+      });
+      const getOrStartPersistentFightForTelegramUser = vi.fn(
+        (_userId: bigint, options: { originLocationId: string }) => {
+          const session = persistentSessionWithOrigin(options.originLocationId);
+          return Promise.resolve({
+            state: "persistent-active" as const,
+            started: true,
+            character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+            session: {
+              ...session,
+              state: { ...session.state, source: "adventure" as const }
+            },
+            monster: {
+              id: "monster.borshch-slime",
+              name: "Борщовий слиз",
+              description: "Булькає статутом і буряком.",
+              level: 3,
+              tags: ["slime", "food"]
+            },
+            questProgress: null
+          });
+        }
+      );
+      const callbackData = makeAdventureApproachCallbackData({
+        periodToken: "6uba",
+        problemId: "rug",
+        methodId: "q1drg067"
+      });
+      const calls = await captureConcurrentApiCalls(
+        [callbackData, callbackData],
+        servicesWith({
+          adventure,
+          fight: { getOrStartPersistentFightForTelegramUser },
+          presence: { markAction }
+        }),
+        Number(telegramUserId)
+      );
+      const durableLocationMarks = markAction.mock.calls
+        .map(([input]) => input.locationId)
+        .filter((locationId): locationId is string => locationId !== undefined);
+
+      expect(preflightReads).toBe(2);
+      expect(claimCalls).toBe(2);
+      expect(loserReturnedAfterFightStart).toBe(true);
+      expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+      expect(durableLocationMarks).toEqual([originLocationId]);
+      expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+      expect(finalLocationId).toBe(originLocationId);
+      const edits = calls.filter((call) => call.method === "editMessageText");
+      expect(edits).toHaveLength(2);
+      expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+    }
+  );
+
+  it("keeps durable Yard fight presence when the loser discovers the committed claim during preflight", async () => {
+    const telegramUserId = 41n;
+    const originLocationId = PRESENCE_LOCATION_KORCHMA_YARD;
+    const characterRecord: CharacterRecord = {
+      id: "character-41",
+      userId: "user-41",
+      currentLocationId: originLocationId,
+      name: "Мандрівник",
+      pronoun: "they",
+      path: "boundary",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 3,
+      xp: 25,
+      gold: 10,
+      hpCurrent: 28,
+      hpMax: 28,
+      manaCurrent: 14,
+      manaMax: 14,
+      statsJson: {
+        strength: 9,
+        dexterity: 6,
+        intelligence: 6,
+        charisma: 6,
+        luck: 6
+      }
+    };
+    const characters: CharacterRepository = {
+      findByUserId: () => Promise.resolve(characterRecord),
+      findByTelegramUserId: () => Promise.resolve(characterRecord),
+      deleteByTelegramUserId: () => Promise.resolve(false),
+      createForTelegramUserIfMissing: () =>
+        Promise.resolve({ character: characterRecord, created: false })
+    };
+    let releaseLoserPreflight!: () => void;
+    const loserPreflightStarted = new Promise<void>((resolve) => {
+      releaseLoserPreflight = resolve;
+    });
+    let releaseWinnerClaim!: () => void;
+    const winnerClaimCommitted = new Promise<void>((resolve) => {
+      releaseWinnerClaim = resolve;
+    });
+    let releaseLoserResult!: () => void;
+    const loserResultPrepared = new Promise<void>((resolve) => {
+      releaseLoserResult = resolve;
+    });
+    let releaseWinnerPresence!: () => void;
+    const winnerFightPresenceMarked = new Promise<void>((resolve) => {
+      releaseWinnerPresence = resolve;
+    });
+    let activeFightReads = 0;
+    let preflightReads = 0;
+    let claimCalls = 0;
+    let loserObservedPreflightClaim = false;
+    let loserResumedAfterFightPresence = false;
+    const action: DailyActionRecord = {
+      id: "adventure-preflight-race-claim",
+      characterId: characterRecord.id,
+      key: "adventure.choice",
+      localDate: "2026-06-12T10:23",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: new Date("2026-06-12T10:30:00.000Z")
+    };
+    const dailyActions: DailyActionRepository = {
+      findForTelegramUser: async () => {
+        preflightReads += 1;
+        if (preflightReads === 1) {
+          releaseLoserPreflight();
+          await winnerClaimCommitted;
+          loserObservedPreflightClaim = true;
+          return action;
+        }
+        return null;
+      },
+      claimForTelegramUser: (_userId: bigint, input: ClaimDailyActionInput) => {
+        claimCalls += 1;
+        releaseWinnerClaim();
+        return Promise.resolve({
+          state: "created",
+          action: { ...action, key: input.key, localDate: input.localDate },
+          character: characterRecord,
+          levelChange: { oldLevel: 3, newLevel: 3, leveledUp: false },
+          itemGrants: input.itemGrants ?? [],
+          hpLoss: null
+        });
+      }
+    };
+    const adventureService = new AdventureService(
+      characters,
+      dailyActions,
+      () => new Date("2026-06-12T10:30:00.000Z"),
+      {
+        findActiveByTelegramUserId: async () => {
+          activeFightReads += 1;
+          if (activeFightReads === 2) {
+            await loserPreflightStarted;
+          }
+          return null;
+        }
+      }
+    );
+    const completeAdventureApproach = vi.fn(
+      async (...args: Parameters<AdventureService["completeAdventureApproach"]>) => {
+        const result = await adventureService.completeAdventureApproach(...args);
+        if (result.state === "already-completed") {
+          expect(result).not.toHaveProperty("claimCollision");
+          releaseLoserResult();
+          await winnerFightPresenceMarked;
+          loserResumedAfterFightPresence = true;
+        }
+        return result;
+      }
+    );
+    let finalLocationId = originLocationId;
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if (input.locationId) {
+        finalLocationId = input.locationId;
+      }
+      if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+        releaseWinnerPresence();
+      }
+      return Promise.resolve();
+    });
+    const getOrStartPersistentFightForTelegramUser = vi.fn(
+      async (_userId: bigint, options: { originLocationId: string }) => {
+        await loserResultPrepared;
+        const session = persistentSessionWithOrigin(options.originLocationId);
+        return {
+          state: "persistent-active" as const,
+          started: true,
+          character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+          session: {
+            ...session,
+            state: { ...session.state, source: "adventure" as const }
+          },
+          monster: {
+            id: "monster.borshch-slime",
+            name: "Борщовий слиз",
+            description: "Булькає статутом і буряком.",
+            level: 3,
+            tags: ["slime", "food"]
+          },
+          questProgress: null
+        };
+      }
+    );
+    const callbackData = makeAdventureApproachCallbackData({
+      periodToken: "6uba",
+      problemId: "rug",
+      methodId: "q1drg067"
+    });
+    const calls = await captureConcurrentApiCalls(
+      [callbackData, callbackData],
+      servicesWith({
+        adventure: { completeAdventureApproach },
+        fight: { getOrStartPersistentFightForTelegramUser },
+        presence: { markAction }
+      }),
+      Number(telegramUserId)
+    );
+    const durableLocationMarks = markAction.mock.calls
+      .map(([input]) => input.locationId)
+      .filter((locationId): locationId is string => locationId !== undefined);
+
+    expect(activeFightReads).toBe(2);
+    expect(preflightReads).toBe(2);
+    expect(claimCalls).toBe(1);
+    expect(loserObservedPreflightClaim).toBe(true);
+    expect(loserResumedAfterFightPresence).toBe(true);
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(durableLocationMarks).toEqual([originLocationId]);
+    expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+    expect(finalLocationId).toBe(originLocationId);
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    expect(edits).toHaveLength(2);
+    expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
   });
 
   it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {
@@ -3054,6 +3431,22 @@ describe("scene callback HTML options", () => {
       }
     },
     {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({
+            state: "active-fight" as const,
+            character,
+            session: persistentSession("monster.deadline-spider")
+          }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
       name: "approach",
       callbackData: makeAdventureApproachCallbackData({
         periodToken: "period93",
@@ -3091,6 +3484,193 @@ describe("scene callback HTML options", () => {
       markAction.mock.calls.some(([input]) => "locationId" in input)
     ).toBe(false);
   });
+
+  it.each([
+    {
+      name: "problem",
+      callbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      adventure: {
+        selectAdventureProblem: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character }),
+        completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+      }
+    },
+    {
+      name: "approach",
+      callbackData: makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      }),
+      adventure: {
+        selectAdventureProblem: () => Promise.resolve({ state: "no-character" as const }),
+        completeAdventureApproach: () =>
+          Promise.resolve({ state: "combat-blocked" as const, character })
+      }
+    }
+  ])("does not write presence for combat-blocked Adventure $name callbacks", async ({
+    callbackData,
+    adventure
+  }) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        adventure,
+        presence: { markAction }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("Спершу завершіть поточний бій.");
+    expect(markAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "problem",
+      callbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      })
+    },
+    {
+      name: "problem-help",
+      callbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      })
+    }
+  ])("keeps ordinary selected Adventure $name navigation at the Quest Table", async ({
+    callbackData
+  }) => {
+    const markAction = vi.fn(() => Promise.resolve());
+    await captureApiCalls(
+      callbackData,
+      servicesWith({
+        adventure: {
+          selectAdventureProblem: () =>
+            Promise.resolve({
+              state: "selected" as const,
+              character,
+              offer: adventureOffer,
+              choice: adventureChoice,
+              approaches: [adventureApproach]
+            }),
+          completeAdventureApproach: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: { markAction }
+      })
+    );
+
+    expect(markAction).toHaveBeenCalledTimes(1);
+    expect(markAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
+        currentRaidId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_CHOICE
+      })
+    );
+  });
+
+  it.each([
+    {
+      name: "problem",
+      delayedCallbackData: makeAdventureProblemCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_FRONT
+    },
+    {
+      name: "problem-help",
+      delayedCallbackData: makeAdventureProblemHelpCallbackData({
+        periodToken: "period93",
+        problemId: "stew"
+      }),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_YARD
+    }
+  ] as const)(
+    "keeps durable fight presence when delayed $name returns already-completed after the winner marks its origin",
+    async ({ delayedCallbackData, originLocationId }) => {
+      let releaseDelayedStarted!: () => void;
+      const delayedStarted = new Promise<void>((resolve) => {
+        releaseDelayedStarted = resolve;
+      });
+      let releaseWinnerPresence!: () => void;
+      const winnerPresenceMarked = new Promise<void>((resolve) => {
+        releaseWinnerPresence = resolve;
+      });
+      let delayedReturnedAfterWinnerPresence = false;
+      const selectAdventureProblem = vi.fn(async () => {
+        releaseDelayedStarted();
+        await winnerPresenceMarked;
+        delayedReturnedAfterWinnerPresence = true;
+        return { state: "already-completed" as const, character };
+      });
+      const completeAdventureApproach = vi.fn(async () => {
+        await delayedStarted;
+        return completedAdventureFightHandoffResult(originLocationId);
+      });
+      let finalLocationId = originLocationId;
+      const markAction = vi.fn((input: MarkPresenceInput) => {
+        if (input.locationId) {
+          finalLocationId = input.locationId;
+        }
+        if (input.currentAdventureId === PRESENCE_ADVENTURE_SOLO_FIGHT) {
+          releaseWinnerPresence();
+        }
+        return Promise.resolve();
+      });
+      const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
+        Promise.resolve(startedAdventurePersistentFight(originLocationId))
+      );
+      const approachCallbackData = makeAdventureApproachCallbackData({
+        periodToken: "period93",
+        problemId: "stew",
+        methodId: adventureApproach.id
+      });
+
+      await captureConcurrentApiCalls(
+        [delayedCallbackData, approachCallbackData],
+        servicesWith({
+          adventure: {
+            selectAdventureProblem,
+            completeAdventureApproach
+          },
+          fight: { getOrStartPersistentFightForTelegramUser },
+          presence: { markAction }
+        }),
+        42
+      );
+      const durableLocationMarks = markAction.mock.calls
+        .map(([input]) => input.locationId)
+        .filter((locationId): locationId is string => locationId !== undefined);
+
+      expect(delayedReturnedAfterWinnerPresence).toBe(true);
+      expect(selectAdventureProblem).toHaveBeenCalledTimes(1);
+      expect(completeAdventureApproach).toHaveBeenCalledTimes(1);
+      expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledTimes(1);
+      expect(durableLocationMarks).toEqual([originLocationId]);
+      expect(durableLocationMarks).not.toContain(PRESENCE_LOCATION_KORCHMA_QUEST_TABLE);
+      expect(finalLocationId).toBe(originLocationId);
+    }
+  );
 
   it("records the edited callback message as the active persistent fight card", async () => {
     rememberLatestMessageForChat(42, 10);
@@ -4664,6 +5244,27 @@ describe("scene callback HTML options", () => {
     expect(markAction.mock.calls.some(([input]) => input.locationId === "location.korchma.deep.level1")).toBe(false);
   });
 
+  it("delivers fresh Passage Search achievement unlocks after the callback result", async () => {
+    const checkSearch = vi.fn().mockResolvedValue(passageSearchCompletedResult([{
+      id: "achievement.iskrokamin.first-owned",
+      title: "Іскра в кишені",
+      cosmeticTitleGrantId: null,
+      unlockedAt: new Date("2026-06-27T09:00:42.000Z")
+    }]));
+    const calls = await captureApiCalls(
+      makePassageSearchCheckCallbackData("searchtok13"),
+      servicesWith({ passageSearch: { checkSearch } })
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const messages = calls.filter((call) => call.method === "sendMessage");
+
+    expect(checkSearch).toHaveBeenCalledWith(42n, "searchtok13");
+    expect(String(edits[0]?.payload.text)).toContain("Щось знайшлося");
+    expect(messages).toHaveLength(1);
+    expect(String(messages[0]?.payload.text)).toContain("Іскра в кишені");
+    expect(messages[0]?.payload.parse_mode).toBe("HTML");
+  });
+
   it("blocks item-use preview creation while a passage search is running", async () => {
     const createPreviewForTelegramUser = vi.fn();
     const calls = await captureApiCalls(
@@ -5464,9 +6065,8 @@ describe("scene callback HTML options", () => {
   });
 
   it("keeps remort callbacks inside an active turn-based duel", async () => {
-    const getActiveTurnBasedForTelegramUser = vi.fn(() =>
-      Promise.resolve(activeTurnBasedDuel())
-    );
+    const active = activeTurnBasedDuel();
+    const getActiveTurnBasedForTelegramUser = vi.fn(() => Promise.resolve(active));
     const openForTelegramUser = vi.fn(() =>
       Promise.resolve({
         state: "locked" as const,
@@ -5478,7 +6078,8 @@ describe("scene callback HTML options", () => {
       makeRemortOpenCallbackData(),
       servicesWith({
         duel: {
-          getActiveTurnBasedForTelegramUser
+          getActiveTurnBasedForTelegramUser,
+          getByToken: vi.fn(() => Promise.resolve(active))
         },
         remort: {
           openForTelegramUser
@@ -5491,6 +6092,862 @@ describe("scene callback HTML options", () => {
     expect(openForTelegramUser).not.toHaveBeenCalled();
     expect(String(edit?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(edit?.payload.text)).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
+  });
+
+  it("routes repeated active turn-duel deep links and stale owner Refresh to one canonical private card", async () => {
+    const active = activeTurnBasedDuel({
+      challengerChatId: null,
+      challengerMessageId: null
+    });
+    const production = productionTurnDuelService(active);
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const services = servicesWith({
+      duel: production.service,
+      presence: {
+        ...base.presence,
+        markAction
+      }
+    });
+
+    const first = await captureTextApiCalls(
+      "/start duel_turnbased_abcDEF12",
+      services,
+      { asCommand: true, messageResults: true }
+    );
+    const canonicalMessageId = production.current().session.challengerMessageId;
+    const second = await captureTextApiCalls(
+      "/start duel_turnbased_abcDEF12",
+      services,
+      { asCommand: true, messageResults: true }
+    );
+    const staleRefresh = await captureApiCalls(
+      "v1:duel:view:abcDEF12",
+      services,
+      { messageResults: true }
+    );
+
+    expect(canonicalMessageId).not.toBeNull();
+    const firstFallback = first.find((call) => call.method === "sendMessage");
+    expect(firstFallback?.payload.reply_markup).toEqual({ inline_keyboard: [] });
+    expect(first.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === canonicalMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(second.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+    expect(second.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === canonicalMessageId
+    )).toBe(true);
+    expect(staleRefresh.some((call) =>
+      call.method === "editMessageReplyMarkup" &&
+      call.payload.message_id === 10 &&
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toBe(true);
+    expect(staleRefresh.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === canonicalMessageId
+    )).toBe(true);
+    expect(staleRefresh.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+    expect(production.current().session.challengerMessageId).toBe(canonicalMessageId);
+    expect(markAction.mock.calls.map((call) => call[0])).toEqual([
+      { user: { telegramUserId: 42n, displayName: "Тест" } },
+      { user: { telegramUserId: 42n, displayName: "Тест" } },
+      { user: { telegramUserId: 42n, displayName: "Тест" } }
+    ]);
+  });
+
+  it("lets a losing concurrent final accept pass an active pre-handler lock check without creating a second card", async () => {
+    const active = activeTurnBasedDuel({
+      challengerChatId: null,
+      challengerMessageId: null,
+      targetChatId: null,
+      targetMessageId: null
+    });
+    let current: ReturnType<typeof activeTurnBasedDuel> | null = null;
+    let resolveWinnerStarted!: () => void;
+    const winnerStarted = new Promise<void>((resolve) => {
+      resolveWinnerStarted = resolve;
+    });
+    let resolveLoserAccepted!: () => void;
+    const loserAccepted = new Promise<void>((resolve) => {
+      resolveLoserAccepted = resolve;
+    });
+    let precheckCount = 0;
+    const observedPrechecks: Array<"none" | "active"> = [];
+    const getActiveTurnBasedForTelegramUser = vi.fn(async () => {
+      precheckCount += 1;
+      if (precheckCount === 1) {
+        observedPrechecks.push("none");
+        return null;
+      }
+      await winnerStarted;
+      observedPrechecks.push(current?.state === "active" ? "active" : "none");
+      return current;
+    });
+    let acceptCount = 0;
+    const acceptForTelegramUser = vi.fn(async () => {
+      acceptCount += 1;
+      if (acceptCount === 1) {
+        current = active;
+        resolveWinnerStarted();
+        await loserAccepted;
+        return { ...active, transitioned: true };
+      }
+      resolveLoserAccepted();
+      return { ...active, transitioned: false };
+    });
+    const production = productionTurnDuelService(active, {
+      getActiveTurnBasedForTelegramUser,
+      acceptForTelegramUser,
+      getCurrent: () => current ?? active
+    });
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const calls = await captureConcurrentApiCalls(
+      ["v1:duel:accept-risk:abcDEF12", "v1:duel:accept-risk:abcDEF12"],
+      servicesWith({
+        duel: production.service,
+        presence: { ...base.presence, markAction }
+      }),
+      99,
+      { messageResults: true }
+    );
+    const canonical = production.current().session.targetMessageId;
+    const targetSends = calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 99
+    );
+    const actionableTargetCards = calls.filter((call) =>
+      call.method === "editMessageText" &&
+      call.payload.chat_id === 99 &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    );
+
+    expect(observedPrechecks).toEqual(["none", "active"]);
+    expect(acceptForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) =>
+      call.method === "editMessageReplyMarkup" &&
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toHaveLength(2);
+    expect(targetSends.filter((call) =>
+      JSON.stringify(call.payload.reply_markup) === JSON.stringify({ inline_keyboard: [] })
+    )).toHaveLength(1);
+    expect(actionableTargetCards).toHaveLength(1);
+    expect(actionableTargetCards[0]?.payload.message_id).toBe(canonical);
+    expect(production.current().session.targetMessageId).toBe(canonical);
+    expect(markAction.mock.calls.filter((call) => call[0]?.locationId === undefined).map((call) => call[0])).toEqual([
+      { user: { telegramUserId: 99n, displayName: "Тест" } }
+    ]);
+    expect(markAction.mock.calls.filter((call) => call[0]?.locationId !== undefined).map((call) => call[0])).toEqual([
+      {
+        user: { telegramUserId: 99n, displayName: "Тест" },
+        locationId: "location.korchma.fighting_corner",
+        currentRaidId: null,
+        currentAdventureId: "adventure.duel-challenge"
+      }
+    ]);
+  });
+
+  it.each(["persistent combat", "Training", "party boss"])(
+    "keeps Quick final acceptance non-mutating when the challenger creates an invite then enters %s",
+    async () => {
+      const active = activeTurnBasedDuel();
+      const challenge = {
+        ...active.challenge,
+        mode: "quick" as const,
+        status: "pending" as const,
+        expiresAt: new Date("2026-07-18T12:13:00.000Z")
+      };
+      const createOpenChallengeForTelegramUser = vi.fn<DuelChallengeService["createOpenChallengeForTelegramUser"]>()
+        .mockResolvedValue({
+          state: "pending",
+          challenge,
+          challenger: active.challenger,
+          challengerResourceWarning: null,
+          expiresAt: challenge.expiresAt,
+          now: new Date("2026-07-18T12:00:00.000Z")
+        });
+      const acceptForTelegramUser = vi.fn<DuelChallengeService["acceptForTelegramUser"]>()
+        .mockResolvedValue({
+          state: "busy",
+          challenge,
+          challenger: active.challenger,
+          target: active.target,
+          busyCharacter: active.challenger
+        });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const services = servicesWith({
+        duel: {
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createOpenChallengeForTelegramUser,
+          acceptForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      });
+
+      await captureApiCalls(
+        "v1:duel:new",
+        services,
+        { telegramUserId: 42 }
+      );
+      expect(createOpenChallengeForTelegramUser).toHaveBeenCalledWith(42n, {
+        contextChatId: 42n,
+        ignoreResourceWarning: false
+      });
+      markAction.mockClear();
+
+      const calls = await captureApiCalls(
+        "v1:duel:accept-risk:abcDEF12",
+        services,
+        { telegramUserId: 99 }
+      );
+
+      expect(acceptForTelegramUser).toHaveBeenCalledOnce();
+      expect(acceptForTelegramUser).toHaveBeenCalledWith(99n, "abcDEF12", {
+        confirmed: true,
+        ignoreResourceWarning: true
+      });
+      expect(challenge.status).toBe("pending");
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+      expect(calls.some((call) =>
+        call.method === "editMessageText" &&
+        String(call.payload.text).includes(active.challenger.name)
+      )).toBe(true);
+    }
+  );
+
+  it("keeps an exact active turn-duel action operable while Friday Barrel is pending", async () => {
+    const active = activeTurnBasedDuel();
+    const production = productionTurnDuelService(active);
+    const resolveTurnBasedActionForTelegramUser = vi.fn()
+      .mockResolvedValue({ state: "updated", session: active.session });
+    const pendingRaid = vi.fn().mockResolvedValue({
+      state: "pending" as const,
+      character,
+      availableAt: new Date("2026-07-18T12:13:00.000Z"),
+      now: new Date("2026-07-18T12:00:00.000Z")
+    });
+    const services = servicesWith({
+      duel: {
+        ...production.service,
+        resolveTurnBasedActionForTelegramUser
+      } as unknown as BotServices["duel"],
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: pendingRaid
+      } as unknown as BotServices["tavern"]
+    });
+
+    const exact = await captureApiCalls(
+      makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1),
+      services,
+      { messageResults: true }
+    );
+    const unrelated = await captureApiCalls(
+      makeDuelTurnCallbackData("otherABC12", "attack", 1, 1),
+      services,
+      { messageResults: true }
+    );
+
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledWith(42n, {
+      inviteToken: "abcDEF12",
+      expectedTurn: 1,
+      expectedVersion: 1,
+      action: "attack"
+    });
+    expect(exact.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === active.session.challengerMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(exact.some((call) => String(call.payload.text).includes("Бочка"))).toBe(false);
+    expect(unrelated.some((call) => String(call.payload.text).includes("Бочка"))).toBe(true);
+  });
+
+  it("keeps exact active Refresh operable while Friday Barrel is pending", async () => {
+    const active = activeTurnBasedDuel();
+    const production = productionTurnDuelService(active);
+    const calls = await captureApiCalls(
+      "v1:duel:view:abcDEF12",
+      servicesWith({
+        duel: production.service,
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({
+            state: "pending" as const,
+            character,
+            availableAt: new Date("2026-07-18T12:13:00.000Z"),
+            now: new Date("2026-07-18T12:00:00.000Z")
+          })
+        } as unknown as BotServices["tavern"]
+      }),
+      { messageResults: true }
+    );
+
+    expect(calls.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === active.session.challengerMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(calls.every((call) =>
+      call.payload.message_id !== active.session.challengerMessageId ||
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    )).toBe(true);
+  });
+
+  it.each([
+    ["action", makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1)],
+    ["Refresh", "v1:duel:view:abcDEF12"]
+  ])("repairs the terminal canonical card when pending Barrel resolves between middleware and %s", async (_route, callbackData) => {
+    const active = activeTurnBasedDuel({ challengerMessageId: 10 });
+    const resolved = resolvedTurnBasedDuel(active);
+    let routeRead = 0;
+    const getTurnBasedRouteForTelegramUser = vi.fn(() => {
+      routeRead += 1;
+      return Promise.resolve(routeRead === 1
+        ? { state: "active" as const, session: active.session, view: active }
+        : { state: "resolved" as const, session: resolved.session, view: resolved.view });
+    });
+    const resolveTurnBasedActionForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser,
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
+          getByToken: vi.fn().mockResolvedValue(resolved.view),
+          resolveTurnBasedActionForTelegramUser
+        } as unknown as BotServices["duel"],
+        tavern: pendingFridayBarrelServices()
+      }),
+      { messageResults: true }
+    );
+    const canonicalEdits = calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    );
+    const finalEdit = canonicalEdits.at(-1);
+
+    expect(getTurnBasedRouteForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(resolveTurnBasedActionForTelegramUser).not.toHaveBeenCalled();
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).toContain("v1:duel:rematch");
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).not.toContain("v1:duel:t:");
+    expect(canonicalEdits.every((call) =>
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    )).toBe(true);
+  });
+
+  it.each([
+    ["old action", makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1)],
+    ["old Refresh", "v1:duel:view:abcDEF12"],
+    ["terminal rematch", "v1:duel:rematch:abcDEF12"],
+    ["terminal rematch-risk", "v1:duel:rematch-risk:abcDEF12"]
+  ])("blocks an already-resolved canonical %s during pending Barrel without touching the terminal card", async (_route, callbackData) => {
+    const resolved = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const getTurnBasedRouteForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resolved" as const,
+      session: resolved.session,
+      view: resolved.view
+    });
+    const createRematchForTelegramUser = vi.fn();
+    const resolveTurnBasedActionForTelegramUser = vi.fn();
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser,
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
+          getByToken: vi.fn().mockResolvedValue(resolved.view),
+          resolveTurnBasedActionForTelegramUser,
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        tavern: pendingFridayBarrelServices(),
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true }
+    );
+    const canonicalEdits = calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    );
+
+    expect(canonicalEdits).toHaveLength(0);
+    expect(calls.some((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Бочка")
+    )).toBe(true);
+    expect(resolveTurnBasedActionForTelegramUser).not.toHaveBeenCalled();
+    expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+    expect(resolved.session.challengerMessageId).toBe(10);
+    expect(resolved.session.status).toBe("forfeited");
+    expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+      .toContain("v1:duel:rematch:abcDEF12");
+  });
+
+  it.each([
+    ["active turn duel Y", "rematch", "active-turn"],
+    ["active turn duel Y", "rematch-risk", "active-turn"],
+    ["persistent combat", "rematch", "persistent"],
+    ["persistent combat", "rematch-risk", "persistent"],
+    ["Training", "rematch", "training"],
+    ["Training", "rematch-risk", "training"],
+    ["party-boss combat", "rematch", "party-boss"],
+    ["party-boss combat", "rematch-risk", "party-boss"]
+  ] as const)(
+    "keeps resolved duel X isolated when %s blocks historical %s",
+    async (_label, rematchKind, lock) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const activeYSeed = activeTurnBasedDuel({ challengerMessageId: 20 });
+      const activeY = {
+        ...activeYSeed,
+        challenge: {
+          ...activeYSeed.challenge,
+          id: "duel-y",
+          inviteToken: "duelYABC12"
+        },
+        session: {
+          ...activeYSeed.session,
+          id: "session-y",
+          duelChallengeId: "duel-y"
+        }
+      } as ActiveTurnBasedDuelView;
+      const durableState = {
+        characterResources: { hp: 7, mana: 3 },
+        challengeWrites: 0,
+        questWrites: 0,
+        activityWrites: 0
+      };
+      const initialDurableState = structuredClone(durableState);
+      const createRematchForTelegramUser = vi.fn(() => {
+        durableState.characterResources.hp = 24;
+        durableState.characterResources.mana = 12;
+        durableState.challengeWrites += 1;
+        durableState.questWrites += 1;
+        durableState.activityWrites += 1;
+        return Promise.reject(new Error("blocked historical rematch reached the service"));
+      });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const currentLockServices = lock === "active-turn"
+        ? {}
+        : duelCombatLockServices(lock);
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          ...currentLockServices,
+          duel: {
+            getTurnBasedRouteForTelegramUser: vi.fn((_telegramUserId, token) => {
+              if (token === "abcDEF12") {
+                return Promise.resolve({
+                  state: "resolved" as const,
+                  session: resolvedX.session,
+                  view: resolvedX.view
+                });
+              }
+              return Promise.resolve({ state: "not-found" as const });
+            }),
+            getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(
+              lock === "active-turn" ? activeY : null
+            ),
+            getByToken: vi.fn((token) => Promise.resolve(
+              token === "duelYABC12" ? activeY : resolvedX.view
+            )),
+            getTurnBasedSessionByToken: vi.fn((token) => Promise.resolve(
+              token === "duelYABC12" ? activeY.session : resolvedX.session
+            )),
+            createRematchForTelegramUser
+          } as unknown as BotServices["duel"],
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+      expect(durableState).toEqual(initialDurableState);
+      expect(markAction).not.toHaveBeenCalled();
+      expect(resolvedX.session.status).toBe("forfeited");
+      expect(resolvedX.session.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      if (lock === "active-turn") {
+        expect(calls.some((call) =>
+          call.method === "editMessageText" && call.payload.message_id === 20
+        )).toBe(true);
+      } else {
+        expect(calls.some((call) =>
+          call.method === "sendMessage" && String(call.payload.text).includes("Бій тримає вас за рукав")
+        )).toBe(true);
+      }
+    }
+  );
+
+  it.each(["rematch", "rematch-risk"] as const)(
+    "uses the real DuelChallengeService busy decision for a late-combat historical %s",
+    async (rematchKind) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const actor = duelCharacterSnapshot("character-1", 42n, 2);
+      const target = duelCharacterSnapshot("character-2", 99n, 3);
+      const challenge: DuelChallengeRecord = {
+        id: "duel-1",
+        challengerCharacterId: actor.id,
+        targetCharacterId: target.id,
+        contextChatId: 42n,
+        inviteToken: "abcDEF12",
+        mode: "turn-based",
+        status: "resolved",
+        expiresAt: new Date("2026-06-19T12:13:00.000Z"),
+        resolvedAt: new Date("2026-06-19T12:01:00.000Z"),
+        result: resolvedX.view.result,
+        createdAt: new Date("2026-06-19T12:00:00.000Z"),
+        updatedAt: new Date("2026-06-19T12:01:00.000Z"),
+        challenger: actor,
+        target
+      };
+      const storedSession = {
+        ...resolvedX.session,
+        challenge
+      };
+      const createTargetedRematchForTelegramUser = vi.fn()
+        .mockResolvedValue({ record: null, busyCharacterId: actor.id });
+      const repository = {
+        findByToken: vi.fn().mockResolvedValue(challenge),
+        findCharacterByTelegramUser: vi.fn().mockImplementation((telegramUserId: bigint) =>
+          Promise.resolve(telegramUserId === actor.telegramUserId ? actor : target)
+        ),
+        countResolvedBetweenCharacterPairSince: vi.fn().mockResolvedValue(0),
+        createTargetedRematchForTelegramUser,
+        findTurnBasedByTokenForTelegramUserId: vi.fn().mockResolvedValue(storedSession),
+        findActiveTurnBasedByTelegramUserId: vi.fn().mockResolvedValue(null)
+      } as unknown as DuelChallengeRepository;
+      const characters = {
+        findByTelegramUserId: vi.fn().mockResolvedValue(actor)
+      } as unknown as CharacterRepository;
+      const service = new DuelChallengeService(
+        repository,
+        characters,
+        () => new Date("2026-06-19T12:02:00.000Z")
+      );
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          duel: service,
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      expect(createTargetedRematchForTelegramUser).toHaveBeenCalledOnce();
+      expect(createTargetedRematchForTelegramUser).toHaveBeenCalledWith(
+        42n,
+        target.id,
+        expect.any(Object),
+        undefined,
+        { authorizeOnly: true }
+      );
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.filter((call) => call.method === "answerCallbackQuery")).toHaveLength(1);
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      expect(storedSession.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+    }
+  );
+
+  it.each([
+    ["a newer turn duel", "rematch"],
+    ["a newer turn duel", "rematch-risk"],
+    ["persistent combat", "rematch"],
+    ["persistent combat", "rematch-risk"],
+    ["Training", "rematch"],
+    ["Training", "rematch-risk"],
+    ["party-boss combat", "rematch"],
+    ["party-boss combat", "rematch-risk"]
+  ] as const)(
+    "keeps historical duel X unchanged when %s acquires its lease after the %s middleware precheck",
+    async (_lock, rematchKind) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const durableState = {
+        characterResources: { hp: 7, mana: 3 },
+        recoveryAnchors: 0,
+        notifications: 0,
+        challengeWrites: 0,
+        questWrites: 0,
+        activityWrites: 0
+      };
+      const before = structuredClone(durableState);
+      const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+        .mockResolvedValue({ state: "busy" });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const getActiveTurnBasedForTelegramUser = vi.fn().mockResolvedValue(null);
+      const getFightOverviewForTelegramUser = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        character,
+        questProgress: null
+      });
+      const getActiveForTelegramUser = vi.fn().mockResolvedValue(null);
+      const base = servicesWith({});
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          duel: {
+            getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+              state: "resolved" as const,
+              session: resolvedX.session,
+              view: resolvedX.view
+            }),
+            getActiveTurnBasedForTelegramUser,
+            createRematchForTelegramUser
+          } as unknown as BotServices["duel"],
+          fight: { getFightOverviewForTelegramUser } as unknown as BotServices["fight"],
+          partyBoss: {
+            getActiveForTelegramUser,
+            areDevHelpersEnabled: () => false
+          } as unknown as BotServices["partyBoss"],
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      const rematchCallOrder = createRematchForTelegramUser.mock.invocationCallOrder[0];
+      expect(getActiveTurnBasedForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(getActiveForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(getFightOverviewForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+      expect(durableState).toEqual(before);
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      expect(resolvedX.session.status).toBe("forfeited");
+      expect(resolvedX.session.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+    }
+  );
+
+  it.each([
+    ["rematch", "v1:duel:rematch:abcDEF12"],
+    ["rematch-risk", "v1:duel:rematch-risk:abcDEF12"]
+  ])("suppresses the late-Friday heartbeat and preserves terminal X for %s", async (_route, callbackData) => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingFriday = vi.fn()
+      .mockResolvedValueOnce({ state: "none" as const })
+      .mockResolvedValueOnce({
+        state: "pending" as const,
+        character,
+        availableAt: new Date("2026-07-18T12:13:00.000Z"),
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const createRematchForTelegramUser = vi.fn();
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser: pendingFriday
+        } as unknown as BotServices["tavern"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true }
+    );
+
+    expect(pendingFriday).toHaveBeenCalledTimes(2);
+    expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+    expect(calls.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    )).toBe(false);
+    expect(calls.some((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Бочка")
+    )).toBe(true);
+    expect(resolvedX.session.challengerMessageId).toBe(10);
+  });
+
+  it("records exactly one neutral heartbeat for an allowed outside-combat rematch", async () => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingChallenge = {
+      ...resolvedX.view.challenge,
+      id: "allowed-rematch",
+      inviteToken: "allowedABC12",
+      status: "pending" as const,
+      resolvedAt: null,
+      result: null,
+      expiresAt: new Date("2026-07-18T12:13:00.000Z")
+    };
+    const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+      .mockResolvedValue({
+        state: "pending",
+        challenge: pendingChallenge,
+        challenger: resolvedX.view.challenger,
+        challengerResourceWarning: null,
+        expiresAt: pendingChallenge.expiresAt,
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+
+    await captureApiCalls(
+      "v1:duel:rematch:abcDEF12",
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true }
+    );
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+    expect(markAction).toHaveBeenCalledOnce();
+    expect(markAction.mock.calls[0]?.[0].user.telegramUserId).toBe(42n);
+  });
+
+  it("delivers a committed rematch when the deferred neutral heartbeat fails", async () => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingChallenge = {
+      ...resolvedX.view.challenge,
+      id: "heartbeat-failed-rematch",
+      inviteToken: "heartABC12",
+      status: "pending" as const,
+      resolvedAt: null,
+      result: null,
+      expiresAt: new Date("2026-07-18T12:13:00.000Z")
+    };
+    const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+      .mockResolvedValue({
+        state: "pending",
+        challenge: pendingChallenge,
+        challenger: resolvedX.view.challenger,
+        challengerResourceWarning: null,
+        expiresAt: pendingChallenge.expiresAt,
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const presenceFailure = new Error("presence unavailable");
+    const markAction = vi.fn<PresenceService["markAction"]>().mockRejectedValue(presenceFailure);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const base = servicesWith({});
+    const calls = await captureApiCalls(
+      "v1:duel:rematch:abcDEF12",
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true, botUsername: "kvestarnia_bot" }
+    );
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+    expect(markAction).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith(
+      "Квестарня: присутність гравця не оновилась.",
+      presenceFailure
+    );
+    expect(calls.filter((call) => call.method === "answerCallbackQuery")).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    )).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 42
+    )).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 99
+    )).toHaveLength(1);
+  });
+
+  it.each([
+    ["persistent", "Quick create", "callback", "v1:duel:new"],
+    ["persistent", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["persistent", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["persistent", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["persistent", "/duel", "command", "/duel"],
+    ["persistent", "turn create", "callback", "v1:duel:new-t"],
+    ["persistent", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["persistent", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["training", "Quick create", "callback", "v1:duel:new"],
+    ["training", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["training", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["training", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["training", "/duel", "command", "/duel"],
+    ["training", "turn create", "callback", "v1:duel:new-t"],
+    ["training", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["training", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["party-boss", "Quick create", "callback", "v1:duel:new"],
+    ["party-boss", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
+    ["party-boss", "Quick rematch", "callback", "v1:duel:rematch:quickABC12"],
+    ["party-boss", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["party-boss", "/duel", "command", "/duel"],
+    ["party-boss", "turn create", "callback", "v1:duel:new-t"],
+    ["party-boss", "turn accept", "callback", "v1:duel:accept-risk:turnABC12"],
+    ["party-boss", "turn deep link", "command", "/start duel_turnbased_turnABC12"],
+    ["pending-raid", "Quick deep link", "command", "/start duel_quickABC12"],
+    ["pending-raid", "turn deep link", "command", "/start duel_turnbased_turnABC12"]
+  ] as const)("keeps %s combat isolation for %s", async (lock, _route, kind, input) => {
+    const mutations = {
+      create: vi.fn(() => Promise.reject(new Error("blocked duel create reached handler"))),
+      accept: vi.fn(() => Promise.reject(new Error("blocked duel accept reached handler"))),
+      rematch: vi.fn(() => Promise.reject(new Error("blocked duel rematch reached handler"))),
+      open: vi.fn(() => Promise.reject(new Error("blocked duel open reached handler")))
+    };
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const services = servicesWith({
+      ...duelCombatLockServices(lock),
+      duel: {
+        getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+        createOpenChallengeForTelegramUser: mutations.create,
+        acceptForTelegramUser: mutations.accept,
+        createRematchForTelegramUser: mutations.rematch,
+        getByToken: mutations.open
+      } as unknown as BotServices["duel"],
+      presence: {
+        ...base.presence,
+        markAction
+      }
+    });
+
+    if (kind === "callback") {
+      await captureApiCalls(input, services);
+    } else {
+      await captureTextApiCalls(input, services, { asCommand: true, messageResults: true });
+    }
+
+    expect(mutations.create).not.toHaveBeenCalled();
+    expect(mutations.accept).not.toHaveBeenCalled();
+    expect(mutations.rematch).not.toHaveBeenCalled();
+    expect(mutations.open).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
   });
 
   it("keeps main-menu text inside an active training fight", async () => {
@@ -5643,6 +7100,44 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("/dev_help");
     expect(String(reply?.payload.text)).toContain("/dev_add_xp");
     expect(JSON.stringify(reply?.payload.reply_markup)).toContain(mainMenuButtons.admin);
+  });
+
+  it("primes deterministic natural Iskrokamin loot through the existing Passage Search reset command", async () => {
+    const devReset = vi.fn().mockResolvedValue({
+      state: "cleared",
+      character,
+      actions: 1,
+      cooldowns: 2,
+      nextLootFixture: "iskrokamin"
+    });
+    const calls = await captureTextApiCalls(
+      "/dev_reset_passage_search iskrokamin",
+      servicesWith({
+        devGrant: { isEnabled: () => true },
+        passageSearch: { devReset }
+      }),
+      { asCommand: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(devReset).toHaveBeenCalledWith(42n, { nextLoot: "iskrokamin" });
+    expect(String(reply?.payload.text)).toContain("природний пошук гарантовано знайде Іскрокамінь");
+  });
+
+  it("keeps the Passage Search loot fixture disabled with production dev grants", async () => {
+    const devReset = vi.fn();
+    const calls = await captureTextApiCalls(
+      "/dev_reset_passage_search iskrokamin",
+      servicesWith({
+        devGrant: { isEnabled: () => false },
+        passageSearch: { devReset }
+      }),
+      { asCommand: true }
+    );
+    const reply = calls.find((call) => call.method === "sendMessage");
+
+    expect(devReset).not.toHaveBeenCalled();
+    expect(String(reply?.payload.text)).toContain("лише в локальній майстерні");
   });
 
   it("lets persistent, training, and starter combat callbacks reach their handlers", async () => {
@@ -6419,17 +7914,38 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).not.toContain("fight-normal");
   });
 
-  it("marks canonical solo-fight presence when an adventure complication starts a new fight", async () => {
-    const markAction = vi.fn(() => Promise.resolve());
-    const getOrStartPersistentFightForTelegramUser = vi.fn(() =>
-      Promise.resolve({
+  it.each([
+    ["front", "location.korchma.front"],
+    ["yard", "location.korchma.yard"],
+    ["Quest Table", "location.korchma.quest_table"]
+  ] as const)("keeps an adventure complication fight at the current %s location", async (_name, locationId) => {
+    let currentLocationId = locationId;
+    const markAction = vi.fn((input: MarkPresenceInput) => {
+      if (input.locationId) {
+        currentLocationId = input.locationId;
+      }
+      return Promise.resolve();
+    });
+    const getOrStartPersistentFightForTelegramUser = vi.fn(
+      (_telegramUserId: bigint, options: { originLocationId: string }) => {
+        const baseSession = persistentSessionWithOrigin(options.originLocationId);
+
+        return Promise.resolve({
         state: "persistent-active" as const,
         started: true,
         character: {
           ...character,
+          currentLocationId: locationId,
           level: 3
         },
-        session: persistentSession("monster.borshch-slime"),
+        session: {
+          ...baseSession,
+          state: {
+            ...baseSession.state,
+            source: "adventure" as const,
+            life: { remortCount: 4 }
+          }
+        },
         monster: {
           id: "monster.borshch-slime",
           name: "Борщовий слиз",
@@ -6438,7 +7954,8 @@ describe("scene callback HTML options", () => {
           tags: ["slime", "food"]
         },
         questProgress: null
-      })
+        });
+      }
     );
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() => Promise.resolve("missing" as const));
     const calls = await captureApiCalls(
@@ -6452,7 +7969,7 @@ describe("scene callback HTML options", () => {
           completeAdventureApproach: () =>
             Promise.resolve({
               state: "completed" as const,
-              character,
+              character: { ...character, currentLocationId: locationId },
               choice: adventureChoice,
               approach: adventureApproach,
               reward: { xp: 0, gold: 0, localDate: "12026-06-12", itemGrants: [] },
@@ -6477,19 +7994,44 @@ describe("scene callback HTML options", () => {
           getOrStartPersistentFightForTelegramUser
         },
         presence: {
-          markAction
+          markAction,
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: currentLocationId,
+              locationName: "Поточна місцина",
+              insideKorchma: true
+            })
         }
       })
     );
 
     expect(rollbackCurrentAdventureClaimForTelegramUser).not.toHaveBeenCalled();
+    expect(getOrStartPersistentFightForTelegramUser).toHaveBeenCalledWith(42n, {
+      source: "adventure",
+      originLocationId: locationId,
+      difficulty: "normal",
+      target: { monsterIds: ["monster.borshch-slime"] }
+    });
     expect(markAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        locationId: "location.korchma.deep.level1",
+        locationId,
         currentAdventureId: "adventure.solo-fight"
       })
     );
+    expect(currentLocationId).toBe(locationId);
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "sendMessage" &&
+          String(call.payload.text).includes("Ви спустилися до Сутеренів Корчми.")
+      )
+    ).toBe(false);
     expect(calls.some((call) => call.method === "sendMessage" && String(call.payload.text).includes("Борщовий слиз"))).toBe(true);
+    const visibleRemortNotices = calls
+      .filter((call) => call.method === "sendMessage")
+      .flatMap((call) => String(call.payload.text).match(/Відплата за минулі пригоди/gu) ?? []);
+    expect(visibleRemortNotices).toHaveLength(1);
   });
 
   it("opens the selected Nyz passage preview without starting a fight", async () => {
@@ -8128,6 +9670,66 @@ function persistentSessionWithOrigin(originLocationId: string) {
   };
 }
 
+function completedAdventureFightHandoffResult(originLocationId: string) {
+  return {
+    state: "completed" as const,
+    character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+    choice: adventureChoice,
+    approach: adventureApproach,
+    reward: {
+      xp: 0,
+      gold: 0,
+      localDate: "12026-06-12",
+      itemGrants: []
+    },
+    levelChange: noLevelChange,
+    complication: true,
+    grade: "complication" as const,
+    consequence: "fight-handoff" as const,
+    outcome: {
+      headline: "⚠️ Справа дійшла до бійки",
+      body: ["Горщик викликав вас на чесний бій ложками."]
+    },
+    spentGold: 0,
+    hpLoss: null,
+    fightHandoff: true,
+    fightEncounter: { monsterId: "monster.borshch-slime" },
+    claim: {
+      key: "adventure.choice",
+      localDate: "12026-06-12"
+    },
+    check: {
+      roll: 13,
+      target: 45,
+      total: 13,
+      statBonus: 0,
+      grade: "complication" as const
+    }
+  };
+}
+
+function startedAdventurePersistentFight(originLocationId: string) {
+  const session = persistentSessionWithOrigin(originLocationId);
+
+  return {
+    state: "persistent-active" as const,
+    started: true,
+    character: { ...character, level: 3, xp: 25, currentLocationId: originLocationId },
+    session: {
+      ...session,
+      state: { ...session.state, source: "adventure" as const }
+    },
+    monster: {
+      id: "monster.borshch-slime",
+      name: "Борщовий слиз",
+      description: "Булькає статутом і буряком.",
+      level: 3,
+      tags: ["slime", "food"]
+    },
+    questProgress: null
+  };
+}
+
 function passageSearchMonsterAttackResult() {
   const now = new Date("2026-06-27T09:00:00.000Z");
   const session = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
@@ -8204,7 +9806,12 @@ function passageSearchRunningResult() {
   };
 }
 
-function passageSearchCompletedResult() {
+function passageSearchCompletedResult(achievementUnlocks: Array<{
+  id: string;
+  title: string;
+  cosmeticTitleGrantId: string | null;
+  unlockedAt: Date;
+}> = []) {
   return {
     state: "completed" as const,
     character: {
@@ -8221,7 +9828,8 @@ function passageSearchCompletedResult() {
     loot: {
       gold: 3,
       itemGrants: []
-    }
+    },
+    achievementUnlocks
   };
 }
 
@@ -8352,11 +9960,178 @@ function trainingMonster() {
   };
 }
 
-function activeTurnBasedDuel() {
+type ActiveTurnBasedDuelView = Extract<DuelChallengeView, { state: "active" }>;
+type ResolvedTurnBasedDuelView = Extract<DuelChallengeView, { state: "resolved" }>;
+
+function pendingFridayBarrelServices(): BotServices["tavern"] {
+  return {
+    getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({
+      state: "pending" as const,
+      character,
+      availableAt: new Date("2026-07-18T12:13:00.000Z"),
+      now: new Date("2026-07-18T12:00:00.000Z")
+    })
+  } as unknown as BotServices["tavern"];
+}
+
+function duelCombatLockServices(lock: "persistent" | "training" | "party-boss" | "pending-raid"): Partial<BotServices> {
+  if (lock === "persistent") {
+    return {
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({
+          state: "persistent-active" as const,
+          character,
+          session: persistentSession("monster.deadline-spider"),
+          monster: {
+            id: "monster.deadline-spider",
+            name: "Павук дедлайнів",
+            description: "Плете павутину з термінових справ.",
+            level: 2,
+            tags: ["beast", "time", "web"]
+          },
+          questProgress: null
+        })
+      } as unknown as BotServices["fight"]
+    };
+  }
+
+  if (lock === "training") {
+    return {
+      fight: {
+        getFightOverviewForTelegramUser: () => Promise.resolve({
+          state: "training-active" as const,
+          character,
+          session: trainingSession(),
+          questProgress: null
+        })
+      } as unknown as BotServices["fight"],
+      trainingDoppelganger: {
+        getStartOptionsForTelegramUser: () => Promise.resolve({
+          state: "active" as const,
+          character,
+          session: trainingSession(),
+          monster: trainingMonster()
+        })
+      } as unknown as BotServices["trainingDoppelganger"]
+    };
+  }
+
+  if (lock === "pending-raid") {
+    return {
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({
+          state: "pending" as const,
+          character,
+          availableAt: new Date("2026-07-17T12:13:00.000Z"),
+          now: new Date("2026-07-17T12:00:00.000Z")
+        })
+      } as unknown as BotServices["tavern"]
+    };
+  }
+
+  const active = partyBossCombatLockSession();
+  return {
+    partyBoss: {
+      getActiveForTelegramUser: vi.fn().mockResolvedValue(active),
+      hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false),
+      areDevHelpersEnabled: () => false
+    } as unknown as BotServices["partyBoss"]
+  };
+}
+
+function partyBossCombatLockSession() {
+  const participant = {
+    id: "character-42",
+    userId: "user-42",
+    telegramUserId: 42n,
+    name: "Тест",
+    currentLocationId: "location.korchma.hall",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    remortCount: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12
+  };
+  return {
+    id: "party-boss-1",
+    partySessionId: "party-1",
+    partyInviteToken: "partyABC12",
+    leaderCharacterId: participant.id,
+    status: "active" as const,
+    turn: 1,
+    version: 1,
+    rulesVersion: "party-boss-proof-v1",
+    bossKey: "party-boss-proof-one",
+    result: null,
+    turnExpiresAt: new Date("2026-07-17T12:00:23.000Z"),
+    completedAt: null,
+    participants: [participant],
+    state: {
+      rulesVersion: "party-boss-proof-v1",
+      partySessionId: "party-1",
+      status: "active" as const,
+      turn: 1,
+      boss: {
+        monsterId: "party-boss-proof-one",
+        name: "Контрольний бос",
+        level: 3,
+        hp: 42,
+        hpMax: 42,
+        attack: 8,
+        armor: 2,
+        resist: 1,
+        dexterity: 5,
+        tags: ["party-boss-proof"]
+      },
+      participants: [{
+        characterId: participant.id,
+        name: participant.name,
+        remortCount: 0,
+        status: "active" as const,
+        combatStats: {
+          level: 3,
+          hpMax: 24,
+          manaMax: 12,
+          hpCurrent: 24,
+          manaCurrent: 12,
+          strength: 7,
+          dexterity: 7,
+          intelligence: 6,
+          charisma: 6,
+          luck: 6,
+          raceId: participant.raceId,
+          classId: participant.classId
+        },
+        resources: { hp: 24, hpMax: 24, mana: 12, manaMax: 12 },
+        contribution: {
+          submittedActions: 0,
+          timeoutActions: 0,
+          damageDealt: 0,
+          damageTaken: 0
+        }
+      }],
+      roundLog: [],
+      startedAt: "2026-07-17T12:00:00.000Z"
+    }
+  };
+}
+
+function activeTurnBasedDuel(references: {
+  challengerChatId?: bigint | null;
+  challengerMessageId?: number | null;
+  targetChatId?: bigint | null;
+  targetMessageId?: number | null;
+} = {}): ActiveTurnBasedDuelView {
   return {
     state: "active",
     challenge: {
+      id: "duel-1",
       inviteToken: "abcDEF12",
+      mode: "turn-based",
+      status: "active",
       challengerCharacterId: "character-1",
       targetCharacterId: "character-2",
       challenger: {
@@ -8378,11 +10153,21 @@ function activeTurnBasedDuel() {
     now: new Date("2026-06-19T12:00:00.000Z"),
     session: {
       id: "session-1",
+      duelChallengeId: "duel-1",
       status: "active",
       challengerCharacterId: "character-1",
       targetCharacterId: "character-2",
+      actingCharacterId: "character-1",
       turn: 1,
       version: 1,
+      turnExpiresAt: new Date("2026-06-19T12:00:23.000Z"),
+      completedAt: null,
+      challengerChatId: references.challengerChatId === undefined ? 42n : references.challengerChatId,
+      challengerMessageId: references.challengerMessageId === undefined ? 501 : references.challengerMessageId,
+      targetChatId: references.targetChatId === undefined ? 99n : references.targetChatId,
+      targetMessageId: references.targetMessageId === undefined ? 502 : references.targetMessageId,
+      createdAt: new Date("2026-06-19T12:00:00.000Z"),
+      updatedAt: new Date("2026-06-19T12:00:00.000Z"),
       state: {
         mode: "turn-based",
         status: "active",
@@ -8396,7 +10181,181 @@ function activeTurnBasedDuel() {
         }
       }
     }
-  } as never;
+  } as unknown as ActiveTurnBasedDuelView;
+}
+
+function duelCharacterSnapshot(
+  id: string,
+  telegramUserId: bigint,
+  level: number
+): DuelCharacterSnapshot {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId,
+    currentLocationId: "location.korchma.fighting_corner",
+    name: id === "character-1" ? "Перший Кухоль" : "Другий Кухоль",
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level,
+    xp: level >= 3 ? 25 : 0,
+    gold: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    remortCount: 0,
+    equipment: []
+  };
+}
+
+function resolvedTurnBasedDuel(active: ActiveTurnBasedDuelView): {
+  view: ResolvedTurnBasedDuelView;
+  session: ActiveTurnBasedDuelView["session"];
+} {
+  const resolvedAt = new Date("2026-06-19T12:01:00.000Z");
+  const result = {
+    mode: "turn-based" as const,
+    terminalReason: "surrender" as const,
+    outcome: "challenger" as const,
+    winnerCharacterId: active.session.challengerCharacterId,
+    loserCharacterId: active.session.targetCharacterId,
+    challengerScore: 1,
+    targetScore: 0,
+    swing: 1,
+    flavorKey: "direct-hit"
+  };
+  const challenge = {
+    ...active.challenge,
+    status: "resolved" as const,
+    resolvedAt,
+    result
+  };
+  const session = {
+    ...active.session,
+    status: "forfeited" as const,
+    completedAt: resolvedAt,
+    updatedAt: resolvedAt,
+    challenge,
+    state: {
+      ...active.session.state,
+      status: "forfeited" as const
+    }
+  };
+
+  return {
+    session,
+    view: {
+      state: "resolved",
+      challenge,
+      challenger: active.challenger,
+      target: active.target,
+      result
+    } as unknown as ResolvedTurnBasedDuelView
+  };
+}
+
+function productionTurnDuelService(
+  initial: ActiveTurnBasedDuelView,
+  overrides: {
+    getActiveTurnBasedForTelegramUser?: DuelChallengeService["getActiveTurnBasedForTelegramUser"];
+    acceptForTelegramUser?: DuelChallengeService["acceptForTelegramUser"];
+    getCurrent?: () => ActiveTurnBasedDuelView;
+  } = {}
+) {
+  let current = initial;
+  const getCurrent = (): ActiveTurnBasedDuelView => overrides.getCurrent ? overrides.getCurrent() : current;
+  const claimTurnBasedMessageReference = vi.fn<DuelChallengeService["claimTurnBasedMessageReference"]>((
+    _sessionId: string,
+    participant: "challenger" | "target",
+    candidate: { chatId: bigint; messageId: number },
+    expected?: { chatId: bigint; messageId: number }
+  ) => {
+    const session = getCurrent().session;
+    const actual = participant === "challenger"
+      ? { chatId: session.challengerChatId, messageId: session.challengerMessageId }
+      : { chatId: session.targetChatId, messageId: session.targetMessageId };
+    const matches = expected
+      ? actual.chatId === expected.chatId && actual.messageId === expected.messageId
+      : actual.chatId == null && actual.messageId == null;
+    if (matches) {
+      if (participant === "challenger") {
+        session.challengerChatId = candidate.chatId;
+        session.challengerMessageId = candidate.messageId;
+      } else {
+        session.targetChatId = candidate.chatId;
+        session.targetMessageId = candidate.messageId;
+      }
+      current = getCurrent();
+    }
+    return Promise.resolve({ claimed: matches, session });
+  });
+  const releaseTurnBasedMessageReference = vi.fn<DuelChallengeService["releaseTurnBasedMessageReference"]>((
+    _sessionId: string,
+    participant: "challenger" | "target",
+    expected: { chatId: bigint; messageId: number }
+  ) => {
+    const session = getCurrent().session;
+    const matches = participant === "challenger"
+      ? session.challengerChatId === expected.chatId && session.challengerMessageId === expected.messageId
+      : session.targetChatId === expected.chatId && session.targetMessageId === expected.messageId;
+    if (matches) {
+      if (participant === "challenger") {
+        session.challengerChatId = null;
+        session.challengerMessageId = null;
+      } else {
+        session.targetChatId = null;
+        session.targetMessageId = null;
+      }
+    }
+    return Promise.resolve({ released: matches, session });
+  });
+  const getActiveTurnBasedForTelegramUser = overrides.getActiveTurnBasedForTelegramUser ??
+    vi.fn<DuelChallengeService["getActiveTurnBasedForTelegramUser"]>(() => Promise.resolve(getCurrent()));
+  const acceptForTelegramUser = overrides.acceptForTelegramUser ??
+    vi.fn<DuelChallengeService["acceptForTelegramUser"]>(() =>
+      Promise.resolve({ ...getCurrent(), transitioned: false })
+    );
+  const getByToken = vi.fn<DuelChallengeService["getByToken"]>(() => Promise.resolve(getCurrent()));
+  const getTurnBasedRouteForTelegramUser = vi.fn<
+    DuelChallengeService["getTurnBasedRouteForTelegramUser"]
+  >((_telegramUserId, inviteToken) => inviteToken === getCurrent().challenge.inviteToken
+    ? Promise.resolve({
+        state: "active",
+        session: getCurrent().session,
+        view: getCurrent()
+      })
+    : Promise.resolve({ state: "not-found" }));
+  const getTurnBasedSessionByToken = vi.fn<
+    DuelChallengeService["getTurnBasedSessionByToken"]
+  >(() => Promise.resolve(getCurrent().session));
+
+  return {
+    current: getCurrent,
+    claimTurnBasedMessageReference,
+    releaseTurnBasedMessageReference,
+    service: {
+      getActiveTurnBasedForTelegramUser,
+      acceptForTelegramUser,
+      getByToken,
+      getTurnBasedRouteForTelegramUser,
+      getTurnBasedSessionByToken,
+      claimTurnBasedMessageReference,
+      releaseTurnBasedMessageReference
+    } as unknown as BotServices["duel"]
+  };
 }
 
 function turnBasedParticipant(characterId: string, displayName: string) {
@@ -8608,9 +10567,14 @@ async function captureApiCalls(
     failMethod?: string;
     failure?: Error;
     telegramUserId?: number;
+    botUsername?: string;
   } = {}
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", services);
+  const bot = createBot(
+    "123456:test-token",
+    services,
+    options.botUsername ? { botUsername: options.botUsername } : {}
+  );
   const calls: ApiCall[] = [];
   const telegramUserId = options.telegramUserId ?? 42;
 
@@ -8751,6 +10715,77 @@ async function captureRepeatedApiCalls(
   return calls;
 }
 
+async function captureConcurrentApiCalls(
+  callbackDataList: string[],
+  services: BotServices,
+  telegramUserId: number,
+  options: { messageResults?: boolean } = {}
+): Promise<ApiCall[]> {
+  const bot = createBot("123456:test-token", services);
+  const calls: ApiCall[] = [];
+
+  bot.api.config.use((_prev, method, payload) => {
+    calls.push({ method, payload });
+
+    if (method === "getMe") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          id: 123456,
+          is_bot: true,
+          first_name: "Квестарня",
+          username: "kvestarnia_bot"
+        }
+      });
+    }
+
+    if (options.messageResults && method === "sendMessage") {
+      return Promise.resolve({
+        ok: true,
+        result: {
+          message_id: calls.length,
+          date: 0,
+          chat: {
+            id: Number(payload.chat_id),
+            type: "private"
+          }
+        }
+      });
+    }
+
+    return Promise.resolve({ ok: true, result: true });
+  });
+
+  await bot.init();
+  await Promise.all(callbackDataList.map((callbackData, index) =>
+    bot.handleUpdate({
+      update_id: index + 1,
+      callback_query: {
+        id: `concurrent-callback-${index + 1}`,
+        from: {
+          id: telegramUserId,
+          is_bot: false,
+          first_name: "Тест"
+        },
+        chat_instance: "chat-instance",
+        data: callbackData,
+        message: {
+          message_id: 10,
+          date: 0,
+          chat: {
+            id: telegramUserId,
+            type: "private",
+            first_name: "Тест"
+          },
+          text: "old"
+        }
+      }
+    })
+  ));
+
+  return calls;
+}
+
 async function captureTextApiCalls(
   text: string,
   services: BotServices,
@@ -8841,7 +10876,7 @@ async function captureTextApiCalls(
               {
                 type: "bot_command" as const,
                 offset: 0,
-                length: text.length
+                length: text.split(/\s/, 1)[0]?.length ?? text.length
               }
             ]
           }

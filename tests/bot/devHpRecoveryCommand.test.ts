@@ -15,7 +15,7 @@ describe("dev_hp_recovery_due", () => {
 
     expect(command).not.toHaveBeenCalled();
     expect(prepareDueForTelegramUser).not.toHaveBeenCalled();
-    expect(getTelegramMenuCommands({ includeDevGrant: true }).some(
+    expect(getTelegramMenuCommands({ includeDevReset: false, includeHpRecovery: true }).some(
       (entry) => entry.command === "dev_hp_recovery_due"
     )).toBe(false);
   });

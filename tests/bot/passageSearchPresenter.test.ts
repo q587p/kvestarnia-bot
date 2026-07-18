@@ -52,6 +52,28 @@ describe("passage search presenter", () => {
     expect(text).not.toContain("<b>Shannar de Kassal</b>");
     expect(text).not.toContain("Шахтна Іскрознавиця");
   });
+
+  it("separates found Iskrokamin from gold as an actual item grant", () => {
+    const text = presentPassageSearch({
+      state: "completed",
+      character,
+      action: passageSearchAction(),
+      loot: {
+        gold: 1,
+        itemGrants: [{
+          itemId: "item.iskrokamin",
+          name: "Іскрокамінь",
+          quantity: 1
+        }]
+      }
+    });
+
+    expect(text).toContain([
+      "💰 Золото: <b>1</b>",
+      "",
+      "Здобуто: <i>Іскрокамінь</i>"
+    ].join("\n"));
+  });
 });
 
 function passageSearchAction(): PassageSearchActionRecord {

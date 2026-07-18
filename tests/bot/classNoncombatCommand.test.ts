@@ -385,7 +385,7 @@ describe("class noncombat command", () => {
   });
 
   it("starts and auto-accepts a turn-based duel when the pickpocket target chooses slow retaliation", async () => {
-    const { ctx, editMessageText, sendMessage } = callbackContext({ telegramUserId: targetTelegramUserId });
+    const { ctx, apiEditMessageText, editMessageReplyMarkup, reply, sendMessage } = callbackContext({ telegramUserId: targetTelegramUserId });
     const claimRogueRetaliationForTelegramUser = vi.fn<(target: bigint, token: string) => Promise<RogueRetaliationResult>>()
       .mockResolvedValue({
         state: "ready",
@@ -407,7 +407,19 @@ describe("class noncombat command", () => {
       }
     });
     const acceptForTelegramUser = vi.fn().mockResolvedValue(active);
-    const recordTurnBasedMessageReference = vi.fn().mockResolvedValue(undefined);
+    const references = new Map<string, { chatId: bigint; messageId: number }>();
+    const claimTurnBasedMessageReference = vi.fn((
+      _sessionId: string,
+      participant: "challenger" | "target",
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      const claimed = !references.has(participant);
+      if (claimed) {
+        references.set(participant, reference);
+      }
+      return Promise.resolve({ claimed, session: active.session });
+    });
+    const getByToken = vi.fn().mockResolvedValue(active);
     const callback = parseClassNoncombatCallbackData(makeRogueRetaliationDuelCallbackData({
       mode: "turn-based",
       retaliationToken: "abc123xy"
@@ -418,7 +430,13 @@ describe("class noncombat command", () => {
       ctx,
       callback.ok ? callback.value : neverCallback(),
       service as never,
-      { createTargetedChallengeForTelegramUser, acceptForTelegramUser, recordTurnBasedMessageReference } as never
+      {
+        createTargetedChallengeForTelegramUser,
+        acceptForTelegramUser,
+        claimTurnBasedMessageReference,
+        releaseTurnBasedMessageReference: vi.fn(),
+        getByToken
+      } as never
     );
 
     expect(claimRogueRetaliationForTelegramUser).toHaveBeenCalledWith(targetTelegramUserId, "abc123xy");
@@ -433,25 +451,31 @@ describe("class noncombat command", () => {
       expectedMode: "turn-based"
     });
 
-    const [text, options] = firstEditCall(editMessageText);
-    expect(text).toContain("♟️ <b>Кишенькова відплата</b>");
-    expect(text).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
-    expect(keyboardTexts(options)).toEqual(expect.arrayContaining([
-      "⚔️ Атакувати",
-      "🛡 Захищатися",
-      "🏳️ Здатися",
-      "🔎 Оновити"
-    ]));
+    expect(editMessageReplyMarkup).toHaveBeenCalledWith({ reply_markup: { inline_keyboard: [] } });
+    expect(reply).toHaveBeenCalledWith(
+      expect.stringContaining("♟️ <b>Кишенькова відплата</b>"),
+      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+    );
+    const localActivation = apiEditMessageText.mock.calls.find((call) => call[1] === 76) as
+      | [number, number, string, unknown]
+      | undefined;
+    expect(String(localActivation?.[2])).toContain("♟️ <b>Кишенькова відплата</b>");
+    expect(String(localActivation?.[2])).toContain("♟️ <b>Покрокова дуель: хід 1</b>");
+    expect(JSON.stringify(localActivation?.[3])).toContain("⚔️ Атакувати");
+    expect(JSON.stringify(localActivation?.[3])).toContain("🛡 Захищатися");
+    expect(JSON.stringify(localActivation?.[3])).toContain("🏳️ Здатися");
+    expect(JSON.stringify(localActivation?.[3])).toContain("🔎 Оновити");
 
     expect(sendMessage).toHaveBeenCalledWith(
       Number(actorTelegramUserId),
       expect.stringContaining("♟️ <b>Кишенькова відплата</b>"),
-      expect.objectContaining({ parse_mode: "HTML" })
+      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
     );
-    expect(recordTurnBasedMessageReference).toHaveBeenCalledWith("duel-session-1", "target", {
-      chatId: actorTelegramUserId,
-      messageId: 77
-    });
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(2);
+    expect(references).toEqual(new Map([
+      ["challenger", { chatId: targetTelegramUserId, messageId: 76 }],
+      ["target", { chatId: actorTelegramUserId, messageId: 77 }]
+    ]));
   });
 
   it("does not let another Telegram user trigger pickpocket retaliation", async () => {
@@ -555,7 +579,9 @@ describe("class noncombat command", () => {
 function callbackContext(options: { telegramUserId?: bigint } = {}) {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const editMessageText = vi.fn<(text: string, options: EditOptions) => Promise<boolean>>().mockResolvedValue(true);
-  const reply = vi.fn().mockResolvedValue(true);
+  const editMessageReplyMarkup = vi.fn().mockResolvedValue(true);
+  const apiEditMessageText = vi.fn().mockResolvedValue(true);
+  const reply = vi.fn().mockResolvedValue({ message_id: 76 });
   const sendMessage = vi.fn().mockResolvedValue({ message_id: 77 });
   const ctx = {
     from: {
@@ -563,15 +589,38 @@ function callbackContext(options: { telegramUserId?: bigint } = {}) {
       is_bot: false,
       first_name: "Тест"
     },
+    chat: {
+      id: Number(options.telegramUserId ?? actorTelegramUserId),
+      type: "private"
+    },
+    callbackQuery: {
+      message: {
+        message_id: 10,
+        chat: {
+          id: Number(options.telegramUserId ?? actorTelegramUserId),
+          type: "private"
+        }
+      }
+    },
     answerCallbackQuery,
+    editMessageReplyMarkup,
     editMessageText,
     reply,
     api: {
+      editMessageText: apiEditMessageText,
       sendMessage
     }
   } as unknown as Context;
 
-  return { ctx, answerCallbackQuery, editMessageText, reply, sendMessage };
+  return {
+    ctx,
+    answerCallbackQuery,
+    editMessageReplyMarkup,
+    editMessageText,
+    apiEditMessageText,
+    reply,
+    sendMessage
+  };
 }
 
 interface EditOptions {

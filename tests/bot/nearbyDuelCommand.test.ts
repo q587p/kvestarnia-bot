@@ -21,6 +21,7 @@ describe("handleNearbyDuelCallback", () => {
       expiresAt: EXPIRES_AT,
       now: NOW
     });
+    const markAction = vi.fn().mockResolvedValue(undefined);
     const { ctx, editMessageText, sendMessage } = createCallbackContext(42);
 
     await handleNearbyDuelCallback(
@@ -33,7 +34,7 @@ describe("handleNearbyDuelCallback", () => {
         page: 0
       },
       {
-        presence: createPresence(),
+        presence: createPresence(markAction),
         duel: {
           createTargetedChallengeForTelegramUser
         } as unknown as DuelChallengeService
@@ -48,11 +49,21 @@ describe("handleNearbyDuelCallback", () => {
     expect(messageText(editMessageText)).toContain("♟️ <b>Виклик надіслано</b>");
     expect(messageText(editMessageText)).toContain("Кому: <b>Ціль Дуелі</b>");
     expect(keyboardJson(editMessageText)).toContain("v1:duel:cancel:abcDEF12");
+    expect(keyboardJson(editMessageText)).toContain("v1:duel:view:abcDEF12");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:duel:accept:abcDEF12");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:duel:decline:abcDEF12");
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(77);
     expect(sendMessage.mock.calls[0]?.[1]).toContain("Вам кинули виклик");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:duel:accept:abcDEF12");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).not.toContain("v1:duel:cancel:abcDEF12");
+    expect(sendMessage.mock.calls[0]?.[1]).toContain("після остаточної згоди в деталях");
+    const notificationKeyboard = JSON.stringify(sendMessage.mock.calls[0]?.[2]);
+    expect(notificationKeyboard).toContain("📖 Детальніше");
+    expect(notificationKeyboard).toContain("🙅 Відмовитись");
+    expect(notificationKeyboard).toContain("🔄 Оновити");
+    expect(notificationKeyboard).not.toContain("🤝 Прийняти");
+    expect(notificationKeyboard).toContain("v1:duel:accept:abcDEF12");
+    expect(notificationKeyboard).not.toContain("v1:duel:cancel:abcDEF12");
+    expect(markAction).not.toHaveBeenCalled();
   });
 
   it("shows resource warning before creating the targeted invite", async () => {
@@ -127,8 +138,9 @@ function createCallbackContext(userId: number): {
   return { ctx, editMessageText, sendMessage };
 }
 
-function createPresence(): PresenceService {
+function createPresence(markAction = vi.fn().mockResolvedValue(undefined)): PresenceService {
   return {
+    markAction,
     getNearbyDuelCandidatesForTelegramUser: vi.fn().mockResolvedValue({
       state: "ready",
       location: {

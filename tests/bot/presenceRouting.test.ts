@@ -75,6 +75,10 @@ describe("presence routing", () => {
         currentAdventureId: null
       }
     ],
+    ["v1:sh:bp", {}],
+    ["v1:sh:ba:12345678-1234-4234-9234-123456789abc", {}],
+    ["v1:sh:bd:12345678-1234-4234-9234-123456789abc", {}],
+    ["v1:sh:bt:12345678-1234-4234-9234-123456789abc:13", {}],
     ["v1:quest:fight", {}],
     ["v1:quest:archive", {}],
     ["v1:quest:list", {}],
@@ -225,6 +229,7 @@ describe("presence routing", () => {
     ["inventory", {}],
     ["online", {}],
     ["look", {}],
+    ["duel", {}],
     ["support", {}],
     ["restart", {}],
     ["dev_raid_stop", {}],
@@ -268,6 +273,16 @@ describe("presence routing", () => {
   it("keeps duel start deep links neutral so they do not move the player outside", () => {
     expect(getTextPresenceContext("/start duel_abc_DEF12")).toEqual({});
     expect(getTextPresenceContext("/start@kvestarnia_test_bot duel_abc_DEF12")).toEqual({});
+    expect(getTextPresenceContext("/start duel_turnbased_abc_DEF12")).toEqual({});
+  });
+
+  it("keeps duel callbacks neutral while final acceptance and rematches defer heartbeat to the result", () => {
+    expect(getCallbackPresenceContext("v1:duel:new")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:view:abc_DEF12")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:accept-risk:abc_DEF12")).toBeNull();
+    expect(getCallbackPresenceContext("v1:duel:rematch:abc_DEF12")).toBeNull();
+    expect(getCallbackPresenceContext("v1:duel:rematch-risk:abc_DEF12")).toBeNull();
+    expect(getCallbackPresenceContext("v1:duel:t:abc_DEF12:2:4:a")).toEqual({});
   });
 
   it("keeps regular start neutral so it does not move existing characters", () => {

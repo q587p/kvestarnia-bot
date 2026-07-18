@@ -5,6 +5,7 @@ import type { DevGrantService } from "../../src/services/devGrantService";
 import type { DevResetService } from "../../src/services/devResetService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
+import type { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
 
 describe("help command", () => {
   it("shows public commands through /help", async () => {
@@ -39,7 +40,8 @@ describe("help command", () => {
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
-      partySessions: { areDevHelpersEnabled: () => true }
+      partySessions: { areDevHelpersEnabled: () => true },
+      healthRecoveryNotifications: { areDevHelpersEnabled: () => true }
     });
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
@@ -56,6 +58,7 @@ describe("help command", () => {
     expect(replies[0]).toContain("/dev_reset_yeger_bandage");
     expect(replies[0]).toContain("/dev_yeger_first_done");
     expect(replies[0]).toContain("/dev_yeger_second_done");
+    expect(replies[0]).toContain("/dev_hp_recovery_due");
   });
 
   it("hides party dev help when party runtime is enabled without dev helpers", async () => {
@@ -80,6 +83,7 @@ function createTestBot(
     devGrant?: Pick<DevGrantService, "isEnabled">;
     partySessions?: Pick<PartySessionService, "areDevHelpersEnabled">;
     tavernGames?: Pick<TavernGameService, "isEnabled">;
+    healthRecoveryNotifications?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled">;
   }
 ): Bot {
   const bot = new Bot("test-token", {
@@ -106,7 +110,8 @@ function createTestBot(
     services.devGrant,
     {
       partySessionService: services.partySessions,
-      tavernGameService: services.tavernGames
+      tavernGameService: services.tavernGames,
+      healthRecoveryNotificationService: services.healthRecoveryNotifications
     }
   );
   return bot;

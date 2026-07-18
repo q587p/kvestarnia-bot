@@ -432,7 +432,7 @@ export class FightingCornerQuestService {
         !acceptedAt ||
         context.actions.has(FIGHTING_CORNER_QUEST_KEYS.completed) ||
         context.actions.has(input.key) ||
-        input.occurredAt.getTime() <= acceptedAt.getTime() ||
+        input.occurredAt.getTime() < acceptedAt.getTime() ||
         (input.expectedRemortCount !== undefined &&
           (context.character.remortCount ?? 0) !== input.expectedRemortCount)
       ) {

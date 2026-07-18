@@ -3,7 +3,10 @@ import {
   buildQuestOverviewRows,
   presentQuestOverview
 } from "../../src/bot/presenters/questOverviewPresenter";
-import type { QuestHubSnapshot } from "../../src/bot/presenters/questHubPresenter";
+import {
+  presentQuestHub,
+  type QuestHubSnapshot
+} from "../../src/bot/presenters/questHubPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("quest overview presenter", () => {
@@ -22,7 +25,12 @@ describe("quest overview presenter", () => {
       fightingCornerQuest: {
         state: "in-progress",
         character,
-        progress: { ...baseProgress, accepted: true }
+        progress: {
+          ...baseProgress,
+          accepted: true,
+          trainingCompleted: true,
+          completedObjectives: 1
+        }
       },
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
@@ -30,12 +38,26 @@ describe("quest overview presenter", () => {
       id: "fighting-corner-onboarding",
       priority: "active"
     }));
+    const activeRow = active.find((row) => row.id === "fighting-corner-onboarding");
+    expect(activeRow?.body).toContain(
+      "<i>Далі:</i> завершіть <s>тренування</s>, миттєву дуель і покрокову дуель в будь-якому порядку."
+    );
+    expect(activeRow?.body).not.toContain("<s>миттєву дуель</s>");
+    expect(activeRow?.body).not.toContain("<s>покрокову дуель</s>");
 
     const ready = buildQuestOverviewRows(makeSnapshot({
       fightingCornerQuest: {
         state: "turn-in-ready",
         character,
-        progress: { ...baseProgress, accepted: true, completedObjectives: 3, readyToClaim: true }
+        progress: {
+          ...baseProgress,
+          accepted: true,
+          trainingCompleted: true,
+          quickDuelCompleted: true,
+          turnBasedDuelCompleted: true,
+          completedObjectives: 3,
+          readyToClaim: true
+        }
       },
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
@@ -45,6 +67,9 @@ describe("quest overview presenter", () => {
     }));
     const readyRow = ready.find((row) => row.id === "fighting-corner-onboarding");
     expect(readyRow?.title).toContain("3/3");
+    expect(readyRow?.body).toContain(
+      "<i>Зроблено:</i> <s>тренування</s>, <s>миттєву дуель</s> і <s>покрокову дуель</s>."
+    );
     expect(readyRow?.body).toContain("фізичний стіл зі справами");
   });
 
@@ -316,7 +341,15 @@ describe("quest overview presenter", () => {
     expect(text).not.toContain("Папір <підозри> & печатка");
   });
 
-  it("shows active daily Korchma round progress, done step, next step and turn-in guidance", () => {
+  it("shows all daily Korchma round locations and crosses out only completed scenes", () => {
+    const freshText = presentQuestOverview(makeSnapshot({
+      dailyKorchmaRound: {
+        state: "ready",
+        character,
+        offer: dailyOffer([])
+      },
+      problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
+    }));
     const text = presentQuestOverview(makeSnapshot({
       dailyKorchmaRound: {
         state: "ready",
@@ -326,11 +359,14 @@ describe("quest overview presenter", () => {
       problemQuest: problemQuest({ completed: true, rewardClaimed: true, wins: 13 })
     }));
 
+    expect(freshText).toContain("<i>Далі:</i> владнайте дві дрібниці з трьох.");
+    expect(freshText).toContain("<i>Де:</i> Задвірок корчми, Шинок, Зала корчми.");
+    expect(freshText).not.toContain("<s>");
     expect(text).toContain("🧾 <b>Корчмарський обхід</b> — 1/2");
-    expect(text).toContain("<i>Зроблено:</i> Вивіска сперечається з цвяхом.");
-    expect(text).toContain("<i>Далі:</i> владнайте ще 1 дрібницю.");
-    expect(text).toContain("<i>Де:</i> шукайте сьогоднішні сцени у відповідних місцинах корчми.");
-    expect(text).toContain("Здати — за столом зі справами.");
+    expect(text).toContain("<i>Далі:</i> владнайте дві дрібниці з трьох.");
+    expect(text).toContain("<i>Де:</i> Задвірок корчми, Шинок, <s>Зала корчми</s>.");
+    expect(text).not.toContain("<s>Задвірок корчми</s>");
+    expect(text).not.toContain("<s>Шинок</s>");
   });
 
   it("shows turn-in-ready daily Korchma round as claimable", () => {
@@ -350,6 +386,9 @@ describe("quest overview presenter", () => {
     });
     expect(rows[0]?.title).toContain("2/2");
     expect(rows[0]?.body).toContain("<i>Далі:</i> здайте обхід");
+    expect(rows[0]?.body).toContain(
+      "<i>Де:</i> <s>Задвірок корчми</s>, Шинок, <s>Зала корчми</s>. Здати — за столом зі справами."
+    );
   });
 
   it("shows active and claimable problem quests, then hides reward-claimed problem quests", () => {
@@ -420,6 +459,48 @@ describe("quest overview presenter", () => {
     expect(rows.find((row) => row.id === "cellar-grownup")?.priority).toBe("claimable");
     expect(rows.find((row) => row.id === "barrel-beer-tutorial")?.priority).toBe("active");
     expect(rows.map((row) => row.id)).not.toContain("cellar");
+  });
+
+  it.each([
+    {
+      label: "before the round is offered",
+      beerRoundOffered: false,
+      overview: "проведіть пінну формальність (виставте пиво всім і випийте своє)",
+      hub: "Тепер вистав пиво всім і випий своє",
+      absent: "пиво всім уже виставлено"
+    },
+    {
+      label: "after the round is offered",
+      beerRoundOffered: true,
+      overview: "<i>Далі:</i> випийте своє пиво.",
+      hub: "пиво всім уже виставлено. Тепер випий своє",
+      absent: "виставте пиво всім і випийте своє"
+    }
+  ])("distinguishes the Barrel own-drink instruction $label in both presenters", ({
+    beerRoundOffered,
+    overview,
+    hub,
+    absent
+  }) => {
+    const snapshot = makeSnapshot({
+      barrelBeerTutorial: {
+        state: "in-progress",
+        character,
+        progress: {
+          ...barrelProgress(true),
+          beerRoundOffered,
+          beerDrunk: false,
+          activeBeer: false
+        }
+      }
+    });
+    const rows = buildQuestOverviewRows(snapshot);
+    const body = rows.find((row) => row.id === "barrel-beer-tutorial")?.body;
+    const hubText = presentQuestHub(snapshot);
+
+    expect(body).toContain(overview);
+    expect(hubText).toContain(hub);
+    expect(`${body}\n${hubText}`).not.toContain(absent);
   });
 
   it("shows available and paused grownup cellar stages in the quest overview", () => {
@@ -554,19 +635,27 @@ function dailyOffer(completedSceneIds: string[]) {
     omittedSceneId: null,
     scenes: [
       {
-        id: "scene.sign",
-        icon: "🪧",
-        title: "Вивіска сперечається з цвяхом",
-        locationId: "location.korchma.hall",
-        hook: "Вивіска має думку.",
-        actions: []
-      },
-      {
         id: "scene.well",
         icon: "🪣",
         title: "Криниця рахує відлуння",
         locationId: "location.korchma.yard",
         hook: "Криниця має бухгалтерський настрій.",
+        actions: []
+      },
+      {
+        id: "scene.mug",
+        icon: "🍺",
+        title: "Кухоль просить посаду",
+        locationId: "location.korchma.bar",
+        hook: "Шинок має кадровий настрій.",
+        actions: []
+      },
+      {
+        id: "scene.sign",
+        icon: "🪧",
+        title: "Вивіска сперечається з цвяхом",
+        locationId: "location.korchma.hall",
+        hook: "Вивіска має думку.",
         actions: []
       }
     ]

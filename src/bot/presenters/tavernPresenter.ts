@@ -27,7 +27,7 @@ import {
   selectCharacterFlavorLines,
   selectKorchmaGreetingLine
 } from "../../content/characterFlavor";
-import { presentRewardAmount, presentRewardItemGrant } from "./rewardPresenter";
+import { presentQuestRewardBlock, presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
@@ -334,7 +334,15 @@ function presentTournamentNotice(
       "🎁 Корчмар ставить перед вами турнірну скриньку.",
       `${presentTournamentPeriodLabel(claimResult.claim.period)} — ${presentTournamentPeriodKey(claimResult.claim.periodKey)}.`,
       `Місце ${claimResult.claim.rank}, ${claimResult.claim.points} оч.`,
-      `Отримано: ${presentTournamentReward(claimResult.reward)}.`
+      "",
+      presentQuestRewardBlock({
+        xp: 0,
+        gold: claimResult.reward.gold,
+        itemGrants: claimResult.reward.items.map((item) => ({
+          name: escapeHtml(item.name),
+          quantity: item.quantity
+        }))
+      })
     ].join("\n");
   }
 
@@ -672,8 +680,14 @@ export function presentTavernRaidResult(result: Exclude<TavernRaidResult, { stat
     "🍺 Рейд завершено!",
     "Ви штурмували Бочку Пінного Міражу. Бочка відступила стратегічною піною.",
     "",
-    presentRewardAmount(result.reward),
-    ...presentItemGrantLines(result.reward.itemGrants)
+    presentRewardBlock({
+      ...result.reward,
+      label: "Винагорода за рейд",
+      itemGrants: result.reward.itemGrants.map((grant) => ({
+        name: escapeHtml(grant.name),
+        quantity: grant.quantity
+      }))
+    })
   ];
 
   return lines.join("\n");
@@ -994,20 +1008,6 @@ function presentLeaderboardPeriodName(period: KorchmaRoundLeaderboardPeriod): st
     case "month":
       return "місяць";
   }
-}
-
-function presentItemGrantLines(itemGrants: Array<{ name: string; quantity: number }>): string[] {
-  if (itemGrants.length === 0) {
-    return [];
-  }
-
-  return itemGrants.map(
-    (grant) =>
-      presentRewardItemGrant({
-        name: escapeHtml(grant.name),
-        quantity: grant.quantity
-      })
-  );
 }
 
 function presentKorchmaArrivalEntries(board: KorchmaArrivalBoard): string[] {

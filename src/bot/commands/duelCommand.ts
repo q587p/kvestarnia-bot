@@ -5,6 +5,7 @@ import {
   getNextDuelInviteTemplateIndex
 } from "../../content/duelInviteFlavor";
 import type {
+  DuelAcceptResult,
   DuelChallengeService,
   DuelChallengeView,
   DuelDeclineResult
@@ -24,14 +25,12 @@ import {
   buildDuelInviteShareKeyboard,
   buildDuelJournalKeyboard,
   buildDuelNavigationKeyboard,
+  buildDuelOwnerChallengeKeyboard,
   buildDuelRematchResourceWarningKeyboard,
   buildDuelResourceWarningKeyboard,
   buildDuelResultKeyboard,
   buildDuelTargetedInviteKeyboard,
-  buildTurnBasedDuelKeyboard
 } from "../keyboards/duelKeyboard";
-import { getCombatSkillDisplay } from "../../services/fightService";
-import { getCombatSkillProfile } from "../../domain/combat";
 import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { buildEnterKorchmaKeyboard } from "../keyboards/tavernKeyboard";
 import {
@@ -46,14 +45,30 @@ import {
   presentDuelRematch,
   presentDuelResultShare,
   presentTurnBasedDuelJournal,
-  presentTurnBasedDuel,
   presentTurnBasedDuelIntro,
   presentDuelView
 } from "../presenters/duelPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
-import { isMessageNotModifiedError, safeEditMessageText } from "../safeEditMessageText";
+import { safeEditMessageText } from "../safeEditMessageText";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
+import {
+  getCallbackPreviousMainMenuLocationId,
+  refreshCallbackMainMenuLocationBeforeReplies
+} from "../modules/mainMenu";
+import {
+  deliverCanonicalTurnBasedDuelParticipantCard,
+  getTurnBasedDuelParticipantReference,
+  showCanonicalTurnBasedDuelCard,
+  showCanonicalTurnBasedDuelResultCard,
+  type TurnBasedDuelParticipant
+} from "../turnBasedDuelCardDelivery";
+import type { DuelCombatSessionRecord } from "../../db/repositories/duelChallengeRepository";
+import {
+  classifyTurnBasedDuelRoute,
+  getRememberedTurnBasedDuelRouteClassification,
+  isTurnBasedDuelCardCallback
+} from "../turnBasedDuelRouteClassification";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -112,7 +127,6 @@ export async function sendDuelEntry(
     }
   }
 
-  await markDuelPresence(ctx, options.presence);
   await sendText(ctx, mode, presentDuelEntry(), "entry");
 }
 
@@ -184,7 +198,73 @@ export async function handleDuelCallback(
     return;
   }
 
-  if (await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")) {
+  const observedTurnDuelRoute = getRememberedTurnBasedDuelRouteClassification(ctx);
+  const currentTurnDuelRoute = await classifyTurnBasedDuelRoute(
+    ctx,
+    callback,
+    telegramUserId,
+    service
+  );
+  const preservesResolvedCanonical =
+    currentTurnDuelRoute?.state === "resolved" &&
+    (
+      currentTurnDuelRoute.sourceIsCanonical ||
+      observedTurnDuelRoute?.token === currentTurnDuelRoute.token
+    );
+  const isResolvedCanonicalRematch =
+    preservesResolvedCanonical &&
+    (callback.type === "rematch" || callback.type === "rematch-risk");
+  if (
+    isResolvedCanonicalRematch &&
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "reply")
+  ) {
+    await answerCallback();
+    return;
+  }
+  const pendingRaidProtectsResolvedCanonical =
+    preservesResolvedCanonical &&
+    !isResolvedCanonicalRematch &&
+    !isTurnBasedDuelCardCallback(callback) &&
+    typeof options.tavernRaid?.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+    (await options.tavernRaid.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId)).state === "pending";
+  if (
+    currentTurnDuelRoute?.state === "resolved" &&
+    preservesResolvedCanonical &&
+    (isTurnBasedDuelCardCallback(callback) || pendingRaidProtectsResolvedCanonical)
+  ) {
+    await answerCallback();
+    await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+      ctx,
+      currentTurnDuelRoute.session,
+      currentTurnDuelRoute.participant
+    );
+    await showCanonicalTurnBasedDuelResultCard(
+      ctx,
+      currentTurnDuelRoute.view,
+      currentTurnDuelRoute.session,
+      service,
+      "edit"
+    );
+    return;
+  }
+
+  if (
+    isTurnBasedDuelCardCallback(callback) &&
+    observedTurnDuelRoute?.state === "active" &&
+    observedTurnDuelRoute.token === callback.token &&
+    !currentTurnDuelRoute
+  ) {
+    await answerCallback();
+    return;
+  }
+
+  const exactActiveTurnDuel = currentTurnDuelRoute?.state === "active" ||
+    await isExactActiveTurnDuelCallback(callback, telegramUserId, service);
+  if (
+    !exactActiveTurnDuel &&
+    !preservesResolvedCanonical &&
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")
+  ) {
     await answerCallback();
     return;
   }
@@ -218,16 +298,13 @@ export async function handleDuelCallback(
       ...(mode === "turn-based" ? { mode } : {})
     });
     const inviteUrl = getInviteUrl(options.botUsername, result);
-    if (result.state !== "resource-warning") {
-      await markDuelPresence(ctx, options.presence);
-    }
     await answerCallback();
     await sendText(
       ctx,
       "edit",
       presentDuelCreate(result, { inviteUrl, mode }),
       result.state === "pending"
-        ? { state: "pending", result }
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
         : result.state === "level-gated"
           ? "navigation"
           : result.state === "resource-warning"
@@ -251,15 +328,24 @@ export async function handleDuelCallback(
   }
 
   if (callback.type === "accept" || callback.type === "accept-risk") {
+    const previousLocationId = await getCallbackPreviousMainMenuLocationId(ctx, options.presence);
     const result = await service.acceptForTelegramUser(telegramUserId, callback.token, {
       confirmed: callback.type === "accept-risk",
       ignoreResourceWarning: callback.type === "accept-risk"
     });
 
+    if (callback.type === "accept-risk" && result.state !== "busy" && !isFreshDuelAcceptTransition(result)) {
+      await markNeutralDuelPresence(ctx, options.presence);
+    }
+
     if (result.state === "self-challenge") {
-      await answerCallback({
-        text: "Самодуель не записуємо. Виклик лишається відкритим; для внутрішніх конфліктів є Допельґанґер."
-      });
+      await answerCallback();
+      await sendText(
+        ctx,
+        "edit",
+        presentDuelAccept(result),
+        { state: "pending-owner", token: result.challenge.inviteToken }
+      );
       return;
     }
 
@@ -270,15 +356,24 @@ export async function handleDuelCallback(
       return;
     }
 
-    if (result.state !== "active") {
+    if (isFreshDuelAcceptTransition(result)) {
       await markDuelPresence(ctx, options.presence);
     }
     await answerCallback();
     if (result.state === "active") {
       if (result.transitioned) {
+        await refreshCallbackMainMenuLocationBeforeReplies(
+          ctx,
+          PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER,
+          previousLocationId
+        );
+        await clearCurrentDuelCallbackKeyboard(ctx);
         await ctx.reply(presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
+        await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply");
+      } else {
+        await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, result.session, getViewerParticipant(ctx, result));
+        await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply", { allowFallback: false });
       }
-      await sendTurnBasedDuelCard(ctx, "edit", result, service);
       if (result.transitioned) {
         await notifyTurnBasedParticipants(ctx, result, service, { includeIntro: true });
       }
@@ -371,6 +466,7 @@ export async function handleDuelCallback(
     }
 
     if (current.state === "active") {
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, current.session, getViewerParticipant(ctx, current));
       await sendTurnBasedDuelCard(ctx, "edit", current, service);
       if (result.state === "updated") {
         await sendTurnBasedAchievementUnlocks(ctx, current, result);
@@ -379,14 +475,23 @@ export async function handleDuelCallback(
       return;
     }
 
-    await sendText(
-      ctx,
-      "edit",
-      presentDuelView(current, { inviteUrl: getInviteUrl(options.botUsername, current) }),
-      current.state === "resolved"
-        ? { state: "result", token: current.challenge.inviteToken, mode: current.challenge.mode }
-        : "result"
-    );
+    if (current.state === "resolved" && result.state === "updated") {
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+        ctx,
+        result.session,
+        getViewerParticipant(ctx, current)
+      );
+      await showCanonicalTurnBasedDuelResultCard(ctx, current, result.session, service, "edit");
+    } else {
+      await sendText(
+        ctx,
+        "edit",
+        presentDuelView(current, { inviteUrl: getInviteUrl(options.botUsername, current) }),
+        current.state === "resolved"
+          ? { state: "result", token: current.challenge.inviteToken, mode: current.challenge.mode }
+          : "result"
+      );
+    }
 
     if (result.state === "updated" && current.state === "resolved") {
       await sendTurnBasedAchievementUnlocks(ctx, current, result);
@@ -451,16 +556,19 @@ export async function handleDuelCallback(
       ignoreResourceWarning: callback.type === "rematch-risk"
     });
 
+    if (result.state === "busy") {
+      await answerCallback({ text: "Спершу завершіть поточний бій." });
+      return;
+    }
+
     if (result.state === "not-participant") {
       await answerCallback({ text: "Реванш можуть кинути тільки учасники цієї дуелі." });
       return;
     }
 
-    const inviteUrl = getInviteUrl(options.botUsername, result);
+    await markNeutralDuelPresence(ctx, options.presence);
 
-    if (result.state === "pending") {
-      await markDuelPresence(ctx, options.presence);
-    }
+    const inviteUrl = getInviteUrl(options.botUsername, result);
 
     await answerCallback();
     await sendText(
@@ -468,7 +576,7 @@ export async function handleDuelCallback(
       "edit",
       presentDuelRematch(result, { inviteUrl }),
       result.state === "pending"
-        ? { state: "pending", result }
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
         : result.state === "resource-warning"
           ? { state: "rematch-resource-warning", token: callback.token }
           : result.state === "level-gated"
@@ -531,8 +639,27 @@ export async function handleDuelCallback(
   const result = await service.getByToken(callback.token);
   await answerCallback();
   if (result.state === "active") {
-    await sendTurnBasedDuelCard(ctx, "edit", result, service);
+    if (isPrivateChat(ctx)) {
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(ctx, result.session, getViewerParticipant(ctx, result));
+      await showCanonicalTurnBasedDuelCard(ctx, result, service, "reply", { allowFallback: false });
+    } else {
+      await showCanonicalTurnBasedDuelCard(ctx, result, service, "edit");
+    }
     return;
+  }
+  if (result.state === "resolved" && result.challenge.mode === "turn-based" && isPrivateChat(ctx)) {
+    const session = typeof service.getTurnBasedSessionByToken === "function"
+      ? await service.getTurnBasedSessionByToken(result.challenge.inviteToken)
+      : null;
+    if (session) {
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+        ctx,
+        session,
+        getViewerParticipant(ctx, result)
+      );
+      await showCanonicalTurnBasedDuelResultCard(ctx, result, session, service, "edit");
+      return;
+    }
   }
   await sendText(
     ctx,
@@ -541,7 +668,9 @@ export async function handleDuelCallback(
       ? "Виклик не знайшовся."
       : presentDuelView(result, { inviteUrl: getInviteUrl(options.botUsername, result) }),
     result.state === "pending"
-      ? { state: "pending", result }
+      ? result.challenge.challenger.telegramUserId === telegramUserId
+        ? { state: "pending-owner", token: result.challenge.inviteToken }
+        : { state: "pending", result }
       : result.state === "resolved"
         ? { state: "result", token: result.challenge.inviteToken, mode: result.challenge.mode }
         : "result"
@@ -549,6 +678,10 @@ export async function handleDuelCallback(
   if (result.state === "resolved") {
     await notifyFightingCornerQuestProgress(ctx, result.questProgressUpdates ?? []);
   }
+}
+
+function isFreshDuelAcceptTransition(result: DuelAcceptResult): boolean {
+  return (result.state === "active" || result.state === "resolved") && result.transitioned === true;
 }
 
 async function notifyFightingCornerQuestProgress(
@@ -599,6 +732,7 @@ async function sendText(
     | { state: "result"; token?: string; mode?: "quick" | "turn-based" }
     | { state: "journal"; token: string; page: number; totalPages: number }
     | { state: "pending"; result: Parameters<typeof buildDuelChallengeKeyboard>[0] }
+    | { state: "pending-owner"; token: string }
     | false = false
 ): Promise<void> {
   const options = {
@@ -626,6 +760,8 @@ async function sendText(
                         ? buildDuelJournalKeyboard(keyboard.token, keyboard.page, keyboard.totalPages)
                       : keyboard.state === "result"
                         ? buildDuelResultKeyboard(keyboard.token, keyboard.mode)
+                        : keyboard.state === "pending-owner"
+                          ? buildDuelOwnerChallengeKeyboard(keyboard.token)
                         : buildDuelChallengeKeyboard(keyboard.result)
         }
       : {})
@@ -656,38 +792,35 @@ async function sendTurnBasedDuelCard(
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
   service: DuelChallengeService
 ): Promise<void> {
-  const viewerCharacterId = getViewerCharacterId(ctx, result);
-  const skillParticipant = getParticipantForSkill(result, viewerCharacterId);
-  const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);
-  const skill = getCombatSkillDisplay(skillProfile.id);
-  const privateCard = isPrivateChat(ctx) && viewerCharacterId !== null;
-  const text = presentTurnBasedDuel(result, { viewerCharacterId: privateCard ? viewerCharacterId : null });
-  const options = {
-    ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildTurnBasedDuelKeyboard(result, privateCard ? viewerCharacterId : null, `${skill.icon} ${skill.name}`)
-  };
+  await showCanonicalTurnBasedDuelCard(ctx, result, service, mode);
+}
 
-  if (mode === "edit") {
-    const participant = viewerCharacterId === result.session.challengerCharacterId ? "challenger" : "target";
-    const editedMessageId = await editOrReplyTurnBasedCard(ctx, text, options);
-
-    if (privateCard && ctx.chat?.id && editedMessageId) {
-      await service.recordTurnBasedMessageReference(result.session.id, participant, {
-        chatId: BigInt(ctx.chat.id),
-        messageId: editedMessageId
-      });
+async function markNeutralDuelPresence(ctx: Context, presence: PresenceService): Promise<void> {
+  const player = playerFromContext(ctx.from);
+  if (player) {
+    try {
+      await presence.markAction({ user: player });
+    } catch (error) {
+      console.error("Квестарня: присутність гравця не оновилась.", error);
     }
-    return;
+  }
+}
+
+async function isExactActiveTurnDuelCallback(
+  callback: DuelCallback,
+  telegramUserId: bigint,
+  service: DuelChallengeService
+): Promise<boolean> {
+  if (callback.type !== "turn" && callback.type !== "gear" && callback.type !== "view") {
+    return false;
   }
 
-  const message = await ctx.reply(text, options);
-  const participant = viewerCharacterId === result.session.challengerCharacterId ? "challenger" : "target";
-  if (privateCard && ctx.chat?.id && message.message_id) {
-    await service.recordTurnBasedMessageReference(result.session.id, participant, {
-      chatId: BigInt(ctx.chat.id),
-      messageId: message.message_id
-    });
+  if (typeof service.getActiveTurnBasedForTelegramUser !== "function") {
+    return false;
   }
+
+  const active = await service.getActiveTurnBasedForTelegramUser(telegramUserId);
+  return active?.challenge.inviteToken === callback.token;
 }
 
 async function notifyTurnBasedParticipants(
@@ -758,35 +891,29 @@ async function notifyTurnBasedParticipant(
 
   try {
     if (options.includeIntro) {
+      await clearRemoteTurnBasedDuelKeyboard(ctx, chatId, participant.messageId ?? null);
       await ctx.api.sendMessage(Number(chatId), presentTurnBasedDuelIntro(result), HTML_MESSAGE_OPTIONS);
     }
-
-    const text = presentTurnBasedDuel(result, { viewerCharacterId: participant.characterId });
-    const skillParticipant = getParticipantForSkill(result, participant.characterId);
-    const skillProfile = getCombatSkillProfile(skillParticipant.combatStats.classId);
-    const skill = getCombatSkillDisplay(skillProfile.id);
-    const keyboard = buildTurnBasedDuelKeyboard(
-      result,
-      participant.characterId,
-      `${skill.icon} ${skill.name}`
-    );
-
-    const messageId = await editOrSendTurnBasedCard(ctx, {
+    await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: result,
+      participant: participant.participant,
       chatId,
-      messageId: participant.messageId ?? null,
-      text,
-      options: {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: keyboard
+      transport: {
+        editMessage: async (reference, text, messageOptions) => {
+          await ctx.api.editMessageText(
+            Number(reference.chatId),
+            reference.messageId,
+            text,
+            messageOptions
+          );
+        },
+        sendInertMessage: async (destinationChatId, text, messageOptions) => {
+          const message = await ctx.api.sendMessage(Number(destinationChatId), text, messageOptions);
+          return message.message_id ?? null;
+        }
       }
     });
-
-    if (messageId) {
-      await service.recordTurnBasedMessageReference(result.session.id, participant.participant, {
-        chatId,
-        messageId
-      });
-    }
     await sendAchievementUnlocksToChat(
       ctx,
       chatId,
@@ -794,6 +921,78 @@ async function notifyTurnBasedParticipant(
     );
   } catch {
     // Telegram delivery is best-effort; committed duel state remains canonical.
+  }
+}
+
+async function clearCurrentDuelCallbackKeyboard(ctx: Context): Promise<void> {
+  try {
+    await ctx.editMessageReplyMarkup({
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+  } catch {
+    // The duel is already active; a stale source keyboard is safe to leave if Telegram rejects the cleanup.
+  }
+}
+
+async function clearCurrentDuelCallbackKeyboardIfNonCanonical(
+  ctx: Context,
+  session: DuelCombatSessionRecord,
+  participant: TurnBasedDuelParticipant | null
+): Promise<void> {
+  const sourceChatId = ctx.callbackQuery?.message?.chat.id;
+  const sourceMessageId = ctx.callbackQuery?.message?.message_id;
+  const canonical = participant
+    ? getTurnBasedDuelParticipantReference(session, participant)
+    : null;
+
+  if (
+    canonical &&
+    sourceChatId != null &&
+    sourceMessageId != null &&
+    canonical.chatId === BigInt(sourceChatId) &&
+    canonical.messageId === sourceMessageId
+  ) {
+    return;
+  }
+
+  await clearCurrentDuelCallbackKeyboard(ctx);
+}
+
+function getViewerParticipant(
+  ctx: Context,
+  view: Extract<DuelChallengeView, { state: "active" | "resolved" }>
+): TurnBasedDuelParticipant | null {
+  const telegramUserId = ctx.from?.id ? BigInt(ctx.from.id) : null;
+  if (!telegramUserId) {
+    return null;
+  }
+
+  if (view.challenge.challenger.telegramUserId === telegramUserId) {
+    return "challenger";
+  }
+
+  return view.challenge.target?.telegramUserId === telegramUserId ? "target" : null;
+}
+
+async function clearRemoteTurnBasedDuelKeyboard(
+  ctx: Context,
+  chatId: bigint,
+  messageId: number | null
+): Promise<void> {
+  if (!messageId) {
+    return;
+  }
+
+  try {
+    await ctx.api.editMessageReplyMarkup(Number(chatId), messageId, {
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+  } catch {
+    // The new intro and combat card remain deliverable even when the old keyboard cannot be cleared.
   }
 }
 
@@ -919,22 +1118,27 @@ async function notifyOtherTurnBasedResultParticipant(
   }
 
   try {
-    const messageId = await editOrSendTurnBasedCard(ctx, {
+    await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: result,
+      session,
+      participant: other.participant,
       chatId,
-      messageId: other.messageId ?? null,
-      text: presentDuelView(result),
-      options: {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildDuelResultKeyboard(result.challenge.inviteToken, result.challenge.mode)
+      transport: {
+        editMessage: async (reference, text, messageOptions) => {
+          await ctx.api.editMessageText(
+            Number(reference.chatId),
+            reference.messageId,
+            text,
+            messageOptions
+          );
+        },
+        sendInertMessage: async (destinationChatId, text, messageOptions) => {
+          const message = await ctx.api.sendMessage(Number(destinationChatId), text, messageOptions);
+          return message.message_id ?? null;
+        }
       }
     });
-
-    if (messageId) {
-      await service.recordTurnBasedMessageReference(session.id, other.participant, {
-        chatId,
-        messageId
-      });
-    }
     await sendAchievementUnlocksToChat(
       ctx,
       chatId,
@@ -982,54 +1186,6 @@ async function sendAchievementUnlocksToChat(
   }
 }
 
-async function editOrReplyTurnBasedCard(
-  ctx: Context,
-  text: string,
-  options: Parameters<Context["editMessageText"]>[1]
-): Promise<number | null> {
-  const currentMessageId = ctx.callbackQuery?.message?.message_id ?? null;
-
-  try {
-    await ctx.editMessageText(text, options);
-    return currentMessageId;
-  } catch (error) {
-    if (isMessageNotModifiedError(error)) {
-      return currentMessageId;
-    }
-
-    const sent = await ctx.reply(text, options);
-    return sent.message_id;
-  }
-}
-
-async function editOrSendTurnBasedCard(
-  ctx: Context,
-  input: {
-    chatId: bigint;
-    messageId: number | null;
-    text: string;
-    options: Parameters<Context["api"]["editMessageText"]>[3];
-  }
-): Promise<number | null> {
-  if (input.messageId) {
-    try {
-      await ctx.api.editMessageText(Number(input.chatId), input.messageId, input.text, input.options);
-      return input.messageId;
-    } catch (error) {
-      if (isMessageNotModifiedError(error)) {
-        return input.messageId;
-      }
-    }
-  }
-
-  const sent = await ctx.api.sendMessage(
-    Number(input.chatId),
-    input.text,
-    input.options
-  );
-  return sent.message_id;
-}
-
 function getViewerCharacterId(
   ctx: Context,
   result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>
@@ -1070,17 +1226,6 @@ function getResolvedViewerCharacterId(
   }
 
   return null;
-}
-
-function getParticipantForSkill(
-  result: Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>,
-  viewerCharacterId: string | null
-): Extract<Awaited<ReturnType<DuelChallengeService["getByToken"]>>, { state: "active" }>["session"]["state"]["participants"]["challenger"] {
-  if (viewerCharacterId === result.session.state.participants.target.characterId) {
-    return result.session.state.participants.target;
-  }
-
-  return result.session.state.participants.challenger;
 }
 
 function buildInviteUrl(botUsername: string | undefined, token: string, mode: "quick" | "turn-based" = "quick"): string | null {

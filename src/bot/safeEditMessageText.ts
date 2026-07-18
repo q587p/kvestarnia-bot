@@ -33,3 +33,14 @@ export function isMessageNotModifiedError(error: unknown): boolean {
     error.message.includes("message is not modified")
   );
 }
+
+export function isMessageUnavailableForEditError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes("message to edit not found") ||
+    message.includes("message_id_invalid") ||
+    message.includes("message can't be edited");
+}
