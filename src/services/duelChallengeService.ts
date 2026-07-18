@@ -355,8 +355,9 @@ export class DuelChallengeService {
     );
     const current = resourcePreview.character;
 
+    let preCreationResult: DuelRematchResult | null = null;
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
-      return {
+      preCreationResult = {
         state: "level-gated",
         character: current,
         minLevel: DUEL_INVITE_MIN_LEVEL
@@ -365,31 +366,30 @@ export class DuelChallengeService {
 
     const originalView = this.viewChallenge(original, now);
 
-    if (originalView.state !== "resolved") {
+    if (!preCreationResult && originalView.state !== "resolved") {
       return { state: "not-resolved", challenge: original, challenger };
     }
 
-    const pairLimit = await this.getPairLimit(currentCharacter.id, rematchTarget.id, now);
-
-    if (pairLimit) {
-      return {
-        state: "pair-limited",
-        challenge: original,
-        challenger: current,
-        target: summarizeDuelCharacter(rematchTarget),
-        ...pairLimit
-      };
-    }
-
     const warning = getResourceWarning(current);
+    if (!preCreationResult) {
+      const pairLimit = await this.getPairLimit(currentCharacter.id, rematchTarget.id, now);
 
-    if (warning && input.ignoreResourceWarning !== true) {
-      return {
-        state: "resource-warning",
-        character: current,
-        warning,
-        original: originalView
-      };
+      if (pairLimit) {
+        preCreationResult = {
+          state: "pair-limited",
+          challenge: original,
+          challenger: current,
+          target: summarizeDuelCharacter(rematchTarget),
+          ...pairLimit
+        };
+      } else if (warning && input.ignoreResourceWarning !== true && originalView.state === "resolved") {
+        preCreationResult = {
+          state: "resource-warning",
+          character: current,
+          warning,
+          original: originalView
+        };
+      }
     }
 
     const created = await this.challenges.createTargetedRematchForTelegramUser(
@@ -401,11 +401,16 @@ export class DuelChallengeService {
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
       },
-      resourcePreview.resourceUpdate
+      preCreationResult ? undefined : resourcePreview.resourceUpdate,
+      { authorizeOnly: preCreationResult !== null }
     );
 
     if (created.busyCharacterId || created.resourceConflict) {
       return { state: "busy" };
+    }
+
+    if (preCreationResult) {
+      return created.leaseAcquired ? preCreationResult : { state: "not-found" };
     }
 
     const challenge = created.record;

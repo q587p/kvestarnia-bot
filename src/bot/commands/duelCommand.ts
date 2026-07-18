@@ -798,7 +798,11 @@ async function sendTurnBasedDuelCard(
 async function markNeutralDuelPresence(ctx: Context, presence: PresenceService): Promise<void> {
   const player = playerFromContext(ctx.from);
   if (player) {
-    await presence.markAction({ user: player });
+    try {
+      await presence.markAction({ user: player });
+    } catch (error) {
+      console.error("Квестарня: присутність гравця не оновилась.", error);
+    }
   }
 }
 

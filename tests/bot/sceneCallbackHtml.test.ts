@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
-import type { DuelChallengeService, DuelChallengeView } from "../../src/services/duelChallengeService";
+import { DuelChallengeService, type DuelChallengeView } from "../../src/services/duelChallengeService";
+import type {
+  DuelChallengeRecord,
+  DuelChallengeRepository,
+  DuelCharacterSnapshot
+} from "../../src/db/repositories/duelChallengeRepository";
 import type { PresenceService } from "../../src/services/presenceService";
 import {
   clearMessageFreshnessTracking,
@@ -6581,6 +6586,82 @@ describe("scene callback HTML options", () => {
     }
   );
 
+  it.each(["rematch", "rematch-risk"] as const)(
+    "uses the real DuelChallengeService busy decision for a late-combat historical %s",
+    async (rematchKind) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const actor = duelCharacterSnapshot("character-1", 42n, 2);
+      const target = duelCharacterSnapshot("character-2", 99n, 3);
+      const challenge: DuelChallengeRecord = {
+        id: "duel-1",
+        challengerCharacterId: actor.id,
+        targetCharacterId: target.id,
+        contextChatId: 42n,
+        inviteToken: "abcDEF12",
+        mode: "turn-based",
+        status: "resolved",
+        expiresAt: new Date("2026-06-19T12:13:00.000Z"),
+        resolvedAt: new Date("2026-06-19T12:01:00.000Z"),
+        result: resolvedX.view.result,
+        createdAt: new Date("2026-06-19T12:00:00.000Z"),
+        updatedAt: new Date("2026-06-19T12:01:00.000Z"),
+        challenger: actor,
+        target
+      };
+      const storedSession = {
+        ...resolvedX.session,
+        challenge
+      };
+      const createTargetedRematchForTelegramUser = vi.fn()
+        .mockResolvedValue({ record: null, busyCharacterId: actor.id });
+      const repository = {
+        findByToken: vi.fn().mockResolvedValue(challenge),
+        findCharacterByTelegramUser: vi.fn().mockImplementation((telegramUserId: bigint) =>
+          Promise.resolve(telegramUserId === actor.telegramUserId ? actor : target)
+        ),
+        countResolvedBetweenCharacterPairSince: vi.fn().mockResolvedValue(0),
+        createTargetedRematchForTelegramUser,
+        findTurnBasedByTokenForTelegramUserId: vi.fn().mockResolvedValue(storedSession),
+        findActiveTurnBasedByTelegramUserId: vi.fn().mockResolvedValue(null)
+      } as unknown as DuelChallengeRepository;
+      const characters = {
+        findByTelegramUserId: vi.fn().mockResolvedValue(actor)
+      } as unknown as CharacterRepository;
+      const service = new DuelChallengeService(
+        repository,
+        characters,
+        () => new Date("2026-06-19T12:02:00.000Z")
+      );
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          duel: service,
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      expect(createTargetedRematchForTelegramUser).toHaveBeenCalledOnce();
+      expect(createTargetedRematchForTelegramUser).toHaveBeenCalledWith(
+        42n,
+        target.id,
+        expect.any(Object),
+        undefined,
+        { authorizeOnly: true }
+      );
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.filter((call) => call.method === "answerCallbackQuery")).toHaveLength(1);
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      expect(storedSession.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+    }
+  );
+
   it.each([
     ["a newer turn duel", "rematch"],
     ["a newer turn duel", "rematch-risk"],
@@ -6744,6 +6825,65 @@ describe("scene callback HTML options", () => {
     expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
     expect(markAction).toHaveBeenCalledOnce();
     expect(markAction.mock.calls[0]?.[0].user.telegramUserId).toBe(42n);
+  });
+
+  it("delivers a committed rematch when the deferred neutral heartbeat fails", async () => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingChallenge = {
+      ...resolvedX.view.challenge,
+      id: "heartbeat-failed-rematch",
+      inviteToken: "heartABC12",
+      status: "pending" as const,
+      resolvedAt: null,
+      result: null,
+      expiresAt: new Date("2026-07-18T12:13:00.000Z")
+    };
+    const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+      .mockResolvedValue({
+        state: "pending",
+        challenge: pendingChallenge,
+        challenger: resolvedX.view.challenger,
+        challengerResourceWarning: null,
+        expiresAt: pendingChallenge.expiresAt,
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const presenceFailure = new Error("presence unavailable");
+    const markAction = vi.fn<PresenceService["markAction"]>().mockRejectedValue(presenceFailure);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const base = servicesWith({});
+    const calls = await captureApiCalls(
+      "v1:duel:rematch:abcDEF12",
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true, botUsername: "kvestarnia_bot" }
+    );
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+    expect(markAction).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith(
+      "Квестарня: присутність гравця не оновилась.",
+      presenceFailure
+    );
+    expect(calls.filter((call) => call.method === "answerCallbackQuery")).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    )).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 42
+    )).toHaveLength(1);
+    expect(calls.filter((call) =>
+      call.method === "sendMessage" && call.payload.chat_id === 99
+    )).toHaveLength(1);
   });
 
   it.each([
@@ -10044,6 +10184,43 @@ function activeTurnBasedDuel(references: {
   } as unknown as ActiveTurnBasedDuelView;
 }
 
+function duelCharacterSnapshot(
+  id: string,
+  telegramUserId: bigint,
+  level: number
+): DuelCharacterSnapshot {
+  return {
+    id,
+    userId: `user-${id}`,
+    telegramUserId,
+    currentLocationId: "location.korchma.fighting_corner",
+    name: id === "character-1" ? "Перший Кухоль" : "Другий Кухоль",
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level,
+    xp: level >= 3 ? 25 : 0,
+    gold: 0,
+    hpCurrent: 24,
+    hpMax: 24,
+    manaCurrent: 12,
+    manaMax: 12,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {
+      strength: 7,
+      dexterity: 7,
+      intelligence: 6,
+      charisma: 6,
+      luck: 6
+    },
+    remortCount: 0,
+    equipment: []
+  };
+}
+
 function resolvedTurnBasedDuel(active: ActiveTurnBasedDuelView): {
   view: ResolvedTurnBasedDuelView;
   session: ActiveTurnBasedDuelView["session"];
@@ -10390,9 +10567,14 @@ async function captureApiCalls(
     failMethod?: string;
     failure?: Error;
     telegramUserId?: number;
+    botUsername?: string;
   } = {}
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", services);
+  const bot = createBot(
+    "123456:test-token",
+    services,
+    options.botUsername ? { botUsername: options.botUsername } : {}
+  );
   const calls: ApiCall[] = [];
   const telegramUserId = options.telegramUserId ?? 42;
 

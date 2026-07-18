@@ -171,6 +171,11 @@ export interface DuelRematchCreateResult {
   record: DuelChallengeRecord | null;
   busyCharacterId?: string;
   resourceConflict?: boolean;
+  leaseAcquired?: boolean;
+}
+
+export interface DuelRematchCreateOptions {
+  authorizeOnly?: boolean;
 }
 
 export interface UpdateTurnBasedDuelSessionInput {
@@ -205,7 +210,8 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint,
     targetCharacterId: string,
     input: CreateDuelChallengeInput,
-    resourceUpdate?: UpdateCharacterResourcesInput
+    resourceUpdate?: UpdateCharacterResourcesInput,
+    options?: DuelRematchCreateOptions
   ): Promise<DuelRematchCreateResult>;
 
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;

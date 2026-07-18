@@ -11,6 +11,7 @@ import type {
   DuelResultParticipantSnapshot,
   DuelResultProgressionBudget,
   DuelResultPayload,
+  DuelRematchCreateOptions,
   DuelRematchCreateResult,
   CreateDuelChallengeInput,
   StartTurnBasedDuelSessionInput,
@@ -164,7 +165,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     telegramUserId: bigint,
     targetCharacterId: string,
     input: CreateDuelChallengeInput,
-    resourceUpdate?: UpdateCharacterResourcesInput
+    resourceUpdate?: UpdateCharacterResourcesInput,
+    options: DuelRematchCreateOptions = {}
   ): Promise<DuelRematchCreateResult> {
     try {
       const transition = await this.prisma.$transaction(async (tx) => {
@@ -208,6 +210,13 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             throw new DuelRematchCombatBlockedError(challenger.id);
           }
           throw error;
+        }
+
+        if (options.authorizeOnly === true) {
+          await tx.activeCombatLease.delete({
+            where: { characterId: challenger.id }
+          });
+          return { inviteToken: null, leaseAcquired: true };
         }
 
         if (resourceUpdate) {
@@ -278,7 +287,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           : null,
         ...(transition.busyCharacterId
           ? { busyCharacterId: transition.busyCharacterId }
-          : {})
+          : {}),
+        ...(transition.leaseAcquired ? { leaseAcquired: true } : {})
       };
     } catch (error) {
       if (error instanceof DuelRematchCombatBlockedError) {

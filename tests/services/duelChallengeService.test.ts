@@ -2474,10 +2474,14 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     telegramUserId: bigint,
     targetCharacterId: string,
     input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date },
-    resourceUpdate?: UpdateCharacterResourcesInput
+    resourceUpdate?: UpdateCharacterResourcesInput,
+    options: { authorizeOnly?: boolean } = {}
   ) {
     if (this.lateRematchBusyCharacterId) {
       return { record: null, busyCharacterId: this.lateRematchBusyCharacterId };
+    }
+    if (options.authorizeOnly === true) {
+      return { record: null, leaseAcquired: true };
     }
     if (resourceUpdate) {
       const updated = await this.updateResourcesForTelegramUser(telegramUserId, resourceUpdate);

@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The quest-specific remort notice appears only in the opening battle message and only when pressure actually applies; reusable monster cards and later redraws do not repeat it. Adventure/combat reward formulas, anti-farm rules, PvP combat and ordinary authored-monster balance are unchanged; the only reward-table adjustment is the passage-search item-slot replacement described above.
 
 ### Focused adjacent fixes
+- Historical rematch resource warnings, level gates and pair limits now cross the same temporary actor combat-lease transaction as challenge creation, so a newer late combat returns busy before those outcomes can write presence or replace the terminal source. A failed deferred neutral heartbeat is logged best-effort after commit and no longer suppresses callback acknowledgement, owner/share cards or the targeted invite.
 - Added the missing quest-fight return route for the Korchma yard, preventing a correctly preserved yard-origin encounter from offering Niz navigation after settlement or flee.
 - Bard repository location checks and audience queries now normalize the legacy presence aliases already supported by the public presence service, so stored pre-canonical location values cannot hide or reject a valid same-place performance.
 

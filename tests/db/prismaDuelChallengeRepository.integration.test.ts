@@ -252,6 +252,122 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(producerRecord).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["ordinary resource warning after a newer turn duel", "resource-warning", false, "turn-based-duel"],
+    ["ordinary resource warning after persistent combat", "resource-warning", false, "persistent-fight"],
+    ["ordinary resource warning after Training", "resource-warning", false, "training-doppelganger"],
+    ["ordinary resource warning after party-boss combat", "resource-warning", false, "party-boss"],
+    ["ordinary resource warning without combat", "resource-warning", false, null],
+    ["rematch pair limit after persistent combat", "pair-limited", false, "persistent-fight"],
+    ["rematch-risk pair limit after persistent combat", "pair-limited", true, "persistent-fight"],
+    ["rematch pair limit without combat", "pair-limited", false, null],
+    ["rematch-risk pair limit without combat", "pair-limited", true, null],
+    ["rematch level gate after Training", "level-gated", false, "training-doppelganger"],
+    ["rematch-risk level gate after Training", "level-gated", true, "training-doppelganger"],
+    ["rematch level gate without combat", "level-gated", false, null],
+    ["rematch-risk level gate without combat", "level-gated", true, null]
+  ] as const)(
+    "makes the actor lease authoritative for %s",
+    async (label, earlyState, ignoreResourceWarning, leaseKind) => {
+      const token = `rematch-decision-${label.replace(/[^a-z]+/gi, "-")}`;
+      const now = new Date("2026-06-17T18:00:00.000Z");
+      const seeded = await seedPendingChallenge(token, "quick");
+      const resultPayload = makeQuickDuelResult(seeded.challenger.id, seeded.target.id);
+      await prisma.duelChallenge.update({
+        where: { inviteToken: token },
+        data: {
+          status: "resolved",
+          resolvedAt: now,
+          resultJson: resultPayload
+        }
+      });
+
+      if (earlyState === "resource-warning") {
+        await prisma.character.update({
+          where: { id: seeded.challenger.id },
+          data: {
+            hpCurrent: 7,
+            hpRegenAt: new Date("2026-06-17T18:23:00.000Z")
+          }
+        });
+      } else if (earlyState === "level-gated") {
+        await prisma.character.update({
+          where: { id: seeded.challenger.id },
+          data: { level: 2, xp: 0 }
+        });
+      } else {
+        await prisma.duelChallenge.createMany({
+          data: [1, 2].map((index) => ({
+            inviteToken: `${token}-pair-${index}`,
+            challengerCharacterId: seeded.challenger.id,
+            targetCharacterId: seeded.target.id,
+            mode: "quick",
+            status: "resolved",
+            expiresAt: new Date("2026-06-17T18:13:00.000Z"),
+            resolvedAt: now,
+            resultJson: resultPayload
+          }))
+        });
+      }
+
+      const historicalBefore = await prisma.duelChallenge.findUniqueOrThrow({
+        where: { inviteToken: token }
+      });
+      const characterBefore = await prisma.character.findUniqueOrThrow({
+        where: { id: seeded.challenger.id }
+      });
+      const countsBefore = {
+        challenges: await prisma.duelChallenge.count(),
+        quest: await prisma.dailyAction.count()
+      };
+
+      if (leaseKind) {
+        await prisma.activeCombatLease.create({
+          data: {
+            characterId: seeded.challenger.id,
+            kind: leaseKind,
+            referenceId: `late-${token}`
+          }
+        });
+      }
+
+      const service = new DuelChallengeService(
+        repository,
+        new PrismaCharacterRepository(prisma),
+        () => now,
+        new FakeRandomSource([0.1])
+      );
+      const result = await service.createRematchForTelegramUser(
+        seeded.challenger.telegramUserId,
+        token,
+        { ignoreResourceWarning }
+      );
+
+      expect(result.state).toBe(leaseKind ? "busy" : earlyState);
+      await expect(prisma.duelChallenge.findUniqueOrThrow({ where: { inviteToken: token } }))
+        .resolves.toEqual(historicalBefore);
+      await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+        .resolves.toEqual(characterBefore);
+      await expect(prisma.duelChallenge.count()).resolves.toBe(countsBefore.challenges);
+      await expect(prisma.dailyAction.count()).resolves.toBe(countsBefore.quest);
+      expect(producerRecord).not.toHaveBeenCalled();
+
+      const leases = await prisma.activeCombatLease.findMany({
+        where: { characterId: seeded.challenger.id }
+      });
+      expect(leases).toHaveLength(leaseKind ? 1 : 0);
+      if (leaseKind) {
+        expect(leases[0]).toMatchObject({
+          kind: leaseKind,
+          referenceId: `late-${token}`
+        });
+        await prisma.activeCombatLease.delete({
+          where: { characterId: seeded.challenger.id }
+        });
+      }
+    }
+  );
+
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
     const before = await repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
