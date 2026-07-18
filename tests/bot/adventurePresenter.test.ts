@@ -443,7 +443,7 @@ describe("adventure presenter", () => {
 
     expect(text).toContain("❌ Справу не закрито");
     expect(text).toContain("Винагорода за справу:\n<b>0 XP\n0 золота</b>");
-    expect(text).toContain("наступний 93-хвилинний період");
+    expect(text).toContain("Наступні три справи будуть доступні через 93 хвилини.");
     expect(text).not.toContain("✅ Справу закрито");
     expect(text).not.toContain("<b>+0 XP</b>");
     expect(text).not.toContain("Нагорода не видана: проблема покликала бій.");
@@ -491,9 +491,13 @@ describe("adventure presenter", () => {
   });
 
   it("does not imply duplicate rewards for already-completed adventure", () => {
-    const text = presentAdventureAlreadyCompleted();
+    const text = presentAdventureAlreadyCompleted({
+      now: new Date("2026-07-18T20:18:00.000Z"),
+      availableAt: new Date("2026-07-18T21:50:00.000Z")
+    });
 
     expect(text).toContain("уже використано");
+    expect(text).toContain("Наступні три справи будуть доступні через 92 хвилини.");
     expect(text).not.toContain("уже закрито");
     expect(text).not.toContain("+7 XP");
   });

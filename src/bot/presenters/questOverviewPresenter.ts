@@ -327,14 +327,18 @@ function getAdventureOverviewRow(snapshot: QuestHubSnapshot): QuestOverviewRow |
   }
 
   if (adventure.state === "already-completed") {
+    const nextAffairs = adventure.availableAt && adventure.now
+      ? `наступні три справи будуть доступні через ${formatCooldown(adventure.availableAt, adventure.now)}`
+      : "наступні три справи зʼявляться після 93-хвилинної паузи";
+
     return {
       id: "adventure",
       priority: "completed",
       title: `${title} — виконано`,
       body: [
-        "<i>Зроблено:</i> сьогоднішній вибір уже записано.",
-        "<i>Далі:</i> стіл прикидається, що не хоче продовження.",
-        "<i>Де:</i> нові три справи зʼявляться за столом зі справами в наступному періоді."
+        "<i>Зроблено:</i> одну зі справ уже записано.",
+        `<i>Далі:</i> ${nextAffairs}.`,
+        "<i>Де:</i> нова трійка зʼявиться за столом зі справами."
       ].join("\n")
     };
   }

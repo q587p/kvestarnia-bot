@@ -4,7 +4,7 @@
 
 ## 1. Проблема
 
-Поточний level 3+ adventure loop добре вирішує вибір **яку** справу взяти: персонаж отримує три deterministic проблеми на 93-хвилинний період, а пул уже вміє підмішувати race/class/title-сцени.
+Поточний level 3+ adventure loop добре вирішує вибір **яку** справу взяти: персонаж отримує три deterministic проблеми, завершує одну й чекає 93 хвилини від фактичного завершення до наступної трійки; пул уже вміє підмішувати race/class/title-сцени.
 
 Слабке місце починається після вибору справи. Усі проблеми використовують одну глобальну трійку:
 
@@ -98,7 +98,7 @@ STR/DEX/INT/CHA/LUCK впливають на перевірку. Race/class/sign
 - три deterministic різні проблеми;
 - хоча б одна персоналізована problem candidate, коли вона існує;
 - компактний title + client line;
-- 93-хвилинний period і dev reroll лишаються.
+- 93-хвилинна пауза після завершення й dev reroll лишаються; внутрішній bucket визначає deterministic набір, але не скорочує паузу на своїй межі.
 
 Персоналізація на цьому екрані відповідає за **те, які справи прийшли**. Новий resolver відповідає за **як саме герой може їх розв’язати**.
 
@@ -526,17 +526,18 @@ for every active problem
 
 ## 12. Backward compatibility та persistence
 
-### 12.1. Adventure period
+### 12.1. Adventure cooldown and offer bucket
 
-Не міняти:
+Зберегти:
 
-- 93-minute bucket;
 - три problem offers;
 - deterministic offer seed;
 - reroll marker;
 - level gate;
 - active-fight priority;
 - current daily-action idempotency authority.
+
+Внутрішній 93-minute bucket лишається тільки частиною deterministic offer seed. Доступність наступної трійки визначає rolling cooldown: рівно 93 хвилини від `createdAt` останнього успішного Adventure claim, з атомарною перевіркою під час наступного claim.
 
 ### 12.2. Callback compatibility
 

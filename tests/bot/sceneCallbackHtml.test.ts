@@ -729,7 +729,9 @@ describe("scene callback HTML options", () => {
       expect(finalLocationId).toBe(originLocationId);
       const edits = calls.filter((call) => call.method === "editMessageText");
       expect(edits).toHaveLength(2);
-      expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+      expect(edits.some((edit) => String(edit.payload.text).includes(
+        "Наступні три справи будуть доступні через 93 хвилини."
+      ))).toBe(true);
     }
   );
 
@@ -911,7 +913,9 @@ describe("scene callback HTML options", () => {
     expect(finalLocationId).toBe(originLocationId);
     const edits = calls.filter((call) => call.method === "editMessageText");
     expect(edits).toHaveLength(2);
-    expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+    expect(edits.some((edit) => String(edit.payload.text).includes(
+      "Наступні три справи будуть доступні через 93 хвилини."
+    ))).toBe(true);
   });
 
   it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {

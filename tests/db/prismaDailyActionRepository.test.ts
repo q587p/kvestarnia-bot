@@ -52,6 +52,102 @@ describe("PrismaDailyActionRepository bounded helpers", () => {
     expect(prisma.dailyAction.findMany).not.toHaveBeenCalled();
   });
 
+  it("loads only the latest keyed action for rolling cooldown checks", async () => {
+    const latest = {
+      id: "action-latest",
+      createdAt: new Date("2026-07-18T20:17:59.000Z")
+    };
+    const prisma = createPrismaMock({
+      character: { id: "character-rolling" },
+      firstDailyAction: latest
+    });
+    const repository = new PrismaDailyActionRepository(prisma.client);
+
+    await expect(repository.findLatestForTelegramUser(9_303n, {
+      key: "adventure.choice-mvp"
+    })).resolves.toBe(latest);
+
+    expect(prisma.dailyAction.findFirst).toHaveBeenCalledWith({
+      where: {
+        characterId: "character-rolling",
+        key: "adventure.choice-mvp"
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+  });
+
+  it("serializes a rolling cooldown claim before checking the latest completion", async () => {
+    const completedAt = new Date("2026-07-18T20:17:59.000Z");
+    const now = new Date("2026-07-18T20:18:00.000Z");
+    const character = {
+      id: "character-rolling",
+      userId: "user-rolling",
+      xp: 0,
+      level: 3,
+      gold: 0,
+      hpCurrent: 10,
+      hpMax: 10
+    };
+    const latest = {
+      id: "action-before-boundary",
+      characterId: character.id,
+      key: "adventure.choice-mvp",
+      localDate: "p93:old",
+      rewardXp: 5,
+      rewardGold: 3,
+      spentGold: 0,
+      resultJson: null,
+      createdAt: completedAt
+    };
+    const tx = {
+      character: {
+        findFirst: vi.fn().mockResolvedValue({ ...character, user: null }),
+        update: vi.fn().mockResolvedValue(character)
+      },
+      dailyAction: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(latest),
+        create: vi.fn()
+      }
+    };
+    const client = {
+      $transaction: vi.fn((callback: (value: typeof tx) => unknown) => callback(tx))
+    } as unknown as ConstructorParameters<typeof PrismaDailyActionRepository>[0];
+    const repository = new PrismaDailyActionRepository(client);
+
+    await expect(repository.claimForTelegramUser(9_303n, {
+      key: "adventure.choice-mvp",
+      localDate: "p93:new",
+      rewardXp: 5,
+      rewardGold: 3,
+      rollingCooldown: {
+        now,
+        durationMs: 93 * 60_000
+      }
+    })).resolves.toMatchObject({
+      state: "existing",
+      action: latest,
+      availableAt: new Date("2026-07-18T21:50:59.000Z")
+    });
+
+    expect(tx.character.update).toHaveBeenCalledTimes(1);
+    expect(tx.dailyAction.findFirst).toHaveBeenCalledWith({
+      where: {
+        characterId: character.id,
+        key: "adventure.choice-mvp"
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+    expect(tx.character.update.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.dailyAction.findFirst.mock.invocationCallOrder[0]!
+    );
+    expect(tx.dailyAction.create).not.toHaveBeenCalled();
+  });
+
   it("loads only capped current-day prefixed action rows", async () => {
     const prisma = createPrismaMock({
       character: { id: "character-2" },

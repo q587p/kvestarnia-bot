@@ -137,7 +137,7 @@ Recommended result-copy direction:
 <method-specific failure beat>
 
 Винагорода за справу: 0 XP, 0 золота.
-Наступний набір справ відкриється в наступний 93-хвилинний період.
+Наступні три справи будуть доступні через 93 хвилини від цього завершення.
 ```
 
 Keep the result funny, not punitive. The point is local texture and stakes, not a new frustration loop.

@@ -5,6 +5,7 @@ import { monsters } from "../content/monsters";
 import { activeRaces } from "../content/races";
 import type {
   DailyActionClaimIdentity,
+  DailyActionRecord,
   DailyActionRepository,
   HpLossAudit,
   RewardLevelChange
@@ -68,6 +69,7 @@ export { MIMIC_SHAWARMA_ADVENTURE_KEY } from "./dailyActionKeys";
 export const ADVENTURE_CHOICE_MIN_LEVEL = FIGHTING_CORNER_MIN_LEVEL;
 export const ADVENTURE_CHOICE_COUNT = 3;
 export const ADVENTURE_CHOICE_PERIOD_MINUTES = 93;
+export const ADVENTURE_CHOICE_COOLDOWN_MS = ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000;
 
 export type AdventureApproach = "safe" | "flair" | "risky";
 export type AdventureMethodId = string;
@@ -186,7 +188,12 @@ export type AdventureLookupResult =
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
   | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "ready"; character: CharacterSummary; offer: AdventureOffer }
-  | { state: "already-completed"; character: CharacterSummary };
+  | {
+      state: "already-completed";
+      character: CharacterSummary;
+      availableAt?: Date;
+      now?: Date;
+    };
 
 export type MimicShawarmaLookupResult =
   | { state: "no-character" }
@@ -210,7 +217,7 @@ export type AdventureProblemResult =
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
   | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "stale"; character: CharacterSummary; offer: AdventureOffer }
-  | { state: "already-completed"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary; availableAt?: Date; now?: Date }
   | {
       state: "selected";
       character: CharacterSummary;
@@ -225,7 +232,7 @@ export type AdventureResult =
   | { state: "active-fight"; character: CharacterSummary; session: SoloCombatSessionRecord }
   | { state: "combat-blocked"; character: CharacterSummary }
   | { state: "stale"; character: CharacterSummary; offer: AdventureOffer }
-  | { state: "already-completed"; character: CharacterSummary }
+  | { state: "already-completed"; character: CharacterSummary; availableAt?: Date; now?: Date }
   | {
       state: "completed";
       character: CharacterSummary;
@@ -244,6 +251,8 @@ export type AdventureResult =
       complication: boolean;
       check: QuestCheckResult;
       achievementUnlocks: AchievementUnlock[];
+      availableAt?: Date;
+      now?: Date;
     }
   | {
       state: "insufficient-gold";
@@ -339,7 +348,7 @@ export class AdventureService {
     }
 
     const [adventure, starterAdventure] = await Promise.allSettled([
-      this.getAdventureContext(telegramUserId, context, period),
+      this.getAdventureContext(telegramUserId, context, period, now),
       this.getMimicShawarmaFromContext(telegramUserId, context, mimicLocalDate)
     ]);
 
@@ -425,20 +434,24 @@ export class AdventureService {
       };
     }
 
-    const period = buildAdventurePeriod(this.clock());
+    const now = this.clock();
+    const period = buildAdventurePeriod(now);
     const claimIdentity: AdventureClaimIdentity = {
       key: ADVENTURE_CHOICE_KEY,
       localDate: period.storageKey
     };
-    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
-      key: claimIdentity.key,
-      localDate: claimIdentity.localDate
-    });
+    const activeCooldown = await this.findActiveAdventureCooldown(
+      telegramUserId,
+      period,
+      now
+    );
 
-    if (existing) {
+    if (activeCooldown) {
       return {
         state: "already-completed",
-        character: characterSummary
+        character: characterSummary,
+        availableAt: activeCooldown.availableAt,
+        now
       };
     }
 
@@ -553,7 +566,11 @@ export class AdventureService {
         fightEncounter
       }),
       itemGrants,
-      questIskrokaminBonus: true
+      questIskrokaminBonus: true,
+      rollingCooldown: {
+        now,
+        durationMs: ADVENTURE_CHOICE_COOLDOWN_MS
+      }
     });
 
     if (!claim) {
@@ -572,9 +589,13 @@ export class AdventureService {
     }
 
     if (claim.state === "existing") {
+      const availableAt = claim.availableAt ?? getAdventureCooldownAvailableAt(claim.action);
+
       return {
         state: "already-completed",
-        character: summarizeCharacter(claim.character, { equippedItems })
+        character: summarizeCharacter(claim.character, { equippedItems }),
+        availableAt,
+        now
       };
     }
 
@@ -617,7 +638,9 @@ export class AdventureService {
       levelChange: claim.levelChange,
       complication: check.grade === "complication",
       check,
-      achievementUnlocks
+      achievementUnlocks,
+      availableAt: getAdventureCooldownAvailableAt(claim.action),
+      now
     };
   }
 
@@ -880,8 +903,11 @@ export class AdventureService {
   private async getAdventureContext(
     telegramUserId: bigint,
     sharedContext?: AdventureQuestMarkerCharacterContext,
-    period = buildAdventurePeriod(this.clock())
+    period?: AdventurePeriod,
+    observedAt?: Date
   ): Promise<AdventureLookupResult> {
+    const now = observedAt ?? this.clock();
+    const currentPeriod = period ?? buildAdventurePeriod(now);
     const context = sharedContext ?? await this.getQuestMarkerCharacterContext(telegramUserId);
 
     if (!context) {
@@ -914,25 +940,51 @@ export class AdventureService {
       };
     }
 
-    const existing = await this.dailyActions.findForTelegramUser(telegramUserId, {
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey
-    });
+    const activeCooldown = await this.findActiveAdventureCooldown(
+      telegramUserId,
+      currentPeriod,
+      now
+    );
 
-    if (existing) {
+    if (activeCooldown) {
       return {
         state: "already-completed",
-        character: characterSummary
+        character: characterSummary,
+        availableAt: activeCooldown.availableAt,
+        now
       };
     }
 
     return {
       state: "ready",
       character: characterSummary,
-      offer: buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), period, {
-        rerollIndex: await this.getAdventureRerollIndex(telegramUserId, period)
+      offer: buildAdventureOffer(toAdventureOfferProfile(character.id, characterSummary), currentPeriod, {
+        rerollIndex: await this.getAdventureRerollIndex(telegramUserId, currentPeriod)
       })
     };
+  }
+
+  private async findActiveAdventureCooldown(
+    telegramUserId: bigint,
+    period: AdventurePeriod,
+    now: Date
+  ): Promise<{ availableAt: Date } | null> {
+    const latest = this.dailyActions.findLatestForTelegramUser
+      ? await this.dailyActions.findLatestForTelegramUser(telegramUserId, {
+          key: ADVENTURE_CHOICE_KEY
+        })
+      : await this.dailyActions.findForTelegramUser(telegramUserId, {
+          key: ADVENTURE_CHOICE_KEY,
+          localDate: period.storageKey
+        });
+
+    if (!latest) {
+      return null;
+    }
+
+    const availableAt = getAdventureCooldownAvailableAt(latest);
+
+    return availableAt > now ? { availableAt } : null;
   }
 
   private async findLiveActiveFight(
@@ -1077,6 +1129,12 @@ export function buildAdventurePeriod(now: Date): AdventurePeriod {
     localDate: toIsoDate(now),
     expiresAt: new Date((index + 1) * periodMs)
   };
+}
+
+function getAdventureCooldownAvailableAt(
+  action: Pick<DailyActionRecord, "createdAt">
+): Date {
+  return new Date(action.createdAt.getTime() + ADVENTURE_CHOICE_COOLDOWN_MS);
 }
 
 export function buildAdventureOffer(
