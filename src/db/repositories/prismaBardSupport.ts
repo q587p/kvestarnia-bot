@@ -21,6 +21,7 @@ export async function findBardMusicAvailableAt(input: {
   tx: TxClient;
   characterId: string;
   locationId: string;
+  remortCount: number;
 }): Promise<Date | null> {
   const [shared, historical] = await Promise.all([
     input.tx.characterCooldown.findUnique({
@@ -33,7 +34,11 @@ export async function findBardMusicAvailableAt(input: {
       select: { availableAt: true }
     }),
     input.tx.bardPerformance.findFirst({
-      where: { characterId: input.characterId, locationId: input.locationId },
+      where: {
+        characterId: input.characterId,
+        locationId: input.locationId,
+        remortCount: input.remortCount
+      },
       orderBy: { cooldownAvailableAt: "desc" },
       select: { cooldownAvailableAt: true }
     })

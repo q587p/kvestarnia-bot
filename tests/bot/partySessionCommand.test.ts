@@ -687,6 +687,30 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
+  it("keeps the canonical raid card when an old Lament callback arrives with Bard support off", async () => {
+    const session = makeBossSession();
+    const submitLamentForTelegramUser = vi.fn().mockResolvedValue({ state: "disabled" });
+    const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-action", token: session.partyInviteToken, turn: 1, action: "lament" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitLamentForTelegramUser, getByPartyInviteToken })
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Журлива балада зараз недоступна.",
+      show_alert: true
+    });
+    expect(messageText(editMessageText)).toContain("Контрольний Бос");
+    expect(messageText(editMessageText)).not.toContain("Тестовий бос вимкнений");
+  });
+
   it("answers queued boss gear actions with readable callback copy", async () => {
     const session = makeBossSession();
     const submitGearForTelegramUser = vi.fn().mockResolvedValue({ state: "updated", session });

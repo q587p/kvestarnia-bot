@@ -852,7 +852,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     return {
-      record: mapDuelCombatSession(session.record),
+      record: this.mapDuelCombatSession(session.record),
       transitioned: session.transitioned
     };
   }
@@ -912,7 +912,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async findTurnBasedByTokenForTelegramUserId(
@@ -932,7 +932,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async findTurnBasedByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
@@ -945,7 +945,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]> {
@@ -1089,6 +1089,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             const participant = Object.values(input.state.participants)
               .find((entry) => entry.characterId === lease.characterId);
             await releaseCombatLeaseWithTimedStatuses({
+              syncBardInspiration: this.options.bardSupportEnabled === true,
               tx,
               lease,
               releasedAt: input.completedAt ?? input.now,
@@ -1105,7 +1106,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       });
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async listDueTurnBasedSessions(now: Date, limit = 23): Promise<DuelCombatSessionRecord[]> {
@@ -1123,7 +1124,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return sessions.map(mapDuelCombatSession).filter((session): session is DuelCombatSessionRecord => session !== null);
+    return sessions
+      .map((session) => this.mapDuelCombatSession(session))
+      .filter((session): session is DuelCombatSessionRecord => session !== null);
   }
 
   async claimTurnBasedMessageReference(
@@ -1161,7 +1164,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     return {
       claimed: claimed.count === 1,
-      session: mapDuelCombatSession(session)
+      session: this.mapDuelCombatSession(session)
     };
   }
 
@@ -1199,7 +1202,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     return {
       released: released.count === 1,
-      session: mapDuelCombatSession(session)
+      session: this.mapDuelCombatSession(session)
     };
   }
 
@@ -1216,7 +1219,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     for (const session of activeSessions) {
-      const state = parseTurnBasedDuelState(session.stateJson);
+      const state = this.parseTurnBasedDuelState(session.stateJson);
       const valid =
         state &&
         session.duelChallenge.status === "active" &&
@@ -1269,6 +1272,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
             : undefined;
           await releaseCombatLeaseWithTimedStatuses({
+            syncBardInspiration: this.options.bardSupportEnabled === true,
             tx,
             lease,
             releasedAt: now,
@@ -1312,7 +1316,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
 
       const deleted = await this.prisma.$transaction(async (tx) => {
-        const released = await releaseCombatLeaseWithTimedStatuses({ tx, lease, releasedAt: now });
+        const released = await releaseCombatLeaseWithTimedStatuses({
+          syncBardInspiration: this.options.bardSupportEnabled === true,
+          tx,
+          lease,
+          releasedAt: now
+        });
         return { count: released ? 1 : 0 };
       });
       removedOrphanLeases += deleted.count;
@@ -1340,6 +1349,20 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       data: {
         status: "expired"
       }
+    });
+  }
+
+  private mapDuelCombatSession(
+    record: DuelCombatSessionWithChallenge
+  ): DuelCombatSessionRecord | null {
+    return mapDuelCombatSession(record, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
+    });
+  }
+
+  private parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
+    return parseTurnBasedDuelState(value, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
     });
   }
 }
@@ -1540,14 +1563,15 @@ function mapChallenge(record: DuelChallengeWithCharacters): DuelChallengeRecord 
 }
 
 function mapDuelCombatSession(
-  record: DuelCombatSessionWithChallenge
+  record: DuelCombatSessionWithChallenge,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
 ): DuelCombatSessionRecord | null {
   if (!record) {
     return null;
   }
 
   const challenge = mapChallenge(record.duelChallenge);
-  const state = parseTurnBasedDuelState(record.stateJson);
+  const state = parseTurnBasedDuelState(record.stateJson, options);
 
   if (
     !challenge ||
@@ -1737,7 +1761,10 @@ function parseXpRewards(value: unknown): DuelResultPayload["xpRewards"] | null {
   };
 }
 
-function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
+function parseTurnBasedDuelState(
+  value: unknown,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+): TurnBasedDuelState | null {
   if (!isRecord(value) || value.mode !== "turn-based") {
     return null;
   }
@@ -1776,7 +1803,7 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     return null;
   }
 
-  return {
+  const state: TurnBasedDuelState = {
     mode: "turn-based",
     status,
     rulesVersion: value.rulesVersion,
@@ -1789,6 +1816,16 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     ...(lastAction ? { lastAction } : {}),
     ...(outcome ? { outcome } : {})
   };
+
+  if (!options.bardSupportEnabled) {
+    delete state.participants.challenger.bardInspiration;
+    delete state.participants.target.bardInspiration;
+    if (state.lastRound) {
+      delete state.lastRound.bardInspirationAfter;
+    }
+  }
+
+  return state;
 }
 
 function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {

@@ -5722,7 +5722,9 @@ function applySoloTimedStatusPulses(input: {
   recipientCharacterId: string;
   now: Date;
 }): ReturnType<typeof applyVarenykSatedPulseAfterSoloEnemyResponse> {
-  const recovery = applyVarenykSatedPulseAfterSoloEnemyResponse(input);
+  const recovery = input.state.hero.hp > 0
+    ? applyVarenykSatedPulseAfterSoloEnemyResponse(input)
+    : undefined;
   applyBardInspirationPulseToSoloCombat(input);
   return recovery;
 }

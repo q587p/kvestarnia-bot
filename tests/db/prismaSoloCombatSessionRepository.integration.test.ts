@@ -80,6 +80,51 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(activeSessions[0]?.id).toBe(first?.id);
   });
 
+  it.each([
+    ["persistent PvE", 94243n, "user-bard-off-solo", "character-bard-off-solo", "normal" as const],
+    ["Training", 94244n, "user-bard-off-training", "character-bard-off-training", "training-doppelganger" as const]
+  ])("strips persisted Inspiration from %s snapshots after restart with Bard support off", async (
+    _label,
+    telegramUserId,
+    userId,
+    characterId,
+    source
+  ) => {
+    await seedCharacter(prisma, { userId, characterId, telegramUserId });
+    const enabled = new PrismaSoloCombatSessionRepository(
+      prisma,
+      undefined,
+      { bardSupportEnabled: true }
+    );
+    const input = makeCreateInput(`session-${userId}`, "monster.deadline-spider");
+    input.state.source = source;
+    input.state.bardInspiration = {
+      version: 1,
+      activationId: `inspiration-${userId}`,
+      sourcePerformanceId: "performance-persisted",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      grade: "memorable",
+      accuracyBonusPp: 3,
+      expiresAt: "2026-06-12T10:13:00.000Z",
+      cursorAt: "2026-06-12T10:00:00.000Z",
+      leaseStartedAt: "2026-06-12T10:00:00.000Z",
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    await enabled.createForTelegramUser(telegramUserId, input);
+    const restarted = new PrismaSoloCombatSessionRepository(
+      prisma,
+      undefined,
+      { bardSupportEnabled: false }
+    );
+
+    const restored = await restarted.findActiveByTelegramUserId(telegramUserId);
+
+    expect(restored?.state?.bardInspiration).toBeUndefined();
+  });
+
   it("atomically consumes exact queued vodka with solo session and lease creation", async () => {
     await seedCharacter(prisma, {
       userId: "user-vodka-atomic",

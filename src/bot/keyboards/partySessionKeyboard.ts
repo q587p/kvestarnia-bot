@@ -169,11 +169,17 @@ export function buildPartyBossKeyboard(
     ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
   const canAct = viewer?.status === "active" && viewer.resources.hp > 0;
+  const lamentLocked = Boolean(
+    viewer &&
+    session.state.bardMusic?.kind === "lament" &&
+    session.state.bardMusic.sourceCharacterId === viewer.characterId &&
+    session.state.bardMusic.activatedTurn === session.turn
+  );
   const availability = viewer
     ? getActorCombatActionAvailability(viewer.resources, viewer.combatStats)
     : null;
 
-  if (session.status === "active" && viewerCharacterId && canAct) {
+  if (session.status === "active" && viewerCharacterId && canAct && !lamentLocked) {
     keyboard
       .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
       .text("🧱 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))

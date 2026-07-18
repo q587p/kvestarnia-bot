@@ -15,6 +15,7 @@ import {
   isMeaningfulBigBarrelParticipant,
   resolvePartyBossRound,
   type PartyBossActionKey,
+  type PartyBossStandardActionKey,
   type PartyBossCombatItemInput,
   type PartyBossParticipantActionSummary,
   type PartyBossResult,
@@ -198,7 +199,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         if (existingBoss) {
           return {
             state: existingBoss.status === "active" ? "already-active" : "terminal",
-            session: mapSession(existingBoss)
+            session: this.mapSession(existingBoss)
           };
         }
 
@@ -380,7 +381,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
               const availableAt = await findBardMusicAvailableAt({
                 tx,
                 characterId: participant.characterId,
-                locationId: PRESENCE_LOCATION_KORCHMA_BARREL
+                locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+                remortCount: participant.remortCount
               });
               if (availableAt) {
                 participant.bardMusicAvailableAt = availableAt.toISOString();
@@ -425,7 +427,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         include: partyBossInclude
       });
 
-      return { state: "started", session: mapSession(boss) };
+      return { state: "started", session: this.mapSession(boss) };
     }).catch(async (error: unknown): Promise<PartyBossStartResult> => {
       if (!isUniqueConflict(error)) {
         throw error;
@@ -442,10 +444,17 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     telegramUserId: bigint,
     partyInviteToken: string,
     turn: number,
-    action: PartyBossActionKey,
+    action: PartyBossStandardActionKey,
     input: PartyBossResolveInput,
     options: { gearAbility?: CombatGearAbilityInput } = {}
   ): Promise<PartyBossActionResult> {
+    if ((action as string) === "lament") {
+      const session = await this.findByPartyInviteToken(partyInviteToken);
+      return session
+        ? { state: "lament-unavailable", reason: "specialized-only", session }
+        : { state: "not-found" };
+    }
+
     const inserted = await this.prisma.$transaction(async (tx): Promise<PartyBossActionResult> => {
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
       if (!character) {
@@ -458,21 +467,21 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       if (!isParticipant(session, character.id)) {
-        return { state: "not-participant", session: mapSession(session) };
+        return { state: "not-participant", session: this.mapSession(session) };
       }
 
       if (session.status !== "active") {
-        return { state: "terminal", session: mapSession(session) };
+        return { state: "terminal", session: this.mapSession(session) };
       }
 
-      if (session.turn !== turn || parseState(session).turn !== turn) {
-        return { state: "stale", session: mapSession(session) };
+      if (session.turn !== turn || this.parseState(session).turn !== turn) {
+        return { state: "stale", session: this.mapSession(session) };
       }
 
-      const state = parseState(session);
+      const state = this.parseState(session);
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
-        return { state: "stale", session: mapSession(session) };
+        return { state: "stale", session: this.mapSession(session) };
       }
       if (
         state.bardMusic?.kind === "lament" &&
@@ -482,7 +491,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return {
           state: "lament-unavailable",
           reason: "locked",
-          session: mapSession(session)
+          session: this.mapSession(session)
         };
       }
 
@@ -493,7 +502,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             state: "taunt-unavailable",
             reason: availability.reason,
             ...(availability.availableTurn !== undefined ? { availableTurn: availability.availableTurn } : {}),
-            session: mapSession(session)
+            session: this.mapSession(session)
           };
         }
       }
@@ -504,7 +513,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           characterLevel: actor.combatStats.level
         }).some((grant) => grant.combat?.profile.id === options.gearAbility?.profile.id);
         if (!matchingGrant) {
-          return { state: "stale", session: mapSession(session) };
+          return { state: "stale", session: this.mapSession(session) };
         }
 
         const availability = getCombatGearActionAvailabilityForActor(
@@ -515,7 +524,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           return {
             state: "gear-unavailable",
             reason: availability.reason === "cooldown" ? "skill-on-cooldown" : "not-enough-mana",
-            session: mapSession(session)
+            session: this.mapSession(session)
           };
         }
       }
@@ -538,7 +547,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "not-found" };
       }
 
-      return { state: queuedState, session: mapSession(current) };
+      return { state: queuedState, session: this.mapSession(current) };
     });
 
     if (!("session" in inserted)) {
@@ -574,8 +583,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         if (!session) {
           return { state: "not-found" };
         }
-        const presented = mapSession(session);
-        if (!isBigBarrelBrotherState(parseState(session))) {
+        const presented = this.mapSession(session);
+        if (!isBigBarrelBrotherState(this.parseState(session))) {
           return {
             state: "lament-unavailable",
             reason: "not-big-barrel",
@@ -596,7 +605,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             session: presented
           };
         }
-        const state = parseState(session);
+        const state = this.parseState(session);
         if (session.turn !== turn || state.turn !== turn) {
           return { state: "stale", session: presented };
         }
@@ -639,7 +648,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         const availableAt = await findBardMusicAvailableAt({
           tx,
           characterId: character.id,
-          locationId: PRESENCE_LOCATION_KORCHMA_BARREL
+          locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+          remortCount: actor.remortCount
         });
         if (availableAt && availableAt > input.now) {
           return {
@@ -709,7 +719,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           return { state: "not-found" };
         }
 
-        return { state: queuedState, session: mapSession(current) };
+        return { state: queuedState, session: this.mapSession(current) };
       });
     } catch (error) {
       if (!(error instanceof PartyBossLamentRaceRollback)) {
@@ -756,21 +766,21 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       if (!isParticipant(session, character.id)) {
-        return { state: "not-participant", session: mapSession(session) };
+        return { state: "not-participant", session: this.mapSession(session) };
       }
 
       if (session.status !== "active") {
-        return { state: "terminal", session: mapSession(session) };
+        return { state: "terminal", session: this.mapSession(session) };
       }
 
-      if (session.turn !== turn || parseState(session).turn !== turn) {
-        return { state: "stale", session: mapSession(session) };
+      if (session.turn !== turn || this.parseState(session).turn !== turn) {
+        return { state: "stale", session: this.mapSession(session) };
       }
 
-      const state = parseState(session);
+      const state = this.parseState(session);
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
-        return { state: "stale", session: mapSession(session) };
+        return { state: "stale", session: this.mapSession(session) };
       }
       if (
         state.bardMusic?.kind === "lament" &&
@@ -780,17 +790,17 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return {
           state: "lament-unavailable",
           reason: "locked",
-          session: mapSession(session)
+          session: this.mapSession(session)
         };
       }
 
       const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
       if (!itemAvailability.available) {
-        return { state: "item-unavailable", reason: itemAvailability.reason, session: mapSession(session) };
+        return { state: "item-unavailable", reason: itemAvailability.reason, session: this.mapSession(session) };
       }
 
       if (calculatePartyBossCombatItemHealing(actor.resources, item.effect) <= 0) {
-        return { state: "item-unavailable", reason: "full-hp", session: mapSession(session) };
+        return { state: "item-unavailable", reason: "full-hp", session: this.mapSession(session) };
       }
 
       const lease = await tx.activeCombatLease.findUnique({
@@ -798,7 +808,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         select: { kind: true, referenceId: true }
       });
       if (!lease || lease.kind !== PARTY_BOSS_LEASE_KIND || lease.referenceId !== session.partySessionId) {
-        return { state: "stale", session: mapSession(session) };
+        return { state: "stale", session: this.mapSession(session) };
       }
 
       await tx.characterItem.updateMany({
@@ -827,11 +837,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       ]);
 
       if (!stack || stack.quantity < 1) {
-        return { state: "item-unavailable", reason: "not-owned", session: mapSession(session) };
+        return { state: "item-unavailable", reason: "not-owned", session: this.mapSession(session) };
       }
 
       if (equipped || reservedItemIds.includes(item.id)) {
-        return { state: "item-unavailable", reason: "reserved", session: mapSession(session) };
+        return { state: "item-unavailable", reason: "reserved", session: this.mapSession(session) };
       }
 
       const queuedState = await writePartyBossActionChoice(tx, {
@@ -854,7 +864,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       return {
         state: queuedState,
-        session: mapSession(current)
+        session: this.mapSession(current)
       };
     }).catch(async (error: unknown): Promise<PartyBossActionResult> => {
       if (!(error instanceof PartyBossItemUseRollback)) {
@@ -897,7 +907,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     }
 
     if (session.status !== "active") {
-      return { state: "terminal", session: mapSession(session) };
+      return { state: "terminal", session: this.mapSession(session) };
     }
 
     const resolved = await this.resolveIfReady(
@@ -907,7 +917,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     );
     return resolved
       ? { state: "resolved", ...resolved }
-      : { state: "queued", session: mapSession(session) };
+      : { state: "queued", session: this.mapSession(session) };
   }
 
   async findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null> {
@@ -933,12 +943,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       include: partyBossInclude
     });
 
-    return session ? mapSession(session) : null;
+    return session ? this.mapSession(session) : null;
   }
 
   async findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null> {
     const session = await findByInviteToken(this.prisma, partyInviteToken);
-    return session ? mapSession(session) : null;
+    return session ? this.mapSession(session) : null;
   }
 
   async listDueTimedOutSessions(now: Date, options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
@@ -957,7 +967,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       include: partyBossInclude
     });
 
-    return sessions.map(mapSession);
+    return sessions.map((session) => this.mapSession(session));
   }
 
   async forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult> {
@@ -988,9 +998,9 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "no-active" };
       }
 
-      const state = parseState(session);
+      const state = this.parseState(session);
       if (!isBigBarrelBrotherState(state)) {
-        return { state: "not-big", session: mapSession(session) };
+        return { state: "not-big", session: this.mapSession(session) };
       }
 
       const nextState: PartyBossState = {
@@ -1019,7 +1029,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           include: partyBossInclude
         });
 
-        return current ? { state: "stale", session: mapSession(current) } : { state: "no-active" };
+        return current ? { state: "stale", session: this.mapSession(current) } : { state: "no-active" };
       }
 
       const current = await tx.partyBossSession.findUnique({
@@ -1027,7 +1037,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         include: partyBossInclude
       });
 
-      return current ? { state: "primed", session: mapSession(current) } : { state: "no-active" };
+      return current ? { state: "primed", session: this.mapSession(current) } : { state: "no-active" };
     });
   }
 
@@ -1046,10 +1056,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       });
 
       if (!session || session.status !== "active") {
-        return session ? { session: mapSession(session) } : null;
+        return session ? { session: this.mapSession(session) } : null;
       }
 
-      const state = parseState(session);
+      const state = this.parseState(session);
       const requiredIds = state.participants
         .filter((participant) => participant.status === "active" && participant.resources.hp > 0)
         .map((participant) => participant.characterId);
@@ -1163,7 +1173,13 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           ...achievementEvents,
           ...await settleTerminalPartyBoss(tx, session, resolved.state, input.now, this.hpRecoveryProducer)
         ];
-        await releasePartyBossLocks(tx, session.partySessionId, input.now, resolved.state);
+        await releasePartyBossLocks(
+          tx,
+          session.partySessionId,
+          input.now,
+          resolved.state,
+          this.options.bardSupportEnabled === true
+        );
       }
 
       const current = await tx.partyBossSession.findUnique({
@@ -1173,10 +1189,22 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       return current
         ? {
-            session: mapSession(current),
+            session: this.mapSession(current),
             ...(achievementEvents.length > 0 ? { achievementEvents } : {})
           }
         : null;
+    });
+  }
+
+  private mapSession(row: PartyBossRow): PartyBossSessionRecord {
+    return mapSession(row, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
+    });
+  }
+
+  private parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
+    return parseState(row, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
     });
   }
 }
@@ -1639,7 +1667,8 @@ async function releasePartyBossLocks(
   tx: TxClient,
   partySessionId: string,
   releasedAt: Date,
-  state: PartyBossState
+  state: PartyBossState,
+  bardSupportEnabled = true
 ): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
@@ -1667,6 +1696,7 @@ async function releasePartyBossLocks(
       tx,
       lease,
       releasedAt,
+      syncBardInspiration: bardSupportEnabled,
       ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
       ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
     });
@@ -1762,8 +1792,11 @@ async function findByInviteToken(
   });
 }
 
-function mapSession(row: PartyBossRow): PartyBossSessionRecord {
-  const state = parseState(row);
+function mapSession(
+  row: PartyBossRow,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+): PartyBossSessionRecord {
+  const state = parseState(row, options);
 
   return {
     id: row.id,
@@ -1779,17 +1812,22 @@ function mapSession(row: PartyBossRow): PartyBossSessionRecord {
     result: parseResult(row.resultJson, state),
     turnExpiresAt: row.turnExpiresAt,
     completedAt: row.completedAt,
-    queuedActions: row.actions.map((action) => {
+    queuedActions: row.actions.flatMap((action) => {
       const item = parseActionItem(action.resultJson);
       const gearAbility = parseActionGearAbility(action.resultJson);
+      const actionKey = parseActionKey(action.actionKey);
 
-      return {
+      if (!options.bardSupportEnabled && actionKey === "lament") {
+        return [];
+      }
+
+      return [{
         characterId: action.actorCharacterId,
         turn: action.turn,
-        action: parseActionKey(action.actionKey),
+        action: actionKey,
         ...(item ? { item } : {}),
         ...(gearAbility ? { gearAbility } : {})
-      };
+      }];
     }),
     participants: row.partySession.participants
       .filter((participant) => participant.status === "joined")
@@ -1832,8 +1870,27 @@ function mapCharacterForCombat(
   };
 }
 
-function parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
-  return row.stateJson as unknown as PartyBossState;
+function parseState(
+  row: Pick<PartyBossRow, "stateJson">,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+): PartyBossState {
+  const state = clonePartyBossState(row.stateJson as unknown as PartyBossState);
+  if (options.bardSupportEnabled) {
+    return state;
+  }
+
+  delete state.bardMusic;
+  for (const participant of state.participants) {
+    delete participant.bardInspiration;
+    delete participant.bardMusicAvailableAt;
+  }
+  state.roundLog = state.roundLog.map((round) => {
+    const next = { ...round };
+    delete next.bardMusic;
+    next.actions = next.actions.filter((action) => action.action !== "lament");
+    return next;
+  });
+  return state;
 }
 
 function parseResult(value: Prisma.JsonValue, state: PartyBossState) {

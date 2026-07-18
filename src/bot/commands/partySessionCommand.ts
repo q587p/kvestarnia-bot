@@ -198,7 +198,7 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const result = callback.action === "lament"
+    let result = callback.action === "lament"
       ? await options.partyBoss.submitLamentForTelegramUser(
           telegramUserId,
           callback.token,
@@ -210,7 +210,16 @@ export async function handlePartySessionCallback(
           callback.turn,
           callback.action
         );
-    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+    const disabledLament = callback.action === "lament" && result.state === "disabled";
+    if (disabledLament) {
+      const session = await options.partyBoss.getByPartyInviteToken(callback.token);
+      if (session) {
+        result = { state: "stale", session };
+      }
+    }
+    await safeAnswerCallbackQuery(ctx, disabledLament
+      ? { text: "Журлива балада зараз недоступна.", show_alert: true }
+      : result.state === "updated"
       ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
         ? { text: "Дію вже записано." }

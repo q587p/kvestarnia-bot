@@ -551,11 +551,15 @@ export function presentPartyBoss(
   if (big && state.warriorTaunt?.active) {
     lines.push(presentWarriorRaidTauntBossLine(state));
   }
-  if (big && state.bardMusic && state.bardMusic.kind !== "none") {
-    lines.push(presentBardRaidMusicLine(state.bardMusic));
+  if (big && session.status === "active" && state.bardMusic && state.bardMusic.kind !== "none") {
+    const bardMusicLine = presentBardRaidMusicLine(state.bardMusic);
+    if (bardMusicLine) {
+      lines.push(bardMusicLine);
+    }
   }
   if (
     big &&
+    session.status === "active" &&
     state.bardMusic?.kind === "none" &&
     viewer?.combatStats.classId === "class.bard" &&
     viewer.bardMusicAvailableAt
@@ -1176,12 +1180,14 @@ function presentWarriorRaidTauntBossLine(state: PartyBossSessionRecord["state"])
 
 function presentBardRaidMusicLine(
   music: NonNullable<PartyBossSessionRecord["state"]["bardMusic"]>
-): string {
+): string | null {
   if (music.kind === "inspiration") {
     return "✨ Натхнення від виступу вже займає музичне місце цього рейду.";
   }
   if (music.kind === "lament") {
-    return `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatTurns(music.remainingBossResponses)}.`;
+    return music.remainingBossResponses > 0
+      ? `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatBossResponses(music.remainingBossResponses)}.`
+      : null;
   }
 
   return "";
@@ -1198,7 +1204,7 @@ function presentBardRaidMusicRoundLines(
   lines.push(
     music.expired
       ? "🎼 Остання нота стихла: журлива балада вже не послаблює удари."
-      : `🎻 Журлива балада тримається: ще ${formatTurns(music.remainingBossResponses)}.`
+      : `🎻 Журлива балада тримається: ще ${formatBossResponses(music.remainingBossResponses)}.`
   );
   return lines;
 }
@@ -1502,6 +1508,10 @@ function presentPartyBossStartTip(
 
   if (!participant) {
     return null;
+  }
+
+  if (participant.classId === "class.bard" && session.state.bardMusic === undefined) {
+    return "<i>Порада дня: у рейді тримайте ритм і не сперечайтеся з бочкою про акустику.</i>";
   }
 
   const flavor = selectCharacterFlavorLine(summarizeCharacter(participant, {
@@ -1829,6 +1839,12 @@ function formatTurns(turns: number): string {
   const safeTurns = Math.max(1, Math.floor(turns));
 
   return `${safeTurns} ${pluralizeUk(safeTurns, "хід", "ходи", "ходів")}`;
+}
+
+function formatBossResponses(responses: number): string {
+  const safeResponses = Math.max(0, Math.floor(responses));
+
+  return `${safeResponses} ${pluralizeUk(safeResponses, "відповідь", "відповіді", "відповідей")}`;
 }
 
 function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {

@@ -44,6 +44,7 @@ export const WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS = 3;
 export const WARRIOR_RAID_TAUNT_COOLDOWN_TURNS = 5;
 
 export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item" | "taunt" | "lament";
+export type PartyBossStandardActionKey = Exclude<PartyBossActionKey, "lament">;
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 

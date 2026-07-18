@@ -10,6 +10,8 @@ import {
 } from "../../src/db/repositories/prismaBardSupport";
 import {
   BARD_INSPIRATION_STATUS_KEY,
+  buildBardInspirationPayload,
+  freezeBardInspirationForCombat,
   getBardMusicAvailabilityKey,
   parseBardInspirationPayload
 } from "../../src/domain/noncombat/bardSupport";
@@ -202,6 +204,124 @@ describe("PrismaBardPerformanceRepository integration", () => {
     }))).resolves.toMatchObject({
       state: "cooldown",
       availableAt: new Date("2026-06-26T11:03:00.000Z")
+    });
+  });
+
+  it("ignores previous-life performance cooldown history after remort", async () => {
+    await seedCharacter({
+      telegramUserId: 101n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    await seedPerformance({
+      id: "previous-life-performance",
+      token: "12345678-1234-4234-9234-000000000108",
+      housePayoutGold: 0,
+      expiresAt: new Date("2026-06-26T09:59:00.000Z"),
+      cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "bard-remort-1",
+        characterId: "character-bard",
+        token: "bard-remort-token-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 0,
+        displayNameSnapshot: "character-bard",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-26T09:59:30.000Z")
+      }
+    });
+
+    await expect(repository.startPerformanceForTelegramUser(101n, startInput({
+      token: "12345678-1234-4234-9234-000000000109",
+      rawHousePayoutGold: 0,
+      bardSupportEnabled: true
+    }))).resolves.toMatchObject({ state: "started" });
+  });
+
+  it("shows the frozen Inspiration value after wall-clock expiry and the released value afterward", async () => {
+    await seedCharacter({
+      telegramUserId: 110n,
+      userId: "user-frozen-hero",
+      characterId: "character-frozen-hero"
+    });
+    const startedAt = new Date("2026-06-26T10:00:00.000Z");
+    const payload = buildBardInspirationPayload({
+      activationId: "frozen-hero-inspiration",
+      sourcePerformanceId: "performance-frozen-hero",
+      sourceCharacterId: "character-bard",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: "character-frozen-hero",
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      now: startedAt
+    });
+    const frozen = freezeBardInspirationForCombat(
+      payload,
+      "character-frozen-hero",
+      0,
+      startedAt
+    )!;
+    await prisma.characterCooldown.create({
+      data: {
+        id: "frozen-hero-cooldown",
+        characterId: "character-frozen-hero",
+        key: BARD_INSPIRATION_STATUS_KEY,
+        availableAt: new Date(payload.expiresAt),
+        resultJson: payload
+      }
+    });
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "frozen-hero-session",
+        characterId: "character-frozen-hero",
+        monsterId: "monster.test",
+        status: "active",
+        turn: 1,
+        stateJson: { bardInspiration: frozen },
+        expiresAt: new Date("2026-06-26T11:00:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "frozen-hero-lease",
+        characterId: "character-frozen-hero",
+        kind: "solo-combat",
+        referenceId: "frozen-hero-session",
+        createdAt: startedAt,
+        updatedAt: startedAt
+      }
+    });
+
+    const duringCombat = await repository.getInspirationForTelegramUser(
+      110n,
+      new Date("2026-06-26T10:20:00.000Z")
+    );
+    expect(duringCombat?.inspiration?.expiresAt).toBe("2026-06-26T10:33:00.000Z");
+    expect(duringCombat?.inspiration?.cursorAt).toBe("2026-06-26T10:20:00.000Z");
+
+    const released = {
+      ...payload,
+      expiresAt: "2026-06-26T10:33:00.000Z",
+      cursorAt: "2026-06-26T10:20:00.000Z"
+    };
+    await prisma.activeCombatLease.delete({ where: { id: "frozen-hero-lease" } });
+    await prisma.characterCooldown.update({
+      where: { id: "frozen-hero-cooldown" },
+      data: { availableAt: new Date(released.expiresAt), resultJson: released }
+    });
+    const afterRelease = await repository.getInspirationForTelegramUser(
+      110n,
+      new Date("2026-06-26T10:20:00.000Z")
+    );
+    expect(afterRelease?.inspiration).toMatchObject({
+      expiresAt: released.expiresAt,
+      cursorAt: released.cursorAt
     });
   });
 
@@ -908,6 +1028,21 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       key TEXT NOT NULL,
       available_at DATETIME NOT NULL,
       result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE solo_combat_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      character_id TEXT NOT NULL,
+      monster_id TEXT NOT NULL,
+      state_json JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      turn INTEGER NOT NULL DEFAULT 1,
+      reward_xp INTEGER,
+      reward_gold INTEGER,
+      reward_items_json JSONB,
+      reward_claimed_at DATETIME,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE bard_performances (

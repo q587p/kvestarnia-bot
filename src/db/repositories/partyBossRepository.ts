@@ -4,6 +4,7 @@ import type { CombatActorStats } from "../../domain/combat/combatState";
 import type { CombatGearAbilityInput } from "../../domain/combat/combatEngine";
 import type {
   PartyBossActionKey,
+  PartyBossStandardActionKey,
   PartyBossCombatItemInput,
   PartyBossResult,
   PartyBossState
@@ -109,7 +110,8 @@ export type PartyBossActionResult =
         | "unable"
         | "music-taken"
         | "cooldown"
-        | "locked";
+        | "locked"
+        | "specialized-only";
       availableAt?: Date;
       now?: Date;
       session: PartyBossSessionRecord;
@@ -150,7 +152,7 @@ export interface PartyBossRepository {
     telegramUserId: bigint,
     partyInviteToken: string,
     turn: number,
-    action: PartyBossActionKey,
+    action: PartyBossStandardActionKey,
     input: PartyBossResolveInput,
     options?: { gearAbility?: CombatGearAbilityInput }
   ): Promise<PartyBossActionResult>;

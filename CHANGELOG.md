@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Rollout and compatibility
 - Added `BARD_SUPPORT_ENABLED`, off by default in production. Non-production enables the runtime surface for focused QA; production can expose it only through the explicit flag. Feature-off performance economy, audience reactions and combat behavior remain unchanged.
 - Reused `CharacterCooldown`, existing raid JSON and the existing combat lease. No Prisma schema, migration, dependency or achievement was added. Inspiration is life-bound and remort-cleared; Lament remains encounter-bound and never transfers to another raid. Existing Bard achievements still count canonical performances only.
+- Review hardening preserves existing raid achievement events when Lament completes a round, makes shared music history life-bound, consumes Inspiration on fatal committed responses, shows frozen Inspiration on `/hero`, rejects generic Lament writes, and makes the disabled rollout flag ignore persisted Bard combat state and copy across every durable combat surface.
 - Reviewed `📖 Перекази`: its current Bard entry describes performance and does not deny support mechanics, so no lore text changed before the production rollout is enabled. Manual Telegram QA remains pending; automated domain, repository, service, presenter and callback coverage owns the implementation evidence.
 
 ## [0.3.13] - 12026-07-18 - Location-Safe Quest and Combat Fixes

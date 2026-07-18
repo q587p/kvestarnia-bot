@@ -22,6 +22,57 @@ describe("solo combat state JSON parser", () => {
     expect(parseCombatState(legacyState)).toEqual(legacyState);
   });
 
+  it("strips persisted Inspiration state and replay copy when Bard support restarts off", () => {
+    const inspiration = {
+      version: 1,
+      activationId: "persisted-inspiration",
+      sourcePerformanceId: "performance-1",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: "character-1",
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      accuracyBonusPp: 2,
+      expiresAt: "2026-07-18T10:13:00.000Z",
+      cursorAt: "2026-07-18T10:00:00.000Z",
+      leaseStartedAt: "2026-07-18T10:00:00.000Z",
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    const state = {
+      ...legacyState,
+      source: { kind: "training-doppelganger", sourceId: "training-1" },
+      bardInspiration: inspiration,
+      lastTurn: {
+        action: "attack",
+        heroOutcome: "hit",
+        heroDamage: 1,
+        monsterDamage: 0,
+        manaSpent: 0,
+        critical: false,
+        bardInspiration: inspiration
+      },
+      turnLog: [{
+        turn: 1,
+        summary: {
+          action: "attack",
+          heroOutcome: "hit",
+          heroDamage: 1,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false
+        },
+        hero: legacyState.hero,
+        monster: legacyState.monster,
+        bardInspiration: inspiration
+      }]
+    };
+
+    const parsed = parseCombatState(state, { bardSupportEnabled: false });
+
+    expect(parsed?.bardInspiration).toBeUndefined();
+    expect(parsed?.turnLog?.[0]?.bardInspiration).toBeUndefined();
+  });
+
   it("round-trips player ability fumble state and replay summaries", () => {
     const fumble = {
       abilityId: "ability.race.dry-tide",

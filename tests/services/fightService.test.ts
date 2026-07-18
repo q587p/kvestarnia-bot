@@ -1150,6 +1150,56 @@ describe("FightService", () => {
     }
   });
 
+  it("consumes the final Inspiration minute on a fatal committed PvE turn exactly once", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.1, 0.1, 0.1])
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    if (started.state !== "persistent-active" || !started.session.state) throw new Error("Expected fight.");
+    const state = started.session.state;
+    state.hero.hp = 1;
+    state.bardInspiration = {
+      version: 1,
+      activationId: "fatal-pve-inspiration",
+      sourcePerformanceId: "performance-fatal-pve",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      grade: "legendary",
+      accuracyBonusPp: 5,
+      expiresAt: addSeconds(fixedClock(), 60).toISOString(),
+      cursorAt: fixedClock().toISOString(),
+      leaseStartedAt: fixedClock().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    await sessions.updateById(started.session.id, { state, status: "active" });
+
+    await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "attack"
+    });
+    const afterFirst = sessions.getById(started.session.id)!;
+    await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "attack"
+    });
+    const afterReplay = sessions.getById(started.session.id)!;
+
+    expect(afterFirst.state?.hero.hp).toBe(0);
+    expect(afterFirst.state?.bardInspiration?.expiresAt).toBe(fixedClock().toISOString());
+    expect(afterReplay.state?.bardInspiration?.pulseIds).toEqual(afterFirst.state?.bardInspiration?.pulseIds);
+  });
+
   it("applies adventure remort pressure once and reuses the frozen battle state on replay", async () => {
     const start = async (remortCount: number) => {
       const characters = new FakeCharacterRepository();

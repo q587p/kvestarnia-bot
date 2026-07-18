@@ -1,7 +1,7 @@
 import {
   BIG_BARREL_BROTHER_BOSS_KEY,
   BIG_BARREL_BROTHER_RULES_VERSION,
-  type PartyBossActionKey
+  type PartyBossStandardActionKey
 } from "../domain/partyBoss/partyBoss";
 import { findMantokAbilityGrantByKey, items } from "../content";
 import type {
@@ -101,10 +101,17 @@ export class PartyBossService {
     telegramUserId: bigint,
     partyInviteToken: string,
     turn: number,
-    action: PartyBossActionKey
+    action: PartyBossStandardActionKey
   ): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
+    }
+
+    if ((action as string) === "lament") {
+      const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+      return session
+        ? { state: "lament-unavailable", reason: "specialized-only", session }
+        : { state: "not-found" };
     }
 
     const now = this.clock();
@@ -138,10 +145,11 @@ export class PartyBossService {
         nextTurnExpiresAt: nextTurnDeadline(now)
       }
     );
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
 
-    return result;
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
   }
 
   async submitGearForTelegramUser(

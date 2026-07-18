@@ -241,6 +241,22 @@ describe("PrismaPartyBossRepository integration", () => {
       turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     });
     expect(started).toMatchObject({ state: "started", session: { state: { bardMusic: { kind: "none" } } } });
+    const actionCountBeforeGenericLament = await prisma.partyBossAction.count();
+    const cooldownCountBeforeGenericLament = await prisma.characterCooldown.count({
+      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+    });
+
+    await expect(supportRepository.submitActionForTelegramUser(
+      1005n,
+      "party-token-big-lament-race",
+      1,
+      "lament" as never,
+      resolveInput()
+    )).resolves.toMatchObject({ state: "lament-unavailable", reason: "specialized-only" });
+    await expect(prisma.partyBossAction.count()).resolves.toBe(actionCountBeforeGenericLament);
+    await expect(prisma.characterCooldown.count({
+      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+    })).resolves.toBe(cooldownCountBeforeGenericLament);
 
     const [left, right] = await Promise.all([
       supportRepository.submitLamentForTelegramUser(1005n, "party-token-big-lament-race", 1, {
@@ -270,6 +286,17 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     ]);
 
+    const rollbackRepository = new PrismaPartyBossRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true),
+      { bardSupportEnabled: false }
+    );
+    const restoredWithSupportOff = await rollbackRepository.findByPartyInviteToken(
+      "party-token-big-lament-race"
+    );
+    expect(restoredWithSupportOff?.state.bardMusic).toBeUndefined();
+    expect(restoredWithSupportOff?.queuedActions.some((action) => action.action === "lament")).toBe(false);
+
     const winnerTelegramUserId = winnerCharacterId === "lament-bard-a-character" ? 1005n : 1006n;
     await expect(supportRepository.submitActionForTelegramUser(
       winnerTelegramUserId,
@@ -280,6 +307,80 @@ describe("PrismaPartyBossRepository integration", () => {
     )).resolves.toMatchObject({ state: "lament-unavailable", reason: "locked" });
     await expect(prisma.partyBossAction.findFirstOrThrow({
       where: { actorCharacterId: winnerCharacterId, turn: 1 },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
+
+    const otherTelegramUserId = winnerTelegramUserId === 1005n ? 1006n : 1005n;
+    const resolvedWithSupportOff = await rollbackRepository.submitActionForTelegramUser(
+      otherTelegramUserId,
+      "party-token-big-lament-race",
+      1,
+      "attack",
+      resolveInput()
+    );
+    expect(resolvedWithSupportOff.state).toBe("resolved");
+    if (!("session" in resolvedWithSupportOff)) {
+      throw new Error("Expected feature-off round resolution.");
+    }
+    const resolvedRound = resolvedWithSupportOff.session.state.roundLog.at(-1);
+    expect(resolvedWithSupportOff.session.state.bardMusic).toBeUndefined();
+    expect(resolvedWithSupportOff.session.state.participants.every(
+      (participant) => participant.bardInspiration === undefined
+    )).toBe(true);
+    expect(resolvedRound?.bardMusic).toBeUndefined();
+    expect(resolvedRound?.bossRetaliations.every(
+      (retaliation) => !retaliation.lamentPreventedDamage
+    )).toBe(true);
+
+    const reenabled = await supportRepository.findByPartyInviteToken("party-token-big-lament-race");
+    expect(reenabled?.state.bardMusic).toBeUndefined();
+    expect(reenabled?.state.participants.every(
+      (participant) => participant.bardInspiration === undefined
+    )).toBe(true);
+  });
+
+  it("ignores previous-life performance cooldown history when committing Lament", async () => {
+    const supportRepository = new PrismaPartyBossRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true),
+      { bardSupportEnabled: true }
+    );
+    await seedCharacter(prisma, "lament-remort-bard", 1007n, "Бард Нового Життя", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await seedRemort(prisma, "lament-remort-bard-character", 1);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO bard_performances
+        (id, character_id, location_id, remort_count, cooldown_available_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      "lament-previous-life-performance",
+      "lament-remort-bard-character",
+      PRESENCE_LOCATION_KORCHMA_BARREL,
+      0,
+      new Date("2026-06-30T11:33:00.000Z")
+    );
+    await partyRepository.createForTelegramUser(1007n, {
+      ...partyInput("party-token-lament-remort"),
+      originLocationId: "barrel.big-brother"
+    });
+    await supportRepository.startFromRecruitingPartyForTelegramUser(1007n, {
+      partyInviteToken: "party-token-lament-remort",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    const result = await supportRepository.submitLamentForTelegramUser(
+      1007n,
+      "party-token-lament-remort",
+      1,
+      { ...resolveInput(), activationId: "lament-after-remort" }
+    );
+
+    expect(result).not.toMatchObject({ state: "lament-unavailable", reason: "cooldown" });
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: { actorCharacterId: "lament-remort-bard-character" },
       select: { actionKey: true }
     })).resolves.toEqual({ actionKey: "lament" });
   });
@@ -3157,6 +3258,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,
       location_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
       cooldown_available_at DATETIME NOT NULL
     )`,
     `CREATE TABLE character_items (

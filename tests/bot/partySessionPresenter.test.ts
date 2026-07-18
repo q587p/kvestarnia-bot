@@ -55,6 +55,42 @@ describe("party session presenter", () => {
     expect(text).toContain("🎻 Журлива балада буде доступна через 93 хвилини.");
   });
 
+  it("uses response grammar for active Lament and hides expired or terminal residual state", () => {
+    const lament = (remainingBossResponses: number) => ({
+      kind: "lament" as const,
+      activationId: "lament-1",
+      sourceCharacterId: "leader",
+      grade: "memorable" as const,
+      damageReduction: 5,
+      remainingBossResponses,
+      activatedTurn: 1
+    });
+
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(1) }))).toContain("ще 1 відповідь");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(2) }))).toContain("ще 2 відповіді");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(5) }))).toContain("ще 5 відповідей");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(0) }))).not.toContain("−5 шкоди");
+    expect(presentPartyBoss(makeBigBossSession(
+      { status: "won", bardMusic: lament(2) },
+      { status: "won" }
+    ))).not.toContain("Журлива балада");
+  });
+
+  it("advertises Bard support in raid tips only while the feature state is present", () => {
+    const bard = participant("leader", "Бард");
+    bard.combatStats.classId = "class.bard";
+    const enabled = makeBigBossSession({ participants: [bard], bardMusic: { kind: "none" } });
+    enabled.participants[0]!.classId = "class.bard";
+    enabled.participants[0]!.raceId = "race.no-raid-hint";
+    const disabled = makeBigBossSession({ participants: [bard] });
+    disabled.participants[0]!.classId = "class.bard";
+    disabled.participants[0]!.raceId = "race.no-raid-hint";
+
+    expect(presentPartyBossIntro(enabled, "leader")).not.toContain("тримайте ритм і не сперечайтеся");
+    expect(presentPartyBossIntro(disabled, "leader")).not.toContain("журливою баладою");
+    expect(presentPartyBossIntro(disabled, "leader")).toContain("тримайте ритм");
+  });
+
   it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
     const text = presentPartyBoss(makeBigBossSession({
       wardSign: {

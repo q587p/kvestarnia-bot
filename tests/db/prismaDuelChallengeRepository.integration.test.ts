@@ -83,6 +83,51 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(claims.every((claim) => claim.session?.challengerMessageId === stored.challengerMessageId)).toBe(true);
   });
 
+  it("strips persisted turn-duel Inspiration and replay status after restart with Bard support off", async () => {
+    const session = await seedActiveSession("bard-off-restart", new Date("2026-06-17T18:00:23.000Z"));
+    const characterId = session.state.participants.challenger.characterId;
+    const inspiration = {
+      version: 1 as const,
+      activationId: "duel-persisted-inspiration",
+      sourcePerformanceId: "performance-duel",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      grade: "pleasant" as const,
+      accuracyBonusPp: 2 as const,
+      expiresAt: "2026-06-17T18:13:00.000Z",
+      cursorAt: "2026-06-17T18:00:00.000Z",
+      leaseStartedAt: "2026-06-17T18:00:00.000Z",
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    const state = {
+      ...session.state,
+      participants: {
+        ...session.state.participants,
+        challenger: { ...session.state.participants.challenger, bardInspiration: inspiration }
+      },
+      lastRound: session.state.lastRound
+        ? { ...session.state.lastRound, bardInspirationAfter: { challenger: inspiration } }
+        : undefined
+    };
+    await prisma.duelCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: state }
+    });
+    const restarted = new PrismaDuelChallengeRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true),
+      new FakeRandomSource([]),
+      { bardSupportEnabled: false }
+    );
+
+    const restored = await restarted.findTurnBasedByToken(session.challenge.inviteToken);
+
+    expect(restored?.state.participants.challenger.bardInspiration).toBeUndefined();
+    expect(restored?.state.lastRound?.bardInspirationAfter).toBeUndefined();
+  });
+
   it("releases a failed inert candidate without clearing a newer canonical winner", async () => {
     const session = await seedActiveSession("card-release", new Date("2026-06-17T18:00:23.000Z"));
     const candidate = { chatId: 42n, messageId: 201 };

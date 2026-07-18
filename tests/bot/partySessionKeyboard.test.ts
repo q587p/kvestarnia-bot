@@ -528,6 +528,29 @@ describe("party session keyboard", () => {
     expect(keyboardText(keyboard)).not.toContain("⚔️");
     expect(keyboardText(keyboard)).not.toContain("v1:nd:");
   });
+
+  it("locks replacement actions only for the Bard who committed Lament this round", () => {
+    const session = makeBossSession({ classId: "class.bard" }, { bigBarrel: true });
+    const source = session.state.participants[0]!;
+    session.state.participants.push({
+      ...source,
+      characterId: "character-2",
+      name: "Інша учасниця",
+      combatStats: { ...source.combatStats, classId: "class.warrior" }
+    });
+    session.state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-1",
+      sourceCharacterId: "character-1",
+      grade: "pleasant",
+      damageReduction: 3,
+      remainingBossResponses: 2,
+      activatedTurn: 1
+    };
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual(["🔎 Оновити"]);
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-2"))).toContain("🗡️ Вдарити");
+  });
 });
 
 function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[] {

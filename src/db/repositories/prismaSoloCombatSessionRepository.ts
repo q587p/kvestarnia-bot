@@ -109,7 +109,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async listDueActiveSessions(
@@ -169,7 +169,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           continue;
         }
 
-        const mapped = mapSoloCombatSessionRecord(record);
+        const mapped = this.mapSoloCombatSessionRecord(record);
 
         if (!mapped?.state?.turnExpiresAt || Date.parse(mapped.state.turnExpiresAt) > now.getTime()) {
           continue;
@@ -212,7 +212,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     });
 
     return records.filter((record) => {
-      const state = parseCombatState(record.stateJson);
+      const state = this.parseCombatState(record.stateJson);
       return isVictoryProgressEligible("won", state) && combatLifeMatchesProgressFilter(state, options.life);
     }).length;
   }
@@ -244,7 +244,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
     return records.flatMap((record) => {
       const status = parseStatus(record.status);
-      const state = parseCombatState(record.stateJson);
+      const state = this.parseCombatState(record.stateJson);
       const completedAt = getSessionCompletionTime({
         status,
         state,
@@ -373,7 +373,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       for (const record of records) {
         const status = parseStatus(record.status);
-        const state = parseCombatState(record.stateJson);
+        const state = this.parseCombatState(record.stateJson);
         const completedAt = getSessionCompletionTime({
           status,
           state,
@@ -442,7 +442,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     const completedAt = input.completedAt.toISOString();
     const updates = records.flatMap((record) => {
       const status = parseStatus(record.status);
-      const state = parseCombatState(record.stateJson);
+      const state = this.parseCombatState(record.stateJson);
       const sessionCompletedAt = getSessionCompletionTime({
         status,
         state,
@@ -520,7 +520,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       scanned += records.length;
 
       for (const record of records) {
-        const state = parseCombatState(record.stateJson);
+        const state = this.parseCombatState(record.stateJson);
         const status = parseStatus(record.status);
         const completedAt = getSessionCompletionTime({
           status,
@@ -577,7 +577,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       }
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async createForTelegramUser(
@@ -697,7 +697,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return record
       ? isSoloCombatSessionRecord(record)
         ? record
-        : mapSoloCombatSessionRecord(record)
+        : this.mapSoloCombatSessionRecord(record)
       : null;
   }
 
@@ -722,7 +722,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         throw error;
       });
 
-      return mapSoloCombatSessionRecord(record);
+      return this.mapSoloCombatSessionRecord(record);
     }
 
     const record = await this.prisma.$transaction(async (tx) => {
@@ -736,9 +736,10 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
 
       if (status !== "active") {
-        const state = parseCombatState(updated.stateJson);
+        const state = this.parseCombatState(updated.stateJson);
         const completedAt = state?.completedAt ? new Date(state.completedAt) : null;
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state,
           releasedAt: status === "expired"
@@ -758,7 +759,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async updateById(
@@ -784,7 +785,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         throw error;
       });
 
-      return mapSoloCombatSessionRecord(record);
+      return this.mapSoloCombatSessionRecord(record);
     }
 
     const record = await this.prisma.$transaction(async (tx) => {
@@ -804,6 +805,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -819,7 +821,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async updateByIdIfActiveTurn(
@@ -850,6 +852,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -863,7 +866,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async applyCombatItemTurnById(
@@ -970,6 +973,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -980,7 +984,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         where: { id: sessionId }
       });
 
-      return { outcome: "updated", session: mapSoloCombatSessionRecord(session) };
+      return { outcome: "updated", session: this.mapSoloCombatSessionRecord(session) };
     }).catch((error: unknown) => {
       if (error instanceof CombatItemTurnRollback) {
         return { outcome: error.outcome, session: null };
@@ -1014,8 +1018,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (input.releaseLease) {
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
-          state: input.state ?? parseCombatState(updated.stateJson),
+          state: input.state ?? this.parseCombatState(updated.stateJson),
           releasedAt: input.claimedAt
         });
       }
@@ -1029,7 +1034,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       throw error;
     });
 
-    return mapSoloCombatSessionRecord(record);
+    return this.mapSoloCombatSessionRecord(record);
   }
 
   async findLeasedByTelegramUserId(
@@ -1080,7 +1085,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       };
     }
 
-    const session = mapSoloCombatSessionRecord(record);
+    const session = this.mapSoloCombatSessionRecord(record);
 
     if (!session) {
       return {
@@ -1110,8 +1115,9 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         where: { id: sessionId },
         select: { stateJson: true }
       });
-      const state = current ? parseCombatState(current.stateJson) : null;
+      const state = current ? this.parseCombatState(current.stateJson) : null;
       return releaseSoloCombatLease(tx, {
+        syncBardInspiration: this.options.bardSupportEnabled === true,
         sessionId,
         state,
         releasedAt: now ?? new Date()
@@ -1148,20 +1154,20 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "missing", session: null };
       }
 
-      const state = parseCombatState(current.stateJson);
+      const state = this.parseCombatState(current.stateJson);
       const existingTerminal = settlementTerminalOutcome(state);
 
       if (existingTerminal) {
         return {
           outcome: existingTerminal,
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (state?.settlement?.resources?.status === "applied") {
         return {
           outcome: "already-applied",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1170,7 +1176,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (preflight !== "ok") {
         return {
           outcome: preflight,
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1193,7 +1199,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (updatedResources.count !== 1) {
         return {
           outcome: "resource-cas-conflict",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1220,7 +1226,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       return {
         outcome: "applied",
-        session: mapSoloCombatSessionRecord(updated)
+        session: this.mapSoloCombatSessionRecord(updated)
       };
     });
   }
@@ -1240,13 +1246,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "missing", session: null, availableAt: null };
       }
 
-      const state = parseCombatState(current.stateJson);
+      const state = this.parseCombatState(current.stateJson);
       const existingTerminal = settlementTerminalOutcome(state);
 
       if (existingTerminal) {
         return {
           outcome: existingTerminal,
-          session: mapSoloCombatSessionRecord(current),
+          session: this.mapSoloCombatSessionRecord(current),
           availableAt: state?.settlement?.training?.availableAt
             ? new Date(state.settlement.training.availableAt)
             : null
@@ -1256,7 +1262,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (state?.settlement?.training?.availableAt && state.settlement.training.cooldownClaimedAt) {
         return {
           outcome: "already-applied",
-          session: mapSoloCombatSessionRecord(current),
+          session: this.mapSoloCombatSessionRecord(current),
           availableAt: new Date(state.settlement.training.availableAt)
         };
       }
@@ -1266,7 +1272,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (preflight !== "ok") {
         return {
           outcome: preflight,
-          session: mapSoloCombatSessionRecord(current),
+          session: this.mapSoloCombatSessionRecord(current),
           availableAt: null
         };
       }
@@ -1286,7 +1292,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (!character) {
         return {
           outcome: "missing",
-          session: mapSoloCombatSessionRecord(current),
+          session: this.mapSoloCombatSessionRecord(current),
           availableAt: null
         };
       }
@@ -1312,7 +1318,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           ) {
             return {
               outcome: "cooldown-conflict",
-              session: mapSoloCombatSessionRecord(current),
+              session: this.mapSoloCombatSessionRecord(current),
               availableAt: null
             };
           }
@@ -1341,7 +1347,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (!cooldown) {
         return {
           outcome: "cooldown-conflict",
-          session: mapSoloCombatSessionRecord(current),
+          session: this.mapSoloCombatSessionRecord(current),
           availableAt: null
         };
       }
@@ -1371,7 +1377,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       return {
         outcome: "applied",
-        session: mapSoloCombatSessionRecord(updated),
+        session: this.mapSoloCombatSessionRecord(updated),
         availableAt: cooldown.availableAt
       };
     });
@@ -1392,33 +1398,33 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "missing", session: null };
       }
 
-      const state = parseCombatState(current.stateJson);
+      const state = this.parseCombatState(current.stateJson);
 
       if (!state) {
         return {
           outcome: "missing-state",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (state.settlement?.status === "completed" || state.settlement?.status === "forfeited-by-remort") {
         return {
           outcome: "already-terminal-settlement",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (state.life && state.settlement) {
         return {
           outcome: "already-current",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (parseStatus(current.status) !== input.expectedStatus || state.turn !== input.expectedTurn) {
         return {
           outcome: "stale-status-turn",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1429,7 +1435,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       ) {
         return {
           outcome: "stale-status-turn",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1446,7 +1452,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== current.id) {
         return {
           outcome: "missing-mismatched-lease",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1456,7 +1462,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (currentRemortCount !== derivedLife.remortCount) {
         return {
           outcome: "life-mismatch",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1489,7 +1495,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       return {
         outcome: "adopted",
-        session: mapSoloCombatSessionRecord(updated)
+        session: this.mapSoloCombatSessionRecord(updated)
       };
     });
   }
@@ -1510,11 +1516,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         return { outcome: "missing", session: null };
       }
 
-      const state = parseCombatState(current.stateJson);
+      const state = this.parseCombatState(current.stateJson);
 
       if (state?.settlement?.status === "completed") {
         if (input.releaseLease) {
           await releaseSoloCombatLease(tx, {
+            syncBardInspiration: this.options.bardSupportEnabled === true,
             sessionId,
             state,
             releasedAt: input.settledAt
@@ -1523,13 +1530,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
         return {
           outcome: "already-completed",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (state?.settlement?.status === "forfeited-by-remort") {
         if (input.releaseLease) {
           await releaseSoloCombatLease(tx, {
+            syncBardInspiration: this.options.bardSupportEnabled === true,
             sessionId,
             state,
             releasedAt: input.settledAt
@@ -1538,14 +1546,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
         return {
           outcome: "already-forfeited",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
       if (!settlementExpectationMatches(current, state, input.expected)) {
         return {
           outcome: "version-changed",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1562,7 +1570,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       ) {
         return {
           outcome: "version-changed",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1572,7 +1580,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       ) {
         return {
           outcome: "substeps-incomplete",
-          session: mapSoloCombatSessionRecord(current)
+          session: this.mapSoloCombatSessionRecord(current)
         };
       }
 
@@ -1611,6 +1619,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (input.releaseLease) {
         await releaseSoloCombatLease(tx, {
+          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: nextState ?? state,
           releasedAt: input.settledAt
@@ -1623,7 +1632,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       return {
         outcome: target,
-        session: mapSoloCombatSessionRecord(updated)
+        session: this.mapSoloCombatSessionRecord(updated)
       };
     });
   }
@@ -1654,9 +1663,26 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
     return { remortCount };
   }
+
+  private mapSoloCombatSessionRecord(
+    record: PrismaSoloCombatSessionRecord
+  ): SoloCombatSessionRecord | null {
+    return mapSoloCombatSessionRecord(record, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
+    });
+  }
+
+  private parseCombatState(value: unknown): CombatState | null {
+    return parseCombatState(value, {
+      bardSupportEnabled: this.options.bardSupportEnabled === true
+    });
+  }
 }
 
-export function mapSoloCombatSessionRecord(record: PrismaSoloCombatSessionRecord): SoloCombatSessionRecord | null {
+export function mapSoloCombatSessionRecord(
+  record: PrismaSoloCombatSessionRecord,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+): SoloCombatSessionRecord | null {
   if (!record) {
     return null;
   }
@@ -1667,7 +1693,7 @@ export function mapSoloCombatSessionRecord(record: PrismaSoloCombatSessionRecord
     monsterId: record.monsterId,
     status: parseStatus(record.status),
     turn: record.turn,
-    state: parseCombatState(record.stateJson),
+    state: parseCombatState(record.stateJson, options),
     reward: parseReward(record),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -1722,7 +1748,10 @@ function clampDueSessionLimit(value: number | undefined): number {
   return Math.min(100, Math.max(1, Math.floor(value)));
 }
 
-export function parseCombatState(value: unknown): CombatState | null {
+export function parseCombatState(
+  value: unknown,
+  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+): CombatState | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -1753,7 +1782,15 @@ export function parseCombatState(value: unknown): CombatState | null {
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
   const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
-  const bardInspiration = parseBardInspirationCombatState(value.bardInspiration);
+  const bardInspiration = options.bardSupportEnabled
+    ? parseBardInspirationCombatState(value.bardInspiration)
+    : null;
+
+  if (!options.bardSupportEnabled) {
+    for (const entry of turnLog) {
+      delete entry.bardInspiration;
+    }
+  }
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -2776,6 +2813,7 @@ async function releaseSoloCombatLease(
     sessionId: string;
     state: CombatState | null;
     releasedAt: Date;
+    syncBardInspiration?: boolean;
   }
 ): Promise<boolean> {
   const lease = await tx.activeCombatLease.findFirst({
@@ -2800,6 +2838,9 @@ async function releaseSoloCombatLease(
     tx,
     lease,
     releasedAt: input.releasedAt,
+    ...(input.syncBardInspiration !== undefined
+      ? { syncBardInspiration: input.syncBardInspiration }
+      : {}),
     ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {}),
     ...(input.state?.bardInspiration ? { inspiration: input.state.bardInspiration } : {})
   });

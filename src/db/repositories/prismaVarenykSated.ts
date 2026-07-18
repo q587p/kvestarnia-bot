@@ -260,6 +260,7 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
     BardInspirationCombatStateV1,
     "activationId" | "outsideRemainderMs" | "expiresAt" | "cursorAt"
   >;
+  syncBardInspiration?: boolean;
 }): Promise<boolean> {
   const claimedAt = new Date(Math.max(
     input.releasedAt.getTime(),
@@ -307,20 +308,22 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
         }
       : {})
   });
-  await advanceBardInspirationCursorThroughCombat({
-    tx: input.tx,
-    characterId: input.lease.characterId,
-    ...(input.inspiration ? { activationId: input.inspiration.activationId } : {}),
-    now: input.releasedAt,
-    leaseStartedAt: input.lease.createdAt,
-    ...(input.inspiration
-      ? {
-          outsideRemainderMs: input.inspiration.outsideRemainderMs,
-          combatExpiresAt: new Date(input.inspiration.expiresAt),
-          combatCursorAt: new Date(input.inspiration.cursorAt)
-        }
-      : {})
-  });
+  if (input.syncBardInspiration !== false) {
+    await advanceBardInspirationCursorThroughCombat({
+      tx: input.tx,
+      characterId: input.lease.characterId,
+      ...(input.inspiration ? { activationId: input.inspiration.activationId } : {}),
+      now: input.releasedAt,
+      leaseStartedAt: input.lease.createdAt,
+      ...(input.inspiration
+        ? {
+            outsideRemainderMs: input.inspiration.outsideRemainderMs,
+            combatExpiresAt: new Date(input.inspiration.expiresAt),
+            combatCursorAt: new Date(input.inspiration.cursorAt)
+          }
+        : {})
+    });
+  }
 
   const deleted = await input.tx.activeCombatLease.deleteMany({
     where: {

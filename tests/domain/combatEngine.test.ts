@@ -33,6 +33,7 @@ import {
   applyVarenykSatedPulseAfterSoloEnemyResponse,
   getVarenykSatedRemainingCombatTurns
 } from "../../src/domain/noncombat/varenykSatedSupport";
+import { applyBardInspirationPulseToSoloCombat } from "../../src/domain/noncombat/bardSupport";
 
 type CombatMantokAbilityGrantDefinition = MantokAbilityGrantDefinition & {
   combat: NonNullable<MantokAbilityGrantDefinition["combat"]>;
@@ -199,6 +200,21 @@ describe("combat domain engine", () => {
       const state = startCombat({ hero: { ...warrior, weaponDamage: 50 }, monster: weakMonster });
       state.hero.hp = 1;
       state.monster.hp = 1;
+      state.bardInspiration = {
+        version: 1,
+        activationId: "fatal-inspiration",
+        sourcePerformanceId: "performance-fatal",
+        sourceLocationId: "location.korchma.bar",
+        recipientCharacterId: "hero",
+        recipientRemortCount: 0,
+        grade: "pleasant",
+        accuracyBonusPp: 2,
+        expiresAt: "2026-07-18T10:01:00.000Z",
+        cursorAt: "2026-07-18T10:00:00.000Z",
+        leaseStartedAt: "2026-07-18T10:00:00.000Z",
+        outsideRemainderMs: 0,
+        pulseIds: []
+      };
       return state;
     };
     const withoutSated = resolveCombatTurn({
@@ -215,6 +231,14 @@ describe("combat domain engine", () => {
       monster: weakMonster,
       afterCommittedHeroAction: (committed) => {
         committed.hero.hp += 1;
+        applyBardInspirationPulseToSoloCombat({
+          state: committed,
+          combatKind: "persistent-pve",
+          sessionId: "fatal-session",
+          committedTurn: 1,
+          recipientCharacterId: "hero",
+          now: new Date("2026-07-18T10:00:00.000Z")
+        });
         return { hpRestored: 1, manaRestored: 0 };
       },
       rng: new FakeRandomSource([0.1, 0.9, 0.1])
@@ -226,6 +250,10 @@ describe("combat domain engine", () => {
     expect(withSated.state.hero.hp).toBe(0);
     expect(withSated.summary.satedRecovery).toBeUndefined();
     expect(withSated.summary.simultaneousFinalResponse).toBe(true);
+    expect(withSated.state.bardInspiration?.expiresAt).toBe("2026-07-18T10:00:00.000Z");
+    expect(withSated.state.bardInspiration?.pulseIds).toEqual([
+      "fatal-inspiration:persistent-pve:fatal-session:1:hero"
+    ]);
   });
   it("maps every supported class to the intended MVP skill profile", () => {
     const expectedProfiles = {

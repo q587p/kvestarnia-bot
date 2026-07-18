@@ -20,6 +20,7 @@ import {
   BARD_MUSIC_AVAILABILITY_KEY_PREFIX,
   buildBardInspirationPayload,
   isBardInspirationActive,
+  parseBardInspirationCombatState,
   parseBardInspirationPayload
 } from "../../domain/noncombat/bardSupport";
 import type {
@@ -126,7 +127,8 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           ? await findBardMusicAvailableAt({
               tx,
               characterId: character.id,
-              locationId: input.locationId
+              locationId: input.locationId,
+              remortCount
             })
           : lastPerformance?.cooldownAvailableAt ?? null;
         if (musicAvailableAt && musicAvailableAt > input.now) {
@@ -289,6 +291,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         return { state: "no-character" };
       }
       const record = toCharacterRecord(character);
+      const remortCount = getIncludedRemortCount(character);
       const liveGuard = buildLiveGuard(character.id, input.locationId);
 
       const live = mapPerformance(await tx.bardPerformance.findFirst({
@@ -311,7 +314,8 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         ? await findBardMusicAvailableAt({
             tx,
             characterId: character.id,
-            locationId: input.locationId
+            locationId: input.locationId,
+            remortCount
           })
         : lastPerformance?.cooldownAvailableAt ?? null;
       if (musicAvailableAt && musicAvailableAt > input.now) {
@@ -532,15 +536,37 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         select: { resultJson: true }
       }))?.resultJson);
       const remortCount = getIncludedRemortCount(character);
+      const frozen = character.activeCombatLease
+        ? await findFrozenBardInspiration(
+            tx,
+            character.activeCombatLease,
+            character.id,
+            remortCount
+          )
+        : null;
+      const frozenMatches = Boolean(
+        inspiration &&
+        frozen?.activationId === inspiration.activationId &&
+        Date.parse(frozen.expiresAt) > Date.parse(frozen.cursorAt)
+      );
+      const wallClockActive = inspiration
+        ? isBardInspirationActive(inspiration, character.id, remortCount, now)
+        : false;
+      const activeInspiration = inspiration && (wallClockActive || frozenMatches)
+        ? frozenMatches && frozen
+          ? {
+              ...inspiration,
+              expiresAt: new Date(
+                now.getTime() + Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt)
+              ).toISOString(),
+              cursorAt: now.toISOString()
+            }
+          : inspiration
+        : null;
 
       return {
         character: toCharacterRecord(character),
-        inspiration: inspiration && isBardInspirationActive(
-          inspiration,
-          character.id,
-          remortCount,
-          now
-        ) ? inspiration : null
+        inspiration: activeInspiration
       };
     });
   }
@@ -596,6 +622,82 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       return { character: toCharacterRecord(character), inspiration };
     });
   }
+}
+
+async function findFrozenBardInspiration(
+  tx: TxClient,
+  lease: { kind: string; referenceId: string },
+  characterId: string,
+  remortCount: number
+) {
+  if (lease.kind === "solo-combat") {
+    const stateJson = (await tx.soloCombatSession.findFirst({
+      where: { id: lease.referenceId, status: "active" },
+      select: { stateJson: true }
+    }))?.stateJson;
+    return findMatchingFrozenBardInspiration(
+      toUnknownRecord(stateJson)?.bardInspiration,
+      characterId,
+      remortCount
+    );
+  }
+
+  if (lease.kind === "turn-based-duel") {
+    const stateJson = (await tx.duelCombatSession.findFirst({
+      where: { id: lease.referenceId, status: "active" },
+      select: { stateJson: true }
+    }))?.stateJson;
+    const participants = toUnknownRecord(toUnknownRecord(stateJson)?.participants);
+    return findMatchingFrozenBardInspiration(
+      Object.values(participants ?? {}).map(
+        (participant) => toUnknownRecord(participant)?.bardInspiration
+      ),
+      characterId,
+      remortCount
+    );
+  }
+
+  if (lease.kind === "party-boss") {
+    const stateJson = (await tx.partyBossSession.findFirst({
+      where: { partySessionId: lease.referenceId, status: "active" },
+      select: { stateJson: true }
+    }))?.stateJson;
+    const participants = toUnknownRecord(stateJson)?.participants;
+    return findMatchingFrozenBardInspiration(
+      Array.isArray(participants)
+        ? participants.map((participant) => toUnknownRecord(participant)?.bardInspiration)
+        : null,
+      characterId,
+      remortCount
+    );
+  }
+
+  return null;
+}
+
+function findMatchingFrozenBardInspiration(
+  value: unknown,
+  characterId: string,
+  remortCount: number
+): ReturnType<typeof parseBardInspirationCombatState> {
+  const candidates = Array.isArray(value) ? value : [value];
+  for (const candidate of candidates) {
+    const inspiration = parseBardInspirationCombatState(candidate);
+    if (
+      inspiration?.recipientCharacterId === characterId &&
+      inspiration.recipientRemortCount === remortCount
+    ) {
+      return inspiration;
+    }
+  }
+
+  return null;
+}
+
+function toUnknownRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 async function listAudience(
