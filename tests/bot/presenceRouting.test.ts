@@ -276,10 +276,10 @@ describe("presence routing", () => {
     expect(getTextPresenceContext("/start duel_turnbased_abc_DEF12")).toEqual({});
   });
 
-  it("keeps every duel callback neutral until the handler commits a final transition", () => {
+  it("keeps duel callbacks neutral while final acceptance defers its heartbeat to the result", () => {
     expect(getCallbackPresenceContext("v1:duel:new")).toEqual({});
     expect(getCallbackPresenceContext("v1:duel:view:abc_DEF12")).toEqual({});
-    expect(getCallbackPresenceContext("v1:duel:accept-risk:abc_DEF12")).toEqual({});
+    expect(getCallbackPresenceContext("v1:duel:accept-risk:abc_DEF12")).toBeNull();
     expect(getCallbackPresenceContext("v1:duel:t:abc_DEF12:2:4:a")).toEqual({});
   });
 

@@ -132,6 +132,63 @@ describe("support command and start deep links", () => {
     expect(keyboard).toContain("v1:duel:new");
   });
 
+  it("repairs a participant's resolved turn-duel card through its retained canonical reference", async () => {
+    const session = makeTurnBasedSession();
+    const challenge = {
+      ...makeDuelChallenge("abc_DEF12"),
+      mode: "turn-based" as const,
+      challenger: {
+        ...makeCharacterRecord(42n, "Kyjivan BooksDragon"),
+        id: "character-42"
+      },
+      target: {
+        ...makeCharacterRecord(99n, "Shannar de Kassal"),
+        id: "character-99"
+      }
+    };
+    Object.assign(session, {
+      status: "resolved",
+      completedAt: challenge.resolvedAt,
+      challengerChatId: 42n,
+      challengerMessageId: 20,
+      challenge
+    });
+    const resolved = {
+      state: "resolved" as const,
+      transitioned: false,
+      challenge,
+      challenger: makeCharacterSummary("Kyjivan BooksDragon"),
+      target: makeCharacterSummary("Shannar de Kassal", { remortCount: 1 }),
+      result: challenge.result
+    };
+    const acceptForTelegramUser = vi.fn().mockResolvedValue(resolved);
+    const getByToken = vi.fn().mockResolvedValue(resolved);
+    const getTurnBasedSessionByToken = vi.fn().mockResolvedValue(session);
+
+    const calls = await captureMessageCalls(
+      "/start duel_turnbased_abc_DEF12",
+      servicesWith({
+        duel: {
+          acceptForTelegramUser,
+          getByToken,
+          getTurnBasedSessionByToken
+        }
+      } as Partial<BotServices>)
+    );
+    const edits = calls.filter((call) => call.method === "editMessageText");
+    const resultEdit = edits.find((call) => call.payload.message_id === 20);
+    const keyboard = JSON.stringify(resultEdit?.payload.reply_markup);
+
+    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
+      expectedMode: "turn-based"
+    });
+    expect(getTurnBasedSessionByToken).toHaveBeenCalledWith("abc_DEF12");
+    expect(resultEdit?.payload.chat_id).toBe(42);
+    expect(String(resultEdit?.payload.text)).toContain("Результат покрокової дуелі");
+    expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
+    expect(calls.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+  });
+
   it("keeps active turn-based /start deep links private in private chats", async () => {
     const active = makeActiveTurnBasedDuelView();
     const claimTurnBasedMessageReference = vi.fn().mockImplementation((

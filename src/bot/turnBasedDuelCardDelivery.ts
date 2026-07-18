@@ -19,6 +19,10 @@ export type TurnBasedDuelParticipant = "challenger" | "target";
 export type TurnBasedDuelMessageReference = { chatId: bigint; messageId: number };
 type TurnBasedDuelCardView = Extract<DuelChallengeView, { state: "active" | "resolved" }>;
 type ActiveTurnBasedDuel = Extract<TurnBasedDuelCardView, { state: "active" }>;
+type AuthoritativeTurnBasedDuelCardState = {
+  view: TurnBasedDuelCardView;
+  session: DuelCombatSessionRecord;
+};
 type MessageOptions = NonNullable<Parameters<Context["api"]["editMessageText"]>[3]>;
 
 export interface TurnBasedDuelDeliveryTransport {
@@ -72,35 +76,32 @@ async function deliverCanonicalTurnBasedDuelParticipantCardLocked(
   input: CanonicalTurnBasedDuelDeliveryInput,
   seedSession: DuelCombatSessionRecord
 ): Promise<CanonicalTurnBasedDuelDeliveryResult> {
-  let current = await loadAuthoritativeView(input, seedSession.id);
-  if (!current) {
+  let authoritative = await loadAuthoritativeState(input, seedSession);
+  if (!authoritative) {
     return { state: "view-changed", reference: null };
   }
 
-  let currentSession = current.state === "active" ? current.session : seedSession;
-  let existingReference = getTurnBasedDuelParticipantReference(currentSession, input.participant);
+  let existingReference = getTurnBasedDuelParticipantReference(authoritative.session, input.participant);
 
   if (existingReference && existingReference.chatId === input.chatId) {
     const editResult = await editExistingReferenceUntilCurrent(
       input,
-      seedSession,
       existingReference,
-      current
+      authoritative
     );
     if (editResult.state !== "missing") {
       return editResult;
     }
 
-    current = editResult.current;
-    currentSession = current.state === "active" ? current.session : seedSession;
-    existingReference = getTurnBasedDuelParticipantReference(currentSession, input.participant);
+    authoritative = editResult.current;
+    existingReference = getTurnBasedDuelParticipantReference(authoritative.session, input.participant);
   }
 
   if (input.allowFallback === false) {
     return { state: "fallback-disabled", reference: existingReference };
   }
 
-  const candidateCard = buildCard(current, input.participant, input.presentActive);
+  const candidateCard = buildCard(authoritative.view, input.participant, input.presentActive);
   const candidateMessageId = await input.transport.sendInertMessage(
     input.chatId,
     candidateCard.text,
@@ -127,25 +128,36 @@ async function deliverCanonicalTurnBasedDuelParticipantCardLocked(
         candidate
       );
   if (!claim.claimed) {
+    const winnerReference = getTurnBasedDuelParticipantReference(claim.session, input.participant);
+    const winnerState = await loadAuthoritativeState(input, claim.session ?? seedSession);
+    if (winnerReference && winnerReference.chatId === input.chatId && winnerState) {
+      const converged = await editExistingReferenceUntilCurrent(
+        input,
+        winnerReference,
+        winnerState
+      );
+      if (converged.state !== "missing") {
+        return converged;
+      }
+    }
+
     return {
       state: "candidate-lost",
-      reference: getTurnBasedDuelParticipantReference(claim.session, input.participant)
+      reference: winnerReference
     };
   }
 
-  const freshView = await loadAuthoritativeView(input, seedSession.id);
-  if (!freshView) {
+  const fresh = await loadAuthoritativeState(input, claim.session ?? seedSession);
+  if (!fresh) {
     return { state: "retryable-activation-failure", reference: candidate };
   }
 
-  if (
-    (freshView.state === "active" && freshView.session.id !== seedSession.id)
-  ) {
+  if (fresh.session.id !== seedSession.id) {
     await input.service.releaseTurnBasedMessageReference(seedSession.id, input.participant, candidate);
     return { state: "view-changed", reference: null };
   }
 
-  const freshCard = buildCard(freshView, input.participant, input.presentActive);
+  const freshCard = buildCard(fresh.view, input.participant, input.presentActive);
   try {
     await input.transport.editMessage(candidate, freshCard.text, freshCard.options);
     return { state: "activated", reference: candidate };
@@ -166,19 +178,18 @@ async function deliverCanonicalTurnBasedDuelParticipantCardLocked(
 type ExistingEditResult =
   | { state: "edited" | "unchanged"; reference: TurnBasedDuelMessageReference }
   | { state: "retryable-edit-failure"; reference: TurnBasedDuelMessageReference }
-  | { state: "missing"; current: TurnBasedDuelCardView };
+  | { state: "missing"; current: AuthoritativeTurnBasedDuelCardState };
 
 async function editExistingReferenceUntilCurrent(
   input: CanonicalTurnBasedDuelDeliveryInput,
-  seedSession: DuelCombatSessionRecord,
   reference: TurnBasedDuelMessageReference,
-  initialView: TurnBasedDuelCardView
+  initialState: AuthoritativeTurnBasedDuelCardState
 ): Promise<ExistingEditResult> {
-  let current = initialView;
+  let current = initialState;
   let lastState: "edited" | "unchanged" = "edited";
 
   for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
-    const card = buildCard(current, input.participant, input.presentActive);
+    const card = buildCard(current.view, input.participant, input.presentActive);
     try {
       await input.transport.editMessage(reference, card.text, card.options);
       lastState = "edited";
@@ -192,15 +203,15 @@ async function editExistingReferenceUntilCurrent(
       }
     }
 
-    const latest = await loadAuthoritativeView(input, seedSession.id);
-    if (!latest || getViewRevision(latest) === getViewRevision(current)) {
+    const latest = await loadAuthoritativeState(input, current.session);
+    if (!latest || getViewRevision(latest.view) === getViewRevision(current.view)) {
       return { state: lastState, reference };
     }
 
     current = latest;
   }
 
-  const finalCard = buildCard(current, input.participant, input.presentActive);
+  const finalCard = buildCard(current.view, input.participant, input.presentActive);
   try {
     await input.transport.editMessage(reference, finalCard.text, finalCard.options);
     return { state: "edited", reference };
@@ -215,19 +226,45 @@ async function editExistingReferenceUntilCurrent(
   }
 }
 
-async function loadAuthoritativeView(
+async function loadAuthoritativeState(
   input: CanonicalTurnBasedDuelDeliveryInput,
-  sessionId: string
-): Promise<TurnBasedDuelCardView | null> {
+  fallbackSession: DuelCombatSessionRecord
+): Promise<AuthoritativeTurnBasedDuelCardState | null> {
   try {
-    const current = await input.service.getByToken(input.view.challenge.inviteToken);
+    const hasSessionLoader = typeof input.service.getTurnBasedSessionByToken === "function";
+    let current = await input.service.getByToken(input.view.challenge.inviteToken);
+    const storedSession = hasSessionLoader
+      ? await input.service.getTurnBasedSessionByToken(input.view.challenge.inviteToken)
+      : current.state === "active"
+        ? current.session
+        : fallbackSession;
+
+    if (
+      hasSessionLoader &&
+      current.state === "active" &&
+      storedSession &&
+      (storedSession.status !== "active" || storedSession.version !== current.session.version)
+    ) {
+      current = await input.service.getByToken(input.view.challenge.inviteToken);
+    }
+
     if (
       (current.state !== "active" && current.state !== "resolved") ||
-      (current.state === "active" && current.session.id !== sessionId)
+      !storedSession ||
+      storedSession.id !== fallbackSession.id ||
+      (current.state === "active" && (
+        current.session.id !== storedSession.id ||
+        current.session.version !== storedSession.version ||
+        storedSession.status !== "active"
+      )) ||
+      (hasSessionLoader && current.state === "resolved" && storedSession.status === "active")
     ) {
       return null;
     }
-    return current;
+    return {
+      view: current,
+      session: storedSession
+    };
   } catch {
     return null;
   }

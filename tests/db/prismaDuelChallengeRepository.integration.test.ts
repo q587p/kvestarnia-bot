@@ -106,6 +106,48 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(released.challengerMessageId).toBeNull();
   });
 
+  it.each([
+    ["persistent combat", "persistent-fight"],
+    ["Training", "training-doppelganger"],
+    ["party boss", "party-boss"]
+  ])("keeps a Quick challenge pending when the challenger enters %s", async (_label, leaseKind) => {
+    const token = `quick-block-${leaseKind}`;
+    const seeded = await seedPendingChallenge(token, "quick");
+    const before = await prisma.character.findMany({
+      where: { id: { in: [seeded.challenger.id, seeded.target.id] } },
+      orderBy: { id: "asc" }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: seeded.challenger.id,
+        kind: leaseKind,
+        referenceId: `combat-${leaseKind}`
+      }
+    });
+
+    const accepted = await repository.acceptByTokenForTelegramUser(
+      token,
+      seeded.target.telegramUserId,
+      new Date("2026-06-17T18:00:23.000Z"),
+      makeQuickDuelResult(seeded.challenger.id, seeded.target.id)
+    );
+    const stored = await prisma.duelChallenge.findUniqueOrThrow({ where: { inviteToken: token } });
+    const after = await prisma.character.findMany({
+      where: { id: { in: [seeded.challenger.id, seeded.target.id] } },
+      orderBy: { id: "asc" }
+    });
+
+    expect(accepted).toMatchObject({
+      transitioned: false,
+      busyCharacterId: seeded.challenger.id,
+      record: { status: "pending" }
+    });
+    expect(stored.status).toBe("pending");
+    expect(stored.resolvedAt).toBeNull();
+    expect(stored.resultJson).toBeNull();
+    expect(after).toEqual(before);
+  });
+
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
     const before = await repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
@@ -1829,7 +1871,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(retaliation.progressRows).toHaveLength(0);
   });
 
-  async function seedPendingChallenge(token: string) {
+  async function seedPendingChallenge(token: string, mode: "quick" | "turn-based" = "turn-based") {
     const tokenId = [...token].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const challenger = await seedCharacter(`char-a-${token}`, BigInt(30_000 + tokenId));
     const target = await seedCharacter(`char-b-${token}`, BigInt(40_000 + tokenId));
@@ -1840,7 +1882,7 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
         inviteToken: token,
         challengerCharacterId: challenger.id,
         targetCharacterId: target.id,
-        mode: "turn-based",
+        mode,
         status: "pending",
         expiresAt: new Date("2026-06-17T18:13:00.000Z")
       }
@@ -2153,6 +2195,43 @@ function makeTerminalResult(
     targetScore: outcome === "target" ? 1 : 0,
     swing: 0,
     flavorKey: "integration-test"
+  };
+}
+
+function makeQuickDuelResult(challengerId: string, targetId: string): DuelResultPayload {
+  return {
+    mode: "quick",
+    outcome: "draw",
+    winnerCharacterId: null,
+    loserCharacterId: null,
+    challengerScore: 13,
+    targetScore: 13,
+    swing: 0,
+    flavorKey: "dramatic-draw",
+    participants: {
+      challenger: {
+        characterId: challengerId,
+        displayName: challengerId,
+        title: "title",
+        raceId: "race.human-ish",
+        raceName: "race",
+        classId: "class.warrior",
+        className: "class",
+        level: 3,
+        remortCount: 0
+      },
+      target: {
+        characterId: targetId,
+        displayName: targetId,
+        title: "title",
+        raceId: "race.human-ish",
+        raceName: "race",
+        classId: "class.warrior",
+        className: "class",
+        level: 3,
+        remortCount: 0
+      }
+    }
   };
 }
 

@@ -879,7 +879,9 @@ describe("handleDuelCallback", () => {
       expect.stringContaining("Покрокова дуель: хід"),
       expect.objectContaining({ parse_mode: "HTML" })
     );
-    expect(markAction).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledWith({
+      user: { telegramUserId: 99n, displayName: "Тест" }
+    });
   });
 
   it("keeps a stale pending owner Refresh inert and refreshes only the canonical combat card", async () => {

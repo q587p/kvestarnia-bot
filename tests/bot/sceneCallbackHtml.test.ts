@@ -30,6 +30,7 @@ import {
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
+import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
 import {
   makeEquipItemCallbackData,
   makeInventoryCallbackData,
@@ -6228,7 +6229,6 @@ describe("scene callback HTML options", () => {
     expect(actionableTargetCards[0]?.payload.message_id).toBe(canonical);
     expect(production.current().session.targetMessageId).toBe(canonical);
     expect(markAction.mock.calls.filter((call) => call[0]?.locationId === undefined).map((call) => call[0])).toEqual([
-      { user: { telegramUserId: 99n, displayName: "Тест" } },
       { user: { telegramUserId: 99n, displayName: "Тест" } }
     ]);
     expect(markAction.mock.calls.filter((call) => call[0]?.locationId !== undefined).map((call) => call[0])).toEqual([
@@ -6239,6 +6239,124 @@ describe("scene callback HTML options", () => {
         currentAdventureId: "adventure.duel-challenge"
       }
     ]);
+  });
+
+  it.each(["persistent combat", "Training", "party boss"])(
+    "keeps Quick final acceptance non-mutating when the challenger creates an invite then enters %s",
+    async () => {
+      const active = activeTurnBasedDuel();
+      const challenge = {
+        ...active.challenge,
+        mode: "quick" as const,
+        status: "pending" as const,
+        expiresAt: new Date("2026-07-18T12:13:00.000Z")
+      };
+      const createOpenChallengeForTelegramUser = vi.fn<DuelChallengeService["createOpenChallengeForTelegramUser"]>()
+        .mockResolvedValue({
+          state: "pending",
+          challenge,
+          challenger: active.challenger,
+          challengerResourceWarning: null,
+          expiresAt: challenge.expiresAt,
+          now: new Date("2026-07-18T12:00:00.000Z")
+        });
+      const acceptForTelegramUser = vi.fn<DuelChallengeService["acceptForTelegramUser"]>()
+        .mockResolvedValue({
+          state: "busy",
+          challenge,
+          challenger: active.challenger,
+          target: active.target,
+          busyCharacter: active.challenger
+        });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const services = servicesWith({
+        duel: {
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createOpenChallengeForTelegramUser,
+          acceptForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      });
+
+      await captureApiCalls(
+        "v1:duel:new",
+        services,
+        { telegramUserId: 42 }
+      );
+      expect(createOpenChallengeForTelegramUser).toHaveBeenCalledWith(42n, {
+        contextChatId: 42n,
+        ignoreResourceWarning: false
+      });
+      markAction.mockClear();
+
+      const calls = await captureApiCalls(
+        "v1:duel:accept-risk:abcDEF12",
+        services,
+        { telegramUserId: 99 }
+      );
+
+      expect(acceptForTelegramUser).toHaveBeenCalledOnce();
+      expect(acceptForTelegramUser).toHaveBeenCalledWith(99n, "abcDEF12", {
+        confirmed: true,
+        ignoreResourceWarning: true
+      });
+      expect(challenge.status).toBe("pending");
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+      expect(calls.some((call) =>
+        call.method === "editMessageText" &&
+        String(call.payload.text).includes(active.challenger.name)
+      )).toBe(true);
+    }
+  );
+
+  it("keeps an exact active turn-duel action operable while Friday Barrel is pending", async () => {
+    const active = activeTurnBasedDuel();
+    const production = productionTurnDuelService(active);
+    const resolveTurnBasedActionForTelegramUser = vi.fn()
+      .mockResolvedValue({ state: "updated", session: active.session });
+    const pendingRaid = vi.fn().mockResolvedValue({
+      state: "pending" as const,
+      character,
+      availableAt: new Date("2026-07-18T12:13:00.000Z"),
+      now: new Date("2026-07-18T12:00:00.000Z")
+    });
+    const services = servicesWith({
+      duel: {
+        ...production.service,
+        resolveTurnBasedActionForTelegramUser
+      } as unknown as BotServices["duel"],
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: pendingRaid
+      } as unknown as BotServices["tavern"]
+    });
+
+    const exact = await captureApiCalls(
+      makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1),
+      services,
+      { messageResults: true }
+    );
+    const unrelated = await captureApiCalls(
+      makeDuelTurnCallbackData("otherABC12", "attack", 1, 1),
+      services,
+      { messageResults: true }
+    );
+
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(resolveTurnBasedActionForTelegramUser).toHaveBeenCalledWith(42n, {
+      inviteToken: "abcDEF12",
+      expectedTurn: 1,
+      expectedVersion: 1,
+      action: "attack"
+    });
+    expect(exact.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === active.session.challengerMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(exact.some((call) => String(call.payload.text).includes("Бочка"))).toBe(false);
+    expect(unrelated.some((call) => String(call.payload.text).includes("Бочка"))).toBe(true);
   });
 
   it.each([

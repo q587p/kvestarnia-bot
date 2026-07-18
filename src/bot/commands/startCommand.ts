@@ -35,7 +35,10 @@ import {
   buildTavernGameInviteUrl,
   notifyTavernGameParticipants
 } from "../tavernGameNotifications";
-import { showCanonicalTurnBasedDuelCard } from "../turnBasedDuelCardDelivery";
+import {
+  showCanonicalTurnBasedDuelCard,
+  showCanonicalTurnBasedDuelResultCard
+} from "../turnBasedDuelCardDelivery";
 
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
@@ -147,6 +150,20 @@ export function registerStartCommand(
           reply_markup: buildDuelAcceptConfirmationKeyboard(result.challenge.inviteToken)
         });
         return;
+      }
+
+      if (result.state === "resolved" && result.challenge.mode === "turn-based") {
+        const session = await options.duel.getTurnBasedSessionByToken(result.challenge.inviteToken);
+        if (session) {
+          await showCanonicalTurnBasedDuelResultCard(
+            ctx,
+            result,
+            session,
+            options.duel,
+            "reply"
+          );
+          return;
+        }
       }
 
       await ctx.reply(

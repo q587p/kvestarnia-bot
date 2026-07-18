@@ -1975,6 +1975,47 @@ describe("DuelChallengeService", () => {
     });
   });
 
+  it("keeps Quick final acceptance non-mutating when the challenger is combat-blocked", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, { name: "Зайнятий Автор" });
+    world.addCharacter(2n, { name: "Вільна Ціль" });
+    const activityEvents = new FakeDuelActivityEvents();
+    const recordResolvedDuelSafely = vi.fn().mockResolvedValue([]);
+    const service = buildService(
+      world,
+      fixedNow,
+      undefined,
+      undefined,
+      activityEvents,
+      {
+        isEnabled: () => true,
+        recordResolvedDuelSafely
+      }
+    );
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+    world.resourceUpdates.length = 0;
+    world.busyCharacterIds.add("character-1");
+
+    const accepted = await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+
+    expect(accepted).toMatchObject({
+      state: "busy",
+      busyCharacter: { name: "Зайнятий Автор" }
+    });
+    expect(world.challenges.get(created.challenge.inviteToken)?.status).toBe("pending");
+    expect(world.resourceUpdates).toEqual([]);
+    expect(activityEvents.duelCompletions).toEqual([]);
+    expect(recordResolvedDuelSafely).not.toHaveBeenCalled();
+  });
+
   it("enforces turn deadlines at the update boundary for actions and timeouts", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -2431,7 +2472,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
+  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean; busyCharacterId?: string }> {
     const challenge = this.challenges.get(inviteToken);
     const target = this.characters.get(telegramUserId);
 
@@ -2444,6 +2485,16 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
       (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
     ) {
       return Promise.resolve({ record: challenge ?? null, transitioned: false });
+    }
+
+    const busyCharacterId = [challenge.challengerCharacterId, target.id]
+      .find((characterId) => this.busyCharacterIds.has(characterId));
+    if (busyCharacterId) {
+      return Promise.resolve({
+        record: this.refreshChallenge(challenge),
+        transitioned: false,
+        busyCharacterId
+      });
     }
 
     const updated = {

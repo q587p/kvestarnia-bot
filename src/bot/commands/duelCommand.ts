@@ -193,7 +193,15 @@ export async function handleDuelCallback(
     return;
   }
 
-  if (await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")) {
+  const exactActiveTurnDuel = await isExactActiveTurnDuelCallback(
+    callback,
+    telegramUserId,
+    service
+  );
+  if (
+    !exactActiveTurnDuel &&
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")
+  ) {
     await answerCallback();
     return;
   }
@@ -262,6 +270,10 @@ export async function handleDuelCallback(
       confirmed: callback.type === "accept-risk",
       ignoreResourceWarning: callback.type === "accept-risk"
     });
+
+    if (callback.type === "accept-risk" && result.state !== "busy" && !isFreshDuelAcceptTransition(result)) {
+      await markNeutralDuelPresence(ctx, options.presence);
+    }
 
     if (result.state === "self-challenge") {
       await answerCallback();
@@ -565,6 +577,20 @@ export async function handleDuelCallback(
     }
     return;
   }
+  if (result.state === "resolved" && result.challenge.mode === "turn-based" && isPrivateChat(ctx)) {
+    const session = typeof service.getTurnBasedSessionByToken === "function"
+      ? await service.getTurnBasedSessionByToken(result.challenge.inviteToken)
+      : null;
+    if (session) {
+      await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+        ctx,
+        session,
+        getViewerParticipant(ctx, result)
+      );
+      await showCanonicalTurnBasedDuelResultCard(ctx, result, session, service, "edit");
+      return;
+    }
+  }
   await sendText(
     ctx,
     "edit",
@@ -697,6 +723,30 @@ async function sendTurnBasedDuelCard(
   service: DuelChallengeService
 ): Promise<void> {
   await showCanonicalTurnBasedDuelCard(ctx, result, service, mode);
+}
+
+async function markNeutralDuelPresence(ctx: Context, presence: PresenceService): Promise<void> {
+  const player = playerFromContext(ctx.from);
+  if (player) {
+    await presence.markAction({ user: player });
+  }
+}
+
+async function isExactActiveTurnDuelCallback(
+  callback: DuelCallback,
+  telegramUserId: bigint,
+  service: DuelChallengeService
+): Promise<boolean> {
+  if (callback.type !== "turn" && callback.type !== "gear" && callback.type !== "view") {
+    return false;
+  }
+
+  if (typeof service.getActiveTurnBasedForTelegramUser !== "function") {
+    return false;
+  }
+
+  const active = await service.getActiveTurnBasedForTelegramUser(telegramUserId);
+  return active?.challenge.inviteToken === callback.token;
 }
 
 async function notifyTurnBasedParticipants(

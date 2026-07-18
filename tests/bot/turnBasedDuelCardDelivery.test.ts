@@ -64,6 +64,39 @@ describe("canonical turn-based duel card delivery", () => {
     expect(service.claim).not.toHaveBeenCalled();
   });
 
+  it("reloads the active participant reference instead of trusting the caller's stale session snapshot", async () => {
+    const stale = activeView();
+    const storedSession = {
+      ...stale.session,
+      challengerChatId: 42n,
+      challengerMessageId: 20
+    };
+    const service = {
+      getByToken: vi.fn().mockResolvedValue(stale),
+      getTurnBasedSessionByToken: vi.fn().mockResolvedValue(storedSession),
+      claimTurnBasedMessageReference: vi.fn(),
+      releaseTurnBasedMessageReference: vi.fn()
+    } as unknown as DuelChallengeService;
+    const transport = deliveryTransport();
+
+    const result = await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: stale,
+      session: stale.session,
+      participant: "challenger",
+      chatId: 42n,
+      transport: transport.value
+    });
+
+    expect(result).toEqual({ state: "edited", reference: { chatId: 42n, messageId: 20 } });
+    expect(transport.editMessage).toHaveBeenCalledWith(
+      { chatId: 42n, messageId: 20 },
+      expect.stringContaining("Покрокова дуель"),
+      expect.any(Object)
+    );
+    expect(transport.sendInertMessage).not.toHaveBeenCalled();
+  });
+
   it("releases a newly claimed inert candidate only when Telegram proves it is missing", async () => {
     const view = activeView();
     const service = deliveryService(view);
@@ -143,6 +176,74 @@ describe("canonical turn-based duel card delivery", () => {
     expect(releaseTurnBasedMessageReference).not.toHaveBeenCalled();
   });
 
+  it("retries an ambiguously failed resolved activation on the retained canonical message", async () => {
+    const resolved = resolvedView();
+    const originalSession = {
+      ...activeView().session,
+      status: "resolved" as const,
+      completedAt: new Date("2026-07-18T12:00:00.000Z"),
+      challengerChatId: null,
+      challengerMessageId: null
+    };
+    let storedSession = { ...originalSession };
+    const claimTurnBasedMessageReference = vi.fn<DuelChallengeService["claimTurnBasedMessageReference"]>((
+      _sessionId,
+      _participant,
+      reference
+    ) => {
+      storedSession = {
+        ...storedSession,
+        challengerChatId: reference.chatId,
+        challengerMessageId: reference.messageId
+      };
+      return Promise.resolve({ claimed: true, session: storedSession });
+    });
+    const service = {
+      getByToken: vi.fn().mockResolvedValue(resolved),
+      getTurnBasedSessionByToken: vi.fn(() => Promise.resolve(storedSession)),
+      claimTurnBasedMessageReference,
+      releaseTurnBasedMessageReference: vi.fn()
+    } as unknown as DuelChallengeService;
+    const transport = deliveryTransport({
+      editErrors: [new Error("Telegram gateway timeout before local acknowledgement")],
+      sentMessageIds: [20]
+    });
+
+    const first = await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: resolved,
+      session: originalSession,
+      participant: "challenger",
+      chatId: 42n,
+      transport: transport.value
+    });
+    const second = await deliverCanonicalTurnBasedDuelParticipantCard({
+      service,
+      view: resolved,
+      session: originalSession,
+      participant: "challenger",
+      chatId: 42n,
+      transport: transport.value
+    });
+
+    expect(first).toEqual({
+      state: "retryable-activation-failure",
+      reference: { chatId: 42n, messageId: 20 }
+    });
+    expect(second).toEqual({ state: "edited", reference: { chatId: 42n, messageId: 20 } });
+    expect(transport.sendInertMessage).toHaveBeenCalledTimes(1);
+    expect(claimTurnBasedMessageReference).toHaveBeenCalledTimes(1);
+    expect(transport.editMessage.mock.calls.map((call) => call[0])).toEqual([
+      { chatId: 42n, messageId: 20 },
+      { chatId: 42n, messageId: 20 }
+    ]);
+    expect(storedSession.challengerMessageId).toBe(20);
+    const retry = transport.editMessage.mock.calls.at(-1);
+    expect(String(retry?.[1])).toContain("Результат покрокової дуелі");
+    expect(JSON.stringify(retry?.[2])).toContain("inline_keyboard");
+    expect(JSON.stringify(retry?.[2])).not.toContain("v1:duel:t:");
+  });
+
   it("renders a terminal card instead of stale active controls when resolution wins after the claim", async () => {
     const active = activeView();
     const resolved = resolvedView();
@@ -211,7 +312,7 @@ describe("canonical turn-based duel card delivery", () => {
     ));
 
     expect(claim).toHaveBeenCalledTimes(2);
-    expect(edits).toEqual([canonical?.messageId]);
+    expect(edits).toEqual([canonical?.messageId, canonical?.messageId]);
     expect(canonical).not.toBeNull();
   });
 

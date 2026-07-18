@@ -53,6 +53,16 @@ type DuelCombatSessionWithChallenge =
   | Prisma.DuelCombatSessionGetPayload<{ include: typeof sessionInclude }>
   | null;
 
+class QuickDuelCombatBlockedError extends Error {
+  constructor(readonly characterId: string) {
+    super("quick-duel-combat-blocked");
+  }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
 export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   constructor(
     private readonly prisma: PrismaClient,
@@ -308,55 +318,135 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<{ record: DuelChallengeRecord | null; transitioned: boolean }> {
+  ): Promise<{
+    record: DuelChallengeRecord | null;
+    transitioned: boolean;
+    busyCharacterId?: string;
+  }> {
     await this.expireIfNeeded(inviteToken, now);
 
-    const target = await this.prisma.character.findFirst({
-      where: {
-        user: {
-          telegramUserId
-        }
-      },
-      select: {
-        id: true
-      }
-    });
-
-    if (!target) {
-      return { record: null, transitioned: false };
-    }
-
-    const updated = await this.prisma.duelChallenge.updateMany({
-      where: {
-        inviteToken,
-        status: "pending",
-        expiresAt: {
-          gt: now
-        },
-        challengerCharacterId: {
-          not: target.id
-        },
-        OR: [
-          {
-            targetCharacterId: null
+    try {
+      const transition = await this.prisma.$transaction(async (tx) => {
+        const target = await tx.character.findFirst({
+          where: {
+            user: {
+              telegramUserId
+            }
           },
-          {
-            targetCharacterId: target.id
+          select: {
+            id: true
           }
-        ]
-      },
-      data: {
-        targetCharacterId: target.id,
-        status: "resolved",
-        resolvedAt: now,
-        resultJson: result as unknown as Prisma.InputJsonValue
-      }
-    });
+        });
 
-    return {
-      record: await this.findByToken(inviteToken),
-      transitioned: updated.count === 1
-    };
+        if (!target) {
+          return { transitioned: false };
+        }
+
+        const challenge = await tx.duelChallenge.findUnique({
+          where: { inviteToken },
+          select: {
+            id: true,
+            challengerCharacterId: true,
+            targetCharacterId: true,
+            status: true,
+            mode: true,
+            expiresAt: true
+          }
+        });
+
+        if (
+          !challenge ||
+          challenge.status !== "pending" ||
+          challenge.mode !== "quick" ||
+          challenge.expiresAt <= now ||
+          challenge.challengerCharacterId === target.id ||
+          (challenge.targetCharacterId !== null && challenge.targetCharacterId !== target.id)
+        ) {
+          return { transitioned: false };
+        }
+
+        const participantIds = [challenge.challengerCharacterId, target.id];
+        const legacySoloBlocker = await tx.soloCombatSession.findFirst({
+          where: {
+            status: "active",
+            characterId: { in: participantIds }
+          },
+          select: { characterId: true }
+        });
+        if (legacySoloBlocker) {
+          return {
+            transitioned: false,
+            busyCharacterId: legacySoloBlocker.characterId
+          };
+        }
+
+        for (const characterId of participantIds) {
+          try {
+            await tx.activeCombatLease.create({
+              data: {
+                characterId,
+                kind: "quick-duel-resolution",
+                referenceId: challenge.id,
+                createdAt: now,
+                updatedAt: now
+              }
+            });
+          } catch (error) {
+            if (isUniqueConstraintError(error)) {
+              throw new QuickDuelCombatBlockedError(characterId);
+            }
+            throw error;
+          }
+        }
+
+        const updated = await tx.duelChallenge.updateMany({
+          where: {
+            id: challenge.id,
+            status: "pending",
+            mode: "quick",
+            expiresAt: { gt: now },
+            challengerCharacterId: challenge.challengerCharacterId,
+            OR: [
+              { targetCharacterId: null },
+              { targetCharacterId: target.id }
+            ]
+          },
+          data: {
+            targetCharacterId: target.id,
+            status: "resolved",
+            resolvedAt: now,
+            resultJson: result as unknown as Prisma.InputJsonValue
+          }
+        });
+
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            characterId: { in: participantIds },
+            kind: "quick-duel-resolution",
+            referenceId: challenge.id
+          }
+        });
+
+        return { transitioned: updated.count === 1 };
+      });
+
+      return {
+        record: await this.findByToken(inviteToken),
+        transitioned: transition.transitioned,
+        ...("busyCharacterId" in transition && transition.busyCharacterId
+          ? { busyCharacterId: transition.busyCharacterId }
+          : {})
+      };
+    } catch (error) {
+      if (error instanceof QuickDuelCombatBlockedError) {
+        return {
+          record: await this.findByToken(inviteToken),
+          transitioned: false,
+          busyCharacterId: error.characterId
+        };
+      }
+      throw error;
+    }
   }
 
   async startTurnBasedByTokenForTelegramUser(

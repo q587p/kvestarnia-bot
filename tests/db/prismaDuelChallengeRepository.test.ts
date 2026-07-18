@@ -1,7 +1,73 @@
-import { describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
+import { describe, expect, it, vi } from "vitest";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
+import type { DuelChallengeRecord, DuelResultPayload } from "../../src/db/repositories/duelChallengeRepository";
 
 describe("PrismaDuelChallengeRepository", () => {
+  it("loses Quick resolution when a challenger combat lease wins after the challenge read", async () => {
+    const pending = {
+      ...makeResolvedChallenge("quick-race", null),
+      mode: "quick",
+      status: "pending",
+      resolvedAt: null,
+      result: null,
+      expiresAt: new Date("2026-06-17T18:13:00.000Z")
+    } as unknown as DuelChallengeRecord;
+    const transitionUpdate = vi.fn();
+    const deleteTemporaryLeases = vi.fn();
+    const leaseCreate = vi.fn().mockRejectedValue(new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed",
+      { code: "P2002", clientVersion: "6.19.3" }
+    ));
+    const tx = {
+      character: {
+        findFirst: vi.fn().mockResolvedValue({ id: "character-2" })
+      },
+      duelChallenge: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: pending.id,
+          challengerCharacterId: "character-1",
+          targetCharacterId: "character-2",
+          status: "pending",
+          mode: "quick",
+          expiresAt: pending.expiresAt
+        }),
+        updateMany: transitionUpdate
+      },
+      soloCombatSession: {
+        findFirst: vi.fn().mockResolvedValue(null)
+      },
+      activeCombatLease: {
+        create: leaseCreate,
+        deleteMany: deleteTemporaryLeases
+      }
+    };
+    const repository = new PrismaDuelChallengeRepository({
+      duelChallenge: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 })
+      },
+      $transaction: (work: (client: typeof tx) => Promise<unknown>) => work(tx)
+    } as unknown as ConstructorParameters<typeof PrismaDuelChallengeRepository>[0]);
+    vi.spyOn(repository, "findByToken").mockResolvedValue(pending);
+
+    const result = await repository.acceptByTokenForTelegramUser(
+      pending.inviteToken,
+      2n,
+      new Date("2026-06-17T18:00:23.000Z"),
+      makeQuickResult()
+    );
+
+    expect(tx.duelChallenge.findUnique.mock.invocationCallOrder[0])
+      .toBeLessThan(leaseCreate.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY);
+    expect(result).toMatchObject({
+      record: { status: "pending" },
+      transitioned: false,
+      busyCharacterId: "character-1"
+    });
+    expect(transitionUpdate).not.toHaveBeenCalled();
+    expect(deleteTemporaryLeases).not.toHaveBeenCalled();
+  });
+
   it("claims a participant card only while the expected canonical reference is still current", async () => {
     const updates: unknown[] = [];
     const repository = new PrismaDuelChallengeRepository({
@@ -219,6 +285,19 @@ function makeResolvedChallenge(inviteToken: string, resultJson: unknown) {
     updatedAt: new Date("2026-06-17T18:01:00.000Z"),
     challenger: makeCharacter("character-1", "Живе Імʼя", 1n),
     target: makeCharacter("character-2", "Жива Ціль", 2n)
+  };
+}
+
+function makeQuickResult(): DuelResultPayload {
+  return {
+    mode: "quick",
+    outcome: "draw",
+    winnerCharacterId: null,
+    loserCharacterId: null,
+    challengerScore: 13,
+    targetScore: 13,
+    swing: 0,
+    flavorKey: "dramatic-draw"
   };
 }
 

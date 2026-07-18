@@ -160,6 +160,10 @@ export interface TransitionResult<T> {
   transitioned: boolean;
 }
 
+export interface QuickDuelAcceptTransitionResult extends TransitionResult<DuelChallengeRecord> {
+  busyCharacterId?: string;
+}
+
 export interface UpdateTurnBasedDuelSessionInput {
   state: TurnBasedDuelState;
   status: TurnBasedDuelStatus;
@@ -214,7 +218,7 @@ export interface DuelChallengeRepository {
     telegramUserId: bigint,
     now: Date,
     result: DuelResultPayload
-  ): Promise<TransitionResult<DuelChallengeRecord>>;
+  ): Promise<QuickDuelAcceptTransitionResult>;
 
   countResolvedBetweenCharacterPairSince(
     characterAId: string,

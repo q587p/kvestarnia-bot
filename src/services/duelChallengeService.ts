@@ -467,14 +467,14 @@ export class DuelChallengeService {
       targetCharacter,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based"
+      challenge.mode !== "turn-based" && options.confirmed !== true
     );
     challenger = await this.syncDuelCharacterForTelegramUser(
       challenge.challenger.telegramUserId,
       currentChallenger,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based"
+      challenge.mode !== "turn-based" && options.confirmed !== true
     );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
@@ -574,6 +574,17 @@ export class DuelChallengeService {
       }, "quick")
     );
 
+    if (accepted.busyCharacterId) {
+      return {
+        state: "busy",
+        challenge: accepted.record ?? challenge,
+        challenger,
+        target: currentTarget,
+        busyCharacter:
+          accepted.busyCharacterId === challenge.challenger.id ? challenger : currentTarget
+      };
+    }
+
     if (!accepted.record) {
       return { state: "no-character" };
     }
@@ -670,6 +681,10 @@ export class DuelChallengeService {
     const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(inviteToken, telegramUserId);
 
     return session ? this.buildActiveView(session, this.clock()) : { state: "not-found" };
+  }
+
+  async getTurnBasedSessionByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
+    return this.challenges.findTurnBasedByToken(inviteToken);
   }
 
   async getTurnBasedJournalByToken(inviteToken: string): Promise<DuelTurnBasedJournalResult> {
