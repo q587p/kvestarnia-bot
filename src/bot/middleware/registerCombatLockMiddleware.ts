@@ -31,6 +31,11 @@ import { showCanonicalTurnBasedDuelCard } from "../turnBasedDuelCardDelivery";
 import { parseDuelCallbackData } from "../callbacks/duelCallbackData";
 import { parseStartPayload } from "../startPayload";
 import type { DuelChallengeView } from "../../services/duelChallengeService";
+import {
+  classifyTurnBasedDuelRoute,
+  isTurnBasedDuelCardCallback,
+  rememberTurnBasedDuelRouteClassification
+} from "../turnBasedDuelRouteClassification";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -55,6 +60,29 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
     }
 
     if (isRestartOrRemortRoute(ctx) && await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
+      return;
+    }
+
+    const parsedDuelCallback = parseDuelCallbackData(callbackData);
+    const cardRoute = parsedDuelCallback.ok && services.duel
+      ? await classifyTurnBasedDuelRoute(
+          ctx,
+          parsedDuelCallback.value,
+          telegramUserId,
+          services.duel
+        )
+      : null;
+    const isTurnBasedCardRoute = parsedDuelCallback.ok &&
+      isTurnBasedDuelCardCallback(parsedDuelCallback.value);
+    if (
+      cardRoute &&
+      (
+        (isTurnBasedCardRoute && (cardRoute.state === "active" || cardRoute.sourceIsCanonical)) ||
+        (cardRoute.state === "resolved" && cardRoute.sourceIsCanonical)
+      )
+    ) {
+      rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+      await next();
       return;
     }
 

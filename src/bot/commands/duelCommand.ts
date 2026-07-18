@@ -64,6 +64,11 @@ import {
   type TurnBasedDuelParticipant
 } from "../turnBasedDuelCardDelivery";
 import type { DuelCombatSessionRecord } from "../../db/repositories/duelChallengeRepository";
+import {
+  classifyTurnBasedDuelRoute,
+  getRememberedTurnBasedDuelRouteClassification,
+  isTurnBasedDuelCardCallback
+} from "../turnBasedDuelRouteClassification";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -193,13 +198,60 @@ export async function handleDuelCallback(
     return;
   }
 
-  const exactActiveTurnDuel = await isExactActiveTurnDuelCallback(
+  const observedTurnDuelRoute = getRememberedTurnBasedDuelRouteClassification(ctx);
+  const currentTurnDuelRoute = await classifyTurnBasedDuelRoute(
+    ctx,
     callback,
     telegramUserId,
     service
   );
+  const preservesResolvedCanonical =
+    currentTurnDuelRoute?.state === "resolved" &&
+    (
+      currentTurnDuelRoute.sourceIsCanonical ||
+      observedTurnDuelRoute?.token === currentTurnDuelRoute.token
+    );
+  const pendingRaidProtectsResolvedCanonical =
+    preservesResolvedCanonical &&
+    !isTurnBasedDuelCardCallback(callback) &&
+    typeof options.tavernRaid?.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+    (await options.tavernRaid.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId)).state === "pending";
+  if (
+    currentTurnDuelRoute?.state === "resolved" &&
+    preservesResolvedCanonical &&
+    (isTurnBasedDuelCardCallback(callback) || pendingRaidProtectsResolvedCanonical)
+  ) {
+    await answerCallback();
+    await clearCurrentDuelCallbackKeyboardIfNonCanonical(
+      ctx,
+      currentTurnDuelRoute.session,
+      currentTurnDuelRoute.participant
+    );
+    await showCanonicalTurnBasedDuelResultCard(
+      ctx,
+      currentTurnDuelRoute.view,
+      currentTurnDuelRoute.session,
+      service,
+      "edit"
+    );
+    return;
+  }
+
+  if (
+    isTurnBasedDuelCardCallback(callback) &&
+    observedTurnDuelRoute?.state === "active" &&
+    observedTurnDuelRoute.token === callback.token &&
+    !currentTurnDuelRoute
+  ) {
+    await answerCallback();
+    return;
+  }
+
+  const exactActiveTurnDuel = currentTurnDuelRoute?.state === "active" ||
+    await isExactActiveTurnDuelCallback(callback, telegramUserId, service);
   if (
     !exactActiveTurnDuel &&
+    !preservesResolvedCanonical &&
     await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "edit")
   ) {
     await answerCallback();

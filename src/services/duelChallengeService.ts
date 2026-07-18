@@ -200,6 +200,19 @@ export type DuelTurnBasedJournalResult =
       rounds: TurnBasedDuelRoundSummary[];
     };
 
+export type TurnBasedDuelRouteView =
+  | { state: "not-found" }
+  | {
+      state: "active";
+      session: DuelCombatSessionRecord;
+      view: Extract<DuelChallengeView, { state: "active" }>;
+    }
+  | {
+      state: "resolved";
+      session: DuelCombatSessionRecord;
+      view: Extract<DuelChallengeView, { state: "resolved" }>;
+    };
+
 export type TurnBasedDuelTurnResult =
   | { state: "no-character" }
   | { state: "not-found" }
@@ -462,19 +475,20 @@ export class DuelChallengeService {
       return { state: "no-character" };
     }
 
+    const persistAcceptancePreviewResources = false;
     const currentTarget = await this.syncDuelCharacterForTelegramUser(
       telegramUserId,
       targetCharacter,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based" && options.confirmed !== true
+      persistAcceptancePreviewResources
     );
     challenger = await this.syncDuelCharacterForTelegramUser(
       challenge.challenger.telegramUserId,
       currentChallenger,
       now,
       equipmentAt,
-      challenge.mode !== "turn-based" && options.confirmed !== true
+      persistAcceptancePreviewResources
     );
 
     if (currentTarget.level < DUEL_INVITE_MIN_LEVEL) {
@@ -685,6 +699,36 @@ export class DuelChallengeService {
 
   async getTurnBasedSessionByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
     return this.challenges.findTurnBasedByToken(inviteToken);
+  }
+
+  async getTurnBasedRouteForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<TurnBasedDuelRouteView> {
+    const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+      inviteToken,
+      telegramUserId
+    );
+
+    if (!session) {
+      return { state: "not-found" };
+    }
+
+    const now = this.clock();
+    if (session.status === "active" && session.challenge.status === "active") {
+      return {
+        state: "active",
+        session,
+        view: this.buildActiveView(session, now)
+      };
+    }
+
+    const view = this.viewChallenge(session.challenge, now);
+    if (view.state === "resolved") {
+      return { state: "resolved", session, view };
+    }
+
+    return { state: "not-found" };
   }
 
   async getTurnBasedJournalByToken(inviteToken: string): Promise<DuelTurnBasedJournalResult> {

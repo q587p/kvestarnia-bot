@@ -6359,6 +6359,113 @@ describe("scene callback HTML options", () => {
     expect(unrelated.some((call) => String(call.payload.text).includes("Бочка"))).toBe(true);
   });
 
+  it("keeps exact active Refresh operable while Friday Barrel is pending", async () => {
+    const active = activeTurnBasedDuel();
+    const production = productionTurnDuelService(active);
+    const calls = await captureApiCalls(
+      "v1:duel:view:abcDEF12",
+      servicesWith({
+        duel: production.service,
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({
+            state: "pending" as const,
+            character,
+            availableAt: new Date("2026-07-18T12:13:00.000Z"),
+            now: new Date("2026-07-18T12:00:00.000Z")
+          })
+        } as unknown as BotServices["tavern"]
+      }),
+      { messageResults: true }
+    );
+
+    expect(calls.some((call) =>
+      call.method === "editMessageText" &&
+      call.payload.message_id === active.session.challengerMessageId &&
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:t:")
+    )).toBe(true);
+    expect(calls.every((call) =>
+      call.payload.message_id !== active.session.challengerMessageId ||
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    )).toBe(true);
+  });
+
+  it.each([
+    ["action", makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1)],
+    ["Refresh", "v1:duel:view:abcDEF12"]
+  ])("repairs the terminal canonical card when pending Barrel resolves between middleware and %s", async (_route, callbackData) => {
+    const active = activeTurnBasedDuel({ challengerMessageId: 10 });
+    const resolved = resolvedTurnBasedDuel(active);
+    let routeRead = 0;
+    const getTurnBasedRouteForTelegramUser = vi.fn(() => {
+      routeRead += 1;
+      return Promise.resolve(routeRead === 1
+        ? { state: "active" as const, session: active.session, view: active }
+        : { state: "resolved" as const, session: resolved.session, view: resolved.view });
+    });
+    const resolveTurnBasedActionForTelegramUser = vi.fn();
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser,
+          getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
+          getByToken: vi.fn().mockResolvedValue(resolved.view),
+          resolveTurnBasedActionForTelegramUser
+        } as unknown as BotServices["duel"],
+        tavern: pendingFridayBarrelServices()
+      }),
+      { messageResults: true }
+    );
+    const canonicalEdits = calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    );
+    const finalEdit = canonicalEdits.at(-1);
+
+    expect(getTurnBasedRouteForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(resolveTurnBasedActionForTelegramUser).not.toHaveBeenCalled();
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).toContain("v1:duel:rematch");
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).not.toContain("v1:duel:t:");
+    expect(canonicalEdits.every((call) =>
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    )).toBe(true);
+  });
+
+  it.each([
+    ["old action", makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1)],
+    ["old Refresh", "v1:duel:view:abcDEF12"],
+    ["terminal rematch", "v1:duel:rematch:abcDEF12"]
+  ])("repairs an already-resolved canonical card for a queued %s during pending Barrel", async (_route, callbackData) => {
+    const resolved = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const getTurnBasedRouteForTelegramUser = vi.fn().mockResolvedValue({
+      state: "resolved" as const,
+      session: resolved.session,
+      view: resolved.view
+    });
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser,
+          getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
+          getByToken: vi.fn().mockResolvedValue(resolved.view),
+          resolveTurnBasedActionForTelegramUser: vi.fn()
+        } as unknown as BotServices["duel"],
+        tavern: pendingFridayBarrelServices()
+      }),
+      { messageResults: true }
+    );
+    const canonicalEdits = calls.filter((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    );
+    const finalEdit = canonicalEdits.at(-1);
+
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).toContain("v1:duel:rematch");
+    expect(JSON.stringify(finalEdit?.payload.reply_markup)).not.toContain("v1:duel:t:");
+    expect(canonicalEdits.every((call) =>
+      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    )).toBe(true);
+  });
+
   it.each([
     ["persistent", "Quick create", "callback", "v1:duel:new"],
     ["persistent", "Quick accept", "callback", "v1:duel:accept-risk:quickABC12"],
@@ -9434,6 +9541,18 @@ function trainingMonster() {
 }
 
 type ActiveTurnBasedDuelView = Extract<DuelChallengeView, { state: "active" }>;
+type ResolvedTurnBasedDuelView = Extract<DuelChallengeView, { state: "resolved" }>;
+
+function pendingFridayBarrelServices(): BotServices["tavern"] {
+  return {
+    getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({
+      state: "pending" as const,
+      character,
+      availableAt: new Date("2026-07-18T12:13:00.000Z"),
+      now: new Date("2026-07-18T12:00:00.000Z")
+    })
+  } as unknown as BotServices["tavern"];
+}
 
 function duelCombatLockServices(lock: "persistent" | "training" | "party-boss" | "pending-raid"): Partial<BotServices> {
   if (lock === "persistent") {
@@ -9645,6 +9764,52 @@ function activeTurnBasedDuel(references: {
   } as unknown as ActiveTurnBasedDuelView;
 }
 
+function resolvedTurnBasedDuel(active: ActiveTurnBasedDuelView): {
+  view: ResolvedTurnBasedDuelView;
+  session: ActiveTurnBasedDuelView["session"];
+} {
+  const resolvedAt = new Date("2026-06-19T12:01:00.000Z");
+  const result = {
+    mode: "turn-based" as const,
+    terminalReason: "surrender" as const,
+    outcome: "challenger" as const,
+    winnerCharacterId: active.session.challengerCharacterId,
+    loserCharacterId: active.session.targetCharacterId,
+    challengerScore: 1,
+    targetScore: 0,
+    swing: 1,
+    flavorKey: "direct-hit"
+  };
+  const challenge = {
+    ...active.challenge,
+    status: "resolved" as const,
+    resolvedAt,
+    result
+  };
+  const session = {
+    ...active.session,
+    status: "forfeited" as const,
+    completedAt: resolvedAt,
+    updatedAt: resolvedAt,
+    challenge,
+    state: {
+      ...active.session.state,
+      status: "forfeited" as const
+    }
+  };
+
+  return {
+    session,
+    view: {
+      state: "resolved",
+      challenge,
+      challenger: active.challenger,
+      target: active.target,
+      result
+    } as unknown as ResolvedTurnBasedDuelView
+  };
+}
+
 function productionTurnDuelService(
   initial: ActiveTurnBasedDuelView,
   overrides: {
@@ -9707,6 +9872,18 @@ function productionTurnDuelService(
       Promise.resolve({ ...getCurrent(), transitioned: false })
     );
   const getByToken = vi.fn<DuelChallengeService["getByToken"]>(() => Promise.resolve(getCurrent()));
+  const getTurnBasedRouteForTelegramUser = vi.fn<
+    DuelChallengeService["getTurnBasedRouteForTelegramUser"]
+  >((_telegramUserId, inviteToken) => inviteToken === getCurrent().challenge.inviteToken
+    ? Promise.resolve({
+        state: "active",
+        session: getCurrent().session,
+        view: getCurrent()
+      })
+    : Promise.resolve({ state: "not-found" }));
+  const getTurnBasedSessionByToken = vi.fn<
+    DuelChallengeService["getTurnBasedSessionByToken"]
+  >(() => Promise.resolve(getCurrent().session));
 
   return {
     current: getCurrent,
@@ -9716,6 +9893,8 @@ function productionTurnDuelService(
       getActiveTurnBasedForTelegramUser,
       acceptForTelegramUser,
       getByToken,
+      getTurnBasedRouteForTelegramUser,
+      getTurnBasedSessionByToken,
       claimTurnBasedMessageReference,
       releaseTurnBasedMessageReference
     } as unknown as BotServices["duel"]
