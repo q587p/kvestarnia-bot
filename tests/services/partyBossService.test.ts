@@ -547,6 +547,18 @@ describe("PartyBossService achievements", () => {
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledTimes(1);
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledWith(result.session);
   });
+  it("rejects Lament before the repository when Bard support is off", async () => {
+    const submitLamentForTelegramUser = vi.fn<PartyBossRepository["submitLamentForTelegramUser"]>();
+    const service = new PartyBossService(
+      { submitLamentForTelegramUser } as unknown as PartyBossRepository,
+      { enabled: true, bardSupportEnabled: false }
+    );
+
+    await expect(service.submitLamentForTelegramUser(123n, "token-1", 1)).resolves.toEqual({
+      state: "disabled"
+    });
+    expect(submitLamentForTelegramUser).not.toHaveBeenCalled();
+  });
 });
 
 function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBossSessionRecord {

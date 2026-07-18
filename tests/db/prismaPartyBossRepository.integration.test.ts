@@ -13,6 +13,8 @@ import type {
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { getLevelStartXp } from "../../src/domain/progression/level";
+import { getBardMusicAvailabilityKey } from "../../src/domain/noncombat/bardSupport";
+import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -210,6 +212,76 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     expect((stored.resultJson as { expiresAt: string }).expiresAt)
       .toBe(new Date(expiresAt.getTime() - 2 * 60_000).toISOString());
+  });
+
+  it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {
+    const supportRepository = new PrismaPartyBossRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true),
+      { bardSupportEnabled: true }
+    );
+    await seedCharacter(prisma, "lament-bard-a", 1005n, "Перший Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await seedCharacter(prisma, "lament-bard-b", 1006n, "Другий Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await partyRepository.createForTelegramUser(1005n, {
+      ...partyInput("party-token-big-lament-race"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(1006n, "party-token-big-lament-race", joinInput());
+    const started = await supportRepository.startFromRecruitingPartyForTelegramUser(1005n, {
+      partyInviteToken: "party-token-big-lament-race",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started).toMatchObject({ state: "started", session: { state: { bardMusic: { kind: "none" } } } });
+
+    const [left, right] = await Promise.all([
+      supportRepository.submitLamentForTelegramUser(1005n, "party-token-big-lament-race", 1, {
+        ...resolveInput(),
+        activationId: "lament-race-a"
+      }),
+      supportRepository.submitLamentForTelegramUser(1006n, "party-token-big-lament-race", 1, {
+        ...resolveInput(),
+        activationId: "lament-race-b"
+      })
+    ]);
+    const winner = [left, right].find((entry) => entry.state === "queued");
+    const loser = [left, right].find((entry) => entry.state === "lament-unavailable");
+
+    expect(winner?.state).toBe("queued");
+    expect(loser).toMatchObject({ state: "lament-unavailable", reason: "music-taken" });
+    if (!winner || !("session" in winner) || winner.session.state.bardMusic?.kind !== "lament") {
+      throw new Error("Expected one durable Lament winner.");
+    }
+    const winnerCharacterId = winner.session.state.bardMusic.sourceCharacterId;
+    await expect(prisma.characterCooldown.findMany({
+      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+    })).resolves.toMatchObject([
+      {
+        characterId: winnerCharacterId,
+        availableAt: new Date("2026-06-30T11:33:00.000Z")
+      }
+    ]);
+
+    const winnerTelegramUserId = winnerCharacterId === "lament-bard-a-character" ? 1005n : 1006n;
+    await expect(supportRepository.submitActionForTelegramUser(
+      winnerTelegramUserId,
+      "party-token-big-lament-race",
+      1,
+      "attack",
+      resolveInput()
+    )).resolves.toMatchObject({ state: "lament-unavailable", reason: "locked" });
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: { actorCharacterId: winnerCharacterId, turn: 1 },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
   });
 
   it("commits only the latest eligible Big Barrel Warrior Taunt and rejects stale or ineligible replays", async () => {
@@ -3080,6 +3152,12 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       available_at DATETIME NOT NULL,
       result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE bard_performances (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      location_id TEXT NOT NULL,
+      cooldown_available_at DATETIME NOT NULL
     )`,
     `CREATE TABLE character_items (
       id TEXT PRIMARY KEY,

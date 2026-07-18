@@ -40,7 +40,10 @@ import { PrismaYegerNotchExchangeRepository } from "../db/repositories/prismaYeg
 
 export function createRepositories(
   prisma: PrismaClient,
-  options: { hpRecoveryNotificationsEnabled?: boolean } = {}
+  options: {
+    hpRecoveryNotificationsEnabled?: boolean;
+    bardSupportEnabled?: boolean;
+  } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
     options.hpRecoveryNotificationsEnabled === true
@@ -59,7 +62,12 @@ export function createRepositories(
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
     devGrants: new PrismaDevGrantRepository(prisma),
-    duelChallenges: new PrismaDuelChallengeRepository(prisma, hpRecoveryProducer),
+    duelChallenges: new PrismaDuelChallengeRepository(
+      prisma,
+      hpRecoveryProducer,
+      undefined,
+      { bardSupportEnabled: options.bardSupportEnabled === true }
+    ),
     duelTournaments: new PrismaDuelTournamentRepository(prisma),
     equipment: new PrismaEquipmentRepository(prisma, hpRecoveryProducer),
     huntContracts: new PrismaHuntContractRepository(prisma),
@@ -74,14 +82,22 @@ export function createRepositories(
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
     passageSearches: new PrismaPassageSearchRepository(prisma),
-    partyBossSessions: new PrismaPartyBossRepository(prisma, hpRecoveryProducer),
+    partyBossSessions: new PrismaPartyBossRepository(
+      prisma,
+      hpRecoveryProducer,
+      { bardSupportEnabled: options.bardSupportEnabled === true }
+    ),
     partySessions: new PrismaPartySessionRepository(prisma),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma, hpRecoveryProducer),
-    soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma, hpRecoveryProducer),
+    soloCombatSessions: new PrismaSoloCombatSessionRepository(
+      prisma,
+      hpRecoveryProducer,
+      { bardSupportEnabled: options.bardSupportEnabled === true }
+    ),
     tavernGames: new PrismaTavernGameRepository(prisma),
     yegerNotchExchange: new PrismaYegerNotchExchangeRepository(prisma)
   };

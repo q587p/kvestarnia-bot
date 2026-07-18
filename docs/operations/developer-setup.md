@@ -55,6 +55,7 @@ HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
+BARD_SUPPORT_ENABLED=false
 # SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
 # SUPPORT_JAR_CURRENT_UAH=0
 # SUPPORT_JAR_GOAL_UAH=5000
@@ -93,6 +94,8 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 
 `FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED` окремо відкриває production-поверхню справи `Перше правило Бійцівського кутка`; до цільової runtime-перевірки лишай його `false`. `FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED` стосується лише локального helper-а й ніколи не обходить production-gate.
 
+`BARD_SUPPORT_ENABLED` окремо відкриває production-гранти/читання `✨ Натхнення` та `🎻 Журливу баладу`; до ручної Telegram-перевірки лишай його `false`. У non-production ці поверхні доступні автоматично, але `/dev_reset_bard_performance` все одно реєструється лише з `DEV_GRANT_COMMANDS_ENABLED=true`.
+
 `SUPPORT_JAR_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
 
 `SUPPORT_JAR_CURRENT_UAH`, `SUPPORT_JAR_GOAL_UAH` і `SUPPORT_JAR_STATUS_UPDATED_AT` optional та ручні. Вони лише показують спокійний read-only стан Банки в `/support` і на public site; це не payment confirmation і не donor state. Дата статусу має бути короткою `YYYY-MM-DD`.
@@ -127,6 +130,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_party` — збирає тимчасову локальну ватагу для перевірки party/session і Big Barrel Brother flows; у production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
+- `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.
 - `/dev_add_level [число]` — додає вказану кількість рівнів поточному персонажу; без числа додає 1 рівень.
 - `/dev_add_xp [число]` — додає вказану кількість XP; без числа додає 1 XP.
 - `/dev_add_gold [число]` — додає вказану кількість золота до 1 000 000; без числа додає 1 золото.

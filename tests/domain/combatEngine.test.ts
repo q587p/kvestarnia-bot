@@ -3164,6 +3164,28 @@ describe("combat domain engine", () => {
     expect(result.state.enemies?.find((enemy) => enemy.enemyId === "enemy:2")?.hp).toBeGreaterThan(0);
     expectPrimaryEnemyMirror(result.state, "enemy:2");
   });
+
+  it("adds Bard Inspiration percentage points before the canonical player hit clamp", () => {
+    const ordinary = rollBasicAttack(
+      { ...warrior, dexterity: 7 },
+      { ...monster, dexterity: 6 },
+      new FakeRandomSource([0.93])
+    );
+    const inspired = rollBasicAttack(
+      { ...warrior, dexterity: 7, accuracyBonusPp: 3 },
+      { ...monster, dexterity: 6 },
+      new FakeRandomSource([0.93, 0.99, 0])
+    );
+    expect(ordinary.hit).toBe(false);
+    expect(inspired.hit).toBe(true);
+
+    const upperClamped = rollBasicAttack(
+      { ...warrior, dexterity: 100, accuracyBonusPp: 5 },
+      { ...monster, dexterity: 0 },
+      new FakeRandomSource([0.985])
+    );
+    expect(upperClamped.hit).toBe(false);
+  });
 });
 
 function getCombatGrant(key: string): CombatMantokAbilityGrantDefinition {

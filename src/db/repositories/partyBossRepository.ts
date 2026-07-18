@@ -100,6 +100,21 @@ export type PartyBossActionResult =
       session: PartyBossSessionRecord;
     }
   | {
+      state: "lament-unavailable";
+      reason:
+        | "not-big-barrel"
+        | "not-active"
+        | "not-participant"
+        | "not-bard"
+        | "unable"
+        | "music-taken"
+        | "cooldown"
+        | "locked";
+      availableAt?: Date;
+      now?: Date;
+      session: PartyBossSessionRecord;
+    }
+  | {
       state: "not-participant" | "stale" | "queued" | "updated" | "duplicate" | "resolved" | "terminal";
       session: PartyBossSessionRecord;
       achievementEvents?: PartyBossAchievementEventRecord[];
@@ -146,6 +161,13 @@ export interface PartyBossRepository {
     turn: number,
     item: PartyBossCombatItemInput,
     input: PartyBossResolveInput
+  ): Promise<PartyBossActionResult>;
+
+  submitLamentForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    input: PartyBossResolveInput & { activationId: string }
   ): Promise<PartyBossActionResult>;
 
   resolveTimedOutByToken(

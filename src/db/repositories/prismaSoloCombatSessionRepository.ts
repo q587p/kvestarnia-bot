@@ -28,13 +28,15 @@ import {
 } from "../../domain/combat";
 import { isShynokDrinkKey } from "../../domain/shynokDrinks";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
+import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import {
   freezeVarenykSatedForSoloCombatStart,
-  releaseVarenykSatedCombatLease
+  releaseCombatLeaseWithTimedStatuses
 } from "./prismaVarenykSated";
+import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import type {
   AdoptLegacySoloCombatSettlementInput,
   AdoptLegacySoloCombatSettlementResult,
@@ -86,7 +88,8 @@ class CombatItemTurnRollback extends Error {
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly options: { bardSupportEnabled?: boolean } = {}
   ) {}
 
   async findActiveByTelegramUserId(
@@ -620,6 +623,17 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           state: committedState,
           now: combatStartedAt
         });
+        if (this.options.bardSupportEnabled) {
+          const bardInspiration = await freezeBardInspirationFromCooldown({
+            tx,
+            characterId: character.id,
+            remortCount: committedState.life?.remortCount ?? 0,
+            now: combatStartedAt
+          });
+          if (bardInspiration) {
+            committedState = { ...committedState, bardInspiration };
+          }
+        }
       }
 
       const session = await tx.soloCombatSession.create({
@@ -1739,6 +1753,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
   const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
+  const bardInspiration = parseBardInspirationCombatState(value.bardInspiration);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -1777,7 +1792,8 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     ...(equipmentAbilities ? { equipmentAbilities } : {}),
     ...(enemyStatuses ? { enemyStatuses } : {}),
-    ...(varenykSated ? { varenykSated } : {})
+    ...(varenykSated ? { varenykSated } : {}),
+    ...(bardInspiration ? { bardInspiration } : {})
   };
 }
 
@@ -2780,11 +2796,12 @@ async function releaseSoloCombatLease(
     return false;
   }
 
-  return releaseVarenykSatedCombatLease({
+  return releaseCombatLeaseWithTimedStatuses({
     tx,
     lease,
     releasedAt: input.releasedAt,
-    ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {})
+    ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {}),
+    ...(input.state?.bardInspiration ? { inspiration: input.state.bardInspiration } : {})
   });
 }
 
@@ -2961,6 +2978,7 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
     const notices = parseTurnLogNotices(entry.notices);
     const cooldowns = parseCooldowns(entry.cooldowns);
     const varenykSated = parseVarenykSatedCombatState(entry.varenykSated);
+    const bardInspiration = parseBardInspirationCombatState(entry.bardInspiration);
 
     return turn === null || turn < 1 || !summary || !hero || !monster
       ? []
@@ -2973,7 +2991,8 @@ function parseTurnLog(value: unknown): CombatTurnLogEntry[] {
           hero,
           monster,
           ...(enemies.length > 0 ? { enemies } : {}),
-          ...(varenykSated ? { varenykSated } : {})
+          ...(varenykSated ? { varenykSated } : {}),
+          ...(bardInspiration ? { bardInspiration } : {})
         }];
   });
 }

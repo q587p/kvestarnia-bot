@@ -12,6 +12,7 @@ import {
 } from "./monsterAbilityRuntime";
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
+import type { BardInspirationCombatStateV1 } from "../noncombat/bardSupport";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
@@ -51,6 +52,7 @@ export interface CombatActorStats extends CharacterStats {
   resist?: number;
   weaponDamage?: number;
   spellPower?: number;
+  accuracyBonusPp?: number;
 }
 
 export interface MonsterCombatStats {
@@ -199,6 +201,7 @@ export interface CombatState {
   turnLog?: CombatTurnLogEntry[];
   playerAbilityFumbles?: PlayerAbilityFumblesState;
   varenykSated?: VarenykSatedCombatStateV1;
+  bardInspiration?: BardInspirationCombatStateV1;
 }
 
 export interface PlayerAbilityFumblesState {
@@ -411,6 +414,7 @@ export interface CombatTurnLogEntry {
     hp: number;
   }>;
   varenykSated?: import("../noncombat/varenykSatedSupport").VarenykSatedCombatStateV1;
+  bardInspiration?: import("../noncombat/bardSupport").BardInspirationCombatStateV1;
 }
 
 export interface CombatGuardState {
@@ -526,6 +530,9 @@ export function cloneCombatState(state: CombatState): CombatState {
       : {}),
     ...(state.varenykSated
       ? { varenykSated: { ...state.varenykSated, pulseIds: [...state.varenykSated.pulseIds] } }
+      : {}),
+    ...(state.bardInspiration
+      ? { bardInspiration: { ...state.bardInspiration, pulseIds: [...state.bardInspiration.pulseIds] } }
       : {})
   };
 }
@@ -914,6 +921,9 @@ export function cloneCombatTurnLogEntry(entry: CombatTurnLogEntry): CombatTurnLo
     ...(entry.enemies ? { enemies: entry.enemies.map((enemy) => ({ ...enemy })) } : {}),
     ...(entry.varenykSated
       ? { varenykSated: { ...entry.varenykSated, pulseIds: [...entry.varenykSated.pulseIds] } }
+      : {}),
+    ...(entry.bardInspiration
+      ? { bardInspiration: { ...entry.bardInspiration, pulseIds: [...entry.bardInspiration.pulseIds] } }
       : {})
   };
 }

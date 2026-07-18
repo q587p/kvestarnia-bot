@@ -27,7 +27,7 @@ import {
 } from "../../domain/combat";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
-import { releaseVarenykSatedCombatLease } from "./prismaVarenykSated";
+import { releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
@@ -492,7 +492,7 @@ async function prepareActiveCombatForRemort(
   });
 
   if (!session) {
-    await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
+    await releaseCombatLeaseWithTimedStatuses({ tx, lease, releasedAt: now });
     return { state: "ready" };
   }
 
@@ -528,7 +528,7 @@ async function prepareActiveCombatForRemort(
     await deleteOwnedPendingTrainingCooldown(tx, characterId, session.id, mapped.state.life?.remortCount ?? 0);
   }
 
-  await releaseVarenykSatedCombatLease({
+  await releaseCombatLeaseWithTimedStatuses({
     tx,
     lease,
     releasedAt: now,
@@ -588,7 +588,7 @@ async function cancelPartyBossForRemort(
   });
   for (const lease of leases) {
     const sated = findPartyParticipantSated(partyState, lease.characterId);
-    await releaseVarenykSatedCombatLease({
+    await releaseCombatLeaseWithTimedStatuses({
       tx,
       lease,
       releasedAt: now,

@@ -20,6 +20,10 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
+import {
+  presentActiveBardInspirationCombatState,
+  presentBardInspirationCombatEffectLines
+} from "./bardInspirationPresenter";
 
 export function presentTrainingDoppelgangerNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Допельґанґер не копіює порожні анкети.";
@@ -208,6 +212,10 @@ function presentTrainingDoppelgangerState(input: {
           state.varenykSated
         )]
           .filter((line): line is string => line !== null)
+      : []),
+    ...(state?.bardInspiration
+      ? [presentActiveBardInspirationCombatState(state.bardInspiration)]
+          .filter((line): line is string => line !== null)
       : [])
   ];
 
@@ -326,7 +334,8 @@ function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
     ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
-    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }])
+    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }]),
+    ...presentBardInspirationCombatEffectLines([{ inspiration: entry.bardInspiration }])
   ];
 }
 

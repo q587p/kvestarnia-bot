@@ -1387,7 +1387,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { classIds: ["class.bard"] },
-    text: "Бардам у повному рейді дадуть бафи, дебафи й відповідальність за моральний стан табуретів."
+    text: "Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає."
   },
   {
     id: "barrel.raid-hint.class.rogue",

@@ -55,6 +55,7 @@ Use these docs when changing mechanics, content, authored copy, monsters, quests
 
 ## Raid and party design
 
+- [`bard-inspiration-and-raid-lament.md`](bard-inspiration-and-raid-lament.md) — `0.3.14` Bard Inspiration, shared local music availability and Big Barrel Lament contract.
 - [`BIG_BARREL_BROTHER_GROUP_RAID.md`](BIG_BARREL_BROTHER_GROUP_RAID.md) — future group raid flow.
 - [`BIG_BARREL_BROTHER_BALANCE.md`](BIG_BARREL_BROTHER_BALANCE.md) — future balance model and reward guardrails.
 - [`raid-role-flavor-notes.md`](raid-role-flavor-notes.md) — raid role flavor notes if present.

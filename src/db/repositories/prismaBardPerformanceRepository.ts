@@ -1,5 +1,8 @@
 import { Prisma, type Character, type PrismaClient } from "@prisma/client";
-import { applyBardPerformanceDailyHouseCap } from "../../domain/noncombat/bardPerformance";
+import {
+  applyBardPerformanceDailyHouseCap,
+  type BardPerformanceGrade
+} from "../../domain/noncombat/bardPerformance";
 import {
   getPresenceLocationQueryIds,
   normalizePresenceLocationId,
@@ -7,6 +10,18 @@ import {
 } from "../../services/presenceService";
 import type { CharacterRecord } from "./characterRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
+import {
+  findBardMusicAvailableAt,
+  grantBardInspiration,
+  writeBardMusicAvailability
+} from "./prismaBardSupport";
+import {
+  BARD_INSPIRATION_STATUS_KEY,
+  BARD_MUSIC_AVAILABILITY_KEY_PREFIX,
+  buildBardInspirationPayload,
+  isBardInspirationActive,
+  parseBardInspirationPayload
+} from "../../domain/noncombat/bardSupport";
 import type {
   BardPerformanceAudienceNotice,
   BardPerformanceReactionRecord,
@@ -107,11 +122,18 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           where: { characterId: character.id, locationId: input.locationId },
           orderBy: { cooldownAvailableAt: "desc" }
         }));
-        if (lastPerformance && lastPerformance.cooldownAvailableAt > input.now) {
+        const musicAvailableAt = input.bardSupportEnabled
+          ? await findBardMusicAvailableAt({
+              tx,
+              characterId: character.id,
+              locationId: input.locationId
+            })
+          : lastPerformance?.cooldownAvailableAt ?? null;
+        if (musicAvailableAt && musicAvailableAt > input.now) {
           return {
             state: "cooldown",
             character: record,
-            availableAt: lastPerformance.cooldownAvailableAt
+            availableAt: musicAvailableAt
           };
         }
 
@@ -170,6 +192,16 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         if (!performance) {
           throw new Error("Bard performance mapping failed after create.");
         }
+        if (input.bardSupportEnabled) {
+          await writeBardMusicAvailability({
+            tx,
+            characterId: character.id,
+            locationId: input.locationId,
+            now: input.now,
+            source: "performance",
+            sourceId: performance.id
+          });
+        }
 
         if (housePayoutGold > 0) {
           await tx.character.update({
@@ -195,10 +227,33 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
             }
           }));
           if (reaction) {
+            const inspiration = input.bardSupportEnabled
+              ? await grantBardInspiration({
+                  tx,
+                  activationId: `${performance.id}:${member.characterId}`,
+                  sourcePerformanceId: performance.id,
+                  sourceCharacterId: character.id,
+                  sourceLocationId: input.locationId,
+                  recipientCharacterId: member.characterId,
+                  recipientRemortCount: member.remortCount,
+                  grade: performance.grade as BardPerformanceGrade,
+                  now: input.now
+                })
+              : null;
             notices.push({
               telegramUserId: member.telegramUserId,
               name: member.name,
-              reaction
+              reaction,
+              ...(inspiration
+                ? {
+                    inspiration: {
+                      mutation: inspiration.mutation,
+                      accuracyBonusPp: inspiration.inspiration.accuracyBonusPp,
+                      expiresAt: new Date(inspiration.inspiration.expiresAt),
+                      now: input.now
+                    }
+                  }
+                : {})
             });
           }
         }
@@ -252,11 +307,18 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         where: { characterId: character.id, locationId: input.locationId },
         orderBy: { cooldownAvailableAt: "desc" }
       }));
-      if (lastPerformance && lastPerformance.cooldownAvailableAt > input.now) {
+      const musicAvailableAt = input.bardSupportEnabled
+        ? await findBardMusicAvailableAt({
+            tx,
+            characterId: character.id,
+            locationId: input.locationId
+          })
+        : lastPerformance?.cooldownAvailableAt ?? null;
+      if (musicAvailableAt && musicAvailableAt > input.now) {
         return {
           state: "cooldown",
           character: record,
-          availableAt: lastPerformance.cooldownAvailableAt
+          availableAt: musicAvailableAt
         };
       }
 
@@ -423,9 +485,18 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       if (!character) {
         return null;
       }
-      const deleted = await tx.bardPerformance.deleteMany({
-        where: { characterId: character.id }
-      });
+      const [deleted, deletedSupport] = await Promise.all([
+        tx.bardPerformance.deleteMany({ where: { characterId: character.id } }),
+        tx.characterCooldown.deleteMany({
+          where: {
+            characterId: character.id,
+            OR: [
+              { key: BARD_INSPIRATION_STATUS_KEY },
+              { key: { startsWith: BARD_MUSIC_AVAILABILITY_KEY_PREFIX } }
+            ]
+          }
+        })
+      ]);
       const updated = await tx.character.findUniqueOrThrow({
         where: { id: character.id },
         include: characterRecordInclude
@@ -434,8 +505,95 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
 
       return {
         character: toCharacterRecord(updated),
-        deleted: deleted.count
+        deleted: deleted.count + deletedSupport.count
       };
+    });
+  }
+
+  async getInspirationForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<{
+    character: CharacterRecord;
+    inspiration: import("../../domain/noncombat/bardSupport").BardInspirationPayloadV1 | null;
+  } | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) {
+        return null;
+      }
+      const inspiration = parseBardInspirationPayload((await tx.characterCooldown.findUnique({
+        where: {
+          characterId_key: {
+            characterId: character.id,
+            key: BARD_INSPIRATION_STATUS_KEY
+          }
+        },
+        select: { resultJson: true }
+      }))?.resultJson);
+      const remortCount = getIncludedRemortCount(character);
+
+      return {
+        character: toCharacterRecord(character),
+        inspiration: inspiration && isBardInspirationActive(
+          inspiration,
+          character.id,
+          remortCount,
+          now
+        ) ? inspiration : null
+      };
+    });
+  }
+
+  async setInspirationForDev(
+    telegramUserId: bigint,
+    grade: BardPerformanceGrade | null,
+    now: Date
+  ): Promise<{
+    character: CharacterRecord;
+    inspiration: import("../../domain/noncombat/bardSupport").BardInspirationPayloadV1 | null;
+  } | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) {
+        return null;
+      }
+      if (!grade) {
+        await tx.characterCooldown.deleteMany({
+          where: { characterId: character.id, key: BARD_INSPIRATION_STATUS_KEY }
+        });
+        return { character: toCharacterRecord(character), inspiration: null };
+      }
+      const inspiration = buildBardInspirationPayload({
+        activationId: `dev:${character.id}:${now.getTime()}`,
+        sourcePerformanceId: "dev-bard-support",
+        sourceCharacterId: character.id,
+        sourceLocationId: normalizePresenceLocationId(character.user.lastSeenLocationId),
+        recipientCharacterId: character.id,
+        recipientRemortCount: getIncludedRemortCount(character),
+        grade,
+        now
+      });
+      await tx.characterCooldown.upsert({
+        where: {
+          characterId_key: {
+            characterId: character.id,
+            key: BARD_INSPIRATION_STATUS_KEY
+          }
+        },
+        create: {
+          characterId: character.id,
+          key: BARD_INSPIRATION_STATUS_KEY,
+          availableAt: new Date(inspiration.expiresAt),
+          resultJson: inspiration as unknown as Prisma.InputJsonValue
+        },
+        update: {
+          availableAt: new Date(inspiration.expiresAt),
+          resultJson: inspiration as unknown as Prisma.InputJsonValue
+        }
+      });
+
+      return { character: toCharacterRecord(character), inspiration };
     });
   }
 }

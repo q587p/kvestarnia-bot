@@ -20,6 +20,13 @@ import {
   cloneVarenykSatedCombatState,
   type VarenykSatedCombatStateV1
 } from "../noncombat/varenykSatedSupport";
+import {
+  applyBardInspirationCombatPulse,
+  cloneBardInspirationCombatState,
+  withBardInspirationAccuracy,
+  type BardInspirationCombatStateV1
+} from "../noncombat/bardSupport";
+import type { BardPerformanceGrade } from "../noncombat/bardPerformance";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
@@ -36,7 +43,7 @@ export const WARRIOR_RAID_TAUNT_ACTION_ID = "raid.class.warrior.taunt";
 export const WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS = 3;
 export const WARRIOR_RAID_TAUNT_COOLDOWN_TURNS = 5;
 
-export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item" | "taunt";
+export type PartyBossActionKey = Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> | "item" | "taunt" | "lament";
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
@@ -49,6 +56,8 @@ export interface PartyBossParticipantState {
   equipmentAbilityGrantIds?: string[];
   resources: CombatActorResourceState;
   varenykSated?: VarenykSatedCombatStateV1;
+  bardInspiration?: BardInspirationCombatStateV1;
+  bardMusicAvailableAt?: string;
   combatItems?: CombatState["combatItems"];
   contribution: {
     submittedActions: number;
@@ -70,10 +79,24 @@ export interface PartyBossState {
   wardSign?: PartyBossWardSignState;
   personalProtocol?: PartyBossPersonalProtocolState;
   warriorTaunt?: PartyBossWarriorTauntState;
+  bardMusic?: PartyBossBardMusicState;
   roundLog: PartyBossRoundSummary[];
   startedAt: string;
   completedAt?: string;
 }
+
+export type PartyBossBardMusicState =
+  | { kind: "none" }
+  | { kind: "inspiration"; sourcePerformanceIds: string[] }
+  | {
+      kind: "lament";
+      activationId: string;
+      sourceCharacterId: string;
+      grade: BardPerformanceGrade;
+      damageReduction: number;
+      remainingBossResponses: number;
+      activatedTurn: number;
+    };
 
 export interface PartyBossWardSignState {
   kind: "kharakternyk";
@@ -144,8 +167,19 @@ export interface PartyBossRoundSummary {
   wardSign?: PartyBossWardSignRoundSummary;
   personalProtocol?: PartyBossPersonalProtocolRoundSummary;
   warriorTaunt?: PartyBossWarriorTauntRoundSummary;
+  bardMusic?: PartyBossBardMusicRoundSummary;
   participantsAfter?: PartyBossParticipantResourceSummary[];
   statusAfter: PartyBossStatus;
+}
+
+export interface PartyBossBardMusicRoundSummary {
+  kind: "lament";
+  activationId: string;
+  sourceCharacterId: string;
+  damageReduction: number;
+  activated: boolean;
+  remainingBossResponses: number;
+  expired: boolean;
 }
 
 export interface PartyBossWardSignRoundSummary {
@@ -189,13 +223,14 @@ export interface PartyBossParticipantResourceSummary {
   cooldowns?: CombatActorResourceState["cooldowns"];
   combatItems?: CombatState["combatItems"];
   varenykSated?: VarenykSatedCombatStateV1 | null;
+  bardInspiration?: BardInspirationCombatStateV1 | null;
 }
 
 export interface PartyBossParticipantActionSummary {
   characterId: string;
   action: PartyBossActionKey;
   origin: "manual" | "timeout";
-  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used" | "taunt-activated" | "taunt-failed";
+  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used" | "taunt-activated" | "taunt-failed" | "lament-activated";
   damage: number;
   manaSpent: number;
   skillId?: string;
@@ -218,6 +253,8 @@ export interface PartyBossRetaliationSummary {
   wardPreventedDamage?: number;
   damageBeforeProtocol?: number;
   protocolPreventedDamage?: number;
+  damageBeforeLament?: number;
+  lamentPreventedDamage?: number;
   tauntRedirected?: boolean;
   tauntOriginalKind?: "focused" | "broad";
 }
@@ -255,6 +292,7 @@ export interface PartyBossRewardSnapshot {
 export function createPartyBossState(input: {
   partySessionId: string;
   variant?: "proof" | "big-barrel";
+  bardMusicEnabled?: boolean;
   leaderCharacterId?: string;
   participants: Array<{
     characterId: string;
@@ -366,6 +404,7 @@ export function createPartyBossState(input: {
           }
         }
       : {}),
+    ...(isBig && input.bardMusicEnabled ? { bardMusic: { kind: "none" as const } } : {}),
     roundLog: [],
     startedAt: input.now.toISOString()
   };
@@ -429,6 +468,25 @@ export function resolvePartyBossRound(input: {
       });
       continue;
     }
+    if (action === "lament") {
+      participant.resources = tickActorCooldowns(participant.resources);
+      delete participant.resources.guard;
+      tickPartyBossCombatItemCooldowns(participant);
+      if (origin === "manual") {
+        participant.contribution.submittedActions += 1;
+      } else {
+        participant.contribution.timeoutActions += 1;
+      }
+      actionSummaries.push({
+        characterId: participant.characterId,
+        action,
+        origin,
+        outcome: "lament-activated",
+        damage: 0,
+        manaSpent: 0
+      });
+      continue;
+    }
     if (action === "item" && committed?.item) {
       const beforeHp = participant.resources.hp;
       const tickedResources = tickActorCooldowns(participant.resources);
@@ -473,7 +531,10 @@ export function resolvePartyBossRound(input: {
         mana: 0,
         manaMax: 0
       },
-      actorStats: participant.combatStats,
+      actorStats: withBardInspirationAccuracy(
+        participant.combatStats,
+        participant.bardInspiration
+      ),
       defenderStats: next.boss,
       action: combatAction,
       ...(action === "gear" && committed?.gearAbility ? { skillProfile: committed.gearAbility.profile } : {}),
@@ -535,6 +596,22 @@ export function resolvePartyBossRound(input: {
     for (const participant of roundParticipants) {
       const summary = actionSummaries.find((entry) => entry.characterId === participant.characterId);
       if (!summary || !participant.varenykSated) {
+        if (summary && participant.bardInspiration) {
+          const inspirationPulse = applyBardInspirationCombatPulse({
+            inspiration: participant.bardInspiration,
+            pulseId: [
+              participant.bardInspiration.activationId,
+              "big-barrel",
+              next.partySessionId,
+              next.turn,
+              participant.characterId
+            ].join(":"),
+            now: input.now
+          });
+          if (inspirationPulse.inspiration) {
+            participant.bardInspiration = inspirationPulse.inspiration;
+          }
+        }
         continue;
       }
       const pulse = applyVarenykSatedCombatPulse({
@@ -560,6 +637,22 @@ export function resolvePartyBossRound(input: {
       if (pulse.hpRestored > 0 || pulse.manaRestored > 0) {
         summary.satedRecovery = { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored };
       }
+      if (participant.bardInspiration) {
+        const inspirationPulse = applyBardInspirationCombatPulse({
+          inspiration: participant.bardInspiration,
+          pulseId: [
+            participant.bardInspiration.activationId,
+            "big-barrel",
+            next.partySessionId,
+            next.turn,
+            participant.characterId
+          ].join(":"),
+          now: input.now
+        });
+        if (inspirationPulse.inspiration) {
+          participant.bardInspiration = inspirationPulse.inspiration;
+        }
+      }
     }
   }
   const livingParticipants = next.participants.filter(
@@ -579,6 +672,7 @@ export function resolvePartyBossRound(input: {
     ...(retaliationResolution.wardSign ? { wardSign: retaliationResolution.wardSign } : {}),
     ...(retaliationResolution.personalProtocol ? { personalProtocol: retaliationResolution.personalProtocol } : {}),
     ...(Object.keys(tauntRound).length > 0 ? { warriorTaunt: tauntRound } : {}),
+    ...(retaliationResolution.bardMusic ? { bardMusic: retaliationResolution.bardMusic } : {}),
     participantsAfter: next.participants.map((participant) => ({
       characterId: participant.characterId,
       status: participant.status,
@@ -590,7 +684,14 @@ export function resolvePartyBossRound(input: {
       ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
       varenykSated: participant.varenykSated
         ? cloneVarenykSatedCombatState(participant.varenykSated)
-        : null
+        : null,
+      ...(next.bardMusic !== undefined
+        ? {
+            bardInspiration: participant.bardInspiration
+              ? cloneBardInspirationCombatState(participant.bardInspiration)
+              : null
+          }
+        : {})
     })),
     statusAfter
   };
@@ -746,6 +847,13 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
           }
         }
       : {}),
+    ...(state.bardMusic
+      ? {
+          bardMusic: state.bardMusic.kind === "inspiration"
+            ? { ...state.bardMusic, sourcePerformanceIds: [...state.bardMusic.sourcePerformanceIds] }
+            : { ...state.bardMusic }
+        }
+      : {}),
     participants: state.participants.map((participant) => ({
       ...participant,
       combatStats: { ...participant.combatStats },
@@ -768,6 +876,12 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       },
       ...(participant.combatItems ? { combatItems: clonePartyBossCombatItemState(participant.combatItems) } : {}),
       ...(participant.varenykSated ? { varenykSated: cloneVarenykSatedCombatState(participant.varenykSated) } : {}),
+      ...(participant.bardInspiration
+        ? { bardInspiration: cloneBardInspirationCombatState(participant.bardInspiration) }
+        : {}),
+      ...(participant.bardMusicAvailableAt
+        ? { bardMusicAvailableAt: participant.bardMusicAvailableAt }
+        : {}),
       contribution: { ...participant.contribution }
     })),
     roundLog: state.roundLog.map((round) => ({
@@ -782,6 +896,7 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
         : {}),
       ...(round.personalProtocol ? { personalProtocol: { ...round.personalProtocol } } : {}),
       ...(round.warriorTaunt ? { warriorTaunt: { ...round.warriorTaunt } } : {}),
+      ...(round.bardMusic ? { bardMusic: { ...round.bardMusic } } : {}),
       ...(round.participantsAfter
         ? {
             participantsAfter: round.participantsAfter.map((participant) => ({
@@ -792,6 +907,11 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
                 ? { varenykSated: cloneVarenykSatedCombatState(participant.varenykSated) }
                 : participant.varenykSated === null
                   ? { varenykSated: null }
+                  : {}),
+              ...(participant.bardInspiration
+                ? { bardInspiration: cloneBardInspirationCombatState(participant.bardInspiration) }
+                : participant.bardInspiration === null
+                  ? { bardInspiration: null }
                   : {})
             }))
           }
@@ -897,6 +1017,7 @@ function applyBossRetaliation(state: PartyBossState): {
   wardSign?: PartyBossWardSignRoundSummary;
   personalProtocol?: PartyBossPersonalProtocolRoundSummary;
   warriorTaunt?: PartyBossWarriorTauntRoundSummary;
+  bardMusic?: PartyBossBardMusicRoundSummary;
 } {
   const retaliations: PartyBossRetaliationSummary[] = [];
   const big = isBigBarrelBrotherState(state);
@@ -916,6 +1037,10 @@ function applyBossRetaliation(state: PartyBossState): {
   let wardPreventedDamage = 0;
   const wardAffectedCharacterIds: string[] = [];
   let personalProtocolRound: PartyBossPersonalProtocolRoundSummary | undefined;
+  const lament = state.bardMusic?.kind === "lament" &&
+    state.bardMusic.remainingBossResponses > 0
+    ? state.bardMusic
+    : null;
 
   for (const participant of targets) {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
@@ -929,7 +1054,11 @@ function applyBossRetaliation(state: PartyBossState): {
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
     const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
-    const damageBeforeWard = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
+    const damageBeforeLament = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
+    const lamentPrevented = lament
+      ? Math.min(damageBeforeLament, lament.damageReduction)
+      : 0;
+    const damageBeforeWard = Math.max(0, damageBeforeLament - lamentPrevented);
     const wardPrevented = wardCanTrigger
       ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
       : 0;
@@ -977,9 +1106,35 @@ function applyBossRetaliation(state: PartyBossState): {
         ? { tauntRedirected: true, tauntOriginalKind: originalPlan.kind }
         : {}),
       ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
-      ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {})
+      ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {}),
+      ...(lamentPrevented > 0 ? { damageBeforeLament, lamentPreventedDamage: lamentPrevented } : {})
     });
   }
+
+  const bardMusicRound = lament && retaliations.length > 0
+    ? (() => {
+        lament.remainingBossResponses = Math.max(0, lament.remainingBossResponses - 1);
+        return {
+          kind: "lament" as const,
+          activationId: lament.activationId,
+          sourceCharacterId: lament.sourceCharacterId,
+          damageReduction: lament.damageReduction,
+          activated: lament.activatedTurn === state.turn,
+          remainingBossResponses: lament.remainingBossResponses,
+          expired: lament.remainingBossResponses === 0
+        };
+      })()
+    : lament && lament.activatedTurn === state.turn
+      ? {
+          kind: "lament" as const,
+          activationId: lament.activationId,
+          sourceCharacterId: lament.sourceCharacterId,
+          damageReduction: lament.damageReduction,
+          activated: true,
+          remainingBossResponses: lament.remainingBossResponses,
+          expired: false
+        }
+      : undefined;
 
   const warriorTauntRound = activeTaunt && originalPlan && originalPlan.kind !== "none"
     ? resolveWarriorTauntBossAttack(state, activeTaunt.characterId, originalPlan.kind)
@@ -1005,6 +1160,7 @@ function applyBossRetaliation(state: PartyBossState): {
       retaliations,
       ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {}),
       ...(warriorTauntRound ? { warriorTaunt: warriorTauntRound } : {}),
+      ...(bardMusicRound ? { bardMusic: bardMusicRound } : {}),
       wardSign: {
         kind: "kharakternyk",
         status: "triggered",
@@ -1022,7 +1178,8 @@ function applyBossRetaliation(state: PartyBossState): {
   return {
     retaliations,
     ...(personalProtocolRound ? { personalProtocol: personalProtocolRound } : {}),
-    ...(warriorTauntRound ? { warriorTaunt: warriorTauntRound } : {})
+    ...(warriorTauntRound ? { warriorTaunt: warriorTauntRound } : {}),
+    ...(bardMusicRound ? { bardMusic: bardMusicRound } : {})
   };
 }
 

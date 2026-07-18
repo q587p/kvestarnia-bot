@@ -4,6 +4,15 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaBardPerformanceRepository } from "../../src/db/repositories/prismaBardPerformanceRepository";
+import {
+  grantBardInspiration,
+  writeBardMusicAvailability
+} from "../../src/db/repositories/prismaBardSupport";
+import {
+  BARD_INSPIRATION_STATUS_KEY,
+  getBardMusicAvailabilityKey,
+  parseBardInspirationPayload
+} from "../../src/domain/noncombat/bardSupport";
 
 describe("PrismaBardPerformanceRepository integration", () => {
   let dir: string;
@@ -26,6 +35,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
   beforeEach(async () => {
     await prisma.bardPerformanceReaction.deleteMany();
     await prisma.bardPerformance.deleteMany();
+    await prisma.characterCooldown.deleteMany();
     await prisma.activeCombatLease.deleteMany();
     await prisma.characterRemort.deleteMany();
     await prisma.characterEquipment.deleteMany();
@@ -73,6 +83,125 @@ describe("PrismaBardPerformanceRepository integration", () => {
     expect(duplicate.state).toBe("live");
     await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
       gold: 13
+    });
+  });
+
+  it("atomically grants Inspiration to the frozen audience and writes shared music availability", async () => {
+    await seedCharacter({ telegramUserId: 104n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3 });
+    await seedCharacter({ telegramUserId: 105n, userId: "user-audience", characterId: "character-audience" });
+
+    const result = await repository.startPerformanceForTelegramUser(104n, startInput({
+      token: "12345678-1234-4234-9234-000000000104",
+      rawHousePayoutGold: 0,
+      bardSupportEnabled: true
+    }));
+
+    expect(result.state).toBe("started");
+    if (result.state !== "started") {
+      throw new Error("Expected Bard support start.");
+    }
+    expect(result.audience[0]?.inspiration).toMatchObject({
+      mutation: "granted",
+      accuracyBonusPp: 5
+    });
+    const inspiration = await prisma.characterCooldown.findUnique({
+      where: { characterId_key: { characterId: "character-audience", key: BARD_INSPIRATION_STATUS_KEY } }
+    });
+    expect(parseBardInspirationPayload(inspiration?.resultJson)).toMatchObject({
+      sourcePerformanceId: result.performance.id,
+      recipientCharacterId: "character-audience",
+      accuracyBonusPp: 5,
+      expiresAt: "2026-06-26T10:13:00.000Z"
+    });
+    await expect(prisma.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: "character-bard",
+          key: getBardMusicAvailabilityKey("location.korchma.bar")
+        }
+      }
+    })).resolves.toMatchObject({ availableAt: new Date("2026-06-26T11:33:00.000Z") });
+  });
+
+  it("keeps equal or weaker Inspiration without refresh and replaces it with a stronger grade", async () => {
+    await seedCharacter({ telegramUserId: 106n, userId: "user-audience", characterId: "character-audience" });
+    const grant = (grade: "rough" | "pleasant" | "legendary", at: Date, id: string) => prisma.$transaction((tx) =>
+      grantBardInspiration({
+        tx,
+        activationId: `activation-${id}`,
+        sourcePerformanceId: `performance-${id}`,
+        sourceCharacterId: "character-bard",
+        sourceLocationId: "location.korchma.bar",
+        recipientCharacterId: "character-audience",
+        recipientRemortCount: 0,
+        grade,
+        now: at
+      })
+    );
+
+    const first = await grant("pleasant", now(), "first");
+    const unchanged = await grant("rough", new Date("2026-06-26T10:01:00.000Z"), "weaker");
+    const replaced = await grant("legendary", new Date("2026-06-26T10:02:00.000Z"), "stronger");
+
+    expect(first?.mutation).toBe("granted");
+    expect(unchanged).toMatchObject({ mutation: "unchanged", inspiration: { activationId: "activation-first" } });
+    expect(unchanged?.inspiration.expiresAt).toBe("2026-06-26T10:13:00.000Z");
+    expect(replaced).toMatchObject({
+      mutation: "replaced",
+      inspiration: { activationId: "activation-stronger", expiresAt: "2026-06-26T10:15:00.000Z" }
+    });
+  });
+
+  it("serializes concurrent Inspiration grades so a weaker grant cannot overwrite a stronger one", async () => {
+    await seedCharacter({ telegramUserId: 108n, userId: "user-concurrent", characterId: "character-concurrent" });
+    const grant = (grade: "rough" | "legendary", id: string) => prisma.$transaction((tx) =>
+      grantBardInspiration({
+        tx,
+        activationId: `activation-${id}`,
+        sourcePerformanceId: `performance-${id}`,
+        sourceCharacterId: `bard-${id}`,
+        sourceLocationId: "location.korchma.bar",
+        recipientCharacterId: "character-concurrent",
+        recipientRemortCount: 0,
+        grade,
+        now: now()
+      })
+    );
+
+    await Promise.all([grant("rough", "rough"), grant("legendary", "legendary")]);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "character-concurrent",
+          key: BARD_INSPIRATION_STATUS_KEY
+        }
+      }
+    });
+
+    expect(parseBardInspirationPayload(stored.resultJson)).toMatchObject({
+      activationId: "activation-legendary",
+      accuracyBonusPp: 5
+    });
+  });
+
+  it("blocks a performance from the shared music cooldown written by Lament", async () => {
+    await seedCharacter({ telegramUserId: 107n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3 });
+    await prisma.$transaction((tx) => writeBardMusicAvailability({
+      tx,
+      characterId: "character-bard",
+      locationId: "location.korchma.bar",
+      now: new Date("2026-06-26T09:30:00.000Z"),
+      source: "lament",
+      sourceId: "lament-1"
+    }));
+
+    await expect(repository.startPerformanceForTelegramUser(107n, startInput({
+      token: "12345678-1234-4234-9234-000000000107",
+      rawHousePayoutGold: 0,
+      bardSupportEnabled: true
+    }))).resolves.toMatchObject({
+      state: "cooldown",
+      availableAt: new Date("2026-06-26T11:03:00.000Z")
     });
   });
 
@@ -678,6 +807,7 @@ function startInput(overrides: {
   rawHousePayoutGold: number;
   locationId?: string;
   allowNoAudience?: boolean;
+  bardSupportEnabled?: boolean;
 }) {
   const locationId = overrides.locationId ?? "location.korchma.bar";
 
@@ -698,7 +828,8 @@ function startInput(overrides: {
     cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
     activeAudienceSince: new Date("2026-06-26T09:55:00.000Z"),
     allowNoAudience: overrides.allowNoAudience ?? locationId === "location.korchma.bar",
-    requiredLevel: 3
+    requiredLevel: 3,
+    bardSupportEnabled: overrides.bardSupportEnabled ?? false
   };
 }
 
@@ -771,6 +902,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE bard_performances (
       id TEXT PRIMARY KEY NOT NULL,
       token TEXT NOT NULL UNIQUE,
@@ -822,5 +961,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
 
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX bard_performances_live_guard_key ON bard_performances(live_guard)`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`
   );
 }

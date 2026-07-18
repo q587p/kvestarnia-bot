@@ -561,6 +561,20 @@ Use one level 3+ account with local dev commands enabled where helpful.
 16. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
 17. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
+## 0.3.14 — Bard Inspiration and Big Barrel Lament smoke
+
+Manual Telegram QA status for the implementation pass: not run. Use two Bard-capable local accounts, one listener and one non-Bard; refresh the isolated bot manually with `BARD_SUPPORT_ENABLED=true`, `BIG_BARREL_BROTHER_RAID_ENABLED=true` and local dev grants enabled.
+
+1. Start a same-location performance with an active listener; verify the listener gets one free `✨ Натхнення` notice before any applause/tip choice and the Bard’s payout is unchanged.
+2. Use `/dev_reset_bard_performance grant 1`, then repeat stronger/equal/weaker grants; verify only a stronger value replaces and resets the visible duration.
+3. Open Hero, persistent single/multi PvE, Training and a turn duel; verify the acting inspired participant gets the accuracy line, one logical minute is consumed only by a committed action, and a stale/replayed callback consumes nothing. Confirm a Quick Duel has no synthetic Inspiration turn.
+4. Start Big Barrel with Inspiration sourced at `Бочка`; verify the raid music line is Inspiration and no Lament button appears. Start a fresh raid without Barrel-origin Inspiration; verify a living Bard with ready local availability sees `🎻 Заграти журливу баладу`.
+5. Commit Lament; verify it deals no damage/cost, locks that round action, reduces the activation-round retaliation, persists in the journal and cannot be claimed by a second Bard. A losing concurrent Bard must still be able to choose another action.
+6. Check focused, broad, Taunt-redirected, Ward and Protocol rounds; verify the song counter moves once per whole boss response, never per target, and zero direct damage remains zero.
+7. Reopen the raid card after a local bot refresh; verify the stored grade/counter and journal text are unchanged. Finish/cancel and start a new raid; verify no old Lament transfers.
+8. Try a performance after Lament and a Lament after performance in the same location; verify both show the same canonical remaining wait.
+9. Set `NODE_ENV=production`, leave `BARD_SUPPORT_ENABLED=true` and `DEV_GRANT_COMMANDS_ENABLED=true`; verify the helper is absent from registration/help/menu and cannot mutate through its service path.
+
 ## 0.2.5 — Bard Performance smoke
 
 Use two accounts in Shynok and another shared location with local dev commands enabled where helpful.

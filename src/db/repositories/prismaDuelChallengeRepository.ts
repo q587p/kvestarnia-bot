@@ -39,6 +39,7 @@ import {
   getActiveEquipmentRows
 } from "../../domain/equipment/equipmentAttunement";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
+import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -47,9 +48,10 @@ import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer
 import { CryptoRandomSource, type RandomSource } from "../../shared/random";
 import {
   freezeVarenykSatedFromCooldown,
-  releaseVarenykSatedCombatLease,
+  releaseCombatLeaseWithTimedStatuses,
   VarenykSatedCasError
 } from "./prismaVarenykSated";
+import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
@@ -82,7 +84,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly options: { bardSupportEnabled?: boolean } = {}
   ) {}
 
   async createOpenForTelegramUser(
@@ -705,7 +708,11 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
       const canonicalParticipants = {} as Record<
         "challenger" | "target",
-        { duelist: DuelistSummary; sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]> }
+        {
+          duelist: DuelistSummary;
+          sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]>;
+          inspiration?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["bardInspiration"]>;
+        }
       >;
       for (const side of ["challenger", "target"] as const) {
         const participantId = side === "challenger"
@@ -735,6 +742,14 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           },
           now
         });
+        const inspiration = this.options.bardSupportEnabled
+          ? await freezeBardInspirationFromCooldown({
+              tx,
+              characterId: participantId,
+              remortCount,
+              now
+            })
+          : undefined;
         const hpRegenAt = sated.hpRestored > 0 && sated.resources.hp >= sated.resources.hpMax
           ? now
           : natural.hpRegenAt;
@@ -785,7 +800,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             hpCurrent: sated.resources.hp,
             manaCurrent: sated.resources.mana
           },
-          ...(sated.sated ? { sated: sated.sated } : {})
+          ...(sated.sated ? { sated: sated.sated } : {}),
+          ...(inspiration ? { inspiration } : {})
         };
       }
 
@@ -798,6 +814,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         const sated = canonicalParticipants[side].sated;
         if (sated) {
           state.participants[side].varenykSated = sated;
+        }
+        const inspiration = canonicalParticipants[side].inspiration;
+        if (inspiration) {
+          state.participants[side].bardInspiration = inspiration;
         }
       }
 
@@ -1068,11 +1088,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           for (const lease of leases) {
             const participant = Object.values(input.state.participants)
               .find((entry) => entry.characterId === lease.characterId);
-            await releaseVarenykSatedCombatLease({
+            await releaseCombatLeaseWithTimedStatuses({
               tx,
               lease,
               releasedAt: input.completedAt ?? input.now,
-              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
+              ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
             });
           }
         }
@@ -1247,11 +1268,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           const participant = state
             ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
             : undefined;
-          await releaseVarenykSatedCombatLease({
+          await releaseCombatLeaseWithTimedStatuses({
             tx,
             lease,
             releasedAt: now,
-            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
+            ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
           });
         }
       });
@@ -1290,7 +1312,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
 
       const deleted = await this.prisma.$transaction(async (tx) => {
-        const released = await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
+        const released = await releaseCombatLeaseWithTimedStatuses({ tx, lease, releasedAt: now });
         return { count: released ? 1 : 0 };
       });
       removedOrphanLeases += deleted.count;
@@ -1811,6 +1833,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const varenykSated = hasOwn(value, "varenykSated")
     ? parseVarenykSatedCombatState(value.varenykSated)
     : undefined;
+  const bardInspiration = hasOwn(value, "bardInspiration")
+    ? parseBardInspirationCombatState(value.bardInspiration)
+    : undefined;
 
   if (
     !characterId ||
@@ -1833,7 +1858,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     playerAbilityFumbles === null ||
     equipmentEffects === null ||
     equipmentAbilityGrantIds === null ||
-    varenykSated === null
+    varenykSated === null ||
+    bardInspiration === null
   ) {
     return null;
   }
@@ -1863,7 +1889,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     balanceAudit,
     ...(equipmentEffects ? { equipmentEffects } : {}),
     ...(equipmentAbilityGrantIds ? { equipmentAbilityGrantIds } : {}),
-    ...(varenykSated ? { varenykSated } : {})
+    ...(varenykSated ? { varenykSated } : {}),
+    ...(bardInspiration ? { bardInspiration } : {})
   };
 }
 
@@ -2070,12 +2097,15 @@ function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | un
 
   const parsedActions = actions?.filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null);
   const varenykSatedAfter = parseTurnBasedSatedAfter(value.varenykSatedAfter);
+  const bardInspirationAfter = parseTurnBasedInspirationAfter(value.bardInspirationAfter);
 
-  return turn !== null && actions && parsedActions && parsedActions.length === actions.length && varenykSatedAfter !== null
+  return turn !== null && actions && parsedActions && parsedActions.length === actions.length &&
+    varenykSatedAfter !== null && bardInspirationAfter !== null
     ? {
         turn,
         actions: parsedActions,
-        ...(varenykSatedAfter ? { varenykSatedAfter } : {})
+        ...(varenykSatedAfter ? { varenykSatedAfter } : {}),
+        ...(bardInspirationAfter ? { bardInspirationAfter } : {})
       }
     : null;
 }
@@ -2096,6 +2126,28 @@ function parseTurnBasedSatedAfter(
   const target = value.target === null
     ? null
     : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
+}
+
+function parseTurnBasedInspirationAfter(
+  value: unknown
+): NonNullable<NonNullable<TurnBasedDuelState["lastRound"]>["bardInspirationAfter"]> | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+  const challenger = value.challenger === null
+    ? null
+    : parseBardInspirationCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseBardInspirationCombatState(value.target);
   if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
     return null;
   }

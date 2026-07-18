@@ -22,6 +22,7 @@ export function presentHero(
     activeDrink?: HeroActiveDrink | null;
     activePriestBlessing?: HeroActivePriestBlessing | null;
     activeVarenykSated?: HeroActiveVarenykSated | null;
+    activeBardInspiration?: { accuracyBonusPp: number; expiresAt: Date } | null;
     varenykSatedAvailableAt?: Date | null;
     recoveryNotice?: ResourceRecoveryNotice;
     activeCosmeticTitle?: string | null;
@@ -77,10 +78,15 @@ export function presentHero(
   const varenykSatedWaitLine = !activeVarenykSated && options.varenykSatedAvailableAt
     ? `🍽️ Нагодувати знову через <b>${formatRemainingMinutes(options.varenykSatedAvailableAt)}</b>.`
     : null;
+  const activeBardInspirationLine = options.activeBardInspiration &&
+    options.activeBardInspiration.expiresAt.getTime() > Date.now()
+    ? `✨ <b>Натхнення</b>: +${options.activeBardInspiration.accuracyBonusPp} до влучання · ще ${formatRemainingMinutes(options.activeBardInspiration.expiresAt)}.`
+    : null;
   const activeStatusLines = [
     activeDrinkLine,
     activePriestBlessingLine,
     activeVarenykSatedLine,
+    activeBardInspirationLine,
     varenykSatedWaitLine,
     ...presentEquipmentAttunementLines(summary)
   ]

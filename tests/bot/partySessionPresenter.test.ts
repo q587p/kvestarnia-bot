@@ -40,6 +40,21 @@ describe("party session presenter", () => {
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
   });
 
+  it("shows the canonical remaining Lament wait on the durable raid card", () => {
+    const bard = participant("bard", "Бард");
+    bard.combatStats.classId = "class.bard";
+    bard.bardMusicAvailableAt = "2026-07-18T11:33:00.000Z";
+    const text = presentPartyBoss(makeBigBossSession({
+      participants: [bard],
+      bardMusic: { kind: "none" }
+    }), {
+      viewerCharacterId: "bard",
+      now: new Date("2026-07-18T10:00:00.000Z")
+    });
+
+    expect(text).toContain("🎻 Журлива балада буде доступна через 93 хвилини.");
+  });
+
   it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
     const text = presentPartyBoss(makeBigBossSession({
       wardSign: {

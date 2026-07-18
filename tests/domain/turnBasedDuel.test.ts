@@ -10,6 +10,7 @@ import type { DuelistSummary } from "../../src/domain/duels/duelResolver";
 import { FakeRandomSource } from "../../src/shared/random";
 import { findMantokAbilityGrantByKey } from "../../src/content";
 import { getVarenykSatedRemainingCombatTurns } from "../../src/domain/noncombat/varenykSatedSupport";
+import { getBardInspirationRemainingCombatTurns } from "../../src/domain/noncombat/bardSupport";
 
 describe("turn-based duel domain", () => {
   it("pulses Sated once after the committed duel exchange resolves", () => {
@@ -28,6 +29,21 @@ describe("turn-based duel domain", () => {
       recipientCharacterId: "challenger",
       recipientRemortCount: state.participants.challenger.remortCount,
       rank: 1,
+      expiresAt: new Date(now.getTime() + 12 * 60_000).toISOString(),
+      cursorAt: new Date(now.getTime() - 60_000).toISOString(),
+      leaseStartedAt: new Date(now.getTime() - 60_000).toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    state.participants.challenger.bardInspiration = {
+      version: 1,
+      activationId: "inspiration-duel",
+      sourcePerformanceId: "performance-duel",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: "challenger",
+      recipientRemortCount: state.participants.challenger.remortCount,
+      grade: "pleasant",
+      accuracyBonusPp: 2,
       expiresAt: new Date(now.getTime() + 12 * 60_000).toISOString(),
       cursorAt: new Date(now.getTime() - 60_000).toISOString(),
       leaseStartedAt: new Date(now.getTime() - 60_000).toISOString(),
@@ -68,6 +84,16 @@ describe("turn-based duel domain", () => {
       "sated-duel:turn-based-duel:duel-session:1:challenger"
     ]);
     expect(pulsed.lastRound?.varenykSatedAfter?.target).toBeNull();
+    expect(pulsed.participants.challenger.bardInspiration?.pulseIds).toEqual([
+      "inspiration-duel:turn-based-duel:duel-session:1:challenger"
+    ]);
+    expect(getBardInspirationRemainingCombatTurns(
+      pulsed.participants.challenger.bardInspiration!
+    )).toBe(12);
+    expect(pulsed.lastRound?.bardInspirationAfter?.challenger?.pulseIds).toEqual([
+      "inspiration-duel:turn-based-duel:duel-session:1:challenger"
+    ]);
+    expect(pulsed.lastRound?.bardInspirationAfter?.target).toBeNull();
   });
 
   it("stores a stable first actor from initiative instead of always using the challenger", () => {

@@ -198,18 +198,26 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const result = await options.partyBoss.submitActionForTelegramUser(
-      telegramUserId,
-      callback.token,
-      callback.turn,
-      callback.action
-    );
+    const result = callback.action === "lament"
+      ? await options.partyBoss.submitLamentForTelegramUser(
+          telegramUserId,
+          callback.token,
+          callback.turn
+        )
+      : await options.partyBoss.submitActionForTelegramUser(
+          telegramUserId,
+          callback.token,
+          callback.turn,
+          callback.action
+        );
     await safeAnswerCallbackQuery(ctx, result.state === "updated"
       ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
         ? { text: "Дію вже записано." }
         : result.state === "taunt-unavailable"
           ? { text: "Бочка зараз не приймає цей виклик." }
+        : result.state === "lament-unavailable"
+          ? { text: "Баладі зараз бракує вільного місця в кошторисі." }
         : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
@@ -1023,7 +1031,8 @@ async function sendBossText(
       ? {
           reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
             ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
-            includeDevTimeout: keyboard.includeDevTimeout
+            includeDevTimeout: keyboard.includeDevTimeout,
+            bardSupportEnabled: keyboard.partyBoss?.isBardSupportEnabled?.() ?? false
           })
         }
       : {})
@@ -1365,7 +1374,8 @@ async function notifyPartyBossParticipants(
               participant.telegramUserId,
               session
             ),
-            includeDevTimeout: options.includeDevTimeout
+            includeDevTimeout: options.includeDevTimeout,
+            bardSupportEnabled: options.partyBoss?.isBardSupportEnabled?.() ?? false
           })
         }
       );

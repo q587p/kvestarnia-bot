@@ -116,6 +116,21 @@ describe("TrainingDoppelgangerService", () => {
       outsideRemainderMs: 0,
       pulseIds: []
     };
+    state.bardInspiration = {
+      version: 1,
+      activationId: "training-inspiration",
+      sourcePerformanceId: "performance-training",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      grade: "memorable",
+      accuracyBonusPp: 3,
+      expiresAt: new Date(fixedNow().getTime() + 13 * 60_000).toISOString(),
+      cursorAt: fixedNow().toISOString(),
+      leaseStartedAt: fixedNow().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
     world.sessions.set(started.session.id, { ...started.session, state });
 
     const result = await service.resolveTurn(telegramUserId, {
@@ -131,6 +146,12 @@ describe("TrainingDoppelgangerService", () => {
         `training-sated:training-doppelganger:${started.session.id}:1:${started.session.characterId}`
       ]);
       expect(result.session.state?.varenykSated?.expiresAt).toBe(
+        new Date(fixedNow().getTime() + 12 * 60_000).toISOString()
+      );
+      expect(result.session.state?.bardInspiration?.pulseIds).toEqual([
+        `training-inspiration:training-doppelganger:${started.session.id}:1:${started.session.characterId}`
+      ]);
+      expect(result.session.state?.bardInspiration?.expiresAt).toBe(
         new Date(fixedNow().getTime() + 12 * 60_000).toISOString()
       );
     }

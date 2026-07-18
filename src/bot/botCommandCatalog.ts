@@ -455,7 +455,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "dev_reset_bard_performance",
     icon: "🎶",
-    description: "скинути бардівський виступ локально",
+    description: "скинути виступ і Натхнення або видати Натхнення локально",
     includeInMenu: false,
     devOnly: "grant"
   },

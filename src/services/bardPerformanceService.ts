@@ -109,14 +109,29 @@ export interface PresentedBardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
   reaction: PresentedBardPerformanceReaction;
+  inspiration?: {
+    mutation: import("../domain/noncombat/bardSupport").BardInspirationMutation;
+    accuracyBonusPp: number;
+    expiresAt: Date;
+    now: Date;
+  };
 }
 
 export class BardPerformanceService {
   constructor(
     private readonly performances: BardPerformanceRepository,
     private readonly clock: Clock = systemClock,
-    private readonly rng: RandomSource = new CryptoRandomSource()
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    private readonly options: { bardSupportEnabled?: boolean; devHelpersEnabled?: boolean } = {}
   ) {}
+
+  isBardSupportEnabled(): boolean {
+    return this.options.bardSupportEnabled === true;
+  }
+
+  areDevHelpersEnabled(): boolean {
+    return this.options.devHelpersEnabled === true;
+  }
 
   async startForTelegramUser(telegramUserId: bigint): Promise<BardPerformanceStartResult> {
     const snapshot = await this.performances.getStartSnapshotForTelegramUser(telegramUserId);
@@ -180,7 +195,8 @@ export class BardPerformanceService {
       cooldownAvailableAt: new Date(now.getTime() + BARD_PERFORMANCE_COOLDOWN_MINUTES * 60_000),
       activeAudienceSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       allowNoAudience: isShynok,
-      requiredLevel: BARD_PERFORMANCE_MIN_LEVEL
+      requiredLevel: BARD_PERFORMANCE_MIN_LEVEL,
+      bardSupportEnabled: this.isBardSupportEnabled()
     });
 
     return presentStartResult(result);
@@ -209,14 +225,81 @@ export class BardPerformanceService {
   }
 
   async resetForDev(telegramUserId: bigint): Promise<
+    | { state: "disabled" }
     | { state: "no-character" }
     | { state: "reset"; character: CharacterSummary; deleted: number }
   > {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
     const result = await this.performances.resetForTelegramUser(telegramUserId, this.clock());
 
     return result
       ? { state: "reset", character: summarizeCharacter(result.character), deleted: result.deleted }
       : { state: "no-character" };
+  }
+
+  async getInspirationForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<PresentedBardInspiration | null> {
+    if (!this.isBardSupportEnabled()) {
+      return null;
+    }
+    const result = await this.performances.getInspirationForTelegramUser(
+      telegramUserId,
+      this.clock()
+    );
+    const inspiration = result?.inspiration;
+
+    return inspiration
+      ? {
+          activationId: inspiration.activationId,
+          grade: inspiration.grade,
+          accuracyBonusPp: inspiration.accuracyBonusPp,
+          expiresAt: new Date(inspiration.expiresAt)
+        }
+      : null;
+  }
+
+  async setInspirationForDev(
+    telegramUserId: bigint,
+    accuracyBonusPp: 0 | 1 | 2 | 3 | 5
+  ): Promise<
+    | { state: "disabled" | "no-character" }
+    | { state: "updated"; inspiration: PresentedBardInspiration | null }
+  > {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+    const grade = accuracyBonusPp === 5
+      ? "legendary"
+      : accuracyBonusPp === 3
+        ? "memorable"
+        : accuracyBonusPp === 2
+          ? "pleasant"
+          : accuracyBonusPp === 1
+            ? "rough"
+            : null;
+    const result = await this.performances.setInspirationForDev(
+      telegramUserId,
+      grade,
+      this.clock()
+    );
+    if (!result) {
+      return { state: "no-character" };
+    }
+
+    return {
+      state: "updated",
+      inspiration: result.inspiration
+        ? {
+            activationId: result.inspiration.activationId,
+            grade: result.inspiration.grade,
+            accuracyBonusPp: result.inspiration.accuracyBonusPp,
+            expiresAt: new Date(result.inspiration.expiresAt)
+          }
+        : null
+    };
   }
 }
 
@@ -297,8 +380,16 @@ function presentAudienceNotice(notice: BardPerformanceAudienceNotice): Presented
   return {
     telegramUserId: notice.telegramUserId,
     name: notice.name,
-    reaction: presentReaction(notice.reaction)
+    reaction: presentReaction(notice.reaction),
+    ...(notice.inspiration ? { inspiration: { ...notice.inspiration } } : {})
   };
+}
+
+export interface PresentedBardInspiration {
+  activationId: string;
+  grade: BardPerformanceGrade;
+  accuracyBonusPp: number;
+  expiresAt: Date;
 }
 
 function presentPerformance(performance: BardPerformanceRecord): PresentedBardPerformance {

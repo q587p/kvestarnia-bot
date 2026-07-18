@@ -228,7 +228,9 @@ export function registerTavernBotModule(
     resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
   registerLatestEventsCommand(bot, services.activityEvents, services.hero);
-  registerBardPerformanceDevResetHandler(bot, services);
+  if (services.bardPerformance?.areDevHelpersEnabled()) {
+    registerBardPerformanceDevResetHandler(bot, services);
+  }
   registerPassageSearchDevResetHandler(bot, services);
   if (services.devGrant?.isEnabled()) {
     registerTavernGamesDevResetHandler(bot, services);
@@ -1058,6 +1060,12 @@ async function notifyBardPerformanceAudience(
     telegramUserId: bigint;
     name: string;
     reaction: { id: string; audienceName: string; status: string; tipGold: number; expiresAt: Date };
+    inspiration?: {
+      mutation: "granted" | "replaced" | "unchanged";
+      accuracyBonusPp: number;
+      expiresAt: Date;
+      now: Date;
+    };
   }>
 ): Promise<void> {
   await Promise.allSettled(audience.map((notice) =>
@@ -1090,13 +1098,37 @@ function registerBardPerformanceDevResetHandler(bot: Bot, services: BotServices)
       return;
     }
 
+    const devInput = String(ctx.match ?? "").trim().toLowerCase();
+    const grantMatch = /^grant\s+([1235])$/.exec(devInput);
+    if (grantMatch) {
+      const accuracyBonusPp = Number(grantMatch[1]) as 1 | 2 | 3 | 5;
+      const grant = await services.bardPerformance.setInspirationForDev(
+        telegramUserId,
+        accuracyBonusPp
+      );
+      if (grant.state === "no-character") {
+        await ctx.reply(presentDevGrantNoCharacter());
+        return;
+      }
+      if (grant.state === "disabled") {
+        await ctx.reply(presentDevGrantDisabled());
+        return;
+      }
+      await ctx.reply(`✨ Dev-Натхнення: +${accuracyBonusPp} до влучання на 13 хв.`);
+      return;
+    }
+
     const result = await services.bardPerformance.resetForDev(telegramUserId);
+    if (result.state === "disabled") {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
     if (result.state === "no-character") {
       await ctx.reply(presentDevGrantNoCharacter());
       return;
     }
 
-    await ctx.reply(`🎶 Бардівський cooldown скинуто локально. Прибрано записів: ${result.deleted}.`);
+    await ctx.reply(`🎶 Бардівський cooldown і Натхнення скинуто локально. Прибрано записів: ${result.deleted}.`);
   });
 }
 

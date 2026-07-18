@@ -26,6 +26,7 @@ import type { BarrelBeerTutorialService } from "./barrelBeerTutorialService";
 export interface PartyBossServiceOptions {
   enabled: boolean;
   devHelpersEnabled?: boolean;
+  bardSupportEnabled?: boolean;
 }
 
 export type PartyBossDevRaidWinResult =
@@ -74,6 +75,10 @@ export class PartyBossService {
     return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
+  isBardSupportEnabled(): boolean {
+    return this.isEnabled() && this.options.bardSupportEnabled === true;
+  }
+
   async startFromPartyForTelegramUser(
     telegramUserId: bigint,
     partyInviteToken: string,
@@ -112,6 +117,31 @@ export class PartyBossService {
     await this.trackActivityEvents(result);
 
     return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
+  }
+
+  async submitLamentForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number
+  ): Promise<PartyBossActionServiceResult> {
+    if (!this.isBardSupportEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.clock();
+    const result = await this.sessions.submitLamentForTelegramUser(
+      telegramUserId,
+      partyInviteToken,
+      turn,
+      {
+        activationId: randomUUID(),
+        now,
+        nextTurnExpiresAt: nextTurnDeadline(now)
+      }
+    );
+    await this.trackBarrelBeerTutorialProgress(result);
+    await this.trackActivityEvents(result);
+
+    return result;
   }
 
   async submitGearForTelegramUser(
@@ -466,3 +496,4 @@ function withAchievementUnlocks(
     ? { ...result, achievementUnlocksByCharacterId }
     : result;
 }
+import { randomUUID } from "node:crypto";

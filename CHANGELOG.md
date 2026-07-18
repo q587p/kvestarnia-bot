@@ -7,6 +7,20 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.14] - 12026-07-19 - Bard Inspiration and Big Barrel Lament
+
+### Added
+- A successful normal Bard performance now grants its frozen initial audience free, non-stacking `✨ Натхнення` for 13 hybrid minutes when Bard support is enabled. Existing performance grades map to `+1/+2/+3/+5` percentage points on canonical player hit rolls only; stronger Inspiration replaces and resets the timer, while equal or weaker Inspiration neither replaces nor refreshes it. Tips, applause, house payout, damage, critical hits and non-roll effects do not change the bonus.
+- Durable persistent PvE, Training, turn-based duels and Big Barrel fights freeze Inspiration on the existing combat lease, apply it actor-locally, consume one logical minute after each committed actor turn and release the exact remainder. Quick duels remain unchanged. The generalized lease release synchronizes both `😋 Ситий` and Inspiration before deleting their single shared lease.
+- A living Bard in an active Big Barrel raid can commit `🎻 Заграти журливу баладу` when the raid music slot and the Bard’s shared local music availability are free. The action deals no damage and costs no mana, gold or item; it reduces every actual target’s direct Big Brother retaliation by `1/2/3/5` after guard/action reductions and before Kharakternyk Ward or Bureaucramancer Protocol for `clamp(level, 8, 13)` whole boss responses. Zero damage is valid, a broad response spends one counter, and two concurrent Bards produce exactly one slot/cooldown winner.
+- Normal performances and Lament share one 93-minute per-Bard/per-location availability key while still honoring historical performance cooldown rows. Barrel-origin starting Inspiration occupies the encounter music slot, so it and Lament cannot stack in one raid.
+- Extended local `/dev_reset_bard_performance`: without arguments it clears the caller’s Bard cooldown/Inspiration state; `grant 1|2|3|5` grants a deterministic Inspiration strength for QA. Registration, help visibility and mutation remain impossible in production.
+
+### Rollout and compatibility
+- Added `BARD_SUPPORT_ENABLED`, off by default in production. Non-production enables the runtime surface for focused QA; production can expose it only through the explicit flag. Feature-off performance economy, audience reactions and combat behavior remain unchanged.
+- Reused `CharacterCooldown`, existing raid JSON and the existing combat lease. No Prisma schema, migration, dependency or achievement was added. Inspiration is life-bound and remort-cleared; Lament remains encounter-bound and never transfers to another raid. Existing Bard achievements still count canonical performances only.
+- Reviewed `📖 Перекази`: its current Bard entry describes performance and does not deny support mechanics, so no lore text changed before the production rollout is enabled. Manual Telegram QA remains pending; automated domain, repository, service, presenter and callback coverage owns the implementation evidence.
+
 ## [0.3.13] - 12026-07-18 - Location-Safe Quest and Combat Fixes
 
 ### Fixed

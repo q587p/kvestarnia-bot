@@ -135,11 +135,28 @@ describe("BardPerformanceService", () => {
       reactionId: "12345678-1234-4234-9234-123456789abc"
     });
   });
+
+  it("cannot mutate through dev helpers when production enables Bard support only", async () => {
+    const repository = new FakeBardPerformanceRepository();
+    const service = new BardPerformanceService(
+      repository,
+      () => now,
+      new FakeRandomSource([0.5]),
+      { bardSupportEnabled: true, devHelpersEnabled: false }
+    );
+
+    await expect(service.resetForDev(telegramUserId)).resolves.toEqual({ state: "disabled" });
+    await expect(service.setInspirationForDev(telegramUserId, 5)).resolves.toEqual({ state: "disabled" });
+    expect(repository.resetCalls).toBe(0);
+    expect(repository.setInspirationCalls).toBe(0);
+  });
 });
 
 class FakeBardPerformanceRepository implements BardPerformanceRepository {
   lastStartInput: Parameters<BardPerformanceRepository["startPerformanceForTelegramUser"]>[1] | null = null;
   lastRespondInput: Parameters<BardPerformanceRepository["respondToPerformanceForTelegramUser"]>[1] | null = null;
+  resetCalls = 0;
+  setInspirationCalls = 0;
 
   constructor(private readonly overrides: Partial<BardPerformanceStartSnapshot> & {
     character?: Partial<BardPerformanceStartSnapshot["character"]>;
@@ -241,6 +258,16 @@ class FakeBardPerformanceRepository implements BardPerformanceRepository {
   }
 
   resetForTelegramUser(): ReturnType<BardPerformanceRepository["resetForTelegramUser"]> {
+    this.resetCalls += 1;
+    return Promise.resolve(null);
+  }
+
+  getInspirationForTelegramUser(): ReturnType<BardPerformanceRepository["getInspirationForTelegramUser"]> {
+    return Promise.resolve(null);
+  }
+
+  setInspirationForDev(): ReturnType<BardPerformanceRepository["setInspirationForDev"]> {
+    this.setInspirationCalls += 1;
     return Promise.resolve(null);
   }
 }

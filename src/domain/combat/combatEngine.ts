@@ -1,5 +1,6 @@
 import type { RandomSource } from "../../shared/random";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../itemCraft";
+import { withBardInspirationAccuracy } from "../noncombat/bardSupport";
 import {
   BASIC_DEFEND_ABILITY_ID,
   getCombatClassAbilityProfile,
@@ -879,7 +880,7 @@ function resolveHeroAttack(
       mana: 0,
       manaMax: 0
     },
-    actorStats: input.hero,
+    actorStats: withBardInspirationAccuracy(input.hero, nextState.bardInspiration),
     defenderStats,
     action,
     ...(skill ? { skillProfile: skill } : {}),
@@ -1193,7 +1194,7 @@ function resolveMultiEnemyHeroAttack(
       mana: 0,
       manaMax: 0
     },
-    actorStats: input.hero,
+    actorStats: withBardInspirationAccuracy(input.hero, nextState.bardInspiration),
     defenderStats,
     action,
     ...(skill ? { skillProfile: skill } : {}),
@@ -1828,6 +1829,9 @@ function appendCombatTurnLog(
     },
     ...(state.varenykSated
       ? { varenykSated: { ...state.varenykSated, pulseIds: [...state.varenykSated.pulseIds] } }
+      : {}),
+    ...(state.bardInspiration
+      ? { bardInspiration: { ...state.bardInspiration, pulseIds: [...state.bardInspiration.pulseIds] } }
       : {}),
     ...turnLogEnemies(state)
   });

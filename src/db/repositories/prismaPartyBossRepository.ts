@@ -6,6 +6,7 @@ import {
   buildBigBarrelLossXp,
   buildResult,
   calculatePartyBossCombatItemHealing,
+  clonePartyBossState,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
   getWarriorRaidTauntAvailability,
@@ -50,9 +51,17 @@ import { BUREAUCRAMANCER_PROTOCOL_KIND } from "../../services/bureaucramancerPro
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import {
   freezeVarenykSatedFromCooldown,
-  releaseVarenykSatedCombatLease,
+  releaseCombatLeaseWithTimedStatuses,
   VarenykSatedCasError
 } from "./prismaVarenykSated";
+import {
+  findBardMusicAvailableAt,
+  freezeBardInspirationFromCooldown,
+  writeBardMusicAvailability
+} from "./prismaBardSupport";
+import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
+import { buildBardLamentPlan } from "../../domain/noncombat/bardSupport";
+import { SeededRandomSource } from "../../shared/random";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -73,6 +82,8 @@ class PartyBossItemUseRollback extends Error {
     super(reason);
   }
 }
+
+class PartyBossLamentRaceRollback extends Error {}
 
 type QueuedPartyBossActionState = Extract<PartyBossActionResult["state"], "queued" | "updated" | "duplicate">;
 type QueuedPartyBossActionInput = {
@@ -150,7 +161,8 @@ const partyBossInclude = {
 export class PrismaPartyBossRepository implements PartyBossRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly options: { bardSupportEnabled?: boolean } = {}
   ) {}
 
   async startFromRecruitingPartyForTelegramUser(
@@ -288,6 +300,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
+        bardMusicEnabled: this.options.bardSupportEnabled === true,
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
         ...(wardSign ? { wardSign } : {}),
@@ -353,6 +366,37 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           if (frozen.sated) {
             participant.varenykSated = frozen.sated;
           }
+          if (this.options.bardSupportEnabled) {
+            const inspiration = await freezeBardInspirationFromCooldown({
+              tx,
+              characterId: participant.characterId,
+              remortCount: participant.remortCount,
+              now: input.now
+            });
+            if (inspiration) {
+              participant.bardInspiration = inspiration;
+            }
+            if (participant.combatStats.classId === "class.bard") {
+              const availableAt = await findBardMusicAvailableAt({
+                tx,
+                characterId: participant.characterId,
+                locationId: PRESENCE_LOCATION_KORCHMA_BARREL
+              });
+              if (availableAt) {
+                participant.bardMusicAvailableAt = availableAt.toISOString();
+              }
+            }
+          }
+        }
+        if (this.options.bardSupportEnabled) {
+          const barrelPerformanceIds = [...new Set(state.participants.flatMap((participant) =>
+            participant.bardInspiration?.sourceLocationId === PRESENCE_LOCATION_KORCHMA_BARREL
+              ? [participant.bardInspiration.sourcePerformanceId]
+              : []
+          ))];
+          state.bardMusic = barrelPerformanceIds.length > 0
+            ? { kind: "inspiration", sourcePerformanceIds: barrelPerformanceIds }
+            : { kind: "none" };
         }
       }
 
@@ -430,6 +474,17 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
         return { state: "stale", session: mapSession(session) };
       }
+      if (
+        state.bardMusic?.kind === "lament" &&
+        state.bardMusic.sourceCharacterId === character.id &&
+        state.bardMusic.activatedTurn === turn
+      ) {
+        return {
+          state: "lament-unavailable",
+          reason: "locked",
+          session: mapSession(session)
+        };
+      }
 
       if (action === "taunt") {
         const availability = getWarriorRaidTauntAvailability(state, character.id);
@@ -498,6 +553,190 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return inserted;
   }
 
+  async submitLamentForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    input: PartyBossResolveInput & { activationId: string }
+  ): Promise<PartyBossActionResult> {
+    if (!this.options.bardSupportEnabled) {
+      return { state: "disabled" };
+    }
+
+    let inserted: PartyBossActionResult;
+    try {
+      inserted = await this.prisma.$transaction(async (tx): Promise<PartyBossActionResult> => {
+        const character = await findCharacterByTelegramUser(tx, telegramUserId);
+        if (!character) {
+          return { state: "no-character" };
+        }
+        const session = await findByInviteToken(tx, partyInviteToken);
+        if (!session) {
+          return { state: "not-found" };
+        }
+        const presented = mapSession(session);
+        if (!isBigBarrelBrotherState(parseState(session))) {
+          return {
+            state: "lament-unavailable",
+            reason: "not-big-barrel",
+            session: presented
+          };
+        }
+        if (!isParticipant(session, character.id)) {
+          return {
+            state: "lament-unavailable",
+            reason: "not-participant",
+            session: presented
+          };
+        }
+        if (session.status !== "active") {
+          return {
+            state: "lament-unavailable",
+            reason: "not-active",
+            session: presented
+          };
+        }
+        const state = parseState(session);
+        if (session.turn !== turn || state.turn !== turn) {
+          return { state: "stale", session: presented };
+        }
+        const actor = state.participants.find((participant) => participant.characterId === character.id);
+        if (!actor) {
+          return {
+            state: "lament-unavailable",
+            reason: "not-participant",
+            session: presented
+          };
+        }
+        if (actor.combatStats.classId !== "class.bard") {
+          return {
+            state: "lament-unavailable",
+            reason: "not-bard",
+            session: presented
+          };
+        }
+        if (actor.status !== "active" || actor.resources.hp <= 0) {
+          return {
+            state: "lament-unavailable",
+            reason: "unable",
+            session: presented
+          };
+        }
+        if (
+          state.bardMusic?.kind === "lament" &&
+          state.bardMusic.sourceCharacterId === character.id &&
+          state.bardMusic.activatedTurn === turn
+        ) {
+          return { state: "duplicate", session: presented };
+        }
+        if (!state.bardMusic || state.bardMusic.kind !== "none") {
+          return {
+            state: "lament-unavailable",
+            reason: "music-taken",
+            session: presented
+          };
+        }
+        const availableAt = await findBardMusicAvailableAt({
+          tx,
+          characterId: character.id,
+          locationId: PRESENCE_LOCATION_KORCHMA_BARREL
+        });
+        if (availableAt && availableAt > input.now) {
+          return {
+            state: "lament-unavailable",
+            reason: "cooldown",
+            availableAt,
+            now: input.now,
+            session: presented
+          };
+        }
+
+        const roll = new SeededRandomSource(
+          `${session.id}:${turn}:${character.id}:${input.activationId}:bard-lament-v1`
+        ).nextInt(-6, 6);
+        const plan = buildBardLamentPlan({
+          charisma: actor.combatStats.charisma,
+          luck: actor.combatStats.luck,
+          level: actor.combatStats.level,
+          roll
+        });
+        const nextState = clonePartyBossState(state);
+        nextState.bardMusic = {
+          kind: "lament",
+          activationId: input.activationId,
+          sourceCharacterId: character.id,
+          grade: plan.grade,
+          damageReduction: plan.damageReduction,
+          remainingBossResponses: plan.bossResponses,
+          activatedTurn: turn
+        };
+        const claimed = await tx.partyBossSession.updateMany({
+          where: {
+            id: session.id,
+            status: "active",
+            turn,
+            version: session.version
+          },
+          data: {
+            stateJson: nextState as unknown as Prisma.InputJsonValue,
+            version: { increment: 1 }
+          }
+        });
+        if (claimed.count !== 1) {
+          throw new PartyBossLamentRaceRollback();
+        }
+
+        const queuedState = await writePartyBossActionChoice(tx, {
+          sessionId: session.id,
+          actorCharacterId: character.id,
+          turn,
+          action: "lament",
+          submittedAt: input.now
+        });
+        await writeBardMusicAvailability({
+          tx,
+          characterId: character.id,
+          locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+          now: input.now,
+          source: "lament",
+          sourceId: input.activationId
+        });
+        const current = await tx.partyBossSession.findUnique({
+          where: { id: session.id },
+          include: partyBossInclude
+        });
+        if (!current) {
+          return { state: "not-found" };
+        }
+
+        return { state: queuedState, session: mapSession(current) };
+      });
+    } catch (error) {
+      if (!(error instanceof PartyBossLamentRaceRollback)) {
+        throw error;
+      }
+      const current = await this.findByPartyInviteToken(partyInviteToken);
+      if (!current) {
+        return { state: "not-found" };
+      }
+      return {
+        state: "lament-unavailable",
+        reason: "music-taken",
+        session: current
+      };
+    }
+
+    if (
+      "session" in inserted &&
+      (inserted.state === "queued" || inserted.state === "updated" || inserted.state === "duplicate")
+    ) {
+      const resolved = await this.resolveIfReady(inserted.session.id, "all-actions", input);
+      return resolved ? { state: "resolved", ...resolved } : inserted;
+    }
+
+    return inserted;
+  }
+
   async submitItemForTelegramUser(
     telegramUserId: bigint,
     partyInviteToken: string,
@@ -532,6 +771,17 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const actor = state.participants.find((participant) => participant.characterId === character.id);
       if (!actor || actor.status !== "active" || actor.resources.hp <= 0) {
         return { state: "stale", session: mapSession(session) };
+      }
+      if (
+        state.bardMusic?.kind === "lament" &&
+        state.bardMusic.sourceCharacterId === character.id &&
+        state.bardMusic.activatedTurn === turn
+      ) {
+        return {
+          state: "lament-unavailable",
+          reason: "locked",
+          session: mapSession(session)
+        };
       }
 
       const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
@@ -1413,11 +1663,12 @@ async function releasePartyBossLocks(
   });
   for (const lease of leases) {
     const participant = state.participants.find((entry) => entry.characterId === lease.characterId);
-    await releaseVarenykSatedCombatLease({
+    await releaseCombatLeaseWithTimedStatuses({
       tx,
       lease,
       releasedAt,
-      ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+      ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
+      ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
     });
   }
   await tx.partyParticipant.updateMany({
@@ -1596,7 +1847,7 @@ function parseStatus(value: string): PartyBossSessionStatus {
 }
 
 function parseActionKey(value: string): PartyBossActionKey {
-  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" || value === "taunt"
+  return value === "defend" || value === "skill" || value === "race" || value === "gear" || value === "item" || value === "taunt" || value === "lament"
     ? value
     : "attack";
 }

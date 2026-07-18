@@ -160,6 +160,8 @@ export function buildPartyBossKeyboard(
   options: {
     includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
+    bardSupportEnabled?: boolean | undefined;
+    now?: Date | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -181,6 +183,20 @@ export function buildPartyBossKeyboard(
       keyboard.text(
         "🛡️ На мене!",
         makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
+      ).row();
+    }
+
+    const bardMusicReady = !viewer.bardMusicAvailableAt ||
+      Date.parse(viewer.bardMusicAvailableAt) <= (options.now ?? new Date()).getTime();
+    if (
+      options.bardSupportEnabled === true &&
+      viewer.combatStats.classId === "class.bard" &&
+      session.state.bardMusic?.kind === "none" &&
+      bardMusicReady
+    ) {
+      keyboard.text(
+        "🎻 Заграти журливу баладу",
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "lament")
       ).row();
     }
 

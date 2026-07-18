@@ -33,6 +33,7 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
+import { getBardInspirationRemainingCombatTurns } from "../../domain/noncombat/bardSupport";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -439,6 +440,13 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
     });
   }
 
+  if (result.state === "lament-unavailable") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: presentBardLamentUnavailableNotice(result)
+    });
+  }
+
   if (result.state === "queued") {
     const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
@@ -502,6 +510,7 @@ export function presentPartyBoss(
   options: {
     viewerCharacterId?: string | null | undefined;
     notice?: string;
+    now?: Date;
   } = {}
 ): string {
   const state = session.state;
@@ -542,6 +551,21 @@ export function presentPartyBoss(
   if (big && state.warriorTaunt?.active) {
     lines.push(presentWarriorRaidTauntBossLine(state));
   }
+  if (big && state.bardMusic && state.bardMusic.kind !== "none") {
+    lines.push(presentBardRaidMusicLine(state.bardMusic));
+  }
+  if (
+    big &&
+    state.bardMusic?.kind === "none" &&
+    viewer?.combatStats.classId === "class.bard" &&
+    viewer.bardMusicAvailableAt
+  ) {
+    const availableAt = new Date(viewer.bardMusicAvailableAt);
+    const now = options.now ?? new Date();
+    if (availableAt > now) {
+      lines.push(`🎻 Журлива балада буде доступна через ${formatRemainingWait(availableAt, now)}.`);
+    }
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
     if (viewer?.varenykSated) {
@@ -549,6 +573,12 @@ export function presentPartyBoss(
         viewer.varenykSated
       );
       if (satedBuff) lines.push(satedBuff);
+    }
+    if (viewer?.bardInspiration) {
+      const turns = getBardInspirationRemainingCombatTurns(viewer.bardInspiration);
+      if (turns > 0) {
+        lines.push(`✨ <b>Натхнення</b>: +${viewer.bardInspiration.accuracyBonusPp} до влучання · ще ${formatTurns(turns)}.`);
+      }
     }
   }
 
@@ -638,6 +668,8 @@ function presentPartyBossQueuedActionPlan(
         : "одноразову манатку";
     case "taunt":
       return "гукнути «🛡️ На мене!»";
+    case "lament":
+      return "заграти «🎻 Журливу баладу»";
     default:
       return "дію";
   }
@@ -697,6 +729,9 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   }
   if (round.warriorTaunt) {
     actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
+  }
+  if (round.bardMusic) {
+    actionLines.push(...presentBardRaidMusicRoundLines(round.bardMusic, names));
   }
   actionLines.push(...satedRecoveryLines);
 
@@ -907,6 +942,12 @@ function presentLastRoundLines(
       round.warriorTaunt,
       new Map(participants.map((participant) => [participant.characterId, participant.name])),
       { includeActiveStatus: false }
+    ));
+  }
+  if (round.bardMusic) {
+    lines.push(...presentBardRaidMusicRoundLines(
+      round.bardMusic,
+      new Map(participants.map((participant) => [participant.characterId, participant.name]))
     ));
   }
   return lines;
@@ -1133,6 +1174,35 @@ function presentWarriorRaidTauntBossLine(state: PartyBossSessionRecord["state"])
   return `🛡️ Увага Бочки: ${escapeHtml(name)}, ще ${formatTurns(active.bossAttacksRemaining)}.`;
 }
 
+function presentBardRaidMusicLine(
+  music: NonNullable<PartyBossSessionRecord["state"]["bardMusic"]>
+): string {
+  if (music.kind === "inspiration") {
+    return "✨ Натхнення від виступу вже займає музичне місце цього рейду.";
+  }
+  if (music.kind === "lament") {
+    return `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatTurns(music.remainingBossResponses)}.`;
+  }
+
+  return "";
+}
+
+function presentBardRaidMusicRoundLines(
+  music: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["bardMusic"]>,
+  names: Map<string, string>
+): string[] {
+  const sourceName = escapeHtml(names.get(music.sourceCharacterId) ?? "Бард");
+  const lines = music.activated
+    ? [`🎻 ${sourceName} затягує журливу баладу: пряма шкода Старшого Брата слабшає на ${music.damageReduction}.`]
+    : [];
+  lines.push(
+    music.expired
+      ? "🎼 Остання нота стихла: журлива балада вже не послаблює удари."
+      : `🎻 Журлива балада тримається: ще ${formatTurns(music.remainingBossResponses)}.`
+  );
+  return lines;
+}
+
 function presentWarriorRaidTauntUnavailableNotice(
   result: Extract<PartyBossActionResult, { state: "taunt-unavailable" }>
 ): string {
@@ -1146,6 +1216,25 @@ function presentWarriorRaidTauntUnavailableNotice(
     return "Цей рейдовий виклик слухається лише воїна.";
   }
   return "Цей виклик більше не діє. Показую свіжий стан рейду.";
+}
+
+function presentBardLamentUnavailableNotice(
+  result: Extract<PartyBossActionResult, { state: "lament-unavailable" }>
+): string {
+  if (result.reason === "cooldown" && result.availableAt && result.now) {
+    return `🎻 Балада ще збирає докупи сумні ноти. Спробуйте через ${formatRemainingWait(result.availableAt, result.now)}.`;
+  }
+  if (result.reason === "music-taken") {
+    return "🎶 У цьому рейді вже прозвучав бардівський номер. Друга драматична кульмінація не передбачена кошторисом.";
+  }
+  if (result.reason === "locked") {
+    return "🎻 Балада вже записана як ваша дія цього ходу й не міняється на півноті.";
+  }
+  if (result.reason === "not-bard") {
+    return "Цю баладу Корчма довіряє лише Барду.";
+  }
+
+  return "Ця балада більше не діє. Показую свіжий стан рейду.";
 }
 
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
@@ -1443,6 +1532,11 @@ function presentPartyBossActionLine(
     return isViewer
       ? "Ваш виклик запізнився: Бочка вже обрала, кого слухати."
       : `${name} гукає до Бочки, але виклик запізнюється.`;
+  }
+  if (action.outcome === "lament-activated") {
+    return isViewer
+      ? "Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід."
+      : `${name} затягує 🎻 журливу баладу й цього ходу не атакує.`;
   }
 
   if (action.outcome === "item-used") {

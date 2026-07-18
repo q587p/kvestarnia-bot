@@ -938,6 +938,21 @@ describe("FightService", () => {
       outsideRemainderMs: 0,
       pulseIds: []
     };
+    state.bardInspiration = {
+      version: 1,
+      activationId: "pve-inspiration",
+      sourcePerformanceId: "performance-pve",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      accuracyBonusPp: 2,
+      expiresAt: addSeconds(fixedClock(), 13 * 60).toISOString(),
+      cursorAt: fixedClock().toISOString(),
+      leaseStartedAt: fixedClock().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
     await sessions.updateById(started.session.id, { state, status: "active" });
 
     const result = await service.resolvePersistentFightTurn(telegramUserId, {
@@ -956,6 +971,13 @@ describe("FightService", () => {
       expect(result.session.state?.varenykSated?.expiresAt).toBe(
         addSeconds(fixedClock(), 12 * 60).toISOString()
       );
+      expect(result.session.state?.bardInspiration?.pulseIds).toEqual([
+        `pve-inspiration:persistent-pve:${started.session.id}:1:${started.session.characterId}`
+      ]);
+      expect(result.session.state?.bardInspiration?.expiresAt).toBe(
+        addSeconds(fixedClock(), 12 * 60).toISOString()
+      );
+      expect(result.session.state?.turnLog?.at(-1)?.bardInspiration?.accuracyBonusPp).toBe(2);
     }
   });
 

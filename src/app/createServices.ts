@@ -57,6 +57,7 @@ export function createServices(
   config: AppConfig
 ): ApplicationServices {
   const nonProduction = config.nodeEnv !== "production";
+  const bardSupportEnabled = nonProduction || config.bardSupportEnabled;
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
@@ -107,6 +108,15 @@ export function createServices(
     repositories.dailyActions,
     achievements
   );
+  const bardPerformance = new BardPerformanceService(
+    repositories.bardPerformances,
+    undefined,
+    undefined,
+    {
+      bardSupportEnabled,
+      devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
+    }
+  );
 
   return {
     activityEvents,
@@ -120,7 +130,7 @@ export function createServices(
       achievements,
       publicActivityEvents
     ),
-    bardPerformance: new BardPerformanceService(repositories.bardPerformances),
+    bardPerformance,
     barrelBeerTutorial,
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
@@ -190,7 +200,8 @@ export function createServices(
       repositories.shynok,
       undefined,
       achievements,
-      repositories.classNoncombat
+      repositories.classNoncombat,
+      bardPerformance
     ),
     healthRecoveryNotifications: new HealthRecoveryNotificationService(
       repositories.hpRecoveryNotifications,
@@ -228,7 +239,8 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: nonProduction
+      devHelpersEnabled: nonProduction,
+      bardSupportEnabled
     }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
