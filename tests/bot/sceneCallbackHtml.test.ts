@@ -31,6 +31,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
+import { buildDuelResultKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import {
   makeEquipItemCallbackData,
   makeInventoryCallbackData,
@@ -6408,6 +6409,7 @@ describe("scene callback HTML options", () => {
       servicesWith({
         duel: {
           getTurnBasedRouteForTelegramUser,
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(active),
           getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
           getByToken: vi.fn().mockResolvedValue(resolved.view),
           resolveTurnBasedActionForTelegramUser
@@ -6433,38 +6435,151 @@ describe("scene callback HTML options", () => {
   it.each([
     ["old action", makeDuelTurnCallbackData("abcDEF12", "attack", 1, 1)],
     ["old Refresh", "v1:duel:view:abcDEF12"],
-    ["terminal rematch", "v1:duel:rematch:abcDEF12"]
-  ])("repairs an already-resolved canonical card for a queued %s during pending Barrel", async (_route, callbackData) => {
+    ["terminal rematch", "v1:duel:rematch:abcDEF12"],
+    ["terminal rematch-risk", "v1:duel:rematch-risk:abcDEF12"]
+  ])("blocks an already-resolved canonical %s during pending Barrel without touching the terminal card", async (_route, callbackData) => {
     const resolved = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
     const getTurnBasedRouteForTelegramUser = vi.fn().mockResolvedValue({
       state: "resolved" as const,
       session: resolved.session,
       view: resolved.view
     });
+    const createRematchForTelegramUser = vi.fn();
+    const resolveTurnBasedActionForTelegramUser = vi.fn();
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
     const calls = await captureApiCalls(
       callbackData,
       servicesWith({
         duel: {
           getTurnBasedRouteForTelegramUser,
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
           getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
           getByToken: vi.fn().mockResolvedValue(resolved.view),
-          resolveTurnBasedActionForTelegramUser: vi.fn()
+          resolveTurnBasedActionForTelegramUser,
+          createRematchForTelegramUser
         } as unknown as BotServices["duel"],
-        tavern: pendingFridayBarrelServices()
+        tavern: pendingFridayBarrelServices(),
+        presence: { ...base.presence, markAction }
       }),
       { messageResults: true }
     );
     const canonicalEdits = calls.filter((call) =>
       call.method === "editMessageText" && call.payload.message_id === 10
     );
-    const finalEdit = canonicalEdits.at(-1);
 
-    expect(JSON.stringify(finalEdit?.payload.reply_markup)).toContain("v1:duel:rematch");
-    expect(JSON.stringify(finalEdit?.payload.reply_markup)).not.toContain("v1:duel:t:");
-    expect(canonicalEdits.every((call) =>
-      JSON.stringify(call.payload.reply_markup).includes("v1:duel:")
+    expect(canonicalEdits).toHaveLength(0);
+    expect(calls.some((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Бочка")
     )).toBe(true);
+    expect(resolveTurnBasedActionForTelegramUser).not.toHaveBeenCalled();
+    expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+    expect(resolved.session.challengerMessageId).toBe(10);
+    expect(resolved.session.status).toBe("forfeited");
+    expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+      .toContain("v1:duel:rematch:abcDEF12");
   });
+
+  it.each([
+    ["active turn duel Y", "rematch", "active-turn"],
+    ["active turn duel Y", "rematch-risk", "active-turn"],
+    ["persistent combat", "rematch", "persistent"],
+    ["persistent combat", "rematch-risk", "persistent"],
+    ["Training", "rematch", "training"],
+    ["Training", "rematch-risk", "training"],
+    ["party-boss combat", "rematch", "party-boss"],
+    ["party-boss combat", "rematch-risk", "party-boss"]
+  ] as const)(
+    "keeps resolved duel X isolated when %s blocks historical %s",
+    async (_label, rematchKind, lock) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const activeYSeed = activeTurnBasedDuel({ challengerMessageId: 20 });
+      const activeY = {
+        ...activeYSeed,
+        challenge: {
+          ...activeYSeed.challenge,
+          id: "duel-y",
+          inviteToken: "duelYABC12"
+        },
+        session: {
+          ...activeYSeed.session,
+          id: "session-y",
+          duelChallengeId: "duel-y"
+        }
+      } as ActiveTurnBasedDuelView;
+      const durableState = {
+        characterResources: { hp: 7, mana: 3 },
+        challengeWrites: 0,
+        questWrites: 0,
+        activityWrites: 0
+      };
+      const initialDurableState = structuredClone(durableState);
+      const createRematchForTelegramUser = vi.fn(() => {
+        durableState.characterResources.hp = 24;
+        durableState.characterResources.mana = 12;
+        durableState.challengeWrites += 1;
+        durableState.questWrites += 1;
+        durableState.activityWrites += 1;
+        return Promise.reject(new Error("blocked historical rematch reached the service"));
+      });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const base = servicesWith({});
+      const currentLockServices = lock === "active-turn"
+        ? {}
+        : duelCombatLockServices(lock);
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          ...currentLockServices,
+          duel: {
+            getTurnBasedRouteForTelegramUser: vi.fn((_telegramUserId, token) => {
+              if (token === "abcDEF12") {
+                return Promise.resolve({
+                  state: "resolved" as const,
+                  session: resolvedX.session,
+                  view: resolvedX.view
+                });
+              }
+              return Promise.resolve({ state: "not-found" as const });
+            }),
+            getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(
+              lock === "active-turn" ? activeY : null
+            ),
+            getByToken: vi.fn((token) => Promise.resolve(
+              token === "duelYABC12" ? activeY : resolvedX.view
+            )),
+            getTurnBasedSessionByToken: vi.fn((token) => Promise.resolve(
+              token === "duelYABC12" ? activeY.session : resolvedX.session
+            )),
+            createRematchForTelegramUser
+          } as unknown as BotServices["duel"],
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+      expect(durableState).toEqual(initialDurableState);
+      expect(markAction).not.toHaveBeenCalled();
+      expect(resolvedX.session.status).toBe("forfeited");
+      expect(resolvedX.session.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      if (lock === "active-turn") {
+        expect(calls.some((call) =>
+          call.method === "editMessageText" && call.payload.message_id === 20
+        )).toBe(true);
+      } else {
+        expect(calls.some((call) =>
+          call.method === "sendMessage" && String(call.payload.text).includes("Бій тримає вас за рукав")
+        )).toBe(true);
+      }
+    }
+  );
 
   it.each([
     ["persistent", "Quick create", "callback", "v1:duel:new"],

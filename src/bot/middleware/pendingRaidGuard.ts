@@ -12,7 +12,8 @@ const HTML_MESSAGE_OPTIONS = {
 export async function editPendingRaidBlockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  tavernRaidService: TavernRaidService
+  tavernRaidService: TavernRaidService,
+  behavior: { preserveCallbackSource?: boolean } = {}
 ): Promise<boolean> {
   const pending = await tavernRaidService.getActivePendingFridayBarrelRaidForTelegramUser(
     telegramUserId
@@ -29,7 +30,11 @@ export async function editPendingRaidBlockIfNeeded(
   };
   if (ctx.callbackQuery) {
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, text, options);
+    if (behavior.preserveCallbackSource) {
+      await ctx.reply(text, options);
+    } else {
+      await safeEditMessageText(ctx, text, options);
+    }
   } else {
     await ctx.reply(text, options);
   }

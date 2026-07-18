@@ -72,25 +72,21 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
           services.duel
         )
       : null;
-    const isTurnBasedCardRoute = parsedDuelCallback.ok &&
-      isTurnBasedDuelCardCallback(parsedDuelCallback.value);
-    if (
-      cardRoute &&
-      (
-        (isTurnBasedCardRoute && (cardRoute.state === "active" || cardRoute.sourceIsCanonical)) ||
-        (cardRoute.state === "resolved" && cardRoute.sourceIsCanonical)
-      )
-    ) {
-      rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
-      await next();
-      return;
-    }
+    const preservesHistoricalCanonicalSource =
+      cardRoute?.state === "resolved" && cardRoute.sourceIsCanonical;
 
     const duelRouteToken = getDuelRouteToken(ctx);
     const precheckedActiveDuel = duelRouteToken
       ? await getActiveTurnBasedDuel(telegramUserId, services)
       : undefined;
     if (duelRouteToken && precheckedActiveDuel?.challenge.inviteToken === duelRouteToken) {
+      if (
+        parsedDuelCallback.ok &&
+        cardRoute?.state === "active" &&
+        isTurnBasedDuelCardCallback(parsedDuelCallback.value)
+      ) {
+        rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+      }
       await next();
       return;
     }
@@ -104,13 +100,16 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       (ctx.callbackQuery || isDuelRoute(ctx)) &&
       !isPendingRaidSafeCallback(callbackData) &&
       typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
-      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
+        preserveCallbackSource: preservesHistoricalCanonicalSource
+      }))
     ) {
       return;
     }
 
     if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services, {
       refreshPresence: !isDuelRoute(ctx),
+      preserveCallbackSource: preservesHistoricalCanonicalSource,
       ...(duelRouteToken ? { activeDuel: precheckedActiveDuel ?? null } : {})
     })) {
       return;
@@ -273,6 +272,7 @@ async function redirectCombatLockIfNeeded(
   services: BotServices,
   options: {
     refreshPresence: boolean;
+    preserveCallbackSource?: boolean;
     activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
   } = { refreshPresence: true }
 ): Promise<boolean> {
@@ -300,7 +300,8 @@ async function redirectCombatLockIfNeeded(
       });
     }
     const messageId = await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
-      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character)
+      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character),
+      preserveCallbackSource: options.preserveCallbackSource
     });
     await recordCombatLockPersistentFightMessage(ctx, services.fight, telegramUserId, lock.session.id, messageId);
     return true;
@@ -324,14 +325,16 @@ async function redirectCombatLockIfNeeded(
 
     if (training?.state === "active") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
     }
 
     if (training?.state === "terminal") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
     }
@@ -340,7 +343,8 @@ async function redirectCombatLockIfNeeded(
       ctx,
       "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
       {
-        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character),
+        preserveCallbackSource: options.preserveCallbackSource
       }
     );
     return true;
@@ -359,7 +363,8 @@ async function redirectCombatLockIfNeeded(
       });
     }
     await sendCombatLockText(ctx, presentCombatLockRedirect(presentFightStart(lock.character)), {
-      reply_markup: buildFightKeyboard(lock.character)
+      reply_markup: buildFightKeyboard(lock.character),
+      preserveCallbackSource: options.preserveCallbackSource
     });
     return true;
   }
@@ -371,7 +376,7 @@ async function redirectPartyBossLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
   services: BotServices,
-  options: { refreshPresence: boolean } = { refreshPresence: true }
+  options: { refreshPresence: boolean; preserveCallbackSource?: boolean } = { refreshPresence: true }
 ): Promise<boolean> {
   if (!services.partyBoss || typeof services.partyBoss.getActiveForTelegramUser !== "function") {
     return false;
@@ -399,7 +404,8 @@ async function redirectPartyBossLockIfNeeded(
         active
       ),
       includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
-    })
+    }),
+    preserveCallbackSource: options.preserveCallbackSource
   });
 
   return true;
@@ -525,14 +531,14 @@ async function answerCombatLockCallback(ctx: Context): Promise<void> {
 async function sendCombatLockText(
   ctx: Context,
   text: string,
-  options: { reply_markup: InlineKeyboard }
+  options: { reply_markup: InlineKeyboard; preserveCallbackSource?: boolean | undefined }
 ): Promise<number | null> {
   const messageOptions = {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: options.reply_markup
   };
 
-  if (ctx.callbackQuery) {
+  if (ctx.callbackQuery && !options.preserveCallbackSource) {
     if (getCallbackMessageFreshness(ctx) === "stale") {
       const message = await ctx.reply(text, messageOptions);
       return message.message_id;
