@@ -279,6 +279,10 @@ export function presentDuelRematch(
     ].join("\n");
   }
 
+  if (result.state === "busy") {
+    return "⚔️ Спершу завершіть поточний бій, тоді реванш знову дочекається своєї черги.";
+  }
+
   return presentPendingDuel(result, options);
 }
 

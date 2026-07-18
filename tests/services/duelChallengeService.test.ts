@@ -891,6 +891,39 @@ describe("DuelChallengeService", () => {
     expect(rematch.challenge.inviteToken).not.toBe(created.challenge.inviteToken);
   });
 
+  it("keeps a late combat-blocked rematch non-mutating after the read-only resource preview", async () => {
+    const world = new FakeDuelWorld();
+    world.addCharacter(1n, {
+      hpCurrent: 1,
+      hpMax: 24,
+      hpRegenAt: new Date("2026-06-17T17:00:00.000Z")
+    });
+    world.addCharacter(2n);
+    const service = buildService(world);
+    const created = await service.createOpenChallengeForTelegramUser(1n, {
+      ignoreResourceWarning: true
+    });
+    if (created.state !== "pending") {
+      throw new Error(`Expected pending invite, got ${created.state}`);
+    }
+    await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
+      confirmed: true,
+      ignoreResourceWarning: true
+    });
+    world.resourceUpdates.length = 0;
+    world.lateRematchBusyCharacterId = "character-1";
+    const before = structuredClone(world.characters.get(1n));
+    const challengeCount = world.challenges.size;
+
+    await expect(service.createRematchForTelegramUser(1n, created.challenge.inviteToken, {
+      ignoreResourceWarning: true
+    })).resolves.toEqual({ state: "busy" });
+
+    expect(world.resourceUpdates).toHaveLength(0);
+    expect(world.challenges.size).toBe(challengeCount);
+    expect(world.characters.get(1n)).toEqual(before);
+  });
+
   it("allows another rematch from a resolved rematch result", async () => {
     const world = new FakeDuelWorld();
     world.addCharacter(1n);
@@ -2333,6 +2366,7 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
   readonly busyCharacterIds = new Set<string>();
   readonly nearbyTargets = new FakeNearbyDuelTargetValidator();
   failNextResourceUpdate = false;
+  lateRematchBusyCharacterId: string | null = null;
   failNextTurnUpdateWithConcurrentOpponentChoice = false;
   turnUpdateAttempts = 0;
   resolvedRoundLookupCount = 0;
@@ -2434,6 +2468,26 @@ class FakeDuelWorld implements DuelChallengeRepository, CharacterRepository {
     this.challenges.set(input.inviteToken, challenge);
 
     return Promise.resolve(challenge);
+  }
+
+  async createTargetedRematchForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: { inviteToken: string; mode?: "quick" | "turn-based"; contextChatId?: bigint | null; expiresAt: Date },
+    resourceUpdate?: UpdateCharacterResourcesInput
+  ) {
+    if (this.lateRematchBusyCharacterId) {
+      return { record: null, busyCharacterId: this.lateRematchBusyCharacterId };
+    }
+    if (resourceUpdate) {
+      const updated = await this.updateResourcesForTelegramUser(telegramUserId, resourceUpdate);
+      if (!updated) {
+        return { record: null, resourceConflict: true };
+      }
+    }
+    return {
+      record: await this.createTargetedForTelegramUser(telegramUserId, targetCharacterId, input)
+    };
   }
 
   findCharacterByTelegramUser(

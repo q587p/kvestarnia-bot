@@ -6409,7 +6409,7 @@ describe("scene callback HTML options", () => {
       servicesWith({
         duel: {
           getTurnBasedRouteForTelegramUser,
-          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(active),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
           getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
           getByToken: vi.fn().mockResolvedValue(resolved.view),
           resolveTurnBasedActionForTelegramUser
@@ -6580,6 +6580,171 @@ describe("scene callback HTML options", () => {
       }
     }
   );
+
+  it.each([
+    ["a newer turn duel", "rematch"],
+    ["a newer turn duel", "rematch-risk"],
+    ["persistent combat", "rematch"],
+    ["persistent combat", "rematch-risk"],
+    ["Training", "rematch"],
+    ["Training", "rematch-risk"],
+    ["party-boss combat", "rematch"],
+    ["party-boss combat", "rematch-risk"]
+  ] as const)(
+    "keeps historical duel X unchanged when %s acquires its lease after the %s middleware precheck",
+    async (_lock, rematchKind) => {
+      const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+      const durableState = {
+        characterResources: { hp: 7, mana: 3 },
+        recoveryAnchors: 0,
+        notifications: 0,
+        challengeWrites: 0,
+        questWrites: 0,
+        activityWrites: 0
+      };
+      const before = structuredClone(durableState);
+      const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+        .mockResolvedValue({ state: "busy" });
+      const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+      const getActiveTurnBasedForTelegramUser = vi.fn().mockResolvedValue(null);
+      const getFightOverviewForTelegramUser = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        character,
+        questProgress: null
+      });
+      const getActiveForTelegramUser = vi.fn().mockResolvedValue(null);
+      const base = servicesWith({});
+      const calls = await captureApiCalls(
+        `v1:duel:${rematchKind}:abcDEF12`,
+        servicesWith({
+          duel: {
+            getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+              state: "resolved" as const,
+              session: resolvedX.session,
+              view: resolvedX.view
+            }),
+            getActiveTurnBasedForTelegramUser,
+            createRematchForTelegramUser
+          } as unknown as BotServices["duel"],
+          fight: { getFightOverviewForTelegramUser } as unknown as BotServices["fight"],
+          partyBoss: {
+            getActiveForTelegramUser,
+            areDevHelpersEnabled: () => false
+          } as unknown as BotServices["partyBoss"],
+          presence: { ...base.presence, markAction }
+        }),
+        { messageResults: true }
+      );
+
+      const rematchCallOrder = createRematchForTelegramUser.mock.invocationCallOrder[0];
+      expect(getActiveTurnBasedForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(getActiveForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(getFightOverviewForTelegramUser.mock.invocationCallOrder[0]).toBeLessThan(rematchCallOrder!);
+      expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+      expect(durableState).toEqual(before);
+      expect(markAction).not.toHaveBeenCalled();
+      expect(calls.some((call) =>
+        call.method === "editMessageText" && call.payload.message_id === 10
+      )).toBe(false);
+      expect(resolvedX.session.status).toBe("forfeited");
+      expect(resolvedX.session.challengerMessageId).toBe(10);
+      expect(JSON.stringify(buildDuelResultKeyboard("abcDEF12", "turn-based").inline_keyboard))
+        .toContain("v1:duel:rematch:abcDEF12");
+    }
+  );
+
+  it.each([
+    ["rematch", "v1:duel:rematch:abcDEF12"],
+    ["rematch-risk", "v1:duel:rematch-risk:abcDEF12"]
+  ])("suppresses the late-Friday heartbeat and preserves terminal X for %s", async (_route, callbackData) => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingFriday = vi.fn()
+      .mockResolvedValueOnce({ state: "none" as const })
+      .mockResolvedValueOnce({
+        state: "pending" as const,
+        character,
+        availableAt: new Date("2026-07-18T12:13:00.000Z"),
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const createRematchForTelegramUser = vi.fn();
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+    const calls = await captureApiCalls(
+      callbackData,
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser: pendingFriday
+        } as unknown as BotServices["tavern"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true }
+    );
+
+    expect(pendingFriday).toHaveBeenCalledTimes(2);
+    expect(createRematchForTelegramUser).not.toHaveBeenCalled();
+    expect(markAction).not.toHaveBeenCalled();
+    expect(calls.some((call) =>
+      call.method === "editMessageText" && call.payload.message_id === 10
+    )).toBe(false);
+    expect(calls.some((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Бочка")
+    )).toBe(true);
+    expect(resolvedX.session.challengerMessageId).toBe(10);
+  });
+
+  it("records exactly one neutral heartbeat for an allowed outside-combat rematch", async () => {
+    const resolvedX = resolvedTurnBasedDuel(activeTurnBasedDuel({ challengerMessageId: 10 }));
+    const pendingChallenge = {
+      ...resolvedX.view.challenge,
+      id: "allowed-rematch",
+      inviteToken: "allowedABC12",
+      status: "pending" as const,
+      resolvedAt: null,
+      result: null,
+      expiresAt: new Date("2026-07-18T12:13:00.000Z")
+    };
+    const createRematchForTelegramUser = vi.fn<DuelChallengeService["createRematchForTelegramUser"]>()
+      .mockResolvedValue({
+        state: "pending",
+        challenge: pendingChallenge,
+        challenger: resolvedX.view.challenger,
+        challengerResourceWarning: null,
+        expiresAt: pendingChallenge.expiresAt,
+        now: new Date("2026-07-18T12:00:00.000Z")
+      });
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
+    const base = servicesWith({});
+
+    await captureApiCalls(
+      "v1:duel:rematch:abcDEF12",
+      servicesWith({
+        duel: {
+          getTurnBasedRouteForTelegramUser: vi.fn().mockResolvedValue({
+            state: "resolved" as const,
+            session: resolvedX.session,
+            view: resolvedX.view
+          }),
+          getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
+          createRematchForTelegramUser
+        } as unknown as BotServices["duel"],
+        presence: { ...base.presence, markAction }
+      }),
+      { messageResults: true }
+    );
+
+    expect(createRematchForTelegramUser).toHaveBeenCalledOnce();
+    expect(markAction).toHaveBeenCalledOnce();
+    expect(markAction.mock.calls[0]?.[0].user.telegramUserId).toBe(42n);
+  });
 
   it.each([
     ["persistent", "Quick create", "callback", "v1:duel:new"],

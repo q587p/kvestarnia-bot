@@ -27,7 +27,7 @@ describe("handleDuelCallback", () => {
     const service = serviceWith({
       createOpenChallengeForTelegramUser
     });
-    const markAction = vi.fn().mockResolvedValue(undefined);
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
     const { ctx, editMessageText, reply } = createCallbackContext(42);
 
     await handleDuelCallback(ctx, { type: "new" }, service, {
@@ -1615,7 +1615,7 @@ describe("handleDuelCallback", () => {
       expiresAt: EXPIRES_AT,
       now: NOW
     });
-    const markAction = vi.fn().mockResolvedValue(undefined);
+    const markAction = vi.fn<PresenceService["markAction"]>().mockResolvedValue(undefined);
     const service = serviceWith({
       createRematchForTelegramUser
     });
@@ -1630,7 +1630,8 @@ describe("handleDuelCallback", () => {
       contextChatId: -100n,
       ignoreResourceWarning: false
     });
-    expect(markAction).not.toHaveBeenCalled();
+    expect(markAction).toHaveBeenCalledOnce();
+    expect(markAction.mock.calls[0]?.[0].user.telegramUserId).toBe(42n);
     expect(messageText(editMessageText)).toContain("Виклик уже на столі");
     expect(messageText(editMessageText)).toContain("Окреме повідомлення з інвайтом можна переслати в приват або чат.");
     expect(messageText(editMessageText)).not.toContain("Посилання для копіювання ще не зібралося");

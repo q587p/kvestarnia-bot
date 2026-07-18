@@ -211,8 +211,19 @@ export async function handleDuelCallback(
       currentTurnDuelRoute.sourceIsCanonical ||
       observedTurnDuelRoute?.token === currentTurnDuelRoute.token
     );
+  const isResolvedCanonicalRematch =
+    preservesResolvedCanonical &&
+    (callback.type === "rematch" || callback.type === "rematch-risk");
+  if (
+    isResolvedCanonicalRematch &&
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "reply")
+  ) {
+    await answerCallback();
+    return;
+  }
   const pendingRaidProtectsResolvedCanonical =
     preservesResolvedCanonical &&
+    !isResolvedCanonicalRematch &&
     !isTurnBasedDuelCardCallback(callback) &&
     typeof options.tavernRaid?.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
     (await options.tavernRaid.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId)).state === "pending";
@@ -545,10 +556,17 @@ export async function handleDuelCallback(
       ignoreResourceWarning: callback.type === "rematch-risk"
     });
 
+    if (result.state === "busy") {
+      await answerCallback({ text: "Спершу завершіть поточний бій." });
+      return;
+    }
+
     if (result.state === "not-participant") {
       await answerCallback({ text: "Реванш можуть кинути тільки учасники цієї дуелі." });
       return;
     }
+
+    await markNeutralDuelPresence(ctx, options.presence);
 
     const inviteUrl = getInviteUrl(options.botUsername, result);
 

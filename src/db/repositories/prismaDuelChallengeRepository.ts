@@ -11,11 +11,13 @@ import type {
   DuelResultParticipantSnapshot,
   DuelResultProgressionBudget,
   DuelResultPayload,
+  DuelRematchCreateResult,
   CreateDuelChallengeInput,
   StartTurnBasedDuelSessionInput,
   UpdateTurnBasedDuelSessionInput,
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
+import type { UpdateCharacterResourcesInput } from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import {
   getCombatMantokAbilityGrantsForEquippedItems,
@@ -56,6 +58,18 @@ type DuelCombatSessionWithChallenge =
 class QuickDuelCombatBlockedError extends Error {
   constructor(readonly characterId: string) {
     super("quick-duel-combat-blocked");
+  }
+}
+
+class DuelRematchCombatBlockedError extends Error {
+  constructor(readonly characterId: string) {
+    super("duel-rematch-combat-blocked");
+  }
+}
+
+class DuelRematchResourceConflictError extends Error {
+  constructor() {
+    super("duel-rematch-resource-conflict");
   }
 }
 
@@ -144,6 +158,143 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     return this.findByToken(challenge.inviteToken);
+  }
+
+  async createTargetedRematchForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: CreateDuelChallengeInput,
+    resourceUpdate?: UpdateCharacterResourcesInput
+  ): Promise<DuelRematchCreateResult> {
+    try {
+      const transition = await this.prisma.$transaction(async (tx) => {
+        const [challenger, target] = await Promise.all([
+          tx.character.findFirst({
+            where: { user: { telegramUserId } },
+            select: { id: true }
+          }),
+          tx.character.findUnique({
+            where: { id: targetCharacterId },
+            select: { id: true }
+          })
+        ]);
+
+        if (!challenger || !target || challenger.id === target.id) {
+          return { inviteToken: null };
+        }
+
+        const legacySoloBlocker = await tx.soloCombatSession.findFirst({
+          where: { characterId: challenger.id, status: "active" },
+          select: { characterId: true }
+        });
+        if (legacySoloBlocker) {
+          return {
+            inviteToken: null,
+            busyCharacterId: legacySoloBlocker.characterId
+          };
+        }
+
+        const leaseReferenceId = `rematch:${input.inviteToken}`;
+        try {
+          await tx.activeCombatLease.create({
+            data: {
+              characterId: challenger.id,
+              kind: "duel-rematch-create",
+              referenceId: leaseReferenceId
+            }
+          });
+        } catch (error) {
+          if (isUniqueConstraintError(error)) {
+            throw new DuelRematchCombatBlockedError(challenger.id);
+          }
+          throw error;
+        }
+
+        if (resourceUpdate) {
+          const updated = await tx.character.updateMany({
+            where: {
+              id: challenger.id,
+              ...(resourceUpdate.expected
+                ? {
+                    hpCurrent: resourceUpdate.expected.hpCurrent,
+                    manaCurrent: resourceUpdate.expected.manaCurrent,
+                    ...(resourceUpdate.expected.hpRegenAt === undefined
+                      ? {}
+                      : { hpRegenAt: resourceUpdate.expected.hpRegenAt }),
+                    ...(resourceUpdate.expected.manaRegenAt === undefined
+                      ? {}
+                      : { manaRegenAt: resourceUpdate.expected.manaRegenAt })
+                  }
+                : {})
+            },
+            data: {
+              hpCurrent: resourceUpdate.hpCurrent,
+              manaCurrent: resourceUpdate.manaCurrent,
+              hpRegenAt: resourceUpdate.hpRegenAt,
+              manaRegenAt: resourceUpdate.manaRegenAt
+            }
+          });
+
+          if (updated.count !== 1) {
+            throw new DuelRematchResourceConflictError();
+          }
+
+          if (
+            this.hpRecoveryProducer.isEnabled() &&
+            resourceUpdate.hpMax !== undefined &&
+            resourceUpdate.hpCurrent >= resourceUpdate.hpMax
+          ) {
+            await this.hpRecoveryProducer.record(
+              tx,
+              challenger.id,
+              resourceUpdate.hpRegenAt,
+              "suppress",
+              { errorCode: "lazy-sync-full" }
+            );
+          }
+        }
+
+        const challenge = await tx.duelChallenge.create({
+          data: {
+            challengerCharacterId: challenger.id,
+            targetCharacterId: target.id,
+            contextChatId: input.contextChatId ?? null,
+            inviteToken: input.inviteToken,
+            mode: input.mode ?? "quick",
+            expiresAt: input.expiresAt
+          }
+        });
+
+        await tx.activeCombatLease.delete({
+          where: { characterId: challenger.id }
+        });
+
+        return { inviteToken: challenge.inviteToken };
+      });
+
+      return {
+        record: transition.inviteToken
+          ? await this.findByToken(transition.inviteToken)
+          : null,
+        ...(transition.busyCharacterId
+          ? { busyCharacterId: transition.busyCharacterId }
+          : {})
+      };
+    } catch (error) {
+      if (error instanceof DuelRematchCombatBlockedError) {
+        return {
+          record: null,
+          busyCharacterId: error.characterId
+        };
+      }
+      if (error instanceof DuelRematchResourceConflictError) {
+        return {
+          record: null,
+          resourceConflict: true
+        };
+      }
+      throw error;
+    }
   }
 
   async findByToken(inviteToken: string): Promise<DuelChallengeRecord | null> {

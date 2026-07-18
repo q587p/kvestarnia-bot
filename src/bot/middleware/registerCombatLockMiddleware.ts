@@ -91,6 +91,17 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       return;
     }
 
+    if (
+      parsedDuelCallback.ok &&
+      cardRoute?.state === "active" &&
+      cardRoute.sourceIsCanonical &&
+      isTurnBasedDuelCardCallback(parsedDuelCallback.value)
+    ) {
+      rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+      await next();
+      return;
+    }
+
     if (!shouldCheckCombatLock(ctx)) {
       await next();
       return;

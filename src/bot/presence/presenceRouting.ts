@@ -58,7 +58,11 @@ export function getCallbackPresenceContext(data: string): PresenceContext | null
     return {};
   }
 
-  if (data.startsWith("v1:duel:accept-risk:")) {
+  if (
+    data.startsWith("v1:duel:accept-risk:") ||
+    data.startsWith("v1:duel:rematch:") ||
+    data.startsWith("v1:duel:rematch-risk:")
+  ) {
     return null;
   }
 

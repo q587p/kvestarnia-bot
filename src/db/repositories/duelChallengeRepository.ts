@@ -1,4 +1,7 @@
-import type { CharacterRecord } from "./characterRepository";
+import type {
+  CharacterRecord,
+  UpdateCharacterResourcesInput
+} from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import type { CharacterStats } from "../../domain/characters/starterStats";
 import type {
@@ -164,6 +167,12 @@ export interface QuickDuelAcceptTransitionResult extends TransitionResult<DuelCh
   busyCharacterId?: string;
 }
 
+export interface DuelRematchCreateResult {
+  record: DuelChallengeRecord | null;
+  busyCharacterId?: string;
+  resourceConflict?: boolean;
+}
+
 export interface UpdateTurnBasedDuelSessionInput {
   state: TurnBasedDuelState;
   status: TurnBasedDuelStatus;
@@ -191,6 +200,13 @@ export interface DuelChallengeRepository {
     targetCharacterId: string,
     input: CreateDuelChallengeInput
   ): Promise<DuelChallengeRecord | null>;
+
+  createTargetedRematchForTelegramUser(
+    telegramUserId: bigint,
+    targetCharacterId: string,
+    input: CreateDuelChallengeInput,
+    resourceUpdate?: UpdateCharacterResourcesInput
+  ): Promise<DuelRematchCreateResult>;
 
   findByToken(inviteToken: string): Promise<DuelChallengeRecord | null>;
 

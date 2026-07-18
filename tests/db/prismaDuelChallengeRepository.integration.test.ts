@@ -148,6 +148,110 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect(after).toEqual(before);
   });
 
+  it.each([
+    ["a newer turn duel", "turn-based-duel"],
+    ["persistent combat", "persistent-fight"],
+    ["Training", "training-doppelganger"],
+    ["party-boss combat", "party-boss"]
+  ])("atomically rejects rematch creation after %s acquires the actor lease", async (_label, leaseKind) => {
+    const token = `rematch-fence-${leaseKind}`;
+    const seeded = await seedPendingChallenge(token, "turn-based");
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: seeded.challenger.id }
+    });
+    const challengeCount = await prisma.duelChallenge.count();
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: seeded.challenger.id,
+        kind: leaseKind,
+        referenceId: `late-${leaseKind}`
+      }
+    });
+
+    await expect(repository.createTargetedRematchForTelegramUser(
+      seeded.challenger.telegramUserId,
+      seeded.target.id,
+      {
+        inviteToken: `${token}-new`,
+        mode: "turn-based",
+        expiresAt: new Date("2026-06-17T18:13:00.000Z")
+      },
+      {
+        hpCurrent: Math.max(0, before.hpCurrent - 1),
+        hpMax: before.hpMax,
+        manaCurrent: Math.max(0, before.manaCurrent - 1),
+        manaMax: before.manaMax,
+        hpRegenAt: new Date("2026-06-17T18:00:00.000Z"),
+        manaRegenAt: new Date("2026-06-17T18:00:00.000Z"),
+        expected: {
+          hpCurrent: before.hpCurrent,
+          manaCurrent: before.manaCurrent,
+          hpRegenAt: before.hpRegenAt,
+          manaRegenAt: before.manaRegenAt
+        }
+      }
+    )).resolves.toEqual({
+      record: null,
+      busyCharacterId: seeded.challenger.id
+    });
+
+    expect(await prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+      .toEqual(before);
+    await expect(prisma.duelChallenge.count()).resolves.toBe(challengeCount);
+    expect(producerRecord).not.toHaveBeenCalled();
+    await prisma.activeCombatLease.delete({ where: { characterId: seeded.challenger.id } });
+  });
+
+  it("commits allowed rematch resource sync and challenge creation under one temporary lease", async () => {
+    const seeded = await seedPendingChallenge("rematch-fence-allowed", "turn-based");
+    const before = await prisma.character.findUniqueOrThrow({
+      where: { id: seeded.challenger.id }
+    });
+    const hpRegenAt = new Date("2026-06-17T18:00:00.000Z");
+    const manaRegenAt = new Date("2026-06-17T18:01:00.000Z");
+
+    const result = await repository.createTargetedRematchForTelegramUser(
+      seeded.challenger.telegramUserId,
+      seeded.target.id,
+      {
+        inviteToken: "rematch-fence-allowed-new",
+        mode: "turn-based",
+        expiresAt: new Date("2026-06-17T18:13:00.000Z")
+      },
+      {
+        hpCurrent: before.hpMax,
+        hpMax: before.hpMax,
+        manaCurrent: before.manaMax,
+        manaMax: before.manaMax,
+        hpRegenAt,
+        manaRegenAt,
+        expected: {
+          hpCurrent: before.hpCurrent,
+          manaCurrent: before.manaCurrent,
+          hpRegenAt: before.hpRegenAt,
+          manaRegenAt: before.manaRegenAt
+        }
+      }
+    );
+
+    expect(result.record).toMatchObject({
+      inviteToken: "rematch-fence-allowed-new",
+      challengerCharacterId: seeded.challenger.id,
+      targetCharacterId: seeded.target.id,
+      status: "pending"
+    });
+    await expect(prisma.character.findUniqueOrThrow({ where: { id: seeded.challenger.id } }))
+      .resolves.toMatchObject({
+        hpCurrent: before.hpMax,
+        manaCurrent: before.manaMax,
+        hpRegenAt,
+        manaRegenAt
+      });
+    await expect(prisma.activeCombatLease.count({ where: { characterId: seeded.challenger.id } }))
+      .resolves.toBe(0);
+    expect(producerRecord).toHaveBeenCalledOnce();
+  });
+
   it("enforces player-action and timeout deadline predicates in CAS updates", async () => {
     const session = await seedActiveSession("deadline-a", new Date("2026-06-17T18:00:23.000Z"));
     const before = await repository.updateTurnBasedIfActiveVersion(session.id, 1, 1, {

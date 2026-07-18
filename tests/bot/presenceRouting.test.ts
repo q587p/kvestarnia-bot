@@ -276,10 +276,12 @@ describe("presence routing", () => {
     expect(getTextPresenceContext("/start duel_turnbased_abc_DEF12")).toEqual({});
   });
 
-  it("keeps duel callbacks neutral while final acceptance defers its heartbeat to the result", () => {
+  it("keeps duel callbacks neutral while final acceptance and rematches defer heartbeat to the result", () => {
     expect(getCallbackPresenceContext("v1:duel:new")).toEqual({});
     expect(getCallbackPresenceContext("v1:duel:view:abc_DEF12")).toEqual({});
     expect(getCallbackPresenceContext("v1:duel:accept-risk:abc_DEF12")).toBeNull();
+    expect(getCallbackPresenceContext("v1:duel:rematch:abc_DEF12")).toBeNull();
+    expect(getCallbackPresenceContext("v1:duel:rematch-risk:abc_DEF12")).toBeNull();
     expect(getCallbackPresenceContext("v1:duel:t:abc_DEF12:2:4:a")).toEqual({});
   });
 

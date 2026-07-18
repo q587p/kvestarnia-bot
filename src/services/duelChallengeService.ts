@@ -130,6 +130,7 @@ export type DuelRematchResult =
   | { state: "not-resolved"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
   | { state: "not-participant"; challenge: DuelChallengeRecord; challenger: CharacterSummary }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
+  | { state: "busy" }
   | ({ state: "pair-limited"; challenge: DuelChallengeRecord } & DuelPairLimit)
   | {
       state: "resource-warning";
@@ -346,12 +347,13 @@ export class DuelChallengeService {
       return { state: "not-participant", challenge: original, challenger };
     }
 
-    const current = await this.syncDuelCharacterForTelegramUser(
+    const resourcePreview = await this.previewDuelCharacterResourceSync(
       telegramUserId,
       currentCharacter,
       now,
       equipmentAt
     );
+    const current = resourcePreview.character;
 
     if (current.level < DUEL_INVITE_MIN_LEVEL) {
       return {
@@ -390,7 +392,7 @@ export class DuelChallengeService {
       };
     }
 
-    const challenge = await this.challenges.createTargetedForTelegramUser(
+    const created = await this.challenges.createTargetedRematchForTelegramUser(
       telegramUserId,
       rematchTarget.id,
       {
@@ -398,8 +400,15 @@ export class DuelChallengeService {
         mode: rematchMode,
         contextChatId: input.contextChatId ?? null,
         expiresAt: new Date(now.getTime() + DUEL_INVITE_TTL_MS)
-      }
+      },
+      resourcePreview.resourceUpdate
     );
+
+    if (created.busyCharacterId || created.resourceConflict) {
+      return { state: "busy" };
+    }
+
+    const challenge = created.record;
 
     if (!challenge) {
       return { state: "not-found" };
@@ -1374,6 +1383,56 @@ export class DuelChallengeService {
       ),
       effectiveSnapshot.activeCosmeticTitleGrantId
     );
+  }
+
+  private async previewDuelCharacterResourceSync(
+    telegramUserId: bigint,
+    character: DuelCharacterSnapshot,
+    now: Date,
+    equipmentAt?: Date
+  ): Promise<{
+    character: DuelistSummary;
+    resourceUpdate?: import("../db/repositories/characterRepository").UpdateCharacterResourcesInput;
+  }> {
+    void equipmentAt;
+    const result = await summarizeAndSyncCharacterResources({
+      characters: this.characters,
+      telegramUserId,
+      character,
+      equippedItems: getEquippedItemContents(character.equipment),
+      ...(character.remortCount !== undefined ? { remortCount: character.remortCount } : {}),
+      now,
+      persist: false
+    });
+    const summary = withActiveCosmeticTitle(
+      withDuelEquipmentAbilityGrantIds(
+        { ...result.character, id: character.id },
+        character
+      ),
+      character.activeCosmeticTitleGrantId
+    );
+
+    return {
+      character: summary,
+      ...(result.regeneration.changed
+        ? {
+            resourceUpdate: {
+              hpCurrent: result.regeneration.resources.hpCurrent,
+              hpMax: result.regeneration.resources.hpMax,
+              manaCurrent: result.regeneration.resources.manaCurrent,
+              manaMax: result.regeneration.resources.manaMax,
+              hpRegenAt: result.regeneration.resources.hpRegenAt ?? now,
+              manaRegenAt: result.regeneration.resources.manaRegenAt ?? now,
+              expected: {
+                hpCurrent: character.hpCurrent,
+                manaCurrent: character.manaCurrent,
+                hpRegenAt: character.hpRegenAt ?? null,
+                manaRegenAt: character.manaRegenAt ?? null
+              }
+            }
+          }
+        : {})
+    };
   }
 
 }
