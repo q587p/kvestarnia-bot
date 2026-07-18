@@ -773,6 +773,94 @@ describe("AdventureService", () => {
     expect(found.dailyActions.records.filter((record) => record.key === ADVENTURE_CHOICE_REROLL_KEY)).toHaveLength(2);
   });
 
+  it("resets an active Adventure claim across an offer boundary and rerolls the current offer", async () => {
+    let currentNow = fixedClock();
+    const initialPeriod = buildAdventurePeriod(currentNow);
+    currentNow = new Date(initialPeriod.expiresAt.getTime() - 1_000);
+    const probe = setup(null, undefined, undefined, { clock: () => currentNow });
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const oldOffer = await readyOffer(probe.service);
+    const selected = await probe.service.selectAdventureProblem(telegramUserId, {
+      periodToken: oldOffer.periodToken,
+      problemId: oldOffer.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected Adventure, got ${selected.state}.`);
+    }
+    await expect(probe.service.completeAdventureApproach(telegramUserId, {
+      periodToken: oldOffer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    })).resolves.toMatchObject({ state: "completed" });
+
+    currentNow = new Date(initialPeriod.expiresAt.getTime() + 1_000);
+    const currentPeriod = buildAdventurePeriod(currentNow);
+    const reset = await probe.service.resetCurrentPeriodForTelegramUser(telegramUserId);
+
+    expect(reset).toMatchObject({ state: "reset" });
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: initialPeriod.storageKey
+    });
+    expect(probe.dailyActions.records).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: ADVENTURE_CHOICE_KEY, localDate: initialPeriod.storageKey })
+    ]));
+    expect(probe.dailyActions.records.some(
+      (record) =>
+        record.key === ADVENTURE_CHOICE_REROLL_KEY &&
+        record.localDate.startsWith(`${currentPeriod.storageKey}:reroll:`)
+    )).toBe(true);
+    const rerolledOffer = await readyOffer(probe.service);
+    expect(rerolledOffer.periodToken).toBe(reset.state === "reset" ? reset.periodToken : "");
+  });
+
+  it("keeps reroll-only reset behavior when there is no active Adventure claim", async () => {
+    const probe = setup();
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const period = buildAdventurePeriod(fixedClock());
+
+    const reset = await probe.service.resetCurrentPeriodForTelegramUser(telegramUserId);
+
+    expect(reset).toMatchObject({ state: "rerolled" });
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: period.storageKey
+    });
+    const rerolledOffer = await readyOffer(probe.service);
+    expect(rerolledOffer.periodToken).toBe(reset.state === "rerolled" ? reset.periodToken : "");
+  });
+
+  it("retains an expired historical Adventure claim during reroll-only reset", async () => {
+    const probe = setup();
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const currentPeriod = buildAdventurePeriod(fixedClock());
+    const historicalPeriod = buildAdventurePeriod(
+      new Date(fixedClock().getTime() - ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000)
+    );
+    probe.dailyActions.add(telegramUserId, {
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: historicalPeriod.storageKey,
+      createdAt: new Date(fixedClock().getTime() - ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000 - 1)
+    });
+
+    await expect(probe.service.resetCurrentPeriodForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "rerolled"
+    });
+
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: currentPeriod.storageKey
+    });
+    expect(probe.dailyActions.records).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: ADVENTURE_CHOICE_KEY, localDate: historicalPeriod.storageKey })
+    ]));
+    await expect(probe.service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready"
+    });
+  });
+
   it("rejects stale period and stale problem callbacks without claiming", async () => {
     const { service, characters, dailyActions } = setup();
     characters.add(telegramUserId, { xp: 25 });

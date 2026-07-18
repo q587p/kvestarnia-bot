@@ -846,10 +846,17 @@ export class AdventureService {
       return { state: "unavailable" };
     }
 
-    const period = buildAdventurePeriod(this.clock());
+    const now = this.clock();
+    const period = buildAdventurePeriod(now);
+    const latest = await this.dailyActions.findLatestForTelegramUser(telegramUserId, {
+      key: ADVENTURE_CHOICE_KEY
+    });
+    const activeClaim = latest && getAdventureCooldownAvailableAt(latest) > now
+      ? latest
+      : null;
     const result = await this.dailyActions.deleteForTelegramUser(telegramUserId, {
       key: ADVENTURE_CHOICE_KEY,
-      localDate: period.storageKey
+      localDate: activeClaim?.localDate ?? period.storageKey
     });
 
     if (result === "no-character") {

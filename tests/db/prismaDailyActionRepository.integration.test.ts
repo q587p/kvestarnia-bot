@@ -52,22 +52,34 @@ describe("PrismaDailyActionRepository integration", () => {
     const beforeBoundary = new Date(period.expiresAt.getTime() - 1_000);
     const afterBoundary = new Date(period.expiresAt.getTime() + 1_000);
     const nextPeriod = buildAdventurePeriod(afterBoundary);
-    const firstLockAcquired = deferred<void>();
-    const secondClaimStarted = deferred<void>();
+    const firstSerializationWriteCompleted = deferred<void>();
+    const releaseFirstTransaction = deferred<void>();
+    const secondTransactionSubmitted = deferred<void>();
+    const secondSerializationWriteReached = deferred<void>();
     const firstClientWithLockBarrier = firstPrisma.$extends({
       query: {
         character: {
           async update({ args, query }) {
             const character = await query(args);
-            firstLockAcquired.resolve();
-            await secondClaimStarted.promise;
+            firstSerializationWriteCompleted.resolve();
+            await releaseFirstTransaction.promise;
             return character;
           }
         }
       }
     }) as unknown as PrismaClient;
+    const secondClientWithLockProbe = secondPrisma.$extends({
+      query: {
+        character: {
+          async update({ args, query }) {
+            secondSerializationWriteReached.resolve();
+            return query(args);
+          }
+        }
+      }
+    }) as unknown as PrismaClient;
     const firstRepository = new PrismaDailyActionRepository(firstClientWithLockBarrier);
-    const secondRepository = new PrismaDailyActionRepository(secondPrisma);
+    const secondRepository = new PrismaDailyActionRepository(secondClientWithLockProbe);
     const trackedAchievementEvents: AchievementEvent[] = [];
     const trackEventSafely = vi.fn((input: AchievementEvent) => {
       trackedAchievementEvents.push(input);
@@ -80,10 +92,9 @@ describe("PrismaDailyActionRepository integration", () => {
       repository: PrismaDailyActionRepository,
       localDate: string,
       now: Date,
-      onStart?: () => void
+      onTransactionSubmitted?: () => void
     ): Promise<ClaimDailyActionResult | null> => {
-      onStart?.();
-      const result = await repository.claimForTelegramUser(telegramUserId, {
+      const resultPromise = repository.claimForTelegramUser(telegramUserId, {
         key: ADVENTURE_CHOICE_KEY,
         localDate,
         rewardXp: 7,
@@ -93,6 +104,8 @@ describe("PrismaDailyActionRepository integration", () => {
         itemGrants: [{ itemId, quantity: 2 }],
         rollingCooldown: { now, durationMs: ADVENTURE_CHOICE_COOLDOWN_MS }
       });
+      onTransactionSubmitted?.();
+      const result = await resultPromise;
 
       if (result?.state === "created") {
         await trackRewardAchievementsSafely(achievements, {
@@ -113,14 +126,27 @@ describe("PrismaDailyActionRepository integration", () => {
 
     expect(nextPeriod.storageKey).not.toBe(period.storageKey);
     const firstClaim = claim(firstRepository, period.storageKey, beforeBoundary);
-    await firstLockAcquired.promise;
+    await firstSerializationWriteCompleted.promise;
     const secondClaim = claim(
       secondRepository,
       nextPeriod.storageKey,
       afterBoundary,
-      () => secondClaimStarted.resolve()
+      () => secondTransactionSubmitted.resolve()
     );
-    const [firstResult, secondResult] = await Promise.all([firstClaim, secondClaim]);
+    await secondTransactionSubmitted.promise;
+
+    // Prisma's SQLite connector opens interactive transactions with BEGIN IMMEDIATE.
+    // The second real client therefore queues before its callback and query extensions
+    // can run while the first transaction holds the writer lock. Requiring both update
+    // hooks before releasing this barrier would deadlock instead of modeling production.
+    releaseFirstTransaction.resolve();
+    const concurrentClaims = Promise.all([firstClaim, secondClaim]).catch((error: unknown) => {
+      throw new Error("Concurrent Adventure claims surfaced a Prisma transaction error.", {
+        cause: error
+      });
+    });
+    const [firstResult, secondResult] = await concurrentClaims;
+    await secondSerializationWriteReached.promise;
 
     expect(firstResult?.state).toBe("created");
     expect(secondResult?.state).toBe("existing");
