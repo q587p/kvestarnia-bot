@@ -144,7 +144,7 @@ export interface DailyActionRepository {
     input: { key: string; localDate: string }
   ): Promise<DailyActionRecord | null>;
 
-  findLatestForTelegramUser?(
+  findLatestForTelegramUser(
     telegramUserId: bigint,
     input: { key: string }
   ): Promise<DailyActionRecord | null>;

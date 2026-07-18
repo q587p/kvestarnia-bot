@@ -442,7 +442,6 @@ export class AdventureService {
     };
     const activeCooldown = await this.findActiveAdventureCooldown(
       telegramUserId,
-      period,
       now
     );
 
@@ -942,7 +941,6 @@ export class AdventureService {
 
     const activeCooldown = await this.findActiveAdventureCooldown(
       telegramUserId,
-      currentPeriod,
       now
     );
 
@@ -966,17 +964,11 @@ export class AdventureService {
 
   private async findActiveAdventureCooldown(
     telegramUserId: bigint,
-    period: AdventurePeriod,
     now: Date
   ): Promise<{ availableAt: Date } | null> {
-    const latest = this.dailyActions.findLatestForTelegramUser
-      ? await this.dailyActions.findLatestForTelegramUser(telegramUserId, {
-          key: ADVENTURE_CHOICE_KEY
-        })
-      : await this.dailyActions.findForTelegramUser(telegramUserId, {
-          key: ADVENTURE_CHOICE_KEY,
-          localDate: period.storageKey
-        });
+    const latest = await this.dailyActions.findLatestForTelegramUser(telegramUserId, {
+      key: ADVENTURE_CHOICE_KEY
+    });
 
     if (!latest) {
       return null;

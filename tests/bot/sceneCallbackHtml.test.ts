@@ -632,7 +632,8 @@ describe("scene callback HTML options", () => {
         createdAt: new Date("2026-06-12T10:30:00.000Z")
       };
       const dailyActions: DailyActionRepository = {
-        findForTelegramUser: async () => {
+        findForTelegramUser: () => Promise.resolve(null),
+        findLatestForTelegramUser: async () => {
           preflightReads += 1;
           if (preflightReads === 2) {
             releasePreflights();
@@ -802,7 +803,8 @@ describe("scene callback HTML options", () => {
       createdAt: new Date("2026-06-12T10:30:00.000Z")
     };
     const dailyActions: DailyActionRepository = {
-      findForTelegramUser: async () => {
+      findForTelegramUser: () => Promise.resolve(null),
+      findLatestForTelegramUser: async () => {
         preflightReads += 1;
         if (preflightReads === 1) {
           releaseLoserPreflight();
