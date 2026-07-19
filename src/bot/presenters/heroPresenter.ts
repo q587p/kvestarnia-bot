@@ -14,6 +14,8 @@ import { getLocationName } from "../../services/presenceService";
 import { escapeHtml } from "./telegramHtml";
 import { presentLevelBonus } from "./levelGrowthPresenter";
 import { presentHeroEquipmentEffectLines } from "./itemEffectPresenter";
+import { presentActiveBardInspirationBuff } from "./bardInspirationPresenter";
+import { presentTimedStatusLine } from "./timedStatusPresenter";
 import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
 export function presentHero(
@@ -68,29 +70,58 @@ export function presentHero(
     ...(equipmentActionLine ? [equipmentActionLine] : [])
   ];
   const resourceRecoveryLines = presentResourceRecovery(summary);
-  const activeDrinkLine = presentActiveDrink(options.activeDrink ?? null);
-  const activePriestBlessingLine = presentActivePriestBlessing(options.activePriestBlessing ?? null);
   const activeVarenykSated = options.activeVarenykSated &&
     options.activeVarenykSated.expiresAt.getTime() > Date.now()
     ? options.activeVarenykSated
     : null;
-  const activeVarenykSatedLine = presentActiveVarenykSated(activeVarenykSated);
+  const activeBardInspiration = options.activeBardInspiration &&
+    options.activeBardInspiration.expiresAt.getTime() > Date.now()
+    ? options.activeBardInspiration
+    : null;
+  const equipmentAttunements = summary.equipmentAttunements ?? [];
+  const activeTimedStatusCount = [
+    options.activeDrink,
+    options.activePriestBlessing,
+    activeVarenykSated,
+    activeBardInspiration,
+    ...equipmentAttunements
+  ].filter(Boolean).length;
+  const showIndividualStatusLabels = activeTimedStatusCount <= 1;
+  const activeDrinkLine = presentActiveDrink(
+    options.activeDrink ?? null,
+    showIndividualStatusLabels
+  );
+  const activePriestBlessingLine = presentActivePriestBlessing(
+    options.activePriestBlessing ?? null,
+    showIndividualStatusLabels
+  );
+  const activeVarenykSatedLine = presentActiveVarenykSated(
+    activeVarenykSated,
+    showIndividualStatusLabels
+  );
   const varenykSatedWaitLine = !activeVarenykSated && options.varenykSatedAvailableAt
     ? `🍽️ Нагодувати знову через <b>${formatRemainingMinutes(options.varenykSatedAvailableAt)}</b>.`
     : null;
-  const activeBardInspirationLine = options.activeBardInspiration &&
-    options.activeBardInspiration.expiresAt.getTime() > Date.now()
-    ? `✨ <b>Натхнення</b>: +${options.activeBardInspiration.accuracyBonusPp} до влучання · ще ${formatRemainingMinutes(options.activeBardInspiration.expiresAt)}.`
+  const activeBardInspirationLine = activeBardInspiration
+    ? presentActiveBardInspirationBuff(
+        activeBardInspiration,
+        new Date(),
+        { showLabel: showIndividualStatusLabels }
+      )
     : null;
-  const activeStatusLines = [
+  const activeTimedStatusLines = [
     activeDrinkLine,
     activePriestBlessingLine,
     activeVarenykSatedLine,
     activeBardInspirationLine,
-    varenykSatedWaitLine,
-    ...presentEquipmentAttunementLines(summary)
+    ...presentEquipmentAttunementLines(equipmentAttunements, showIndividualStatusLabels)
   ]
     .filter((line): line is string => Boolean(line));
+  const activeStatusLines = [
+    ...(activeTimedStatusLines.length > 1 ? ["<b>Стани:</b>"] : []),
+    ...activeTimedStatusLines,
+    ...(varenykSatedWaitLine ? [varenykSatedWaitLine] : [])
+  ];
 
   return [
     ...(options.recoveryNotice
@@ -175,19 +206,38 @@ function presentResourceRecovery(summary: CharacterSummary): string[] {
   return lines;
 }
 
-function presentActivePriestBlessing(blessing: HeroActivePriestBlessing | null): string | null {
+function presentActivePriestBlessing(
+  blessing: HeroActivePriestBlessing | null,
+  showLabel = true
+): string | null {
   if (!blessing) {
     return null;
   }
 
-  return `✨ Стан: <b>Жрецьке благословення</b> ще <b>${formatRemainingMinutes(blessing.expiresAt)}</b> — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>.`;
+  return presentTimedStatusLine({
+    emoji: "✨",
+    name: "Жрецьке благословення",
+    remaining: formatRemainingMinutes(blessing.expiresAt),
+    ...(showLabel ? {} : { label: null }),
+    tailHtml: ` — дає <b>+${blessing.bonusAmount} ${presentStatBonusLabel(blessing.bonusStat)}</b>`
+  });
 }
 
-function presentActiveVarenykSated(sated: HeroActiveVarenykSated | null): string | null {
-  return sated ? presentActiveVarenykSatedBuff(sated.expiresAt, sated.rank) : null;
+function presentActiveVarenykSated(
+  sated: HeroActiveVarenykSated | null,
+  showLabel = true
+): string | null {
+  return sated
+    ? presentActiveVarenykSatedBuff(
+        sated.expiresAt,
+        sated.rank,
+        new Date(),
+        showLabel ? "Стан: <b>Ситий</b>" : "<b>Ситий</b>"
+      )
+    : null;
 }
 
-function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
+function presentActiveDrink(drink: HeroActiveDrink | null, showLabel = true): string | null {
   if (!drink) {
     return null;
   }
@@ -195,13 +245,25 @@ function presentActiveDrink(drink: HeroActiveDrink | null): string | null {
   const effects = presentActiveDrinkEffects(drink);
   const effectText = effects.length > 0 ? ` — ${effects.join(", ")}` : "";
 
-  return `${drink.emoji} Баф: <b>${escapeHtml(drink.name)}</b> ще <b>${formatRemainingMinutes(drink.expiresAt)}</b>${effectText}.`;
+  return presentTimedStatusLine({
+    emoji: drink.emoji,
+    label: showLabel ? "Баф" : null,
+    name: drink.name,
+    remaining: formatRemainingMinutes(drink.expiresAt),
+    tailHtml: effectText
+  });
 }
 
-function presentEquipmentAttunementLines(summary: CharacterSummary): string[] {
-  return (summary.equipmentAttunements ?? []).map((attunement) =>
-    `✨ Стан: <b>Налаштування на ${escapeHtml(attunement.itemName)}</b> ще <b>${formatRemainingMinutes(attunement.readyAt)}</b>.`
-  );
+function presentEquipmentAttunementLines(
+  attunements: NonNullable<CharacterSummary["equipmentAttunements"]>,
+  showLabel = true
+): string[] {
+  return attunements.map((attunement) => presentTimedStatusLine({
+    emoji: "✨",
+    name: `Налаштування на ${attunement.itemName}`,
+    remaining: formatRemainingMinutes(attunement.readyAt),
+    ...(showLabel ? {} : { label: null })
+  }));
 }
 
 function presentActiveDrinkEffects(drink: HeroActiveDrink): string[] {

@@ -36,7 +36,7 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
-import { getBardInspirationRemainingCombatTurns } from "../../domain/noncombat/bardSupport";
+import { presentActiveBardInspirationCombatState } from "./bardInspirationPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -582,10 +582,8 @@ export function presentPartyBoss(
       if (satedBuff) lines.push(satedBuff);
     }
     if (viewer?.bardInspiration) {
-      const turns = getBardInspirationRemainingCombatTurns(viewer.bardInspiration);
-      if (turns > 0) {
-        lines.push(`✨ <b>Натхнення</b>: +${viewer.bardInspiration.accuracyBonusPp} до влучання · ще ${formatTurns(turns)}.`);
-      }
+      const inspiration = presentActiveBardInspirationCombatState(viewer.bardInspiration);
+      if (inspiration) lines.push(inspiration);
     }
   }
 
