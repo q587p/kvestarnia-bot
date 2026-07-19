@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { DuelChallengeService } from "../../services/duelChallengeService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { PartyBossService } from "../../services/partyBossService";
+import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
 import {
@@ -43,6 +44,7 @@ import {
 export interface StartCommandOptions {
   duel?: DuelChallengeService;
   partyBoss?: PartyBossService;
+  partyRaidChat?: PartyRaidChatService;
   partySessions?: PartySessionService;
   tavernGames?: TavernGameService;
   presence?: PresenceService;
@@ -75,7 +77,8 @@ export function registerStartCommand(
     if (payload.type === "party" && options.partySessions) {
       if (await sendPartyJoinFromStartPayload(ctx, options.partySessions, payload.token, {
         botUsername: options.botUsername,
-        partyBoss: options.partyBoss
+        partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat
       })) {
         return;
       }

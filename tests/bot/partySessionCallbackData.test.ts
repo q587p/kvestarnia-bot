@@ -5,6 +5,8 @@ import {
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
+  makePartyRaidChatComposeCallbackData,
+  makePartyRaidChatOpenCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
   makePartySessionCancelCallbackData,
@@ -64,6 +66,14 @@ describe("party session callback data", () => {
     expect(parsePartySessionCallbackData(makePartyBossJournalCallbackData(token, 12))).toEqual({
       ok: true,
       value: { type: "boss-journal", token, page: 12 }
+    });
+    expect(parsePartySessionCallbackData(makePartyRaidChatOpenCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "raid-chat-open", token }
+    });
+    expect(parsePartySessionCallbackData(makePartyRaidChatComposeCallbackData(token))).toEqual({
+      ok: true,
+      value: { type: "raid-chat-compose", token }
     });
     expect(parsePartySessionCallbackData(makePartySessionShareCallbackData(token))).toEqual({
       ok: true,

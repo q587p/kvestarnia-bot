@@ -4,6 +4,7 @@ import { registerHelpCommand } from "../../src/bot/commands/helpCommand";
 import type { DevGrantService } from "../../src/services/devGrantService";
 import type { DevResetService } from "../../src/services/devResetService";
 import type { PartySessionService } from "../../src/services/partySessionService";
+import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
 import type { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
 
@@ -14,6 +15,7 @@ describe("help command", () => {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
       partySessions: { areDevHelpersEnabled: () => true },
+      partyRaidChat: { areDevHelpersEnabled: () => true },
       tavernGames: { isEnabled: () => true }
     });
 
@@ -41,6 +43,7 @@ describe("help command", () => {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
       partySessions: { areDevHelpersEnabled: () => true },
+      partyRaidChat: { areDevHelpersEnabled: () => true },
       healthRecoveryNotifications: { areDevHelpersEnabled: () => true }
     });
 
@@ -49,6 +52,7 @@ describe("help command", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("🧰 Dev-довідка Квестарні");
     expect(replies[0]).toContain("/dev_party");
+    expect(replies[0]).toContain("/dev_raid_chat");
     expect(replies[0]).toContain("/dev_raid_stop");
     expect(replies[0]).toContain("/dev_reset_korchma_round");
     expect(replies[0]).toContain("/dev_add_xp");
@@ -72,6 +76,7 @@ describe("help command", () => {
 
     expect(replies).toHaveLength(1);
     expect(replies[0]).not.toContain("/dev_party");
+    expect(replies[0]).not.toContain("/dev_raid_chat");
     expect(replies[0]).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });
 });
@@ -82,6 +87,7 @@ function createTestBot(
     devReset: Pick<DevResetService, "isEnabled">;
     devGrant?: Pick<DevGrantService, "isEnabled">;
     partySessions?: Pick<PartySessionService, "areDevHelpersEnabled">;
+    partyRaidChat?: Pick<PartyRaidChatService, "areDevHelpersEnabled">;
     tavernGames?: Pick<TavernGameService, "isEnabled">;
     healthRecoveryNotifications?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled">;
   }
@@ -110,6 +116,7 @@ function createTestBot(
     services.devGrant,
     {
       partySessionService: services.partySessions,
+      partyRaidChatService: services.partyRaidChat,
       tavernGameService: services.tavernGames,
       healthRecoveryNotificationService: services.healthRecoveryNotifications
     }

@@ -1,0 +1,511 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { PrismaClient } from "@prisma/client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
+
+const NOW = new Date("2026-07-20T10:00:00.000Z");
+
+describe("PrismaPartyRaidChatRepository integration", () => {
+  let dir: string;
+  let prisma: PrismaClient;
+  let repository: PrismaPartyRaidChatRepository;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "kvestarnia-raid-chat-"));
+    const databaseUrl = `file:${join(dir, "test.db").replace(/\\/g, "/")}`;
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+    await createLegacyMinimalSchema(prisma);
+    await applyRaidChatMigration(prisma);
+    repository = new PrismaPartyRaidChatRepository(prisma);
+  }, 60_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("accepts an exact durable composer once without bumping gameplay version", async () => {
+    await seedLineage(prisma, "accept", 7001n);
+    const begun = await repository.beginCompose(7001n, "raid-accept", 7001n, NOW);
+    expect(begun.state).toBe("created");
+    if (begun.state !== "created") {
+      return;
+    }
+    await expect(repository.bindComposePrompt(begun.intentId, begun.version, 13, NOW)).resolves.toMatchObject({
+      state: "bound"
+    });
+
+    const [first, replay] = await Promise.all([
+      repository.acceptReply({
+        telegramUserId: 7001n,
+        privateChatId: 7001n,
+        promptMessageId: 13,
+        sourceMessageId: 42,
+        normalizedBody: "Хало",
+        now: NOW
+      }),
+      repository.acceptReply({
+        telegramUserId: 7001n,
+        privateChatId: 7001n,
+        promptMessageId: 13,
+        sourceMessageId: 42,
+        normalizedBody: "Хало",
+        now: NOW
+      })
+    ]);
+
+    expect([first.state, replay.state].sort()).toEqual(["accepted", "already-consumed"]);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "raid-accept" },
+      select: { version: true, chatRevision: true }
+    })).resolves.toEqual({ version: 7, chatRevision: 1 });
+    expect(await prisma.partyRaidChatEntry.count()).toBe(1);
+    await expect(repository.getAuthorizedView(7001n, "raid-accept", NOW)).resolves.toMatchObject({
+      entries: [{ body: "Хало", revision: 1 }]
+    });
+  });
+
+  it("applies duplicate-body before cooldown and keeps outsiders unauthorized", async () => {
+    await seedLineage(prisma, "dedupe", 7002n);
+    await prisma.user.create({ data: { id: "outsider", telegramUserId: 7999n, currentRaidId: "session-dedupe" } });
+    await accept(repository, 7002n, "raid-dedupe", 20, 50, "Йой", NOW);
+    const second = await beginAndBind(repository, 7002n, "raid-dedupe", 21, new Date(NOW.getTime() + 1_000));
+    const duplicateInput = {
+      telegramUserId: 7002n,
+      privateChatId: 7002n,
+      promptMessageId: second,
+      sourceMessageId: 51,
+      normalizedBody: "Йой",
+      now: new Date(NOW.getTime() + 1_000)
+    };
+    await expect(repository.acceptReply(duplicateInput)).resolves.toMatchObject({ state: "duplicate-body" });
+    await expect(repository.acceptReply(duplicateInput)).resolves.toEqual({ state: "already-consumed" });
+    await expect(repository.getAuthorizedView(7999n, "raid-dedupe", NOW)).resolves.toBeNull();
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "raid-dedupe" },
+      select: { chatRevision: true }
+    })).resolves.toEqual({ chatRevision: 1 });
+  });
+
+  it("keeps only 130 stored rows while the newest 13 remain chronological", async () => {
+    await seedLineage(prisma, "cap", 7003n);
+    expect(await repository.devFillForTelegramUser(7003n, 130, NOW)).toBe(130);
+    await accept(
+      repository,
+      7003n,
+      "raid-cap",
+      23,
+      93,
+      "Сто тридцять перший рядок",
+      new Date(NOW.getTime() + 1_000)
+    );
+    expect(await prisma.partyRaidChatEntry.count({ where: { partySessionId: "session-cap" } })).toBe(130);
+    const view = await repository.getAuthorizedView(7003n, "raid-cap", NOW);
+    expect(view?.entries).toHaveLength(13);
+    expect(view?.entries.map((entry) => entry.revision)).toEqual(
+      Array.from({ length: 13 }, (_, index) => 119 + index)
+    );
+  });
+
+  it("keeps only the newest composer generation and honors exact cooldown boundaries", async () => {
+    await seedLineage(prisma, "composer", 7004n);
+    const first = await repository.beginCompose(7004n, "raid-composer", 7004n, NOW);
+    const second = await repository.beginCompose(7004n, "raid-composer", 7004n, NOW);
+    if (first.state !== "created" || second.state !== "created") {
+      throw new Error("Composer setup failed.");
+    }
+    await expect(repository.bindComposePrompt(first.intentId, first.version, 30, NOW)).resolves.toEqual({ state: "stale" });
+    await expect(repository.bindComposePrompt(second.intentId, second.version, 31, NOW)).resolves.toMatchObject({ state: "bound" });
+    await expect(repository.acceptReply({
+      telegramUserId: 7004n,
+      privateChatId: 7004n,
+      promptMessageId: 31,
+      sourceMessageId: 60,
+      normalizedBody: "Перший",
+      now: NOW
+    })).resolves.toMatchObject({ state: "accepted" });
+
+    const beforeBoundary = new Date(NOW.getTime() + 2_999);
+    const throttledPrompt = await beginAndBind(repository, 7004n, "raid-composer", 32, beforeBoundary);
+    await expect(repository.acceptReply({
+      telegramUserId: 7004n,
+      privateChatId: 7004n,
+      promptMessageId: throttledPrompt,
+      sourceMessageId: 61,
+      normalizedBody: "Другий",
+      now: beforeBoundary
+    })).resolves.toMatchObject({ state: "rate-limited", availableAt: new Date(NOW.getTime() + 3_000) });
+
+    await accept(
+      repository,
+      7004n,
+      "raid-composer",
+      33,
+      62,
+      "Другий",
+      new Date(NOW.getTime() + 3_000)
+    );
+  });
+
+  it("keeps a pre-boss terminal transcript for the final joined roster until the exact retention boundary", async () => {
+    await seedLineage(prisma, "terminal", 7005n);
+    await accept(repository, 7005n, "raid-terminal", 34, 63, "Запис", NOW);
+    const retentionUntil = new Date(NOW.getTime() + 13_000);
+    await prisma.partySession.update({
+      where: { id: "session-terminal" },
+      data: { status: "cancelled", raidChatRetentionUntil: retentionUntil }
+    });
+
+    await expect(repository.getAuthorizedView(7005n, "raid-terminal", new Date(retentionUntil.getTime() - 1)))
+      .resolves.toMatchObject({ lifecycle: "terminal", writable: false, entries: [{ body: "Запис" }] });
+    await expect(repository.getAuthorizedView(7005n, "raid-terminal", retentionUntil)).resolves.toBeNull();
+  });
+
+  it("uses a fixed 42-per-93-second lineage window and resets at the exact boundary", async () => {
+    await seedLineage(prisma, "window", 7010n);
+    await prisma.partyRaidChatRateState.create({
+      data: {
+        partySessionId: "session-window",
+        windowStartedAt: NOW,
+        acceptedCount: 42
+      }
+    });
+    const beforeBoundary = new Date(NOW.getTime() + 92_999);
+    const promptMessageId = await beginAndBind(repository, 7010n, "raid-window", 37, beforeBoundary);
+    const input = {
+      telegramUserId: 7010n,
+      privateChatId: 7010n,
+      promptMessageId,
+      sourceMessageId: 66,
+      normalizedBody: "На межі",
+      now: beforeBoundary
+    };
+
+    await expect(repository.acceptReply(input)).resolves.toMatchObject({
+      state: "rate-limited",
+      availableAt: new Date(NOW.getTime() + 93_000)
+    });
+    await expect(repository.acceptReply({
+      ...input,
+      now: new Date(NOW.getTime() + 93_000)
+    })).resolves.toMatchObject({ state: "accepted" });
+    await expect(prisma.partyRaidChatRateState.findUniqueOrThrow({
+      where: { partySessionId: "session-window" },
+      select: { windowStartedAt: true, acceptedCount: true }
+    })).resolves.toEqual({
+      windowStartedAt: new Date(NOW.getTime() + 93_000),
+      acceptedCount: 1
+    });
+  });
+
+  it("parks clean deliveries and preserves the original surface until redaction succeeds", async () => {
+    await seedLineage(prisma, "delivery", 7006n);
+    await accept(repository, 7006n, "raid-delivery", 35, 64, "Рядок", NOW);
+    const delivery = (await repository.listDueDeliveries(NOW, 23))
+      .find((candidate) => candidate.partySessionId === "session-delivery");
+    expect(delivery).toMatchObject({ surfaceMode: "recruiting_embed", redactionRequired: false });
+    await repository.markDeliveryRendered(delivery!.id, delivery!.desiredRevision, NOW);
+    expect((await repository.listDueDeliveries(new Date(NOW.getTime() + 93_000), 23))
+      .some((candidate) => candidate.id === delivery!.id)).toBe(false);
+
+    await prisma.partyRaidChatDeliveryState.updateMany({
+      where: { partySessionId: { not: "session-delivery" } },
+      data: {
+        surfaceMode: "redacted",
+        redactionRequired: false,
+        desiredRevision: 0,
+        renderedRevision: 0,
+        nextAttemptAt: new Date("9999-12-31T23:59:59.999Z")
+      }
+    });
+
+    await expect(repository.markDisabledReferencesForRedaction(new Date(NOW.getTime() + 1), 23)).resolves.toBe(1);
+    await expect(repository.listDueDeliveries(new Date(NOW.getTime() + 1))).resolves.toEqual([
+      expect.objectContaining({ id: delivery!.id, surfaceMode: "recruiting_embed", redactionRequired: true })
+    ]);
+    await repository.markDeliveryRedacted(delivery!.id, "redacted", new Date(NOW.getTime() + 1));
+    await expect(repository.markDisabledReferencesForRedaction(new Date(NOW.getTime() + 2), 23)).resolves.toBe(0);
+  });
+
+  it("cascades the complete transcript state with its party lineage", async () => {
+    await seedLineage(prisma, "cascade", 7007n);
+    await accept(repository, 7007n, "raid-cascade", 36, 65, "До побачення", NOW);
+
+    await prisma.partySession.delete({ where: { id: "session-cascade" } });
+
+    await expect(Promise.all([
+      prisma.partyRaidChatEntry.count({ where: { partySessionId: "session-cascade" } }),
+      prisma.partyRaidChatComposeIntent.count({ where: { partySessionId: "session-cascade" } }),
+      prisma.partyRaidChatAuthorState.count({ where: { partySessionId: "session-cascade" } }),
+      prisma.partyRaidChatRateState.count({ where: { partySessionId: "session-cascade" } }),
+      prisma.partyRaidChatDeliveryState.count({ where: { partySessionId: "session-cascade" } })
+    ])).resolves.toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it("writes typed system events transactionally and deduplicates their source key", async () => {
+    await seedLineage(prisma, "events", 7008n);
+    const writer = new PrismaPartyRaidChatTransactionWriter(true);
+    const input = {
+      partySessionId: "session-events",
+      eventType: "participant.joined" as const,
+      sourceKey: "participant.joined:participant-events",
+      occurredAt: NOW,
+      actorCharacterId: "character-events",
+      actorDisplayName: "Гравець events",
+      actorRemortCount: 0
+    };
+
+    await expect(prisma.$transaction((tx) => writer.append(tx, input))).resolves.toBe(true);
+    await expect(prisma.$transaction((tx) => writer.append(tx, input))).resolves.toBe(false);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: "session-events" },
+      select: { chatRevision: true }
+    })).resolves.toEqual({ chatRevision: 1 });
+
+    await expect(prisma.$transaction(async (tx) => {
+      await writer.append(tx, { ...input, eventType: "ward.placed", sourceKey: "ward.rollback" });
+      throw new Error("rollback");
+    })).rejects.toThrow("rollback");
+    expect(await prisma.partyRaidChatEntry.count({
+      where: { partySessionId: "session-events", sourceKey: "ward.rollback" }
+    })).toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: "session-events" },
+      select: { chatRevision: true }
+    })).resolves.toEqual({ chatRevision: 1 });
+  });
+
+  it("does not create or retain raid chat state for a non-Big-Barrel party", async () => {
+    await seedLineage(prisma, "ordinary", 7009n);
+    await prisma.partySession.update({
+      where: { id: "session-ordinary" },
+      data: { originLocationId: "tavern-hall" }
+    });
+    const writer = new PrismaPartyRaidChatTransactionWriter(true);
+
+    await expect(prisma.$transaction((tx) => writer.append(tx, {
+      partySessionId: "session-ordinary",
+      eventType: "party.created",
+      sourceKey: "ordinary.created",
+      occurredAt: NOW
+    }))).resolves.toBe(false);
+    await prisma.$transaction((tx) => writer.terminalize(tx, "session-ordinary", NOW));
+
+    expect(await prisma.partyRaidChatEntry.count({ where: { partySessionId: "session-ordinary" } })).toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: "session-ordinary" },
+      select: { chatRevision: true, raidChatRetentionUntil: true }
+    })).resolves.toEqual({ chatRevision: 0, raidChatRetentionUntil: null });
+  });
+});
+
+async function seedLineage(prisma: PrismaClient, key: string, telegramUserId: bigint): Promise<void> {
+  const userId = `user-${key}`;
+  const characterId = `character-${key}`;
+  await prisma.user.create({
+    data: {
+      id: userId,
+      telegramUserId,
+      character: {
+        create: {
+          id: characterId,
+          name: `Гравець ${key}`,
+          raceId: "human",
+          classId: "warrior",
+          statsJson: {}
+        }
+      }
+    }
+  });
+  await prisma.partySession.create({
+    data: {
+      id: `session-${key}`,
+      inviteToken: `raid-${key}`,
+      status: "recruiting",
+      leaderCharacterId: characterId,
+      originLocationId: "barrel.big-brother",
+      joinUntilAt: new Date(NOW.getTime() + 93_000),
+      expiresAt: new Date(NOW.getTime() + 93_000),
+      version: 7,
+      participants: {
+        create: {
+          id: `participant-${key}`,
+          characterId,
+          remortCount: 0,
+          status: "joined",
+          joinSource: "dev",
+          joinedAt: NOW,
+          activeMembershipKey: `party-member:${characterId}`,
+          chatId: telegramUserId,
+          messageId: 1
+        }
+      }
+    }
+  });
+}
+
+async function beginAndBind(
+  repository: PrismaPartyRaidChatRepository,
+  telegramUserId: bigint,
+  token: string,
+  promptMessageId: number,
+  now: Date
+): Promise<number> {
+  const begun = await repository.beginCompose(telegramUserId, token, telegramUserId, now);
+  if (begun.state !== "created") {
+    throw new Error(`Composer was not created: ${begun.state}`);
+  }
+  const bound = await repository.bindComposePrompt(begun.intentId, begun.version, promptMessageId, now);
+  if (bound.state !== "bound") {
+    throw new Error("Composer prompt was not bound.");
+  }
+  return promptMessageId;
+}
+
+async function accept(
+  repository: PrismaPartyRaidChatRepository,
+  telegramUserId: bigint,
+  token: string,
+  promptMessageId: number,
+  sourceMessageId: number,
+  body: string,
+  now: Date
+): Promise<void> {
+  await beginAndBind(repository, telegramUserId, token, promptMessageId, now);
+  await expect(repository.acceptReply({
+    telegramUserId,
+    privateChatId: telegramUserId,
+    promptMessageId,
+    sourceMessageId,
+    normalizedBody: body,
+    now
+  })).resolves.toMatchObject({ state: "accepted" });
+}
+
+async function createLegacyMinimalSchema(prisma: PrismaClient): Promise<void> {
+  const statements = [
+    `CREATE TABLE "users" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "telegram_user_id" BIGINT NOT NULL,
+      "username" TEXT,
+      "display_name" TEXT,
+      "language_code" TEXT,
+      "last_action_at" DATETIME,
+      "last_seen_location_id" TEXT,
+      "current_raid_id" TEXT,
+      "current_adventure_id" TEXT,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX "users_telegram_user_id_key" ON "users"("telegram_user_id")`,
+    `CREATE TABLE "characters" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "user_id" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "pronoun" TEXT NOT NULL DEFAULT 'they',
+      "path" TEXT NOT NULL DEFAULT 'boundary',
+      "race_id" TEXT NOT NULL,
+      "class_id" TEXT NOT NULL,
+      "level" INTEGER NOT NULL DEFAULT 1,
+      "xp" INTEGER NOT NULL DEFAULT 0,
+      "gold" INTEGER NOT NULL DEFAULT 0,
+      "hp_current" INTEGER NOT NULL DEFAULT 25,
+      "hp_max" INTEGER NOT NULL DEFAULT 25,
+      "mana_current" INTEGER NOT NULL DEFAULT 10,
+      "mana_max" INTEGER NOT NULL DEFAULT 10,
+      "hp_regen_at" DATETIME,
+      "mana_regen_at" DATETIME,
+      "active_cosmetic_title_grant_id" TEXT,
+      "stats_json" JSONB NOT NULL,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL,
+      CONSTRAINT "characters_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "characters_user_id_key" ON "characters"("user_id")`,
+    `CREATE TABLE "character_remorts" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "token" TEXT NOT NULL,
+      "remort_number" INTEGER NOT NULL,
+      "previous_level" INTEGER NOT NULL,
+      "previous_xp" INTEGER NOT NULL,
+      "previous_gold" INTEGER NOT NULL,
+      "display_name_snapshot" TEXT NOT NULL,
+      "preserved_payload_json" JSONB NOT NULL,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "character_remorts_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE "party_sessions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "invite_token" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'recruiting',
+      "leader_character_id" TEXT NOT NULL,
+      "period_id" TEXT,
+      "origin_location_id" TEXT,
+      "participant_cap" INTEGER NOT NULL DEFAULT 8,
+      "minimum_participants" INTEGER NOT NULL DEFAULT 1,
+      "join_until_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "version" INTEGER NOT NULL DEFAULT 1,
+      "active_leader_key" TEXT,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL,
+      CONSTRAINT "party_sessions_leader_character_id_fkey" FOREIGN KEY ("leader_character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "party_sessions_invite_token_key" ON "party_sessions"("invite_token")`,
+    `CREATE UNIQUE INDEX "party_sessions_active_leader_key_key" ON "party_sessions"("active_leader_key")`,
+    `CREATE TABLE "party_participants" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "session_id" TEXT NOT NULL,
+      "character_id" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'joined',
+      "join_source" TEXT NOT NULL,
+      "joined_at" DATETIME NOT NULL,
+      "left_at" DATETIME,
+      "snapshot_json" JSONB,
+      "chat_id" BIGINT,
+      "message_id" INTEGER,
+      "active_membership_key" TEXT,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL,
+      CONSTRAINT "party_participants_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "party_sessions" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "party_participants_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "party_participants_session_character_key" ON "party_participants"("session_id", "character_id")`,
+    `CREATE UNIQUE INDEX "party_participants_active_membership_key_key" ON "party_participants"("active_membership_key")`,
+    `CREATE TABLE "party_boss_sessions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "party_session_id" TEXT NOT NULL,
+      "leader_character_id" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "turn" INTEGER NOT NULL DEFAULT 1,
+      "version" INTEGER NOT NULL DEFAULT 1,
+      "rules_version" TEXT NOT NULL,
+      "boss_key" TEXT NOT NULL,
+      "state_json" JSONB NOT NULL,
+      "participants_json" JSONB NOT NULL,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL,
+      CONSTRAINT "party_boss_sessions_party_session_id_fkey" FOREIGN KEY ("party_session_id") REFERENCES "party_sessions" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "party_boss_sessions_leader_character_id_fkey" FOREIGN KEY ("leader_character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "party_boss_sessions_party_session_id_key" ON "party_boss_sessions"("party_session_id")`
+  ];
+  for (const statement of statements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  const sql = await readFile(
+    resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"),
+    "utf8"
+  );
+  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+}

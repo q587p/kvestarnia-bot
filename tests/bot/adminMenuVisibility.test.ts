@@ -7,6 +7,7 @@ describe("admin main menu visibility", () => {
     expect(shouldIncludeAdminMainMenu(services({ devReset: true }))).toBe(true);
     expect(shouldIncludeAdminMainMenu(services({ devGrant: true }))).toBe(true);
     expect(shouldIncludeAdminMainMenu(services({ party: true }))).toBe(true);
+    expect(shouldIncludeAdminMainMenu(services({ raidChat: true }))).toBe(true);
     expect(shouldIncludeAdminMainMenu(services({ fightingCorner: true }))).toBe(true);
     expect(shouldIncludeAdminMainMenu(services({ hpRecovery: true }))).toBe(true);
   });
@@ -20,20 +21,22 @@ function services(enabled: {
   devReset?: boolean;
   devGrant?: boolean;
   party?: boolean;
+  raidChat?: boolean;
   fightingCorner?: boolean;
   hpRecovery?: boolean;
 }): Pick<
   BotServices,
-  "devReset" | "devGrant" | "partySessions" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
 > {
   return {
     devReset: { isEnabled: () => enabled.devReset ?? false },
     devGrant: { isEnabled: () => enabled.devGrant ?? false },
     partySessions: { areDevHelpersEnabled: () => enabled.party ?? false },
+    partyRaidChat: { areDevHelpersEnabled: () => enabled.raidChat ?? false },
     fightingCornerQuest: { isDevHelperEnabled: () => enabled.fightingCorner ?? false },
     healthRecoveryNotifications: { areDevHelpersEnabled: () => enabled.hpRecovery ?? false }
   } as Pick<
     BotServices,
-    "devReset" | "devGrant" | "partySessions" | "fightingCornerQuest" | "healthRecoveryNotifications"
+    "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
   >;
 }

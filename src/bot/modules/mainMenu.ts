@@ -164,6 +164,7 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
@@ -186,6 +187,7 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
@@ -197,12 +199,13 @@ export function registerMainMenuKeyboard(
 export function shouldIncludeAdminMainMenu(
   services: Pick<
     BotServices,
-    "devReset" | "devGrant" | "partySessions" | "fightingCornerQuest" | "healthRecoveryNotifications"
+    "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
   >
 ): boolean {
   return services.devReset.isEnabled()
     || (services.devGrant?.isEnabled() ?? false)
     || (services.partySessions?.areDevHelpersEnabled() ?? false)
+    || (services.partyRaidChat?.areDevHelpersEnabled() ?? false)
     || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
     || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);
 }

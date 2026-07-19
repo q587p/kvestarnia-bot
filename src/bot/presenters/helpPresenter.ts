@@ -4,6 +4,7 @@ export interface HelpVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
+  includeRaidChat?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
@@ -68,6 +69,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includeDevReset: visibility,
       includeDevGrant: visibility,
       includePartySessions: visibility,
+      includeRaidChat: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility
@@ -78,6 +80,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
+    includeRaidChat: visibility.includeRaidChat ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false

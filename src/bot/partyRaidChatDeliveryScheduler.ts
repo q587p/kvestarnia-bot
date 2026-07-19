@@ -1,0 +1,250 @@
+import type { Bot } from "grammy";
+import type { PartyRaidChatDeliveryRecord } from "../db/repositories/partyRaidChatRepository";
+import type { PartyBossService } from "../services/partyBossService";
+import { buildPartyInviteUrl, type PartySessionService } from "../services/partySessionService";
+import type { PartyRaidChatService } from "../services/partyRaidChatService";
+import { buildPartyRaidChatKeyboard, buildPartySessionKeyboard } from "./keyboards/partySessionKeyboard";
+import { isPermanentPartyCardEditError } from "./partySessionDeliveryCoordinator";
+import { partyRaidChatTelegramGate } from "./partyRaidChatTelegramGate";
+import {
+  appendPartyRaidChatWithinBudget,
+  presentPartyRaidChatCard
+} from "./presenters/partyRaidChatPresenter";
+import { presentPartyView } from "./presenters/partySessionPresenter";
+
+const HTML_OPTIONS = { parse_mode: "HTML" as const };
+const POLL_MS = 1_100;
+
+type PartyRaidChatDeliveryServices = {
+  partyRaidChat: PartyRaidChatService;
+  partySessions: PartySessionService;
+  partyBoss?: PartyBossService | undefined;
+};
+
+export function createPartyRaidChatDeliveryScheduler(
+  services: PartyRaidChatDeliveryServices,
+  bot: Bot,
+  options: { botUsername?: string | undefined } = {}
+): { start(): void; stop(): void } {
+  let timer: NodeJS.Timeout | null = null;
+  let running = false;
+
+  const tick = async (): Promise<void> => {
+    if (running) {
+      return;
+    }
+    running = true;
+    try {
+      await runPartyRaidChatDeliveryTick(services, bot, options);
+    } catch (error) {
+      console.error("Квестарня: відкладена доставка рейд-чату не завершилась.", {
+        code: getSafeErrorCode(error)
+      });
+    } finally {
+      running = false;
+    }
+  };
+
+  return {
+    start() {
+      if (timer) {
+        return;
+      }
+      void tick();
+      timer = setInterval(() => void tick(), POLL_MS);
+    },
+    stop() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+  };
+}
+
+export async function runPartyRaidChatDeliveryTick(
+  services: PartyRaidChatDeliveryServices,
+  bot: Bot,
+  options: { botUsername?: string | undefined } = {},
+  clock: () => Date = () => new Date()
+): Promise<void> {
+  await services.partyRaidChat.prepareDisabledRedactions();
+  await services.partyRaidChat.cleanupExpired();
+  const deliveries = await services.partyRaidChat.listDueDeliveries();
+  for (const delivery of deliveries) {
+    await deliverOne(services, bot, delivery, options).catch(async (error: unknown) => {
+      const retryAfter = getRetryAfterSeconds(error);
+      const backoffMs = retryAfter !== null
+        ? retryAfter * 1_000
+        : Math.min(93_000, 1_100 * (2 ** Math.min(delivery.attemptCount, 6)));
+      await services.partyRaidChat.markDeliveryFailure(
+        delivery.id,
+        new Date(clock().getTime() + backoffMs),
+        retryAfter !== null ? "telegram-429" : "telegram-retryable"
+      );
+    });
+  }
+}
+
+async function deliverOne(
+  services: PartyRaidChatDeliveryServices,
+  bot: Bot,
+  delivery: PartyRaidChatDeliveryRecord,
+  options: { botUsername?: string | undefined }
+): Promise<void> {
+  if (delivery.redactionRequired || !services.partyRaidChat.isEnabled()) {
+    await redact(services, bot, delivery, options);
+    return;
+  }
+  const view = await services.partyRaidChat.getAuthorizedView(delivery.telegramUserId, delivery.inviteToken);
+  if (!view) {
+    await redact(services, bot, delivery, options);
+    return;
+  }
+
+  if (delivery.surfaceMode === "recruiting_embed") {
+    const party = await services.partySessions.getByToken(delivery.inviteToken);
+    if (party.state !== "ready") {
+      await services.partyRaidChat.markDeliveryFailure(
+        delivery.id,
+        new Date(Date.now() + POLL_MS),
+        "canonical-transition"
+      );
+      return;
+    }
+    const inviteUrl = buildPartyInviteUrl(options.botUsername, party.session.inviteToken);
+    const base = presentPartyView({ state: "ready", session: party.session }, {
+      inviteUrl,
+      viewerCharacterId: delivery.participantCharacterId
+    });
+    await publish(delivery, bot, services, appendPartyRaidChatWithinBudget(base, view), {
+      ...HTML_OPTIONS,
+      reply_markup: buildPartySessionKeyboard(party.session, {
+        viewerCharacterId: delivery.participantCharacterId,
+        inviteUrl,
+        includeBossStart: party.session.originLocationId === "barrel.big-brother",
+        includeDevExpire: services.partySessions.areDevHelpersEnabled(),
+        includeRaidChat: view.writable
+      })
+    }, true);
+    return;
+  }
+
+  await publish(delivery, bot, services, presentPartyRaidChatCard(view), {
+    ...HTML_OPTIONS,
+    reply_markup: buildPartyRaidChatKeyboard({
+      token: view.inviteToken,
+      writable: view.writable,
+      active: view.lifecycle === "active",
+      terminal: view.lifecycle === "terminal"
+    })
+  }, false);
+}
+
+async function publish(
+  delivery: PartyRaidChatDeliveryRecord,
+  bot: Bot,
+  services: { partyRaidChat: PartyRaidChatService; partySessions: PartySessionService },
+  text: string,
+  messageOptions: Parameters<Bot["api"]["editMessageText"]>[3],
+  recruiting: boolean
+): Promise<void> {
+  let reference = delivery.chatId && delivery.messageId
+    ? { chatId: delivery.chatId, messageId: delivery.messageId }
+    : null;
+  if (reference) {
+    try {
+      await partyRaidChatTelegramGate.enqueue(reference.chatId, () => bot.api.editMessageText(
+        Number(reference!.chatId),
+        reference!.messageId,
+        text,
+        messageOptions
+      ));
+    } catch (error) {
+      if (!isPermanentPartyCardEditError(error)) {
+        throw error;
+      }
+      reference = null;
+    }
+  }
+  if (!reference) {
+    const sent = await partyRaidChatTelegramGate.enqueue(delivery.telegramUserId, () =>
+      bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions)
+    );
+    reference = { chatId: BigInt(sent.chat.id), messageId: sent.message_id };
+    await services.partyRaidChat.recordDeliveryReference(delivery.id, reference.chatId, reference.messageId);
+    if (recruiting) {
+      await services.partySessions.recordParticipantMessageReference(
+        delivery.telegramUserId,
+        delivery.inviteToken,
+        reference
+      );
+    }
+  }
+  await services.partyRaidChat.markDeliveryRendered(delivery.id, delivery.desiredRevision);
+}
+
+async function redact(
+  services: { partyRaidChat: PartyRaidChatService; partySessions: PartySessionService },
+  bot: Bot,
+  delivery: PartyRaidChatDeliveryRecord,
+  options: { botUsername?: string | undefined }
+): Promise<void> {
+  if (!delivery.chatId || !delivery.messageId) {
+    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "no-reference");
+    return;
+  }
+  let text = "Рейд-чат більше недоступний.";
+  let messageOptions: Parameters<Bot["api"]["editMessageText"]>[3] = {};
+  if (delivery.surfaceMode === "recruiting_embed") {
+    const party = await services.partySessions.getByToken(delivery.inviteToken);
+    if (party.state === "ready") {
+      const inviteUrl = buildPartyInviteUrl(options.botUsername, party.session.inviteToken);
+      text = presentPartyView({ state: "ready", session: party.session }, {
+        inviteUrl,
+        viewerCharacterId: delivery.participantCharacterId
+      });
+      messageOptions = {
+        ...HTML_OPTIONS,
+        reply_markup: buildPartySessionKeyboard(party.session, {
+          viewerCharacterId: delivery.participantCharacterId,
+          inviteUrl,
+          includeBossStart: party.session.originLocationId === "barrel.big-brother",
+          includeDevExpire: services.partySessions.areDevHelpersEnabled()
+        })
+      };
+    }
+  }
+  try {
+    await partyRaidChatTelegramGate.enqueue(delivery.chatId, () => bot.api.editMessageText(
+      Number(delivery.chatId!),
+      delivery.messageId!,
+      text,
+      messageOptions
+    ));
+    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted");
+  } catch (error) {
+    if (!isPermanentPartyCardEditError(error)) {
+      throw error;
+    }
+    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "permanent-unavailable");
+  }
+}
+
+function getRetryAfterSeconds(error: unknown): number | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+  const parameters = "parameters" in error ? error.parameters : null;
+  if (!parameters || typeof parameters !== "object" || !("retry_after" in parameters)) {
+    return null;
+  }
+  return typeof parameters.retry_after === "number" ? parameters.retry_after : null;
+}
+
+function getSafeErrorCode(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+  return "unknown";
+}

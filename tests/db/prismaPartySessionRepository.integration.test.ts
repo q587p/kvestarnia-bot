@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../../src/domain/equipment/equipmentAttunement";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -31,7 +32,8 @@ describe("PrismaPartySessionRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaPartySessionRepository(prisma);
+    await applyRaidChatMigration(prisma);
+    repository = new PrismaPartySessionRepository(prisma, new PrismaPartyRaidChatTransactionWriter(true));
   }, 60_000);
 
   afterAll(async () => {
@@ -444,6 +446,18 @@ describe("PrismaPartySessionRepository integration", () => {
     });
     await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol", 1);
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
+    await expect(prisma.partyRaidChatEntry.groupBy({
+      by: ["eventType"],
+      where: {
+        partySession: { inviteToken: "party-token-protocol" },
+        eventType: { in: ["protocol.filed", "protocol.signed"] }
+      },
+      _count: { _all: true },
+      orderBy: { eventType: "asc" }
+    })).resolves.toEqual([
+      { eventType: "protocol.filed", _count: { _all: 1 } },
+      { eventType: "protocol.signed", _count: { _all: 1 } }
+    ]);
   });
 
   it("uses exact current attunement lookup after more than 13 historical rows for protocol cost", async () => {
@@ -1449,6 +1463,13 @@ async function withForcedSessionVersionCasLoss<T>(
     return await action();
   } finally {
     await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${safeTriggerName}`);
+  }
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
+  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+    await prisma.$executeRawUnsafe(statement);
   }
 }
 

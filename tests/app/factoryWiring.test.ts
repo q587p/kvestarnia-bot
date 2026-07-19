@@ -256,6 +256,25 @@ describe("application factory wiring", () => {
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
   });
 
+  it("requires both Big Barrel and raid-chat rollout flags and isolates the helper in production", async () => {
+    const repositories = createRepositories({} as PrismaClient);
+    expect(createServices(repositories, makeConfig({
+      bigBarrelRaidChatEnabled: true,
+      bigBarrelBrotherRaidEnabled: false
+    })).partyRaidChat.isEnabled()).toBe(false);
+
+    const production = createServices(repositories, makeConfig({
+      nodeEnv: "production",
+      bigBarrelRaidChatEnabled: true,
+      bigBarrelBrotherRaidEnabled: true
+    })).partyRaidChat;
+    expect(production.isEnabled()).toBe(true);
+    expect(production.areDevHelpersEnabled()).toBe(false);
+    await expect(production.devFill(1n, 14)).resolves.toBe(0);
+    await expect(production.devClear(1n)).resolves.toBe(false);
+    await expect(production.devExpire(1n, "retention")).resolves.toBe(false);
+  });
+
   it("does not let the Fighting Corner helper flag enable reset mutation in production", async () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig({
       nodeEnv: "production",
@@ -289,6 +308,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
     bigBarrelBrotherRaidEnabled: false,
+    bigBarrelRaidChatEnabled: false,
     ...overrides
   };
 }

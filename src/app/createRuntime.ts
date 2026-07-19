@@ -8,6 +8,7 @@ import { createEquipmentAttunementScheduler } from "../bot/equipmentAttunementSc
 import { createHealthRecoveryNotificationScheduler } from "../bot/healthRecoveryNotificationScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
+import { createPartyRaidChatDeliveryScheduler } from "../bot/partyRaidChatDeliveryScheduler";
 import { classifyPerformanceError } from "../bot/performanceLogger";
 import type { AppConfig } from "../config/env";
 import { startHealthServer } from "../health/server";
@@ -29,6 +30,7 @@ interface RuntimeDependencies {
   createHealthRecoveryNotificationScheduler: typeof createHealthRecoveryNotificationScheduler;
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
+  createPartyRaidChatDeliveryScheduler: typeof createPartyRaidChatDeliveryScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
   startHealthServer: typeof startHealthServer;
 }
@@ -48,6 +50,7 @@ export function createRuntime(input: {
     createHealthRecoveryNotificationScheduler,
     createPassageSearchCompletionScheduler,
     createPartyBossRecruitingStartScheduler,
+    createPartyRaidChatDeliveryScheduler,
     getTelegramMenuCommands,
     startHealthServer,
     ...input.dependencies
@@ -69,6 +72,7 @@ export function createRuntime(input: {
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
+  let partyRaidChatDeliveryScheduler: ReturnType<typeof createPartyRaidChatDeliveryScheduler> | null = null;
   const readiness = createRuntimeReadiness();
   let schedulersStarted = false;
   let schedulersStopped = false;
@@ -86,6 +90,7 @@ export function createRuntime(input: {
     healthRecoveryNotificationScheduler?.start();
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
+    partyRaidChatDeliveryScheduler?.start();
     return true;
   };
 
@@ -104,6 +109,7 @@ export function createRuntime(input: {
       equipmentAttunementScheduler?.stop();
       passageSearchCompletionScheduler?.stop();
       partyBossRecruitingStartScheduler?.stop();
+      partyRaidChatDeliveryScheduler?.stop();
       await healthRecoveryNotificationScheduler?.stop();
     })();
     return schedulersStopPromise;
@@ -178,8 +184,16 @@ export function createRuntime(input: {
       if (services.partySessions && services.partyBoss && services.partyBoss.isEnabled()) {
         partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({
           partySessions: services.partySessions,
-          partyBoss: services.partyBoss
+          partyBoss: services.partyBoss,
+          partyRaidChat: services.partyRaidChat
         }, bot);
+      }
+      if (services.partyRaidChat && services.partySessions) {
+        partyRaidChatDeliveryScheduler = dependencies.createPartyRaidChatDeliveryScheduler({
+          partyRaidChat: services.partyRaidChat,
+          partySessions: services.partySessions,
+          partyBoss: services.partyBoss
+        }, bot, botLinkOptions);
       }
 
       void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
@@ -190,6 +204,7 @@ export function createRuntime(input: {
         includeDevReset: services.devReset.isEnabled(),
         includeDevGrant: services.devGrant?.isEnabled() === true,
         includePartySessions: services.partySessions?.isEnabled() === true,
+        includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() === true,
         includeTavernGames: services.tavernGames?.isEnabled() === true
       })).catch((error) => {
         console.error("Квестарня: бокове меню команд не оновилось.", error);

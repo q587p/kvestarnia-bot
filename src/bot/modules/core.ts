@@ -56,6 +56,7 @@ export function registerCoreBotModule(
   registerLookCommand(bot, services.presence);
   registerHelpCommand(bot, services.devReset, services.devGrant, {
     partySessionService: services.partySessions,
+    partyRaidChatService: services.partyRaidChat,
     tavernGameService: services.tavernGames,
     fightingCornerQuestService: services.fightingCornerQuest,
     healthRecoveryNotificationService: services.healthRecoveryNotifications,
@@ -108,6 +109,7 @@ async function handleMenuCallback(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }));

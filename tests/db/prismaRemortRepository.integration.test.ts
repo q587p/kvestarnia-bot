@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
@@ -12,6 +12,7 @@ import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquip
 import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 import { HeroService } from "../../src/services/heroService";
 import {
   settleVarenykSatedOutsideCombat,
@@ -36,9 +37,11 @@ describe("PrismaRemortRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaRemortRepository(prisma);
+    await applyRaidChatMigration(prisma);
+    const raidChat = new PrismaPartyRaidChatTransactionWriter(true);
+    repository = new PrismaRemortRepository(prisma, undefined, raidChat);
     passages = new PrismaPendingPassageEncounterRepository(prisma);
-    partyBosses = new PrismaPartyBossRepository(prisma);
+    partyBosses = new PrismaPartyBossRepository(prisma, undefined, raidChat);
   }, 60_000);
 
   afterAll(async () => {
@@ -1397,6 +1400,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`
   ]) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
+  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
     await prisma.$executeRawUnsafe(statement);
   }
 }

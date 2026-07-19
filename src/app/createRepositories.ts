@@ -28,6 +28,8 @@ import { PrismaMantokChestRepository } from "../db/repositories/prismaMantokChes
 import { PrismaPendingPassageEncounterRepository } from "../db/repositories/prismaPendingPassageEncounterRepository";
 import { PrismaPassageSearchRepository } from "../db/repositories/prismaPassageSearchRepository";
 import { PrismaPartyBossRepository } from "../db/repositories/prismaPartyBossRepository";
+import { PrismaPartyRaidChatRepository } from "../db/repositories/prismaPartyRaidChatRepository";
+import { PrismaPartyRaidChatTransactionWriter } from "../db/repositories/prismaPartyRaidChatEvents";
 import { PrismaPartySessionRepository } from "../db/repositories/prismaPartySessionRepository";
 import { PrismaPlayerHintReceiptRepository } from "../db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../db/repositories/prismaPresenceRepository";
@@ -42,10 +44,14 @@ export function createRepositories(
   prisma: PrismaClient,
   options: {
     hpRecoveryNotificationsEnabled?: boolean;
+    bigBarrelRaidChatEnabled?: boolean;
   } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
     options.hpRecoveryNotificationsEnabled === true
+  );
+  const partyRaidChatWriter = new PrismaPartyRaidChatTransactionWriter(
+    options.bigBarrelRaidChatEnabled === true
   );
 
   return {
@@ -76,11 +82,12 @@ export function createRepositories(
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
     passageSearches: new PrismaPassageSearchRepository(prisma),
-    partyBossSessions: new PrismaPartyBossRepository(prisma, hpRecoveryProducer),
-    partySessions: new PrismaPartySessionRepository(prisma),
+    partyBossSessions: new PrismaPartyBossRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
+    partyRaidChat: new PrismaPartyRaidChatRepository(prisma),
+    partySessions: new PrismaPartySessionRepository(prisma, partyRaidChatWriter),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
-    remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer),
+    remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma, hpRecoveryProducer),
     soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma, hpRecoveryProducer),

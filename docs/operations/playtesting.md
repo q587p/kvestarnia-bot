@@ -562,6 +562,17 @@ Use one level 3+ account with local dev commands enabled where helpful.
 16. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
 17. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
 
+## 0.3.15 — Big Barrel Raid Chat MVP smoke
+
+Manual Telegram QA status for the implementation pass: not run. Use two joined accounts and one outsider in the isolated non-production bot with `BIG_BARREL_BROTHER_RAID_ENABLED=true` and `BIG_BARREL_RAID_CHAT_ENABLED=true`; follow the complete evidence matrix in [`docs/qa/0.3.15-raid-chat-qa.md`](../qa/0.3.15-raid-chat-qa.md).
+
+1. Verify joined recruiting cards share the same newest-13 feed while an invite-only outsider sees neither transcript nor compose control.
+2. Open two composers, cancel/reply to stale prompts, send commands/menu text/another prompt reply, and verify only a direct text reply to the newest exact bot prompt can write.
+3. Use `/dev_raid_chat fill 14`, `clear`, `expire composer` and `expire retention` for overflow and lifecycle checks; verify the helper is absent and non-mutating in production.
+4. Restart after a bound prompt and separately after a committed entry but before Telegram delivery; verify exact acceptance and dirty-card recovery resume without duplicate entries.
+5. Exercise join/leave, leadership transfer, Ward, Protocol, manual/automatic start, resolved Taunt/Lament/Form-song actions and every terminal outcome. Readiness, ordinary combat actions, failures and replaced queued choices must not create chat rows.
+6. Break leader and nonleader card references, simulate `429 retry_after`, then verify bounded repair/redaction after leave, remort, flag disable and retention expiry without exposing the transcript again.
+
 ## 0.3.14 — Bard Inspiration and Big Barrel Lament smoke
 
 Manual Telegram QA status for the implementation pass: not run. Use two Bard-capable local accounts, one listener and one non-Bard; refresh the isolated bot manually with `BIG_BARREL_BROTHER_RAID_ENABLED=true` and local dev grants enabled.

@@ -13,6 +13,8 @@ export type PartySessionCallback =
   | { type: "ward-support"; token: string }
   | { type: "protocol-file"; token: string }
   | { type: "protocol-sign"; token: string }
+  | { type: "raid-chat-open"; token: string }
+  | { type: "raid-chat-compose"; token: string }
   | { type: "boss-start"; token: string }
   | { type: "boss-action"; token: string; turn: number; action: PartyBossCallbackAction }
   | { type: "boss-gear"; token: string; turn: number; grantKey: string }
@@ -88,6 +90,14 @@ export function makePartySessionProtocolSignCallbackData(token: string): string 
 
 export function makePartyBossStartCallbackData(token: string): string {
   return `${PREFIX}:bs:${token}`;
+}
+
+export function makePartyRaidChatOpenCallbackData(token: string): string {
+  return `${PREFIX}:rc:${token}`;
+}
+
+export function makePartyRaidChatComposeCallbackData(token: string): string {
+  return `${PREFIX}:rw:${token}`;
 }
 
 export function makePartyBossActionCallbackData(
@@ -379,6 +389,14 @@ export function parsePartySessionCallbackData(
 
   if (action === "sh") {
     return ok({ type: "share", token: tokenOrTarget });
+  }
+
+  if (action === "rc") {
+    return ok({ type: "raid-chat-open", token: tokenOrTarget });
+  }
+
+  if (action === "rw") {
+    return ok({ type: "raid-chat-compose", token: tokenOrTarget });
   }
 
   return err("invalid-action");

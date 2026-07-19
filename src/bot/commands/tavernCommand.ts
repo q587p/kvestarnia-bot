@@ -19,6 +19,7 @@ import type { BardPerformanceService, PresentedLiveBardPerformance } from "../..
 import type { DuelTournamentService } from "../../services/duelTournamentService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
+import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import {
   buildPartyInviteUrl,
   BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
@@ -153,6 +154,7 @@ type TavernCommandKeyboard =
 export interface TavernCommandOptions {
   botUsername?: string | undefined;
   partyBoss?: PartyBossService | undefined;
+  partyRaidChat?: PartyRaidChatService | undefined;
   partySessions?: PartySessionService | undefined;
   playerHintService?: Pick<PlayerHintService, "claimKorchmaHallYegerCountHint"> | undefined;
   openBigBarrelRecruiting?: boolean | undefined;
@@ -896,6 +898,7 @@ export async function sendTavernBarrel(
         session: activeBoss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
@@ -1032,6 +1035,7 @@ async function sendBigBossText(
     session: Parameters<typeof buildPartyBossKeyboard>[0];
     viewerCharacterId?: string | null | undefined;
     partyBoss?: PartyBossService | undefined;
+    partyRaidChat?: PartyRaidChatService | undefined;
     telegramUserId?: bigint | undefined;
     includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
@@ -1047,7 +1051,8 @@ async function sendBigBossText(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
       ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
-      includeDevTimeout: keyboard.includeDevTimeout
+      includeDevTimeout: keyboard.includeDevTimeout,
+      includeRaidChat: keyboard.partyRaidChat?.isEnabled() === true
     })
   };
 

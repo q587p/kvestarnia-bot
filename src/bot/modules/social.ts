@@ -40,7 +40,8 @@ export function registerSocialBotModule(
     registerPartySessionDevCommand(bot, services.partySessions, {
       presence: services.presence,
       botUsername: options.botUsername,
-      partyBoss: services.partyBoss
+      partyBoss: services.partyBoss,
+      partyRaidChat: services.partyRaidChat
     });
   }
 
@@ -135,7 +136,8 @@ export function registerSocialBotModule(
       await handlePartySessionCallback(ctx, callback, service, {
         presence: services.presence,
         botUsername: options.botUsername,
-        partyBoss: services.partyBoss
+        partyBoss: services.partyBoss,
+        partyRaidChat: services.partyRaidChat
       });
     }
   );

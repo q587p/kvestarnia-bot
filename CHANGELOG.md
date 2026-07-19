@@ -7,6 +7,20 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat MVP
+
+### Added
+- Added a private Big Barrel raid chat for canonical joined participants. Recruiting cards embed the newest 13 player and typed system rows; the same lineage continues through one compact participant chat card during battle and becomes final-roster read-only for 13 days after settlement.
+- Added a restart-safe exact `ForceReply` composer bound to the actor, remort life, private chat, session and bot prompt. Input is normalized to one plaintext line, limited to 93 grapheme clusters, rejects link/contact entities, and leaves commands, menu buttons and unrelated prompts on their existing routes. `/cancel_raid_chat` cancels only the composer.
+- Added transactional allowlisted system events for real membership, leadership, Ward, Protocol, start, resolved high-signal raid abilities and terminal transitions. Chat writes use a separate revision and cannot change combat/session versions, resources, rewards, contribution or achievements.
+- Added durable participant delivery/redaction state, newest-revision coalescing, startup recovery, bounded cross-session Telegram delivery, persisted `429 retry_after`, nonleader card replacement and access-loss/feature-off redaction retries.
+- Added local-only `/dev_raid_chat fill|clear|expire composer|retention` fixtures. Production cannot register or mutate through the helper.
+
+### Availability and compatibility
+- `BIG_BARREL_RAID_CHAT_ENABLED=false` is independent and default-off, and becomes effective only together with `BIG_BARREL_BROTHER_RAID_ENABLED`. Disabling chat hides controls, blocks fresh reads/writes and schedules existing bot-card redaction without changing raid state or deleting retained history immediately.
+- Added a forward-only Prisma migration for chat entries, exact compose intents, author/lineage rate state and durable delivery state. Existing party and boss gameplay records remain the canonical authorization source; `User.currentRaidId` never grants access.
+- No chat reward or achievement was added because activity incentives would encourage spam. `📖 Перекази` needs no change: this is a private Telegram coordination surface, not a new world or class promise. Manual Telegram QA remains pending; automated evidence is recorded in the task QA document.
+
 ## [0.3.14] - 12026-07-19 - Bard Inspiration and Big Barrel Lament
 
 ### Added

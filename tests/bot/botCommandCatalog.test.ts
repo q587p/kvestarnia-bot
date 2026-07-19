@@ -61,6 +61,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "chronicles")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_party")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_raid_chat")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_me")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
@@ -136,6 +137,7 @@ describe("bot command catalog", () => {
     for (const command of [
       "dev_help",
       "dev_party",
+      "dev_raid_chat",
       "dev_reset_me",
       "dev_adventure_reset",
       "dev_reset_korchma_round",
@@ -161,6 +163,11 @@ describe("bot command catalog", () => {
       includeDevGrant: false,
       includeHpRecovery: true
     });
+    const raidChatOnly = getHelpCommandEntries({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includeRaidChat: true
+    });
 
     expect(resetOnly.some((entry) => entry.command === "dev_help")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_party")).toBe(false);
@@ -184,6 +191,11 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_monster_rest")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
     expect(partyOnly.some((entry) => entry.command === "dev_party")).toBe(true);
+    expect(partyOnly.some((entry) => entry.command === "dev_raid_chat")).toBe(false);
+    expect(raidChatOnly.find((entry) => entry.command === "dev_raid_chat")).toMatchObject({
+      icon: "💬",
+      includeInMenu: false
+    });
     expect(hpRecoveryOnly.find((entry) => entry.command === "dev_hp_recovery_due")).toMatchObject({
       icon: "❤️‍🩹",
       description: "підготувати сповіщення про відновлення HP локально"

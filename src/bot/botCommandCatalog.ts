@@ -4,7 +4,7 @@ export interface BotCommandCatalogEntry {
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party" | "fighting-corner" | "hp-recovery";
+  devOnly?: "reset" | "grant" | "party" | "raid-chat" | "fighting-corner" | "hp-recovery";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -220,6 +220,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "зібрати тимчасову ватагу локально",
     includeInMenu: false,
     devOnly: "party"
+  },
+  {
+    command: "dev_raid_chat",
+    icon: "💬",
+    description: "наповнити, очистити або зістарити рейд-чат локально",
+    includeInMenu: false,
+    devOnly: "raid-chat"
   },
   {
     command: "dev_reset_me",
@@ -493,6 +500,7 @@ export interface DevCommandVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
+  includeRaidChat?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
@@ -516,6 +524,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "hp-recovery") {
       return normalized.includeHpRecovery;
+    }
+
+    if (entry.devOnly === "raid-chat") {
+      return normalized.includeRaidChat;
     }
 
     return entry.devOnly === "grant"
@@ -544,6 +556,7 @@ function normalizeDevCommandVisibility(
       includeDevReset: visibility,
       includeDevGrant: visibility,
       includePartySessions: visibility,
+      includeRaidChat: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility
@@ -554,6 +567,7 @@ function normalizeDevCommandVisibility(
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
+    includeRaidChat: visibility.includeRaidChat ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false

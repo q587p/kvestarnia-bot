@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.14` — Bard performances grant hybrid-duration Inspiration whose hero line explains the outside/combat countdown, and a free Big Barrel music slot can hold one committed Lament; its recruiting hint is personal to the viewing Bard. Manual Telegram QA remains pending without disabling the shipped performance mechanic.
+- Current version: `0.3.15` — Big Barrel has a default-off participant-only durable raid chat with exact ForceReply composition, typed transactional events, a separate chat revision and restart-safe card delivery/redaction. Manual Telegram QA remains pending.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -35,6 +35,7 @@
 - Stored combat surfaces that shared changes must consider: persistent PvE, Training Doppelganger, turn-based duels and party boss/Big Barrel rounds. Quick duels have no durable turn identity.
 - Under-Korchma combat terminology: `Спуск`, `Спуск до Низу`, `Ярус I: Сутерени Корчми`, later `Зіґурат`.
 - Group/party systems remain narrow opt-in slices. No generic market, profession, crafting, guild-war or Mini App direction is shipped by implication.
+- Big Barrel raid chat requires both `BIG_BARREL_BROTHER_RAID_ENABLED=true` and `BIG_BARREL_RAID_CHAT_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. `/dev_raid_chat` is non-production only.
 
 ## Shipped class support
 

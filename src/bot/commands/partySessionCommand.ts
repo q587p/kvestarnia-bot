@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
+import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
   buildPartyInviteUrl,
@@ -37,6 +38,13 @@ import {
   getNextBigBarrelInviteTemplateIndex,
   presentPartyView
 } from "../presenters/partySessionPresenter";
+import {
+  appendPartyRaidChatWithinBudget
+} from "../presenters/partyRaidChatPresenter";
+import {
+  handlePartyRaidChatCompose,
+  handlePartyRaidChatOpen
+} from "./partyRaidChatCommand";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { presentManaSpentLine } from "../presenters/resourcePresenter";
@@ -48,6 +56,7 @@ import {
   serializePartySessionDelivery
 } from "../partySessionDeliveryCoordinator";
 import { deliverTerminalIneligiblePartyCards } from "../partyTerminalIneligibleDelivery";
+import { partyRaidChatTelegramGate } from "../partyRaidChatTelegramGate";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -57,6 +66,7 @@ export interface PartySessionCommandOptions {
   botUsername?: string | undefined;
   presence: PresenceService;
   partyBoss?: PartyBossService | undefined;
+  partyRaidChat?: PartyRaidChatService | undefined;
 }
 
 export function registerPartySessionDevCommand(
@@ -94,14 +104,20 @@ export async function sendPartyCreate(
   const session = "session" in result ? result.session : null;
   const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
   const viewerCharacterId = session ? getViewerCharacterId(session, telegramUserId) : null;
+  const raidChat = session
+    ? await options.partyRaidChat?.getAuthorizedView(telegramUserId, session.inviteToken) ?? null
+    : null;
+  const createText = presentPartyCreate(result, { inviteUrl, viewerCharacterId });
 
-  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl, viewerCharacterId }), session
+  await sendText(ctx, mode, raidChat ? appendPartyRaidChatWithinBudget(createText, raidChat) : createText, session
     ? {
         session,
         inviteUrl,
         viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isBigBarrelParty(session)
+        includeBossStart: isBigBarrelParty(session),
+        includeRaidChat: raidChat?.writable === true,
+        serializeRaidChat: raidChat !== null
       }
     : false);
 }
@@ -116,6 +132,24 @@ export async function handlePartySessionCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "raid-chat-open") {
+    if (!options.partyRaidChat) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+    await handlePartyRaidChatOpen(ctx, options.partyRaidChat, callback.token);
+    return;
+  }
+
+  if (callback.type === "raid-chat-compose") {
+    if (!options.partyRaidChat) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+    await handlePartyRaidChatCompose(ctx, options.partyRaidChat, callback.token);
     return;
   }
 
@@ -191,11 +225,13 @@ export async function handlePartySessionCallback(
         session: result.session,
         viewerCharacterId,
         partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: partyBoss.areDevHelpersEnabled()
       });
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss,
+        partyRaidChat: options.partyRaidChat,
         includeDevTimeout: partyBoss.areDevHelpersEnabled(),
         includeIntro: true,
         notice: isBigBossSession(result.session)
@@ -208,6 +244,7 @@ export async function handlePartySessionCallback(
             session: result.session,
             viewerCharacterId,
             partyBoss,
+            partyRaidChat: options.partyRaidChat,
             telegramUserId,
             includeDevTimeout: partyBoss.areDevHelpersEnabled()
           }
@@ -260,6 +297,7 @@ export async function handlePartySessionCallback(
           session: result.session,
           viewerCharacterId,
           partyBoss: options.partyBoss,
+          partyRaidChat: options.partyRaidChat,
           telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
@@ -269,6 +307,7 @@ export async function handlePartySessionCallback(
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         ...(result.achievementUnlocksByCharacterId
           ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
@@ -316,6 +355,7 @@ export async function handlePartySessionCallback(
           session: result.session,
           viewerCharacterId,
           partyBoss: options.partyBoss,
+          partyRaidChat: options.partyRaidChat,
           telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
@@ -325,6 +365,7 @@ export async function handlePartySessionCallback(
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         ...(result.achievementUnlocksByCharacterId
           ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
@@ -376,6 +417,7 @@ export async function handlePartySessionCallback(
           session: result.session,
           viewerCharacterId,
           partyBoss: options.partyBoss,
+          partyRaidChat: options.partyRaidChat,
           telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
@@ -410,6 +452,7 @@ export async function handlePartySessionCallback(
           session: result.session,
           viewerCharacterId,
           partyBoss: options.partyBoss,
+          partyRaidChat: options.partyRaidChat,
           telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
@@ -419,6 +462,7 @@ export async function handlePartySessionCallback(
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         ...(result.achievementUnlocksByCharacterId
           ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
@@ -454,6 +498,7 @@ export async function handlePartySessionCallback(
           session: result.session,
           viewerCharacterId,
           partyBoss: options.partyBoss,
+          partyRaidChat: options.partyRaidChat,
           telegramUserId,
           includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
         }
@@ -463,6 +508,7 @@ export async function handlePartySessionCallback(
       const big = isBigBossSession(result.session);
       await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
         ...(result.achievementUnlocksByCharacterId
           ? { achievementUnlocksByCharacterId: result.achievementUnlocksByCharacterId }
@@ -509,6 +555,7 @@ export async function handlePartySessionCallback(
         session: boss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled()
       });
@@ -531,6 +578,7 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -549,6 +597,7 @@ export async function handlePartySessionCallback(
         session: boss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
@@ -576,6 +625,7 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -598,6 +648,7 @@ export async function handlePartySessionCallback(
         session: boss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
@@ -631,6 +682,7 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -662,6 +714,7 @@ export async function handlePartySessionCallback(
         session: boss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
@@ -689,6 +742,7 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
+        options.partyRaidChat,
         (session, inviteUrl, viewerCharacterId) => presentPartyView(
           { state: "ready", session },
           { inviteUrl, viewerCharacterId }
@@ -731,6 +785,7 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -762,6 +817,7 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
+        options.partyRaidChat,
         (session, canonicalInviteUrl, viewerCharacterId) => presentPartyJoin(
           { ...result, session },
           { inviteUrl: canonicalInviteUrl, viewerCharacterId }
@@ -780,6 +836,7 @@ export async function handlePartySessionCallback(
           options.botUsername,
           service,
           options.partyBoss,
+          options.partyRaidChat,
           (session, cancelledInviteUrl, viewerCharacterId) => presentPartyView({ state: "ready", session }, {
             inviteUrl: cancelledInviteUrl,
             viewerCharacterId
@@ -805,6 +862,7 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
+        options.partyRaidChat,
         (session, canonicalInviteUrl, viewerCharacterId) => presentPartyLeave(
           { ...result, session },
           { inviteUrl: canonicalInviteUrl, viewerCharacterId }
@@ -831,6 +889,7 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
+        options.partyRaidChat,
         (session, inviteUrl, viewerCharacterId) => presentPartyCancel(
           { ...result, session },
           { inviteUrl, viewerCharacterId }
@@ -849,14 +908,18 @@ export async function handlePartySessionCallback(
 
   const result = await service.forceExpireByToken(callback.token);
   await safeAnswerCallbackQuery(ctx, { text: "Строк збору завершено." });
-  await sendPartyView(ctx, "edit", result, service, telegramUserId, options.botUsername);
+  await sendPartyView(ctx, "edit", result, service, telegramUserId, options.partyRaidChat, options.botUsername);
 }
 
 export async function sendPartyJoinFromStartPayload(
   ctx: Context,
   service: PartySessionService,
   token: string,
-  options: { botUsername?: string | undefined; partyBoss?: PartyBossService | undefined } = {}
+  options: {
+    botUsername?: string | undefined;
+    partyBoss?: PartyBossService | undefined;
+    partyRaidChat?: PartyRaidChatService | undefined;
+  } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -872,6 +935,7 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -894,6 +958,7 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
+      options.partyRaidChat,
       (session, inviteUrl, viewerCharacterId) => presentPartyJoin(
         { ...result, session },
         { inviteUrl, viewerCharacterId }
@@ -1018,6 +1083,7 @@ async function sendPartyView(
   result: Awaited<ReturnType<PartySessionService["getByToken"]>>,
   service: PartySessionService,
   telegramUserId: bigint,
+  partyRaidChat?: PartyRaidChatService,
   botUsername?: string
 ): Promise<void> {
   const inviteUrl = result.state === "ready"
@@ -1027,13 +1093,19 @@ async function sendPartyView(
     ? getViewerCharacterId(result.session, telegramUserId)
     : null;
 
-  await sendText(ctx, mode, presentPartyView(result, { inviteUrl, viewerCharacterId }), result.state === "ready"
+  const raidChat = result.state === "ready"
+    ? await partyRaidChat?.getAuthorizedView(telegramUserId, result.session.inviteToken) ?? null
+    : null;
+  const viewText = presentPartyView(result, { inviteUrl, viewerCharacterId });
+  await sendText(ctx, mode, raidChat ? appendPartyRaidChatWithinBudget(viewText, raidChat) : viewText, result.state === "ready"
     ? {
         session: result.session,
         inviteUrl,
         viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isBigBarrelParty(result.session)
+        includeBossStart: isBigBarrelParty(result.session),
+        includeRaidChat: raidChat?.writable === true,
+        serializeRaidChat: raidChat !== null
       }
     : false);
 }
@@ -1050,6 +1122,8 @@ async function sendText(
         viewerCharacterId?: string | null | undefined;
         includeDevExpire?: boolean | undefined;
         includeBossStart?: boolean | undefined;
+        includeRaidChat?: boolean | undefined;
+        serializeRaidChat?: boolean | undefined;
       } = false
 ): Promise<void> {
   const options = {
@@ -1060,18 +1134,23 @@ async function sendText(
             viewerCharacterId: keyboard.viewerCharacterId,
             inviteUrl: keyboard.inviteUrl,
             includeDevExpire: keyboard.includeDevExpire,
-            includeBossStart: keyboard.includeBossStart
+            includeBossStart: keyboard.includeBossStart,
+            includeRaidChat: keyboard.includeRaidChat
           })
         }
       : {})
   };
 
   if (mode === "edit") {
-    await safeEditMessageText(ctx, text, options);
+    await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.serializeRaidChat === true, () =>
+      safeEditMessageText(ctx, text, options)
+    );
     return;
   }
 
-  await ctx.reply(text, options);
+  await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.serializeRaidChat === true, () =>
+    ctx.reply(text, options)
+  );
 }
 
 async function sendBossText(
@@ -1084,6 +1163,7 @@ async function sendBossText(
         session: Parameters<typeof buildPartyBossKeyboard>[0];
         viewerCharacterId?: string | null | undefined;
         partyBoss?: PartyBossService | undefined;
+        partyRaidChat?: PartyRaidChatService | undefined;
         telegramUserId?: bigint | undefined;
         includeCombatItems?: boolean | undefined;
         includeDevTimeout?: boolean | undefined;
@@ -1103,18 +1183,33 @@ async function sendBossText(
       ? {
           reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
             ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
-            includeDevTimeout: keyboard.includeDevTimeout
+            includeDevTimeout: keyboard.includeDevTimeout,
+            includeRaidChat: keyboard.partyRaidChat?.isEnabled() === true
           })
         }
       : {})
   };
 
   if (mode === "edit") {
-    await safeEditMessageText(ctx, text, options);
+    await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.partyRaidChat?.isEnabled() === true, () =>
+      safeEditMessageText(ctx, text, options)
+    );
     return;
   }
 
-  await ctx.reply(text, options);
+  await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.partyRaidChat?.isEnabled() === true, () =>
+    ctx.reply(text, options)
+  );
+}
+
+async function runPartyRaidChatTelegramOperation<T>(
+  ctx: Context,
+  serialize: boolean,
+  operation: () => Promise<T>
+): Promise<T> {
+  return serialize
+    ? partyRaidChatTelegramGate.enqueue(ctx.chat?.id ?? 0, operation)
+    : operation();
 }
 
 async function handlePartyInviteShare(
@@ -1183,6 +1278,7 @@ async function sendCanonicalPartyPreparationCard(
   botUsername: string | undefined,
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
+  partyRaidChat: PartyRaidChatService | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
     inviteUrl: string | null,
@@ -1208,6 +1304,7 @@ async function sendCanonicalPartyPreparationCard(
           session: canonical.session,
           viewerCharacterId,
           partyBoss,
+          partyRaidChat,
           telegramUserId,
           includeDevTimeout: partyBoss?.areDevHelpersEnabled()
         });
@@ -1223,19 +1320,26 @@ async function sendCanonicalPartyPreparationCard(
       const session = canonical.session;
       const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
       const actorViewerCharacterId = getViewerCharacterId(session, telegramUserId);
-      const actorText = render(session, inviteUrl, actorViewerCharacterId);
+      const actorChat = await partyRaidChat?.getAuthorizedView(telegramUserId, inviteToken) ?? null;
+      const renderedActorText = render(session, inviteUrl, actorViewerCharacterId);
+      const actorText = actorChat
+        ? appendPartyRaidChatWithinBudget(renderedActorText, actorChat)
+        : renderedActorText;
       const actorOptions = {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartySessionKeyboard(session, {
           viewerCharacterId: actorViewerCharacterId,
           inviteUrl,
           includeDevExpire: service.areDevHelpersEnabled(),
-          includeBossStart: isBigBarrelParty(session)
+          includeBossStart: isBigBarrelParty(session),
+          includeRaidChat: actorChat?.writable === true
         })
       };
       if ((options.mode ?? "edit") === "reply") {
         if (!replyReference) {
-          const message = await ctx.reply(actorText, actorOptions);
+          const message = await runPartyRaidChatTelegramOperation(ctx, actorChat !== null, () =>
+            ctx.reply(actorText, actorOptions)
+          );
           if (ctx.chat?.id && message.message_id) {
             replyReference = { chatId: BigInt(ctx.chat.id), messageId: message.message_id };
             if (
@@ -1248,12 +1352,12 @@ async function sendCanonicalPartyPreparationCard(
           }
         } else {
           try {
-            await ctx.api.editMessageText(
-              Number(replyReference.chatId),
-              replyReference.messageId,
+            await runPartyRaidChatTelegramOperation(ctx, actorChat !== null, () => ctx.api.editMessageText(
+              Number(replyReference!.chatId),
+              replyReference!.messageId,
               actorText,
               actorOptions
-            );
+            ));
           } catch (error) {
             if (!isMessageNotModifiedError(error)) {
               return;
@@ -1261,7 +1365,9 @@ async function sendCanonicalPartyPreparationCard(
           }
         }
       } else {
-        await safeEditMessageText(ctx, actorText, actorOptions);
+        await runPartyRaidChatTelegramOperation(ctx, actorChat !== null, () =>
+          safeEditMessageText(ctx, actorText, actorOptions)
+        );
       }
 
       if (options.refreshParticipants) {
@@ -1272,7 +1378,8 @@ async function sendCanonicalPartyPreparationCard(
           telegramUserId,
           replyReference,
           service,
-          partyBoss
+          partyBoss,
+          partyRaidChat
         );
         if (retry) {
           continue;
@@ -1297,7 +1404,8 @@ async function refreshCanonicalPartyParticipantCards(
   actorTelegramUserId: bigint,
   replyReference: { chatId: bigint; messageId: number } | null,
   service: PartySessionService,
-  partyBoss: PartyBossService | undefined
+  partyBoss: PartyBossService | undefined,
+  partyRaidChat: PartyRaidChatService | undefined
 ): Promise<boolean> {
   const callbackReference = ctx.chat?.id && ctx.callbackQuery?.message?.message_id
     ? { chatId: BigInt(ctx.chat.id), messageId: ctx.callbackQuery.message.message_id }
@@ -1318,24 +1426,35 @@ async function refreshCanonicalPartyParticipantCards(
       continue;
     }
 
-    const text = presentPartyView({ state: "ready", session }, {
+    const baseText = presentPartyView({ state: "ready", session }, {
       inviteUrl,
       viewerCharacterId: participant.characterId
     });
+    const chat = await partyRaidChat?.getAuthorizedView(
+      participant.character.telegramUserId,
+      session.inviteToken
+    ) ?? null;
+    const text = chat ? appendPartyRaidChatWithinBudget(baseText, chat) : baseText;
     const messageOptions = {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartySessionKeyboard(session, {
         viewerCharacterId: participant.characterId,
         inviteUrl,
         includeDevExpire: service.areDevHelpersEnabled(),
-        includeBossStart: isBigBarrelParty(session)
+        includeBossStart: isBigBarrelParty(session),
+        includeRaidChat: chat?.writable === true
       })
     };
     let needsReplacement = !participant.chatId || !participant.messageId;
 
     if (!needsReplacement) {
       try {
-        await ctx.api.editMessageText(Number(participant.chatId), participant.messageId!, text, messageOptions);
+        await runPartyRaidChatTelegramOperation(ctx, chat !== null, () => ctx.api.editMessageText(
+          Number(participant.chatId),
+          participant.messageId!,
+          text,
+          messageOptions
+        ));
       } catch (error) {
         if (isMessageNotModifiedError(error)) {
           continue;
@@ -1347,7 +1466,7 @@ async function refreshCanonicalPartyParticipantCards(
       }
     }
 
-    if (!needsReplacement || participant.characterId !== session.leaderCharacterId) {
+    if (!needsReplacement) {
       continue;
     }
 
@@ -1355,25 +1474,26 @@ async function refreshCanonicalPartyParticipantCards(
     if (confirmed.state !== "party" || confirmed.session.status !== "recruiting") {
       return false;
     }
-    const confirmedLeader = confirmed.session.participants.find((candidate) =>
-      candidate.characterId === confirmed.session.leaderCharacterId && candidate.status === "joined"
+    const confirmedParticipant = confirmed.session.participants.find((candidate) =>
+      candidate.characterId === participant.characterId && candidate.status === "joined"
     );
     if (
-      !confirmedLeader ||
+      !confirmedParticipant ||
       confirmed.session.version !== session.version ||
-      confirmedLeader.characterId !== participant.characterId ||
-      confirmedLeader.chatId !== participant.chatId ||
-      confirmedLeader.messageId !== participant.messageId
+      confirmedParticipant.chatId !== participant.chatId ||
+      confirmedParticipant.messageId !== participant.messageId
     ) {
       return true;
     }
 
     try {
-      const chatId = confirmedLeader.chatId ?? confirmedLeader.character.telegramUserId;
-      const message = await ctx.api.sendMessage(Number(chatId), text, messageOptions);
+      const chatId = confirmedParticipant.chatId ?? confirmedParticipant.character.telegramUserId;
+      const message = await runPartyRaidChatTelegramOperation(ctx, chat !== null, () =>
+        ctx.api.sendMessage(Number(chatId), text, messageOptions)
+      );
       if (message.message_id) {
         await service.recordParticipantMessageReference(
-          confirmedLeader.character.telegramUserId,
+          confirmedParticipant.character.telegramUserId,
           session.inviteToken,
           { chatId, messageId: message.message_id }
         );
@@ -1416,6 +1536,7 @@ async function notifyPartyBossParticipants(
   actorTelegramUserId: bigint,
   options: {
     partyBoss?: PartyBossService | undefined;
+    partyRaidChat?: PartyRaidChatService | undefined;
     includeDevTimeout?: boolean | undefined;
     includeIntro?: boolean | undefined;
     achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>;
@@ -1429,14 +1550,22 @@ async function notifyPartyBossParticipants(
 
     try {
       if (options.includeIntro) {
-        await ctx.api.sendMessage(
+        const sendIntro = () => ctx.api.sendMessage(
           Number(participant.telegramUserId),
           presentPartyBossIntro(session, participant.id),
           HTML_MESSAGE_OPTIONS
         );
+        await (options.partyRaidChat?.isEnabled()
+          ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendIntro)
+          : sendIntro());
       }
 
-      await ctx.api.sendMessage(
+      const includeCombatItems = await resolvePartyBossCombatItemShortcut(
+        options.partyBoss,
+        participant.telegramUserId,
+        session
+      );
+      const sendBoss = () => ctx.api.sendMessage(
         Number(participant.telegramUserId),
         presentPartyBoss(session, {
           viewerCharacterId: participant.id,
@@ -1445,15 +1574,15 @@ async function notifyPartyBossParticipants(
         {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPartyBossKeyboard(session, participant.id, {
-            includeCombatItems: await resolvePartyBossCombatItemShortcut(
-              options.partyBoss,
-              participant.telegramUserId,
-              session
-            ),
-            includeDevTimeout: options.includeDevTimeout
+            includeCombatItems,
+            includeDevTimeout: options.includeDevTimeout,
+            includeRaidChat: options.partyRaidChat?.isEnabled() === true
           })
         }
       );
+      await (options.partyRaidChat?.isEnabled()
+        ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendBoss)
+        : sendBoss());
       await sendAchievementUnlocksToChat(
         ctx,
         participant.telegramUserId,

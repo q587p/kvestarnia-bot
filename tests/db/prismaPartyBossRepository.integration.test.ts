@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findMantokAbilityGrantByKey } from "../../src/content";
@@ -18,6 +18,7 @@ import {
 } from "../../src/domain/noncombat/bardSupport";
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -25,6 +26,13 @@ function expectPartyBossSession(result: PartyBossActionResult): PartyBossSession
   }
 
   return result.session;
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
+  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+    await prisma.$executeRawUnsafe(statement);
+  }
 }
 
 describe("PrismaPartyBossRepository integration", () => {
@@ -44,8 +52,10 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    partyRepository = new PrismaPartySessionRepository(prisma);
-    bossRepository = new PrismaPartyBossRepository(prisma, new HpRecoveryNotificationProducer(true));
+    await applyRaidChatMigration(prisma);
+    const raidChat = new PrismaPartyRaidChatTransactionWriter(true);
+    partyRepository = new PrismaPartySessionRepository(prisma, raidChat);
+    bossRepository = new PrismaPartyBossRepository(prisma, new HpRecoveryNotificationProducer(true), raidChat);
   }, 60_000);
 
   afterAll(async () => {
@@ -268,6 +278,17 @@ describe("PrismaPartyBossRepository integration", () => {
       },
       select: { actionKey: true }
     })).resolves.toEqual({ actionKey: "lament" });
+    await expect(prisma.partyRaidChatEntry.findMany({
+      where: {
+        partySession: { inviteToken: "party-token-big-solo-lament" },
+        eventType: { in: ["raid.started", "ability.lament"] }
+      },
+      orderBy: { revision: "asc" },
+      select: { eventType: true, actorCharacterId: true }
+    })).resolves.toEqual([
+      { eventType: "raid.started", actorCharacterId: "solo-lament-bard-character" },
+      { eventType: "ability.lament", actorCharacterId: "solo-lament-bard-character" }
+    ]);
   });
 
   it("terminalizes a due Big Barrel party if a joined participant began a legacy solo raid after joining", async () => {
@@ -558,6 +579,12 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(firstResolved.achievementEvents).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "warrior.raid-taunt.activated" })
     ]));
+    expect(await prisma.partyRaidChatEntry.count({
+      where: {
+        partySession: { inviteToken: "party-token-warrior-taunt" },
+        eventType: "ability.taunt"
+      }
+    })).toBe(0);
 
     await bossRepository.submitActionForTelegramUser(
       1051n,
@@ -590,6 +617,12 @@ describe("PrismaPartyBossRepository integration", () => {
         characterId: "taunt-warrior-user-character"
       })
     ]));
+    expect(await prisma.partyRaidChatEntry.count({
+      where: {
+        partySession: { inviteToken: "party-token-warrior-taunt" },
+        eventType: "ability.taunt"
+      }
+    })).toBe(1);
 
     const stale = await bossRepository.submitActionForTelegramUser(
       1051n,

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const root = process.cwd();
 const moduleDir = "src/bot/modules";
 const featureModuleOwners = {
+  "raidChat.ts": [],
   "core.ts": ["/^v1:menu:/", "/^v1:news:/", "/^v1:lore:/"],
   "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:ach:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:craft:/", "/^v1:up:/", "/^v1:chest:/", "/^v1:lvlx:/"],
@@ -50,6 +51,7 @@ const expectedCommandAliasInventory = [
   "adventure",
   "bag",
   "bestiary",
+  "cancel_raid_chat",
   "cellar",
   "chronicles",
   "dev_add_bandage",
@@ -68,6 +70,7 @@ const expectedCommandAliasInventory = [
   "dev_help",
   "dev_hp_recovery_due",
   "dev_party",
+  "dev_raid_chat",
   "dev_raid_reset",
   "dev_raid_stop",
   "dev_raid_win",
@@ -120,6 +123,7 @@ describe("0.2.2 architecture stabilization scope", () => {
   it("keeps createBot as an orchestration shell with ordered module invocation", () => {
     const source = read("src/bot/createBot.ts");
     const expectedRegistrars = [
+      "registerRaidChatBotModule",
       "registerCoreBotModule",
       "registerCharacterBotModule",
       "registerInventoryBotModule",
@@ -173,6 +177,7 @@ describe("0.2.2 architecture stabilization scope", () => {
       "persistentFightNavigation.ts",
       "quest.ts",
       "questHubOptions.ts",
+      "raidChat.ts",
       "scenePresence.ts",
       "social.ts",
       "tavern.ts",

@@ -102,10 +102,10 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Бардова підтримка перед Бочкою й у ній");
+    expect(text).toContain("Рейдова балачка біля Бочки");
     expect(text).toContain("У грі вже:");
-    expect(text).toContain("виступ Барда може лишити початковій публіці");
-    expect(text).toContain("Журливу баладу");
+    expect(text).toContain("учасники збору бачать приватний рейд-чат");
+    expect(text).toContain("балачка переїжджає на власну компактну картку");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");

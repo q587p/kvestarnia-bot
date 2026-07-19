@@ -28,6 +28,7 @@ import {
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
+import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
@@ -40,7 +41,8 @@ const OUTGOING_POSTAL_CUSTODY_REMORT_REASON =
 export class PrismaRemortRepository implements RemortRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly raidChat = new PrismaPartyRaidChatTransactionWriter(false)
   ) {}
 
   async getSnapshotForTelegramUser(telegramUserId: bigint, now: Date): Promise<RemortSnapshot | null> {
@@ -245,7 +247,7 @@ export class PrismaRemortRepository implements RemortRepository {
         return { state: "invalid-draft", reason: OUTGOING_POSTAL_CUSTODY_REMORT_REASON };
       }
 
-      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now);
+      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now, this.raidChat);
       if (activeCombat.state === "locked") {
         return { state: "active-combat" };
       }
@@ -307,7 +309,7 @@ export class PrismaRemortRepository implements RemortRepository {
       });
 
       await resetCurrentLifeStateForRemort(tx, character.id);
-      await cancelLivePartySessionsForRemort(tx, character.id, input.now);
+      await cancelLivePartySessionsForRemort(tx, character.id, input.now, this.raidChat);
       await this.hpRecoveryProducer.record(tx, character.id, input.now, "suppress", {
         errorCode: "remort"
       });
@@ -427,7 +429,8 @@ export class PrismaRemortRepository implements RemortRepository {
         {
           createdAt: "asc"
         }
-      ]
+      ],
+      include: { character: { select: { name: true } } }
     });
     const grouped = new Map<number, CharacterRemort[]>();
 
@@ -463,7 +466,8 @@ export class PrismaRemortRepository implements RemortRepository {
 async function prepareActiveCombatForRemort(
   tx: TxClient,
   characterId: string,
-  now: Date
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<{ state: "ready" } | { state: "locked" }> {
   const lease = await tx.activeCombatLease.findUnique({
     where: {
@@ -476,7 +480,7 @@ async function prepareActiveCombatForRemort(
   }
 
   if (lease.kind === PARTY_BOSS_COMBAT_LEASE_KIND) {
-    await cancelPartyBossForRemort(tx, lease.referenceId, now);
+    await cancelPartyBossForRemort(tx, lease.referenceId, characterId, now, raidChat);
     return { state: "ready" };
   }
 
@@ -541,7 +545,9 @@ async function prepareActiveCombatForRemort(
 async function cancelPartyBossForRemort(
   tx: TxClient,
   partySessionId: string,
-  now: Date
+  characterId: string,
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<void> {
   const session = await tx.partyBossSession.findUnique({
     where: {
@@ -608,6 +614,20 @@ async function cancelPartyBossForRemort(
       }
     }
   });
+  await raidChat.append(tx, {
+    partySessionId,
+    eventType: "raid.cancelled",
+    sourceKey: `party:${partySessionId}:terminal:remort`,
+    occurredAt: now
+  });
+  await raidChat.terminalize(tx, partySessionId, now);
+  const revokedParticipant = await tx.partyParticipant.findFirst({
+    where: { sessionId: partySessionId, characterId },
+    select: { id: true }
+  });
+  if (revokedParticipant) {
+    await raidChat.revokeParticipant(tx, revokedParticipant.id, partySessionId, characterId, now);
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId: partySessionId,
@@ -893,7 +913,8 @@ async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string)
 async function cancelLivePartySessionsForRemort(
   tx: TxClient,
   characterId: string,
-  now: Date
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<void> {
   await tx.partySession.updateMany({
     where: {
@@ -934,7 +955,8 @@ async function cancelLivePartySessionsForRemort(
       }
     },
     include: {
-      session: true
+      session: true,
+      character: { select: { name: true } }
     }
   });
 
@@ -949,6 +971,16 @@ async function cancelLivePartySessionsForRemort(
         activeMembershipKey: null
       }
     });
+    await raidChat.append(tx, {
+      partySessionId: membership.sessionId,
+      eventType: "participant.removed",
+      sourceKey: `party:${membership.sessionId}:participant:${characterId}:remort:${membership.remortCount}`,
+      occurredAt: now,
+      actorCharacterId: characterId,
+      actorDisplayName: membership.character.name,
+      actorRemortCount: membership.remortCount
+    });
+    await raidChat.revokeParticipant(tx, membership.id, membership.sessionId, characterId, now);
 
     const remaining = await tx.partyParticipant.findMany({
       where: {
@@ -962,7 +994,8 @@ async function cancelLivePartySessionsForRemort(
         {
           id: "asc"
         }
-      ]
+      ],
+      include: { character: { select: { name: true } } }
     });
 
     if (remaining.length === 0) {
@@ -978,6 +1011,13 @@ async function cancelLivePartySessionsForRemort(
           }
         }
       });
+      await raidChat.append(tx, {
+        partySessionId: membership.sessionId,
+        eventType: "raid.cancelled",
+        sourceKey: `party:${membership.sessionId}:terminal:remort-empty`,
+        occurredAt: now
+      });
+      await raidChat.terminalize(tx, membership.sessionId, now);
       continue;
     }
 
@@ -994,6 +1034,15 @@ async function cancelLivePartySessionsForRemort(
             increment: 1
           }
         }
+      });
+      await raidChat.append(tx, {
+        partySessionId: membership.sessionId,
+        eventType: "leader.transferred",
+        sourceKey: `party:${membership.sessionId}:leader:${nextLeader.characterId}:remort`,
+        occurredAt: now,
+        actorCharacterId: nextLeader.characterId,
+        actorDisplayName: nextLeader.character.name,
+        actorRemortCount: nextLeader.remortCount
       });
     }
   }
