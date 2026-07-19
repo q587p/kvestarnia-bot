@@ -61,12 +61,35 @@ describe("public news rendering", () => {
     expect(news).not.toMatch(/(?:mini\s*app|міні-?ап\p{L}*)/iu);
   });
 
-  it("keeps the latest release news in the established lead and visible-changes shape", () => {
+  it("keeps the latest release news in the established lead, list and closing shape", () => {
     const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
     const latest = parseNewsEntries(news)[0];
     const body = latest?.body.replace(/\r\n/g, "\n");
 
-    expect(body).toMatch(/^\S[^\n]*\n\nУ грі вже:\n(?:- .+\n?)+/u);
+    expect(body).toBeDefined();
+    const lines = body?.split("\n") ?? [];
+    expect(lines[0]).toMatch(/^\S[^\n]*$/u);
+    expect(lines[1]).toBe("");
+    expect(lines[2]).toBe("У грі вже:");
+
+    let cursor = 3;
+    while (lines[cursor]?.startsWith("- ")) {
+      cursor += 1;
+    }
+
+    expect(cursor).toBeGreaterThan(3);
+    expect(lines[cursor]).toBe("");
+    const tail = lines.slice(cursor + 1);
+    expect(tail[0]).toMatch(/^\S[^\n]*$/u);
+    expect(tail[0]).not.toMatch(/^Ще не відчинено:/u);
+    expect([1, 3]).toContain(tail.length);
+    if (tail.length === 3) {
+      expect(tail[1]).toBe("");
+      expect(tail[2]).toMatch(/^Ще не відчинено: \S[^\n]*$/u);
+    }
+    expect(body).not.toMatch(
+      /^Ще не відчинено:.*(?:ручн|QA|CI|депло|deploy|rollout|feature.?flag|production|продакш|Telegram-перевір)/imu
+    );
   });
 
   it("keeps latest release dates aligned across changelog and news", () => {
