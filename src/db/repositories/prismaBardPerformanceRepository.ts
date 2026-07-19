@@ -535,65 +535,63 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
     character: CharacterRecord;
     inspiration: import("../../domain/noncombat/bardSupport").BardInspirationPayloadV1 | null;
   } | null> {
-    return this.prisma.$transaction(async (tx) => {
-      const character = await findCharacter(tx, telegramUserId);
-      if (!character) {
-        return null;
-      }
-      const inspiration = parseBardInspirationPayload((await tx.characterCooldown.findUnique({
-        where: {
-          characterId_key: {
-            characterId: character.id,
-            key: BARD_INSPIRATION_STATUS_KEY
+    const character = await findCharacter(this.prisma, telegramUserId);
+    if (!character) {
+      return null;
+    }
+    const inspiration = parseBardInspirationPayload((await this.prisma.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: BARD_INSPIRATION_STATUS_KEY
+        }
+      },
+      select: { resultJson: true }
+    }))?.resultJson);
+    const remortCount = getIncludedRemortCount(character);
+    const frozen = character.activeCombatLease
+      ? await findFrozenBardInspiration(
+          this.prisma,
+          character.activeCombatLease,
+          character.id,
+          remortCount
+        )
+      : null;
+    const leaseStartedAt = character.activeCombatLease?.createdAt.getTime();
+    const leaseOwnsInspiration = Boolean(
+      inspiration &&
+      typeof leaseStartedAt === "number" &&
+      Date.parse(inspiration.startedAt) <= leaseStartedAt &&
+      Date.parse(inspiration.cursorAt) <= leaseStartedAt &&
+      Date.parse(inspiration.expiresAt) > leaseStartedAt
+    );
+    const frozenMatches = Boolean(
+      inspiration && frozen?.activationId === inspiration.activationId
+    );
+    const frozenRemainingMs = frozenMatches && frozen
+      ? Math.max(0, Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt))
+      : 0;
+    const wallClockActive = inspiration
+      ? isBardInspirationActive(inspiration, character.id, remortCount, now)
+      : false;
+    const activeInspiration = inspiration && leaseOwnsInspiration
+      ? frozenMatches && frozenRemainingMs > 0
+        ? {
+            ...inspiration,
+            expiresAt: new Date(
+              now.getTime() + frozenRemainingMs
+            ).toISOString(),
+            cursorAt: now.toISOString()
           }
-        },
-        select: { resultJson: true }
-      }))?.resultJson);
-      const remortCount = getIncludedRemortCount(character);
-      const frozen = character.activeCombatLease
-        ? await findFrozenBardInspiration(
-            tx,
-            character.activeCombatLease,
-            character.id,
-            remortCount
-          )
+        : null
+      : inspiration && wallClockActive
+        ? inspiration
         : null;
-      const leaseStartedAt = character.activeCombatLease?.createdAt.getTime();
-      const leaseOwnsInspiration = Boolean(
-        inspiration &&
-        typeof leaseStartedAt === "number" &&
-        Date.parse(inspiration.startedAt) <= leaseStartedAt &&
-        Date.parse(inspiration.cursorAt) <= leaseStartedAt &&
-        Date.parse(inspiration.expiresAt) > leaseStartedAt
-      );
-      const frozenMatches = Boolean(
-        inspiration && frozen?.activationId === inspiration.activationId
-      );
-      const frozenRemainingMs = frozenMatches && frozen
-        ? Math.max(0, Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt))
-        : 0;
-      const wallClockActive = inspiration
-        ? isBardInspirationActive(inspiration, character.id, remortCount, now)
-        : false;
-      const activeInspiration = inspiration && leaseOwnsInspiration
-        ? frozenMatches && frozenRemainingMs > 0
-          ? {
-              ...inspiration,
-              expiresAt: new Date(
-                now.getTime() + frozenRemainingMs
-              ).toISOString(),
-              cursorAt: now.toISOString()
-            }
-          : null
-        : inspiration && wallClockActive
-          ? inspiration
-          : null;
 
-      return {
-        character: toCharacterRecord(character),
-        inspiration: activeInspiration
-      };
-    });
+    return {
+      character: toCharacterRecord(character),
+      inspiration: activeInspiration
+    };
   }
 
   async setInspirationForDev(

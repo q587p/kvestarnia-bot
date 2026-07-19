@@ -250,10 +250,21 @@ export class BardPerformanceService {
   async getInspirationForTelegramUser(
     telegramUserId: bigint
   ): Promise<PresentedBardInspiration | null> {
-    const result = await this.performances.getInspirationForTelegramUser(
-      telegramUserId,
-      this.clock()
-    );
+    let result: Awaited<ReturnType<BardPerformanceRepository["getInspirationForTelegramUser"]>>;
+    try {
+      result = await this.performances.getInspirationForTelegramUser(
+        telegramUserId,
+        this.clock()
+      );
+    } catch (error) {
+      if (!isDatabaseSocketTimeout(error)) {
+        throw error;
+      }
+      console.warn("Квестарня: Натхнення тимчасово пропущено через таймаут бази.", {
+        code: "P1008"
+      });
+      return null;
+    }
     const inspiration = result?.inspiration;
 
     return inspiration
@@ -396,6 +407,11 @@ export interface PresentedBardInspiration {
   grade: BardPerformanceGrade;
   accuracyBonusPp: number;
   expiresAt: Date;
+}
+
+function isDatabaseSocketTimeout(error: unknown): boolean {
+  return typeof error === "object" && error !== null &&
+    "code" in error && error.code === "P1008";
 }
 
 function presentPerformance(performance: BardPerformanceRecord): PresentedBardPerformance {

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
+import { describe, expect, it, vi } from "vitest";
 import type {
   BardPerformanceRepository,
   BardPerformanceReactionRecord,
@@ -163,6 +164,32 @@ describe("BardPerformanceService", () => {
     expect(repository.resetCalls).toBe(0);
     expect(repository.setInspirationCalls).toBe(0);
   });
+
+  it("omits optional Inspiration when its database read times out", async () => {
+    const repository = new FakeBardPerformanceRepository({
+      inspirationError: new Prisma.PrismaClientKnownRequestError("Socket timeout", {
+        code: "P1008",
+        clientVersion: "6.19.3"
+      })
+    });
+    const service = new BardPerformanceService(repository, () => now, new FakeRandomSource([0.5]));
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await expect(service.getInspirationForTelegramUser(telegramUserId)).resolves.toBeNull();
+    expect(warning).toHaveBeenCalledWith(
+      "Квестарня: Натхнення тимчасово пропущено через таймаут бази.",
+      { code: "P1008" }
+    );
+    warning.mockRestore();
+  });
+
+  it("does not hide non-timeout Inspiration read failures", async () => {
+    const failure = new Error("database unavailable");
+    const repository = new FakeBardPerformanceRepository({ inspirationError: failure });
+    const service = new BardPerformanceService(repository, () => now, new FakeRandomSource([0.5]));
+
+    await expect(service.getInspirationForTelegramUser(telegramUserId)).rejects.toBe(failure);
+  });
 });
 
 class FakeBardPerformanceRepository implements BardPerformanceRepository {
@@ -176,6 +203,7 @@ class FakeBardPerformanceRepository implements BardPerformanceRepository {
     character?: Partial<BardPerformanceStartSnapshot["character"]>;
     respondResult?: BardPerformanceRespondResult;
     livePerformance?: BardPerformanceRecord | null;
+    inspirationError?: Error;
   } = {}) {}
 
   getStartSnapshotForTelegramUser(): Promise<BardPerformanceStartSnapshot | null> {
@@ -283,6 +311,9 @@ class FakeBardPerformanceRepository implements BardPerformanceRepository {
   }
 
   getInspirationForTelegramUser(): ReturnType<BardPerformanceRepository["getInspirationForTelegramUser"]> {
+    if (this.overrides.inspirationError) {
+      return Promise.reject(this.overrides.inspirationError);
+    }
     return Promise.resolve(null);
   }
 
