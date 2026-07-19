@@ -52,6 +52,28 @@ describe("PrismaBardPerformanceRepository integration", () => {
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
+  it("reads optional Inspiration without an interactive transaction", async () => {
+    await seedCharacter({
+      telegramUserId: 171n,
+      userId: "user-direct-inspiration-read",
+      characterId: "character-direct-inspiration-read"
+    });
+    const directReadClient = {
+      character: prisma.character,
+      characterCooldown: prisma.characterCooldown,
+      $transaction: () => Promise.reject(new Error("interactive transaction must not be used"))
+    } as unknown as PrismaClient;
+    const directReadRepository = new PrismaBardPerformanceRepository(directReadClient);
+
+    await expect(directReadRepository.getInspirationForTelegramUser(
+      171n,
+      new Date("2026-06-26T10:00:00.000Z")
+    )).resolves.toMatchObject({
+      character: { id: "character-direct-inspiration-read" },
+      inspiration: null
+    });
+  });
+
   it("starts once, clips daily house payout and snapshots active same-location audience", async () => {
     await seedCharacter({ telegramUserId: 101n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3, gold: 10 });
     await seedCharacter({ telegramUserId: 102n, userId: "user-audience", characterId: "character-audience", gold: 20 });
