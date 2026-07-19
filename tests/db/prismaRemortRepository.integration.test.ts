@@ -43,7 +43,7 @@ describe("PrismaRemortRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("expires active solo combat and cancels live passage trails atomically during remort", async () => {

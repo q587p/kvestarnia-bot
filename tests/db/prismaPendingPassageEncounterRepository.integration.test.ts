@@ -27,7 +27,7 @@ describe("PrismaPendingPassageEncounterRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("reuses same-passage previews and keeps all three passages distinct", async () => {

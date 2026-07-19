@@ -61,7 +61,7 @@ describe("paid Prisma claim repositories", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("carries the Prisma user's Front and Yard locations through Adventure complication claims", async () => {

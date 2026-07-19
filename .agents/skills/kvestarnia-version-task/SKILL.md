@@ -23,9 +23,11 @@ Do:
 7. Keep domain code free of Telegram imports.
 8. For substantial player-facing Ukrainian copy, use `$ukrainian-rpg-content` instead of pasting style rules.
 9. Add or update tests for runtime behavior.
-10. Run targeted tests first, then broader checks if useful.
-11. Before final handoff, re-check the current Kyiv day against the latest release/news/changelog Holocene headings; same-PR follow-ups and review fixes must refresh those headings if the branch now has a newer Kyiv-day commit.
-12. End with a compact PR-ready summary.
+10. Run targeted tests while editing, then wait until relevant source, tests, schema, config, package and lockfile bytes are stable before the final broad gate.
+11. Give named final phases at least a 600-second command budget, or run them in one yielded session and poll that same session until its real exit code is known. Never start a duplicate full gate because output was compacted while the original process is still alive.
+12. Treat a confirmed exit code `0` as valid until a relevant source, test, schema, config, package or lockfile changes. An output-channel `EPIPE`, killed process, timeout, missing final status or malformed result is unproven, never a pass; do not globally raise test-level timeouts to work around command transport.
+13. Before final handoff, re-check the current Kyiv day against the latest release/news/changelog Holocene headings; same-PR follow-ups and review fixes must refresh those headings if the branch now has a newer Kyiv-day commit.
+14. End with a compact PR-ready summary.
 
 Do not:
 1. Start another feature unless the user explicitly changes the active version task.

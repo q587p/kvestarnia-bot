@@ -1194,8 +1194,7 @@ function buildGeneratedSceneSeed(problemId: string): AdventureSceneSeed {
 
 type GeneratedSceneKind = "survey" | "mug" | "portrait" | "manual" | "uniform" | "exam" | "title";
 
-function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
-  const generatedSeeds = {
+const GENERATED_SCENE_SEEDS = {
     survey: scene("анкету", "анкети", "Анкета повернулась у графу, але просить громадянство.", "Папір подав апеляцію чорнилом.", [
       method("survey-small-print", "🔎 Вичитати дрібний шрифт анкети", "Ретельна перевірка паперу.", "investigate", ["investigation"], "intelligence", "luck", 70, "modest"),
       method("survey-ink-talk", "🤝 Домовитися з чорнилом про графу", "Переговори з канцелярією.", "negotiate", ["persuasion"], "charisma", "intelligence", 64, "standard"),
@@ -1238,14 +1237,13 @@ function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
       method("title-ribbon-trick", "🗝️ Переплутати стрічки урочистости", "Непевний трюк зі славою, можна зачепити репутацію й лікоть.", "deceive", ["deception"], "dexterity", "charisma", 58, "generous", "minor-injury"),
       method("title-stamp-ceremony", "📋 Провести малу церемонію печатки", "Офіційно й трохи смішно.", "ritual", ["authority", "performance"], "charisma", "intelligence", 62, "standard")
     ])
-  } satisfies Record<GeneratedSceneKind, AdventureSceneSeed>;
+} as const satisfies Readonly<Record<GeneratedSceneKind, AdventureSceneSeed>>;
 
-  return generatedSeeds[kind];
+function generated(kind: GeneratedSceneKind): AdventureSceneSeed {
+  return GENERATED_SCENE_SEEDS[kind];
 }
 
-function buildSceneNativeTopUpMethods(problemId: string): readonly AdventureMethodSeed[] {
-  const generatedKind = getGeneratedSceneKind(problemId);
-  const topUpMethods: Record<string, AdventureMethodSeed> = {
+const SCENE_NATIVE_TOP_UP_METHODS = {
     stew: method("skim-foam", "🥄 Зняти найгучнішу піну окремою ложкою", "Обережно, але можна обпекти пальці.", "craft", ["craft"], "dexterity", "intelligence", 64, "standard", "minor-injury"),
     barrel: method("tap-bottom", "🪵 Вистукати дно на таємну кімнату", "Ремесло й підозра, без виселення силою.", "investigate", ["craft", "investigation"], "intelligence", "dexterity", 66, "standard"),
     helmet: method("polish-visor", "🪞 Відполірувати забрало до чесної версії", "Точно, але стара слава може вдарити відблиском.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 62, "standard", "minor-injury"),
@@ -1277,9 +1275,13 @@ function buildSceneNativeTopUpMethods(problemId: string): readonly AdventureMeth
     uniform: method("uniform-pin-cuff", "📌 Підігнути манжет під потрібну клітинку", "Кравецький ризик для пальців.", "craft", ["craft", "finesse"], "dexterity", "intelligence", 61, "standard", "minor-injury"),
     exam: method("exam-scratch-margin", "✏️ Видряпати відповідь на полях іспиту", "Нервово, паперово, небезпечно для пальців.", "deceive", ["deception", "craft"], "dexterity", "intelligence", 59, "generous", "minor-injury"),
     title: method("title-knot-crest", "🎗️ Завʼязати стрічку титулу на доказі", "Стильно, але вузол може затягнутися.", "craft", ["authority", "craft"], "strength", "dexterity", 61, "standard", "minor-injury")
-  };
+} as const satisfies Readonly<Record<string, AdventureMethodSeed>>;
+
+function buildSceneNativeTopUpMethods(problemId: string): readonly AdventureMethodSeed[] {
+  const generatedKind = getGeneratedSceneKind(problemId);
   const key = generatedKind === "portrait" ? "portraitFamily" : generatedKind;
-  const selected = topUpMethods[problemId] ?? (key ? topUpMethods[key] : undefined);
+  const selected = SCENE_NATIVE_TOP_UP_METHODS[problemId as keyof typeof SCENE_NATIVE_TOP_UP_METHODS]
+    ?? (key ? SCENE_NATIVE_TOP_UP_METHODS[key as keyof typeof SCENE_NATIVE_TOP_UP_METHODS] : undefined);
 
   return selected ? [selected] : [];
 }
@@ -1373,7 +1375,7 @@ function materializeSceneMethod(
     label: seed.label,
     hint: withRiskHint(seed.hint, consequence),
     intent: seed.intent,
-    techniques: seed.techniques,
+    techniques: [...seed.techniques],
     primaryStat: seed.primaryStat,
     ...(seed.secondaryStat ? { secondaryStat: seed.secondaryStat } : {}),
     baseChance: seed.baseChance,
@@ -1392,6 +1394,8 @@ function buildProfileHint(seed: Pick<AdventureMethodSeed, "hint" | "consequence"
 function buildRaceMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const profile = getRaceProfile(character.raceId);
   const raceKey = getCompactRaceKey(character.raceId);
+  const profileTechnique = firstTechnique(profile);
+  const identity = techniqueIdentityBeat(profileTechnique);
 
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("r", raceKey, seed.id),
@@ -1402,6 +1406,8 @@ function buildRaceMethods(character: CharacterSummary, sceneTitle: string, scene
     sceneTitle,
     sceneSeed,
     profile,
+    profileTechnique,
+    identity,
     seed,
     rewardProfile: "standard",
     profileKind: "race"
@@ -1411,6 +1417,8 @@ function buildRaceMethods(character: CharacterSummary, sceneTitle: string, scene
 function buildClassMethods(character: CharacterSummary, sceneTitle: string, sceneSeed: AdventureSceneSeed): QuestMethodDefinition[] {
   const profile = getClassProfile(character.classId);
   const classKey = getCompactClassKey(character.classId);
+  const profileTechnique = firstTechnique(profile);
+  const identity = techniqueIdentityBeat(profileTechnique);
 
   return sceneSeed.methods.map((seed) => buildProfileMethod({
     id: compactPersonalMethodId("c", classKey, seed.id),
@@ -1421,6 +1429,8 @@ function buildClassMethods(character: CharacterSummary, sceneTitle: string, scen
     sceneTitle,
     sceneSeed,
     profile,
+    profileTechnique,
+    identity,
     seed,
     rewardProfile: "standard",
     profileKind: "class"
@@ -1432,12 +1442,15 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
   const classProfile = getClassProfile(character.classId);
   const raceKey = getCompactRaceKey(character.raceId);
   const classKey = getCompactClassKey(character.classId);
+  const raceTechnique = firstTechnique(raceProfile);
+  const classTechnique = firstTechnique(classProfile);
+  const identity = buildSignatureIdentityBeat(raceTechnique, classTechnique, character.title ?? null);
 
   return sceneSeed.methods.map((seed) => {
     const id = compactPersonalMethodId(`s${raceKey}`, classKey, seed.id);
     const techniques = uniqueTechniques([
-      firstTechnique(raceProfile),
-      firstTechnique(classProfile),
+      raceTechnique,
+      classTechnique,
       ...seed.techniques
     ]);
 
@@ -1462,7 +1475,7 @@ function buildSignatureMethods(character: CharacterSummary, sceneTitle: string, 
         sceneTitle,
         sceneSeed,
         seed,
-        identity: buildSignatureIdentityBeat(raceProfile, classProfile, character.title ?? null)
+        identity
       })
     };
   });
@@ -1477,11 +1490,13 @@ function buildProfileMethod(input: {
   sceneTitle: string;
   sceneSeed: AdventureSceneSeed;
   profile: QuestTechniqueProfile;
+  profileTechnique: QuestTechniqueId;
+  identity: AdventureIdentityBeats;
   seed: AdventureMethodSeed;
   rewardProfile: QuestRewardProfile;
   profileKind: "race" | "class";
 }): QuestMethodDefinition {
-  const techniques = uniqueTechniques([firstTechnique(input.profile), ...input.seed.techniques]);
+  const techniques = uniqueTechniques([input.profileTechnique, ...input.seed.techniques]);
 
   return {
     id: input.id,
@@ -1504,7 +1519,7 @@ function buildProfileMethod(input: {
       sceneTitle: input.sceneTitle,
       sceneSeed: input.sceneSeed,
       seed: input.seed,
-      identity: buildTechniqueIdentityBeat(input.profile)
+      identity: input.identity
     })
   };
 }
@@ -1516,13 +1531,9 @@ type AdventureIdentityBeats = {
   complication: string;
 };
 
-function buildTechniqueIdentityBeat(profile: QuestTechniqueProfile): AdventureIdentityBeats {
-  return techniqueIdentityBeat(firstTechnique(profile));
-}
-
-function buildSignatureIdentityBeat(raceProfile: QuestTechniqueProfile, classProfile: QuestTechniqueProfile, title: string | null): AdventureIdentityBeats {
-  const raceBeat = techniqueIdentityBeat(firstTechnique(raceProfile));
-  const classBeat = techniqueIdentityBeat(firstTechnique(classProfile));
+function buildSignatureIdentityBeat(raceTechnique: QuestTechniqueId, classTechnique: QuestTechniqueId, title: string | null): AdventureIdentityBeats {
+  const raceBeat = techniqueIdentityBeat(raceTechnique);
+  const classBeat = techniqueIdentityBeat(classTechnique);
   const titleBeat = title ? ` Титул «${title}» лишається в результаті як свідок із дуже серйозним виглядом.` : "";
 
   return {
@@ -1533,8 +1544,7 @@ function buildSignatureIdentityBeat(raceProfile: QuestTechniqueProfile, classPro
   };
 }
 
-function techniqueIdentityBeat(technique: QuestTechniqueId): AdventureIdentityBeats {
-  const beats: Partial<Record<QuestTechniqueId, AdventureIdentityBeats>> = {
+const TECHNIQUE_IDENTITY_BEATS = {
     authority: {
       strong: "Печатка лягає тихо, але всі одразу згадують про порядок.",
       success: "Офіційний тон тримає сцену в межах пристойности.",
@@ -1625,14 +1635,18 @@ function techniqueIdentityBeat(technique: QuestTechniqueId): AdventureIdentityBe
       mixed: "Рух майже ідеальний, та один край лишає дрібний слід.",
       complication: "Точність зривається на волосину, і волосина виявляється дуже гострою."
     }
-  };
+} as const satisfies Partial<Record<QuestTechniqueId, AdventureIdentityBeats>>;
 
-  return beats[technique] ?? {
-    strong: "Практичний нахил робить сцену простішою, ніж вона хотіла здаватись.",
-    success: "Практичний хід допомагає без зайвого підпису.",
-    mixed: "Практичність працює, але лишає дрібну претензію.",
-    complication: "Практичний хід чіпляє незручний край сцени."
-  };
+const DEFAULT_TECHNIQUE_IDENTITY_BEAT = {
+  strong: "Практичний нахил робить сцену простішою, ніж вона хотіла здаватись.",
+  success: "Практичний хід допомагає без зайвого підпису.",
+  mixed: "Практичність працює, але лишає дрібну претензію.",
+  complication: "Практичний хід чіпляє незручний край сцени."
+} as const satisfies AdventureIdentityBeats;
+
+function techniqueIdentityBeat(technique: QuestTechniqueId): AdventureIdentityBeats {
+  return TECHNIQUE_IDENTITY_BEATS[technique as keyof typeof TECHNIQUE_IDENTITY_BEATS]
+    ?? DEFAULT_TECHNIQUE_IDENTITY_BEAT;
 }
 
 function buildPersonalMethodLabel(label: string): string {

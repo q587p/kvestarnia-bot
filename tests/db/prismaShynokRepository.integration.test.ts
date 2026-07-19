@@ -53,7 +53,7 @@ describe("PrismaShynokRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("accepts a round offer directly when no current drink exists", async () => {

@@ -39,6 +39,16 @@ export interface DuelTournamentReward {
 }
 
 const KYIV_TIME_ZONE = "Europe/Kyiv";
+const KYIV_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: KYIV_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23"
+});
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WIN_POINTS = [3, 1] as const;
 const DRAW_POINTS = 1;
@@ -399,16 +409,7 @@ function getKyivParts(date: Date): {
   minute: number;
   second: number;
 } {
-  const values = new Intl.DateTimeFormat("en-CA", {
-    timeZone: KYIV_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(date);
+  const values = KYIV_DATE_TIME_FORMATTER.formatToParts(date);
   const read = (type: string): number => Number(values.find((part) => part.type === type)?.value ?? 0);
 
   return {

@@ -50,7 +50,7 @@ describe("PrismaPartyBossRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("starts from recruiting party, replaces queued actions, and timeout-resolves past the old cap without terminalizing by turn count", async () => {
