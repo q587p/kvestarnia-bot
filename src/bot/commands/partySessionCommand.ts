@@ -138,9 +138,10 @@ export async function handlePartySessionCallback(
       return;
     }
 
+    const party = await service.getByToken(callback.token);
+    const isBigBarrelRecruiting = "session" in party && isBigBarrelParty(party.session);
     if (!options.partyBoss.areDevHelpersEnabled()) {
-      const party = await service.getByToken(callback.token);
-      if (!("session" in party) || !isBigBarrelParty(party.session)) {
+      if (!isBigBarrelRecruiting) {
         await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
         return;
       }
@@ -148,7 +149,11 @@ export async function handlePartySessionCallback(
 
     const partyBoss = options.partyBoss;
     const result = await serializePartySessionDelivery(callback.token, () =>
-      partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token)
+      isBigBarrelRecruiting
+        ? partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token, {
+            allowExpiredRecruiting: true
+          })
+        : partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token)
     );
     await safeAnswerCallbackQuery(
       ctx,

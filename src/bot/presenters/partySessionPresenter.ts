@@ -139,6 +139,10 @@ export function presentPartyJoin(
 function presentPartyCreateIneligible(
   result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
+  if (result.reason === "pending-solo-raid") {
+    return presentPendingSoloRaidConflict(result.availableAt, result.now, "відкрити новий збір");
+  }
+
   if (result.reason === "loss-cooldown") {
     return [
       "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
@@ -166,6 +170,10 @@ function presentPartyJoinIneligible(
     return "Рейдова канцелярія відсіяла запис: сьогоднішня Бочка вже зарахована. Старший Брат не приймає другий запис у цей самий період.";
   }
 
+  if (reason === "pending-solo-raid") {
+    return presentPendingSoloRaidConflict(result.availableAt, result.now, "приєднатися до нового збору");
+  }
+
   if (reason === "loss-cooldown") {
     return [
       "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
@@ -174,6 +182,21 @@ function presentPartyJoinIneligible(
   }
 
   return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+}
+
+function presentPendingSoloRaidConflict(
+  availableAt: Date,
+  now: Date,
+  nextAction: string
+): string {
+  const timing = availableAt > now
+    ? `Підсумок буде готовий за <b>${formatRemainingWait(availableAt, now)}</b>.`
+    : "Підсумок уже готується; оновіть картку Бочки.";
+
+  return [
+    "Спершу завершіть старий сольний рейд біля Бочки.",
+    `${timing} Після цього можна ${nextAction}.`
+  ].join("\n");
 }
 
 export function formatRemainingWait(availableAt: Date, now: Date): string {

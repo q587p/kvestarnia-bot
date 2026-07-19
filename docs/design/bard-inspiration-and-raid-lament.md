@@ -226,6 +226,8 @@ Big Barrel-specific support tip:
 
 A recruiting Big Barrel card that includes a Bard also states that Lament is chosen after combat starts when the music slot is free. This must remain true for a one-member Bard raid; the action does not require a full party.
 
+A same-period legacy solo Barrel raid and Big Barrel recruiting are mutually exclusive. Creation, joining, and the final recruiting-to-boss transaction must reject an unclaimed legacy pending row, including after its wait has elapsed but before its reward is claimed. A stale completed pending row does not replace the canonical already-completed decision. The leader start callback may recover a due Big Barrel recruiting session with the same expired-recruiting allowance as the automatic scheduler.
+
 Keep exact remaining duration/cooldown derived from canonical `availableAt`/state data. Use distinct icons for performance, Inspiration, and Lament on adjacent surfaces.
 
 ## Persistence, idempotency, and availability

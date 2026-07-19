@@ -60,6 +60,8 @@ status-local-bot.cmd
 
 The status reports the runtime path, managed PID, package version, and whether source files changed after the bot started.
 
+On Windows, source-root ownership is case-insensitive: `D:\repo` and `d:\repo` identify the same managed runtime. `run`/`refresh` must therefore refuse a duplicate manager even when separate shells spell the drive letter differently.
+
 ### Stop the isolated bot
 
 ```text

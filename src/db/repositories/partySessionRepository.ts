@@ -107,6 +107,7 @@ export type PartyJoinIneligibleReason =
   | "level-gate"
   | "active-combat"
   | "already-completed"
+  | "pending-solo-raid"
   | "loss-cooldown";
 
 export type PartyLossCooldownIneligible = {
@@ -116,9 +117,17 @@ export type PartyLossCooldownIneligible = {
   now: Date;
 };
 
+export type PartyPendingSoloRaidIneligible = {
+  state: "ineligible";
+  reason: "pending-solo-raid";
+  availableAt: Date;
+  now: Date;
+};
+
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
   | PartyLossCooldownIneligible
+  | PartyPendingSoloRaidIneligible
   | { state: "live"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | { state: "created"; session: PartySessionRecord };
@@ -135,10 +144,11 @@ export type PartyJoinRepositoryResult =
   | { state: "stale"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
+  | (PartyPendingSoloRaidIneligible & { session: PartySessionRecord })
   | {
       state: "ineligible";
       session: PartySessionRecord;
-      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown"> | undefined;
+      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> | undefined;
     }
   | { state: "full" | "cancelled" | "expired"; session: PartySessionRecord };
 

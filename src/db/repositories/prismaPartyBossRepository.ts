@@ -40,6 +40,7 @@ import {
   type PartyBossTimeoutMode
 } from "./partyBossRepository";
 import {
+  buildFridayBarrelRaidPendingKey,
   buildBigBarrelBrotherItemGrants,
   FRIDAY_BARREL_RAID_KEY
 } from "../../services/tavernRaidService";
@@ -1463,7 +1464,7 @@ async function hasIneligibleBigBarrelParticipant(
     return true;
   }
 
-  const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
+  const [activeLease, existingSuccess, pendingSoloRaid, activeLossCooldown] = await Promise.all([
     tx.activeCombatLease.findFirst({
       where: {
         characterId: {
@@ -1491,6 +1492,17 @@ async function hasIneligibleBigBarrelParticipant(
         characterId: {
           in: characterIds
         },
+        key: buildFridayBarrelRaidPendingKey(party.periodId)
+      },
+      select: {
+        id: true
+      }
+    }),
+    tx.characterCooldown.findFirst({
+      where: {
+        characterId: {
+          in: characterIds
+        },
         key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
         availableAt: {
           gt: now
@@ -1502,7 +1514,7 @@ async function hasIneligibleBigBarrelParticipant(
     })
   ]);
 
-  return Boolean(activeLease || existingSuccess || activeLossCooldown);
+  return Boolean(activeLease || existingSuccess || pendingSoloRaid || activeLossCooldown);
 }
 
 async function settleBigParticipantResources(

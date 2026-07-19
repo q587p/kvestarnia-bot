@@ -634,6 +634,30 @@ describe("handlePartySessionCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it("uses the Big Barrel leader button as a scheduled-start fallback after the recruiting deadline", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    const getByToken = vi.fn().mockResolvedValue({ state: "ready", session: party });
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "expired" });
+    const { ctx } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: party.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          startFromPartyForTelegramUser
+        })
+      }
+    );
+
+    expect(startFromPartyForTelegramUser).toHaveBeenCalledWith(42n, party.inviteToken, {
+      allowExpiredRecruiting: true
+    });
+  });
+
   it("pushes the next boss turn to participants who acted earlier", async () => {
     const session = makeBossSession({
       turn: 2,
@@ -2051,6 +2075,7 @@ function serviceWith(overrides: Partial<PartySessionService>): PartySessionServi
     isEnabled: () => true,
     areDevHelpersEnabled: () => false,
     forceExpireByToken: vi.fn(),
+    getByToken: vi.fn().mockResolvedValue({ state: "not-found" }),
     getLiveRecruitingByTelegramUser: vi.fn(),
     ...overrides
   } as unknown as PartySessionService;

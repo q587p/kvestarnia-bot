@@ -17,6 +17,7 @@ import {
   getBardMusicAvailabilityKey
 } from "../../src/domain/noncombat/bardSupport";
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
+import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -267,6 +268,47 @@ describe("PrismaPartyBossRepository integration", () => {
       },
       select: { actionKey: true }
     })).resolves.toEqual({ actionKey: "lament" });
+  });
+
+  it("rejects a due Big Barrel start if a joined participant began a legacy solo raid after joining", async () => {
+    await seedCharacter(prisma, "pending-solo-leader", 1100n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "pending-solo-member", 1102n, "Ще В Соло", { level: 8 });
+    await partyRepository.createForTelegramUser(1100n, {
+      ...partyInput("party-token-pending-solo-race"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(
+      1102n,
+      "party-token-pending-solo-race",
+      joinInput()
+    );
+    await prisma.characterCooldown.create({
+      data: {
+        id: "pending-solo-after-join",
+        characterId: "pending-solo-member-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-30"),
+        availableAt: new Date("2026-06-30T10:14:00.000Z")
+      }
+    });
+
+    const result = await bossRepository.startFromRecruitingPartyForTelegramUser(1100n, {
+      partyInviteToken: "party-token-pending-solo-race",
+      now: new Date("2026-06-30T10:13:01.000Z"),
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    });
+
+    expect(result.state).toBe("ineligible");
+    await expect(prisma.partyBossSession.count({
+      where: { partySession: { inviteToken: "party-token-pending-solo-race" } }
+    })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: {
+          in: ["pending-solo-leader-character", "pending-solo-member-character"]
+        }
+      }
+    })).resolves.toBe(0);
   });
 
   it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {

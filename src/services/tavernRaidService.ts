@@ -748,7 +748,7 @@ export class TavernRaidService {
   }
 }
 
-function buildFridayBarrelRaidPendingKey(localDate: string): string {
+export function buildFridayBarrelRaidPendingKey(localDate: string): string {
   return `${FRIDAY_BARREL_RAID_PENDING_KEY}:${localDate}`;
 }
 

@@ -13,6 +13,7 @@ import {
   EQUIPMENT_ATTUNEMENT_ACTION_KEY
 } from "../../src/domain/equipment/equipmentAttunement";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
+import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -1014,6 +1015,64 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2502n, "party-token-big-l8", joinInput());
 
     expect(joined.state).toBe("joined");
+  });
+
+  it("blocks Big Barrel creation while the same-period legacy solo raid is pending", async () => {
+    await seedCharacter(prisma, "big-create-pending-solo-user", 2503n, "Ще В Соло", { level: 8 });
+    const availableAt = new Date(now().getTime() + 60_000);
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-pending-solo",
+        characterId: "big-create-pending-solo-user-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-29"),
+        availableAt
+      }
+    });
+
+    const blocked = await repository.createForTelegramUser(
+      2503n,
+      bigBarrelInput("party-token-big-create-pending-solo")
+    );
+
+    expect(blocked).toMatchObject({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt
+    });
+    await expect(prisma.partySession.count({
+      where: { inviteToken: "party-token-big-create-pending-solo" }
+    })).resolves.toBe(0);
+  });
+
+  it("blocks a Big Barrel join until a due same-period legacy solo raid is claimed", async () => {
+    await seedCharacter(prisma, "big-pending-solo-leader-user", 2504n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-pending-solo-joiner-user", 2505n, "Ще Десь В Соло", { level: 8 });
+    await repository.createForTelegramUser(
+      2504n,
+      bigBarrelInput("party-token-big-join-pending-solo")
+    );
+    const availableAt = new Date(now().getTime() - 1);
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-join-pending-solo",
+        characterId: "big-pending-solo-joiner-user-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-29"),
+        availableAt
+      }
+    });
+
+    const blocked = await repository.joinByTokenForTelegramUser(
+      2505n,
+      "party-token-big-join-pending-solo",
+      joinInput()
+    );
+
+    expect(blocked).toMatchObject({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt
+    });
+    await expectNoMembership(prisma, "party-token-big-join-pending-solo", 2505n);
   });
 
   it("blocks creating another Big Barrel recruiting party during active loss retry cooldown", async () => {
