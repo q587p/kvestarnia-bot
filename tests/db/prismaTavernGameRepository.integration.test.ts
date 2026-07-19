@@ -44,7 +44,7 @@ describe("PrismaTavernGameRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("keeps an open Kosti table joinable after two early decisions", async () => {

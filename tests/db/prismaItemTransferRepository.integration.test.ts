@@ -64,7 +64,7 @@ describe("PrismaItemTransferRepository integration", () => {
 
   afterAll(async () => {
     await prisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("moves one item unit exactly once and replays duplicate accepts", async () => {

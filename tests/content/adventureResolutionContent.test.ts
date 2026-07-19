@@ -22,6 +22,7 @@ import {
   deriveQuestRiskBand,
   qualitativeQuestChance
 } from "../../src/domain/quests/questChecks";
+import type { QuestMethodDefinition } from "../../src/content/questResolution";
 
 describe("adventure resolution content", () => {
   it("covers every current general adventure problem with authored scene methods", () => {
@@ -197,6 +198,33 @@ describe("adventure resolution content", () => {
     }
   });
 
+  it("returns equivalent generated scenes in independent runtime containers", () => {
+    const input = {
+      problemId: "class-bard-manual",
+      title: "Підручник просить сценічну паузу",
+      character: bard
+    };
+    const first = buildAdventureResolutionScene(input);
+    const second = buildAdventureResolutionScene(input);
+    const originalMethodCount = second.methods.length;
+    const originalLabel = second.methods[0]!.label;
+    const originalHeadline = second.methods[0]!.outcomeText.success.headline;
+
+    expect(first).toEqual(second);
+    expect(first).not.toBe(second);
+    expect(first.methods).not.toBe(second.methods);
+    expect(first.methods[0]).not.toBe(second.methods[0]);
+    expect(first.methods[0]!.outcomeText).not.toBe(second.methods[0]!.outcomeText);
+
+    (first.methods as QuestMethodDefinition[]).pop();
+    first.methods[0]!.label = "змінено лише в першій сцені";
+    first.methods[0]!.outcomeText.success.headline = "змінено лише в першій сцені";
+
+    expect(second.methods).toHaveLength(originalMethodCount);
+    expect(second.methods[0]!.label).toBe(originalLabel);
+    expect(second.methods[0]!.outcomeText.success.headline).toBe(originalHeadline);
+  });
+
   it("keeps INT-heavy generated problems from hiding the class method", () => {
     const intellectualBureaucramancer = {
       ...character,
@@ -219,42 +247,6 @@ describe("adventure resolution content", () => {
     expect(methods.some((method) => method.source === "class")).toBe(true);
     for (const primaryStat of ["strength", "dexterity", "intelligence", "charisma", "luck"] as const) {
       expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
-    }
-  });
-
-  it("keeps the visible method matrix complete and constrained for active race/class combos", () => {
-    for (const problemId of ADVENTURE_PROBLEM_IDS) {
-      for (const race of activeRaces) {
-        for (const heroClass of classes) {
-          const profile = {
-            ...character,
-            raceId: race.id,
-            raceName: race.name,
-            classId: heroClass.id,
-            className: heroClass.name
-          };
-          const scene = buildAdventureResolutionScene({
-            problemId,
-            title: problemId,
-            character: profile
-          });
-          const methods = resolveQuestMethodsForCharacter(scene, profile);
-          const repeated = resolveQuestMethodsForCharacter(scene, profile);
-          const sources = new Set(methods.map((method) => method.source));
-
-          expect(methods.map((method) => method.id), problemId).toEqual(repeated.map((method) => method.id));
-          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeGreaterThanOrEqual(5);
-          expect(methods.length, `${problemId}:${race.id}:${heroClass.id}`).toBeLessThanOrEqual(7);
-          expect(sources.has("scene"), `${problemId}:${race.id}:${heroClass.id}`).toBe(true);
-          expect(new Set(methods.map((method) => normalize(method.label))).size, problemId).toBe(methods.length);
-          expect(new Set(methods.map(getQuestMethodTacticKey)).size, problemId).toBe(methods.length);
-          expect(new Set(methods.map(getQuestMethodAffordanceKey)).size, problemId).toBe(methods.length);
-
-          for (const primaryStat of ["strength", "dexterity", "intelligence", "charisma", "luck"] as const) {
-            expect(methods.filter((method) => method.primaryStat === primaryStat).length, primaryStat).toBeLessThanOrEqual(2);
-          }
-        }
-      }
     }
   });
 

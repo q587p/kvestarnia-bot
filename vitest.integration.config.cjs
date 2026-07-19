@@ -3,7 +3,9 @@ module.exports = {
   test: {
     environment: "node",
     include: ["tests/**/*.integration.test.ts"],
-    fileParallelism: false,
+    fileParallelism: true,
+    minWorkers: 1,
+    maxWorkers: 2,
     testTimeout: 10000
   }
 };

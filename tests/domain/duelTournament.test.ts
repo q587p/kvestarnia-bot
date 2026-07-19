@@ -8,6 +8,7 @@ import {
   type DuelTournamentPeriod,
   getDuelTournamentReward,
   getDuelTournamentWindow,
+  getDuelTournamentWindowFromKey,
   getPreviousDuelTournamentWindow
 } from "../../src/domain/duels/duelTournament";
 
@@ -24,6 +25,44 @@ describe("duel tournament domain", () => {
     expect(current.endsAt.toISOString()).toBe("2026-07-08T21:00:00.000Z");
     expect(previousWeek.key).toBe("2026-W27");
     expect(currentMonth.key).toBe("2026-07");
+  });
+
+  it("preserves Kyiv winter, summer, DST, ISO-week and month boundaries", () => {
+    expect(getDuelTournamentWindow("day", new Date("2026-01-15T12:00:00.000Z"))).toMatchObject({
+      key: "2026-01-15",
+      startsAt: new Date("2026-01-14T22:00:00.000Z"),
+      endsAt: new Date("2026-01-15T22:00:00.000Z")
+    });
+    expect(getDuelTournamentWindow("day", new Date("2026-07-15T12:00:00.000Z"))).toMatchObject({
+      key: "2026-07-15",
+      startsAt: new Date("2026-07-14T21:00:00.000Z"),
+      endsAt: new Date("2026-07-15T21:00:00.000Z")
+    });
+    expect(getDuelTournamentWindow("day", new Date("2026-03-29T12:00:00.000Z"))).toMatchObject({
+      key: "2026-03-29",
+      startsAt: new Date("2026-03-28T22:00:00.000Z"),
+      endsAt: new Date("2026-03-29T21:00:00.000Z")
+    });
+    expect(getDuelTournamentWindow("day", new Date("2026-10-25T12:00:00.000Z"))).toMatchObject({
+      key: "2026-10-25",
+      startsAt: new Date("2026-10-24T21:00:00.000Z"),
+      endsAt: new Date("2026-10-25T22:00:00.000Z")
+    });
+    expect(getDuelTournamentWindow("week", new Date("2027-01-01T12:00:00.000Z"))).toMatchObject({
+      key: "2026-W53",
+      startsAt: new Date("2026-12-27T22:00:00.000Z"),
+      endsAt: new Date("2027-01-03T22:00:00.000Z")
+    });
+    expect(getDuelTournamentWindowFromKey("month", "2026-03")).toMatchObject({
+      key: "2026-03",
+      startsAt: new Date("2026-02-28T22:00:00.000Z"),
+      endsAt: new Date("2026-03-31T21:00:00.000Z")
+    });
+    expect(getDuelTournamentWindowFromKey("month", "2026-10")).toMatchObject({
+      key: "2026-10",
+      startsAt: new Date("2026-09-30T21:00:00.000Z"),
+      endsAt: new Date("2026-10-31T22:00:00.000Z")
+    });
   });
 
   it("scores completed turn-based duels once and limits repeated wins against the same opponent", () => {

@@ -44,7 +44,7 @@ describe("PrismaDailyActionRepository integration", () => {
   afterAll(async () => {
     await firstPrisma?.$disconnect();
     await secondPrisma?.$disconnect();
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
   it("serializes Adventure claims that straddle a new offer bucket inside the rolling cooldown", async () => {
