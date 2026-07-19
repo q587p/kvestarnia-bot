@@ -715,7 +715,7 @@ describe("handlePartySessionCallback", () => {
     )).toBe(true);
   });
 
-  it("sends and persists missing terminal cards for every participant without recruiting actions", async () => {
+  it("isolates an early reference-persistence failure while delivering every missing terminal card", async () => {
     const party = makeBigBarrelSessionWithTwoMembers();
     let terminalParty: PartySessionRecord = {
       ...party,
@@ -731,11 +731,16 @@ describe("handlePartySessionCallback", () => {
     const getByToken = vi.fn()
       .mockResolvedValueOnce({ state: "ready", session: party })
       .mockImplementation(() => Promise.resolve({ state: "ready", session: terminalParty }));
+    let persistenceAttempt = 0;
     const recordParticipantMessageReference = vi.fn().mockImplementation((
       targetTelegramUserId: bigint,
       _token: string,
       reference: { chatId: bigint; messageId: number }
     ) => {
+      persistenceAttempt += 1;
+      if (persistenceAttempt === 1) {
+        return Promise.reject(new Error("reference write unavailable"));
+      }
       terminalParty = {
         ...terminalParty,
         participants: terminalParty.participants.map((participant) =>

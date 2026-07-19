@@ -27,20 +27,28 @@ export async function deliverTerminalIneligiblePartyCards(
     actorReference?: PartyCardReference | null | undefined;
   } = {}
 ): Promise<void> {
-  await serializePartySessionDelivery(inviteToken, async () => {
-    const canonical = await service.getByToken(inviteToken);
-    if (canonical.state !== "ready" || canonical.session.status !== "ineligible") {
-      return;
-    }
-
-    for (const participant of canonical.session.participants) {
-      if (participant.status !== "joined") {
-        continue;
+  try {
+    await serializePartySessionDelivery(inviteToken, async () => {
+      const canonical = await service.getByToken(inviteToken);
+      if (canonical.state !== "ready" || canonical.session.status !== "ineligible") {
+        return;
       }
 
-      await deliverParticipantTerminalCard(api, service, canonical.session, participant.characterId, options);
-    }
-  });
+      for (const participant of canonical.session.participants) {
+        if (participant.status !== "joined") {
+          continue;
+        }
+
+        try {
+          await deliverParticipantTerminalCard(api, service, canonical.session, participant.characterId, options);
+        } catch {
+          // Terminal notifications are best-effort; one participant must not block the rest.
+        }
+      }
+    });
+  } catch {
+    // The terminal transition is already committed, so delivery failures must not escape to schedulers.
+  }
 }
 
 async function deliverParticipantTerminalCard(
@@ -105,7 +113,7 @@ async function deliverParticipantTerminalCard(
   try {
     message = await api.sendMessage(Number(chatId), text, messageOptions);
   } catch {
-    // Telegram delivery is retried safely by a later callback or scheduler pass.
+    // No automatic retry is guaranteed after terminalization; a later manual replay may try again.
     return;
   }
   if (message.message_id) {

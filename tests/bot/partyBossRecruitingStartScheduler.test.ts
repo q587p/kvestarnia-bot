@@ -60,8 +60,18 @@ describe("party boss recruiting start scheduler", () => {
     expect(JSON.stringify(sendMessage.mock.calls[2]?.[2])).not.toContain("📜 Журнал");
   });
 
-  it("terminalizes permanently incompatible due parties once and notifies every participant", async () => {
+  it("isolates terminal notification failures while keeping later participants and due turns healthy", async () => {
     const party = makePartySession();
+    const dueSession = {
+      ...makeBossSession(),
+      id: "boss-due-turn",
+      partyInviteToken: "partyDueTurn"
+    };
+    const resolvedSession = {
+      ...makeBossSession({ turn: 2 }),
+      id: "boss-due-turn",
+      partyInviteToken: "partyDueTurn"
+    };
     const terminalParty: PartySessionRecord = {
       ...party,
       status: "ineligible",
@@ -73,6 +83,9 @@ describe("party boss recruiting start scheduler", () => {
     const listDueRecruitingBigBarrelBrother = vi.fn()
       .mockResolvedValueOnce([party])
       .mockResolvedValueOnce([]);
+    const listDueTimedOutSessions = vi.fn()
+      .mockResolvedValueOnce([dueSession])
+      .mockResolvedValueOnce([]);
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({
       state: "terminal-ineligible"
     });
@@ -80,7 +93,14 @@ describe("party boss recruiting start scheduler", () => {
       state: "ready",
       session: terminalParty
     });
-    const recordParticipantMessageReference = vi.fn();
+    const recordParticipantMessageReference = vi.fn()
+      .mockRejectedValueOnce(new Error("reference write unavailable"))
+      .mockResolvedValue(terminalParty);
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      session: resolvedSession,
+      achievementUnlocksByCharacterId: {}
+    });
     const editMessageText = vi.fn().mockResolvedValue(true);
     const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
     const scheduler = createPartyBossRecruitingStartScheduler(
@@ -93,24 +113,26 @@ describe("party boss recruiting start scheduler", () => {
         } as unknown as PartySessionService,
         partyBoss: {
           isEnabled: () => true,
-          listDueTimedOutSessions: vi.fn().mockResolvedValue([]),
-          startFromPartyForTelegramUser
+          listDueTimedOutSessions,
+          startFromPartyForTelegramUser,
+          resolveDueTimedOutByToken,
+          hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
         } as unknown as PartyBossService
       },
       { api: { editMessageText, sendMessage } } as unknown as Bot
     );
 
-    await expect(scheduler.tick()).resolves.toBe(1);
+    await expect(scheduler.tick()).resolves.toBe(2);
     await expect(scheduler.tick()).resolves.toBe(0);
 
     expect(startFromPartyForTelegramUser).toHaveBeenCalledTimes(1);
     expect(getByToken).toHaveBeenCalledWith(party.inviteToken);
     expect(editMessageText).not.toHaveBeenCalled();
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage.mock.calls.every((call) =>
+    expect(sendMessage).toHaveBeenCalledTimes(4);
+    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
       String(call[1]).includes("один із записів більше не підходить до цього бочкового періоду")
     )).toBe(true);
-    expect(sendMessage.mock.calls.every((call) =>
+    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
       !JSON.stringify(call[2] ?? {}).includes("v1:party:bs:")
     )).toBe(true);
     expect(recordParticipantMessageReference).toHaveBeenCalledTimes(2);
@@ -122,6 +144,36 @@ describe("party boss recruiting start scheduler", () => {
       chatId: 93n,
       messageId: 1
     });
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledWith(dueSession.partyInviteToken);
+
+    const readFailureResolve = vi.fn().mockResolvedValue({
+      state: "resolved",
+      session: resolvedSession,
+      achievementUnlocksByCharacterId: {}
+    });
+    const readFailureSend = vi.fn().mockResolvedValue({ message_id: 23 });
+    const readFailureScheduler = createPartyBossRecruitingStartScheduler(
+      {
+        partySessions: {
+          isBigBarrelBrotherEnabled: () => true,
+          listDueRecruitingBigBarrelBrother: vi.fn().mockResolvedValue([party]),
+          getByToken: vi.fn().mockRejectedValue(new Error("canonical read unavailable")),
+          recordParticipantMessageReference: vi.fn()
+        } as unknown as PartySessionService,
+        partyBoss: {
+          isEnabled: () => true,
+          listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
+          startFromPartyForTelegramUser: vi.fn().mockResolvedValue({ state: "terminal-ineligible" }),
+          resolveDueTimedOutByToken: readFailureResolve,
+          hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
+        } as unknown as PartyBossService
+      },
+      { api: { sendMessage: readFailureSend } } as unknown as Bot
+    );
+
+    await expect(readFailureScheduler.tick()).resolves.toBe(2);
+    expect(readFailureResolve).toHaveBeenCalledWith(dueSession.partyInviteToken);
+    expect(readFailureSend).toHaveBeenCalledTimes(2);
   });
 
   it("resolves due active party boss turns and sends updated battle cards", async () => {
