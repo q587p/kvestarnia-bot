@@ -1011,16 +1011,16 @@ describe("PrismaPartySessionRepository integration", () => {
       data: { activeMembershipKey: null }
     });
 
-    const results = await Promise.all([
-      repository.joinByTokenForTelegramUser(2154n, "party-token-terminal-replays", joinInput()),
-      repository.leaveByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
-      repository.cancelByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
-      repository.setParticipantReadiness(2153n, "party-token-terminal-replays", "ready", now()),
-      repository.placeKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
-      repository.supportKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
-      repository.fileBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now()),
-      repository.signBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now())
-    ]);
+    const results = [
+      await repository.joinByTokenForTelegramUser(2154n, "party-token-terminal-replays", joinInput()),
+      await repository.leaveByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      await repository.cancelByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      await repository.setParticipantReadiness(2153n, "party-token-terminal-replays", "ready", now()),
+      await repository.placeKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      await repository.supportKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      await repository.fileBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now()),
+      await repository.signBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now())
+    ];
 
     expect(results.map((result) => result.state)).toEqual(Array(8).fill("terminal-ineligible"));
     await expect(prisma.partySession.findUniqueOrThrow({
