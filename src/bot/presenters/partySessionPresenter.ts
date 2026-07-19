@@ -363,6 +363,10 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
     return "Рейдова канцелярія відсіяла частину записів. Старший Брат Бочки приймає лише чинні записи без боргів у бочковому архіві.";
   }
 
+  if (result.state === "terminal-ineligible") {
+    return "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Збір закрито; пригодники можуть зібрати нову ватагу.";
+  }
+
   if (result.state === "not-recruiting") {
     return result.session
       ? presentPartyBoss(result.session, { viewerCharacterId })
@@ -1214,6 +1218,16 @@ export function presentPartySession(
   return lines.join("\n");
 }
 
+export function presentPartyTerminalIneligible(
+  session: PartySessionRecord,
+  viewerCharacterId?: string | null
+): string {
+  return presentPartySession(session, {
+    viewerCharacterId,
+    notice: "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
+  });
+}
+
 function presentKharakternykWardBossLine(
   wardSign: NonNullable<PartyBossSessionRecord["state"]["wardSign"]>
 ): string {
@@ -1389,6 +1403,10 @@ function getStatusLine(session: PartySessionRecord): string {
 
   if (session.status === "expired") {
     return "Стан: строк збору минув";
+  }
+
+  if (session.status === "ineligible") {
+    return "Стан: збір закрито через несумісні записи";
   }
 
   if (session.status !== "recruiting") {

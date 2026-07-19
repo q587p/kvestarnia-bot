@@ -2636,11 +2636,15 @@ function calculateWardManaDiscount(character: CharacterRow, min: number, max: nu
 
 function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {
   const status = parseStatus(row.status);
-  return status === "cancelled" || status === "expired" ? status : null;
+  return status === "ineligible"
+    ? "expired"
+    : status === "cancelled" || status === "expired"
+      ? status
+      : null;
 }
 
 function parseStatus(value: string): PartySessionStatus {
-  return value === "cancelled" || value === "expired" || value === "active" || value === "completed"
+  return value === "cancelled" || value === "expired" || value === "ineligible" || value === "active" || value === "completed"
     ? value
     : "recruiting";
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   activeRaces,
@@ -88,6 +90,32 @@ describe("lore board content", () => {
 
     expect(raceRefs).toEqual(new Set(activeRaces.map((race) => race.id)));
     expect(classRefs).toEqual(new Set(classes.map((characterClass) => characterClass.id)));
+  });
+
+  it("keeps machine-readable class seed ids aligned with runtime lore ids and canonical refs", () => {
+    const seed = JSON.parse(readFileSync(
+      join(process.cwd(), "docs", "content", "kvestarnia-lore-seed.json"),
+      "utf8"
+    )) as {
+      entries: Array<{
+        id: string;
+        categoryId: string;
+        canonicalRefs?: string[];
+      }>;
+    };
+    const seedClasses = seed.entries.filter((entry) => entry.categoryId === "classes");
+    const runtimeClasses = loreEntries.filter((entry) => entry.categoryId === "classes");
+
+    expect(new Set(seedClasses.map((entry) => entry.id)))
+      .toEqual(new Set(runtimeClasses.map((entry) => entry.id)));
+    for (const entry of seedClasses) {
+      const runtime = runtimeClasses.find((candidate) => candidate.id === entry.id);
+      expect(new Set(entry.canonicalRefs ?? []), entry.id).toEqual(new Set(
+        runtime?.canonicalRefs
+          ?.filter((ref) => ref.type === "class")
+          .map((ref) => ref.id) ?? []
+      ));
+    }
   });
 
   it("covers every current Korchma presence location in place lore refs", () => {

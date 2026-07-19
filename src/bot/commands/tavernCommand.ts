@@ -94,6 +94,7 @@ import {
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
+import type { BotServices } from "../botServices";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 type TavernCommandKeyboard =
@@ -753,6 +754,23 @@ export async function sendDuelTournamentBoard(
   );
 }
 
+export interface KorchmaBarOptions {
+  questMarkers?: QuestMarkerInput | null;
+  shynokService?: ShynokService | undefined;
+  bardPerformance?: Pick<BardPerformanceService, "getLiveForTelegramUser"> | undefined;
+}
+
+export function buildKorchmaBarOptions(
+  services: Pick<BotServices, "shynok" | "bardPerformance">,
+  options: Pick<KorchmaBarOptions, "questMarkers"> = {}
+): KorchmaBarOptions {
+  return {
+    shynokService: services.shynok,
+    bardPerformance: services.bardPerformance,
+    ...options
+  };
+}
+
 export async function sendKorchmaBar(
   ctx: Context,
   tavernRaidService: TavernRaidService,
@@ -761,11 +779,7 @@ export async function sendKorchmaBar(
   cellarGrownupQuestService?: CellarGrownupQuestService,
   fightService?: FightService,
   tavernGameService?: TavernGameService,
-  options: {
-    questMarkers?: QuestMarkerInput | null;
-    shynokService?: ShynokService | undefined;
-    bardPerformance?: Pick<BardPerformanceService, "getLiveForTelegramUser"> | undefined;
-  } = {}
+  options: KorchmaBarOptions = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 

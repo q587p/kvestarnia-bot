@@ -49,6 +49,7 @@ sendQuestHub
 } from "../commands/questHubCommand";
 import {
 registerTavernCommand,
+buildKorchmaBarOptions,
 sendDuelTournamentBoard,
 sendDuelWinnersBoard,
 sendKorchmaArrivalBoard,
@@ -1351,10 +1352,9 @@ async function handlePlaceCallback(
       services.cellarGrownup,
       services.fight,
       services.tavernGames,
-      {
-        shynokService: services.shynok,
+      buildKorchmaBarOptions(services, {
         ...(questMarkers ? { questMarkers } : {})
-      }
+      })
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;

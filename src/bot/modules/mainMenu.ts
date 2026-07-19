@@ -37,6 +37,7 @@ sendQuestHub,
 sendQuestOverview
 } from "../commands/questHubCommand";
 import {
+buildKorchmaBarOptions,
 sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
@@ -629,11 +630,9 @@ async function sendCurrentPresenceLocation(
       services.cellarGrownup,
       services.fight,
       services.tavernGames,
-      {
-        shynokService: services.shynok,
-        bardPerformance: services.bardPerformance,
+      buildKorchmaBarOptions(services, {
         ...(questMarkers ? { questMarkers } : {})
-      }
+      })
     );
     return;
   }

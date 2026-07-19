@@ -5636,6 +5636,114 @@ describe("scene callback HTML options", () => {
     expect(calls.some((call) => call.method === "deleteMessage")).toBe(false);
   });
 
+  it("keeps a live Bard performance canonical on the normal bar movement route", async () => {
+    const getLiveForTelegramUser = vi.fn(() => Promise.resolve({
+      expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+      now: new Date("2026-07-19T10:02:00.000Z")
+    }));
+    const startForTelegramUser = vi.fn();
+    const bard = {
+      ...character,
+      classId: "class.bard",
+      className: "Бард",
+      level: 3
+    };
+    const calls = await captureApiCalls(
+      makePlaceCallbackData("bar"),
+      servicesWith({
+        bardPerformance: {
+          areDevHelpersEnabled: () => false,
+          getLiveForTelegramUser,
+          startForTelegramUser
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () => Promise.resolve({
+            state: "ready",
+            locationId: "location.korchma.bar",
+            locationName: "Шинок",
+            insideKorchma: true
+          }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character: bard }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const bar = calls.find((call) =>
+      call.method === "sendMessage" && String(call.payload.text).includes("Ваш виступ у цій місцині вже триває")
+    );
+
+    expect(getLiveForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(startForTelegramUser).not.toHaveBeenCalled();
+    expect(String(bar?.payload.text)).toContain("Реакції: ще <b>11 хв</b>");
+    expect(JSON.stringify(bar?.payload.reply_markup)).not.toContain("🎶 Виступити");
+  });
+
+  it("keeps a live Bard performance canonical when a quest callback redirects to the bar", async () => {
+    const getLiveForTelegramUser = vi.fn(() => Promise.resolve({
+      expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+      now: new Date("2026-07-19T10:02:00.000Z")
+    }));
+    const startForTelegramUser = vi.fn();
+    const bard = {
+      ...character,
+      classId: "class.bard",
+      className: "Бард",
+      level: 3
+    };
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("problem"),
+      servicesWith({
+        bardPerformance: {
+          areDevHelpersEnabled: () => false,
+          getLiveForTelegramUser,
+          startForTelegramUser
+        },
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () => Promise.resolve({
+            state: "ready",
+            locationId: "location.korchma.hall",
+            locationName: "Зала корчми",
+            insideKorchma: true
+          }),
+          getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        },
+        tavern: {
+          getTavernForTelegramUser: () => Promise.resolve({ state: "ready", character: bard }),
+          completeFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          advanceFridayBarrelRaid: () => Promise.resolve({ state: "no-character" }),
+          getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" })
+        },
+        fight: {
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({ state: "no-character" })
+        }
+      })
+    );
+    const bar = calls.find((call) =>
+      call.method === "editMessageText" && String(call.payload.text).includes("Ваш виступ у цій місцині вже триває")
+    );
+
+    expect(getLiveForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(startForTelegramUser).not.toHaveBeenCalled();
+    expect(String(bar?.payload.text)).toContain("Реакції: ще <b>11 хв</b>");
+    expect(JSON.stringify(bar?.payload.reply_markup)).not.toContain("🎶 Виступити");
+  });
+
   it.each([
     ["deep-left"],
     ["deep-straight"],

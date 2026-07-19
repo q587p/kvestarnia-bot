@@ -219,6 +219,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           return { state: "expired" };
         }
 
+        if (party.status === "ineligible") {
+          return { state: "terminal-ineligible" };
+        }
+
         if (party.status !== RECRUITING_PARTY_STATUS) {
           return { state: "not-recruiting" };
         }
@@ -229,11 +233,30 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         }
 
         const candidateIsBigBarrel = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
-        if (
-          candidateIsBigBarrel &&
-          await hasIneligibleBigBarrelParticipant(tx, party, candidateJoined, input.now)
-        ) {
-          return { state: "ineligible" };
+        if (candidateIsBigBarrel) {
+          const eligibilityConflict = await getBigBarrelEligibilityConflict(tx, party, candidateJoined, input.now);
+          if (eligibilityConflict === "permanent") {
+            if (party.expiresAt <= input.now && input.allowExpiredRecruiting === true) {
+              const terminalized = await terminalizeIneligibleRecruitingParty(tx, party);
+              if (terminalized) {
+                return { state: "terminal-ineligible" };
+              }
+
+              const latest = await tx.partySession.findUnique({
+                where: { id: party.id },
+                include: partyInclude
+              });
+              if (!latest) {
+                return { state: "not-found" };
+              }
+              party = latest;
+              continue;
+            }
+            return { state: "ineligible" };
+          }
+          if (eligibilityConflict === "transient") {
+            return { state: "ineligible" };
+          }
         }
 
         const blocker = await tx.activeCombatLease.findFirst({
@@ -1446,35 +1469,25 @@ async function settleTerminalPartyBoss(
   return achievementEvents;
 }
 
-async function hasIneligibleBigBarrelParticipant(
+async function getBigBarrelEligibilityConflict(
   tx: TxClient,
   party: PartyRow,
   joined: PartyRow["participants"],
   now: Date
-): Promise<boolean> {
+): Promise<"permanent" | "transient" | null> {
   const characterIds = joined.map((participant) => participant.characterId);
   if (!party.periodId || characterIds.length === 0) {
-    return true;
+    return "permanent";
   }
 
   if (joined.some((participant) =>
     !isBigBarrelEligible(participant.character.level, participant.character._count.remorts) ||
     participant.character._count.remorts !== participant.remortCount
   )) {
-    return true;
+    return "permanent";
   }
 
-  const [activeLease, existingSuccess, pendingSoloRaid, activeLossCooldown] = await Promise.all([
-    tx.activeCombatLease.findFirst({
-      where: {
-        characterId: {
-          in: characterIds
-        }
-      },
-      select: {
-        id: true
-      }
-    }),
+  const [existingSuccess, pendingSoloRaid, activeLossCooldown] = await Promise.all([
     tx.dailyAction.findFirst({
       where: {
         characterId: {
@@ -1514,7 +1527,43 @@ async function hasIneligibleBigBarrelParticipant(
     })
   ]);
 
-  return Boolean(activeLease || existingSuccess || pendingSoloRaid || activeLossCooldown);
+  if (existingSuccess || pendingSoloRaid) {
+    return "permanent";
+  }
+
+  return activeLossCooldown ? "transient" : null;
+}
+
+async function terminalizeIneligibleRecruitingParty(
+  tx: TxClient,
+  party: Pick<PartyRow, "id" | "version">
+): Promise<boolean> {
+  const transitioned = await tx.partySession.updateMany({
+    where: {
+      id: party.id,
+      status: RECRUITING_PARTY_STATUS,
+      version: party.version
+    },
+    data: {
+      status: "ineligible",
+      activeLeaderKey: null,
+      version: { increment: 1 }
+    }
+  });
+  if (transitioned.count !== 1) {
+    return false;
+  }
+
+  await tx.partyParticipant.updateMany({
+    where: {
+      sessionId: party.id,
+      activeMembershipKey: { not: null }
+    },
+    data: {
+      activeMembershipKey: null
+    }
+  });
+  return true;
 }
 
 async function settleBigParticipantResources(

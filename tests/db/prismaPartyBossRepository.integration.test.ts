@@ -270,11 +270,14 @@ describe("PrismaPartyBossRepository integration", () => {
     })).resolves.toEqual({ actionKey: "lament" });
   });
 
-  it("rejects a due Big Barrel start if a joined participant began a legacy solo raid after joining", async () => {
+  it("terminalizes a due Big Barrel party if a joined participant began a legacy solo raid after joining", async () => {
     await seedCharacter(prisma, "pending-solo-leader", 1100n, "Ватажок", { level: 8 });
     await seedCharacter(prisma, "pending-solo-member", 1102n, "Ще В Соло", { level: 8 });
+    await seedCharacter(prisma, "later-due-leader", 1103n, "Наступна Ватага", { level: 8 });
     await partyRepository.createForTelegramUser(1100n, {
       ...partyInput("party-token-pending-solo-race"),
+      joinUntilAt: new Date("2026-06-30T10:12:59.000Z"),
+      expiresAt: new Date("2026-06-30T10:12:59.000Z"),
       originLocationId: "barrel.big-brother"
     });
     await partyRepository.joinByTokenForTelegramUser(
@@ -282,6 +285,10 @@ describe("PrismaPartyBossRepository integration", () => {
       "party-token-pending-solo-race",
       joinInput()
     );
+    await partyRepository.createForTelegramUser(1103n, {
+      ...partyInput("party-token-later-due"),
+      originLocationId: "barrel.big-brother"
+    });
     await prisma.characterCooldown.create({
       data: {
         id: "pending-solo-after-join",
@@ -291,14 +298,18 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     });
 
+    const dueNow = new Date("2026-06-30T10:13:01.000Z");
+    await expect(partyRepository.listDueRecruitingByOrigin("barrel.big-brother", dueNow, 1))
+      .resolves.toMatchObject([{ inviteToken: "party-token-pending-solo-race" }]);
+
     const result = await bossRepository.startFromRecruitingPartyForTelegramUser(1100n, {
       partyInviteToken: "party-token-pending-solo-race",
-      now: new Date("2026-06-30T10:13:01.000Z"),
+      now: dueNow,
       turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
       allowExpiredRecruiting: true
     });
 
-    expect(result.state).toBe("ineligible");
+    expect(result.state).toBe("terminal-ineligible");
     await expect(prisma.partyBossSession.count({
       where: { partySession: { inviteToken: "party-token-pending-solo-race" } }
     })).resolves.toBe(0);
@@ -309,6 +320,32 @@ describe("PrismaPartyBossRepository integration", () => {
         }
       }
     })).resolves.toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-pending-solo-race" },
+      select: { status: true, activeLeaderKey: true }
+    })).resolves.toEqual({ status: "ineligible", activeLeaderKey: null });
+    await expect(prisma.partyParticipant.findMany({
+      where: { session: { inviteToken: "party-token-pending-solo-race" } },
+      select: { activeMembershipKey: true }
+    })).resolves.toEqual([
+      { activeMembershipKey: null },
+      { activeMembershipKey: null }
+    ]);
+
+    await expect(partyRepository.listDueRecruitingByOrigin("barrel.big-brother", dueNow, 1))
+      .resolves.toMatchObject([{ inviteToken: "party-token-later-due" }]);
+    await expect(bossRepository.startFromRecruitingPartyForTelegramUser(1100n, {
+      partyInviteToken: "party-token-pending-solo-race",
+      now: dueNow,
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    })).resolves.toEqual({ state: "terminal-ineligible" });
+    await expect(bossRepository.startFromRecruitingPartyForTelegramUser(1103n, {
+      partyInviteToken: "party-token-later-due",
+      now: dueNow,
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    })).resolves.toMatchObject({ state: "started" });
   });
 
   it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {
@@ -2721,14 +2758,15 @@ describe("PrismaPartyBossRepository integration", () => {
         id: "big-start-loss-cooldown",
         characterId: "big-loss-cooldown-joiner-user-character",
         key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
-        availableAt: new Date(now().getTime() + 60_000)
+        availableAt: new Date("2026-06-30T10:14:00.000Z")
       }
     });
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5121n, {
       partyInviteToken: "party-token-big-start-loss-cooldown",
-      now: now(),
-      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      now: new Date("2026-06-30T10:13:01.000Z"),
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
     });
 
     expect(started).toEqual({ state: "ineligible" });
@@ -2746,6 +2784,13 @@ describe("PrismaPartyBossRepository integration", () => {
         }
       }
     })).toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-big-start-loss-cooldown" },
+      select: { status: true, activeLeaderKey: true }
+    })).resolves.toEqual({
+      status: "recruiting",
+      activeLeaderKey: "party-leader:big-loss-cooldown-leader-user-character"
+    });
   });
 
   it("allows a remorted level 3 participant to start and settle Big Barrel Brother", async () => {

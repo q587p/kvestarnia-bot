@@ -74,7 +74,13 @@ export type PartyBossStartResult =
   | { state: "not-found" }
   | { state: "not-leader"; session?: PartyBossSessionRecord }
   | {
-      state: "not-recruiting" | "expired" | "too-small" | "blocked" | "ineligible";
+      state:
+        | "not-recruiting"
+        | "expired"
+        | "too-small"
+        | "blocked"
+        | "ineligible"
+        | "terminal-ineligible";
       blockerName?: string;
       session?: PartyBossSessionRecord;
     }

@@ -35,6 +35,7 @@ import {
   formatRemainingWait,
   getInitialBigBarrelInviteTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
+  presentPartyTerminalIneligible,
   presentPartyView
 } from "../presenters/partySessionPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
@@ -160,6 +161,8 @@ export async function handlePartySessionCallback(
       ctx,
       result.state === "blocked"
         ? { text: "Хтось уже в бою." }
+        : result.state === "terminal-ineligible"
+          ? { text: "Збір закрито: один із записів більше не підходить до цього бочкового періоду." }
         : result.state === "ineligible"
           ? { text: "Рейдова канцелярія відсіяла частину записів." }
           : undefined
@@ -167,7 +170,19 @@ export async function handlePartySessionCallback(
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
-    if (result.state === "started") {
+    if (result.state === "terminal-ineligible") {
+      await sendCanonicalPartyPreparationCard(
+        ctx,
+        callback.token,
+        telegramUserId,
+        options.botUsername,
+        service,
+        partyBoss,
+        (session, _inviteUrl, canonicalViewerCharacterId) =>
+          presentPartyTerminalIneligible(session, canonicalViewerCharacterId),
+        { refreshParticipants: true }
+      );
+    } else if (result.state === "started") {
       await sendText(ctx, "edit", presentPartyBossIntro(result.session, viewerCharacterId), false);
       await sendBossText(ctx, "reply", presentPartyBossStart(result, viewerCharacterId), {
         session: result.session,

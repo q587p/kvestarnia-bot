@@ -1,6 +1,12 @@
 import type { CharacterRecord } from "./characterRepository";
 
-export type PartySessionStatus = "recruiting" | "cancelled" | "expired" | "active" | "completed";
+export type PartySessionStatus =
+  | "recruiting"
+  | "cancelled"
+  | "expired"
+  | "ineligible"
+  | "active"
+  | "completed";
 export type PartyParticipantStatus = "joined" | "left";
 export type PartyParticipantReadiness = "waiting" | "ready";
 export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "dev";

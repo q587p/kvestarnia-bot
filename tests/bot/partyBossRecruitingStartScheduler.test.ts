@@ -60,6 +60,57 @@ describe("party boss recruiting start scheduler", () => {
     expect(JSON.stringify(sendMessage.mock.calls[2]?.[2])).not.toContain("📜 Журнал");
   });
 
+  it("terminalizes permanently incompatible due parties once and notifies every participant", async () => {
+    const party = makePartySession();
+    const terminalParty: PartySessionRecord = {
+      ...party,
+      status: "ineligible",
+      activeLeaderKey: null,
+      participants: party.participants.map((participant) => ({
+        ...participant
+      }))
+    };
+    const listDueRecruitingBigBarrelBrother = vi.fn()
+      .mockResolvedValueOnce([party])
+      .mockResolvedValueOnce([]);
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({
+      state: "terminal-ineligible"
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "ready",
+      session: terminalParty
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const scheduler = createPartyBossRecruitingStartScheduler(
+      {
+        partySessions: {
+          isBigBarrelBrotherEnabled: () => true,
+          listDueRecruitingBigBarrelBrother,
+          getByToken
+        } as unknown as PartySessionService,
+        partyBoss: {
+          isEnabled: () => true,
+          listDueTimedOutSessions: vi.fn().mockResolvedValue([]),
+          startFromPartyForTelegramUser
+        } as unknown as PartyBossService
+      },
+      { api: { sendMessage } } as unknown as Bot
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    await expect(scheduler.tick()).resolves.toBe(0);
+
+    expect(startFromPartyForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls.every((call) =>
+      String(call[1]).includes("один із записів більше не підходить до цього бочкового періоду")
+    )).toBe(true);
+    expect(sendMessage.mock.calls.every((call) =>
+      !JSON.stringify(call[2] ?? {}).includes("v1:party:bs:")
+    )).toBe(true);
+  });
+
   it("resolves due active party boss turns and sends updated battle cards", async () => {
     const dueSession = makeBossSession();
     const resolvedSession = makeBossSession({

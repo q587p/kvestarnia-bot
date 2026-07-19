@@ -667,6 +667,51 @@ describe("handlePartySessionCallback", () => {
     });
   });
 
+  it("renders the same canonical terminal party outcome when manual start finds permanent ineligibility", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    const terminalParty: PartySessionRecord = {
+      ...party,
+      status: "ineligible",
+      version: party.version + 1,
+      activeLeaderKey: null
+    };
+    const getByToken = vi.fn()
+      .mockResolvedValueOnce({ state: "ready", session: party })
+      .mockResolvedValue({ state: "ready", session: terminalParty });
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "terminal-ineligible" });
+    const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: party.inviteToken },
+      serviceWith({ getByToken }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot",
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          startFromPartyForTelegramUser,
+          getByPartyInviteToken: vi.fn().mockResolvedValue(null)
+        })
+      }
+    );
+
+    expect(startFromPartyForTelegramUser).toHaveBeenCalledWith(42n, party.inviteToken, {
+      allowExpiredRecruiting: true
+    });
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Збір закрито: один із записів більше не підходить до цього бочкового періоду."
+    });
+    expect(messageText(editMessageText)).toContain("Стан: збір закрито через несумісні записи");
+    expect(messageText(editMessageText)).toContain("Пригодники можуть зібрати нову ватагу");
+    expect(keyboardJson(editMessageText)).not.toContain("v1:party:bs:");
+    expect(apiEditMessageText.mock.calls.some((call) =>
+      call[0] === 93 &&
+      String(call[2]).includes("Стан: збір закрито через несумісні записи") &&
+      (call[3] as { parse_mode?: string } | undefined)?.parse_mode === "HTML"
+    )).toBe(true);
+  });
+
   it("pushes the next boss turn to participants who acted earlier", async () => {
     const session = makeBossSession({
       turn: 2,

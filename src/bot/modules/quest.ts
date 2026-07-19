@@ -56,6 +56,7 @@ sendQuestHub,
 sendQuestOverview
 } from "../commands/questHubCommand";
 import {
+buildKorchmaBarOptions,
 sendKorchmaBar
 } from "../commands/tavernCommand";
 import { playerFromContext } from "../context";
@@ -651,7 +652,7 @@ async function handleQuestCallback(
         services.cellarGrownup,
         services.fight,
         services.tavernGames,
-        { shynokService: services.shynok }
+        buildKorchmaBarOptions(services)
       );
       await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
       return;
