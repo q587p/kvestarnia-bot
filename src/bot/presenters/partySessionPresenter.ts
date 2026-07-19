@@ -138,6 +138,10 @@ export function presentPartyJoin(
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
     viewerCharacterId: options.viewerCharacterId,
@@ -269,6 +273,10 @@ export function presentPartyLeave(
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
     viewerCharacterId: options.viewerCharacterId,
@@ -308,6 +316,10 @@ export function presentPartyCancel(
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
     viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "expired"
@@ -320,7 +332,9 @@ export function presentPartyView(
   result: PartyViewResult,
   options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
-  return result.state === "ready"
+  return result.state === "ready" && result.session.status === "ineligible"
+    ? presentPartyTerminalIneligible(result.session, options.viewerCharacterId)
+    : result.state === "ready"
     ? presentPartySession(result.session, {
         inviteUrl: options.inviteUrl,
         viewerCharacterId: options.viewerCharacterId

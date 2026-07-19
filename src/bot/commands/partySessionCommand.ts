@@ -35,7 +35,6 @@ import {
   formatRemainingWait,
   getInitialBigBarrelInviteTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
-  presentPartyTerminalIneligible,
   presentPartyView
 } from "../presenters/partySessionPresenter";
 import { presentInvalidCallback } from "../presenters/onboardingPresenter";
@@ -48,6 +47,7 @@ import {
   isPermanentPartyCardEditError,
   serializePartySessionDelivery
 } from "../partySessionDeliveryCoordinator";
+import { deliverTerminalIneligiblePartyCards } from "../partyTerminalIneligibleDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -171,16 +171,19 @@ export async function handlePartySessionCallback(
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
     if (result.state === "terminal-ineligible") {
-      await sendCanonicalPartyPreparationCard(
-        ctx,
-        callback.token,
-        telegramUserId,
-        options.botUsername,
+      await deliverTerminalIneligiblePartyCards(
+        ctx.api,
         service,
-        partyBoss,
-        (session, _inviteUrl, canonicalViewerCharacterId) =>
-          presentPartyTerminalIneligible(session, canonicalViewerCharacterId),
-        { refreshParticipants: true }
+        callback.token,
+        {
+          actorTelegramUserId: telegramUserId,
+          actorReference: ctx.chat?.id && ctx.callbackQuery?.message?.message_id
+            ? {
+                chatId: BigInt(ctx.chat.id),
+                messageId: ctx.callbackQuery.message.message_id
+              }
+            : null
+        }
       );
     } else if (result.state === "started") {
       await sendText(ctx, "edit", presentPartyBossIntro(result.session, viewerCharacterId), false);
@@ -1524,6 +1527,10 @@ function presentReadinessCallbackAnswer(
     return "Збір уже не змінює готовність.";
   }
 
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи.";
+  }
+
   if (state === "cancelled" || state === "expired") {
     return "Цей збір уже закрито.";
   }
@@ -1559,6 +1566,9 @@ function presentWardPlaceCallbackAnswer(
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
   }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає знаки.";
+  }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає знаки.";
   }
@@ -1588,6 +1598,9 @@ function presentWardSupportCallbackAnswer(
   }
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
+  }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає підпор.";
   }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає підпор.";
@@ -1647,6 +1660,9 @@ function presentProtocolFileCallbackAnswer(
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
   }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає протоколи.";
+  }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає протоколи.";
   }
@@ -1673,6 +1689,9 @@ function presentProtocolSignCallbackAnswer(
   }
   if (state === "stale") {
     return "Картка ватаги змінилася. Оновіть її й спробуйте ще раз.";
+  }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає підписи.";
   }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає підписи.";

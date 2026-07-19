@@ -966,6 +966,69 @@ describe("PrismaPartySessionRepository integration", () => {
     });
   });
 
+  it("records a replacement card reference after the party becomes terminal-ineligible", async () => {
+    await seedCharacter(prisma, "terminal-message-ref-user", 2152n, "Карткова Архіварка", { level: 8 });
+    await repository.createForTelegramUser(2152n, {
+      ...bigBarrelInput("party-token-terminal-message-ref"),
+      chatId: null,
+      messageId: null
+    });
+    await prisma.partySession.update({
+      where: { inviteToken: "party-token-terminal-message-ref" },
+      data: { status: "ineligible", activeLeaderKey: null }
+    });
+
+    const updated = await repository.recordParticipantMessageReference(
+      2152n,
+      "party-token-terminal-message-ref",
+      { chatId: 2152n, messageId: 93, now: now() }
+    );
+
+    expect(updated?.status).toBe("ineligible");
+    expect(updated?.participants.find((row) => row.character.telegramUserId === 2152n)).toMatchObject({
+      chatId: 2152n,
+      messageId: 93
+    });
+  });
+
+  it("preserves terminal-ineligible across every stale preparation mutation", async () => {
+    await seedCharacter(prisma, "terminal-replay-leader-user", 2153n, "Закрита Лідерка", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 20
+    });
+    await seedCharacter(prisma, "terminal-replay-outsider-user", 2154n, "Пізній Запис", { level: 8 });
+    await repository.createForTelegramUser(
+      2153n,
+      bigBarrelInput("party-token-terminal-replays")
+    );
+    await prisma.partySession.update({
+      where: { inviteToken: "party-token-terminal-replays" },
+      data: { status: "ineligible", activeLeaderKey: null }
+    });
+    await prisma.partyParticipant.updateMany({
+      where: { session: { inviteToken: "party-token-terminal-replays" } },
+      data: { activeMembershipKey: null }
+    });
+
+    const results = await Promise.all([
+      repository.joinByTokenForTelegramUser(2154n, "party-token-terminal-replays", joinInput()),
+      repository.leaveByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      repository.cancelByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      repository.setParticipantReadiness(2153n, "party-token-terminal-replays", "ready", now()),
+      repository.placeKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      repository.supportKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      repository.fileBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now()),
+      repository.signBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now())
+    ]);
+
+    expect(results.map((result) => result.state)).toEqual(Array(8).fill("terminal-ineligible"));
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-terminal-replays" },
+      select: { status: true }
+    })).resolves.toEqual({ status: "ineligible" });
+  });
+
   it("rejects non-remorted level 7 Big Barrel recruiting joins without mutation", async () => {
     await seedCharacter(prisma, "big-leader-l7-user", 2201n, "Ватажок", { level: 8 });
     await seedCharacter(prisma, "big-joiner-l7-user", 2202n, "Сьомий", { level: 7 });

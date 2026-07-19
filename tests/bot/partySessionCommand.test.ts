@@ -679,7 +679,7 @@ describe("handlePartySessionCallback", () => {
       .mockResolvedValueOnce({ state: "ready", session: party })
       .mockResolvedValue({ state: "ready", session: terminalParty });
     const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "terminal-ineligible" });
-    const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText } = createCallbackContext(42);
+    const { ctx, answerCallbackQuery, editMessageText, apiEditMessageText, sendMessage } = createCallbackContext(42);
 
     await handlePartySessionCallback(
       ctx,
@@ -702,14 +702,168 @@ describe("handlePartySessionCallback", () => {
     expect(answerCallbackQuery).toHaveBeenCalledWith({
       text: "Збір закрито: один із записів більше не підходить до цього бочкового періоду."
     });
-    expect(messageText(editMessageText)).toContain("Стан: збір закрито через несумісні записи");
-    expect(messageText(editMessageText)).toContain("Пригодники можуть зібрати нову ватагу");
-    expect(keyboardJson(editMessageText)).not.toContain("v1:party:bs:");
-    expect(apiEditMessageText.mock.calls.some((call) =>
-      call[0] === 93 &&
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(apiEditMessageText).toHaveBeenCalledTimes(3);
+    expect(apiEditMessageText.mock.calls.every((call) =>
       String(call[2]).includes("Стан: збір закрито через несумісні записи") &&
+      String(call[2]).includes("Пригодники можуть зібрати нову ватагу") &&
       (call[3] as { parse_mode?: string } | undefined)?.parse_mode === "HTML"
     )).toBe(true);
+    expect(apiEditMessageText.mock.calls.every((call) =>
+      !JSON.stringify(call[3] ?? {}).includes("v1:party:bs:")
+    )).toBe(true);
+  });
+
+  it("sends and persists missing terminal cards for every participant without recruiting actions", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    let terminalParty: PartySessionRecord = {
+      ...party,
+      status: "ineligible",
+      version: party.version + 1,
+      activeLeaderKey: null,
+      participants: party.participants.map((participant) => ({
+        ...participant,
+        chatId: null,
+        messageId: null
+      }))
+    };
+    const getByToken = vi.fn()
+      .mockResolvedValueOnce({ state: "ready", session: party })
+      .mockImplementation(() => Promise.resolve({ state: "ready", session: terminalParty }));
+    const recordParticipantMessageReference = vi.fn().mockImplementation((
+      targetTelegramUserId: bigint,
+      _token: string,
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      terminalParty = {
+        ...terminalParty,
+        participants: terminalParty.participants.map((participant) =>
+          participant.character.telegramUserId === targetTelegramUserId
+            ? { ...participant, ...reference }
+            : participant
+        )
+      };
+      return Promise.resolve(terminalParty);
+    });
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "terminal-ineligible" });
+    const { ctx, apiEditMessageText, sendMessage } = createCallbackContext(42);
+    sendMessage.mockResolvedValue({ message_id: 78 });
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: party.inviteToken },
+      serviceWith({ getByToken, recordParticipantMessageReference }),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({
+          areDevHelpersEnabled: () => false,
+          startFromPartyForTelegramUser,
+          getByPartyInviteToken: vi.fn().mockResolvedValue(null)
+        })
+      }
+    );
+
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      42,
+      13,
+      expect.stringContaining("Стан: збір закрито через несумісні записи"),
+      expect.any(Object)
+    );
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledWith(
+      93,
+      expect.stringContaining("Стан: збір закрито через несумісні записи"),
+      expect.any(Object)
+    );
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, party.inviteToken, {
+      chatId: 42n,
+      messageId: 13
+    });
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(93n, party.inviteToken, {
+      chatId: 93n,
+      messageId: 78
+    });
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(587n, party.inviteToken, {
+      chatId: 587n,
+      messageId: 78
+    });
+    expect(recordParticipantMessageReference).toHaveBeenCalledTimes(3);
+    const terminalKeyboards: unknown[] = [
+      apiEditMessageText.mock.calls[0]?.[3] as unknown,
+      sendMessage.mock.calls[0]?.[2] as unknown,
+      sendMessage.mock.calls[1]?.[2] as unknown
+    ];
+    for (const keyboard of terminalKeyboards) {
+      const serialized = JSON.stringify(keyboard);
+      expect(serialized).toContain("v1:party:v:");
+      expect(serialized).not.toMatch(/v1:party:(?:j|r|l|c|wp|ws|pf|ps|s|bs):/);
+    }
+  });
+
+  it("persists permanent terminal-card replacements and does not duplicate them on replay", async () => {
+    const party = makeBigBarrelSessionWithTwoMembers();
+    let terminalParty: PartySessionRecord = {
+      ...party,
+      status: "ineligible",
+      version: party.version + 1,
+      activeLeaderKey: null
+    };
+    const getByToken = vi.fn().mockImplementation(() => Promise.resolve({
+      state: "ready",
+      session: terminalParty
+    }));
+    const recordParticipantMessageReference = vi.fn().mockImplementation((
+      targetTelegramUserId: bigint,
+      _token: string,
+      reference: { chatId: bigint; messageId: number }
+    ) => {
+      terminalParty = {
+        ...terminalParty,
+        participants: terminalParty.participants.map((participant) =>
+          participant.character.telegramUserId === targetTelegramUserId
+            ? { ...participant, ...reference }
+            : participant
+        )
+      };
+      return Promise.resolve(terminalParty);
+    });
+    const startFromPartyForTelegramUser = vi.fn().mockResolvedValue({ state: "terminal-ineligible" });
+    const { ctx, apiEditMessageText, sendMessage } = createCallbackContext(42);
+    apiEditMessageText.mockImplementation((
+      _chatId: number,
+      messageId: number
+    ) => messageId === 13 || messageId === 99
+      ? Promise.reject(new Error("Bad Request: message can't be edited"))
+      : Promise.resolve(true));
+    let replacementMessageId = 77;
+    sendMessage.mockImplementation(() => Promise.resolve({ message_id: ++replacementMessageId }));
+    const service = serviceWith({ getByToken, recordParticipantMessageReference });
+    const partyBoss = partyBossWith({
+      areDevHelpersEnabled: () => false,
+      startFromPartyForTelegramUser,
+      getByPartyInviteToken: vi.fn().mockResolvedValue(null)
+    });
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: party.inviteToken },
+      service,
+      { presence: {} as PresenceService, partyBoss }
+    );
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-start", token: party.inviteToken },
+      service,
+      { presence: {} as PresenceService, partyBoss }
+    );
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(recordParticipantMessageReference).toHaveBeenCalledTimes(2);
+    expect(terminalParty.participants.map((participant) => participant.messageId)).toEqual([78, 79, 587]);
+    expect(apiEditMessageText).toHaveBeenCalledWith(42, 78, expect.any(String), expect.any(Object));
+    expect(apiEditMessageText).toHaveBeenCalledWith(93, 79, expect.any(String), expect.any(Object));
+    expect(apiEditMessageText).toHaveBeenCalledWith(587, 587, expect.any(String), expect.any(Object));
   });
 
   it("pushes the next boss turn to participants who acted earlier", async () => {
@@ -1374,6 +1528,81 @@ describe("handlePartySessionCallback", () => {
       }
     }
   );
+
+  it("keeps terminal-ineligible reason on stale join, leave, cancel, readiness, Ward, and Protocol buttons", async () => {
+    const session: PartySessionRecord = {
+      ...makeBigBarrelSessionWithMember(),
+      status: "ineligible",
+      version: 2,
+      activeLeaderKey: null
+    };
+    const terminalResult = { state: "terminal-ineligible" as const, session };
+    const service = serviceWith({
+      getByToken: vi.fn().mockResolvedValue({ state: "ready", session }),
+      joinByTokenForTelegramUser: vi.fn().mockResolvedValue(terminalResult),
+      leaveByTokenForTelegramUser: vi.fn().mockResolvedValue(terminalResult),
+      cancelByTokenForTelegramUser: vi.fn().mockResolvedValue(terminalResult),
+      setReadinessForTelegramUser: vi.fn().mockResolvedValue(terminalResult),
+      placeKharakternykWardSignForTelegramUser: vi.fn().mockResolvedValue(terminalResult),
+      fileBureaucramancerPersonalProtocolForTelegramUser: vi.fn().mockResolvedValue(terminalResult)
+    });
+    const cases = [
+      { type: "join", token: session.inviteToken } as const,
+      { type: "leave", token: session.inviteToken } as const,
+      { type: "cancel", token: session.inviteToken } as const,
+      { type: "readiness", token: session.inviteToken, readiness: "ready" } as const,
+      { type: "ward-place", token: session.inviteToken } as const,
+      { type: "protocol-file", token: session.inviteToken } as const
+    ];
+
+    for (const callback of cases) {
+      const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42);
+      await handlePartySessionCallback(ctx, callback, service, {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot",
+        partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) })
+      });
+
+      expect(messageText(editMessageText)).toContain("Стан: збір закрито через несумісні записи");
+      expect(messageText(editMessageText)).toContain("один із записів більше не підходить");
+      expect(messageText(editMessageText)).not.toContain("Строк збору минув");
+      expect(messageText(editMessageText)).not.toContain("строк збору");
+      expect(keyboardJson(editMessageText)).toContain("v1:party:v:");
+      expect(keyboardJson(editMessageText)).not.toMatch(/v1:party:(?:j|r|l|c|wp|ws|pf|ps|s|bs):/);
+      expect(JSON.stringify(answerCallbackQuery.mock.calls)).not.toContain("Строк збору");
+    }
+  });
+
+  it("renders a terminal-ineligible deep link as the canonical closure rather than expiry", async () => {
+    const session: PartySessionRecord = {
+      ...makeBigBarrelSessionWithMember(),
+      status: "ineligible",
+      version: 2,
+      activeLeaderKey: null
+    };
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "terminal-ineligible",
+      session
+    });
+    const { ctx, reply } = createCallbackContext(42);
+
+    await expect(sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, { joinByTokenForTelegramUser }),
+      session.inviteToken,
+      { botUsername: "kvestarnia_test_bot" }
+    )).resolves.toBe(true);
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, {
+      source: "deep-link",
+      chatId: 42n
+    });
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Стан: збір закрито через несумісні записи");
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Строк збору минув");
+    const keyboard = JSON.stringify(reply.mock.calls[0]?.[1]);
+    expect(keyboard).toContain("v1:party:v:");
+    expect(keyboard).not.toMatch(/v1:party:(?:j|r|l|c|wp|ws|pf|ps|s|bs):/);
+  });
 
   it("refreshes the stored leader recruiting card after the leader files Protocol 13-Z", async () => {
     const base = makeBigBarrelSessionWithMember();

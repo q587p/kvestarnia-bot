@@ -263,8 +263,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-found" };
       }
 
-      if (session.status === "expired" || session.status === "cancelled") {
-        const terminalState = session.status === "expired" ? "expired" : "cancelled";
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
         return { state: terminalState, session: mapSession(session) };
       }
 
@@ -699,6 +699,10 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const latest = await findSessionById(this.prisma, error.sessionId);
       if (!latest) {
         return { state: "not-found" };
+      }
+      const terminalState = getTerminalReplayState(latest);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(latest) };
       }
       if (latest.status !== LIVE_STATUS) {
         return { state: "not-recruiting", session: mapSession(latest) };
@@ -2634,10 +2638,12 @@ function calculateWardManaDiscount(character: CharacterRow, min: number, max: nu
   return Math.min(max, Math.max(min, discount));
 }
 
-function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {
+function getTerminalReplayState(
+  row: PartySessionRow
+): "cancelled" | "expired" | "terminal-ineligible" | null {
   const status = parseStatus(row.status);
   return status === "ineligible"
-    ? "expired"
+    ? "terminal-ineligible"
     : status === "cancelled" || status === "expired"
       ? status
       : null;

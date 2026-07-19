@@ -7,10 +7,13 @@ import {
   getNextBigBarrelApproachTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
   presentBigBarrelApproachNotice,
+  presentPartyCancel,
   presentPartyCreate,
   presentPartyJoin,
+  presentPartyLeave,
   presentPartyInviteShare,
   presentPartySession,
+  presentPartyView,
   presentPartyBoss,
   presentPartyBossAction,
   presentPartyBossIntro,
@@ -1483,6 +1486,27 @@ describe("party session presenter", () => {
     expect(cooldownText).toContain("короткий перепочинок");
     expect(cooldownText).toContain("2 хвилини");
     expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
+  });
+
+  it("keeps terminal-ineligible copy distinct from deadline expiry across stale views", () => {
+    const session: PartySessionRecord = {
+      ...makePartySession(),
+      status: "ineligible",
+      activeLeaderKey: null
+    };
+    const texts = [
+      presentPartyJoin({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyLeave({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyCancel({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyView({ state: "ready", session }, { viewerCharacterId: "leader" })
+    ];
+
+    for (const text of texts) {
+      expect(text).toContain("Стан: збір закрито через несумісні записи");
+      expect(text).toContain("один із записів більше не підходить до цього бочкового періоду");
+      expect(text).not.toContain("Строк збору минув");
+      expect(text).not.toContain("строк збору");
+    }
   });
 });
 

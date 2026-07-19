@@ -1,15 +1,14 @@
 import type { Bot } from "grammy";
 import type { PartyBossService } from "../services/partyBossService";
 import type { PartySessionService } from "../services/partySessionService";
-import type { PartySessionRecord } from "../db/repositories/partySessionRepository";
-import { buildPartyBossKeyboard, buildPartySessionKeyboard } from "./keyboards/partySessionKeyboard";
+import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
 import {
   presentPartyBoss,
-  presentPartyBossIntro,
-  presentPartyTerminalIneligible
+  presentPartyBossIntro
 } from "./presenters/partySessionPresenter";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
+import { deliverTerminalIneligiblePartyCards } from "./partyTerminalIneligibleDelivery";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -51,10 +50,11 @@ export function createPartyBossRecruitingStartScheduler(
 
           if (result.state === "terminal-ineligible") {
             processed += 1;
-            const terminal = await services.partySessions.getByToken(party.inviteToken);
-            if (terminal.state === "ready") {
-              await notifyIneligibleRecruitingParticipants(bot, terminal.session);
-            }
+            await deliverTerminalIneligiblePartyCards(
+              bot.api,
+              services.partySessions,
+              party.inviteToken
+            );
             continue;
           }
 
@@ -116,24 +116,6 @@ export function createPartyBossRecruitingStartScheduler(
     },
     tick
   };
-}
-
-async function notifyIneligibleRecruitingParticipants(
-  bot: Bot,
-  session: PartySessionRecord
-): Promise<void> {
-  await Promise.allSettled(session.participants
-    .filter((participant) => participant.status === "joined")
-    .map((participant) => bot.api.sendMessage(
-      Number(participant.character.telegramUserId),
-      presentPartyTerminalIneligible(session, participant.characterId),
-      {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPartySessionKeyboard(session, {
-          viewerCharacterId: participant.characterId
-        })
-      }
-    )));
 }
 
 async function notifyParticipants(

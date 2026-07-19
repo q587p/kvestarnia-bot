@@ -80,13 +80,16 @@ describe("party boss recruiting start scheduler", () => {
       state: "ready",
       session: terminalParty
     });
+    const recordParticipantMessageReference = vi.fn();
+    const editMessageText = vi.fn().mockResolvedValue(true);
     const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
     const scheduler = createPartyBossRecruitingStartScheduler(
       {
         partySessions: {
           isBigBarrelBrotherEnabled: () => true,
           listDueRecruitingBigBarrelBrother,
-          getByToken
+          getByToken,
+          recordParticipantMessageReference
         } as unknown as PartySessionService,
         partyBoss: {
           isEnabled: () => true,
@@ -94,7 +97,7 @@ describe("party boss recruiting start scheduler", () => {
           startFromPartyForTelegramUser
         } as unknown as PartyBossService
       },
-      { api: { sendMessage } } as unknown as Bot
+      { api: { editMessageText, sendMessage } } as unknown as Bot
     );
 
     await expect(scheduler.tick()).resolves.toBe(1);
@@ -102,6 +105,7 @@ describe("party boss recruiting start scheduler", () => {
 
     expect(startFromPartyForTelegramUser).toHaveBeenCalledTimes(1);
     expect(getByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(editMessageText).not.toHaveBeenCalled();
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage.mock.calls.every((call) =>
       String(call[1]).includes("один із записів більше не підходить до цього бочкового періоду")
@@ -109,6 +113,15 @@ describe("party boss recruiting start scheduler", () => {
     expect(sendMessage.mock.calls.every((call) =>
       !JSON.stringify(call[2] ?? {}).includes("v1:party:bs:")
     )).toBe(true);
+    expect(recordParticipantMessageReference).toHaveBeenCalledTimes(2);
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, party.inviteToken, {
+      chatId: 42n,
+      messageId: 1
+    });
+    expect(recordParticipantMessageReference).toHaveBeenCalledWith(93n, party.inviteToken, {
+      chatId: 93n,
+      messageId: 1
+    });
   });
 
   it("resolves due active party boss turns and sends updated battle cards", async () => {
