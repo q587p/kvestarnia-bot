@@ -118,6 +118,11 @@ export interface PresentedBardPerformanceAudienceNotice {
   };
 }
 
+export interface PresentedLiveBardPerformance {
+  expiresAt: Date;
+  now: Date;
+}
+
 export class BardPerformanceService {
   constructor(
     private readonly performances: BardPerformanceRepository,
@@ -128,6 +133,13 @@ export class BardPerformanceService {
 
   areDevHelpersEnabled(): boolean {
     return this.options.devHelpersEnabled === true;
+  }
+
+  async getLiveForTelegramUser(telegramUserId: bigint): Promise<PresentedLiveBardPerformance | null> {
+    const now = this.clock();
+    const performance = await this.performances.getLivePerformanceForTelegramUser(telegramUserId, now);
+
+    return performance ? { expiresAt: performance.expiresAt, now } : null;
   }
 
   async startForTelegramUser(telegramUserId: bigint): Promise<BardPerformanceStartResult> {

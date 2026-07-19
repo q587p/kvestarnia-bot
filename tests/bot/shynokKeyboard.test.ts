@@ -16,6 +16,20 @@ import { buildTavernGameActionKeyboard } from "../../src/bot/tavernGameNotificat
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
+  it("hides the Bard performance action while the current-location performance is live", () => {
+    const keyboard = buildShynokOverviewKeyboard({
+      ...shynokOverviewResult(),
+      character: {
+        ...shynokCharacter(),
+        classId: "class.bard",
+        level: 3
+      }
+    }, { bardPerformanceAvailable: false });
+
+    expect(flatInlineButtonTexts(keyboard)).not.toContain("🎶 Виступити");
+    expect(flatInlineButtonCallbacks(keyboard)).not.toContain("v1:sh:bp");
+  });
+
   it.each([
     [0, []],
     [1, [1]],

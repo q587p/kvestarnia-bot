@@ -15,6 +15,7 @@ import {
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import type { TavernGameService } from "../../services/tavernGameService";
 import type { PresentedRoundOffer, ShynokService } from "../../services/shynokService";
+import type { BardPerformanceService, PresentedLiveBardPerformance } from "../../services/bardPerformanceService";
 import type { DuelTournamentService } from "../../services/duelTournamentService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
@@ -104,6 +105,7 @@ type TavernCommandKeyboard =
       includeBottleTurnIn?: boolean;
       problemQuestAction?: "turn-in" | "take" | "next";
       bardPerformance?: boolean;
+      liveBardPerformance?: PresentedLiveBardPerformance | null;
       tavernGames?: boolean;
       tavernGameTableCount?: number;
       openRoundOffers?: PresentedRoundOffer[];
@@ -759,7 +761,11 @@ export async function sendKorchmaBar(
   cellarGrownupQuestService?: CellarGrownupQuestService,
   fightService?: FightService,
   tavernGameService?: TavernGameService,
-  options: { questMarkers?: QuestMarkerInput | null; shynokService?: ShynokService | undefined } = {}
+  options: {
+    questMarkers?: QuestMarkerInput | null;
+    shynokService?: ShynokService | undefined;
+    bardPerformance?: Pick<BardPerformanceService, "getLiveForTelegramUser"> | undefined;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -776,6 +782,9 @@ export async function sendKorchmaBar(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BAR);
+  const liveBardPerformance = result.character.classId === "class.bard" && result.character.level >= 3
+    ? await options.bardPerformance?.getLiveForTelegramUser(telegramUserId) ?? null
+    : null;
   const cellarGrownup = cellarGrownupQuestService
     ? await cellarGrownupQuestService.getForTelegramUser(telegramUserId)
     : null;
@@ -794,7 +803,11 @@ export async function sendKorchmaBar(
     state: "bar",
     includeBottleTurnIn:
       cellarGrownup?.state === "bottle-obtained" && cellarGrownup.bottleQuantity > 0,
-    bardPerformance: result.character.classId === "class.bard" && result.character.level >= 3,
+    bardPerformance:
+      result.character.classId === "class.bard" &&
+      result.character.level >= 3 &&
+      !liveBardPerformance,
+    liveBardPerformance,
     ...(shynokOverview?.state === "ready" && shynokOverview.openRoundOffers.length > 0
       ? { openRoundOffers: shynokOverview.openRoundOffers }
       : {}),

@@ -18,7 +18,8 @@ import type {
   BardPerformanceRespondResult,
   BardPerformanceStartResult,
   PresentedBardPerformance,
-  PresentedBardPerformanceAudienceNotice
+  PresentedBardPerformanceAudienceNotice,
+  PresentedLiveBardPerformance
 } from "../../services/bardPerformanceService";
 import type {
   KorchmaRoundLeaderboard,
@@ -46,9 +47,21 @@ export function presentShynokGate(result: { state: string }): string {
   }
 }
 
+export function presentLiveBardPerformanceNotice(performance: PresentedLiveBardPerformance): string {
+  const remainingMinutes = Math.max(
+    1,
+    Math.ceil((performance.expiresAt.getTime() - performance.now.getTime()) / 60_000)
+  );
+
+  return `🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>${remainingMinutes} хв</b>.`;
+}
+
 export function presentShynokOverview(
   result: ShynokOverviewResult,
-  options: { tavernGames?: boolean } = {}
+  options: {
+    tavernGames?: boolean;
+    liveBardPerformance?: PresentedLiveBardPerformance | null;
+  } = {}
 ): string {
   if (result.state !== "ready") {
     return presentShynokGate(result);
@@ -59,7 +72,9 @@ export function presentShynokOverview(
     "",
     "Корчмар виставив напої, рахівницю й табличку «манатки приймаємо не всі, бо маємо очі».",
     ...(result.character.classId === "class.bard" && result.character.level >= 3
-      ? ["Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
+      ? [options.liveBardPerformance
+          ? presentLiveBardPerformanceNotice(options.liveBardPerformance)
+          : "Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
       : []),
     ...(options.tavernGames
       ? ["У кутку скрипить ігровий стіл: тавлеї й кості чекають охочих виглядати спокійно."]

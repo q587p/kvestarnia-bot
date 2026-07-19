@@ -115,6 +115,10 @@ export type BardPerformanceRespondResult =
 
 export interface BardPerformanceRepository {
   getStartSnapshotForTelegramUser(telegramUserId: bigint): Promise<BardPerformanceStartSnapshot | null>;
+  getLivePerformanceForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<BardPerformanceRecord | null>;
   startPerformanceForTelegramUser(
     telegramUserId: bigint,
     input: {

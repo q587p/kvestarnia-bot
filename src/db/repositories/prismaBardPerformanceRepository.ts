@@ -72,6 +72,31 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
     };
   }
 
+  async getLivePerformanceForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<BardPerformanceRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      include: characterRecordInclude
+    });
+    if (!character) {
+      return null;
+    }
+
+    const locationId = normalizePresenceLocationId(character.user.lastSeenLocationId);
+    return mapPerformance(await this.prisma.bardPerformance.findFirst({
+      where: {
+        characterId: character.id,
+        locationId,
+        remortCount: getIncludedRemortCount(character),
+        status: "active",
+        expiresAt: { gt: now }
+      },
+      orderBy: { startedAt: "desc" }
+    }));
+  }
+
   async startPerformanceForTelegramUser(
     telegramUserId: bigint,
     input: Parameters<BardPerformanceRepository["startPerformanceForTelegramUser"]>[1]

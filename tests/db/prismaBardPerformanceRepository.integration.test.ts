@@ -103,6 +103,10 @@ describe("PrismaBardPerformanceRepository integration", () => {
       rawHousePayoutGold: 0
     }));
     expect(lifeZero.state).toBe("started");
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ remortCount: 0 });
 
     await prisma.characterRemort.create({
       data: {
@@ -117,12 +121,20 @@ describe("PrismaBardPerformanceRepository integration", () => {
       }
     });
     await prisma.characterCooldown.deleteMany({ where: { characterId: "character-life-bard" } });
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toBeNull();
     const lifeOne = await repository.startPerformanceForTelegramUser(163n, startInput({
       token: "12345678-1234-4234-9234-000000000164",
       rawHousePayoutGold: 0
     }));
 
     expect(lifeOne.state).toBe("started");
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ remortCount: 1 });
     const rows = await prisma.bardPerformance.findMany({
       where: { characterId: "character-life-bard" },
       orderBy: { remortCount: "asc" },
@@ -132,6 +144,35 @@ describe("PrismaBardPerformanceRepository integration", () => {
       { remortCount: 0, status: "active", liveGuard: "character-life-bard:0:location.korchma.bar" },
       { remortCount: 1, status: "active", liveGuard: "character-life-bard:1:location.korchma.bar" }
     ]);
+  });
+
+  it("reads a live performance only at the Bard's current location", async () => {
+    await seedCharacter({
+      telegramUserId: 164n,
+      userId: "user-location-bard",
+      characterId: "character-location-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    await repository.startPerformanceForTelegramUser(164n, startInput({
+      token: "12345678-1234-4234-9234-000000000165",
+      rawHousePayoutGold: 0
+    }));
+
+    await expect(repository.getLivePerformanceForTelegramUser(
+      164n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ locationId: "location.korchma.bar" });
+
+    await prisma.user.update({
+      where: { id: "user-location-bard" },
+      data: { lastSeenLocationId: "location.korchma.front" }
+    });
+
+    await expect(repository.getLivePerformanceForTelegramUser(
+      164n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toBeNull();
   });
 
   it("atomically grants Inspiration to the frozen audience and writes shared music availability", async () => {

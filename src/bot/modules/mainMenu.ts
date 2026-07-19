@@ -142,7 +142,7 @@ export function registerMainMenuKeyboard(
     }
 
     await sendOnline(ctx, services.presence, {
-      bardPerformanceEnabled: Boolean(services.bardPerformance),
+      bardPerformance: services.bardPerformance,
       classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers),
@@ -631,6 +631,7 @@ async function sendCurrentPresenceLocation(
       services.tavernGames,
       {
         shynokService: services.shynok,
+        bardPerformance: services.bardPerformance,
         ...(questMarkers ? { questMarkers } : {})
       }
     );

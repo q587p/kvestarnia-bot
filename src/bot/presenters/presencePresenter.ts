@@ -8,6 +8,8 @@ import type {
 } from "../../services/presenceService";
 import type { PartySessionRecord } from "../../db/repositories/partySessionRepository";
 import type { TavernGameSessionRecord } from "../../db/repositories/tavernGameRepository";
+import type { PresentedLiveBardPerformance } from "../../services/bardPerformanceService";
+import { presentLiveBardPerformanceNotice } from "./shynokPresenter";
 import {
   KOSTI_PLAYER_CAP,
   TAVLEI_DOPPELGANGER_RULES_VERSION,
@@ -37,6 +39,7 @@ export function presentOnline(
   options: {
     recruitingParties?: readonly PartySessionRecord[];
     openTavernGameTables?: readonly TavernGameSessionRecord[];
+    liveBardPerformance?: PresentedLiveBardPerformance | null;
   } = {}
 ): string {
   if (snapshot.state === "no-character") {
@@ -78,6 +81,11 @@ export function presentOnline(
   } else if (snapshot.location.id === PRESENCE_LOCATION_KORCHMA_BARREL) {
     lines.push("");
     lines.push("🍺 Активного рейду зараз немає.");
+  }
+
+  if (options.liveBardPerformance) {
+    lines.push("");
+    lines.push(presentLiveBardPerformanceNotice(options.liveBardPerformance));
   }
 
   return lines.join("\n");

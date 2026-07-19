@@ -13,6 +13,19 @@ const now = new Date("2026-06-26T10:00:00.000Z");
 const telegramUserId = 42n;
 
 describe("BardPerformanceService", () => {
+  it("returns a read-only live-performance notice with the service clock", async () => {
+    const repository = new FakeBardPerformanceRepository({
+      livePerformance: performanceRecord()
+    });
+    const service = new BardPerformanceService(repository, () => now, new FakeRandomSource([0.5]));
+
+    await expect(service.getLiveForTelegramUser(telegramUserId)).resolves.toEqual({
+      expiresAt: new Date("2026-06-26T10:13:00.000Z"),
+      now
+    });
+    expect(repository.liveReadCalls).toBe(1);
+  });
+
   it("starts a Shynok Bard performance with frozen effective stats and no XP", async () => {
     const repository = new FakeBardPerformanceRepository();
     const service = new BardPerformanceService(repository, () => now, new FakeRandomSource([0.5]));
@@ -157,10 +170,12 @@ class FakeBardPerformanceRepository implements BardPerformanceRepository {
   lastRespondInput: Parameters<BardPerformanceRepository["respondToPerformanceForTelegramUser"]>[1] | null = null;
   resetCalls = 0;
   setInspirationCalls = 0;
+  liveReadCalls = 0;
 
   constructor(private readonly overrides: Partial<BardPerformanceStartSnapshot> & {
     character?: Partial<BardPerformanceStartSnapshot["character"]>;
     respondResult?: BardPerformanceRespondResult;
+    livePerformance?: BardPerformanceRecord | null;
   } = {}) {}
 
   getStartSnapshotForTelegramUser(): Promise<BardPerformanceStartSnapshot | null> {
@@ -260,6 +275,11 @@ class FakeBardPerformanceRepository implements BardPerformanceRepository {
   resetForTelegramUser(): ReturnType<BardPerformanceRepository["resetForTelegramUser"]> {
     this.resetCalls += 1;
     return Promise.resolve(null);
+  }
+
+  getLivePerformanceForTelegramUser(): Promise<BardPerformanceRecord | null> {
+    this.liveReadCalls += 1;
+    return Promise.resolve(this.overrides.livePerformance ?? null);
   }
 
   getInspirationForTelegramUser(): ReturnType<BardPerformanceRepository["getInspirationForTelegramUser"]> {

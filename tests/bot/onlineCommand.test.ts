@@ -90,7 +90,9 @@ describe("online command", () => {
     } as unknown as PresenceService;
 
     await sendOnline(ctx, presenceService, {
-      bardPerformanceEnabled: true,
+      bardPerformance: {
+        getLiveForTelegramUser: vi.fn().mockResolvedValue(null)
+      },
       duelEnabled: true,
       itemGiftEnabled: true
     });
@@ -102,6 +104,58 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:sh:bp");
     expect(JSON.stringify(replies[0]?.options)).toContain("🎁 Подарувати манатку");
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:gift:open");
+  });
+
+  it("hides performance action and shows the current Bard their live same-location performance", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: {
+        id: 42,
+        is_bot: false,
+        first_name: "Тест"
+      },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_BARREL,
+            name: "Біля Бочки Пінного Міражу",
+            people: {
+              active: [
+                { telegramUserId: 42n, name: "Бард", classId: "class.bard", level: 3, status: "active" },
+                { telegramUserId: 93n, name: "Слухач", status: "active" }
+              ],
+              idle: [],
+              total: 2
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+    const getLiveForTelegramUser = vi.fn().mockResolvedValue({
+      expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+      now: new Date("2026-07-19T10:02:00.000Z")
+    });
+
+    await sendOnline(ctx, presenceService, {
+      bardPerformance: { getLiveForTelegramUser },
+      itemGiftEnabled: true
+    });
+
+    expect(getLiveForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(replies[0]?.text).toContain(
+      "🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>11 хв</b>."
+    );
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("🎶 Виступити");
+    expect(inlineButtonCallbacks(replies[0]?.options)).not.toContain("v1:sh:bp");
+    expect(JSON.stringify(replies[0]?.options)).toContain("🎁 Подарувати манатку");
   });
 
   it("shows Priest class aid from nearby view even when only self-heal is available", async () => {
@@ -515,7 +569,9 @@ describe("online command", () => {
     } as unknown as PresenceService;
 
     await sendOnline(ctx, presenceService, {
-      bardPerformanceEnabled: true,
+      bardPerformance: {
+        getLiveForTelegramUser: vi.fn().mockResolvedValue(null)
+      },
       itemGiftEnabled: true
     });
 

@@ -32,6 +32,8 @@ import { presentQuestRewardBlock, presentRewardAmount, presentRewardBlock } from
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import type { PresentedLiveBardPerformance } from "../../services/bardPerformanceService";
+import { presentLiveBardPerformanceNotice } from "./shynokPresenter";
 
 export function presentKorchmaFront(
   character: CharacterSummary,
@@ -503,6 +505,7 @@ export function presentKorchmaBar(
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
+    liveBardPerformance?: PresentedLiveBardPerformance | null;
     tavernGames?: boolean;
   } = {}
 ): string {
@@ -538,11 +541,14 @@ function presentKorchmaBarActionLines(options: {
   includeBottleTurnIn?: boolean;
   problemQuestAction?: "turn-in" | "take" | "next";
   bardPerformance?: boolean;
+  liveBardPerformance?: PresentedLiveBardPerformance | null;
   tavernGames?: boolean;
 }): string[] {
   const lines: string[] = [];
 
-  if (options.bardPerformance) {
+  if (options.liveBardPerformance) {
+    lines.push(presentLiveBardPerformanceNotice(options.liveBardPerformance));
+  } else if (options.bardPerformance) {
     lines.push("Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує.");
   }
 

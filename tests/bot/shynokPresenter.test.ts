@@ -405,6 +405,29 @@ describe("shynokPresenter", () => {
     expect(html).not.toContain("<b>0 золота</b>");
   });
 
+  it("replaces the free Bard corner with the live same-location performance notice", () => {
+    const result: ShynokOverviewResult = {
+      state: "ready",
+      character: {
+        ...character,
+        classId: "class.bard",
+        level: 3
+      },
+      activeDrink: null,
+      openRoundOffers: []
+    };
+
+    const html = presentShynokOverview(result, {
+      liveBardPerformance: {
+        expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+        now: new Date("2026-07-19T10:02:00.000Z")
+      }
+    });
+
+    expect(html).toContain("🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>11 хв</b>.");
+    expect(html).not.toContain("Бардівський кут стійки сьогодні вільний");
+  });
+
   it("presents free Inspiration separately from applause and tips", () => {
     const html = presentBardPerformanceAudienceNotification("Лірник", {
       telegramUserId: 42n,

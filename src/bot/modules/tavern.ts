@@ -382,12 +382,26 @@ async function handleShynokCallback(
 
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
-    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
+    const [tavernGameOptions, liveBardPerformance] = await Promise.all([
+      getTavernGameButtonOptions(services.tavernGames),
+      result.state === "ready" &&
+      result.character.classId === "class.bard" &&
+      result.character.level >= 3
+        ? services.bardPerformance?.getLiveForTelegramUser(telegramUserId) ?? Promise.resolve(null)
+        : Promise.resolve(null)
+    ]);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
-    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames: tavernGameOptions.tavernGames }), {
+    await safeEditMessageText(ctx, presentShynokOverview(result, {
+      tavernGames: tavernGameOptions.tavernGames,
+      liveBardPerformance
+    }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, { ...tavernGameOptions, ...shynokNavigationOptions })
+        ? buildShynokOverviewKeyboard(result, {
+            ...tavernGameOptions,
+            ...shynokNavigationOptions,
+            bardPerformanceAvailable: !liveBardPerformance
+          })
         : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;

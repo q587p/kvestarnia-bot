@@ -204,6 +204,12 @@ Audience notification:
 
 > ✨ Виступ надихає вас: +3 до влучання на 13 хв. У бою кожен завершений хід забирає ще одну хвилину.
 
+Current performer notice:
+
+> 🎶 Ваш виступ у цій місцині вже триває. Реакції: ще **11 хв**.
+
+This personalized line replaces the free-performance hint on `/online`, Shynok, and the bar while the current Bard has a live performance in the same normalized location and life. Those surfaces omit `🎶 Виступити` until that live window ends; they never probe the mutating start path to decide visibility.
+
 Raid action:
 
 > Бард затягує 🎻 журливу баладу й цього ходу не атакує: пряма шкода Старшого Брата слабшає на 3.

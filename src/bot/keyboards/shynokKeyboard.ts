@@ -89,7 +89,12 @@ import {
 
 export function buildShynokOverviewKeyboard(
   result?: ShynokOverviewResult,
-  options: { tavernGames?: boolean; tavernGameTableCount?: number; questMarkers?: QuestMarkerInput | null } = {}
+  options: {
+    tavernGames?: boolean;
+    tavernGameTableCount?: number;
+    questMarkers?: QuestMarkerInput | null;
+    bardPerformanceAvailable?: boolean;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const openRoundOffers = result?.state === "ready" ? result.openRoundOffers : [];
@@ -118,7 +123,8 @@ export function buildShynokOverviewKeyboard(
   if (
     result?.state === "ready" &&
     result.character.classId === "class.bard" &&
-    result.character.level >= 3
+    result.character.level >= 3 &&
+    options.bardPerformanceAvailable !== false
   ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
   }
