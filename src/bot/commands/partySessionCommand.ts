@@ -92,12 +92,13 @@ export async function sendPartyCreate(
   });
   const session = "session" in result ? result.session : null;
   const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+  const viewerCharacterId = session ? getViewerCharacterId(session, telegramUserId) : null;
 
-  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl }), session
+  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl, viewerCharacterId }), session
     ? {
         session,
         inviteUrl,
-        viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+        viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(session)
       }
@@ -512,7 +513,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { renderMissing: (result) => presentPartyView(result, { inviteUrl: null }) }
     );
     return;
@@ -554,7 +558,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
     return;
@@ -606,7 +613,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
 
@@ -661,7 +671,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+        (session, inviteUrl, viewerCharacterId) => presentPartyView(
+          { state: "ready", session },
+          { inviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "updated" }
       );
 
@@ -700,7 +713,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
 
@@ -728,7 +744,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, canonicalInviteUrl) => presentPartyJoin({ ...result, session }, { inviteUrl: canonicalInviteUrl }),
+        (session, canonicalInviteUrl, viewerCharacterId) => presentPartyJoin(
+          { ...result, session },
+          { inviteUrl: canonicalInviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "joined" }
       );
     } else {
@@ -743,8 +762,9 @@ export async function handlePartySessionCallback(
           options.botUsername,
           service,
           options.partyBoss,
-          (session, cancelledInviteUrl) => presentPartyView({ state: "ready", session }, {
-            inviteUrl: cancelledInviteUrl
+          (session, cancelledInviteUrl, viewerCharacterId) => presentPartyView({ state: "ready", session }, {
+            inviteUrl: cancelledInviteUrl,
+            viewerCharacterId
           }),
           { refreshParticipants: true }
         );
@@ -767,7 +787,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, canonicalInviteUrl) => presentPartyLeave({ ...result, session }, { inviteUrl: canonicalInviteUrl }),
+        (session, canonicalInviteUrl, viewerCharacterId) => presentPartyLeave(
+          { ...result, session },
+          { inviteUrl: canonicalInviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "left" || result.state === "leader-transferred" }
       );
     } else {
@@ -790,7 +813,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, inviteUrl) => presentPartyCancel({ ...result, session }, { inviteUrl })
+        (session, inviteUrl, viewerCharacterId) => presentPartyCancel(
+          { ...result, session },
+          { inviteUrl, viewerCharacterId }
+        )
       );
     } else {
       await sendText(ctx, "edit", presentPartyCancel(result, { inviteUrl: null }), false);
@@ -828,7 +854,10 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { mode: "reply" }
     );
     return true;
@@ -847,7 +876,10 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyJoin({ ...result, session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyJoin(
+        { ...result, session },
+        { inviteUrl, viewerCharacterId }
+      ),
       {
         mode: "reply",
         refreshParticipants: result.state === "joined",
@@ -912,7 +944,8 @@ async function handleNearbyInvite(
       state: "ready",
       session
     }, {
-      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken)
+      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
+      viewerCharacterId: getViewerCharacterId(session, telegramUserId)
     }), {
       session,
       inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
@@ -945,7 +978,11 @@ async function handleNearbyInvite(
     await sendText(
       ctx,
       "edit",
-      presentPartyNearbyInviteSent(view, target?.name ?? "пригодника поруч"),
+      presentPartyNearbyInviteSent(
+        view,
+        target?.name ?? "пригодника поруч",
+        getViewerCharacterId(view.session, telegramUserId)
+      ),
       {
         session: view.session,
         inviteUrl: buildPartyInviteUrl(options.botUsername, view.session.inviteToken),
@@ -968,12 +1005,15 @@ async function sendPartyView(
   const inviteUrl = result.state === "ready"
     ? buildPartyInviteUrl(botUsername, result.session.inviteToken)
     : null;
+  const viewerCharacterId = result.state === "ready"
+    ? getViewerCharacterId(result.session, telegramUserId)
+    : null;
 
-  await sendText(ctx, mode, presentPartyView(result, { inviteUrl }), result.state === "ready"
+  await sendText(ctx, mode, presentPartyView(result, { inviteUrl, viewerCharacterId }), result.state === "ready"
     ? {
         session: result.session,
         inviteUrl,
-        viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+        viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(result.session)
       }
@@ -1127,7 +1167,8 @@ async function sendCanonicalPartyPreparationCard(
   partyBoss: PartyBossService | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
-    inviteUrl: string | null
+    inviteUrl: string | null,
+    viewerCharacterId: string | null
   ) => string,
   options: {
     mode?: "edit" | "reply";
@@ -1163,11 +1204,12 @@ async function sendCanonicalPartyPreparationCard(
 
       const session = canonical.session;
       const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
-      const actorText = render(session, inviteUrl);
+      const actorViewerCharacterId = getViewerCharacterId(session, telegramUserId);
+      const actorText = render(session, inviteUrl, actorViewerCharacterId);
       const actorOptions = {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartySessionKeyboard(session, {
-          viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+          viewerCharacterId: actorViewerCharacterId,
           inviteUrl,
           includeDevExpire: service.areDevHelpersEnabled(),
           includeBossStart: isBigBarrelParty(session)
@@ -1258,7 +1300,10 @@ async function refreshCanonicalPartyParticipantCards(
       continue;
     }
 
-    const text = presentPartyView({ state: "ready", session }, { inviteUrl });
+    const text = presentPartyView({ state: "ready", session }, {
+      inviteUrl,
+      viewerCharacterId: participant.characterId
+    });
     const messageOptions = {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartySessionKeyboard(session, {

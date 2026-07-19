@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.14` — Bard performances grant hybrid-duration Inspiration, and a free Big Barrel music slot can hold one committed Lament; manual Telegram QA remains pending without disabling the shipped performance mechanic.
+- Current version: `0.3.14` — Bard performances grant hybrid-duration Inspiration whose hero line explains the outside/combat countdown, and a free Big Barrel music slot can hold one committed Lament; its recruiting hint is personal to the viewing Bard. Manual Telegram QA remains pending without disabling the shipped performance mechanic.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.

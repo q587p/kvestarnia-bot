@@ -13,7 +13,7 @@ describe("Bard Inspiration presenter", () => {
       accuracyBonusPp: 1,
       expiresAt: new Date("2026-07-19T10:13:00.000Z")
     }, now)).toBe(
-      "✨ Стан: <b>Натхнення</b> ще <b>13 хв</b> — <b>+1</b> до влучання."
+      "✨ Стан: <b>Натхнення</b> ще <b>13 хв</b> — <b>+1</b> до влучання. Відлік: щохвилини поза боєм або кожен хід у бою (це забирає хвилину дії)."
     );
     expect(presentActiveBardInspirationBuff({ accuracyBonusPp: 1, expiresAt: now }, now))
       .toBeNull();

@@ -198,7 +198,7 @@ The Lament survives app restart and the source Bard’s later death, exit, class
 
 State label:
 
-> ✨ Натхнення: +3 до влучання · 11 хв
+> ✨ Стан: **Натхнення** ще **11 хв** — **+3** до влучання. Відлік: щохвилини поза боєм або кожен хід у бою (це забирає хвилину дії).
 
 Audience notification:
 
@@ -232,7 +232,7 @@ Big Barrel-specific support tip:
 
 > Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.
 
-A recruiting Big Barrel card that includes a Bard also states that Lament is chosen after combat starts when the music slot is free. This must remain true for a one-member Bard raid; the action does not require a full party.
+A recruiting Big Barrel card states only to its viewing Bard that Lament is chosen after combat starts when the music slot is free. Other participants do not receive this personal class hint. This must remain true for a one-member Bard raid; the action does not require a full party.
 
 A same-period legacy solo Barrel raid and Big Barrel recruiting are mutually exclusive. Creation, joining, and the final recruiting-to-boss transaction must reject an unclaimed legacy pending row, including after its wait has elapsed but before its reward is claimed. A stale completed pending row does not replace the canonical already-completed decision. The leader start callback may recover a due Big Barrel recruiting session with the same expired-recruiting allowance as the automatic scheduler.
 

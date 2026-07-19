@@ -133,7 +133,14 @@ describe("handlePartySessionCallback", () => {
   });
 
   it("updates raid readiness and refreshes other recruiting cards", async () => {
-    const session = makeBigBarrelSessionWithMember();
+    const baseSession = makeBigBarrelSessionWithMember();
+    const session = {
+      ...baseSession,
+      leader: { ...baseSession.leader, classId: "class.bard" },
+      participants: baseSession.participants.map((participant) => participant.characterId === "character-42"
+        ? { ...participant, character: { ...participant.character, classId: "class.bard" } }
+        : participant)
+    };
     const updated = {
       ...session,
       participants: session.participants.map((participant) =>
@@ -163,10 +170,12 @@ describe("handlePartySessionCallback", () => {
     expect(setReadinessForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, "ready");
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Позначено: ви готові." });
     expect(messageText(editMessageText)).toContain("1. ✅ <b>Тестова Лідерка</b>");
+    expect(messageText(editMessageText)).toContain("заграти журливу баладу");
     expect(keyboardJson(editMessageText)).toContain("⏳ Зачекайте");
     expect(apiEditMessageText).toHaveBeenCalledTimes(1);
     expect(apiEditMessageText.mock.calls[0]?.[0]).toBe(93);
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("1. ✅ <b>Тестова Лідерка</b>");
+    expect(String(apiEditMessageText.mock.calls[0]?.[2])).not.toContain("заграти журливу баладу");
   });
 
   it("refreshes the leader recruiting card when another participant changes readiness", async () => {

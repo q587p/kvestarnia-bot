@@ -1406,11 +1406,14 @@ describe("party session presenter", () => {
       participants: [{ ...session.participants[0]!, character: bard }]
     };
 
-    const text = presentPartySession(solo);
+    const text = presentPartySession(solo, { viewerCharacterId: "leader" });
 
     expect(text).toContain("Учасники: 1/8");
     expect(text).toContain("Після початку рейду Бард зможе <b>заграти журливу баладу</b>");
     expect(text).toContain("навіть сам на сам зі Старшим Братом Бочки");
+    expect(presentPartySession(solo)).not.toContain("заграти журливу баладу");
+    expect(presentPartySession(solo, { viewerCharacterId: "missing-viewer" }))
+      .not.toContain("заграти журливу баладу");
     expect(presentPartySession(makePartySession())).not.toContain("заграти журливу баладу");
   });
 

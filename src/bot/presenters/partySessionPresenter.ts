@@ -45,7 +45,7 @@ const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i
 
 export function presentPartyCreate(
   result: PartyCreateResult,
-  options: { inviteUrl: string | null }
+  options: { inviteUrl: string | null; viewerCharacterId?: string | null | undefined }
 ): string {
   if (result.state === "disabled") {
     return [
@@ -62,6 +62,7 @@ export function presentPartyCreate(
   if (result.state === "live-membership") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ви вже записані в іншу живу ватагу. Спершу вийдіть із неї або дочекайтеся завершення."
     });
   }
@@ -78,13 +79,14 @@ export function presentPartyCreate(
 
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     ...(notice ? { notice } : {})
   });
 }
 
 export function presentPartyJoin(
   result: PartyJoinResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Ватага не приймає таємничі силуети без анкети.";
@@ -97,6 +99,7 @@ export function presentPartyJoin(
   if (result.state === "live-membership") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ви вже в іншій живій ватазі. Квестарня поважає ентузіязм, але не телепортацію між протоколами."
     });
   }
@@ -108,6 +111,7 @@ export function presentPartyJoin(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за цей запис. Перевірте картку й спробуйте ще раз."
     });
   }
@@ -115,24 +119,28 @@ export function presentPartyJoin(
   if (result.state === "full") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
     });
   }
 
   if (result.state === "cancelled") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Цю ватагу вже скасовано. Старі кнопки показують архів, а не новий набір."
     });
   }
 
   if (result.state === "expired") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Строк збору минув. Посилання лишилося як доказ, що хтось майже організувався."
     });
   }
 
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "already-joined"
       ? "Ви вже в цій ватазі. Повторний запис не створює другого вас, хоча бюрократія мріяла."
       : "Ви приєдналися до ватаги."
@@ -228,7 +236,7 @@ function formatUkrainianMinutes(value: number): string {
 
 export function presentPartyLeave(
   result: PartyLeaveResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта.";
@@ -241,6 +249,7 @@ export function presentPartyLeave(
   if (result.state === "not-member") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ця кнопка вже не є вашим записом у ватазі. Показую актуальний стан."
     });
   }
@@ -248,18 +257,21 @@ export function presentPartyLeave(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за цей вихід. Перевірте картку й спробуйте ще раз."
     });
   }
 
   if (result.state === "expired") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Строк збору минув, тож виходити вже нікуди. Протокол просто закрив двері."
     });
   }
 
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "leader-transferred"
       ? "Ви вийшли. Лідерство перейшло до найраніше записаного пригодника."
       : result.state === "cancelled"
@@ -270,7 +282,7 @@ export function presentPartyLeave(
 
 export function presentPartyCancel(
   result: PartyCancelResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта.";
@@ -283,6 +295,7 @@ export function presentPartyCancel(
   if (result.state === "not-leader") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Скасувати ватагу може тільки поточний лідер. Протокол суворий, бо стіл уже бачив усе."
     });
   }
@@ -290,11 +303,13 @@ export function presentPartyCancel(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за скасування. Показую актуальну картку."
     });
   }
 
   return presentPartySession(result.session, {
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "expired"
       ? "Строк збору вже минув. Старі кнопки не відкривають запис назад."
       : "Лідер скасував збір ватаги."
@@ -303,10 +318,13 @@ export function presentPartyCancel(
 
 export function presentPartyView(
   result: PartyViewResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   return result.state === "ready"
-    ? presentPartySession(result.session, { inviteUrl: options.inviteUrl })
+    ? presentPartySession(result.session, {
+        inviteUrl: options.inviteUrl,
+        viewerCharacterId: options.viewerCharacterId
+      })
     : "Ватага не знайшлася або вже стала легендою без протоколу.";
 }
 
@@ -1140,10 +1158,14 @@ export function presentPartySession(
   options: {
     inviteUrl?: string | null | undefined;
     notice?: string;
+    viewerCharacterId?: string | null | undefined;
   } = {}
 ): string {
   const joined = getJoinedParticipants(session);
   const leader = joined.find((participant) => participant.characterId === session.leaderCharacterId);
+  const viewer = options.viewerCharacterId
+    ? joined.find((participant) => participant.characterId === options.viewerCharacterId)
+    : null;
   const big = session.originLocationId === "barrel.big-brother";
   const lines = [
     big ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
@@ -1164,7 +1186,7 @@ export function presentPartySession(
   if (big && session.personalProtocol) {
     lines.push(presentBureaucramancerProtocolLobbyLine(session), "");
   }
-  if (big && session.status === "recruiting" && joined.some((participant) => participant.character.classId === "class.bard")) {
+  if (big && session.status === "recruiting" && viewer?.character.classId === "class.bard") {
     lines.push(
       "🎻 Після початку рейду Бард зможе <b>заграти журливу баладу</b>, якщо музичне місце вільне — навіть сам на сам зі Старшим Братом Бочки.",
       ""
@@ -1332,9 +1354,11 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
 
 export function presentPartyNearbyInviteSent(
   result: Extract<PartyViewResult, { state: "ready" }>,
-  targetName: string
+  targetName: string,
+  viewerCharacterId?: string | null
 ): string {
   return presentPartySession(result.session, {
+    viewerCharacterId,
     notice: `Запрошення для «${targetName}» надіслано приватно, якщо Telegram дозволив. Стан ватаги від цього не залежить.`
   });
 }

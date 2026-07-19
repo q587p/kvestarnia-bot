@@ -910,16 +910,20 @@ export async function sendTavernBarrel(
     });
     const session = "session" in party ? party.session : null;
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+    const viewerCharacterId = session ? getPartyViewerCharacterId(session, telegramUserId) : null;
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
     }
-    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, { inviteUrl }), session
+    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, {
+      inviteUrl,
+      viewerCharacterId
+    }), session
       ? {
           session,
           inviteUrl,
-          viewerCharacterId: getPartyViewerCharacterId(session, telegramUserId),
+          viewerCharacterId,
           includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }

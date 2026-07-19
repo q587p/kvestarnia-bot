@@ -19,7 +19,7 @@ export function presentActiveBardInspirationBuff(
     name: "Натхнення",
     remaining: `${Math.max(1, Math.ceil(remainingMs / 60_000))} хв`,
     ...(options.showLabel === false ? { label: null } : {}),
-    tailHtml: ` — <b>+${inspiration.accuracyBonusPp}</b> до влучання`
+    tailHtml: ` — <b>+${inspiration.accuracyBonusPp}</b> до влучання. Відлік: щохвилини поза боєм або кожен хід у бою (це забирає хвилину дії)`
   });
 }
 
