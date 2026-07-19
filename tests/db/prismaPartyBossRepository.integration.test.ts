@@ -216,6 +216,59 @@ describe("PrismaPartyBossRepository integration", () => {
       .toBe(new Date(expiresAt.getTime() - 2 * 60_000).toISOString());
   });
 
+  it("lets a solo Bard start Big Barrel without prior music and commit Lament", async () => {
+    await seedCharacter(prisma, "solo-lament-bard", 1099n, "Самотній Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await partyRepository.createForTelegramUser(1099n, {
+      ...partyInput("party-token-big-solo-lament"),
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1099n, {
+      partyInviteToken: "party-token-big-solo-lament",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected solo Bard session, got ${started.state}.`);
+    }
+    expect(started.session.state.participants).toHaveLength(1);
+    expect(started.session.state.bardMusic).toEqual({ kind: "none" });
+
+    const result = await bossRepository.submitLamentForTelegramUser(
+      1099n,
+      "party-token-big-solo-lament",
+      1,
+      { ...resolveInput(), activationId: "solo-lament-activation" }
+    );
+    const session = expectPartyBossSession(result);
+
+    expect(result.state).toBe("resolved");
+    expect(session.state.bardMusic).toMatchObject({
+      kind: "lament",
+      activationId: "solo-lament-activation",
+      sourceCharacterId: "solo-lament-bard-character"
+    });
+    expect(session.state.roundLog[0]?.actions).toContainEqual(expect.objectContaining({
+      characterId: "solo-lament-bard-character",
+      action: "lament",
+      outcome: "lament-activated"
+    }));
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: {
+        sessionId: session.id,
+        actorCharacterId: "solo-lament-bard-character",
+        turn: 1
+      },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
+  });
+
   it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {
     const supportRepository = new PrismaPartyBossRepository(
       prisma,
@@ -279,7 +332,10 @@ describe("PrismaPartyBossRepository integration", () => {
     }
     const winnerCharacterId = winner.session.state.bardMusic.sourceCharacterId;
     await expect(prisma.characterCooldown.findMany({
-      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+      where: {
+        key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL),
+        characterId: { in: ["lament-bard-a-character", "lament-bard-b-character"] }
+      }
     })).resolves.toMatchObject([
       {
         characterId: winnerCharacterId,

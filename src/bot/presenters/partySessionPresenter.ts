@@ -1101,6 +1101,12 @@ export function presentPartySession(
   if (big && session.personalProtocol) {
     lines.push(presentBureaucramancerProtocolLobbyLine(session), "");
   }
+  if (big && session.status === "recruiting" && joined.some((participant) => participant.character.classId === "class.bard")) {
+    lines.push(
+      "🎻 Після початку рейду Бард зможе <b>заграти журливу баладу</b>, якщо музичне місце вільне — навіть сам на сам зі Старшим Братом Бочки.",
+      ""
+    );
+  }
 
   if (joined.length === 0) {
     lines.push("Запис порожній. Це вже майже філософія.");

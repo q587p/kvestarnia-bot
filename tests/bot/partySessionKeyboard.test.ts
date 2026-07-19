@@ -552,7 +552,7 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-2"))).toContain("🗡️ Вдарити");
   });
 
-  it("shows Lament only for ready Big Barrel Bards while the music slot is free", () => {
+  it("shows Lament for a solo ready Big Barrel Bard while the music slot is free", () => {
     const session = makeBossSession({ classId: "class.bard" }, { bigBarrel: true });
     const viewer = session.state.participants[0]!;
     session.state.bardMusic = { kind: "none" };
@@ -560,6 +560,7 @@ describe("party session keyboard", () => {
     const options = { now };
     const lamentCallback = "v1:party:ba:partyABC12:1:l";
 
+    expect(session.state.participants).toHaveLength(1);
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
       .toContain(lamentCallback);
     const proofSession = makeBossSession({ classId: "class.bard" });

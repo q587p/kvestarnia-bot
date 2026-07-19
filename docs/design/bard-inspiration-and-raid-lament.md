@@ -224,6 +224,8 @@ Big Barrel-specific support tip:
 
 > Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.
 
+A recruiting Big Barrel card that includes a Bard also states that Lament is chosen after combat starts when the music slot is free. This must remain true for a one-member Bard raid; the action does not require a full party.
+
 Keep exact remaining duration/cooldown derived from canonical `availableAt`/state data. Use distinct icons for performance, Inspiration, and Lament on adjacent surfaces.
 
 ## Persistence, idempotency, and availability

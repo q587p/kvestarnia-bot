@@ -1310,6 +1310,23 @@ describe("party session presenter", () => {
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
   });
 
+  it("tells a solo Bard that Lament becomes available after the Big Barrel raid starts", () => {
+    const session = makePartySession();
+    const bard = { ...session.leader, classId: "class.bard" };
+    const solo = {
+      ...session,
+      leader: bard,
+      participants: [{ ...session.participants[0]!, character: bard }]
+    };
+
+    const text = presentPartySession(solo);
+
+    expect(text).toContain("Учасники: 1/8");
+    expect(text).toContain("Після початку рейду Бард зможе <b>заграти журливу баладу</b>");
+    expect(text).toContain("навіть сам на сам зі Старшим Братом Бочки");
+    expect(presentPartySession(makePartySession())).not.toContain("заграти журливу баладу");
+  });
+
   it("shows Big Barrel Brother readiness markers near recruiting participant names", () => {
     const session = {
       ...makePartySession(),
