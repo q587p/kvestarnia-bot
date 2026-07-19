@@ -266,6 +266,17 @@ describe("application factory wiring", () => {
     expect(services.fightingCornerQuest.isDevHelperEnabled()).toBe(false);
     await expect(services.fightingCornerQuest.resetCurrentLifeForTelegramUser(42n)).resolves.toBe("disabled");
   });
+
+  it("keeps Bard dev mutation disabled in production", async () => {
+    const services = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      devGrantCommandsEnabled: true
+    }));
+
+    expect(services.bardPerformance.areDevHelpersEnabled()).toBe(false);
+    await expect(services.bardPerformance.resetForDev(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(services.bardPerformance.setInspirationForDev(42n, 5)).resolves.toEqual({ state: "disabled" });
+  });
 });
 
 function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {

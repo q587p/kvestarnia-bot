@@ -15,6 +15,12 @@ export type FlavorPlacement =
 
 export type FlavorScene = "shawarma" | "fight" | "cellar" | "barrel";
 
+export const BARD_FULL_RAID_DAILY_TIP =
+  "Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів.";
+
+export const BARD_BIG_BARREL_SUPPORT_TIP =
+  "Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.";
+
 export interface CharacterFlavorSelector {
   raceIds?: string[];
   classIds?: string[];
@@ -1367,7 +1373,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
   ...buildCellarOutcomeRaceLines(),
   ...buildCellarOutcomeClassLines(),
   ...buildCellarOutcomeComboLines(),
-  // Future raid role flavor only. No mechanical roles or raid balance effects yet.
+  // Shared raid-prep flavor must remain safe on unrelated Fight and Duel surfaces.
   {
     id: "barrel.raid-hint.class.warrior",
     placement: "raid.prep-hint",
@@ -1387,7 +1393,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { classIds: ["class.bard"] },
-    text: "Бардам у повному рейді дадуть бафи, дебафи й відповідальність за моральний стан табуретів."
+    text: "Бардам у повному рейді довірять ритм, настрій і табурети. Принаймні один із цих пунктів переживе Бочку."
   },
   {
     id: "barrel.raid-hint.class.rogue",

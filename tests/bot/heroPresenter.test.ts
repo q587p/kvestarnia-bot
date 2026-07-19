@@ -96,6 +96,20 @@ describe("hero presenter", () => {
     expect(text).not.toContain("Ситість відновила");
   });
 
+  it("shows Inspiration through the same bold timed-status shape", () => {
+    const text = presentHero(summary, {
+      activeBardInspiration: {
+        accuracyBonusPp: 1,
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      }
+    });
+
+    expect(text).toContain(
+      "❤️ HP 24/24 · 🔮 мана 12/12\n\n✨ Стан: <b>Натхнення</b> ще <b>13 хв</b> — <b>+1</b> до влучання. Відлік: щохвилини поза боєм або кожен хід у бою (це забирає хвилину дії).\n\nСили 9"
+    );
+    expect(text).not.toContain("<b>Натхнення</b>:");
+  });
+
   it("shows the recipient wait without calling an expired status active", () => {
     const text = presentHero(summary, {
       activeVarenykSated: {
@@ -239,8 +253,33 @@ describe("hero presenter", () => {
     });
 
     expect(text).toContain(
-      "🍻 Баф: <b>Якісне пиво</b> ще <b>42 хв</b> — відновлення швидше на <b>42%</b>.\n✨ Стан: <b>Жрецьке благословення</b> ще <b>13 хв</b>"
+      "<b>Стани:</b>\n🍻 <b>Якісне пиво</b> ще <b>42 хв</b> — відновлення швидше на <b>42%</b>.\n✨ <b>Жрецьке благословення</b> ще <b>13 хв</b>"
     );
+    expect(text).not.toContain("<b>Стани:</b>\n🍻 Баф:");
+    expect(text).not.toContain("<b>Стани:</b>\n✨ Стан:");
+  });
+
+  it("groups multiple active class states under one heading without repeated labels", () => {
+    const text = presentHero(summary, {
+      activeVarenykSated: {
+        activationId: "sated",
+        rank: 3,
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      },
+      activeBardInspiration: {
+        accuracyBonusPp: 1,
+        expiresAt: new Date("2026-06-23T10:13:00.000Z")
+      }
+    });
+
+    expect(text).toContain(
+      "<b>Стани:</b>\n😋 <b>Ситий</b> ще <b>13 хв</b> — <b>+2 HP</b> і <b>+2 мани</b>"
+    );
+    expect(text).toContain(
+      "✨ <b>Натхнення</b> ще <b>13 хв</b> — <b>+1</b> до влучання."
+    );
+    expect(text).not.toContain("😋 Стан:");
+    expect(text).not.toContain("✨ Стан:");
   });
 
   it("shows equipment attunement as a timed status", () => {

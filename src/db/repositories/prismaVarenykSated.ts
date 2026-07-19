@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type { CombatState } from "../../domain/combat";
+import type { BardInspirationCombatStateV1 } from "../../domain/noncombat/bardSupport";
 import {
   freezeVarenykSatedForCombat,
   parseVarenykSatedPayload,
@@ -8,6 +9,10 @@ import {
   type SatedResourceState,
   type VarenykSatedCombatStateV1
 } from "../../domain/noncombat/varenykSatedSupport";
+import {
+  advanceBardInspirationCursorThroughCombat,
+  invalidateBardInspirationOwnedByCombatLease
+} from "./prismaBardSupport";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -242,7 +247,7 @@ export async function advanceVarenykSatedCursorThroughCombat(input: {
   }
 }
 
-export async function releaseVarenykSatedCombatLease(input: {
+export async function releaseCombatLeaseWithTimedStatuses(input: {
   tx: TxClient;
   lease: {
     id: string;
@@ -254,6 +259,10 @@ export async function releaseVarenykSatedCombatLease(input: {
   };
   releasedAt: Date;
   sated?: Pick<VarenykSatedCombatStateV1, "activationId" | "outsideRemainderMs" | "expiresAt" | "cursorAt">;
+  inspiration?: Pick<
+    BardInspirationCombatStateV1,
+    "activationId" | "outsideRemainderMs" | "expiresAt" | "cursorAt"
+  >;
 }): Promise<boolean> {
   const claimedAt = new Date(Math.max(
     input.releasedAt.getTime(),
@@ -301,6 +310,24 @@ export async function releaseVarenykSatedCombatLease(input: {
         }
       : {})
   });
+  if (input.inspiration) {
+    await advanceBardInspirationCursorThroughCombat({
+      tx: input.tx,
+      characterId: input.lease.characterId,
+      activationId: input.inspiration.activationId,
+      now: input.releasedAt,
+      leaseStartedAt: input.lease.createdAt,
+      outsideRemainderMs: input.inspiration.outsideRemainderMs,
+      combatExpiresAt: new Date(input.inspiration.expiresAt),
+      combatCursorAt: new Date(input.inspiration.cursorAt)
+    });
+  } else {
+    await invalidateBardInspirationOwnedByCombatLease({
+      tx: input.tx,
+      characterId: input.lease.characterId,
+      leaseStartedAt: input.lease.createdAt
+    });
+  }
 
   const deleted = await input.tx.activeCombatLease.deleteMany({
     where: {

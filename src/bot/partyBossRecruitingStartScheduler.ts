@@ -3,8 +3,12 @@ import type { PartyBossService } from "../services/partyBossService";
 import type { PartySessionService } from "../services/partySessionService";
 import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
-import { presentPartyBoss, presentPartyBossIntro } from "./presenters/partySessionPresenter";
+import {
+  presentPartyBoss,
+  presentPartyBossIntro
+} from "./presenters/partySessionPresenter";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
+import { deliverTerminalIneligiblePartyCards } from "./partyTerminalIneligibleDelivery";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -43,6 +47,16 @@ export function createPartyBossRecruitingStartScheduler(
               { allowExpiredRecruiting: true }
             )
           );
+
+          if (result.state === "terminal-ineligible") {
+            processed += 1;
+            await deliverTerminalIneligiblePartyCards(
+              bot.api,
+              services.partySessions,
+              party.inviteToken
+            );
+            continue;
+          }
 
           if (!("session" in result) || result.state !== "started") {
             continue;

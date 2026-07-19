@@ -39,6 +39,7 @@ import {
   getActiveEquipmentRows
 } from "../../domain/equipment/equipmentAttunement";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
+import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { applyXpReward, getLevelForXp } from "../../domain/progression/level";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
@@ -47,9 +48,10 @@ import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer
 import { CryptoRandomSource, type RandomSource } from "../../shared/random";
 import {
   freezeVarenykSatedFromCooldown,
-  releaseVarenykSatedCombatLease,
+  releaseCombatLeaseWithTimedStatuses,
   VarenykSatedCasError
 } from "./prismaVarenykSated";
+import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
@@ -705,7 +707,11 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
       const canonicalParticipants = {} as Record<
         "challenger" | "target",
-        { duelist: DuelistSummary; sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]> }
+        {
+          duelist: DuelistSummary;
+          sated?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["varenykSated"]>;
+          inspiration?: NonNullable<TurnBasedDuelState["participants"]["challenger"]["bardInspiration"]>;
+        }
       >;
       for (const side of ["challenger", "target"] as const) {
         const participantId = side === "challenger"
@@ -733,6 +739,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             mana: natural.duelist.manaCurrent,
             manaMax: natural.duelist.manaMax
           },
+          now
+        });
+        const inspiration = await freezeBardInspirationFromCooldown({
+          tx,
+          characterId: participantId,
+          remortCount,
           now
         });
         const hpRegenAt = sated.hpRestored > 0 && sated.resources.hp >= sated.resources.hpMax
@@ -785,7 +797,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             hpCurrent: sated.resources.hp,
             manaCurrent: sated.resources.mana
           },
-          ...(sated.sated ? { sated: sated.sated } : {})
+          ...(sated.sated ? { sated: sated.sated } : {}),
+          ...(inspiration ? { inspiration } : {})
         };
       }
 
@@ -798,6 +811,10 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         const sated = canonicalParticipants[side].sated;
         if (sated) {
           state.participants[side].varenykSated = sated;
+        }
+        const inspiration = canonicalParticipants[side].inspiration;
+        if (inspiration) {
+          state.participants[side].bardInspiration = inspiration;
         }
       }
 
@@ -832,7 +849,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     return {
-      record: mapDuelCombatSession(session.record),
+      record: this.mapDuelCombatSession(session.record),
       transitioned: session.transitioned
     };
   }
@@ -892,7 +909,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async findTurnBasedByTokenForTelegramUserId(
@@ -912,7 +929,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async findTurnBasedByToken(inviteToken: string): Promise<DuelCombatSessionRecord | null> {
@@ -925,7 +942,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async listTurnBasedActionsByToken(inviteToken: string): Promise<DuelCombatActionRecord[]> {
@@ -1068,11 +1085,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           for (const lease of leases) {
             const participant = Object.values(input.state.participants)
               .find((entry) => entry.characterId === lease.characterId);
-            await releaseVarenykSatedCombatLease({
+            await releaseCombatLeaseWithTimedStatuses({
               tx,
               lease,
               releasedAt: input.completedAt ?? input.now,
-              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+              ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
+              ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
             });
           }
         }
@@ -1084,7 +1102,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       });
     });
 
-    return mapDuelCombatSession(session);
+    return this.mapDuelCombatSession(session);
   }
 
   async listDueTurnBasedSessions(now: Date, limit = 23): Promise<DuelCombatSessionRecord[]> {
@@ -1102,7 +1120,9 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       include: sessionInclude
     });
 
-    return sessions.map(mapDuelCombatSession).filter((session): session is DuelCombatSessionRecord => session !== null);
+    return sessions
+      .map((session) => this.mapDuelCombatSession(session))
+      .filter((session): session is DuelCombatSessionRecord => session !== null);
   }
 
   async claimTurnBasedMessageReference(
@@ -1140,7 +1160,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     return {
       claimed: claimed.count === 1,
-      session: mapDuelCombatSession(session)
+      session: this.mapDuelCombatSession(session)
     };
   }
 
@@ -1178,7 +1198,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     return {
       released: released.count === 1,
-      session: mapDuelCombatSession(session)
+      session: this.mapDuelCombatSession(session)
     };
   }
 
@@ -1195,7 +1215,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
 
     for (const session of activeSessions) {
-      const state = parseTurnBasedDuelState(session.stateJson);
+      const state = this.parseTurnBasedDuelState(session.stateJson);
       const valid =
         state &&
         session.duelChallenge.status === "active" &&
@@ -1247,11 +1267,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           const participant = state
             ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
             : undefined;
-          await releaseVarenykSatedCombatLease({
+          await releaseCombatLeaseWithTimedStatuses({
             tx,
             lease,
             releasedAt: now,
-            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {})
+            ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
+            ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
           });
         }
       });
@@ -1290,7 +1311,11 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       }
 
       const deleted = await this.prisma.$transaction(async (tx) => {
-        const released = await releaseVarenykSatedCombatLease({ tx, lease, releasedAt: now });
+        const released = await releaseCombatLeaseWithTimedStatuses({
+          tx,
+          lease,
+          releasedAt: now
+        });
         return { count: released ? 1 : 0 };
       });
       removedOrphanLeases += deleted.count;
@@ -1319,6 +1344,16 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         status: "expired"
       }
     });
+  }
+
+  private mapDuelCombatSession(
+    record: DuelCombatSessionWithChallenge
+  ): DuelCombatSessionRecord | null {
+    return mapDuelCombatSession(record);
+  }
+
+  private parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
+    return parseTurnBasedDuelState(value);
   }
 }
 
@@ -1754,7 +1789,7 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     return null;
   }
 
-  return {
+  const state: TurnBasedDuelState = {
     mode: "turn-based",
     status,
     rulesVersion: value.rulesVersion,
@@ -1767,6 +1802,8 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     ...(lastAction ? { lastAction } : {}),
     ...(outcome ? { outcome } : {})
   };
+
+  return state;
 }
 
 function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {
@@ -1811,6 +1848,9 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const varenykSated = hasOwn(value, "varenykSated")
     ? parseVarenykSatedCombatState(value.varenykSated)
     : undefined;
+  const bardInspiration = hasOwn(value, "bardInspiration")
+    ? parseBardInspirationCombatState(value.bardInspiration)
+    : undefined;
 
   if (
     !characterId ||
@@ -1833,7 +1873,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     playerAbilityFumbles === null ||
     equipmentEffects === null ||
     equipmentAbilityGrantIds === null ||
-    varenykSated === null
+    varenykSated === null ||
+    bardInspiration === null
   ) {
     return null;
   }
@@ -1863,7 +1904,8 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
     balanceAudit,
     ...(equipmentEffects ? { equipmentEffects } : {}),
     ...(equipmentAbilityGrantIds ? { equipmentAbilityGrantIds } : {}),
-    ...(varenykSated ? { varenykSated } : {})
+    ...(varenykSated ? { varenykSated } : {}),
+    ...(bardInspiration ? { bardInspiration } : {})
   };
 }
 
@@ -2070,12 +2112,15 @@ function parseRoundSummary(value: unknown): TurnBasedDuelState["lastRound"] | un
 
   const parsedActions = actions?.filter((action): action is NonNullable<ReturnType<typeof parseActionSummary>> => action !== null);
   const varenykSatedAfter = parseTurnBasedSatedAfter(value.varenykSatedAfter);
+  const bardInspirationAfter = parseTurnBasedInspirationAfter(value.bardInspirationAfter);
 
-  return turn !== null && actions && parsedActions && parsedActions.length === actions.length && varenykSatedAfter !== null
+  return turn !== null && actions && parsedActions && parsedActions.length === actions.length &&
+    varenykSatedAfter !== null && bardInspirationAfter !== null
     ? {
         turn,
         actions: parsedActions,
-        ...(varenykSatedAfter ? { varenykSatedAfter } : {})
+        ...(varenykSatedAfter ? { varenykSatedAfter } : {}),
+        ...(bardInspirationAfter ? { bardInspirationAfter } : {})
       }
     : null;
 }
@@ -2096,6 +2141,28 @@ function parseTurnBasedSatedAfter(
   const target = value.target === null
     ? null
     : parseVarenykSatedCombatState(value.target);
+  if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
+    return null;
+  }
+
+  return { challenger, target };
+}
+
+function parseTurnBasedInspirationAfter(
+  value: unknown
+): NonNullable<NonNullable<TurnBasedDuelState["lastRound"]>["bardInspirationAfter"]> | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+  const challenger = value.challenger === null
+    ? null
+    : parseBardInspirationCombatState(value.challenger);
+  const target = value.target === null
+    ? null
+    : parseBardInspirationCombatState(value.target);
   if ((value.challenger !== null && !challenger) || (value.target !== null && !target)) {
     return null;
   }

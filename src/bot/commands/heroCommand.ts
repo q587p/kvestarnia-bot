@@ -60,6 +60,7 @@ export async function sendHero(
       activeDrink: result.activeDrink,
       activePriestBlessing: result.activePriestBlessing,
       activeVarenykSated: result.activeVarenykSated,
+      activeBardInspiration: result.activeBardInspiration,
       varenykSatedAvailableAt: result.varenykSatedAvailableAt,
       ...(result.recoveryNotice ? { recoveryNotice: result.recoveryNotice } : {}),
       activeCosmeticTitle: result.activeCosmeticTitle,

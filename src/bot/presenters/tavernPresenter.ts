@@ -23,6 +23,7 @@ import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presence
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
 import type { RemortBoard } from "../../db/repositories/remortRepository";
 import {
+  BARD_FULL_RAID_DAILY_TIP,
   selectCharacterFlavorLine,
   selectCharacterFlavorLines,
   selectKorchmaGreetingLine
@@ -31,6 +32,8 @@ import { presentQuestRewardBlock, presentRewardAmount, presentRewardBlock } from
 import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml, npcQuote } from "./telegramHtml";
 import type { MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
+import type { PresentedLiveBardPerformance } from "../../services/bardPerformanceService";
+import { presentLiveBardPerformanceNotice } from "./shynokPresenter";
 
 export function presentKorchmaFront(
   character: CharacterSummary,
@@ -502,6 +505,7 @@ export function presentKorchmaBar(
     includeBottleTurnIn?: boolean;
     problemQuestAction?: "turn-in" | "take" | "next";
     bardPerformance?: boolean;
+    liveBardPerformance?: PresentedLiveBardPerformance | null;
     tavernGames?: boolean;
   } = {}
 ): string {
@@ -537,11 +541,14 @@ function presentKorchmaBarActionLines(options: {
   includeBottleTurnIn?: boolean;
   problemQuestAction?: "turn-in" | "take" | "next";
   bardPerformance?: boolean;
+  liveBardPerformance?: PresentedLiveBardPerformance | null;
   tavernGames?: boolean;
 }): string[] {
   const lines: string[] = [];
 
-  if (options.bardPerformance) {
+  if (options.liveBardPerformance) {
+    lines.push(presentLiveBardPerformanceNotice(options.liveBardPerformance));
+  } else if (options.bardPerformance) {
     lines.push("Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує.");
   }
 
@@ -814,6 +821,10 @@ function presentKorchmaGreeting(character: CharacterSummary, seed = "korchma-hal
 }
 
 function presentRaidPrepHint(character: CharacterSummary, seed: string, rotate: boolean): string[] {
+  if (character.classId === "class.bard") {
+    return [`<i>Порада дня: ${escapeHtml(BARD_FULL_RAID_DAILY_TIP)}</i>`];
+  }
+
   const flavors = selectCharacterFlavorLines(character, {
     placement: "raid.prep-hint",
     scene: "barrel",

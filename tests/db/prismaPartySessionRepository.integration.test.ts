@@ -13,6 +13,7 @@ import {
   EQUIPMENT_ATTUNEMENT_ACTION_KEY
 } from "../../src/domain/equipment/equipmentAttunement";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
+import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -965,6 +966,69 @@ describe("PrismaPartySessionRepository integration", () => {
     });
   });
 
+  it("records a replacement card reference after the party becomes terminal-ineligible", async () => {
+    await seedCharacter(prisma, "terminal-message-ref-user", 2152n, "Карткова Архіварка", { level: 8 });
+    await repository.createForTelegramUser(2152n, {
+      ...bigBarrelInput("party-token-terminal-message-ref"),
+      chatId: null,
+      messageId: null
+    });
+    await prisma.partySession.update({
+      where: { inviteToken: "party-token-terminal-message-ref" },
+      data: { status: "ineligible", activeLeaderKey: null }
+    });
+
+    const updated = await repository.recordParticipantMessageReference(
+      2152n,
+      "party-token-terminal-message-ref",
+      { chatId: 2152n, messageId: 93, now: now() }
+    );
+
+    expect(updated?.status).toBe("ineligible");
+    expect(updated?.participants.find((row) => row.character.telegramUserId === 2152n)).toMatchObject({
+      chatId: 2152n,
+      messageId: 93
+    });
+  });
+
+  it("preserves terminal-ineligible across every stale preparation mutation", async () => {
+    await seedCharacter(prisma, "terminal-replay-leader-user", 2153n, "Закрита Лідерка", {
+      level: 8,
+      classId: "class.kharakternyk",
+      manaCurrent: 20
+    });
+    await seedCharacter(prisma, "terminal-replay-outsider-user", 2154n, "Пізній Запис", { level: 8 });
+    await repository.createForTelegramUser(
+      2153n,
+      bigBarrelInput("party-token-terminal-replays")
+    );
+    await prisma.partySession.update({
+      where: { inviteToken: "party-token-terminal-replays" },
+      data: { status: "ineligible", activeLeaderKey: null }
+    });
+    await prisma.partyParticipant.updateMany({
+      where: { session: { inviteToken: "party-token-terminal-replays" } },
+      data: { activeMembershipKey: null }
+    });
+
+    const results = [
+      await repository.joinByTokenForTelegramUser(2154n, "party-token-terminal-replays", joinInput()),
+      await repository.leaveByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      await repository.cancelByTokenForTelegramUser(2153n, "party-token-terminal-replays", now()),
+      await repository.setParticipantReadiness(2153n, "party-token-terminal-replays", "ready", now()),
+      await repository.placeKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      await repository.supportKharakternykWardSign(2153n, "party-token-terminal-replays", now()),
+      await repository.fileBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now()),
+      await repository.signBureaucramancerPersonalProtocol(2153n, "party-token-terminal-replays", now())
+    ];
+
+    expect(results.map((result) => result.state)).toEqual(Array(8).fill("terminal-ineligible"));
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-terminal-replays" },
+      select: { status: true }
+    })).resolves.toEqual({ status: "ineligible" });
+  });
+
   it("rejects non-remorted level 7 Big Barrel recruiting joins without mutation", async () => {
     await seedCharacter(prisma, "big-leader-l7-user", 2201n, "Ватажок", { level: 8 });
     await seedCharacter(prisma, "big-joiner-l7-user", 2202n, "Сьомий", { level: 7 });
@@ -1014,6 +1078,64 @@ describe("PrismaPartySessionRepository integration", () => {
     const joined = await repository.joinByTokenForTelegramUser(2502n, "party-token-big-l8", joinInput());
 
     expect(joined.state).toBe("joined");
+  });
+
+  it("blocks Big Barrel creation while the same-period legacy solo raid is pending", async () => {
+    await seedCharacter(prisma, "big-create-pending-solo-user", 2503n, "Ще В Соло", { level: 8 });
+    const availableAt = new Date(now().getTime() + 60_000);
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-create-pending-solo",
+        characterId: "big-create-pending-solo-user-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-29"),
+        availableAt
+      }
+    });
+
+    const blocked = await repository.createForTelegramUser(
+      2503n,
+      bigBarrelInput("party-token-big-create-pending-solo")
+    );
+
+    expect(blocked).toMatchObject({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt
+    });
+    await expect(prisma.partySession.count({
+      where: { inviteToken: "party-token-big-create-pending-solo" }
+    })).resolves.toBe(0);
+  });
+
+  it("blocks a Big Barrel join until a due same-period legacy solo raid is claimed", async () => {
+    await seedCharacter(prisma, "big-pending-solo-leader-user", 2504n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "big-pending-solo-joiner-user", 2505n, "Ще Десь В Соло", { level: 8 });
+    await repository.createForTelegramUser(
+      2504n,
+      bigBarrelInput("party-token-big-join-pending-solo")
+    );
+    const availableAt = new Date(now().getTime() - 1);
+    await prisma.characterCooldown.create({
+      data: {
+        id: "big-join-pending-solo",
+        characterId: "big-pending-solo-joiner-user-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-29"),
+        availableAt
+      }
+    });
+
+    const blocked = await repository.joinByTokenForTelegramUser(
+      2505n,
+      "party-token-big-join-pending-solo",
+      joinInput()
+    );
+
+    expect(blocked).toMatchObject({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt
+    });
+    await expectNoMembership(prisma, "party-token-big-join-pending-solo", 2505n);
   });
 
   it("blocks creating another Big Barrel recruiting party during active loss retry cooldown", async () => {

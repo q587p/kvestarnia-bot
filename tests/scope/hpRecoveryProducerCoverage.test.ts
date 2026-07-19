@@ -33,7 +33,9 @@ describe("HP recovery producer coverage", () => {
       "PrismaDuelChallengeRepository",
       "PrismaShynokRepository"
     ]) {
-      expect(source).toContain(`new ${repository}(prisma, hpRecoveryProducer)`);
+      expect(source).toMatch(
+        new RegExp(`new\\s+${repository}\\(\\s*prisma,\\s*hpRecoveryProducer`)
+      );
     }
   });
 

@@ -1,9 +1,16 @@
 import type { CharacterRecord } from "./characterRepository";
 
-export type PartySessionStatus = "recruiting" | "cancelled" | "expired" | "active" | "completed";
+export type PartySessionStatus =
+  | "recruiting"
+  | "cancelled"
+  | "expired"
+  | "ineligible"
+  | "active"
+  | "completed";
 export type PartyParticipantStatus = "joined" | "left";
 export type PartyParticipantReadiness = "waiting" | "ready";
 export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "dev";
+export type PartyTerminalReplayState = "cancelled" | "expired" | "terminal-ineligible";
 
 export interface PartyCharacterSnapshot extends CharacterRecord {
   telegramUserId: bigint;
@@ -107,6 +114,7 @@ export type PartyJoinIneligibleReason =
   | "level-gate"
   | "active-combat"
   | "already-completed"
+  | "pending-solo-raid"
   | "loss-cooldown";
 
 export type PartyLossCooldownIneligible = {
@@ -116,9 +124,17 @@ export type PartyLossCooldownIneligible = {
   now: Date;
 };
 
+export type PartyPendingSoloRaidIneligible = {
+  state: "ineligible";
+  reason: "pending-solo-raid";
+  availableAt: Date;
+  now: Date;
+};
+
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
   | PartyLossCooldownIneligible
+  | PartyPendingSoloRaidIneligible
   | { state: "live"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | { state: "created"; session: PartySessionRecord };
@@ -135,32 +151,33 @@ export type PartyJoinRepositoryResult =
   | { state: "stale"; session: PartySessionRecord }
   | { state: "live-membership"; session: PartySessionRecord }
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
+  | (PartyPendingSoloRaidIneligible & { session: PartySessionRecord })
   | {
       state: "ineligible";
       session: PartySessionRecord;
-      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown"> | undefined;
+      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> | undefined;
     }
-  | { state: "full" | "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: "full" | PartyTerminalReplayState; session: PartySessionRecord };
 
 export type PartyLeaveRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member"; session: PartySessionRecord }
   | { state: "stale"; session: PartySessionRecord }
-  | { state: "left" | "leader-transferred" | "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: "left" | "leader-transferred" | PartyTerminalReplayState; session: PartySessionRecord };
 
 export type PartyCancelRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-leader"; session: PartySessionRecord }
   | { state: "stale"; session: PartySessionRecord }
-  | { state: "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: PartyTerminalReplayState; session: PartySessionRecord };
 
 export type PartyReadinessRepositoryResult =
   | { state: "no-character" }
   | { state: "not-found" }
   | { state: "not-member" | "not-recruiting"; session: PartySessionRecord }
-  | { state: "updated" | "already-set" | "stale" | "cancelled" | "expired"; session: PartySessionRecord };
+  | { state: "updated" | "already-set" | "stale" | PartyTerminalReplayState; session: PartySessionRecord };
 
 export type PartyWardSignPlaceRepositoryResult =
   | { state: "no-character" }
@@ -176,8 +193,7 @@ export type PartyWardSignPlaceRepositoryResult =
         | "not-big-barrel"
         | "ineligible"
         | "not-enough-mana"
-        | "cancelled"
-        | "expired";
+        | PartyTerminalReplayState;
       session: PartySessionRecord;
     };
 
@@ -195,8 +211,7 @@ export type PartyWardSignSupportRepositoryResult =
         | "no-sign"
         | "self-support"
         | "not-enough-mana"
-        | "cancelled"
-        | "expired";
+        | PartyTerminalReplayState;
       session: PartySessionRecord;
     };
 
@@ -221,8 +236,7 @@ export type PartyPersonalProtocolFileRepositoryResult =
         | "blocked"
         | "not-enough-mana"
         | "stale"
-        | "cancelled"
-        | "expired";
+        | PartyTerminalReplayState;
       session: PartySessionRecord;
     };
 
@@ -239,8 +253,7 @@ export type PartyPersonalProtocolSignRepositoryResult =
         | "no-protocol"
         | "blocked"
         | "stale"
-        | "cancelled"
-        | "expired";
+        | PartyTerminalReplayState;
       session: PartySessionRecord;
     };
 

@@ -978,6 +978,24 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("+25 XP");
   });
 
+  it("restores the Bard daily tip on pending and blocked Tavern raid cards", () => {
+    const bard = { ...character, classId: "class.bard", className: "Бард" };
+    const result = {
+      state: "pending" as const,
+      character: bard,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
+    };
+
+    for (const text of [presentTavernRaidPending(result), presentPendingRaidActionBlock(result)]) {
+      expect(text).toContain(
+        "Порада дня: Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів."
+      );
+      expect(text).not.toContain("журливою баладою");
+    }
+  });
+
   it("varies pending barrel flavor when the player checks again", () => {
     const first = presentTavernRaidPending({
       state: "pending",

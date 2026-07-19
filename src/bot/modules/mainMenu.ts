@@ -37,6 +37,7 @@ sendQuestHub,
 sendQuestOverview
 } from "../commands/questHubCommand";
 import {
+buildKorchmaBarOptions,
 sendKorchmaBar,
 sendKorchmaDeepClosed,
 sendKorchmaFightingCorner,
@@ -142,7 +143,7 @@ export function registerMainMenuKeyboard(
     }
 
     await sendOnline(ctx, services.presence, {
-      bardPerformanceEnabled: Boolean(services.bardPerformance),
+      bardPerformance: services.bardPerformance,
       classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
       itemGiftEnabled: Boolean(services.itemTransfers),
@@ -629,10 +630,9 @@ async function sendCurrentPresenceLocation(
       services.cellarGrownup,
       services.fight,
       services.tavernGames,
-      {
-        shynokService: services.shynok,
+      buildKorchmaBarOptions(services, {
         ...(questMarkers ? { questMarkers } : {})
-      }
+      })
     );
     return;
   }

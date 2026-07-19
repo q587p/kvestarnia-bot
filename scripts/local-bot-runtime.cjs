@@ -81,6 +81,15 @@ function normalizeRelative(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
 
+function managedPathIdentity(candidatePath, platform = process.platform) {
+  const normalized = path.normalize(candidatePath);
+  return platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function pathsReferToSameLocation(leftPath, rightPath, platform = process.platform) {
+  return managedPathIdentity(leftPath, platform) === managedPathIdentity(rightPath, platform);
+}
+
 function isInside(parentPath, candidatePath) {
   const relative = path.relative(parentPath, candidatePath);
   return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
@@ -596,7 +605,11 @@ function verifyManagedHost(processId, sourceRoot) {
 
 function readMetadata(paths) {
   const metadata = readJson(paths.metadataPath);
-  if (!metadata || metadata.sourceRoot !== paths.sourceRoot) {
+  if (
+    !metadata ||
+    typeof metadata.sourceRoot !== "string" ||
+    !pathsReferToSameLocation(metadata.sourceRoot, paths.sourceRoot)
+  ) {
     return null;
   }
   return metadata;
@@ -923,11 +936,12 @@ async function main() {
     fail(`Unknown action: ${parsed.action}. Expected one of: ${[...ACTIONS].join(", ")}`);
   }
 
-  const sourceRoot = path.resolve(
+  const requestedSourceRoot = path.resolve(
     typeof parsed.options["source-root"] === "string"
       ? parsed.options["source-root"]
       : path.join(__dirname, ".."),
   );
+  const sourceRoot = fs.realpathSync.native(requestedSourceRoot);
   const paths = getPaths(sourceRoot);
   assertRepository(paths);
 
@@ -952,15 +966,22 @@ async function main() {
   }
 }
 
-main()
-  .then((exitCode) => {
-    process.exitCode = Number.isInteger(exitCode) ? exitCode : 0;
-  })
-  .catch((error) => {
-    const prefix = error && error.isExpected ? "" : "Unexpected error: ";
-    process.stderr.write(`[local-bot] ERROR: ${prefix}${error.message}\n`);
-    if (!error.isExpected && error.stack) {
-      process.stderr.write(`${error.stack}\n`);
-    }
-    process.exitCode = 1;
-  });
+if (require.main === module) {
+  main()
+    .then((exitCode) => {
+      process.exitCode = Number.isInteger(exitCode) ? exitCode : 0;
+    })
+    .catch((error) => {
+      const prefix = error && error.isExpected ? "" : "Unexpected error: ";
+      process.stderr.write(`[local-bot] ERROR: ${prefix}${error.message}\n`);
+      if (!error.isExpected && error.stack) {
+        process.stderr.write(`${error.stack}\n`);
+      }
+      process.exitCode = 1;
+    });
+}
+
+module.exports = {
+  managedPathIdentity,
+  pathsReferToSameLocation,
+};

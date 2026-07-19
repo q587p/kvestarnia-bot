@@ -1,5 +1,8 @@
 import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
-import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import {
+  BARD_BIG_BARREL_SUPPORT_TIP,
+  selectCharacterFlavorLine
+} from "../../content/characterFlavor";
 import type {
   PartyCancelResult,
   PartyCreateResult,
@@ -33,12 +36,16 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
+import {
+  presentActiveBardInspirationCombatState,
+  presentBardInspirationCombatEffectLines
+} from "./bardInspirationPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
 export function presentPartyCreate(
   result: PartyCreateResult,
-  options: { inviteUrl: string | null }
+  options: { inviteUrl: string | null; viewerCharacterId?: string | null | undefined }
 ): string {
   if (result.state === "disabled") {
     return [
@@ -55,6 +62,7 @@ export function presentPartyCreate(
   if (result.state === "live-membership") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ви вже записані в іншу живу ватагу. Спершу вийдіть із неї або дочекайтеся завершення."
     });
   }
@@ -71,13 +79,14 @@ export function presentPartyCreate(
 
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     ...(notice ? { notice } : {})
   });
 }
 
 export function presentPartyJoin(
   result: PartyJoinResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start. Ватага не приймає таємничі силуети без анкети.";
@@ -90,6 +99,7 @@ export function presentPartyJoin(
   if (result.state === "live-membership") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ви вже в іншій живій ватазі. Квестарня поважає ентузіязм, але не телепортацію між протоколами."
     });
   }
@@ -101,6 +111,7 @@ export function presentPartyJoin(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за цей запис. Перевірте картку й спробуйте ще раз."
     });
   }
@@ -108,24 +119,32 @@ export function presentPartyJoin(
   if (result.state === "full") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
     });
   }
 
   if (result.state === "cancelled") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Цю ватагу вже скасовано. Старі кнопки показують архів, а не новий набір."
     });
   }
 
   if (result.state === "expired") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Строк збору минув. Посилання лишилося як доказ, що хтось майже організувався."
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "already-joined"
       ? "Ви вже в цій ватазі. Повторний запис не створює другого вас, хоча бюрократія мріяла."
       : "Ви приєдналися до ватаги."
@@ -135,6 +154,10 @@ export function presentPartyJoin(
 function presentPartyCreateIneligible(
   result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
+  if (result.reason === "pending-solo-raid") {
+    return presentPendingSoloRaidConflict(result.availableAt, result.now, "відкрити новий збір");
+  }
+
   if (result.reason === "loss-cooldown") {
     return [
       "Рейдова канцелярія притримала новий збір. Після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
@@ -162,6 +185,10 @@ function presentPartyJoinIneligible(
     return "Рейдова канцелярія відсіяла запис: сьогоднішня Бочка вже зарахована. Старший Брат не приймає другий запис у цей самий період.";
   }
 
+  if (reason === "pending-solo-raid") {
+    return presentPendingSoloRaidConflict(result.availableAt, result.now, "приєднатися до нового збору");
+  }
+
   if (reason === "loss-cooldown") {
     return [
       "Рейдова канцелярія відсіяла запис: після недавньої поразки Старший Брат Бочки вимагає короткий перепочинок.",
@@ -170,6 +197,21 @@ function presentPartyJoinIneligible(
   }
 
   return "Рейдова канцелярія відсіяла запис. Старший Брат Бочки приймає лише чинні заявки з правильною печаткою.";
+}
+
+function presentPendingSoloRaidConflict(
+  availableAt: Date,
+  now: Date,
+  nextAction: string
+): string {
+  const timing = availableAt > now
+    ? `Підсумок буде готовий за <b>${formatRemainingWait(availableAt, now)}</b>.`
+    : "Підсумок уже готується; оновіть картку Бочки.";
+
+  return [
+    "Спершу завершіть старий сольний рейд біля Бочки.",
+    `${timing} Після цього можна ${nextAction}.`
+  ].join("\n");
 }
 
 export function formatRemainingWait(availableAt: Date, now: Date): string {
@@ -198,7 +240,7 @@ function formatUkrainianMinutes(value: number): string {
 
 export function presentPartyLeave(
   result: PartyLeaveResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта.";
@@ -211,6 +253,7 @@ export function presentPartyLeave(
   if (result.state === "not-member") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Ця кнопка вже не є вашим записом у ватазі. Показую актуальний стан."
     });
   }
@@ -218,18 +261,25 @@ export function presentPartyLeave(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за цей вихід. Перевірте картку й спробуйте ще раз."
     });
   }
 
   if (result.state === "expired") {
     return presentPartySession(result.session, {
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Строк збору минув, тож виходити вже нікуди. Протокол просто закрив двері."
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
     inviteUrl: options.inviteUrl,
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "leader-transferred"
       ? "Ви вийшли. Лідерство перейшло до найраніше записаного пригодника."
       : result.state === "cancelled"
@@ -240,7 +290,7 @@ export function presentPartyLeave(
 
 export function presentPartyCancel(
   result: PartyCancelResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
   if (result.state === "no-character") {
     return "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта.";
@@ -253,6 +303,7 @@ export function presentPartyCancel(
   if (result.state === "not-leader") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Скасувати ватагу може тільки поточний лідер. Протокол суворий, бо стіл уже бачив усе."
     });
   }
@@ -260,11 +311,17 @@ export function presentPartyCancel(
   if (result.state === "stale") {
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
+      viewerCharacterId: options.viewerCharacterId,
       notice: "Стан ватаги змінився раніше за скасування. Показую актуальну картку."
     });
   }
 
+  if (result.state === "terminal-ineligible") {
+    return presentPartyTerminalIneligible(result.session, options.viewerCharacterId);
+  }
+
   return presentPartySession(result.session, {
+    viewerCharacterId: options.viewerCharacterId,
     notice: result.state === "expired"
       ? "Строк збору вже минув. Старі кнопки не відкривають запис назад."
       : "Лідер скасував збір ватаги."
@@ -273,10 +330,15 @@ export function presentPartyCancel(
 
 export function presentPartyView(
   result: PartyViewResult,
-  options: { inviteUrl?: string | null | undefined } = {}
+  options: { inviteUrl?: string | null | undefined; viewerCharacterId?: string | null | undefined } = {}
 ): string {
-  return result.state === "ready"
-    ? presentPartySession(result.session, { inviteUrl: options.inviteUrl })
+  return result.state === "ready" && result.session.status === "ineligible"
+    ? presentPartyTerminalIneligible(result.session, options.viewerCharacterId)
+    : result.state === "ready"
+    ? presentPartySession(result.session, {
+        inviteUrl: options.inviteUrl,
+        viewerCharacterId: options.viewerCharacterId
+      })
     : "Ватага не знайшлася або вже стала легендою без протоколу.";
 }
 
@@ -313,6 +375,10 @@ export function presentPartyBossStart(result: PartyBossStartResult, viewerCharac
 
   if (result.state === "ineligible") {
     return "Рейдова канцелярія відсіяла частину записів. Старший Брат Бочки приймає лише чинні записи без боргів у бочковому архіві.";
+  }
+
+  if (result.state === "terminal-ineligible") {
+    return "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Збір закрито; пригодники можуть зібрати нову ватагу.";
   }
 
   if (result.state === "not-recruiting") {
@@ -439,6 +505,13 @@ export function presentPartyBossAction(result: PartyBossActionResult, viewerChar
     });
   }
 
+  if (result.state === "lament-unavailable") {
+    return presentPartyBoss(result.session, {
+      viewerCharacterId,
+      notice: presentBardLamentUnavailableNotice(result)
+    });
+  }
+
   if (result.state === "queued") {
     const big = isBigPartyBossSession(result.session);
     return presentPartyBoss(result.session, {
@@ -502,6 +575,7 @@ export function presentPartyBoss(
   options: {
     viewerCharacterId?: string | null | undefined;
     notice?: string;
+    now?: Date;
   } = {}
 ): string {
   const state = session.state;
@@ -542,6 +616,25 @@ export function presentPartyBoss(
   if (big && state.warriorTaunt?.active) {
     lines.push(presentWarriorRaidTauntBossLine(state));
   }
+  if (big && session.status === "active" && state.bardMusic && state.bardMusic.kind !== "none") {
+    const bardMusicLine = presentBardRaidMusicLine(state.bardMusic);
+    if (bardMusicLine) {
+      lines.push(bardMusicLine);
+    }
+  }
+  if (
+    big &&
+    session.status === "active" &&
+    state.bardMusic?.kind === "none" &&
+    viewer?.combatStats.classId === "class.bard" &&
+    viewer.bardMusicAvailableAt
+  ) {
+    const availableAt = new Date(viewer.bardMusicAvailableAt);
+    const now = options.now ?? new Date();
+    if (availableAt > now) {
+      lines.push(`🎻 Журлива балада буде доступна через ${formatRemainingWait(availableAt, now)}.`);
+    }
+  }
   if (session.status === "active") {
     lines.push(...presentPartyBossCooldownLines(viewer ?? null, state));
     if (viewer?.varenykSated) {
@@ -549,6 +642,10 @@ export function presentPartyBoss(
         viewer.varenykSated
       );
       if (satedBuff) lines.push(satedBuff);
+    }
+    if (viewer?.bardInspiration) {
+      const inspiration = presentActiveBardInspirationCombatState(viewer.bardInspiration);
+      if (inspiration) lines.push(inspiration);
     }
   }
 
@@ -638,6 +735,8 @@ function presentPartyBossQueuedActionPlan(
         : "одноразову манатку";
     case "taunt":
       return "гукнути «🛡️ На мене!»";
+    case "lament":
+      return "заграти «🎻 Журливу баладу»";
     default:
       return "дію";
   }
@@ -664,11 +763,19 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const round = rounds[page]!;
   const actionLines: string[] = [];
   const satedRecoveryLines: string[] = [];
+  const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
+    ? round.bardMusic.damageReduction
+    : undefined;
   if (round.actions.length === 0) {
     actionLines.push("Журнал не знайшов записаних дій учасників.");
   } else {
     for (const action of round.actions) {
-      actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
+      actionLines.push(presentPartyBossActionLine(
+        action,
+        participantsByCharacterId.get(action.characterId),
+        null,
+        lamentDamageReduction
+      ));
       const recovery = presentVarenykSatedRecoveryLine(action, names.get(action.characterId));
       if (recovery) {
         satedRecoveryLines.push(recovery);
@@ -697,6 +804,9 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   }
   if (round.warriorTaunt) {
     actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
+  }
+  if (round.bardMusic) {
+    actionLines.push(...presentBardRaidMusicRoundLines(round.bardMusic));
   }
   actionLines.push(...satedRecoveryLines);
 
@@ -764,7 +874,8 @@ function presentPartyBossJournalNotices(
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   return [
     ...new Set(presentJournalCooldownLines(round, session.state.participants)),
-    ...presentPartyBossJournalSatedLines(round, session.state.participants),
+    ...presentPartyBossJournalTimedStatusLines(round, session.state.participants),
+    ...presentPartyBossJournalBardMusicLines(round),
     ...new Set([
       ...(nextFocus ? [nextFocus] : []),
       ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
@@ -772,7 +883,7 @@ function presentPartyBossJournalNotices(
   ];
 }
 
-function presentPartyBossJournalSatedLines(
+function presentPartyBossJournalTimedStatusLines(
   round: PartyBossSessionRecord["state"]["roundLog"][number],
   participants: PartyBossSessionRecord["state"]["participants"]
 ): string[] {
@@ -780,17 +891,44 @@ function presentPartyBossJournalSatedLines(
     participant.characterId,
     participant
   ]) ?? []);
-
-  return presentVarenykSatedCombatEffectLines(participants.map((participant) => {
+  const statuses = participants.map((participant) => {
     const snapshot = snapshots.get(participant.characterId);
-    const sated = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
-      ? snapshot.varenykSated
-      : participant.varenykSated;
     return {
+      participant,
+      sated: snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
+        ? snapshot.varenykSated
+        : participant.varenykSated,
+      inspiration: snapshot && Object.prototype.hasOwnProperty.call(snapshot, "bardInspiration")
+        ? snapshot.bardInspiration
+        : participant.bardInspiration
+    };
+  });
+
+  return [
+    ...presentVarenykSatedCombatEffectLines(statuses.map(({ participant, sated }) => ({
       sated,
       subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
-    };
-  }));
+    }))),
+    ...presentBardInspirationCombatEffectLines(statuses.map(({ participant, inspiration }) => ({
+      inspiration,
+      subjectHtml: `Стан: <b>Натхнення</b> у <b>${escapeHtml(participant.name)}</b>`
+    })))
+  ];
+}
+
+function presentPartyBossJournalBardMusicLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number]
+): string[] {
+  if (
+    round.statusAfter !== "active" ||
+    !round.bardMusic ||
+    round.bardMusic.expired ||
+    round.bardMusic.remainingBossResponses <= 0
+  ) {
+    return [];
+  }
+
+  return [presentBardRaidLamentLine(round.bardMusic)];
 }
 
 function presentJournalCooldownLines(
@@ -869,10 +1007,14 @@ function presentLastRoundLines(
   options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
   const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
+  const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
+    ? round.bardMusic.damageReduction
+    : undefined;
   const lines = round.actions.map((action) => presentPartyBossActionLine(
     action,
     byCharacterId.get(action.characterId),
-    options.viewerCharacterId
+    options.viewerCharacterId,
+    lamentDamageReduction
   ));
   const satedRecoveryLines = round.actions.flatMap((action) => {
     const recovery = presentVarenykSatedRecoveryLine(action, byCharacterId.get(action.characterId)?.name);
@@ -908,6 +1050,9 @@ function presentLastRoundLines(
       new Map(participants.map((participant) => [participant.characterId, participant.name])),
       { includeActiveStatus: false }
     ));
+  }
+  if (round.bardMusic) {
+    lines.push(...presentBardRaidMusicRoundLines(round.bardMusic));
   }
   return lines;
 }
@@ -1031,10 +1176,14 @@ export function presentPartySession(
   options: {
     inviteUrl?: string | null | undefined;
     notice?: string;
+    viewerCharacterId?: string | null | undefined;
   } = {}
 ): string {
   const joined = getJoinedParticipants(session);
   const leader = joined.find((participant) => participant.characterId === session.leaderCharacterId);
+  const viewer = options.viewerCharacterId
+    ? joined.find((participant) => participant.characterId === options.viewerCharacterId)
+    : null;
   const big = session.originLocationId === "barrel.big-brother";
   const lines = [
     big ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
@@ -1054,6 +1203,12 @@ export function presentPartySession(
   }
   if (big && session.personalProtocol) {
     lines.push(presentBureaucramancerProtocolLobbyLine(session), "");
+  }
+  if (big && session.status === "recruiting" && viewer?.character.classId === "class.bard") {
+    lines.push(
+      "🎻 Після початку рейду Бард зможе <b>заграти журливу баладу</b>, якщо музичне місце вільне — навіть сам на сам зі Старшим Братом Бочки.",
+      ""
+    );
   }
 
   if (joined.length === 0) {
@@ -1075,6 +1230,16 @@ export function presentPartySession(
   }
 
   return lines.join("\n");
+}
+
+export function presentPartyTerminalIneligible(
+  session: PartySessionRecord,
+  viewerCharacterId?: string | null
+): string {
+  return presentPartySession(session, {
+    viewerCharacterId,
+    notice: "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
+  });
 }
 
 function presentKharakternykWardBossLine(
@@ -1133,6 +1298,35 @@ function presentWarriorRaidTauntBossLine(state: PartyBossSessionRecord["state"])
   return `🛡️ Увага Бочки: ${escapeHtml(name)}, ще ${formatTurns(active.bossAttacksRemaining)}.`;
 }
 
+function presentBardRaidMusicLine(
+  music: NonNullable<PartyBossSessionRecord["state"]["bardMusic"]>
+): string | null {
+  if (music.kind === "inspiration") {
+    return "✨ Натхнення від виступу вже займає музичне місце цього рейду.";
+  }
+  if (music.kind === "lament") {
+    return music.remainingBossResponses > 0
+      ? presentBardRaidLamentLine(music)
+      : null;
+  }
+
+  return "";
+}
+
+function presentBardRaidLamentLine(
+  music: { damageReduction: number; remainingBossResponses: number }
+): string {
+  return `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatBossResponses(music.remainingBossResponses)}.`;
+}
+
+function presentBardRaidMusicRoundLines(
+  music: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["bardMusic"]>
+): string[] {
+  return music.expired
+    ? ["🎼 Остання нота стихла: журлива балада вже не послаблює удари."]
+    : [];
+}
+
 function presentWarriorRaidTauntUnavailableNotice(
   result: Extract<PartyBossActionResult, { state: "taunt-unavailable" }>
 ): string {
@@ -1146,6 +1340,25 @@ function presentWarriorRaidTauntUnavailableNotice(
     return "Цей рейдовий виклик слухається лише воїна.";
   }
   return "Цей виклик більше не діє. Показую свіжий стан рейду.";
+}
+
+function presentBardLamentUnavailableNotice(
+  result: Extract<PartyBossActionResult, { state: "lament-unavailable" }>
+): string {
+  if (result.reason === "cooldown" && result.availableAt && result.now) {
+    return `🎻 Балада ще збирає докупи сумні ноти. Спробуйте через ${formatRemainingWait(result.availableAt, result.now)}.`;
+  }
+  if (result.reason === "music-taken") {
+    return "🎶 У цьому рейді вже прозвучав бардівський номер. Друга драматична кульмінація не передбачена кошторисом.";
+  }
+  if (result.reason === "locked") {
+    return "🎻 Балада вже записана як ваша дія цього ходу й не міняється на півноті.";
+  }
+  if (result.reason === "not-bard") {
+    return "Цю баладу Корчма довіряє лише Барду.";
+  }
+
+  return "Ця балада більше не діє. Показую свіжий стан рейду.";
 }
 
 function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
@@ -1169,9 +1382,11 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
 
 export function presentPartyNearbyInviteSent(
   result: Extract<PartyViewResult, { state: "ready" }>,
-  targetName: string
+  targetName: string,
+  viewerCharacterId?: string | null
 ): string {
   return presentPartySession(result.session, {
+    viewerCharacterId,
     notice: `Запрошення для «${targetName}» надіслано приватно, якщо Telegram дозволив. Стан ватаги від цього не залежить.`
   });
 }
@@ -1202,6 +1417,10 @@ function getStatusLine(session: PartySessionRecord): string {
 
   if (session.status === "expired") {
     return "Стан: строк збору минув";
+  }
+
+  if (session.status === "ineligible") {
+    return "Стан: збір закрито через несумісні записи";
   }
 
   if (session.status !== "recruiting") {
@@ -1415,6 +1634,10 @@ function presentPartyBossStartTip(
     return null;
   }
 
+  if (participant.classId === "class.bard" && session.state.bardMusic !== undefined) {
+    return `<i>Порада дня: ${escapeHtml(BARD_BIG_BARREL_SUPPORT_TIP)}</i>`;
+  }
+
   const flavor = selectCharacterFlavorLine(summarizeCharacter(participant, {
     remortCount: participant.remortCount
   }), {
@@ -1429,7 +1652,8 @@ function presentPartyBossStartTip(
 function presentPartyBossActionLine(
   action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
   participant: PartyBossSessionRecord["state"]["participants"][number] | undefined,
-  viewerCharacterId: string | null
+  viewerCharacterId: string | null,
+  lamentDamageReduction?: number
 ): string {
   const isViewer = Boolean(viewerCharacterId && action.characterId === viewerCharacterId);
   const name = escapeHtml(participant?.name ?? "Учасник");
@@ -1443,6 +1667,14 @@ function presentPartyBossActionLine(
     return isViewer
       ? "Ваш виклик запізнився: Бочка вже обрала, кого слухати."
       : `${name} гукає до Бочки, але виклик запізнюється.`;
+  }
+  if (action.outcome === "lament-activated") {
+    const effect = lamentDamageReduction !== undefined
+      ? `: пряма шкода Старшого Брата слабшає на ${lamentDamageReduction}.`
+      : ".";
+    return isViewer
+      ? `Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід${effect}`
+      : `${name} затягує 🎻 журливу баладу й цього ходу не атакує${effect}`;
   }
 
   if (action.outcome === "item-used") {
@@ -1735,6 +1967,12 @@ function formatTurns(turns: number): string {
   const safeTurns = Math.max(1, Math.floor(turns));
 
   return `${safeTurns} ${pluralizeUk(safeTurns, "хід", "ходи", "ходів")}`;
+}
+
+function formatBossResponses(responses: number): string {
+  const safeResponses = Math.max(0, Math.floor(responses));
+
+  return `${safeResponses} ${pluralizeUk(safeResponses, "відповідь", "відповіді", "відповідей")}`;
 }
 
 function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {

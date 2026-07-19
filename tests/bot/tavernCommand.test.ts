@@ -512,6 +512,42 @@ describe("tavern command screens", () => {
     expect(options.reply_markup.inline_keyboard).toContainEqual([{ text: "🎶 Виступити", callback_data: "v1:sh:bp" }]);
   });
 
+  it("hides the Shynok performance action and shows the current Bard's live performance", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendKorchmaBar(
+      makeContext(replies),
+      readyTavernService({
+        ...character,
+        classId: "class.bard",
+        className: "Бард",
+        level: 3
+      }),
+      capturingPresenceService(),
+      "reply",
+      undefined,
+      undefined,
+      undefined,
+      {
+        bardPerformance: {
+          getLiveForTelegramUser: () => Promise.resolve({
+            expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+            now: new Date("2026-07-19T10:02:00.000Z")
+          })
+        }
+      }
+    );
+
+    expect(replies[0]?.text).toContain(
+      "🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>11 хв</b>."
+    );
+    expect(replies[0]?.text).not.toContain("Бардівський кут стійки сьогодні вільний");
+    const options = replies[0]?.options as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(options.reply_markup.inline_keyboard.flat().map((button) => button.text)).not.toContain("🎶 Виступити");
+  });
+
   it("shows the fighting corner as a menu with training, duel modes and winners", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
 

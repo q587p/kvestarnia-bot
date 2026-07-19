@@ -18,7 +18,8 @@ import type {
   BardPerformanceRespondResult,
   BardPerformanceStartResult,
   PresentedBardPerformance,
-  PresentedBardPerformanceAudienceNotice
+  PresentedBardPerformanceAudienceNotice,
+  PresentedLiveBardPerformance
 } from "../../services/bardPerformanceService";
 import type {
   KorchmaRoundLeaderboard,
@@ -46,9 +47,21 @@ export function presentShynokGate(result: { state: string }): string {
   }
 }
 
+export function presentLiveBardPerformanceNotice(performance: PresentedLiveBardPerformance): string {
+  const remainingMinutes = Math.max(
+    1,
+    Math.ceil((performance.expiresAt.getTime() - performance.now.getTime()) / 60_000)
+  );
+
+  return `🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>${remainingMinutes} хв</b>.`;
+}
+
 export function presentShynokOverview(
   result: ShynokOverviewResult,
-  options: { tavernGames?: boolean } = {}
+  options: {
+    tavernGames?: boolean;
+    liveBardPerformance?: PresentedLiveBardPerformance | null;
+  } = {}
 ): string {
   if (result.state !== "ready") {
     return presentShynokGate(result);
@@ -59,7 +72,9 @@ export function presentShynokOverview(
     "",
     "Корчмар виставив напої, рахівницю й табличку «манатки приймаємо не всі, бо маємо очі».",
     ...(result.character.classId === "class.bard" && result.character.level >= 3
-      ? ["Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
+      ? [options.liveBardPerformance
+          ? presentLiveBardPerformanceNotice(options.liveBardPerformance)
+          : "Бардівський кут стійки сьогодні вільний. Корчмар удає, що не підспівує."]
       : []),
     ...(options.tavernGames
       ? ["У кутку скрипить ігровий стіл: тавлеї й кості чекають охочих виглядати спокійно."]
@@ -292,13 +307,35 @@ export function presentBardPerformanceAudienceNotification(
   performerName: string,
   notice: PresentedBardPerformanceAudienceNotice
 ): string {
-  void notice;
-
-  return [
+  const lines = [
     `🎶 <b>${escapeHtml(performerName)}</b> починає виступ у вашій місцині.`,
+  ];
+  if (notice.inspiration) {
+    const remaining = formatRemainingMinutesFrom(
+      notice.inspiration.expiresAt,
+      notice.inspiration.now
+    );
+    if (notice.inspiration.mutation === "unchanged") {
+      lines.push(
+        "",
+        `✨ Ваше чинне <b>Натхнення</b> не слабше: +${notice.inspiration.accuracyBonusPp} до влучання · ще ${remaining}. Новий виступ його не подовжив.`
+      );
+    } else {
+      lines.push(
+        "",
+        notice.inspiration.mutation === "replaced"
+          ? `✨ Сильніший виступ оновлює <b>Натхнення</b>: +${notice.inspiration.accuracyBonusPp} до влучання на ${remaining}.`
+          : `✨ Виступ надихає вас: +${notice.inspiration.accuracyBonusPp} до влучання на ${remaining}.`,
+        "У бою кожен завершений хід забирає ще одну хвилину."
+      );
+    }
+  }
+  lines.push(
     "",
     "Можна аплодувати безкоштовно або добровільно кинути дрібну монету. Корчмар пильно дивиться, щоб ніхто не назвав це податком."
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 export function presentBardPerformanceResponseResult(result: BardPerformanceRespondResult): string {
@@ -611,4 +648,8 @@ function formatRemainingMinutes(expiresAt: Date): string {
   }
 
   return `${remainingMinutes} хв`;
+}
+
+function formatRemainingMinutesFrom(expiresAt: Date, now: Date): string {
+  return `${Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / 60_000))} хв`;
 }

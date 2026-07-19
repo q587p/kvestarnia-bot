@@ -360,6 +360,7 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; after a Big loss, verify it clears the Big Barrel Brother loss retry cooldown for QA.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.
 19a. Immediately after a meaningful loss, try `/raid`, `🍺 У рейд на бочку`, a deep-link invite and a `👀 Хто поруч` join into another Big group; verify all Big entry/join paths are blocked with a remaining-wait line, then verify they work again after cooldown expiry.
+19b. Start the older solo `Бочка Пінного Міражу` wait, then try to create or join a same-period Big Barrel group from an old invite. Verify the new roster is unchanged and the card says to finish the solo raid first. Repeat after the solo timer is due but before claiming it. Let a Big recruiting deadline elapse and press the leader's existing start button; it must use the automatic-start recovery path rather than reject the button only as expired.
 20. Remort or invalidate a disposable participant during recruiting/active combat; verify no active membership key or combat lease orphan remains.
 21. Run ordinary solo fight, turn-based duel, postal delivery, Shynok, Adventure, Daily Korchma and legacy Barrel smoke routes afterward.
 
@@ -560,6 +561,25 @@ Use one level 3+ account with local dev commands enabled where helpful.
 15. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
 16. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
 17. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+
+## 0.3.14 — Bard Inspiration and Big Barrel Lament smoke
+
+Manual Telegram QA status for the implementation pass: not run. Use two Bard-capable local accounts, one listener and one non-Bard; refresh the isolated bot manually with `BIG_BARREL_BROTHER_RAID_ENABLED=true` and local dev grants enabled.
+
+1. Start a same-location performance with an active listener; verify the listener gets one free `✨ Натхнення` notice before any applause/tip choice and the Bard’s payout is unchanged.
+2. Use `/dev_reset_bard_performance grant 1`, then repeat stronger/equal/weaker grants; verify only a stronger value replaces and resets the visible duration.
+3. Open Hero, persistent single/multi PvE, Training and a turn duel; verify the acting inspired participant gets the accuracy line, one logical minute is consumed only by a committed action, and a stale/replayed callback consumes nothing. Confirm a Quick Duel has no synthetic Inspiration turn.
+4. Start Big Barrel with Inspiration sourced at `Бочка`; verify the raid music line is Inspiration and no Lament button appears. Start a fresh raid without Barrel-origin Inspiration; verify a living Bard with ready local availability sees `🎻 Заграти журливу баладу`.
+5. Commit Lament; verify it deals no damage/cost, locks that round action, reduces the activation-round retaliation, persists in the journal and cannot be claimed by a second Bard. A losing concurrent Bard must still be able to choose another action.
+6. Check focused, broad, Taunt-redirected, Ward and Protocol rounds; verify the song counter moves once per whole boss response, never per target, and zero direct damage remains zero.
+7. Reopen the raid card after a local bot refresh; verify the stored grade/counter and journal text are unchanged. Finish/cancel and start a new raid; verify no old Lament transfers.
+8. Try a performance after Lament and a Lament after performance in the same location; verify both show the same canonical remaining wait.
+9. Set `NODE_ENV=production` and `DEV_GRANT_COMMANDS_ENABLED=true`; verify the helper is absent from registration/help/menu and cannot mutate through its service path.
+10. Open pending and blocked Tavern raid cards as a Bard; verify the daily tip says `Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів.` Open persistent-fight and turn-duel intros and verify they do not repeat Big Barrel-specific Inspiration/Lament instructions; the Big Barrel intro should retain the specific support explanation.
+11. Exhaust frozen Inspiration in solo/Training, turn duel and Big Barrel before the original wall-clock expiry; verify `/hero` treats zero combat remainder as authoritative and terminal release does not resurrect or extend it.
+12. Start a performance, remort before its 13-minute live window ends, restore new-life Bard eligibility at the same location and perform again; verify the old performance/reactions remain audit history but only the new-life live guard controls the new performance.
+13. In multi-enemy PvE, force a 1-HP Bard-supported hero to die from a committed critical fumble or reflection; verify the final Inspiration minute is consumed once, `Ситий` does not revive the hero, and replay does not add another pulse.
+14. Commit Lament, then press a previously rendered `🎒 Одноразові манатки` button from the source Bard and another participant; verify the source returns to the canonical locked raid card while the other participant can still open the submenu.
 
 ## 0.2.5 — Bard Performance smoke
 

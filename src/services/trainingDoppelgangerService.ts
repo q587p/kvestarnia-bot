@@ -44,6 +44,7 @@ import { CryptoRandomSource, type RandomSource } from "../shared/random";
 import { systemClock, type Clock } from "../shared/time";
 import { getEquippedItemContents } from "./equipmentService";
 import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
+import { applyBardInspirationPulseToSoloCombat } from "../domain/noncombat/bardSupport";
 import type { CombatBalanceAnalyticsService } from "./combatBalanceAnalyticsService";
 
 export const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
@@ -269,7 +270,7 @@ export class TrainingDoppelgangerService {
       actionOrigin: timeoutMode === "skip" ? "timeout-skip" : "timeout-auto-attack",
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyTrainingTimedStatusPulses({
         state,
         combatKind: "training-doppelganger",
         sessionId: session.id,
@@ -725,7 +726,7 @@ export class TrainingDoppelgangerService {
       action: input.action,
       hero: buildHeroCombatStats(character),
       monster: buildTrainingDoppelgangerCombatStatsFromState(session.state, character),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applyTrainingTimedStatusPulses({
         state,
         combatKind: "training-doppelganger",
         sessionId: currentSession.id,
@@ -2118,4 +2119,19 @@ function buildCharacterFingerprint(character: CharacterSummary): string {
     stats: character.stats,
     equipmentEffects: character.equipmentEffects ?? null
   });
+}
+
+function applyTrainingTimedStatusPulses(input: {
+  state: CombatState;
+  combatKind: "persistent-pve" | "training-doppelganger";
+  sessionId: string;
+  committedTurn: number;
+  recipientCharacterId: string;
+  now: Date;
+}): ReturnType<typeof applyVarenykSatedPulseAfterSoloEnemyResponse> {
+  const recovery = input.state.hero.hp > 0
+    ? applyVarenykSatedPulseAfterSoloEnemyResponse(input)
+    : undefined;
+  applyBardInspirationPulseToSoloCombat(input);
+  return recovery;
 }

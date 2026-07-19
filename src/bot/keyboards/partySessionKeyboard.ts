@@ -160,6 +160,7 @@ export function buildPartyBossKeyboard(
   options: {
     includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
+    now?: Date | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -167,11 +168,17 @@ export function buildPartyBossKeyboard(
     ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
   const canAct = viewer?.status === "active" && viewer.resources.hp > 0;
+  const lamentLocked = Boolean(
+    viewer &&
+    session.state.bardMusic?.kind === "lament" &&
+    session.state.bardMusic.sourceCharacterId === viewer.characterId &&
+    session.state.bardMusic.activatedTurn === session.turn
+  );
   const availability = viewer
     ? getActorCombatActionAvailability(viewer.resources, viewer.combatStats)
     : null;
 
-  if (session.status === "active" && viewerCharacterId && canAct) {
+  if (session.status === "active" && viewerCharacterId && canAct && !lamentLocked) {
     keyboard
       .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
       .text("🧱 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
@@ -181,6 +188,19 @@ export function buildPartyBossKeyboard(
       keyboard.text(
         "🛡️ На мене!",
         makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
+      ).row();
+    }
+
+    const bardMusicReady = !viewer.bardMusicAvailableAt ||
+      Date.parse(viewer.bardMusicAvailableAt) <= (options.now ?? new Date()).getTime();
+    if (
+      viewer.combatStats.classId === "class.bard" &&
+      session.state.bardMusic?.kind === "none" &&
+      bardMusicReady
+    ) {
+      keyboard.text(
+        "🎻 Заграти журливу баладу",
+        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "lament")
       ).row();
     }
 

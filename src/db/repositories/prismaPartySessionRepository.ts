@@ -28,7 +28,10 @@ import type {
   PartyJoinSource
 } from "./partySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
-import { FRIDAY_BARREL_RAID_KEY } from "../../services/tavernRaidService";
+import {
+  buildFridayBarrelRaidPendingKey,
+  FRIDAY_BARREL_RAID_KEY
+} from "../../services/tavernRaidService";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import {
@@ -147,15 +150,30 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" } satisfies PartyCreateRepositoryResult;
       }
 
-      const lossCooldown = input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
-        ? await findActiveBigBarrelLossCooldown(tx, character.id, input.now)
-        : null;
+      const isBigBarrel = input.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+      const [lossCooldown, pendingSoloRaid] = isBigBarrel
+        ? await Promise.all([
+            findActiveBigBarrelLossCooldown(tx, character.id, input.now),
+            input.periodId
+              ? findPendingSoloBarrelRaid(tx, character.id, input.periodId)
+              : Promise.resolve(null)
+          ])
+        : [null, null];
 
       if (lossCooldown) {
         return {
           state: "ineligible",
           reason: "loss-cooldown",
           availableAt: lossCooldown.availableAt,
+          now: input.now
+        } satisfies PartyCreateRepositoryResult;
+      }
+
+      if (pendingSoloRaid) {
+        return {
+          state: "ineligible",
+          reason: "pending-solo-raid",
+          availableAt: pendingSoloRaid.availableAt,
           now: input.now
         } satisfies PartyCreateRepositoryResult;
       }
@@ -245,8 +263,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-found" };
       }
 
-      if (session.status === "expired" || session.status === "cancelled") {
-        const terminalState = session.status === "expired" ? "expired" : "cancelled";
+      const terminalState = getTerminalReplayState(session);
+      if (terminalState) {
         return { state: terminalState, session: mapSession(session) };
       }
 
@@ -277,7 +295,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       const ineligible = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
       if (ineligible) {
-        return ineligible.reason === "loss-cooldown"
+        return ineligible.reason === "loss-cooldown" || ineligible.reason === "pending-solo-raid"
           ? {
               state: "ineligible",
               reason: ineligible.reason,
@@ -681,6 +699,10 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       const latest = await findSessionById(this.prisma, error.sessionId);
       if (!latest) {
         return { state: "not-found" };
+      }
+      const terminalState = getTerminalReplayState(latest);
+      if (terminalState) {
+        return { state: terminalState, session: mapSession(latest) };
       }
       if (latest.status !== LIVE_STATUS) {
         return { state: "not-recruiting", session: mapSession(latest) };
@@ -1642,8 +1664,9 @@ async function getBigBarrelJoinIneligibleReason(
   character: CharacterRow,
   now: Date
 ): Promise<
-  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown"> }
+  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> }
   | { reason: "loss-cooldown"; availableAt: Date }
+  | { reason: "pending-solo-raid"; availableAt: Date }
   | null
 > {
   if (session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
@@ -1654,7 +1677,7 @@ async function getBigBarrelJoinIneligibleReason(
     return { reason: "level-gate" };
   }
 
-  const [activeLease, existingSuccess, activeLossCooldown] = await Promise.all([
+  const [activeLease, existingSuccess, pendingSoloRaid, activeLossCooldown] = await Promise.all([
     tx.activeCombatLease.findUnique({
       where: {
         characterId: character.id
@@ -1677,6 +1700,9 @@ async function getBigBarrelJoinIneligibleReason(
           }
         })
       : Promise.resolve(null),
+    session.periodId
+      ? findPendingSoloBarrelRaid(tx, character.id, session.periodId)
+      : Promise.resolve(null),
     findActiveBigBarrelLossCooldown(tx, character.id, now)
   ]);
 
@@ -1686,6 +1712,13 @@ async function getBigBarrelJoinIneligibleReason(
 
   if (existingSuccess) {
     return { reason: "already-completed" };
+  }
+
+  if (pendingSoloRaid) {
+    return {
+      reason: "pending-solo-raid",
+      availableAt: pendingSoloRaid.availableAt
+    };
   }
 
   if (activeLossCooldown) {
@@ -1716,6 +1749,40 @@ async function findActiveBigBarrelLossCooldown(
   });
 
   return cooldown && cooldown.availableAt > now ? cooldown : null;
+}
+
+async function findPendingSoloBarrelRaid(
+  tx: TxClient,
+  characterId: string,
+  periodId: string
+): Promise<{ availableAt: Date } | null> {
+  const [pending, completed] = await Promise.all([
+    tx.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId,
+          key: buildFridayBarrelRaidPendingKey(periodId)
+        }
+      },
+      select: {
+        availableAt: true
+      }
+    }),
+    tx.dailyAction.findUnique({
+      where: {
+        characterId_key_localDate: {
+          characterId,
+          key: FRIDAY_BARREL_RAID_KEY,
+          localDate: periodId
+        }
+      },
+      select: {
+        id: true
+      }
+    })
+  ]);
+
+  return pending && !completed ? pending : null;
 }
 
 function mapParticipant(row: PartySessionRow["participants"][number]): PartyParticipantRecord {
@@ -2571,13 +2638,19 @@ function calculateWardManaDiscount(character: CharacterRow, min: number, max: nu
   return Math.min(max, Math.max(min, discount));
 }
 
-function getTerminalReplayState(row: PartySessionRow): "cancelled" | "expired" | null {
+function getTerminalReplayState(
+  row: PartySessionRow
+): "cancelled" | "expired" | "terminal-ineligible" | null {
   const status = parseStatus(row.status);
-  return status === "cancelled" || status === "expired" ? status : null;
+  return status === "ineligible"
+    ? "terminal-ineligible"
+    : status === "cancelled" || status === "expired"
+      ? status
+      : null;
 }
 
 function parseStatus(value: string): PartySessionStatus {
-  return value === "cancelled" || value === "expired" || value === "active" || value === "completed"
+  return value === "cancelled" || value === "expired" || value === "ineligible" || value === "active" || value === "completed"
     ? value
     : "recruiting";
 }

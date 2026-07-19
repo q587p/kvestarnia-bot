@@ -27,6 +27,12 @@ import {
   cloneVarenykSatedCombatState,
   type VarenykSatedCombatStateV1
 } from "../noncombat/varenykSatedSupport";
+import {
+  applyBardInspirationCombatPulse,
+  cloneBardInspirationCombatState,
+  withBardInspirationAccuracy,
+  type BardInspirationCombatStateV1
+} from "../noncombat/bardSupport";
 
 export const TURN_BASED_DUEL_RULES_VERSION = "turn-based-duel-v1";
 export const TURN_BASED_DUEL_TURN_SECONDS = 23;
@@ -62,6 +68,7 @@ export interface TurnBasedDuelParticipantSnapshot {
   guard?: CombatState["guard"];
   playerAbilityFumbles?: CombatState["playerAbilityFumbles"];
   varenykSated?: VarenykSatedCombatStateV1;
+  bardInspiration?: BardInspirationCombatStateV1;
   balanceAudit: DuelistBalanceAudit;
 }
 
@@ -92,6 +99,10 @@ export interface TurnBasedDuelRoundSummary {
   varenykSatedAfter?: {
     challenger: VarenykSatedCombatStateV1 | null;
     target: VarenykSatedCombatStateV1 | null;
+  };
+  bardInspirationAfter?: {
+    challenger: BardInspirationCombatStateV1 | null;
+    target: BardInspirationCombatStateV1 | null;
   };
 }
 
@@ -225,10 +236,12 @@ export function resolveTurnBasedDuelAction(input: {
     state.status = "forfeited";
     state.outcome = buildOutcome(state, defender.characterId, "surrender");
     state.lastAction = summary;
+    const bardInspirationAfter = snapshotTurnBasedDuelInspiration(state);
     state.lastRound = {
       turn: state.turn,
       actions: [summary],
-      varenykSatedAfter: snapshotTurnBasedDuelSated(state)
+      varenykSatedAfter: snapshotTurnBasedDuelSated(state),
+      ...(bardInspirationAfter ? { bardInspirationAfter } : {})
     };
     return { ok: true, resolution: "resolved", state, round: state.lastRound };
   }
@@ -367,10 +380,12 @@ function resolveQueuedRound(
     }
   }
 
+  const bardInspirationAfter = snapshotTurnBasedDuelInspiration(state);
   const round = {
     turn: state.turn,
     actions,
-    varenykSatedAfter: snapshotTurnBasedDuelSated(state)
+    varenykSatedAfter: snapshotTurnBasedDuelSated(state),
+    ...(bardInspirationAfter ? { bardInspirationAfter } : {})
   };
   state.lastRound = round;
   const lastAction = actions.at(-1);
@@ -437,7 +452,7 @@ function resolveQueuedCombatAction(
       cooldowns: defender.cooldowns,
       ...(defender.guard ? { guard: defender.guard } : {})
     },
-    actorStats: actor.combatStats,
+    actorStats: withBardInspirationAccuracy(actor.combatStats, actor.bardInspiration),
     defenderStats: buildDefenderStats(defender),
     action,
     ...(queued.gearAbility ? { skillProfile: queued.gearAbility.profile } : {}),
@@ -827,6 +842,18 @@ function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState 
                       : null
                   }
                 }
+              : {}),
+            ...(state.lastRound.bardInspirationAfter
+              ? {
+                  bardInspirationAfter: {
+                    challenger: state.lastRound.bardInspirationAfter.challenger
+                      ? cloneBardInspirationCombatState(state.lastRound.bardInspirationAfter.challenger)
+                      : null,
+                    target: state.lastRound.bardInspirationAfter.target
+                      ? cloneBardInspirationCombatState(state.lastRound.bardInspirationAfter.target)
+                      : null
+                  }
+                }
               : {})
           }
         }
@@ -873,6 +900,9 @@ function cloneParticipant(
       : {}),
     ...(participant.varenykSated
       ? { varenykSated: { ...participant.varenykSated, pulseIds: [...participant.varenykSated.pulseIds] } }
+      : {}),
+    ...(participant.bardInspiration
+      ? { bardInspiration: cloneBardInspirationCombatState(participant.bardInspiration) }
       : {})
   };
 }
@@ -890,6 +920,25 @@ function snapshotTurnBasedDuelSated(
   };
 }
 
+function snapshotTurnBasedDuelInspiration(
+  state: Pick<TurnBasedDuelState, "participants">
+): NonNullable<TurnBasedDuelRoundSummary["bardInspirationAfter"]> | undefined {
+  if (
+    !state.participants.challenger.bardInspiration &&
+    !state.participants.target.bardInspiration
+  ) {
+    return undefined;
+  }
+  return {
+    challenger: state.participants.challenger.bardInspiration
+      ? cloneBardInspirationCombatState(state.participants.challenger.bardInspiration)
+      : null,
+    target: state.participants.target.bardInspiration
+      ? cloneBardInspirationCombatState(state.participants.target.bardInspiration)
+      : null
+  };
+}
+
 function applySatedPulseAfterDuelExchange(
   state: TurnBasedDuelState,
   side: "challenger" | "target",
@@ -897,6 +946,20 @@ function applySatedPulseAfterDuelExchange(
   input: { sessionId: string; committedTurn: number; now: Date }
 ): TurnBasedDuelActionSummary {
   const participant = state.participants[side];
+  const inspirationPulse = applyBardInspirationCombatPulse({
+    inspiration: participant.bardInspiration,
+    pulseId: [
+      participant.bardInspiration?.activationId ?? "none",
+      "turn-based-duel",
+      input.sessionId,
+      input.committedTurn,
+      participant.characterId
+    ].join(":"),
+    now: input.now
+  });
+  if (inspirationPulse.inspiration) {
+    participant.bardInspiration = inspirationPulse.inspiration;
+  }
   const pulse = applyVarenykSatedCombatPulse({
     sated: participant.varenykSated,
     resources: {

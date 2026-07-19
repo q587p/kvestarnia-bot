@@ -29,6 +29,10 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
+import {
+  presentActiveBardInspirationCombatState,
+  presentBardInspirationCombatEffectLines
+} from "./bardInspirationPresenter";
 
 export function presentDuelEntry(): string {
   return [
@@ -402,6 +406,12 @@ export function presentTurnBasedDuel(
     );
     if (satedBuff) lines.push(satedBuff);
   }
+  if (result.session.status === "active" && viewerParticipant?.bardInspiration) {
+    const inspiration = presentActiveBardInspirationCombatState(
+      viewerParticipant.bardInspiration
+    );
+    if (inspiration) lines.push(inspiration);
+  }
 
   lines.push("", actionLine, "");
 
@@ -639,6 +649,15 @@ export function presentTurnBasedDuelJournal(
       : participant.varenykSated,
     subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.displayName)}</b>`
   })));
+  const inspirationLines = presentBardInspirationCombatEffectLines(([
+    ["challenger", state.participants.challenger],
+    ["target", state.participants.target]
+  ] as const).map(([side, participant]) => ({
+    inspiration: round.bardInspirationAfter
+      ? round.bardInspirationAfter[side]
+      : participant.bardInspiration,
+    subjectHtml: `Стан: <b>Натхнення</b> у <b>${escapeHtml(participant.displayName)}</b>`
+  })));
 
   return presentBattleJournalPage({
     title: "📜 <b>Журнал дуелі</b>",
@@ -662,7 +681,7 @@ export function presentTurnBasedDuelJournal(
           })
         ]
       : ["Журнал не знайшов записаних дій. Дуель, можливо, моргнула в інший бік."],
-    noticeLines: satedLines
+    noticeLines: [...satedLines, ...inspirationLines]
   });
 }
 

@@ -49,6 +49,7 @@ sendQuestHub
 } from "../commands/questHubCommand";
 import {
 registerTavernCommand,
+buildKorchmaBarOptions,
 sendDuelTournamentBoard,
 sendDuelWinnersBoard,
 sendKorchmaArrivalBoard,
@@ -228,7 +229,9 @@ export function registerTavernBotModule(
     resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
   });
   registerLatestEventsCommand(bot, services.activityEvents, services.hero);
-  registerBardPerformanceDevResetHandler(bot, services);
+  if (services.bardPerformance?.areDevHelpersEnabled()) {
+    registerBardPerformanceDevResetHandler(bot, services);
+  }
   registerPassageSearchDevResetHandler(bot, services);
   if (services.devGrant?.isEnabled()) {
     registerTavernGamesDevResetHandler(bot, services);
@@ -380,12 +383,26 @@ async function handleShynokCallback(
 
   if (action.type === "overview") {
     const result = await services.shynok.getOverviewForTelegramUser(telegramUserId);
-    const tavernGameOptions = await getTavernGameButtonOptions(services.tavernGames);
+    const [tavernGameOptions, liveBardPerformance] = await Promise.all([
+      getTavernGameButtonOptions(services.tavernGames),
+      result.state === "ready" &&
+      result.character.classId === "class.bard" &&
+      result.character.level >= 3
+        ? services.bardPerformance?.getLiveForTelegramUser(telegramUserId) ?? Promise.resolve(null)
+        : Promise.resolve(null)
+    ]);
     await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
-    await safeEditMessageText(ctx, presentShynokOverview(result, { tavernGames: tavernGameOptions.tavernGames }), {
+    await safeEditMessageText(ctx, presentShynokOverview(result, {
+      tavernGames: tavernGameOptions.tavernGames,
+      liveBardPerformance
+    }), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: result.state === "ready"
-        ? buildShynokOverviewKeyboard(result, { ...tavernGameOptions, ...shynokNavigationOptions })
+        ? buildShynokOverviewKeyboard(result, {
+            ...tavernGameOptions,
+            ...shynokNavigationOptions,
+            bardPerformanceAvailable: !liveBardPerformance
+          })
         : buildBackToShynokKeyboard(shynokNavigationOptions)
     });
     return;
@@ -1057,7 +1074,14 @@ async function notifyBardPerformanceAudience(
   audience: Array<{
     telegramUserId: bigint;
     name: string;
+    gold: number;
     reaction: { id: string; audienceName: string; status: string; tipGold: number; expiresAt: Date };
+    inspiration?: {
+      mutation: "granted" | "replaced" | "unchanged";
+      accuracyBonusPp: number;
+      expiresAt: Date;
+      now: Date;
+    };
   }>
 ): Promise<void> {
   await Promise.allSettled(audience.map((notice) =>
@@ -1066,7 +1090,7 @@ async function notifyBardPerformanceAudience(
       presentBardPerformanceAudienceNotification(performerName, notice),
       {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id)
+        reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id, notice.gold)
       }
     )
   ));
@@ -1090,13 +1114,37 @@ function registerBardPerformanceDevResetHandler(bot: Bot, services: BotServices)
       return;
     }
 
+    const devInput = String(ctx.match ?? "").trim().toLowerCase();
+    const grantMatch = /^grant\s+([1235])$/.exec(devInput);
+    if (grantMatch) {
+      const accuracyBonusPp = Number(grantMatch[1]) as 1 | 2 | 3 | 5;
+      const grant = await services.bardPerformance.setInspirationForDev(
+        telegramUserId,
+        accuracyBonusPp
+      );
+      if (grant.state === "no-character") {
+        await ctx.reply(presentDevGrantNoCharacter());
+        return;
+      }
+      if (grant.state === "disabled") {
+        await ctx.reply(presentDevGrantDisabled());
+        return;
+      }
+      await ctx.reply(`✨ Dev-Натхнення: +${accuracyBonusPp} до влучання на 13 хв.`);
+      return;
+    }
+
     const result = await services.bardPerformance.resetForDev(telegramUserId);
+    if (result.state === "disabled") {
+      await ctx.reply(presentDevGrantDisabled());
+      return;
+    }
     if (result.state === "no-character") {
       await ctx.reply(presentDevGrantNoCharacter());
       return;
     }
 
-    await ctx.reply(`🎶 Бардівський cooldown скинуто локально. Прибрано записів: ${result.deleted}.`);
+    await ctx.reply(`🎶 Бардівський cooldown і Натхнення скинуто локально. Прибрано записів: ${result.deleted}.`);
   });
 }
 
@@ -1304,10 +1352,9 @@ async function handlePlaceCallback(
       services.cellarGrownup,
       services.fight,
       services.tavernGames,
-      {
-        shynokService: services.shynok,
+      buildKorchmaBarOptions(services, {
         ...(questMarkers ? { questMarkers } : {})
-      }
+      })
     );
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;

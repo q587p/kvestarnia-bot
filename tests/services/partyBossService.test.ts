@@ -547,6 +547,115 @@ describe("PartyBossService achievements", () => {
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledTimes(1);
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledWith(result.session);
   });
+  it("rejects Lament before the repository when Big Barrel is disabled", async () => {
+    const submitLamentForTelegramUser = vi.fn<PartyBossRepository["submitLamentForTelegramUser"]>();
+    const service = new PartyBossService(
+      { submitLamentForTelegramUser } as unknown as PartyBossRepository,
+      { enabled: false }
+    );
+
+    await expect(service.submitLamentForTelegramUser(123n, "token-1", 1)).resolves.toEqual({
+      state: "disabled"
+    });
+    expect(submitLamentForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps a stale item menu locked only for the Bard who committed Lament", async () => {
+    const sourceSession = makeSessionWithParticipant({
+      resources: { hp: 10, hpMax: 25, mana: 10, manaMax: 10 }
+    });
+    sourceSession.state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-item-lock",
+      sourceCharacterId: "character-leader",
+      grade: "pleasant",
+      damageReduction: 3,
+      remainingBossResponses: 3,
+      activatedTurn: 1
+    };
+    const otherSession = {
+      ...sourceSession,
+      state: {
+        ...sourceSession.state,
+        bardMusic: { ...sourceSession.state.bardMusic, sourceCharacterId: "character-other" }
+      }
+    } as PartyBossSessionRecord;
+    const findByPartyInviteToken = vi.fn<PartyBossRepository["findByPartyInviteToken"]>()
+      .mockResolvedValueOnce(sourceSession)
+      .mockResolvedValueOnce(otherSession);
+    const listByTelegramUserId = vi.fn<InventoryRepository["listByTelegramUserId"]>()
+      .mockResolvedValue([makeInventoryItem("character-leader", "item.field-kit", 1)]);
+    const service = new PartyBossService(
+      { findByPartyInviteToken } as unknown as PartyBossRepository,
+      { enabled: true },
+      undefined,
+      undefined,
+      undefined,
+      { listByTelegramUserId }
+    );
+
+    await expect(service.listCombatItemsForTelegramUser(123n, "token-1", 1))
+      .resolves.toEqual({ state: "stale", session: sourceSession });
+    expect(listByTelegramUserId).not.toHaveBeenCalled();
+    await expect(service.listCombatItemsForTelegramUser(123n, "token-1", 1))
+      .resolves.toMatchObject({ state: "ready", session: otherSession });
+    expect(listByTelegramUserId).toHaveBeenCalledTimes(1);
+  });
+
+  it("tracks and returns existing round achievements when Lament resolves the final queued action", async () => {
+    const occurredAt = new Date("2026-07-18T19:00:00.000Z");
+    const session = makeSession("active");
+    const submitLamentForTelegramUser = vi.fn<PartyBossRepository["submitLamentForTelegramUser"]>()
+      .mockResolvedValue({
+        state: "resolved",
+        session,
+        achievementEvents: [{
+          type: "mantok.gear-action.used",
+          characterId: "character-gear",
+          sourceId: "final-queued-gear",
+          occurredAt
+        }]
+      });
+    const unlock = {
+      id: "achievement.mantok.gear-action.first",
+      title: "Манатка натиснула кнопку",
+      cosmeticTitleGrantId: null,
+      unlockedAt: occurredAt
+    };
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([unlock]);
+    const service = new PartyBossService(
+      { submitLamentForTelegramUser } as unknown as PartyBossRepository,
+      { enabled: true },
+      () => occurredAt,
+      { trackEventSafely } as unknown as AchievementService
+    );
+
+    const result = await service.submitLamentForTelegramUser(123n, "token-1", 1);
+
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+    expect(result.achievementUnlocksByCharacterId).toEqual({ "character-gear": [unlock] });
+  });
+
+  it("rejects legacy generic Lament callers without mutating the repository", async () => {
+    const session = makeSession("active");
+    const submitActionForTelegramUser = vi.fn<PartyBossRepository["submitActionForTelegramUser"]>();
+    const findByPartyInviteToken = vi.fn<PartyBossRepository["findByPartyInviteToken"]>()
+      .mockResolvedValue(session);
+    const service = new PartyBossService(
+      { submitActionForTelegramUser, findByPartyInviteToken } as unknown as PartyBossRepository,
+      { enabled: true }
+    );
+
+    const result = await service.submitActionForTelegramUser(
+      123n,
+      "token-1",
+      1,
+      "lament" as never
+    );
+
+    expect(result).toEqual({ state: "lament-unavailable", reason: "specialized-only", session });
+    expect(submitActionForTelegramUser).not.toHaveBeenCalled();
+  });
 });
 
 function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBossSessionRecord {

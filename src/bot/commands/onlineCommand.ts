@@ -1,4 +1,5 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
+import type { BardPerformanceService } from "../../services/bardPerformanceService";
 import type { PresenceService } from "../../services/presenceService";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
@@ -32,7 +33,7 @@ const HTML_MESSAGE_OPTIONS = {
 };
 
 export interface OnlineCommandOptions {
-  bardPerformanceEnabled?: boolean;
+  bardPerformance?: Pick<BardPerformanceService, "getLiveForTelegramUser"> | undefined;
   classNoncombatEnabled?: boolean;
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
@@ -63,17 +64,25 @@ export async function sendOnline(
   }
 
   const snapshot = await presenceService.getOnlineForTelegramUser(telegramUserId);
-  const recruitingParties = await getVisibleRecruitingParties(snapshot, options);
-  const openTavernGameTables = await getVisibleOpenTavernGameTables(snapshot, options);
+  const [recruitingParties, openTavernGameTables, liveBardPerformance] = await Promise.all([
+    getVisibleRecruitingParties(snapshot, options),
+    getVisibleOpenTavernGameTables(snapshot, options),
+    getVisibleLiveBardPerformance(snapshot, telegramUserId, options)
+  ]);
   const nearbyActionsKeyboard = await buildNearbyActionsKeyboard(
     snapshot,
     telegramUserId,
     options,
     recruitingParties,
-    openTavernGameTables
+    openTavernGameTables,
+    Boolean(liveBardPerformance)
   );
 
-  await ctx.reply(presentOnline(snapshot, { recruitingParties, openTavernGameTables }), {
+  await ctx.reply(presentOnline(snapshot, {
+    recruitingParties,
+    openTavernGameTables,
+    liveBardPerformance
+  }), {
     ...HTML_MESSAGE_OPTIONS,
     ...(nearbyActionsKeyboard
       ? { reply_markup: nearbyActionsKeyboard }
@@ -86,7 +95,8 @@ async function buildNearbyActionsKeyboard(
   telegramUserId: bigint,
   options: OnlineCommandOptions,
   recruitingParties: readonly PartySessionRecord[] = [],
-  openTavernGameTables: readonly TavernGameSessionRecord[] = []
+  openTavernGameTables: readonly TavernGameSessionRecord[] = [],
+  hasLiveBardPerformance = false
 ): Promise<InlineKeyboard | null> {
   const hasNearby = hasOtherActiveNearby(snapshot, telegramUserId);
   const canUseClassNoncombat = Boolean(options.classNoncombatEnabled && isEligibleClassNoncombat(snapshot, telegramUserId));
@@ -126,7 +136,12 @@ async function buildNearbyActionsKeyboard(
     hasActions = true;
   }
 
-  if (hasNearby && options.bardPerformanceEnabled && isEligibleNearbyBard(snapshot, telegramUserId)) {
+  if (
+    hasNearby &&
+    options.bardPerformance &&
+    !hasLiveBardPerformance &&
+    isEligibleNearbyBard(snapshot, telegramUserId)
+  ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
     hasActions = true;
   }
@@ -153,6 +168,18 @@ async function buildNearbyActionsKeyboard(
   }
 
   return hasActions ? keyboard : null;
+}
+
+async function getVisibleLiveBardPerformance(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint,
+  options: OnlineCommandOptions
+) {
+  if (!options.bardPerformance || !isEligibleNearbyBard(snapshot, telegramUserId)) {
+    return null;
+  }
+
+  return options.bardPerformance.getLiveForTelegramUser(telegramUserId);
 }
 
 async function getVisibleRecruitingParties(

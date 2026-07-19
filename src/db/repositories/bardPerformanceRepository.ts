@@ -1,4 +1,8 @@
 import type { CharacterRecord } from "./characterRepository";
+import type {
+  BardInspirationPayloadV1
+} from "../../domain/noncombat/bardSupport";
+import type { BardPerformanceGrade } from "../../domain/noncombat/bardPerformance";
 
 export type BardPerformanceStatus = "active" | "expired";
 export type BardPerformanceReactionStatus = "offered" | "applauded" | "tipped" | "declined" | "expired";
@@ -52,7 +56,14 @@ export interface BardPerformanceStartSnapshot {
 export interface BardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
+  gold: number;
   reaction: BardPerformanceReactionRecord;
+  inspiration?: {
+    mutation: import("../../domain/noncombat/bardSupport").BardInspirationMutation;
+    accuracyBonusPp: number;
+    expiresAt: Date;
+    now: Date;
+  };
 }
 
 export type BardPerformanceStartResult =
@@ -104,6 +115,10 @@ export type BardPerformanceRespondResult =
 
 export interface BardPerformanceRepository {
   getStartSnapshotForTelegramUser(telegramUserId: bigint): Promise<BardPerformanceStartSnapshot | null>;
+  getLivePerformanceForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<BardPerformanceRecord | null>;
   startPerformanceForTelegramUser(
     telegramUserId: bigint,
     input: {
@@ -137,4 +152,13 @@ export interface BardPerformanceRepository {
     }
   ): Promise<BardPerformanceRespondResult>;
   resetForTelegramUser(telegramUserId: bigint, now: Date): Promise<{ character: CharacterRecord; deleted: number } | null>;
+  getInspirationForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<{ character: CharacterRecord; inspiration: BardInspirationPayloadV1 | null } | null>;
+  setInspirationForDev(
+    telegramUserId: bigint,
+    grade: BardPerformanceGrade | null,
+    now: Date
+  ): Promise<{ character: CharacterRecord; inspiration: BardInspirationPayloadV1 | null } | null>;
 }

@@ -116,6 +116,21 @@ describe("TrainingDoppelgangerService", () => {
       outsideRemainderMs: 0,
       pulseIds: []
     };
+    state.bardInspiration = {
+      version: 1,
+      activationId: "training-inspiration",
+      sourcePerformanceId: "performance-training",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      grade: "memorable",
+      accuracyBonusPp: 3,
+      expiresAt: new Date(fixedNow().getTime() + 13 * 60_000).toISOString(),
+      cursorAt: fixedNow().toISOString(),
+      leaseStartedAt: fixedNow().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
     world.sessions.set(started.session.id, { ...started.session, state });
 
     const result = await service.resolveTurn(telegramUserId, {
@@ -133,7 +148,56 @@ describe("TrainingDoppelgangerService", () => {
       expect(result.session.state?.varenykSated?.expiresAt).toBe(
         new Date(fixedNow().getTime() + 12 * 60_000).toISOString()
       );
+      expect(result.session.state?.bardInspiration?.pulseIds).toEqual([
+        `training-inspiration:training-doppelganger:${started.session.id}:1:${started.session.characterId}`
+      ]);
+      expect(result.session.state?.bardInspiration?.expiresAt).toBe(
+        new Date(fixedNow().getTime() + 12 * 60_000).toISOString()
+      );
     }
+  });
+
+  it("consumes the final Inspiration minute on a fatal committed Training turn exactly once", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world, new FakeRandomSource([0.1, 0.1, 0.1, 0.1]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) throw new Error("Expected training.");
+    const state = started.session.state;
+    state.hero.hp = 1;
+    state.bardInspiration = {
+      version: 1,
+      activationId: "fatal-training-inspiration",
+      sourcePerformanceId: "performance-fatal-training",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: started.session.characterId,
+      recipientRemortCount: 0,
+      grade: "legendary",
+      accuracyBonusPp: 5,
+      expiresAt: new Date(fixedNow().getTime() + 60_000).toISOString(),
+      cursorAt: fixedNow().toISOString(),
+      leaseStartedAt: fixedNow().toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    world.sessions.set(started.session.id, { ...started.session, state });
+
+    await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "attack"
+    });
+    const afterFirst = world.sessions.get(started.session.id)!;
+    await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "attack"
+    });
+    const afterReplay = world.sessions.get(started.session.id)!;
+
+    expect(afterFirst.state?.hero.hp).toBe(0);
+    expect(afterFirst.state?.bardInspiration?.expiresAt).toBe(fixedNow().toISOString());
+    expect(afterReplay.state?.bardInspiration?.pulseIds).toEqual(afterFirst.state?.bardInspiration?.pulseIds);
   });
 
   it("shows start choices without creating a training session", async () => {

@@ -107,6 +107,14 @@ export function createServices(
     repositories.dailyActions,
     achievements
   );
+  const bardPerformance = new BardPerformanceService(
+    repositories.bardPerformances,
+    undefined,
+    undefined,
+    {
+      devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
+    }
+  );
 
   return {
     activityEvents,
@@ -120,7 +128,7 @@ export function createServices(
       achievements,
       publicActivityEvents
     ),
-    bardPerformance: new BardPerformanceService(repositories.bardPerformances),
+    bardPerformance,
     barrelBeerTutorial,
     barrelRaidNotifications: repositories.barrelRaidNotifications,
     cellarErrand: new CellarErrandService(repositories.cooldowns, undefined, repositories.equipment),
@@ -190,7 +198,8 @@ export function createServices(
       repositories.shynok,
       undefined,
       achievements,
-      repositories.classNoncombat
+      repositories.classNoncombat,
+      bardPerformance
     ),
     healthRecoveryNotifications: new HealthRecoveryNotificationService(
       repositories.hpRecoveryNotifications,

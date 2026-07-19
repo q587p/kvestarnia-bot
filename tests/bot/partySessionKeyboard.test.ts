@@ -528,6 +528,56 @@ describe("party session keyboard", () => {
     expect(keyboardText(keyboard)).not.toContain("⚔️");
     expect(keyboardText(keyboard)).not.toContain("v1:nd:");
   });
+
+  it("locks replacement actions only for the Bard who committed Lament this round", () => {
+    const session = makeBossSession({ classId: "class.bard" }, { bigBarrel: true });
+    const source = session.state.participants[0]!;
+    session.state.participants.push({
+      ...source,
+      characterId: "character-2",
+      name: "Інша учасниця",
+      combatStats: { ...source.combatStats, classId: "class.warrior" }
+    });
+    session.state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-1",
+      sourceCharacterId: "character-1",
+      grade: "pleasant",
+      damageReduction: 3,
+      remainingBossResponses: 2,
+      activatedTurn: 1
+    };
+
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual(["🔎 Оновити"]);
+    expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-2"))).toContain("🗡️ Вдарити");
+  });
+
+  it("shows Lament for a solo ready Big Barrel Bard while the music slot is free", () => {
+    const session = makeBossSession({ classId: "class.bard" }, { bigBarrel: true });
+    const viewer = session.state.participants[0]!;
+    session.state.bardMusic = { kind: "none" };
+    const now = new Date("2026-06-30T10:00:00.000Z");
+    const options = { now };
+    const lamentCallback = "v1:party:ba:partyABC12:1:l";
+
+    expect(session.state.participants).toHaveLength(1);
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
+      .toContain(lamentCallback);
+    const proofSession = makeBossSession({ classId: "class.bard" });
+    expect(keyboardText(buildPartyBossKeyboard(proofSession, "character-1", options)))
+      .not.toContain(lamentCallback);
+
+    viewer.bardMusicAvailableAt = new Date(now.getTime() + 60_000).toISOString();
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
+      .not.toContain(lamentCallback);
+    viewer.bardMusicAvailableAt = now.toISOString();
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
+      .toContain(lamentCallback);
+
+    session.state.bardMusic = { kind: "inspiration", sourcePerformanceIds: ["performance-1"] };
+    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
+      .not.toContain(lamentCallback);
+  });
 });
 
 function inlineButtonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> }): string[] {

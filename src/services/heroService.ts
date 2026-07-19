@@ -36,6 +36,7 @@ import type {
   AchievementRecalculationResult,
   AchievementService
 } from "./achievementService";
+import type { BardPerformanceService, PresentedBardInspiration } from "./bardPerformanceService";
 
 export type HeroLookupResult =
   | { state: "no-character" }
@@ -46,6 +47,7 @@ export type HeroLookupResult =
       activeDrink: HeroActiveDrink | null;
       activePriestBlessing: HeroActivePriestBlessing | null;
       activeVarenykSated: HeroActiveVarenykSated | null;
+      activeBardInspiration: PresentedBardInspiration | null;
       varenykSatedAvailableAt: Date | null;
       satedRecovery: { hpRestored: number; manaRestored: number } | null;
       priestSelfBlessAvailableAt: Date | null;
@@ -102,7 +104,8 @@ export class HeroService {
       | "getPriestSelfBlessAvailableAtForTelegramUser"
       | "isActorBlockedForTelegramUser"
       | "settleVarenykSatedForTelegramUser"
-    >
+    >,
+    private readonly bardPerformance?: Pick<BardPerformanceService, "getInspirationForTelegramUser">
   ) {
     if (typeof shynokOrClock === "function") {
       this.clock = shynokOrClock;
@@ -136,7 +139,8 @@ export class HeroService {
       recoveryDrink,
       activePriestBlessing,
       priestSelfBlessAvailableAt,
-      classNoncombatBlocked
+      classNoncombatBlocked,
+      activeBardInspiration
     ] = await Promise.all([
       this.inventory.listByTelegramUserId(telegramUserId),
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
@@ -147,7 +151,8 @@ export class HeroService {
         Promise.resolve(null),
       this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
       this.classNoncombat?.getPriestSelfBlessAvailableAtForTelegramUser(telegramUserId, now) ?? Promise.resolve(null),
-      this.classNoncombat?.isActorBlockedForTelegramUser(telegramUserId) ?? Promise.resolve(false)
+      this.classNoncombat?.isActorBlockedForTelegramUser(telegramUserId) ?? Promise.resolve(false),
+      this.bardPerformance?.getInspirationForTelegramUser(telegramUserId) ?? Promise.resolve(null)
     ]);
 
     const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
@@ -203,6 +208,7 @@ export class HeroService {
             expiresAt: new Date(satedSettlement.payload.expiresAt)
           }
         : null,
+      activeBardInspiration,
       varenykSatedAvailableAt: satedSettlement?.personalAvailableAt ?? null,
       satedRecovery: satedSettlement && (satedSettlement.hpRestored > 0 || satedSettlement.manaRestored > 0)
         ? { hpRestored: satedSettlement.hpRestored, manaRestored: satedSettlement.manaRestored }

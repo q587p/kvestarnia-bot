@@ -4,6 +4,17 @@ import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaBardPerformanceRepository } from "../../src/db/repositories/prismaBardPerformanceRepository";
+import {
+  grantBardInspiration,
+  writeBardMusicAvailability
+} from "../../src/db/repositories/prismaBardSupport";
+import {
+  BARD_INSPIRATION_STATUS_KEY,
+  buildBardInspirationPayload,
+  freezeBardInspirationForCombat,
+  getBardMusicAvailabilityKey,
+  parseBardInspirationPayload
+} from "../../src/domain/noncombat/bardSupport";
 
 describe("PrismaBardPerformanceRepository integration", () => {
   let dir: string;
@@ -26,6 +37,9 @@ describe("PrismaBardPerformanceRepository integration", () => {
   beforeEach(async () => {
     await prisma.bardPerformanceReaction.deleteMany();
     await prisma.bardPerformance.deleteMany();
+    await prisma.characterCooldown.deleteMany();
+    await prisma.duelCombatSession.deleteMany();
+    await prisma.partyBossSession.deleteMany();
     await prisma.activeCombatLease.deleteMany();
     await prisma.characterRemort.deleteMany();
     await prisma.characterEquipment.deleteMany();
@@ -76,6 +90,403 @@ describe("PrismaBardPerformanceRepository integration", () => {
     });
   });
 
+  it("starts a new live performance after remort without reusing the previous-life guard", async () => {
+    await seedCharacter({
+      telegramUserId: 163n,
+      userId: "user-life-bard",
+      characterId: "character-life-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    const lifeZero = await repository.startPerformanceForTelegramUser(163n, startInput({
+      token: "12345678-1234-4234-9234-000000000163",
+      rawHousePayoutGold: 0
+    }));
+    expect(lifeZero.state).toBe("started");
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ remortCount: 0 });
+
+    await prisma.characterRemort.create({
+      data: {
+        characterId: "character-life-bard",
+        token: "life-bard-remort-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 0,
+        displayNameSnapshot: "character-life-bard",
+        preservedPayloadJson: {}
+      }
+    });
+    await prisma.characterCooldown.deleteMany({ where: { characterId: "character-life-bard" } });
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toBeNull();
+    const lifeOne = await repository.startPerformanceForTelegramUser(163n, startInput({
+      token: "12345678-1234-4234-9234-000000000164",
+      rawHousePayoutGold: 0
+    }));
+
+    expect(lifeOne.state).toBe("started");
+    await expect(repository.getLivePerformanceForTelegramUser(
+      163n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ remortCount: 1 });
+    const rows = await prisma.bardPerformance.findMany({
+      where: { characterId: "character-life-bard" },
+      orderBy: { remortCount: "asc" },
+      select: { remortCount: true, status: true, liveGuard: true }
+    });
+    expect(rows).toEqual([
+      { remortCount: 0, status: "active", liveGuard: "character-life-bard:0:location.korchma.bar" },
+      { remortCount: 1, status: "active", liveGuard: "character-life-bard:1:location.korchma.bar" }
+    ]);
+  });
+
+  it("reads a live performance only at the Bard's current location", async () => {
+    await seedCharacter({
+      telegramUserId: 164n,
+      userId: "user-location-bard",
+      characterId: "character-location-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    await repository.startPerformanceForTelegramUser(164n, startInput({
+      token: "12345678-1234-4234-9234-000000000165",
+      rawHousePayoutGold: 0
+    }));
+
+    await expect(repository.getLivePerformanceForTelegramUser(
+      164n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toMatchObject({ locationId: "location.korchma.bar" });
+
+    await prisma.user.update({
+      where: { id: "user-location-bard" },
+      data: { lastSeenLocationId: "location.korchma.front" }
+    });
+
+    await expect(repository.getLivePerformanceForTelegramUser(
+      164n,
+      new Date("2026-06-26T10:01:00.000Z")
+    )).resolves.toBeNull();
+  });
+
+  it("atomically grants Inspiration to the frozen audience and writes shared music availability", async () => {
+    await seedCharacter({ telegramUserId: 104n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3 });
+    await seedCharacter({ telegramUserId: 105n, userId: "user-audience", characterId: "character-audience" });
+
+    const result = await repository.startPerformanceForTelegramUser(104n, startInput({
+      token: "12345678-1234-4234-9234-000000000104",
+      rawHousePayoutGold: 0
+    }));
+
+    expect(result.state).toBe("started");
+    if (result.state !== "started") {
+      throw new Error("Expected Bard support start.");
+    }
+    expect(result.audience[0]?.inspiration).toMatchObject({
+      mutation: "granted",
+      accuracyBonusPp: 5
+    });
+    const inspiration = await prisma.characterCooldown.findUnique({
+      where: { characterId_key: { characterId: "character-audience", key: BARD_INSPIRATION_STATUS_KEY } }
+    });
+    expect(parseBardInspirationPayload(inspiration?.resultJson)).toMatchObject({
+      sourcePerformanceId: result.performance.id,
+      recipientCharacterId: "character-audience",
+      accuracyBonusPp: 5,
+      expiresAt: "2026-06-26T10:13:00.000Z"
+    });
+    await expect(prisma.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: "character-bard",
+          key: getBardMusicAvailabilityKey("location.korchma.bar")
+        }
+      }
+    })).resolves.toMatchObject({ availableAt: new Date("2026-06-26T11:33:00.000Z") });
+  });
+
+  it("keeps equal or weaker Inspiration without refresh and replaces it with a stronger grade", async () => {
+    await seedCharacter({ telegramUserId: 106n, userId: "user-audience", characterId: "character-audience" });
+    const grant = (grade: "rough" | "pleasant" | "legendary", at: Date, id: string) => prisma.$transaction((tx) =>
+      grantBardInspiration({
+        tx,
+        activationId: `activation-${id}`,
+        sourcePerformanceId: `performance-${id}`,
+        sourceCharacterId: "character-bard",
+        sourceLocationId: "location.korchma.bar",
+        recipientCharacterId: "character-audience",
+        recipientRemortCount: 0,
+        grade,
+        now: at
+      })
+    );
+
+    const first = await grant("pleasant", now(), "first");
+    const unchanged = await grant("rough", new Date("2026-06-26T10:01:00.000Z"), "weaker");
+    const replaced = await grant("legendary", new Date("2026-06-26T10:02:00.000Z"), "stronger");
+
+    expect(first?.mutation).toBe("granted");
+    expect(unchanged).toMatchObject({ mutation: "unchanged", inspiration: { activationId: "activation-first" } });
+    expect(unchanged?.inspiration.expiresAt).toBe("2026-06-26T10:13:00.000Z");
+    expect(replaced).toMatchObject({
+      mutation: "replaced",
+      inspiration: { activationId: "activation-stronger", expiresAt: "2026-06-26T10:15:00.000Z" }
+    });
+  });
+
+  it("serializes concurrent Inspiration grades so a weaker grant cannot overwrite a stronger one", async () => {
+    await seedCharacter({ telegramUserId: 108n, userId: "user-concurrent", characterId: "character-concurrent" });
+    const grant = (grade: "rough" | "legendary", id: string) => prisma.$transaction((tx) =>
+      grantBardInspiration({
+        tx,
+        activationId: `activation-${id}`,
+        sourcePerformanceId: `performance-${id}`,
+        sourceCharacterId: `bard-${id}`,
+        sourceLocationId: "location.korchma.bar",
+        recipientCharacterId: "character-concurrent",
+        recipientRemortCount: 0,
+        grade,
+        now: now()
+      })
+    );
+
+    await Promise.all([grant("rough", "rough"), grant("legendary", "legendary")]);
+    const stored = await prisma.characterCooldown.findUniqueOrThrow({
+      where: {
+        characterId_key: {
+          characterId: "character-concurrent",
+          key: BARD_INSPIRATION_STATUS_KEY
+        }
+      }
+    });
+
+    expect(parseBardInspirationPayload(stored.resultJson)).toMatchObject({
+      activationId: "activation-legendary",
+      accuracyBonusPp: 5
+    });
+  });
+
+  it("blocks a performance from the shared music cooldown written by Lament", async () => {
+    await seedCharacter({ telegramUserId: 107n, userId: "user-bard", characterId: "character-bard", classId: "class.bard", level: 3 });
+    await prisma.$transaction((tx) => writeBardMusicAvailability({
+      tx,
+      characterId: "character-bard",
+      locationId: "location.korchma.bar",
+      now: new Date("2026-06-26T09:30:00.000Z"),
+      source: "lament",
+      sourceId: "lament-1"
+    }));
+
+    await expect(repository.startPerformanceForTelegramUser(107n, startInput({
+      token: "12345678-1234-4234-9234-000000000107",
+      rawHousePayoutGold: 0
+    }))).resolves.toMatchObject({
+      state: "cooldown",
+      availableAt: new Date("2026-06-26T11:03:00.000Z")
+    });
+  });
+
+  it("ignores previous-life performance cooldown history after remort", async () => {
+    await seedCharacter({
+      telegramUserId: 101n,
+      userId: "user-bard",
+      characterId: "character-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    await seedPerformance({
+      id: "previous-life-performance",
+      token: "12345678-1234-4234-9234-000000000108",
+      housePayoutGold: 0,
+      expiresAt: new Date("2026-06-26T09:59:00.000Z"),
+      cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z")
+    });
+    await prisma.characterRemort.create({
+      data: {
+        id: "bard-remort-1",
+        characterId: "character-bard",
+        token: "bard-remort-token-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 0,
+        displayNameSnapshot: "character-bard",
+        preservedPayloadJson: {},
+        createdAt: new Date("2026-06-26T09:59:30.000Z")
+      }
+    });
+
+    await expect(repository.startPerformanceForTelegramUser(101n, startInput({
+      token: "12345678-1234-4234-9234-000000000109",
+      rawHousePayoutGold: 0
+    }))).resolves.toMatchObject({ state: "started" });
+  });
+
+  it("shows the frozen Inspiration value after wall-clock expiry and the released value afterward", async () => {
+    await seedCharacter({
+      telegramUserId: 110n,
+      userId: "user-frozen-hero",
+      characterId: "character-frozen-hero"
+    });
+    const startedAt = new Date("2026-06-26T10:00:00.000Z");
+    const payload = buildBardInspirationPayload({
+      activationId: "frozen-hero-inspiration",
+      sourcePerformanceId: "performance-frozen-hero",
+      sourceCharacterId: "character-bard",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: "character-frozen-hero",
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      now: startedAt
+    });
+    const frozen = freezeBardInspirationForCombat(
+      payload,
+      "character-frozen-hero",
+      0,
+      startedAt
+    )!;
+    await prisma.characterCooldown.create({
+      data: {
+        id: "frozen-hero-cooldown",
+        characterId: "character-frozen-hero",
+        key: BARD_INSPIRATION_STATUS_KEY,
+        availableAt: new Date(payload.expiresAt),
+        resultJson: payload
+      }
+    });
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "frozen-hero-session",
+        characterId: "character-frozen-hero",
+        monsterId: "monster.test",
+        status: "active",
+        turn: 1,
+        stateJson: { bardInspiration: frozen },
+        expiresAt: new Date("2026-06-26T11:00:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "frozen-hero-lease",
+        characterId: "character-frozen-hero",
+        kind: "solo-combat",
+        referenceId: "frozen-hero-session",
+        createdAt: startedAt,
+        updatedAt: startedAt
+      }
+    });
+
+    const duringCombat = await repository.getInspirationForTelegramUser(
+      110n,
+      new Date("2026-06-26T10:20:00.000Z")
+    );
+    expect(duringCombat?.inspiration?.expiresAt).toBe("2026-06-26T10:33:00.000Z");
+    expect(duringCombat?.inspiration?.cursorAt).toBe("2026-06-26T10:20:00.000Z");
+
+    const released = {
+      ...payload,
+      expiresAt: "2026-06-26T10:33:00.000Z",
+      cursorAt: "2026-06-26T10:20:00.000Z"
+    };
+    await prisma.activeCombatLease.delete({ where: { id: "frozen-hero-lease" } });
+    await prisma.characterCooldown.update({
+      where: { id: "frozen-hero-cooldown" },
+      data: { availableAt: new Date(released.expiresAt), resultJson: released }
+    });
+    const afterRelease = await repository.getInspirationForTelegramUser(
+      110n,
+      new Date("2026-06-26T10:20:00.000Z")
+    );
+    expect(afterRelease?.inspiration).toMatchObject({
+      expiresAt: released.expiresAt,
+      cursorAt: released.cursorAt
+    });
+  });
+
+  it.each([
+    ["solo combat", "solo-combat"],
+    ["turn duel", "turn-based-duel"],
+    ["Big Barrel", "party-boss"]
+  ] as const)("treats an exhausted frozen Inspiration snapshot as authoritative in %s", async (_label, kind) => {
+    const characterId = `character-exhausted-${kind}`;
+    const userId = `user-exhausted-${kind}`;
+    const referenceId = `reference-exhausted-${kind}`;
+    const startedAt = new Date("2026-06-26T10:00:00.000Z");
+    await seedCharacter({ telegramUserId: 170n, userId, characterId });
+    const payload = buildBardInspirationPayload({
+      activationId: `activation-exhausted-${kind}`,
+      sourcePerformanceId: "performance-exhausted",
+      sourceCharacterId: "character-bard",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      now: startedAt
+    });
+    const frozen = {
+      ...freezeBardInspirationForCombat(payload, characterId, 0, startedAt)!,
+      expiresAt: startedAt.toISOString(),
+      cursorAt: startedAt.toISOString(),
+      pulseIds: Array.from({ length: 13 }, (_, index) => `pulse-${index + 1}`)
+    };
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: BARD_INSPIRATION_STATUS_KEY,
+        availableAt: new Date(payload.expiresAt),
+        resultJson: payload
+      }
+    });
+
+    if (kind === "solo-combat") {
+      await prisma.soloCombatSession.create({
+        data: {
+          id: referenceId,
+          characterId,
+          monsterId: "monster.test",
+          status: "active",
+          turn: 14,
+          stateJson: { bardInspiration: frozen },
+          expiresAt: new Date("2026-06-26T11:00:00.000Z")
+        }
+      });
+    } else if (kind === "turn-based-duel") {
+      await prisma.$executeRawUnsafe(
+        "INSERT INTO duel_combat_sessions (id, status, state_json) VALUES (?, 'active', ?)",
+        referenceId,
+        JSON.stringify({ participants: { challenger: { bardInspiration: frozen } } })
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        "INSERT INTO party_boss_sessions (id, party_session_id, status, state_json) VALUES (?, ?, 'active', ?)",
+        `boss-${referenceId}`,
+        referenceId,
+        JSON.stringify({ participants: [{ characterId, bardInspiration: frozen }] })
+      );
+    }
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId,
+        kind,
+        referenceId,
+        createdAt: startedAt,
+        updatedAt: startedAt
+      }
+    });
+
+    const result = await repository.getInspirationForTelegramUser(
+      170n,
+      new Date("2026-06-26T10:01:00.000Z")
+    );
+    expect(result?.inspiration).toBeNull();
+  });
+
   it("normalizes legacy presence aliases for Bard start, audience matching and response", async () => {
     await seedCharacter({
       telegramUserId: 111n,
@@ -89,6 +500,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
       telegramUserId: 112n,
       userId: "user-audience",
       characterId: "character-audience",
+      gold: 3,
       locationId: "location.korchma.hall"
     });
 
@@ -103,6 +515,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
       throw new Error(`Expected alias-safe Bard start, got ${started.state}.`);
     }
     expect(started.audience.map((notice) => notice.telegramUserId)).toEqual([112n]);
+    expect(started.audience[0]?.gold).toBe(3);
 
     await expect(repository.respondToPerformanceForTelegramUser(112n, {
       reactionId: started.audience[0]!.reaction.id,
@@ -606,7 +1019,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
         locationId: input.locationId ?? "location.korchma.bar",
         localDate: "2026-06-26",
         status: "active",
-        liveGuard: `character-bard:${input.locationId ?? "location.korchma.bar"}`,
+        liveGuard: `character-bard:0:${input.locationId ?? "location.korchma.bar"}`,
         grade: "pleasant",
         power: 26,
         housePayoutGold: input.housePayoutGold,
@@ -771,6 +1184,40 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       preserved_payload_json JSONB NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE character_cooldowns (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+      character_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      available_at DATETIME NOT NULL,
+      result_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE solo_combat_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      character_id TEXT NOT NULL,
+      monster_id TEXT NOT NULL,
+      state_json JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      turn INTEGER NOT NULL DEFAULT 1,
+      reward_xp INTEGER,
+      reward_gold INTEGER,
+      reward_items_json JSONB,
+      reward_claimed_at DATETIME,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE duel_combat_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      state_json JSONB NOT NULL
+    )`,
+    `CREATE TABLE party_boss_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      party_session_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      state_json JSONB NOT NULL
+    )`,
     `CREATE TABLE bard_performances (
       id TEXT PRIMARY KEY NOT NULL,
       token TEXT NOT NULL UNIQUE,
@@ -822,5 +1269,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
 
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX bard_performances_live_guard_key ON bard_performances(live_guard)`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`
   );
 }

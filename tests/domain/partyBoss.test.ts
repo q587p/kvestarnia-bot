@@ -7,6 +7,7 @@ import {
 } from "../../src/domain/partyBoss/partyBoss";
 import { findMantokAbilityGrantByKey } from "../../src/content";
 import { getVarenykSatedRemainingCombatTurns } from "../../src/domain/noncombat/varenykSatedSupport";
+import { getBardInspirationRemainingCombatTurns } from "../../src/domain/noncombat/bardSupport";
 
 const PARTY_BOSS_SIMULATION_HORIZON_TURNS = 13;
 const PARTY_BOSS_SIMULATION_RUNS = 400;
@@ -32,6 +33,22 @@ describe("party boss reducer", () => {
       outsideRemainderMs: 0,
       pulseIds: []
     };
+    state.participants[0]!.bardInspiration = {
+      version: 1,
+      activationId: "inspiration-activation",
+      sourcePerformanceId: "performance-big-barrel",
+      sourceLocationId: "location.korchma.barrel",
+      recipientCharacterId: "character-1",
+      recipientRemortCount: 0,
+      grade: "legendary",
+      accuracyBonusPp: 5,
+      expiresAt: new Date(startedAt.getTime() + 13 * 60_000).toISOString(),
+      cursorAt: startedAt.toISOString(),
+      leaseStartedAt: startedAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    state.bardMusic = { kind: "inspiration", sourcePerformanceIds: ["performance-big-barrel"] };
 
     const resolved = resolvePartyBossRound({
       state,
@@ -52,6 +69,15 @@ describe("party boss reducer", () => {
     )).toBe(12);
     expect(resolved.round.participantsAfter?.[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
+    ]);
+    expect(resolved.state.participants[0]?.bardInspiration?.pulseIds).toEqual([
+      "inspiration-activation:big-barrel:big-barrel-sated:1:character-1"
+    ]);
+    expect(getBardInspirationRemainingCombatTurns(
+      resolved.state.participants[0]!.bardInspiration!
+    )).toBe(12);
+    expect(resolved.round.participantsAfter?.[0]?.bardInspiration?.pulseIds).toEqual([
+      "inspiration-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);
   });
 
@@ -86,6 +112,158 @@ describe("party boss reducer", () => {
     });
     expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.contribution.submittedActions).toBe(1);
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.timeoutActions).toBe(1);
+  });
+
+  it("spends Lament as a zero-damage action and reduces one focused boss response", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-barrel-lament-focused",
+      variant: "big-barrel",
+      now: new Date("2026-07-18T10:00:00.000Z"),
+      participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })]
+    });
+    state.boss.hp = 999;
+    state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-focused",
+      sourceCharacterId: "bard",
+      grade: "success",
+      damageReduction: 3,
+      remainingBossResponses: 8,
+      activatedTurn: 1
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-18T10:00:23.000Z"),
+      seed: "lament-focused",
+      actions: [{ characterId: "bard", action: "lament", origin: "manual" }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      action: "lament",
+      outcome: "lament-activated",
+      damage: 0,
+      manaSpent: 0
+    });
+    expect(result.round.bossDamage).toBe(0);
+    expect(result.round.bossHpAfter).toBe(999);
+    expect(typeof result.round.bossRetaliations[0]?.damageBeforeLament).toBe("number");
+    expect(result.round.bossRetaliations[0]?.lamentPreventedDamage).toBe(3);
+    expect(result.round.bardMusic).toMatchObject({
+      activated: true,
+      remainingBossResponses: 7,
+      expired: false
+    });
+  });
+
+  it("reduces every target in one broad response but spends only one Lament response", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-barrel-lament-broad",
+      variant: "big-barrel",
+      now: new Date("2026-07-18T10:00:00.000Z"),
+      participants: [
+        participant("bard", "Бард", { classId: "class.bard", charisma: 17 }),
+        participant("ally", "Союзник")
+      ]
+    });
+    state.turn = 4;
+    state.boss.attack = 20;
+    state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-broad",
+      sourceCharacterId: "bard",
+      grade: "success",
+      damageReduction: 3,
+      remainingBossResponses: 2,
+      activatedTurn: 4
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-18T10:01:32.000Z"),
+      seed: "lament-broad",
+      actions: [
+        { characterId: "bard", action: "lament", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+
+    expect(result.round.bossRetaliations).toHaveLength(2);
+    expect(result.round.bossRetaliations.every((entry) => entry.lamentPreventedDamage === 3)).toBe(true);
+    expect(result.round.bardMusic?.remainingBossResponses).toBe(1);
+  });
+
+  it("applies Lament after guard reductions and before the broad Ward", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-barrel-lament-order",
+      variant: "big-barrel",
+      now: new Date("2026-07-18T10:00:00.000Z"),
+      participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })],
+      wardSign: {
+        kind: "kharakternyk",
+        placerCharacterId: "bard",
+        supportCount: 1
+      }
+    });
+    state.turn = 4;
+    state.boss.attack = 20;
+    state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-order",
+      sourceCharacterId: "bard",
+      grade: "success",
+      damageReduction: 3,
+      remainingBossResponses: 1,
+      activatedTurn: 4
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-18T10:01:32.000Z"),
+      seed: "lament-order",
+      actions: [{ characterId: "bard", action: "defend", origin: "manual" }]
+    });
+    const retaliation = result.round.bossRetaliations[0]!;
+
+    expect(retaliation.lamentPreventedDamage).toBe(3);
+    expect(retaliation.damageBeforeWard).toBe(retaliation.damageBeforeLament! - 3);
+    expect(retaliation.wardPreventedDamage).toBe(
+      Math.floor(retaliation.damageBeforeWard! * state.wardSign!.mitigationPercent / 100)
+    );
+    expect(result.round.bardMusic).toMatchObject({ remainingBossResponses: 0, expired: true });
+  });
+
+  it("allows Lament to reduce a boss response to zero damage", () => {
+    const state = createPartyBossState({
+      partySessionId: "big-barrel-lament-zero",
+      variant: "big-barrel",
+      now: new Date("2026-07-18T10:00:00.000Z"),
+      participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })]
+    });
+    state.boss.attack = 1;
+    state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-zero",
+      sourceCharacterId: "bard",
+      grade: "great",
+      damageReduction: 5,
+      remainingBossResponses: 1,
+      activatedTurn: 1
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-07-18T10:00:23.000Z"),
+      seed: "lament-zero",
+      actions: [{ characterId: "bard", action: "lament", origin: "manual" }]
+    });
+
+    expect(result.round.bossRetaliations[0]).toMatchObject({
+      damage: 0,
+      damageBeforeLament: 2,
+      lamentPreventedDamage: 2
+    });
+    expect(result.state.participants[0]?.resources.hp).toBe(30);
   });
 
   it("stores participant cooldown snapshots after each resolved round", () => {
@@ -1248,7 +1426,8 @@ describe("party boss reducer", () => {
       hpMax: entry.resources.hpMax,
       mana: entry.resources.mana,
       manaMax: entry.resources.manaMax,
-      varenykSated: null
+      varenykSated: null,
+      bardInspiration: null
     })));
   });
 

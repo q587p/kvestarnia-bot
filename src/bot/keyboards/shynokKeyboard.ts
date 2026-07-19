@@ -89,7 +89,12 @@ import {
 
 export function buildShynokOverviewKeyboard(
   result?: ShynokOverviewResult,
-  options: { tavernGames?: boolean; tavernGameTableCount?: number; questMarkers?: QuestMarkerInput | null } = {}
+  options: {
+    tavernGames?: boolean;
+    tavernGameTableCount?: number;
+    questMarkers?: QuestMarkerInput | null;
+    bardPerformanceAvailable?: boolean;
+  } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   const openRoundOffers = result?.state === "ready" ? result.openRoundOffers : [];
@@ -118,7 +123,8 @@ export function buildShynokOverviewKeyboard(
   if (
     result?.state === "ready" &&
     result.character.classId === "class.bard" &&
-    result.character.level >= 3
+    result.character.level >= 3 &&
+    options.bardPerformanceAvailable !== false
   ) {
     keyboard.text("🎶 Виступити", makeShynokBardPerformanceStartCallbackData()).row();
   }
@@ -517,13 +523,13 @@ export function buildShynokRoundOfferNotificationKeyboard(offerId: string): Inli
     .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
 }
 
-export function buildBardPerformanceResponseKeyboard(reactionId: string): InlineKeyboard {
+export function buildBardPerformanceResponseKeyboard(reactionId: string, availableGold: number): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("👏 Аплодувати", makeShynokBardPerformanceApplaudCallbackData(reactionId))
     .text("Ні, дякую", makeShynokBardPerformanceDeclineCallbackData(reactionId))
     .row();
 
-  for (const tip of listBardPerformanceTipOptions()) {
+  for (const tip of listBardPerformanceTipOptions().filter((amount) => amount <= availableGold)) {
     keyboard.text(`🪙 ${tip}`, makeShynokBardPerformanceTipCallbackData(reactionId, tip));
   }
 
@@ -532,7 +538,7 @@ export function buildBardPerformanceResponseKeyboard(reactionId: string): Inline
 
 export function buildBardPerformanceRespondResultKeyboard(result: BardPerformanceRespondResult): InlineKeyboard {
   if (result.state === "insufficient-gold") {
-    return buildBardPerformanceResponseKeyboard(result.reaction.id);
+    return buildBardPerformanceResponseKeyboard(result.reaction.id, result.character.gold);
   }
 
   return buildBackToCurrentPlaceKeyboard();

@@ -74,6 +74,7 @@ import {
 } from "../domain/combat";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
+import { applyBardInspirationPulseToSoloCombat } from "../domain/noncombat/bardSupport";
 import {
   getItemDropChance,
   rollBandageDropQuantity,
@@ -649,7 +650,7 @@ export class FightService {
       hero: buildHeroCombatStats(character),
       monster: buildPersistentMonsterCombatStats(monster, activeSession.state),
       ...withPersistentEnemyCombatStats(activeSession.state),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applySoloTimedStatusPulses({
         state,
         combatKind: "persistent-pve",
         sessionId: activeSession.id,
@@ -2484,7 +2485,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
-      afterCommittedHeroAction: (state: CombatState) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+      afterCommittedHeroAction: (state: CombatState) => applySoloTimedStatusPulses({
         state,
         combatKind: "persistent-pve",
         sessionId: currentSession.id,
@@ -2846,7 +2847,7 @@ export class FightService {
       hero: buildHeroCombatStats(characterSummary),
       monster: buildPersistentMonsterCombatStats(monster, currentSession.state),
       ...withPersistentEnemyCombatStats(currentSession.state),
-      afterCommittedHeroAction: (state) => applyVarenykSatedPulseAfterSoloEnemyResponse({
+      afterCommittedHeroAction: (state) => applySoloTimedStatusPulses({
         state,
         combatKind: "persistent-pve",
         sessionId: currentSession.id,
@@ -5711,4 +5712,19 @@ export function getCombatSkillDisplay(skillId: string | undefined): CombatSkillD
     default:
       return { icon: "🪓", name: "Обережний удар" };
   }
+}
+
+function applySoloTimedStatusPulses(input: {
+  state: CombatState;
+  combatKind: "persistent-pve" | "training-doppelganger";
+  sessionId: string;
+  committedTurn: number;
+  recipientCharacterId: string;
+  now: Date;
+}): ReturnType<typeof applyVarenykSatedPulseAfterSoloEnemyResponse> {
+  const recovery = input.state.hero.hp > 0
+    ? applyVarenykSatedPulseAfterSoloEnemyResponse(input)
+    : undefined;
+  applyBardInspirationPulseToSoloCombat(input);
+  return recovery;
 }

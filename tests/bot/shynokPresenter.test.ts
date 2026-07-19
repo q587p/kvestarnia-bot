@@ -10,6 +10,7 @@ import {
   presentShynokRoundOfferResponse,
   presentShynokRoundPreview,
   presentShynokSaleSelection,
+  presentBardPerformanceAudienceNotification,
   presentBardPerformanceResponseResult,
   presentBardPerformanceStartResult
 } from "../../src/bot/presenters/shynokPresenter";
@@ -402,6 +403,64 @@ describe("shynokPresenter", () => {
 
     expect(html).toContain("<b>13 золота</b>");
     expect(html).not.toContain("<b>0 золота</b>");
+  });
+
+  it("replaces the free Bard corner with the live same-location performance notice", () => {
+    const result: ShynokOverviewResult = {
+      state: "ready",
+      character: {
+        ...character,
+        classId: "class.bard",
+        level: 3
+      },
+      activeDrink: null,
+      openRoundOffers: []
+    };
+
+    const html = presentShynokOverview(result, {
+      liveBardPerformance: {
+        expiresAt: new Date("2026-07-19T10:13:00.000Z"),
+        now: new Date("2026-07-19T10:02:00.000Z")
+      }
+    });
+
+    expect(html).toContain("🎶 Ваш виступ у цій місцині вже триває. Реакції: ще <b>11 хв</b>.");
+    expect(html).not.toContain("Бардівський кут стійки сьогодні вільний");
+  });
+
+  it("presents free Inspiration separately from applause and tips", () => {
+    const html = presentBardPerformanceAudienceNotification("Лірник", {
+      telegramUserId: 42n,
+      name: "Слухачка",
+      reaction: bardReaction(),
+      inspiration: {
+        mutation: "granted",
+        accuracyBonusPp: 3,
+        expiresAt: new Date("2026-07-18T10:13:00.000Z"),
+        now: new Date("2026-07-18T10:00:00.000Z")
+      }
+    });
+
+    expect(html).toContain("✨ Виступ надихає вас: +3 до влучання на 13 хв.");
+    expect(html).toContain("кожен завершений хід забирає ще одну хвилину");
+    expect(html).toContain("аплодувати безкоштовно");
+  });
+
+  it("says that equal or weaker Inspiration did not refresh the timer", () => {
+    const html = presentBardPerformanceAudienceNotification("Лірник", {
+      telegramUserId: 42n,
+      name: "Слухачка",
+      reaction: bardReaction(),
+      inspiration: {
+        mutation: "unchanged",
+        accuracyBonusPp: 5,
+        expiresAt: new Date("2026-07-18T10:07:00.000Z"),
+        now: new Date("2026-07-18T10:00:00.000Z")
+      }
+    });
+
+    expect(html).toContain("чинне <b>Натхнення</b> не слабше");
+    expect(html).toContain("Новий виступ його не подовжив");
   });
 
   it("labels Bard live audience as a start snapshot and shows response time left", () => {

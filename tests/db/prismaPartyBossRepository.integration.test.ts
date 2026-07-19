@@ -13,6 +13,11 @@ import type {
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { getLevelStartXp } from "../../src/domain/progression/level";
+import {
+  getBardMusicAvailabilityKey
+} from "../../src/domain/noncombat/bardSupport";
+import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
+import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -210,6 +215,284 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     expect((stored.resultJson as { expiresAt: string }).expiresAt)
       .toBe(new Date(expiresAt.getTime() - 2 * 60_000).toISOString());
+  });
+
+  it("lets a solo Bard start Big Barrel without prior music and commit Lament", async () => {
+    await seedCharacter(prisma, "solo-lament-bard", 1099n, "Самотній Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await partyRepository.createForTelegramUser(1099n, {
+      ...partyInput("party-token-big-solo-lament"),
+      originLocationId: "barrel.big-brother"
+    });
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1099n, {
+      partyInviteToken: "party-token-big-solo-lament",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected solo Bard session, got ${started.state}.`);
+    }
+    expect(started.session.state.participants).toHaveLength(1);
+    expect(started.session.state.bardMusic).toEqual({ kind: "none" });
+
+    const result = await bossRepository.submitLamentForTelegramUser(
+      1099n,
+      "party-token-big-solo-lament",
+      1,
+      { ...resolveInput(), activationId: "solo-lament-activation" }
+    );
+    const session = expectPartyBossSession(result);
+
+    expect(result.state).toBe("resolved");
+    expect(session.state.bardMusic).toMatchObject({
+      kind: "lament",
+      activationId: "solo-lament-activation",
+      sourceCharacterId: "solo-lament-bard-character"
+    });
+    expect(session.state.roundLog[0]?.actions).toContainEqual(expect.objectContaining({
+      characterId: "solo-lament-bard-character",
+      action: "lament",
+      outcome: "lament-activated"
+    }));
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: {
+        sessionId: session.id,
+        actorCharacterId: "solo-lament-bard-character",
+        turn: 1
+      },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
+  });
+
+  it("terminalizes a due Big Barrel party if a joined participant began a legacy solo raid after joining", async () => {
+    await seedCharacter(prisma, "pending-solo-leader", 1100n, "Ватажок", { level: 8 });
+    await seedCharacter(prisma, "pending-solo-member", 1102n, "Ще В Соло", { level: 8 });
+    await seedCharacter(prisma, "later-due-leader", 1103n, "Наступна Ватага", { level: 8 });
+    await partyRepository.createForTelegramUser(1100n, {
+      ...partyInput("party-token-pending-solo-race"),
+      joinUntilAt: new Date("2026-06-30T10:12:59.000Z"),
+      expiresAt: new Date("2026-06-30T10:12:59.000Z"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(
+      1102n,
+      "party-token-pending-solo-race",
+      joinInput()
+    );
+    await partyRepository.createForTelegramUser(1103n, {
+      ...partyInput("party-token-later-due"),
+      originLocationId: "barrel.big-brother"
+    });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "pending-solo-after-join",
+        characterId: "pending-solo-member-character",
+        key: buildFridayBarrelRaidPendingKey("12026-06-30"),
+        availableAt: new Date("2026-06-30T10:14:00.000Z")
+      }
+    });
+
+    const dueNow = new Date("2026-06-30T10:13:01.000Z");
+    await expect(partyRepository.listDueRecruitingByOrigin("barrel.big-brother", dueNow, 1))
+      .resolves.toMatchObject([{ inviteToken: "party-token-pending-solo-race" }]);
+
+    const result = await bossRepository.startFromRecruitingPartyForTelegramUser(1100n, {
+      partyInviteToken: "party-token-pending-solo-race",
+      now: dueNow,
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    });
+
+    expect(result.state).toBe("terminal-ineligible");
+    await expect(prisma.partyBossSession.count({
+      where: { partySession: { inviteToken: "party-token-pending-solo-race" } }
+    })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({
+      where: {
+        characterId: {
+          in: ["pending-solo-leader-character", "pending-solo-member-character"]
+        }
+      }
+    })).resolves.toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-pending-solo-race" },
+      select: { status: true, activeLeaderKey: true }
+    })).resolves.toEqual({ status: "ineligible", activeLeaderKey: null });
+    await expect(prisma.partyParticipant.findMany({
+      where: { session: { inviteToken: "party-token-pending-solo-race" } },
+      select: { activeMembershipKey: true }
+    })).resolves.toEqual([
+      { activeMembershipKey: null },
+      { activeMembershipKey: null }
+    ]);
+
+    await expect(partyRepository.listDueRecruitingByOrigin("barrel.big-brother", dueNow, 1))
+      .resolves.toMatchObject([{ inviteToken: "party-token-later-due" }]);
+    await expect(bossRepository.startFromRecruitingPartyForTelegramUser(1100n, {
+      partyInviteToken: "party-token-pending-solo-race",
+      now: dueNow,
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    })).resolves.toEqual({ state: "terminal-ineligible" });
+    await expect(bossRepository.startFromRecruitingPartyForTelegramUser(1103n, {
+      partyInviteToken: "party-token-later-due",
+      now: dueNow,
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
+    })).resolves.toMatchObject({ state: "started" });
+  });
+
+  it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {
+    const supportRepository = new PrismaPartyBossRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true)
+    );
+    await seedCharacter(prisma, "lament-bard-a", 1005n, "Перший Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await seedCharacter(prisma, "lament-bard-b", 1006n, "Другий Бард", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await partyRepository.createForTelegramUser(1005n, {
+      ...partyInput("party-token-big-lament-race"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(1006n, "party-token-big-lament-race", joinInput());
+    const started = await supportRepository.startFromRecruitingPartyForTelegramUser(1005n, {
+      partyInviteToken: "party-token-big-lament-race",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started).toMatchObject({ state: "started", session: { state: { bardMusic: { kind: "none" } } } });
+    const actionCountBeforeGenericLament = await prisma.partyBossAction.count();
+    const cooldownCountBeforeGenericLament = await prisma.characterCooldown.count({
+      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+    });
+
+    await expect(supportRepository.submitActionForTelegramUser(
+      1005n,
+      "party-token-big-lament-race",
+      1,
+      "lament" as never,
+      resolveInput()
+    )).resolves.toMatchObject({ state: "lament-unavailable", reason: "specialized-only" });
+    await expect(prisma.partyBossAction.count()).resolves.toBe(actionCountBeforeGenericLament);
+    await expect(prisma.characterCooldown.count({
+      where: { key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL) }
+    })).resolves.toBe(cooldownCountBeforeGenericLament);
+
+    const [left, right] = await Promise.all([
+      supportRepository.submitLamentForTelegramUser(1005n, "party-token-big-lament-race", 1, {
+        ...resolveInput(),
+        activationId: "lament-race-a"
+      }),
+      supportRepository.submitLamentForTelegramUser(1006n, "party-token-big-lament-race", 1, {
+        ...resolveInput(),
+        activationId: "lament-race-b"
+      })
+    ]);
+    const winner = [left, right].find((entry) => entry.state === "queued");
+    const loser = [left, right].find((entry) => entry.state === "lament-unavailable");
+
+    expect(winner?.state).toBe("queued");
+    expect(loser).toMatchObject({ state: "lament-unavailable", reason: "music-taken" });
+    if (!winner || !("session" in winner) || winner.session.state.bardMusic?.kind !== "lament") {
+      throw new Error("Expected one durable Lament winner.");
+    }
+    const winnerCharacterId = winner.session.state.bardMusic.sourceCharacterId;
+    await expect(prisma.characterCooldown.findMany({
+      where: {
+        key: getBardMusicAvailabilityKey(PRESENCE_LOCATION_KORCHMA_BARREL),
+        characterId: { in: ["lament-bard-a-character", "lament-bard-b-character"] }
+      }
+    })).resolves.toMatchObject([
+      {
+        characterId: winnerCharacterId,
+        availableAt: new Date("2026-06-30T11:33:00.000Z")
+      }
+    ]);
+
+    const winnerTelegramUserId = winnerCharacterId === "lament-bard-a-character" ? 1005n : 1006n;
+    await expect(supportRepository.submitActionForTelegramUser(
+      winnerTelegramUserId,
+      "party-token-big-lament-race",
+      1,
+      "attack",
+      resolveInput()
+    )).resolves.toMatchObject({ state: "lament-unavailable", reason: "locked" });
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: { actorCharacterId: winnerCharacterId, turn: 1 },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
+
+    const otherTelegramUserId = winnerTelegramUserId === 1005n ? 1006n : 1005n;
+    const resolved = await supportRepository.submitActionForTelegramUser(
+      otherTelegramUserId,
+      "party-token-big-lament-race",
+      1,
+      "attack",
+      resolveInput()
+    );
+    expect(resolved.state).toBe("resolved");
+    if (!("session" in resolved)) {
+      throw new Error("Expected Lament round resolution.");
+    }
+    expect(resolved.session.state.roundLog.at(-1)?.bardMusic).toBeDefined();
+  });
+
+  it("ignores previous-life performance cooldown history when committing Lament", async () => {
+    const supportRepository = new PrismaPartyBossRepository(
+      prisma,
+      new HpRecoveryNotificationProducer(true)
+    );
+    await seedCharacter(prisma, "lament-remort-bard", 1007n, "Бард Нового Життя", {
+      classId: "class.bard",
+      level: 8,
+      hp: 100
+    });
+    await seedRemort(prisma, "lament-remort-bard-character", 1);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO bard_performances
+        (id, character_id, location_id, remort_count, cooldown_available_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      "lament-previous-life-performance",
+      "lament-remort-bard-character",
+      PRESENCE_LOCATION_KORCHMA_BARREL,
+      0,
+      new Date("2026-06-30T11:33:00.000Z")
+    );
+    await partyRepository.createForTelegramUser(1007n, {
+      ...partyInput("party-token-lament-remort"),
+      originLocationId: "barrel.big-brother"
+    });
+    await supportRepository.startFromRecruitingPartyForTelegramUser(1007n, {
+      partyInviteToken: "party-token-lament-remort",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    const result = await supportRepository.submitLamentForTelegramUser(
+      1007n,
+      "party-token-lament-remort",
+      1,
+      { ...resolveInput(), activationId: "lament-after-remort" }
+    );
+
+    expect(result).not.toMatchObject({ state: "lament-unavailable", reason: "cooldown" });
+    await expect(prisma.partyBossAction.findFirstOrThrow({
+      where: { actorCharacterId: "lament-remort-bard-character" },
+      select: { actionKey: true }
+    })).resolves.toEqual({ actionKey: "lament" });
   });
 
   it("commits only the latest eligible Big Barrel Warrior Taunt and rejects stale or ineligible replays", async () => {
@@ -2475,14 +2758,15 @@ describe("PrismaPartyBossRepository integration", () => {
         id: "big-start-loss-cooldown",
         characterId: "big-loss-cooldown-joiner-user-character",
         key: BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
-        availableAt: new Date(now().getTime() + 60_000)
+        availableAt: new Date("2026-06-30T10:14:00.000Z")
       }
     });
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(5121n, {
       partyInviteToken: "party-token-big-start-loss-cooldown",
-      now: now(),
-      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      now: new Date("2026-06-30T10:13:01.000Z"),
+      turnExpiresAt: new Date("2026-06-30T10:13:24.000Z"),
+      allowExpiredRecruiting: true
     });
 
     expect(started).toEqual({ state: "ineligible" });
@@ -2500,6 +2784,13 @@ describe("PrismaPartyBossRepository integration", () => {
         }
       }
     })).toBe(0);
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-big-start-loss-cooldown" },
+      select: { status: true, activeLeaderKey: true }
+    })).resolves.toEqual({
+      status: "recruiting",
+      activeLeaderKey: "party-leader:big-loss-cooldown-leader-user-character"
+    });
   });
 
   it("allows a remorted level 3 participant to start and settle Big Barrel Brother", async () => {
@@ -3080,6 +3371,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       available_at DATETIME NOT NULL,
       result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE bard_performances (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      location_id TEXT NOT NULL,
+      remort_count INTEGER NOT NULL DEFAULT 0,
+      cooldown_available_at DATETIME NOT NULL
     )`,
     `CREATE TABLE character_items (
       id TEXT PRIMARY KEY,

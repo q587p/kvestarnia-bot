@@ -3,6 +3,7 @@ import {
   getVarenykSatedRemainingCombatTurns,
   type VarenykSatedCombatStateV1
 } from "../../domain/noncombat/varenykSatedSupport";
+import { presentTimedStatusLine } from "./timedStatusPresenter";
 
 export interface VarenykSatedRecoveryView {
   hpRestored: number;
@@ -26,7 +27,13 @@ export function presentActiveVarenykSatedBuff(
     ? `${remainingMinutes} ${pluralize(remainingMinutes, "хід", "ходи", "ходів")}`
     : `${remainingMinutes} хв`;
   const recovery = getVarenykSatedPeriodicRecovery(rank);
-  return `😋 ${subjectHtml} ще <b>${remaining}</b> — <b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії).`;
+  return presentTimedStatusLine({
+    emoji: "😋",
+    name: "Ситий",
+    remaining,
+    subjectHtml,
+    tailHtml: ` — <b>+${recovery.hp} HP</b> і <b>+${recovery.mana} мани</b> щохвилини поза боєм або кожен хід в бою (це забирає хвилину дії)`
+  });
 }
 
 export function presentActiveVarenykSatedCombatState(
@@ -40,7 +47,14 @@ export function presentActiveVarenykSatedCombatState(
 
   const remaining = `${remainingTurns} ${pluralize(remainingTurns, "хід", "ходи", "ходів")}`;
   const recovery = getVarenykSatedPeriodicRecovery(sated.rank);
-  return `😋 ${subjectHtml} ще <b>${remaining}</b> (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>)`;
+  return presentTimedStatusLine({
+    emoji: "😋",
+    name: "Ситий",
+    remaining,
+    subjectHtml,
+    tailHtml: ` (<b>+${recovery.hp} HP / +${recovery.mana} мани</b>)`,
+    terminalPunctuation: false
+  });
 }
 
 export function presentVarenykSatedCombatEffectLines(

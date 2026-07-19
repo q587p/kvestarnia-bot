@@ -18,7 +18,9 @@ export function rollBasicAttack(
     statValue: hero.strength,
     level: hero.level,
     armorOrResist: monster.armor,
-    accuracy: buildHitChance(hero.dexterity, monster.dexterity) - getMonsterEvasionDelta(monster),
+    accuracy: buildHitChance(hero.dexterity, monster.dexterity) +
+      getHeroAccuracyBonus(hero) -
+      getMonsterEvasionDelta(monster),
     critChance: buildCritChance(hero.dexterity, hero.luck),
     multiplier: 1,
     rng
@@ -39,7 +41,10 @@ export function rollSkillAttack(
     statValue: hero[skill.stat],
     level: hero.level,
     armorOrResist: targetDefense,
-    accuracy: buildHitChance(hero.dexterity, monster.dexterity) + skill.accuracyBonus - getMonsterEvasionDelta(monster),
+    accuracy: buildHitChance(hero.dexterity, monster.dexterity) +
+      skill.accuracyBonus +
+      getHeroAccuracyBonus(hero) -
+      getMonsterEvasionDelta(monster),
     critChance: buildCritChance(hero.dexterity, hero.luck) + skill.critBonus,
     multiplier: skill.multiplier,
     rng
@@ -168,6 +173,10 @@ function rollHeroDamage(input: {
 
 function buildHitChance(heroDexterity: number, monsterDexterity: number): number {
   return clamp(0.9 + (heroDexterity - monsterDexterity) * 0.01, 0.72, 0.97);
+}
+
+function getHeroAccuracyBonus(hero: CombatActorStats): number {
+  return Math.max(0, Math.floor(hero.accuracyBonusPp ?? 0)) / 100;
 }
 
 function buildCritChance(heroDexterity: number, heroLuck: number): number {

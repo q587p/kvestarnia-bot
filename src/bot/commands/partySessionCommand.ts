@@ -47,6 +47,7 @@ import {
   isPermanentPartyCardEditError,
   serializePartySessionDelivery
 } from "../partySessionDeliveryCoordinator";
+import { deliverTerminalIneligiblePartyCards } from "../partyTerminalIneligibleDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -92,12 +93,13 @@ export async function sendPartyCreate(
   });
   const session = "session" in result ? result.session : null;
   const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+  const viewerCharacterId = session ? getViewerCharacterId(session, telegramUserId) : null;
 
-  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl }), session
+  await sendText(ctx, mode, presentPartyCreate(result, { inviteUrl, viewerCharacterId }), session
     ? {
         session,
         inviteUrl,
-        viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+        viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(session)
       }
@@ -138,9 +140,10 @@ export async function handlePartySessionCallback(
       return;
     }
 
+    const party = await service.getByToken(callback.token);
+    const isBigBarrelRecruiting = "session" in party && isBigBarrelParty(party.session);
     if (!options.partyBoss.areDevHelpersEnabled()) {
-      const party = await service.getByToken(callback.token);
-      if (!("session" in party) || !isBigBarrelParty(party.session)) {
+      if (!isBigBarrelRecruiting) {
         await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
         return;
       }
@@ -148,12 +151,18 @@ export async function handlePartySessionCallback(
 
     const partyBoss = options.partyBoss;
     const result = await serializePartySessionDelivery(callback.token, () =>
-      partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token)
+      isBigBarrelRecruiting
+        ? partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token, {
+            allowExpiredRecruiting: true
+          })
+        : partyBoss.startFromPartyForTelegramUser(telegramUserId, callback.token)
     );
     await safeAnswerCallbackQuery(
       ctx,
       result.state === "blocked"
         ? { text: "Хтось уже в бою." }
+        : result.state === "terminal-ineligible"
+          ? { text: "Збір закрито: один із записів більше не підходить до цього бочкового періоду." }
         : result.state === "ineligible"
           ? { text: "Рейдова канцелярія відсіяла частину записів." }
           : undefined
@@ -161,7 +170,22 @@ export async function handlePartySessionCallback(
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
       : null;
-    if (result.state === "started") {
+    if (result.state === "terminal-ineligible") {
+      await deliverTerminalIneligiblePartyCards(
+        ctx.api,
+        service,
+        callback.token,
+        {
+          actorTelegramUserId: telegramUserId,
+          actorReference: ctx.chat?.id && ctx.callbackQuery?.message?.message_id
+            ? {
+                chatId: BigInt(ctx.chat.id),
+                messageId: ctx.callbackQuery.message.message_id
+              }
+            : null
+        }
+      );
+    } else if (result.state === "started") {
       await sendText(ctx, "edit", presentPartyBossIntro(result.session, viewerCharacterId), false);
       await sendBossText(ctx, "reply", presentPartyBossStart(result, viewerCharacterId), {
         session: result.session,
@@ -198,18 +222,35 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const result = await options.partyBoss.submitActionForTelegramUser(
-      telegramUserId,
-      callback.token,
-      callback.turn,
-      callback.action
-    );
-    await safeAnswerCallbackQuery(ctx, result.state === "updated"
+    let result = callback.action === "lament"
+      ? await options.partyBoss.submitLamentForTelegramUser(
+          telegramUserId,
+          callback.token,
+          callback.turn
+        )
+      : await options.partyBoss.submitActionForTelegramUser(
+          telegramUserId,
+          callback.token,
+          callback.turn,
+          callback.action
+        );
+    const disabledLament = callback.action === "lament" && result.state === "disabled";
+    if (disabledLament) {
+      const session = await options.partyBoss.getByPartyInviteToken(callback.token);
+      if (session) {
+        result = { state: "stale", session };
+      }
+    }
+    await safeAnswerCallbackQuery(ctx, disabledLament
+      ? { text: "Журлива балада зараз недоступна.", show_alert: true }
+      : result.state === "updated"
       ? { text: "Вибір оновлено." }
       : result.state === "duplicate"
         ? { text: "Дію вже записано." }
         : result.state === "taunt-unavailable"
           ? { text: "Бочка зараз не приймає цей виклик." }
+        : result.state === "lament-unavailable"
+          ? { text: "Баладі зараз бракує вільного місця в кошторисі." }
         : undefined);
     const viewerCharacterId = "session" in result
       ? getBossViewerCharacterId(result.session, telegramUserId)
@@ -490,7 +531,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { renderMissing: (result) => presentPartyView(result, { inviteUrl: null }) }
     );
     return;
@@ -532,7 +576,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
     return;
@@ -584,7 +631,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
 
@@ -639,7 +689,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+        (session, inviteUrl, viewerCharacterId) => presentPartyView(
+          { state: "ready", session },
+          { inviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "updated" }
       );
 
@@ -678,7 +731,10 @@ export async function handlePartySessionCallback(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { refreshParticipants: result.state === "updated" }
     );
 
@@ -706,7 +762,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, canonicalInviteUrl) => presentPartyJoin({ ...result, session }, { inviteUrl: canonicalInviteUrl }),
+        (session, canonicalInviteUrl, viewerCharacterId) => presentPartyJoin(
+          { ...result, session },
+          { inviteUrl: canonicalInviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "joined" }
       );
     } else {
@@ -721,8 +780,9 @@ export async function handlePartySessionCallback(
           options.botUsername,
           service,
           options.partyBoss,
-          (session, cancelledInviteUrl) => presentPartyView({ state: "ready", session }, {
-            inviteUrl: cancelledInviteUrl
+          (session, cancelledInviteUrl, viewerCharacterId) => presentPartyView({ state: "ready", session }, {
+            inviteUrl: cancelledInviteUrl,
+            viewerCharacterId
           }),
           { refreshParticipants: true }
         );
@@ -745,7 +805,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, canonicalInviteUrl) => presentPartyLeave({ ...result, session }, { inviteUrl: canonicalInviteUrl }),
+        (session, canonicalInviteUrl, viewerCharacterId) => presentPartyLeave(
+          { ...result, session },
+          { inviteUrl: canonicalInviteUrl, viewerCharacterId }
+        ),
         { refreshParticipants: result.state === "left" || result.state === "leader-transferred" }
       );
     } else {
@@ -768,7 +831,10 @@ export async function handlePartySessionCallback(
         options.botUsername,
         service,
         options.partyBoss,
-        (session, inviteUrl) => presentPartyCancel({ ...result, session }, { inviteUrl })
+        (session, inviteUrl, viewerCharacterId) => presentPartyCancel(
+          { ...result, session },
+          { inviteUrl, viewerCharacterId }
+        )
       );
     } else {
       await sendText(ctx, "edit", presentPartyCancel(result, { inviteUrl: null }), false);
@@ -806,7 +872,10 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyView({ state: "ready", session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyView(
+        { state: "ready", session },
+        { inviteUrl, viewerCharacterId }
+      ),
       { mode: "reply" }
     );
     return true;
@@ -825,7 +894,10 @@ export async function sendPartyJoinFromStartPayload(
       options.botUsername,
       service,
       options.partyBoss,
-      (session, inviteUrl) => presentPartyJoin({ ...result, session }, { inviteUrl }),
+      (session, inviteUrl, viewerCharacterId) => presentPartyJoin(
+        { ...result, session },
+        { inviteUrl, viewerCharacterId }
+      ),
       {
         mode: "reply",
         refreshParticipants: result.state === "joined",
@@ -890,7 +962,8 @@ async function handleNearbyInvite(
       state: "ready",
       session
     }, {
-      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken)
+      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
+      viewerCharacterId: getViewerCharacterId(session, telegramUserId)
     }), {
       session,
       inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
@@ -923,7 +996,11 @@ async function handleNearbyInvite(
     await sendText(
       ctx,
       "edit",
-      presentPartyNearbyInviteSent(view, target?.name ?? "пригодника поруч"),
+      presentPartyNearbyInviteSent(
+        view,
+        target?.name ?? "пригодника поруч",
+        getViewerCharacterId(view.session, telegramUserId)
+      ),
       {
         session: view.session,
         inviteUrl: buildPartyInviteUrl(options.botUsername, view.session.inviteToken),
@@ -946,12 +1023,15 @@ async function sendPartyView(
   const inviteUrl = result.state === "ready"
     ? buildPartyInviteUrl(botUsername, result.session.inviteToken)
     : null;
+  const viewerCharacterId = result.state === "ready"
+    ? getViewerCharacterId(result.session, telegramUserId)
+    : null;
 
-  await sendText(ctx, mode, presentPartyView(result, { inviteUrl }), result.state === "ready"
+  await sendText(ctx, mode, presentPartyView(result, { inviteUrl, viewerCharacterId }), result.state === "ready"
     ? {
         session: result.session,
         inviteUrl,
-        viewerCharacterId: getViewerCharacterId(result.session, telegramUserId),
+        viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(result.session)
       }
@@ -1105,7 +1185,8 @@ async function sendCanonicalPartyPreparationCard(
   partyBoss: PartyBossService | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
-    inviteUrl: string | null
+    inviteUrl: string | null,
+    viewerCharacterId: string | null
   ) => string,
   options: {
     mode?: "edit" | "reply";
@@ -1141,11 +1222,12 @@ async function sendCanonicalPartyPreparationCard(
 
       const session = canonical.session;
       const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
-      const actorText = render(session, inviteUrl);
+      const actorViewerCharacterId = getViewerCharacterId(session, telegramUserId);
+      const actorText = render(session, inviteUrl, actorViewerCharacterId);
       const actorOptions = {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartySessionKeyboard(session, {
-          viewerCharacterId: getViewerCharacterId(session, telegramUserId),
+          viewerCharacterId: actorViewerCharacterId,
           inviteUrl,
           includeDevExpire: service.areDevHelpersEnabled(),
           includeBossStart: isBigBarrelParty(session)
@@ -1236,7 +1318,10 @@ async function refreshCanonicalPartyParticipantCards(
       continue;
     }
 
-    const text = presentPartyView({ state: "ready", session }, { inviteUrl });
+    const text = presentPartyView({ state: "ready", session }, {
+      inviteUrl,
+      viewerCharacterId: participant.characterId
+    });
     const messageOptions = {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartySessionKeyboard(session, {
@@ -1442,6 +1527,10 @@ function presentReadinessCallbackAnswer(
     return "Збір уже не змінює готовність.";
   }
 
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи.";
+  }
+
   if (state === "cancelled" || state === "expired") {
     return "Цей збір уже закрито.";
   }
@@ -1477,6 +1566,9 @@ function presentWardPlaceCallbackAnswer(
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
   }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає знаки.";
+  }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає знаки.";
   }
@@ -1506,6 +1598,9 @@ function presentWardSupportCallbackAnswer(
   }
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
+  }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає підпор.";
   }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає підпор.";
@@ -1565,6 +1660,9 @@ function presentProtocolFileCallbackAnswer(
   if (state === "not-member") {
     return "Спершу треба бути у ватазі.";
   }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає протоколи.";
+  }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає протоколи.";
   }
@@ -1591,6 +1689,9 @@ function presentProtocolSignCallbackAnswer(
   }
   if (state === "stale") {
     return "Картка ватаги змінилася. Оновіть її й спробуйте ще раз.";
+  }
+  if (state === "terminal-ineligible") {
+    return "Збір закрито через несумісні записи й уже не приймає підписи.";
   }
   if (state === "not-recruiting" || state === "cancelled" || state === "expired") {
     return "Цей збір уже не приймає підписи.";

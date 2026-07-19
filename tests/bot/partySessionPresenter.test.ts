@@ -7,10 +7,13 @@ import {
   getNextBigBarrelApproachTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
   presentBigBarrelApproachNotice,
+  presentPartyCancel,
   presentPartyCreate,
   presentPartyJoin,
+  presentPartyLeave,
   presentPartyInviteShare,
   presentPartySession,
+  presentPartyView,
   presentPartyBoss,
   presentPartyBossAction,
   presentPartyBossIntro,
@@ -38,6 +41,159 @@ describe("party session presenter", () => {
 
     expect(text).toContain("▪️ Голова: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
     expect(text).toContain("▪️ Шкодійка: HP 60/60 · мана 20/20 ← 🎯 ціль боса");
+  });
+
+  it("shows the canonical remaining Lament wait on the durable raid card", () => {
+    const bard = participant("bard", "Бард");
+    bard.combatStats.classId = "class.bard";
+    bard.bardMusicAvailableAt = "2026-07-18T11:33:00.000Z";
+    const text = presentPartyBoss(makeBigBossSession({
+      participants: [bard],
+      bardMusic: { kind: "none" }
+    }), {
+      viewerCharacterId: "bard",
+      now: new Date("2026-07-18T10:00:00.000Z")
+    });
+
+    expect(text).toContain("🎻 Журлива балада буде доступна через 93 хвилини.");
+  });
+
+  it("uses response grammar for active Lament and hides expired or terminal residual state", () => {
+    const lament = (remainingBossResponses: number) => ({
+      kind: "lament" as const,
+      activationId: "lament-1",
+      sourceCharacterId: "leader",
+      grade: "memorable" as const,
+      damageReduction: 5,
+      remainingBossResponses,
+      activatedTurn: 1
+    });
+
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(1) }))).toContain("ще 1 відповідь");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(2) }))).toContain("ще 2 відповіді");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(5) }))).toContain("ще 5 відповідей");
+    expect(presentPartyBoss(makeBigBossSession({ bardMusic: lament(0) }))).not.toContain("−5 шкоди");
+    expect(presentPartyBoss(makeBigBossSession(
+      { status: "won", bardMusic: lament(2) },
+      { status: "won" }
+    ))).not.toContain("Журлива балада");
+    const terminalJournal = presentPartyBossJournal(makeBigBossSession({
+      status: "lost",
+      bardMusic: lament(2),
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        bardMusic: {
+          kind: "lament",
+          activationId: "lament-1",
+          sourceCharacterId: "leader",
+          damageReduction: 5,
+          activated: false,
+          remainingBossResponses: 2,
+          expired: false
+        },
+        statusAfter: "lost"
+      }]
+    }, { status: "lost" }), 0);
+    expect(terminalJournal).not.toContain("🎻 <b>Журлива балада</b>");
+  });
+
+  it("renders Lament activation once, keeps active snapshots with effects, and records expiry", () => {
+    const round = (
+      turn: number,
+      activated: boolean,
+      remainingBossResponses: number,
+      expired: boolean
+    ): PartyBossSessionRecord["state"]["roundLog"][number] => ({
+      turn,
+      actions: activated
+        ? [{
+            characterId: "leader",
+            action: "lament",
+            origin: "manual",
+            outcome: "lament-activated",
+            damage: 0,
+            manaSpent: 0
+          }]
+        : [],
+      bossDamage: 0,
+      bossHpAfter: 55,
+      bossRetaliations: [],
+      bardMusic: {
+        kind: "lament",
+        activationId: "lament-journal",
+        sourceCharacterId: "leader",
+        damageReduction: 3,
+        activated,
+        remainingBossResponses,
+        expired
+      },
+      statusAfter: "active"
+    });
+    const activeSession = makeBigBossSession({
+      turn: 2,
+      bardMusic: {
+        kind: "lament",
+        activationId: "lament-journal",
+        sourceCharacterId: "leader",
+        grade: "pleasant",
+        damageReduction: 3,
+        remainingBossResponses: 7,
+        activatedTurn: 1
+      },
+      roundLog: [round(1, true, 7, false)]
+    });
+    const activeCard = presentPartyBoss(activeSession, { viewerCharacterId: "leader" });
+
+    expect(activeCard).toContain("Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід: пряма шкода Старшого Брата слабшає на 3.");
+    expect(activeCard).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 7 відповідей.");
+    expect(activeCard).not.toContain("Журлива балада тримається");
+
+    const session = makeBigBossSession({
+      turn: 4,
+      roundLog: [round(1, true, 2, false), round(2, false, 1, false), round(3, false, 0, true)]
+    });
+
+    const activation = presentPartyBossJournal(session, 0);
+    expect(activation).toContain("Голова затягує 🎻 журливу баладу й цього ходу не атакує: пряма шкода Старшого Брата слабшає на 3.");
+    expect(activation).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(activation).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 2 відповіді.");
+    expect(activation.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      activation.indexOf("🎻 <b>Журлива балада</b>")
+    );
+    expect(activation).not.toContain("Журлива балада тримається");
+
+    const tick = presentPartyBossJournal(session, 1);
+    expect(tick).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(tick).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 1 відповідь.");
+    expect(tick).not.toContain("Журлива балада тримається");
+
+    const expiry = presentPartyBossJournal(session, 2);
+    expect(expiry).toContain("Остання нота стихла");
+    expect(expiry).not.toContain("🎻 <b>Журлива балада</b>");
+  });
+
+  it("advertises Bard support only on the Big Barrel-specific raid surface", () => {
+    const bard = participant("leader", "Бард");
+    bard.combatStats.classId = "class.bard";
+    const enabled = makeBigBossSession({ participants: [bard], bardMusic: { kind: "none" } });
+    enabled.participants[0]!.classId = "class.bard";
+    enabled.participants[0]!.raceId = "race.no-raid-hint";
+    const proof = makeBigBossSession({ participants: [bard] });
+    proof.rulesVersion = "party-boss-v1";
+    proof.bossKey = "party-boss-proof";
+    proof.state.rulesVersion = "party-boss-v1";
+    proof.participants[0]!.classId = "class.bard";
+    proof.participants[0]!.raceId = "race.no-raid-hint";
+
+    expect(presentPartyBossIntro(enabled, "leader")).toContain("надихнути товариство виступом");
+    expect(presentPartyBossIntro(enabled, "leader")).toContain("журливою баладою");
+    expect(presentPartyBossIntro(proof, "leader")).not.toContain("надихнути товариство");
+    expect(presentPartyBossIntro(proof, "leader")).not.toContain("журливою баладою");
+    expect(presentPartyBossIntro(proof, "leader")).toContain("Порада дня:");
   });
 
   it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
@@ -730,7 +886,7 @@ describe("party session presenter", () => {
     expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
   });
 
-  it("renders Big Barrel gear support effects on active cards and journal pages", () => {
+  it("renders every stored Big Barrel buff with cooldowns and effects on journal pages", () => {
     const session = makeBigBossSession({
       turn: 2,
       roundLog: [{
@@ -773,20 +929,44 @@ describe("party session presenter", () => {
       outsideRemainderMs: 0,
       pulseIds: ["barrel:pulse:1"]
     };
+    session.state.participants[0]!.bardInspiration = {
+      version: 1,
+      activationId: "barrel-journal-inspiration",
+      sourcePerformanceId: "performance-journal",
+      sourceLocationId: "location.korchma.barrel",
+      recipientCharacterId: "leader",
+      recipientRemortCount: 0,
+      grade: "memorable",
+      accuracyBonusPp: 3,
+      expiresAt: new Date(satedCursorAt.getTime() + 11 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["barrel:inspiration:pulse:1"]
+    };
 
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
     session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = {
       ...session.state.participants[0]!.varenykSated,
       pulseIds: [...session.state.participants[0]!.varenykSated.pulseIds]
     };
+    session.state.roundLog[0]!.participantsAfter![0]!.bardInspiration = {
+      ...session.state.participants[0]!.bardInspiration,
+      pulseIds: [...session.state.participants[0]!.bardInspiration.pulseIds]
+    };
     delete session.state.participants[0]!.varenykSated;
+    delete session.state.participants[0]!.bardInspiration;
     const journal = presentPartyBossJournal(session, 0);
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
+    expect(journal).toContain("✨ Стан: <b>Натхнення</b> у <b>Голова</b> ще <b>11 ходів</b> — <b>+3</b> до влучання.");
     expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
       journal.indexOf("😋 Стан: <b>Ситий</b> у <b>Голова</b>")
+    );
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("✨ Стан: <b>Натхнення</b> у <b>Голова</b>")
     );
     expect(journal).toContain("😋 Голова: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(journal.indexOf("Старший Брат Бочки атакує Голова")).toBeLessThan(
@@ -1220,6 +1400,26 @@ describe("party session presenter", () => {
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
   });
 
+  it("tells a solo Bard that Lament becomes available after the Big Barrel raid starts", () => {
+    const session = makePartySession();
+    const bard = { ...session.leader, classId: "class.bard" };
+    const solo = {
+      ...session,
+      leader: bard,
+      participants: [{ ...session.participants[0]!, character: bard }]
+    };
+
+    const text = presentPartySession(solo, { viewerCharacterId: "leader" });
+
+    expect(text).toContain("Учасники: 1/8");
+    expect(text).toContain("Після початку рейду Бард зможе <b>заграти журливу баладу</b>");
+    expect(text).toContain("навіть сам на сам зі Старшим Братом Бочки");
+    expect(presentPartySession(solo)).not.toContain("заграти журливу баладу");
+    expect(presentPartySession(solo, { viewerCharacterId: "missing-viewer" }))
+      .not.toContain("заграти журливу баладу");
+    expect(presentPartySession(makePartySession())).not.toContain("заграти журливу баладу");
+  });
+
   it("shows Big Barrel Brother readiness markers near recruiting participant names", () => {
     const session = {
       ...makePartySession(),
@@ -1261,6 +1461,21 @@ describe("party session presenter", () => {
     expect(presentPartyJoin({ state: "ineligible", reason: "level-gate", session })).toContain("від 8 рівня");
     expect(presentPartyJoin({ state: "ineligible", reason: "active-combat", session })).toContain("в активному бою");
     expect(presentPartyJoin({ state: "ineligible", reason: "already-completed", session })).toContain("вже зарахована");
+    const pendingText = presentPartyJoin({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt: new Date("2026-06-30T10:03:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+    expect(pendingText).toContain("завершіть старий сольний рейд");
+    expect(pendingText).toContain("3 хвилини");
+    expect(presentPartyCreate({
+      state: "ineligible",
+      reason: "pending-solo-raid",
+      availableAt: new Date("2026-06-30T09:59:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z")
+    }, { inviteUrl: null })).toContain("Підсумок уже готується");
     const cooldownText = presentPartyJoin({
       state: "ineligible",
       reason: "loss-cooldown",
@@ -1271,6 +1486,27 @@ describe("party session presenter", () => {
     expect(cooldownText).toContain("короткий перепочинок");
     expect(cooldownText).toContain("2 хвилини");
     expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
+  });
+
+  it("keeps terminal-ineligible copy distinct from deadline expiry across stale views", () => {
+    const session: PartySessionRecord = {
+      ...makePartySession(),
+      status: "ineligible",
+      activeLeaderKey: null
+    };
+    const texts = [
+      presentPartyJoin({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyLeave({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyCancel({ state: "terminal-ineligible", session }, { viewerCharacterId: "leader" }),
+      presentPartyView({ state: "ready", session }, { viewerCharacterId: "leader" })
+    ];
+
+    for (const text of texts) {
+      expect(text).toContain("Стан: збір закрито через несумісні записи");
+      expect(text).toContain("один із записів більше не підходить до цього бочкового періоду");
+      expect(text).not.toContain("Строк збору минув");
+      expect(text).not.toContain("строк збору");
+    }
   });
 });
 

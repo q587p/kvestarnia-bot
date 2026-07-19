@@ -37,6 +37,7 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
+import { presentBardInspirationCombatEffectLines } from "./bardInspirationPresenter";
 
 export interface QuestProgressAfterFightEntry {
   title: string;
@@ -494,7 +495,8 @@ function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {
   return [
     ...presentAbilityCooldowns(entry.cooldowns),
     ...(entry.notices ?? []).map((notice) => `🧷 ${escapeHtml(trimTerminalPunctuation(notice))}.`),
-    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }])
+    ...presentVarenykSatedCombatEffectLines([{ sated: entry.varenykSated }]),
+    ...presentBardInspirationCombatEffectLines([{ inspiration: entry.bardInspiration }])
   ];
 }
 
@@ -515,8 +517,11 @@ function presentActiveFightEffectNotices(
     );
 
   const satedNotice = presentVarenykSatedCombatEffectLines([{ sated: state.varenykSated }]);
+  const inspirationNotice = presentBardInspirationCombatEffectLines([
+    { inspiration: state.bardInspiration }
+  ]);
 
-  return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice]));
+  return Array.from(new Set([...notices, ...bleedNotices, ...satedNotice, ...inspirationNotice]));
 }
 
 function presentJournalEnemyHpRows(

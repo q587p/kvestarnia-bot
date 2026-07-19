@@ -40,7 +40,9 @@ import { PrismaYegerNotchExchangeRepository } from "../db/repositories/prismaYeg
 
 export function createRepositories(
   prisma: PrismaClient,
-  options: { hpRecoveryNotificationsEnabled?: boolean } = {}
+  options: {
+    hpRecoveryNotificationsEnabled?: boolean;
+  } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
     options.hpRecoveryNotificationsEnabled === true

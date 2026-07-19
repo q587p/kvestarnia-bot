@@ -4,6 +4,7 @@ import type { CombatActorStats } from "../../domain/combat/combatState";
 import type { CombatGearAbilityInput } from "../../domain/combat/combatEngine";
 import type {
   PartyBossActionKey,
+  PartyBossStandardActionKey,
   PartyBossCombatItemInput,
   PartyBossResult,
   PartyBossState
@@ -73,7 +74,13 @@ export type PartyBossStartResult =
   | { state: "not-found" }
   | { state: "not-leader"; session?: PartyBossSessionRecord }
   | {
-      state: "not-recruiting" | "expired" | "too-small" | "blocked" | "ineligible";
+      state:
+        | "not-recruiting"
+        | "expired"
+        | "too-small"
+        | "blocked"
+        | "ineligible"
+        | "terminal-ineligible";
       blockerName?: string;
       session?: PartyBossSessionRecord;
     }
@@ -97,6 +104,22 @@ export type PartyBossActionResult =
       state: "taunt-unavailable";
       reason: "not-big-barrel" | "not-active" | "not-participant" | "not-warrior" | "unable" | "active-taunt" | "cooldown";
       availableTurn?: number;
+      session: PartyBossSessionRecord;
+    }
+  | {
+      state: "lament-unavailable";
+      reason:
+        | "not-big-barrel"
+        | "not-active"
+        | "not-participant"
+        | "not-bard"
+        | "unable"
+        | "music-taken"
+        | "cooldown"
+        | "locked"
+        | "specialized-only";
+      availableAt?: Date;
+      now?: Date;
       session: PartyBossSessionRecord;
     }
   | {
@@ -135,7 +158,7 @@ export interface PartyBossRepository {
     telegramUserId: bigint,
     partyInviteToken: string,
     turn: number,
-    action: PartyBossActionKey,
+    action: PartyBossStandardActionKey,
     input: PartyBossResolveInput,
     options?: { gearAbility?: CombatGearAbilityInput }
   ): Promise<PartyBossActionResult>;
@@ -146,6 +169,13 @@ export interface PartyBossRepository {
     turn: number,
     item: PartyBossCombatItemInput,
     input: PartyBossResolveInput
+  ): Promise<PartyBossActionResult>;
+
+  submitLamentForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number,
+    input: PartyBossResolveInput & { activationId: string }
   ): Promise<PartyBossActionResult>;
 
   resolveTimedOutByToken(

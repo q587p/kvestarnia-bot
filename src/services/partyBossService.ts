@@ -1,7 +1,7 @@
 import {
   BIG_BARREL_BROTHER_BOSS_KEY,
   BIG_BARREL_BROTHER_RULES_VERSION,
-  type PartyBossActionKey
+  type PartyBossStandardActionKey
 } from "../domain/partyBoss/partyBoss";
 import { findMantokAbilityGrantByKey, items } from "../content";
 import type {
@@ -96,10 +96,17 @@ export class PartyBossService {
     telegramUserId: bigint,
     partyInviteToken: string,
     turn: number,
-    action: PartyBossActionKey
+    action: PartyBossStandardActionKey
   ): Promise<PartyBossActionServiceResult> {
     if (!this.isEnabled()) {
       return { state: "disabled" };
+    }
+
+    if ((action as string) === "lament") {
+      const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
+      return session
+        ? { state: "lament-unavailable", reason: "specialized-only", session }
+        : { state: "not-found" };
     }
 
     const now = this.clock();
@@ -107,6 +114,32 @@ export class PartyBossService {
       now,
       nextTurnExpiresAt: nextTurnDeadline(now)
     });
+    const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
+    await this.trackBarrelBeerTutorialProgress(result);
+    await this.trackActivityEvents(result);
+
+    return withAchievementUnlocks(result, achievementUnlocksByCharacterId);
+  }
+
+  async submitLamentForTelegramUser(
+    telegramUserId: bigint,
+    partyInviteToken: string,
+    turn: number
+  ): Promise<PartyBossActionServiceResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.clock();
+    const result = await this.sessions.submitLamentForTelegramUser(
+      telegramUserId,
+      partyInviteToken,
+      turn,
+      {
+        activationId: randomUUID(),
+        now,
+        nextTurnExpiresAt: nextTurnDeadline(now)
+      }
+    );
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
     await this.trackActivityEvents(result);
@@ -251,6 +284,13 @@ export class PartyBossService {
     }
 
     if (participant.status !== "active" || participant.resources.hp <= 0) {
+      return { state: "stale", session };
+    }
+    if (
+      session.state.bardMusic?.kind === "lament" &&
+      session.state.bardMusic.sourceCharacterId === participant.characterId &&
+      session.state.bardMusic.activatedTurn === turn
+    ) {
       return { state: "stale", session };
     }
 
@@ -466,3 +506,4 @@ function withAchievementUnlocks(
     ? { ...result, achievementUnlocksByCharacterId }
     : result;
 }
+import { randomUUID } from "node:crypto";
