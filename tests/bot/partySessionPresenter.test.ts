@@ -74,9 +74,31 @@ describe("party session presenter", () => {
       { status: "won", bardMusic: lament(2) },
       { status: "won" }
     ))).not.toContain("Журлива балада");
+    const terminalJournal = presentPartyBossJournal(makeBigBossSession({
+      status: "lost",
+      bardMusic: lament(2),
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 55,
+        bossRetaliations: [],
+        bardMusic: {
+          kind: "lament",
+          activationId: "lament-1",
+          sourceCharacterId: "leader",
+          damageReduction: 5,
+          activated: false,
+          remainingBossResponses: 2,
+          expired: false
+        },
+        statusAfter: "lost"
+      }]
+    }, { status: "lost" }), 0);
+    expect(terminalJournal).not.toContain("🎻 <b>Журлива балада</b>");
   });
 
-  it("stores and renders Lament activation, tick and expiry in raid journal pages", () => {
+  it("renders Lament activation once, keeps active snapshots with effects, and records expiry", () => {
     const round = (
       turn: number,
       activated: boolean,
@@ -84,7 +106,16 @@ describe("party session presenter", () => {
       expired: boolean
     ): PartyBossSessionRecord["state"]["roundLog"][number] => ({
       turn,
-      actions: [],
+      actions: activated
+        ? [{
+            characterId: "leader",
+            action: "lament",
+            origin: "manual",
+            outcome: "lament-activated",
+            damage: 0,
+            manaSpent: 0
+          }]
+        : [],
       bossDamage: 0,
       bossHpAfter: 55,
       bossRetaliations: [],
@@ -99,15 +130,47 @@ describe("party session presenter", () => {
       },
       statusAfter: "active"
     });
+    const activeSession = makeBigBossSession({
+      turn: 2,
+      bardMusic: {
+        kind: "lament",
+        activationId: "lament-journal",
+        sourceCharacterId: "leader",
+        grade: "pleasant",
+        damageReduction: 3,
+        remainingBossResponses: 7,
+        activatedTurn: 1
+      },
+      roundLog: [round(1, true, 7, false)]
+    });
+    const activeCard = presentPartyBoss(activeSession, { viewerCharacterId: "leader" });
+
+    expect(activeCard).toContain("Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід: пряма шкода Старшого Брата слабшає на 3.");
+    expect(activeCard).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 7 відповідей.");
+    expect(activeCard).not.toContain("Журлива балада тримається");
+
     const session = makeBigBossSession({
       turn: 4,
       roundLog: [round(1, true, 2, false), round(2, false, 1, false), round(3, false, 0, true)]
     });
 
-    expect(presentPartyBossJournal(session, 0)).toContain("затягує журливу баладу");
-    expect(presentPartyBossJournal(session, 0)).toContain("ще 2 відповіді");
-    expect(presentPartyBossJournal(session, 1)).toContain("ще 1 відповідь");
-    expect(presentPartyBossJournal(session, 2)).toContain("Остання нота стихла");
+    const activation = presentPartyBossJournal(session, 0);
+    expect(activation).toContain("Голова затягує 🎻 журливу баладу й цього ходу не атакує: пряма шкода Старшого Брата слабшає на 3.");
+    expect(activation).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(activation).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 2 відповіді.");
+    expect(activation.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      activation.indexOf("🎻 <b>Журлива балада</b>")
+    );
+    expect(activation).not.toContain("Журлива балада тримається");
+
+    const tick = presentPartyBossJournal(session, 1);
+    expect(tick).toContain("<b>Кулдауни та ефекти:</b>");
+    expect(tick).toContain("🎻 <b>Журлива балада</b>: −3 шкоди Старшого Брата · ще 1 відповідь.");
+    expect(tick).not.toContain("Журлива балада тримається");
+
+    const expiry = presentPartyBossJournal(session, 2);
+    expect(expiry).toContain("Остання нота стихла");
+    expect(expiry).not.toContain("🎻 <b>Журлива балада</b>");
   });
 
   it("advertises Bard support only on the Big Barrel-specific raid surface", () => {
@@ -820,7 +883,7 @@ describe("party session presenter", () => {
     expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
   });
 
-  it("renders Big Barrel gear support effects on active cards and journal pages", () => {
+  it("renders every stored Big Barrel buff with cooldowns and effects on journal pages", () => {
     const session = makeBigBossSession({
       turn: 2,
       roundLog: [{
@@ -863,20 +926,44 @@ describe("party session presenter", () => {
       outsideRemainderMs: 0,
       pulseIds: ["barrel:pulse:1"]
     };
+    session.state.participants[0]!.bardInspiration = {
+      version: 1,
+      activationId: "barrel-journal-inspiration",
+      sourcePerformanceId: "performance-journal",
+      sourceLocationId: "location.korchma.barrel",
+      recipientCharacterId: "leader",
+      recipientRemortCount: 0,
+      grade: "memorable",
+      accuracyBonusPp: 3,
+      expiresAt: new Date(satedCursorAt.getTime() + 11 * 60_000).toISOString(),
+      cursorAt: satedCursorAt.toISOString(),
+      leaseStartedAt: satedCursorAt.toISOString(),
+      outsideRemainderMs: 0,
+      pulseIds: ["barrel:inspiration:pulse:1"]
+    };
 
     const active = presentPartyBoss(session, { viewerCharacterId: "leader" });
     session.state.roundLog[0]!.participantsAfter![0]!.varenykSated = {
       ...session.state.participants[0]!.varenykSated,
       pulseIds: [...session.state.participants[0]!.varenykSated.pulseIds]
     };
+    session.state.roundLog[0]!.participantsAfter![0]!.bardInspiration = {
+      ...session.state.participants[0]!.bardInspiration,
+      pulseIds: [...session.state.participants[0]!.bardInspiration.pulseIds]
+    };
     delete session.state.participants[0]!.varenykSated;
+    delete session.state.participants[0]!.bardInspiration;
     const journal = presentPartyBossJournal(session, 0);
 
     expect(active).toContain("Ваша дія спорядження 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("Голова застосовує 🛡 <i>Бочковий контраргумент</i>: спрацьовує без прямої шкоди. Підтримка: захист тримає 2.");
     expect(journal).toContain("😋 Стан: <b>Ситий</b> у <b>Голова</b> ще <b>12 ходів</b>");
+    expect(journal).toContain("✨ Стан: <b>Натхнення</b> у <b>Голова</b> ще <b>11 ходів</b> — <b>+3</b> до влучання.");
     expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
       journal.indexOf("😋 Стан: <b>Ситий</b> у <b>Голова</b>")
+    );
+    expect(journal.indexOf("<b>Кулдауни та ефекти:</b>")).toBeLessThan(
+      journal.indexOf("✨ Стан: <b>Натхнення</b> у <b>Голова</b>")
     );
     expect(journal).toContain("😋 Голова: <i>ситість</i> відновлює +1 HP і +1 мани.");
     expect(journal.indexOf("Старший Брат Бочки атакує Голова")).toBeLessThan(

@@ -36,7 +36,10 @@ import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
 } from "./varenykSatedPresenter";
-import { presentActiveBardInspirationCombatState } from "./bardInspirationPresenter";
+import {
+  presentActiveBardInspirationCombatState,
+  presentBardInspirationCombatEffectLines
+} from "./bardInspirationPresenter";
 
 const BIG_BARREL_AOE_ATTACK_LABEL = "🛢️ <i>Бочковий гуркіт</i>";
 
@@ -724,11 +727,19 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
   const round = rounds[page]!;
   const actionLines: string[] = [];
   const satedRecoveryLines: string[] = [];
+  const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
+    ? round.bardMusic.damageReduction
+    : undefined;
   if (round.actions.length === 0) {
     actionLines.push("Журнал не знайшов записаних дій учасників.");
   } else {
     for (const action of round.actions) {
-      actionLines.push(presentPartyBossActionLine(action, participantsByCharacterId.get(action.characterId), null));
+      actionLines.push(presentPartyBossActionLine(
+        action,
+        participantsByCharacterId.get(action.characterId),
+        null,
+        lamentDamageReduction
+      ));
       const recovery = presentVarenykSatedRecoveryLine(action, names.get(action.characterId));
       if (recovery) {
         satedRecoveryLines.push(recovery);
@@ -759,7 +770,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     actionLines.push(...presentWarriorRaidTauntRoundLines(round.warriorTaunt, names));
   }
   if (round.bardMusic) {
-    actionLines.push(...presentBardRaidMusicRoundLines(round.bardMusic, names));
+    actionLines.push(...presentBardRaidMusicRoundLines(round.bardMusic));
   }
   actionLines.push(...satedRecoveryLines);
 
@@ -827,7 +838,8 @@ function presentPartyBossJournalNotices(
   const nextFocus = presentNextRetaliationFocusAfterRound(session, round);
   return [
     ...new Set(presentJournalCooldownLines(round, session.state.participants)),
-    ...presentPartyBossJournalSatedLines(round, session.state.participants),
+    ...presentPartyBossJournalTimedStatusLines(round, session.state.participants),
+    ...presentPartyBossJournalBardMusicLines(round),
     ...new Set([
       ...(nextFocus ? [nextFocus] : []),
       ...(round.statusAfter !== "active" ? [`Після ходу: ${presentBossTerminalStatus(round.statusAfter)}.`] : [])
@@ -835,7 +847,7 @@ function presentPartyBossJournalNotices(
   ];
 }
 
-function presentPartyBossJournalSatedLines(
+function presentPartyBossJournalTimedStatusLines(
   round: PartyBossSessionRecord["state"]["roundLog"][number],
   participants: PartyBossSessionRecord["state"]["participants"]
 ): string[] {
@@ -843,17 +855,44 @@ function presentPartyBossJournalSatedLines(
     participant.characterId,
     participant
   ]) ?? []);
-
-  return presentVarenykSatedCombatEffectLines(participants.map((participant) => {
+  const statuses = participants.map((participant) => {
     const snapshot = snapshots.get(participant.characterId);
-    const sated = snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
-      ? snapshot.varenykSated
-      : participant.varenykSated;
     return {
+      participant,
+      sated: snapshot && Object.prototype.hasOwnProperty.call(snapshot, "varenykSated")
+        ? snapshot.varenykSated
+        : participant.varenykSated,
+      inspiration: snapshot && Object.prototype.hasOwnProperty.call(snapshot, "bardInspiration")
+        ? snapshot.bardInspiration
+        : participant.bardInspiration
+    };
+  });
+
+  return [
+    ...presentVarenykSatedCombatEffectLines(statuses.map(({ participant, sated }) => ({
       sated,
       subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
-    };
-  }));
+    }))),
+    ...presentBardInspirationCombatEffectLines(statuses.map(({ participant, inspiration }) => ({
+      inspiration,
+      subjectHtml: `Стан: <b>Натхнення</b> у <b>${escapeHtml(participant.name)}</b>`
+    })))
+  ];
+}
+
+function presentPartyBossJournalBardMusicLines(
+  round: PartyBossSessionRecord["state"]["roundLog"][number]
+): string[] {
+  if (
+    round.statusAfter !== "active" ||
+    !round.bardMusic ||
+    round.bardMusic.expired ||
+    round.bardMusic.remainingBossResponses <= 0
+  ) {
+    return [];
+  }
+
+  return [presentBardRaidLamentLine(round.bardMusic)];
 }
 
 function presentJournalCooldownLines(
@@ -932,10 +971,14 @@ function presentLastRoundLines(
   options: { isBig: boolean; viewerCharacterId: string | null }
 ): string[] {
   const byCharacterId = new Map(participants.map((participant) => [participant.characterId, participant]));
+  const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
+    ? round.bardMusic.damageReduction
+    : undefined;
   const lines = round.actions.map((action) => presentPartyBossActionLine(
     action,
     byCharacterId.get(action.characterId),
-    options.viewerCharacterId
+    options.viewerCharacterId,
+    lamentDamageReduction
   ));
   const satedRecoveryLines = round.actions.flatMap((action) => {
     const recovery = presentVarenykSatedRecoveryLine(action, byCharacterId.get(action.characterId)?.name);
@@ -973,10 +1016,7 @@ function presentLastRoundLines(
     ));
   }
   if (round.bardMusic) {
-    lines.push(...presentBardRaidMusicRoundLines(
-      round.bardMusic,
-      new Map(participants.map((participant) => [participant.characterId, participant.name]))
-    ));
+    lines.push(...presentBardRaidMusicRoundLines(round.bardMusic));
   }
   return lines;
 }
@@ -1216,27 +1256,25 @@ function presentBardRaidMusicLine(
   }
   if (music.kind === "lament") {
     return music.remainingBossResponses > 0
-      ? `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatBossResponses(music.remainingBossResponses)}.`
+      ? presentBardRaidLamentLine(music)
       : null;
   }
 
   return "";
 }
 
+function presentBardRaidLamentLine(
+  music: { damageReduction: number; remainingBossResponses: number }
+): string {
+  return `🎻 <b>Журлива балада</b>: −${music.damageReduction} шкоди Старшого Брата · ще ${formatBossResponses(music.remainingBossResponses)}.`;
+}
+
 function presentBardRaidMusicRoundLines(
-  music: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["bardMusic"]>,
-  names: Map<string, string>
+  music: NonNullable<PartyBossSessionRecord["state"]["roundLog"][number]["bardMusic"]>
 ): string[] {
-  const sourceName = escapeHtml(names.get(music.sourceCharacterId) ?? "Бард");
-  const lines = music.activated
-    ? [`🎻 ${sourceName} затягує журливу баладу: пряма шкода Старшого Брата слабшає на ${music.damageReduction}.`]
+  return music.expired
+    ? ["🎼 Остання нота стихла: журлива балада вже не послаблює удари."]
     : [];
-  lines.push(
-    music.expired
-      ? "🎼 Остання нота стихла: журлива балада вже не послаблює удари."
-      : `🎻 Журлива балада тримається: ще ${formatBossResponses(music.remainingBossResponses)}.`
-  );
-  return lines;
 }
 
 function presentWarriorRaidTauntUnavailableNotice(
@@ -1558,7 +1596,8 @@ function presentPartyBossStartTip(
 function presentPartyBossActionLine(
   action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number],
   participant: PartyBossSessionRecord["state"]["participants"][number] | undefined,
-  viewerCharacterId: string | null
+  viewerCharacterId: string | null,
+  lamentDamageReduction?: number
 ): string {
   const isViewer = Boolean(viewerCharacterId && action.characterId === viewerCharacterId);
   const name = escapeHtml(participant?.name ?? "Учасник");
@@ -1574,9 +1613,12 @@ function presentPartyBossActionLine(
       : `${name} гукає до Бочки, але виклик запізнюється.`;
   }
   if (action.outcome === "lament-activated") {
+    const effect = lamentDamageReduction !== undefined
+      ? `: пряма шкода Старшого Брата слабшає на ${lamentDamageReduction}.`
+      : ".";
     return isViewer
-      ? "Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід."
-      : `${name} затягує 🎻 журливу баладу й цього ходу не атакує.`;
+      ? `Ви затягуєте 🎻 журливу баладу й віддаєте цьому весь хід${effect}`
+      : `${name} затягує 🎻 журливу баладу й цього ходу не атакує${effect}`;
   }
 
   if (action.outcome === "item-used") {

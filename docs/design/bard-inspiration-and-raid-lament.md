@@ -204,13 +204,15 @@ Audience notification:
 
 > ✨ Виступ надихає вас: +3 до влучання на 13 хв. У бою кожен завершений хід забирає ще одну хвилину.
 
-Raid result:
+Raid action:
 
-> 🎻 Бард затягує журливу баладу. Його пряма шкода отримує −3 протягом наступних 10 відповідей.
+> Бард затягує 🎻 журливу баладу й цього ходу не атакує: пряма шкода Старшого Брата слабшає на 3.
 
 Raid status:
 
 > 🎻 Журлива балада: −3 шкоди Старшого Брата · ще 7 відповідей
+
+Do not repeat the activation as a second Lament line or append a separate “song continues” tick to the battle action history. The live battle card owns the current Lament line above its history. A stored journal page owns the selected round snapshot: every active persisted buff, debuff, encounter effect, ability/item cooldown, including Inspiration, `Ситий`, and Lament, belongs under `Кулдауни та ефекти:`; the final Lament expiry remains a chronological action event.
 
 Concurrent loser:
 
