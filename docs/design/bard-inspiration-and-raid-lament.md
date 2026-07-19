@@ -27,6 +27,7 @@ The slice ships two linked mechanics:
 - Its per-Bard/per-location cooldown remains 93 minutes.
 - Its audience response window remains 13 minutes.
 - Existing applause, tip, decline, house payout, reaction idempotency, and achievements remain intact.
+- Reaction keyboards show only tip amounts covered by the listener's notification-time gold snapshot; commit-time balance validation still rejects stale or forged callbacks.
 - The canonical starting audience remains the repository snapshot: same normalized location, recently active, excluding the performer, active combatants, and current raid participants.
 - A performance never changes anyone’s location.
 - PR #174’s actual-location and current-location cooldown behavior is a hard prerequisite.

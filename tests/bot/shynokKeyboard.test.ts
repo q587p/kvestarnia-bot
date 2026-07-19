@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBardPerformanceResponseKeyboard,
+  buildBardPerformanceRespondResultKeyboard,
   buildShynokDicePokerKeyboard,
   buildShynokDicePokerStakeKeyboard,
   buildShynokDoppelgangerMenuKeyboard,
@@ -14,6 +16,46 @@ import { buildTavernGameActionKeyboard } from "../../src/bot/tavernGameNotificat
 import { startQuickDicePoker, startScorecardDicePoker } from "../../src/domain/dicePoker";
 
 describe("Shynok game keyboards", () => {
+  it.each([
+    [0, []],
+    [1, [1]],
+    [2, [1]],
+    [3, [1, 3]],
+    [5, [1, 3, 5]],
+    [13, [1, 3, 5, 13]]
+  ] as const)("offers only Bard tips affordable with %i gold", (gold, expectedTips) => {
+    const callbacks = flatInlineButtonCallbacks(buildBardPerformanceResponseKeyboard(
+      "12345678-1234-4234-9234-123456789abc",
+      gold
+    ));
+
+    expect(callbacks
+      .filter((callback) => callback.includes(":bt:"))
+      .map((callback) => Number(callback.split(":").at(-1))))
+      .toEqual(expectedTips);
+  });
+
+  it("rebuilds an insufficient-gold reaction with only currently affordable tips", () => {
+    const callbacks = flatInlineButtonCallbacks(buildBardPerformanceRespondResultKeyboard({
+      state: "insufficient-gold",
+      reaction: {
+        id: "12345678-1234-4234-9234-123456789abc",
+        audienceName: "Слухач",
+        status: "offered",
+        tipGold: 0,
+        expiresAt: new Date("2026-06-26T10:13:00.000Z")
+      },
+      performance: {} as never,
+      character: { ...shynokCharacter(), gold: 3 },
+      attemptedTipGold: 5
+    }));
+
+    expect(callbacks.filter((callback) => callback.includes(":bt:"))).toEqual([
+      "v1:sh:bt:12345678-1234-4234-9234-123456789abc:1",
+      "v1:sh:bt:12345678-1234-4234-9234-123456789abc:3"
+    ]);
+  });
+
   it("opens live beer offers next to self drinks instead of accepting from the overview", () => {
     const keyboard = buildShynokOverviewKeyboard({
       ...shynokOverviewResult(),

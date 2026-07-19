@@ -108,6 +108,7 @@ export interface PresentedBardPerformanceReaction {
 export interface PresentedBardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
+  gold: number;
   reaction: PresentedBardPerformanceReaction;
   inspiration?: {
     mutation: import("../domain/noncombat/bardSupport").BardInspirationMutation;
@@ -372,6 +373,7 @@ function presentAudienceNotice(notice: BardPerformanceAudienceNotice): Presented
   return {
     telegramUserId: notice.telegramUserId,
     name: notice.name,
+    gold: notice.gold,
     reaction: presentReaction(notice.reaction),
     ...(notice.inspiration ? { inspiration: { ...notice.inspiration } } : {})
   };

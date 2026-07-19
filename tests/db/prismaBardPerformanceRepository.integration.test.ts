@@ -459,6 +459,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
       telegramUserId: 112n,
       userId: "user-audience",
       characterId: "character-audience",
+      gold: 3,
       locationId: "location.korchma.hall"
     });
 
@@ -473,6 +474,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
       throw new Error(`Expected alias-safe Bard start, got ${started.state}.`);
     }
     expect(started.audience.map((notice) => notice.telegramUserId)).toEqual([112n]);
+    expect(started.audience[0]?.gold).toBe(3);
 
     await expect(repository.respondToPerformanceForTelegramUser(112n, {
       reactionId: started.audience[0]!.reaction.id,

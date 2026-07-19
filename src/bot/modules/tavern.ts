@@ -1059,6 +1059,7 @@ async function notifyBardPerformanceAudience(
   audience: Array<{
     telegramUserId: bigint;
     name: string;
+    gold: number;
     reaction: { id: string; audienceName: string; status: string; tipGold: number; expiresAt: Date };
     inspiration?: {
       mutation: "granted" | "replaced" | "unchanged";
@@ -1074,7 +1075,7 @@ async function notifyBardPerformanceAudience(
       presentBardPerformanceAudienceNotification(performerName, notice),
       {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id)
+        reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id, notice.gold)
       }
     )
   ));

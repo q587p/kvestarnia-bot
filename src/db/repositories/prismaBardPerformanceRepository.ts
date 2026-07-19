@@ -236,6 +236,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
             notices.push({
               telegramUserId: member.telegramUserId,
               name: member.name,
+              gold: member.gold,
               reaction,
               ...(inspiration
                 ? {
@@ -704,7 +705,7 @@ async function listAudience(
   performerCharacterId: string,
   locationId: string,
   activeAudienceSince: Date
-): Promise<Array<{ characterId: string; telegramUserId: bigint; name: string; remortCount: number }>> {
+): Promise<Array<{ characterId: string; telegramUserId: bigint; name: string; gold: number; remortCount: number }>> {
   const users = await tx.user.findMany({
     where: {
       lastSeenLocationId: { in: getPresenceLocationQueryIds(locationId) },
@@ -738,6 +739,7 @@ async function listAudience(
       characterId: user.character.id,
       telegramUserId: user.telegramUserId,
       name: user.character.name,
+      gold: user.character.gold,
       remortCount: getIncludedRemortCount(user.character)
     }];
   });

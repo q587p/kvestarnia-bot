@@ -56,6 +56,7 @@ export interface BardPerformanceStartSnapshot {
 export interface BardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
+  gold: number;
   reaction: BardPerformanceReactionRecord;
   inspiration?: {
     mutation: import("../../domain/noncombat/bardSupport").BardInspirationMutation;

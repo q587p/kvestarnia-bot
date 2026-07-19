@@ -517,13 +517,13 @@ export function buildShynokRoundOfferNotificationKeyboard(offerId: string): Inli
     .text("⬅️ До Шинку", makePlaceCallbackData("bar"));
 }
 
-export function buildBardPerformanceResponseKeyboard(reactionId: string): InlineKeyboard {
+export function buildBardPerformanceResponseKeyboard(reactionId: string, availableGold: number): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("👏 Аплодувати", makeShynokBardPerformanceApplaudCallbackData(reactionId))
     .text("Ні, дякую", makeShynokBardPerformanceDeclineCallbackData(reactionId))
     .row();
 
-  for (const tip of listBardPerformanceTipOptions()) {
+  for (const tip of listBardPerformanceTipOptions().filter((amount) => amount <= availableGold)) {
     keyboard.text(`🪙 ${tip}`, makeShynokBardPerformanceTipCallbackData(reactionId, tip));
   }
 
@@ -532,7 +532,7 @@ export function buildBardPerformanceResponseKeyboard(reactionId: string): Inline
 
 export function buildBardPerformanceRespondResultKeyboard(result: BardPerformanceRespondResult): InlineKeyboard {
   if (result.state === "insufficient-gold") {
-    return buildBardPerformanceResponseKeyboard(result.reaction.id);
+    return buildBardPerformanceResponseKeyboard(result.reaction.id, result.character.gold);
   }
 
   return buildBackToCurrentPlaceKeyboard();
