@@ -34,6 +34,7 @@ import { buildStarterLevelTwoXpReward } from "../../src/domain/progression/start
 import { getKyivDayKey } from "../../src/shared/kyivDate";
 import {
   ADVENTURE_CHOICE_KEY,
+  ADVENTURE_CHOICE_PERIOD_MINUTES,
   ADVENTURE_CHOICE_REROLL_KEY,
   ADVENTURE_PROBLEM_IDS,
   AdventureService,
@@ -161,9 +162,8 @@ describe("AdventureService", () => {
         offer: { periodToken: buildAdventurePeriod(beforeBoundary).token }
       }
     });
-    expect(probe.dailyActions.findInputs).toContainEqual({
-      key: ADVENTURE_CHOICE_KEY,
-      localDate: buildAdventurePeriod(beforeBoundary).storageKey
+    expect(probe.dailyActions.latestFindInputs).toContainEqual({
+      key: ADVENTURE_CHOICE_KEY
     });
   });
 
@@ -241,6 +241,44 @@ describe("AdventureService", () => {
     ).toBe(0);
     expect(first.choices.every((choice) => getAdventureProblemIcon(choice.id).length > 0)).toBe(true);
     expect(ADVENTURE_PROBLEM_IDS.every((problemId) => getAdventureProblemIcon(problemId).length > 0)).toBe(true);
+  });
+
+  it("keeps the Adventure unavailable for 93 minutes after completion across a fixed period boundary", async () => {
+    let currentNow = fixedClock();
+    const initialPeriod = buildAdventurePeriod(currentNow);
+    currentNow = new Date(initialPeriod.expiresAt.getTime() - 1_000);
+    const probe = setup(null, undefined, undefined, { clock: () => currentNow });
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const lookup = await readyOffer(probe.service);
+    const selected = await probe.service.selectAdventureProblem(telegramUserId, {
+      periodToken: lookup.periodToken,
+      problemId: lookup.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected Adventure, got ${selected.state}.`);
+    }
+
+    const completed = await probe.service.completeAdventureApproach(telegramUserId, {
+      periodToken: lookup.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    });
+    const expectedAvailableAt = new Date(currentNow.getTime() + ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000);
+
+    expect(completed.state).toBe("completed");
+    currentNow = new Date(initialPeriod.expiresAt.getTime() + 1_000);
+    await expect(probe.service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "already-completed",
+      availableAt: expectedAvailableAt,
+      now: currentNow
+    });
+
+    currentNow = expectedAvailableAt;
+    await expect(probe.service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready"
+    });
   });
 
   it("adds race, class, and title-specific problems to matching offers", async () => {
@@ -733,6 +771,94 @@ describe("AdventureService", () => {
     expect(completed.state).toBe("completed");
     expect(found.dailyActions.records.filter((record) => record.key === ADVENTURE_CHOICE_KEY)).toHaveLength(1);
     expect(found.dailyActions.records.filter((record) => record.key === ADVENTURE_CHOICE_REROLL_KEY)).toHaveLength(2);
+  });
+
+  it("resets an active Adventure claim across an offer boundary and rerolls the current offer", async () => {
+    let currentNow = fixedClock();
+    const initialPeriod = buildAdventurePeriod(currentNow);
+    currentNow = new Date(initialPeriod.expiresAt.getTime() - 1_000);
+    const probe = setup(null, undefined, undefined, { clock: () => currentNow });
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const oldOffer = await readyOffer(probe.service);
+    const selected = await probe.service.selectAdventureProblem(telegramUserId, {
+      periodToken: oldOffer.periodToken,
+      problemId: oldOffer.choices[0]!.id
+    });
+
+    expect(selected.state).toBe("selected");
+    if (selected.state !== "selected") {
+      throw new Error(`Expected selected Adventure, got ${selected.state}.`);
+    }
+    await expect(probe.service.completeAdventureApproach(telegramUserId, {
+      periodToken: oldOffer.periodToken,
+      problemId: selected.choice.id,
+      methodId: selected.approaches[0]!.callbackKey ?? selected.approaches[0]!.id
+    })).resolves.toMatchObject({ state: "completed" });
+
+    currentNow = new Date(initialPeriod.expiresAt.getTime() + 1_000);
+    const currentPeriod = buildAdventurePeriod(currentNow);
+    const reset = await probe.service.resetCurrentPeriodForTelegramUser(telegramUserId);
+
+    expect(reset).toMatchObject({ state: "reset" });
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: initialPeriod.storageKey
+    });
+    expect(probe.dailyActions.records).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: ADVENTURE_CHOICE_KEY, localDate: initialPeriod.storageKey })
+    ]));
+    expect(probe.dailyActions.records.some(
+      (record) =>
+        record.key === ADVENTURE_CHOICE_REROLL_KEY &&
+        record.localDate.startsWith(`${currentPeriod.storageKey}:reroll:`)
+    )).toBe(true);
+    const rerolledOffer = await readyOffer(probe.service);
+    expect(rerolledOffer.periodToken).toBe(reset.state === "reset" ? reset.periodToken : "");
+  });
+
+  it("keeps reroll-only reset behavior when there is no active Adventure claim", async () => {
+    const probe = setup();
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const period = buildAdventurePeriod(fixedClock());
+
+    const reset = await probe.service.resetCurrentPeriodForTelegramUser(telegramUserId);
+
+    expect(reset).toMatchObject({ state: "rerolled" });
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: period.storageKey
+    });
+    const rerolledOffer = await readyOffer(probe.service);
+    expect(rerolledOffer.periodToken).toBe(reset.state === "rerolled" ? reset.periodToken : "");
+  });
+
+  it("retains an expired historical Adventure claim during reroll-only reset", async () => {
+    const probe = setup();
+    probe.characters.add(telegramUserId, { xp: 25, gold: 10 });
+    const currentPeriod = buildAdventurePeriod(fixedClock());
+    const historicalPeriod = buildAdventurePeriod(
+      new Date(fixedClock().getTime() - ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000)
+    );
+    probe.dailyActions.add(telegramUserId, {
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: historicalPeriod.storageKey,
+      createdAt: new Date(fixedClock().getTime() - ADVENTURE_CHOICE_PERIOD_MINUTES * 60_000 - 1)
+    });
+
+    await expect(probe.service.resetCurrentPeriodForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "rerolled"
+    });
+
+    expect(probe.dailyActions.lastDeleteInput).toEqual({
+      key: ADVENTURE_CHOICE_KEY,
+      localDate: currentPeriod.storageKey
+    });
+    expect(probe.dailyActions.records).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: ADVENTURE_CHOICE_KEY, localDate: historicalPeriod.storageKey })
+    ]));
+    await expect(probe.service.getAdventureOfferForTelegramUser(telegramUserId)).resolves.toMatchObject({
+      state: "ready"
+    });
   });
 
   it("rejects stale period and stale problem callbacks without claiming", async () => {
@@ -1383,6 +1509,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
   private readonly failFindKeys = new Set<string>();
   createCount = 0;
   readonly findInputs: Array<{ key: string; localDate: string }> = [];
+  readonly latestFindInputs: Array<{ key: string }> = [];
   lastDeleteInput: DailyActionClaimIdentity | null = null;
   lastRollbackInput: DailyActionRollbackInput | null = null;
 
@@ -1405,6 +1532,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardGold?: number;
       spentGold?: number;
       resultJson?: DailyActionRecord["resultJson"];
+      createdAt?: Date;
     }
   ): void {
     const characterId = `character-${userTelegramId.toString()}`;
@@ -1417,7 +1545,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardGold: input.rewardGold ?? 0,
       spentGold: input.spentGold ?? 0,
       resultJson: input.resultJson ?? null,
-      createdAt: fixedClock()
+      createdAt: input.createdAt ?? fixedClock()
     };
     this.actions.set(`${characterId}:${input.key}:${input.localDate}`, action);
   }
@@ -1439,6 +1567,25 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
   }
 
+  async findLatestForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    this.latestFindInputs.push(input);
+    if (this.failFindKeys.delete(input.key)) {
+      throw new Error(`fail-once latest daily action read: ${input.key}`);
+    }
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+
+    if (!character) {
+      return null;
+    }
+
+    return [...this.actions.values()]
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null;
+  }
+
   async claimForTelegramUser(
     userTelegramId: bigint,
     input: ClaimDailyActionInput
@@ -1458,8 +1605,33 @@ class FakeDailyActionRepository implements DailyActionRepository {
         action: existing,
         character,
         levelChange: null,
-        itemGrants: []
+        itemGrants: [],
+        ...(input.rollingCooldown
+          ? {
+              availableAt: new Date(
+                existing.createdAt.getTime() + input.rollingCooldown.durationMs
+              )
+            }
+          : {})
       };
+    }
+
+    if (input.rollingCooldown) {
+      const latest = await this.findLatestForTelegramUser(userTelegramId, { key: input.key });
+      const availableAt = latest
+        ? new Date(latest.createdAt.getTime() + input.rollingCooldown.durationMs)
+        : null;
+
+      if (latest && availableAt && availableAt > input.rollingCooldown.now) {
+        return {
+          state: "existing",
+          action: latest,
+          character,
+          levelChange: null,
+          itemGrants: [],
+          availableAt
+        };
+      }
     }
 
     const spentGold = Math.max(0, Math.floor(input.spentGold ?? 0));
@@ -1482,7 +1654,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       rewardGold: input.rewardGold,
       spentGold,
       resultJson: input.resultJson ?? null,
-      createdAt: fixedClock()
+      createdAt: input.rollingCooldown?.now ?? fixedClock()
     };
     this.actions.set(claimKey, action);
 

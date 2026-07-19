@@ -55,6 +55,36 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async findLatestForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    const character = await this.prisma.character.findFirst({
+      where: {
+        user: {
+          telegramUserId
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!character) {
+      return null;
+    }
+
+    return this.prisma.dailyAction.findFirst({
+      where: {
+        characterId: character.id,
+        key: input.key
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+  }
+
   async claimForTelegramUser(
     telegramUserId: bigint,
     input: ClaimDailyActionInput
@@ -80,7 +110,8 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
         if (!claimedCharacter) {
           return null;
         }
-        const { user, ...character } = claimedCharacter;
+        const { user, ...initialCharacter } = claimedCharacter;
+        let character = initialCharacter;
         const currentLocationId = user?.lastSeenLocationId
           ? normalizePresenceLocationId(user.lastSeenLocationId)
           : null;
@@ -109,13 +140,50 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             action: existing,
             character: { ...character, currentLocationId, remortCount },
             levelChange: null,
-            itemGrants: []
+            itemGrants: [],
+            ...(input.rollingCooldown
+              ? { availableAt: buildRollingCooldownAvailableAt(existing, input.rollingCooldown) }
+              : {})
           };
         }
 
         const remortCount = await countCharacterRemorts(tx, character.id);
         if (input.expectedLife && remortCount !== input.expectedLife.remortCount) {
           return null;
+        }
+
+        if (input.rollingCooldown) {
+          character = await tx.character.update({
+            where: {
+              id: character.id
+            },
+            data: {
+              updatedAt: new Date()
+            }
+          });
+          const latest = await tx.dailyAction.findFirst({
+            where: {
+              characterId: character.id,
+              key: input.key
+            },
+            orderBy: {
+              createdAt: "desc"
+            }
+          });
+          const availableAt = latest
+            ? buildRollingCooldownAvailableAt(latest, input.rollingCooldown)
+            : null;
+
+          if (latest && availableAt && availableAt > input.rollingCooldown.now) {
+            return {
+              state: "existing",
+              action: latest,
+              character: { ...character, currentLocationId, remortCount },
+              levelChange: null,
+              itemGrants: [],
+              availableAt
+            };
+          }
         }
 
         if (input.localDatePrefixLimit) {
@@ -200,6 +268,7 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
             rewardXp: input.rewardXp,
             rewardGold: input.rewardGold,
             spentGold,
+            ...(input.rollingCooldown ? { createdAt: input.rollingCooldown.now } : {}),
             ...(input.resultJson === undefined && !hpLoss
               ? {}
               : { resultJson: withHpLossAudit(input.resultJson, hpLoss) as Prisma.InputJsonValue })
@@ -835,9 +904,21 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       action,
       character: { ...character, currentLocationId, remortCount },
       levelChange: null,
-      itemGrants: []
+      itemGrants: [],
+      ...(input.rollingCooldown
+        ? { availableAt: buildRollingCooldownAvailableAt(action, input.rollingCooldown) }
+        : {})
     };
   }
+}
+
+function buildRollingCooldownAvailableAt(
+  action: Pick<DailyActionRecord, "createdAt">,
+  cooldown: NonNullable<ClaimDailyActionInput["rollingCooldown"]>
+): Date {
+  const durationMs = Math.max(0, Math.floor(cooldown.durationMs));
+
+  return new Date(action.createdAt.getTime() + durationMs);
 }
 
 function withQuestIskrokaminBonus(

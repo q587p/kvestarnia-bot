@@ -843,7 +843,9 @@ describe("quest hub command", () => {
     );
 
     expect(replies[0]?.text).toContain("📦 Архів справ");
-    expect(replies[0]?.text).toContain("🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів.");
+    expect(replies[0]?.text).toContain(
+      "🪧 <i>Три справи на найближчий час</i> — виконано; наступні три справи будуть доступні через 92 хвилини."
+    );
     expect(replies[0]?.text).toContain(
       "🧾 <i>Тринадцять дрібних проблем</i> — 14/13 проблем у журналі, справу здано; Корчмар має наступний папірець."
     );
@@ -1877,7 +1879,9 @@ function completedAdventureService(summary: CharacterSummary): AdventureService 
     getAdventureOfferForTelegramUser: () =>
       Promise.resolve({
         state: "already-completed",
-        character: summary
+        character: summary,
+        now: new Date("2026-07-18T20:18:00.000Z"),
+        availableAt: new Date("2026-07-18T21:50:00.000Z")
       }),
     completeAdventureApproach: () => Promise.resolve({ state: "no-character" })
   } as unknown as AdventureService;

@@ -70,7 +70,7 @@ export function presentAdventureProblem(
   }
 
   if (result.state === "already-completed") {
-    return presentAdventureAlreadyCompleted();
+    return presentAdventureAlreadyCompleted(result);
   }
 
   return [
@@ -139,13 +139,19 @@ export function presentAdventureNoCharacter(): string {
   return "Спершу створіть пригодника через /start. Стіл зі справами не видає папери без анкети.";
 }
 
-export function presentAdventureAlreadyCompleted(): string {
+export function presentAdventureAlreadyCompleted(
+  result?: { availableAt?: Date; now?: Date }
+): string {
+  const wait = result?.availableAt && result.now
+    ? `Наступні три справи будуть доступні через ${formatAdventureCooldown(result.availableAt, result.now)}.`
+    : "Повертайтесь трохи згодом або перевірте персонажа: /hero";
+
   return [
     "🪧 Спробу на найближчий час уже використано.",
     "",
     "Корчмар поставив галочку на папірці, а не на результаті. Повторні натискання не видають додаткову винагороду.",
     "",
-    "Повертайтесь трохи згодом або перевірте персонажа: /hero"
+    wait
   ].join("\n");
 }
 
@@ -218,7 +224,7 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   }
 
   if (result.state === "already-completed") {
-    return presentAdventureAlreadyCompleted();
+    return presentAdventureAlreadyCompleted(result);
   }
 
   if (result.state === "insufficient-gold") {
@@ -261,7 +267,9 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
         ? [
             "",
             "Винагорода за справу:\n<b>0 XP\n0 золота</b>",
-            "Наступний набір справ відкриється в наступний 93-хвилинний період."
+            result.availableAt && result.now
+              ? `Наступні три справи будуть доступні через ${formatAdventureCooldown(result.availableAt, result.now)}.`
+              : "Наступні три справи будуть доступні через 93 хвилини."
           ]
         : [
             "",
@@ -277,6 +285,27 @@ export function presentAdventureResult(result: Exclude<AdventureResult, { state:
   ];
 
   return lines.join("\n");
+}
+
+function formatAdventureCooldown(availableAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
+
+  return `${minutes} ${pluralizeMinutes(minutes)}`;
+}
+
+function pluralizeMinutes(minutes: number): string {
+  const mod10 = minutes % 10;
+  const mod100 = minutes % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return "хвилину";
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return "хвилини";
+  }
+
+  return "хвилин";
 }
 
 export function presentMimicShawarmaResult(

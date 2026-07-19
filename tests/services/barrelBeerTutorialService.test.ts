@@ -485,6 +485,17 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return Promise.resolve(this.actions.get(actionKey(input.key, input.localDate)) ?? null);
   }
 
+  findLatestForTelegramUser(
+    _telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    return Promise.resolve(
+      [...this.actions.values()]
+        .filter((action) => action.key === input.key)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
+    );
+  }
+
   claimForTelegramUser(
     _telegramUserId: bigint,
     input: ClaimDailyActionInput

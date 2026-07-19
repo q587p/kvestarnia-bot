@@ -772,6 +772,27 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
     throw new Error("Not implemented");
   }
 
+  findForTelegramUser(
+    id: bigint,
+    input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null> {
+    return this.daily.findForTelegramUser(id, input);
+  }
+
+  findLatestForTelegramUser(
+    id: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    return this.daily.findLatestForTelegramUser(id, input);
+  }
+
+  claimForTelegramUser(
+    id: bigint,
+    input: ClaimDailyActionInput
+  ): Promise<ClaimDailyActionResult | null> {
+    return this.daily.claimForTelegramUser(id, input);
+  }
+
   getCurrentPlaceForTelegramUser(id: bigint) {
     if (id !== telegramUserId || !this.character) {
       return Promise.resolve({ state: "no-character" as const });
@@ -841,6 +862,20 @@ class FakeDailyActionRepository implements DailyActionRepository {
     }
 
     return Promise.resolve(this.actions.get(keyFor(input)) ?? null);
+  }
+
+  findLatestForTelegramUser(
+    id: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    if (id !== telegramUserId || !this.world.character) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(
+      this.records
+        .filter((record) => record.key === input.key)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
+    );
   }
 
   listForTelegramUser(id: bigint, input: { key: string }): Promise<DailyActionRecord[] | null> {

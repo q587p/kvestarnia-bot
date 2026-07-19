@@ -104,8 +104,12 @@ function presentAdventureArchiveRows(
   const rows: string[] = [];
 
   if (adventure.state === "already-completed") {
+    const wait = adventure.availableAt && adventure.now
+      ? ` наступні три справи будуть доступні через ${formatCooldown(adventure.availableAt, adventure.now)}.`
+      : " Корчмар поставив галочку і не визнає повторів.";
+
     rows.push(
-      "🪧 <i>Три справи на найближчий час</i> — виконано; Корчмар поставив галочку і не визнає повторів."
+      `🪧 <i>Три справи на найближчий час</i> — виконано;${wait}`
     );
   } else if (
     adventure.state !== "ready" &&

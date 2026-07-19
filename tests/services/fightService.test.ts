@@ -7288,6 +7288,22 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
   }
 
+  async findLatestForTelegramUser(
+    userTelegramId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    if (this.failFindKeys.delete(input.key)) {
+      throw new Error(`fail-once latest daily action read: ${input.key}`);
+    }
+    const character = await this.characters.findByTelegramUserId(userTelegramId);
+    if (!character) {
+      return null;
+    }
+    return this.records
+      .filter((action) => action.characterId === character.id && action.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null;
+  }
+
   addAction(
     userTelegramId: bigint,
     key: string,

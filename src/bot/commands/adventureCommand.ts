@@ -143,7 +143,7 @@ export async function sendAdventure(
       return;
     }
 
-    await sendText(ctx, mode, presentAdventureAlreadyCompleted(), "adventure-result");
+    await sendText(ctx, mode, presentAdventureAlreadyCompleted(result), "adventure-result");
     return;
   }
 

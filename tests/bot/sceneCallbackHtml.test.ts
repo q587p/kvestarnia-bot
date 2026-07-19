@@ -632,7 +632,8 @@ describe("scene callback HTML options", () => {
         createdAt: new Date("2026-06-12T10:30:00.000Z")
       };
       const dailyActions: DailyActionRepository = {
-        findForTelegramUser: async () => {
+        findForTelegramUser: () => Promise.resolve(null),
+        findLatestForTelegramUser: async () => {
           preflightReads += 1;
           if (preflightReads === 2) {
             releasePreflights();
@@ -729,7 +730,9 @@ describe("scene callback HTML options", () => {
       expect(finalLocationId).toBe(originLocationId);
       const edits = calls.filter((call) => call.method === "editMessageText");
       expect(edits).toHaveLength(2);
-      expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+      expect(edits.some((edit) => String(edit.payload.text).includes(
+        "Наступні три справи будуть доступні через 93 хвилини."
+      ))).toBe(true);
     }
   );
 
@@ -800,7 +803,8 @@ describe("scene callback HTML options", () => {
       createdAt: new Date("2026-06-12T10:30:00.000Z")
     };
     const dailyActions: DailyActionRepository = {
-      findForTelegramUser: async () => {
+      findForTelegramUser: () => Promise.resolve(null),
+      findLatestForTelegramUser: async () => {
         preflightReads += 1;
         if (preflightReads === 1) {
           releaseLoserPreflight();
@@ -911,7 +915,9 @@ describe("scene callback HTML options", () => {
     expect(finalLocationId).toBe(originLocationId);
     const edits = calls.filter((call) => call.method === "editMessageText");
     expect(edits).toHaveLength(2);
-    expect(edits.some((edit) => String(edit.payload.text).includes("/hero"))).toBe(true);
+    expect(edits.some((edit) => String(edit.payload.text).includes(
+      "Наступні три справи будуть доступні через 93 хвилини."
+    ))).toBe(true);
   });
 
   it("routes duplicate v2 paid cellar method taps through cooldown after the first result", async () => {

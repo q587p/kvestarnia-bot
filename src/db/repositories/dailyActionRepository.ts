@@ -82,6 +82,10 @@ export interface ClaimDailyActionInput {
     localDatePrefix: string;
     maxRows: number;
   };
+  rollingCooldown?: {
+    now: Date;
+    durationMs: number;
+  };
 }
 
 export class DailyActionQuantityLimitExceededError extends Error {
@@ -126,6 +130,7 @@ export type ClaimDailyActionResult =
       character: CharacterRecord;
       levelChange: null;
       itemGrants: [];
+      availableAt?: Date;
     }
   | {
       state: "insufficient-gold";
@@ -137,6 +142,11 @@ export interface DailyActionRepository {
   findForTelegramUser(
     telegramUserId: bigint,
     input: { key: string; localDate: string }
+  ): Promise<DailyActionRecord | null>;
+
+  findLatestForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string }
   ): Promise<DailyActionRecord | null>;
 
   claimForTelegramUser(

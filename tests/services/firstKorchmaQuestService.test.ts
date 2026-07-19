@@ -193,6 +193,17 @@ class TestDailyActionRepository implements DailyActionRepository {
     return Promise.resolve(this.rows.get(rowKey(input.key, input.localDate)) ?? null);
   }
 
+  findLatestForTelegramUser(
+    _telegramUserId: bigint,
+    input: { key: string }
+  ): Promise<DailyActionRecord | null> {
+    return Promise.resolve(
+      [...this.rows.values()]
+        .filter((row) => row.key === input.key)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
+    );
+  }
+
   claimForTelegramUser(
     _telegramUserId: bigint,
     input: ClaimDailyActionInput

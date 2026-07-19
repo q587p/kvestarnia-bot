@@ -461,6 +461,16 @@ class TestDailyActionRepository implements DailyActionRepository {
     return Promise.resolve(this.rows.get(rowKey(telegramUserId, input.key, input.localDate)) ?? null);
   }
 
+  findLatestForTelegramUser(telegramUserId: bigint, input: { key: string }): Promise<DailyActionRecord | null> {
+    const character = this.characters.get(telegramUserId);
+    if (!character) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve([...this.rows.values()]
+      .filter((row) => row.characterId === character.id && row.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null);
+  }
+
   listForCharacterByKeys(
     characterId: string,
     input: { keys: readonly string[]; localDate: string; take: number }
