@@ -263,7 +263,6 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
     BardInspirationCombatStateV1,
     "activationId" | "outsideRemainderMs" | "expiresAt" | "cursorAt"
   >;
-  syncBardInspiration?: boolean;
 }): Promise<boolean> {
   const claimedAt = new Date(Math.max(
     input.releasedAt.getTime(),
@@ -311,7 +310,7 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
         }
       : {})
   });
-  if (input.syncBardInspiration !== false && input.inspiration) {
+  if (input.inspiration) {
     await advanceBardInspirationCursorThroughCombat({
       tx: input.tx,
       characterId: input.lease.characterId,
@@ -326,8 +325,7 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
     await invalidateBardInspirationOwnedByCombatLease({
       tx: input.tx,
       characterId: input.lease.characterId,
-      leaseStartedAt: input.lease.createdAt,
-      ...(input.inspiration ? { activationId: input.inspiration.activationId } : {})
+      leaseStartedAt: input.lease.createdAt
     });
   }
 

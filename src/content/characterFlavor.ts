@@ -15,7 +15,10 @@ export type FlavorPlacement =
 
 export type FlavorScene = "shawarma" | "fight" | "cellar" | "barrel";
 
-export const BARD_SUPPORT_RAID_PREP_HINT =
+export const BARD_FULL_RAID_DAILY_TIP =
+  "Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів.";
+
+export const BARD_BIG_BARREL_SUPPORT_TIP =
   "Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.";
 
 export interface CharacterFlavorSelector {
@@ -1370,7 +1373,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
   ...buildCellarOutcomeRaceLines(),
   ...buildCellarOutcomeClassLines(),
   ...buildCellarOutcomeComboLines(),
-  // Shared raid-prep flavor must remain safe on surfaces that do not know feature flags.
+  // Shared raid-prep flavor must remain safe on unrelated Fight and Duel surfaces.
   {
     id: "barrel.raid-hint.class.warrior",
     placement: "raid.prep-hint",

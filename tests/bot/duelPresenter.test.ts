@@ -69,7 +69,7 @@ describe("duel presenter", () => {
     expect(intro).toContain("</i>");
   });
 
-  it("keeps the turn-duel intro free of disabled Bard mechanics", () => {
+  it("keeps the turn-duel intro free of Big Barrel-specific Bard mechanics", () => {
     const view = makeTurnBasedDuelView({});
     view.challenger = {
       name: "Бард дуелі",

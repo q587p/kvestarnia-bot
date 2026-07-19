@@ -57,7 +57,6 @@ export function createServices(
   config: AppConfig
 ): ApplicationServices {
   const nonProduction = config.nodeEnv !== "production";
-  const bardSupportEnabled = nonProduction || config.bardSupportEnabled;
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
@@ -113,7 +112,6 @@ export function createServices(
     undefined,
     undefined,
     {
-      bardSupportEnabled,
       devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
     }
   );
@@ -239,8 +237,7 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: nonProduction,
-      bardSupportEnabled
+      devHelpersEnabled: nonProduction
     }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||

@@ -23,6 +23,7 @@ import type { KorchmaArrivalBoard, PresenceGroup } from "../../services/presence
 import type { LevelMilestoneBoard } from "../../db/repositories/levelMilestoneRepository";
 import type { RemortBoard } from "../../db/repositories/remortRepository";
 import {
+  BARD_FULL_RAID_DAILY_TIP,
   selectCharacterFlavorLine,
   selectCharacterFlavorLines,
   selectKorchmaGreetingLine
@@ -814,6 +815,10 @@ function presentKorchmaGreeting(character: CharacterSummary, seed = "korchma-hal
 }
 
 function presentRaidPrepHint(character: CharacterSummary, seed: string, rotate: boolean): string[] {
+  if (character.classId === "class.bard") {
+    return [`<i>Порада дня: ${escapeHtml(BARD_FULL_RAID_DAILY_TIP)}</i>`];
+  }
+
   const flavors = selectCharacterFlavorLines(character, {
     placement: "raid.prep-hint",
     scene: "barrel",

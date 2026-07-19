@@ -55,7 +55,6 @@ HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
-BARD_SUPPORT_ENABLED=false
 # SUPPORT_JAR_URL=https://send.monobank.ua/jar/<real-jar-id>
 # SUPPORT_JAR_CURRENT_UAH=0
 # SUPPORT_JAR_GOAL_UAH=5000
@@ -94,7 +93,7 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 
 `FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED` окремо відкриває production-поверхню справи `Перше правило Бійцівського кутка`; до цільової runtime-перевірки лишай його `false`. `FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED` стосується лише локального helper-а й ніколи не обходить production-gate.
 
-`BARD_SUPPORT_ENABLED` окремо відкриває production-гранти/читання `✨ Натхнення` та `🎻 Журливу баладу`; до ручної Telegram-перевірки лишай його `false`. Вимкнення є повним rollback: persisted combat snapshots не впливають на механіку чи copy, а terminal release інвалідовує matching lease-owned Inspiration, щоб вона не зʼявилася знову після повторного ввімкнення. У non-production ці поверхні доступні автоматично, але `/dev_reset_bard_performance` все одно реєструється лише з `DEV_GRANT_COMMANDS_ENABLED=true`.
+`✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
 `SUPPORT_JAR_URL` optional. Якщо він заданий, це має бути absolute `https://send.monobank.ua/jar/...` без URL credentials; без нього `/support` і public site не показують битих support-link-ів.
 

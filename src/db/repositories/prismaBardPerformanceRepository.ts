@@ -120,18 +120,12 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           return { state: "live", character: record, performance: live };
         }
 
-        const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
-          where: { characterId: character.id, locationId: input.locationId, remortCount },
-          orderBy: { cooldownAvailableAt: "desc" }
-        }));
-        const musicAvailableAt = input.bardSupportEnabled
-          ? await findBardMusicAvailableAt({
-              tx,
-              characterId: character.id,
-              locationId: input.locationId,
-              remortCount
-            })
-          : lastPerformance?.cooldownAvailableAt ?? null;
+        const musicAvailableAt = await findBardMusicAvailableAt({
+          tx,
+          characterId: character.id,
+          locationId: input.locationId,
+          remortCount
+        });
         if (musicAvailableAt && musicAvailableAt > input.now) {
           return {
             state: "cooldown",
@@ -195,16 +189,14 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         if (!performance) {
           throw new Error("Bard performance mapping failed after create.");
         }
-        if (input.bardSupportEnabled) {
-          await writeBardMusicAvailability({
-            tx,
-            characterId: character.id,
-            locationId: input.locationId,
-            now: input.now,
-            source: "performance",
-            sourceId: performance.id
-          });
-        }
+        await writeBardMusicAvailability({
+          tx,
+          characterId: character.id,
+          locationId: input.locationId,
+          now: input.now,
+          source: "performance",
+          sourceId: performance.id
+        });
 
         if (housePayoutGold > 0) {
           await tx.character.update({
@@ -230,19 +222,17 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
             }
           }));
           if (reaction) {
-            const inspiration = input.bardSupportEnabled
-              ? await grantBardInspiration({
-                  tx,
-                  activationId: `${performance.id}:${member.characterId}`,
-                  sourcePerformanceId: performance.id,
-                  sourceCharacterId: character.id,
-                  sourceLocationId: input.locationId,
-                  recipientCharacterId: member.characterId,
-                  recipientRemortCount: member.remortCount,
-                  grade: performance.grade as BardPerformanceGrade,
-                  now: input.now
-                })
-              : null;
+            const inspiration = await grantBardInspiration({
+              tx,
+              activationId: `${performance.id}:${member.characterId}`,
+              sourcePerformanceId: performance.id,
+              sourceCharacterId: character.id,
+              sourceLocationId: input.locationId,
+              recipientCharacterId: member.characterId,
+              recipientRemortCount: member.remortCount,
+              grade: performance.grade as BardPerformanceGrade,
+              now: input.now
+            });
             notices.push({
               telegramUserId: member.telegramUserId,
               name: member.name,
@@ -310,18 +300,12 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         return { state: "live", character: record, performance: live };
       }
 
-      const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
-        where: { characterId: character.id, locationId: input.locationId, remortCount },
-        orderBy: { cooldownAvailableAt: "desc" }
-      }));
-      const musicAvailableAt = input.bardSupportEnabled
-        ? await findBardMusicAvailableAt({
-            tx,
-            characterId: character.id,
-            locationId: input.locationId,
-            remortCount
-          })
-        : lastPerformance?.cooldownAvailableAt ?? null;
+      const musicAvailableAt = await findBardMusicAvailableAt({
+        tx,
+        characterId: character.id,
+        locationId: input.locationId,
+        remortCount
+      });
       if (musicAvailableAt && musicAvailableAt > input.now) {
         return {
           state: "cooldown",

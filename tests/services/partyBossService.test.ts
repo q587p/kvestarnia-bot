@@ -547,11 +547,11 @@ describe("PartyBossService achievements", () => {
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledTimes(1);
     expect(recordPartyRaidCompletedSafely).toHaveBeenCalledWith(result.session);
   });
-  it("rejects Lament before the repository when Bard support is off", async () => {
+  it("rejects Lament before the repository when Big Barrel is disabled", async () => {
     const submitLamentForTelegramUser = vi.fn<PartyBossRepository["submitLamentForTelegramUser"]>();
     const service = new PartyBossService(
       { submitLamentForTelegramUser } as unknown as PartyBossRepository,
-      { enabled: true, bardSupportEnabled: false }
+      { enabled: false }
     );
 
     await expect(service.submitLamentForTelegramUser(123n, "token-1", 1)).resolves.toEqual({
@@ -625,7 +625,7 @@ describe("PartyBossService achievements", () => {
     const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([unlock]);
     const service = new PartyBossService(
       { submitLamentForTelegramUser } as unknown as PartyBossRepository,
-      { enabled: true, bardSupportEnabled: true },
+      { enabled: true },
       () => occurredAt,
       { trackEventSafely } as unknown as AchievementService
     );
@@ -643,7 +643,7 @@ describe("PartyBossService achievements", () => {
       .mockResolvedValue(session);
     const service = new PartyBossService(
       { submitActionForTelegramUser, findByPartyInviteToken } as unknown as PartyBossRepository,
-      { enabled: true, bardSupportEnabled: true }
+      { enabled: true }
     );
 
     const result = await service.submitActionForTelegramUser(

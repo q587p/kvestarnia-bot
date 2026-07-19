@@ -563,7 +563,7 @@ Use one level 3+ account with local dev commands enabled where helpful.
 
 ## 0.3.14 — Bard Inspiration and Big Barrel Lament smoke
 
-Manual Telegram QA status for the implementation pass: not run. Use two Bard-capable local accounts, one listener and one non-Bard; refresh the isolated bot manually with `BARD_SUPPORT_ENABLED=true`, `BIG_BARREL_BROTHER_RAID_ENABLED=true` and local dev grants enabled.
+Manual Telegram QA status for the implementation pass: not run. Use two Bard-capable local accounts, one listener and one non-Bard; refresh the isolated bot manually with `BIG_BARREL_BROTHER_RAID_ENABLED=true` and local dev grants enabled.
 
 1. Start a same-location performance with an active listener; verify the listener gets one free `✨ Натхнення` notice before any applause/tip choice and the Bard’s payout is unchanged.
 2. Use `/dev_reset_bard_performance grant 1`, then repeat stronger/equal/weaker grants; verify only a stronger value replaces and resets the visible duration.
@@ -573,9 +573,9 @@ Manual Telegram QA status for the implementation pass: not run. Use two Bard-cap
 6. Check focused, broad, Taunt-redirected, Ward and Protocol rounds; verify the song counter moves once per whole boss response, never per target, and zero direct damage remains zero.
 7. Reopen the raid card after a local bot refresh; verify the stored grade/counter and journal text are unchanged. Finish/cancel and start a new raid; verify no old Lament transfers.
 8. Try a performance after Lament and a Lament after performance in the same location; verify both show the same canonical remaining wait.
-9. Set `NODE_ENV=production`, leave `BARD_SUPPORT_ENABLED=true` and `DEV_GRANT_COMMANDS_ENABLED=true`; verify the helper is absent from registration/help/menu and cannot mutate through its service path.
-10. With `BARD_SUPPORT_ENABLED=false`, open a pending Tavern raid block, persistent-fight intro, turn-duel intro and active Big Barrel card as a Bard; verify none advertises Inspiration or Lament, and an old Lament callback keeps the canonical raid card.
-11. Exhaust frozen Inspiration in solo/Training, turn duel and Big Barrel, terminalize with the flag off, then re-enable before the original wall-clock expiry; verify `/hero` and a new combat do not resurrect or extend it. Repeat once after an off-mode active turn followed by re-enable before release.
+9. Set `NODE_ENV=production` and `DEV_GRANT_COMMANDS_ENABLED=true`; verify the helper is absent from registration/help/menu and cannot mutate through its service path.
+10. Open pending and blocked Tavern raid cards as a Bard; verify the daily tip says `Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів.` Open persistent-fight and turn-duel intros and verify they do not repeat Big Barrel-specific Inspiration/Lament instructions; the Big Barrel intro should retain the specific support explanation.
+11. Exhaust frozen Inspiration in solo/Training, turn duel and Big Barrel before the original wall-clock expiry; verify `/hero` treats zero combat remainder as authoritative and terminal release does not resurrect or extend it.
 12. Start a performance, remort before its 13-minute live window ends, restore new-life Bard eligibility at the same location and perform again; verify the old performance/reactions remain audit history but only the new-life live guard controls the new performance.
 13. In multi-enemy PvE, force a 1-HP Bard-supported hero to die from a committed critical fumble or reflection; verify the final Inspiration minute is consumed once, `Ситий` does not revive the hero, and replay does not add another pulse.
 14. Commit Lament, then press a previously rendered `🎒 Одноразові манатки` button from the source Bard and another participant; verify the source returns to the canonical locked raid card while the other participant can still open the submenu.

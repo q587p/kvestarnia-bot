@@ -118,7 +118,6 @@ describe("party boss reducer", () => {
     const state = createPartyBossState({
       partySessionId: "big-barrel-lament-focused",
       variant: "big-barrel",
-      bardMusicEnabled: true,
       now: new Date("2026-07-18T10:00:00.000Z"),
       participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })]
     });
@@ -161,7 +160,6 @@ describe("party boss reducer", () => {
     const state = createPartyBossState({
       partySessionId: "big-barrel-lament-broad",
       variant: "big-barrel",
-      bardMusicEnabled: true,
       now: new Date("2026-07-18T10:00:00.000Z"),
       participants: [
         participant("bard", "Бард", { classId: "class.bard", charisma: 17 }),
@@ -199,7 +197,6 @@ describe("party boss reducer", () => {
     const state = createPartyBossState({
       partySessionId: "big-barrel-lament-order",
       variant: "big-barrel",
-      bardMusicEnabled: true,
       now: new Date("2026-07-18T10:00:00.000Z"),
       participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })],
       wardSign: {
@@ -240,7 +237,6 @@ describe("party boss reducer", () => {
     const state = createPartyBossState({
       partySessionId: "big-barrel-lament-zero",
       variant: "big-barrel",
-      bardMusicEnabled: true,
       now: new Date("2026-07-18T10:00:00.000Z"),
       participants: [participant("bard", "Бард", { classId: "class.bard", charisma: 17 })]
     });
@@ -1430,7 +1426,8 @@ describe("party boss reducer", () => {
       hpMax: entry.resources.hpMax,
       mana: entry.resources.mana,
       manaMax: entry.resources.manaMax,
-      varenykSated: null
+      varenykSated: null,
+      bardInspiration: null
     })));
   });
 

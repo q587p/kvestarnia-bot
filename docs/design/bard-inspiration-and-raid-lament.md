@@ -102,7 +102,6 @@ No Prisma schema change is expected.
 
 Show `🎻 Заграти журливу баладу` only when all are true:
 
-- Bard support is enabled under the chosen rollout gate;
 - the character is a living Bard participant in an active Big Barrel fight;
 - the boss and the character’s current raid action are still eligible;
 - the raid music slot is free;
@@ -216,20 +215,25 @@ Concurrent loser:
 
 > 🎶 У цьому рейді вже прозвучав бардівський номер. Друга драматична кульмінація не передбачена кошторисом.
 
-Daily tip replacement:
+Tavern raid-prep daily tip:
+
+> Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів.
+
+Big Barrel-specific support tip:
 
 > Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.
 
 Keep exact remaining duration/cooldown derived from canonical `availableAt`/state data. Use distinct icons for performance, Inspiration, and Lament on adjacent surfaces.
 
-## Persistence, idempotency, and rollout
+## Persistence, idempotency, and availability
 
 - All random outcomes are seeded/frozen once and persisted.
 - Audience grants, replacement decisions, and reactions are restart-safe.
 - Raid slot claim, queued action, effect snapshot, and shared cooldown are one atomic commit.
 - Replaying Telegram callbacks never grants, pulses, or spends twice.
 - Invalid/malformed legacy payloads degrade to no effect and are cleaned safely.
-- Add one explicit Bard-support rollout flag using the repository’s established config mechanism (referred to here as `BARD_SUPPORT_ENABLED`; adapt only the identifier spelling to the existing convention). It defaults off in production. Feature-off behavior preserves the old performance flow, grants no hidden Inspiration, and hides/rejects Lament without introducing a general config framework.
+- Inspiration is part of every eligible normal Bard performance. Do not add a Bard-specific rollout flag.
+- Lament is available only inside the existing Big Barrel surface and therefore follows `BIG_BARREL_BROTHER_RAID_ENABLED` in production.
 - Add or extend a narrow non-production `/dev_*` helper for clearing/granting the caller’s Bard support state and accelerating the local raid check. It must be impossible to register, display, or mutate in production, including when a feature-specific dev flag is set.
 
 ## Documentation and release surfaces
@@ -245,7 +249,7 @@ Update in the implementation PR:
 - package version and lockfile;
 - `CHANGELOG.md` with exact mechanics;
 - spoiler-light `news.md` in its established structure;
-- the exact daily tip in `src/content/characterFlavor.ts` and its stale future-only comment;
-- PR body with explicit achievement, remort, rollout, migration, and manual-QA decisions.
+- the Tavern daily tip and Big Barrel-specific support tip in `src/content/characterFlavor.ts` without leaking raid instructions into Fight/Duel presenters;
+- PR body with explicit achievement, remort, availability, migration, and manual-QA decisions.
 
 Use the actual Kyiv day in Holocene format and recheck it after any later-day implementation commit.

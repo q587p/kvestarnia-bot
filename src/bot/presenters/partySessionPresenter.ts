@@ -1,6 +1,6 @@
 import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
 import {
-  BARD_SUPPORT_RAID_PREP_HINT,
+  BARD_BIG_BARREL_SUPPORT_TIP,
   selectCharacterFlavorLine
 } from "../../content/characterFlavor";
 import type {
@@ -1514,7 +1514,7 @@ function presentPartyBossStartTip(
   }
 
   if (participant.classId === "class.bard" && session.state.bardMusic !== undefined) {
-    return `<i>Порада дня: ${escapeHtml(BARD_SUPPORT_RAID_PREP_HINT)}</i>`;
+    return `<i>Порада дня: ${escapeHtml(BARD_BIG_BARREL_SUPPORT_TIP)}</i>`;
   }
 
   const flavor = selectCharacterFlavorLine(summarizeCharacter(participant, {

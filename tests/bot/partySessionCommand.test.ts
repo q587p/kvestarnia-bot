@@ -687,7 +687,7 @@ describe("handlePartySessionCallback", () => {
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
   });
 
-  it("keeps the canonical raid card when an old Lament callback arrives with Bard support off", async () => {
+  it("keeps the canonical raid card when an old Lament callback arrives with Big Barrel disabled", async () => {
     const session = makeBossSession();
     const submitLamentForTelegramUser = vi.fn().mockResolvedValue({ state: "disabled" });
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);

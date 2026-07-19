@@ -84,8 +84,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
-    private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly options: { bardSupportEnabled?: boolean } = {}
+    private readonly rng: RandomSource = new CryptoRandomSource()
   ) {}
 
   async createOpenForTelegramUser(
@@ -742,14 +741,12 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           },
           now
         });
-        const inspiration = this.options.bardSupportEnabled
-          ? await freezeBardInspirationFromCooldown({
-              tx,
-              characterId: participantId,
-              remortCount,
-              now
-            })
-          : undefined;
+        const inspiration = await freezeBardInspirationFromCooldown({
+          tx,
+          characterId: participantId,
+          remortCount,
+          now
+        });
         const hpRegenAt = sated.hpRestored > 0 && sated.resources.hp >= sated.resources.hpMax
           ? now
           : natural.hpRegenAt;
@@ -1089,7 +1086,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             const participant = Object.values(input.state.participants)
               .find((entry) => entry.characterId === lease.characterId);
             await releaseCombatLeaseWithTimedStatuses({
-              syncBardInspiration: this.options.bardSupportEnabled === true,
               tx,
               lease,
               releasedAt: input.completedAt ?? input.now,
@@ -1272,7 +1268,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
             ? Object.values(state.participants).find((entry) => entry.characterId === lease.characterId)
             : undefined;
           await releaseCombatLeaseWithTimedStatuses({
-            syncBardInspiration: this.options.bardSupportEnabled === true,
             tx,
             lease,
             releasedAt: now,
@@ -1317,7 +1312,6 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
       const deleted = await this.prisma.$transaction(async (tx) => {
         const released = await releaseCombatLeaseWithTimedStatuses({
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           tx,
           lease,
           releasedAt: now
@@ -1355,15 +1349,11 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   private mapDuelCombatSession(
     record: DuelCombatSessionWithChallenge
   ): DuelCombatSessionRecord | null {
-    return mapDuelCombatSession(record, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return mapDuelCombatSession(record);
   }
 
   private parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
-    return parseTurnBasedDuelState(value, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return parseTurnBasedDuelState(value);
   }
 }
 
@@ -1563,15 +1553,14 @@ function mapChallenge(record: DuelChallengeWithCharacters): DuelChallengeRecord 
 }
 
 function mapDuelCombatSession(
-  record: DuelCombatSessionWithChallenge,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+  record: DuelCombatSessionWithChallenge
 ): DuelCombatSessionRecord | null {
   if (!record) {
     return null;
   }
 
   const challenge = mapChallenge(record.duelChallenge);
-  const state = parseTurnBasedDuelState(record.stateJson, options);
+  const state = parseTurnBasedDuelState(record.stateJson);
 
   if (
     !challenge ||
@@ -1761,10 +1750,7 @@ function parseXpRewards(value: unknown): DuelResultPayload["xpRewards"] | null {
   };
 }
 
-function parseTurnBasedDuelState(
-  value: unknown,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
-): TurnBasedDuelState | null {
+function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
   if (!isRecord(value) || value.mode !== "turn-based") {
     return null;
   }
@@ -1816,14 +1802,6 @@ function parseTurnBasedDuelState(
     ...(lastAction ? { lastAction } : {}),
     ...(outcome ? { outcome } : {})
   };
-
-  if (!options.bardSupportEnabled) {
-    delete state.participants.challenger.bardInspiration;
-    delete state.participants.target.bardInspiration;
-    if (state.lastRound) {
-      delete state.lastRound.bardInspirationAfter;
-    }
-  }
 
   return state;
 }

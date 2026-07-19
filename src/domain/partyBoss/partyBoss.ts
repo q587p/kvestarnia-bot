@@ -293,7 +293,6 @@ export interface PartyBossRewardSnapshot {
 export function createPartyBossState(input: {
   partySessionId: string;
   variant?: "proof" | "big-barrel";
-  bardMusicEnabled?: boolean;
   leaderCharacterId?: string;
   participants: Array<{
     characterId: string;
@@ -405,7 +404,7 @@ export function createPartyBossState(input: {
           }
         }
       : {}),
-    ...(isBig && input.bardMusicEnabled ? { bardMusic: { kind: "none" as const } } : {}),
+    ...(isBig ? { bardMusic: { kind: "none" as const } } : {}),
     roundLog: [],
     startedAt: input.now.toISOString()
   };

@@ -136,13 +136,13 @@ describe("BardPerformanceService", () => {
     });
   });
 
-  it("cannot mutate through dev helpers when production enables Bard support only", async () => {
+  it("cannot mutate through disabled dev helpers", async () => {
     const repository = new FakeBardPerformanceRepository();
     const service = new BardPerformanceService(
       repository,
       () => now,
       new FakeRandomSource([0.5]),
-      { bardSupportEnabled: true, devHelpersEnabled: false }
+      { devHelpersEnabled: false }
     );
 
     await expect(service.resetForDev(telegramUserId)).resolves.toEqual({ state: "disabled" });

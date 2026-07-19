@@ -9,8 +9,7 @@ import { prisma } from "./db/prisma";
 
 const config = loadConfig();
 const repositories = createRepositories(prisma, {
-  hpRecoveryNotificationsEnabled: config.hpRecoveryNotificationsEnabled,
-  bardSupportEnabled: config.nodeEnv !== "production" || config.bardSupportEnabled
+  hpRecoveryNotificationsEnabled: config.hpRecoveryNotificationsEnabled
 });
 const services = createServices(repositories, config);
 const runtime = createRuntime({

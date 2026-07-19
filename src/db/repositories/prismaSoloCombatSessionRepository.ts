@@ -88,8 +88,7 @@ class CombatItemTurnRollback extends Error {
 export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
-    private readonly options: { bardSupportEnabled?: boolean } = {}
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
   ) {}
 
   async findActiveByTelegramUserId(
@@ -623,16 +622,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
           state: committedState,
           now: combatStartedAt
         });
-        if (this.options.bardSupportEnabled) {
-          const bardInspiration = await freezeBardInspirationFromCooldown({
-            tx,
-            characterId: character.id,
-            remortCount: committedState.life?.remortCount ?? 0,
-            now: combatStartedAt
-          });
-          if (bardInspiration) {
-            committedState = { ...committedState, bardInspiration };
-          }
+        const bardInspiration = await freezeBardInspirationFromCooldown({
+          tx,
+          characterId: character.id,
+          remortCount: committedState.life?.remortCount ?? 0,
+          now: combatStartedAt
+        });
+        if (bardInspiration) {
+          committedState = { ...committedState, bardInspiration };
         }
       }
 
@@ -739,7 +736,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         const state = this.parseCombatState(updated.stateJson);
         const completedAt = state?.completedAt ? new Date(state.completedAt) : null;
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state,
           releasedAt: status === "expired"
@@ -805,7 +801,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -852,7 +847,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -973,7 +967,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (releasingLease) {
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state,
           releasedAt: getSatedLeaseThrough(input)
@@ -1018,7 +1011,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (input.releaseLease) {
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: input.state ?? this.parseCombatState(updated.stateJson),
           releasedAt: input.claimedAt
@@ -1117,7 +1109,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
       const state = current ? this.parseCombatState(current.stateJson) : null;
       return releaseSoloCombatLease(tx, {
-        syncBardInspiration: this.options.bardSupportEnabled === true,
         sessionId,
         state,
         releasedAt: now ?? new Date()
@@ -1521,7 +1512,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (state?.settlement?.status === "completed") {
         if (input.releaseLease) {
           await releaseSoloCombatLease(tx, {
-            syncBardInspiration: this.options.bardSupportEnabled === true,
             sessionId,
             state,
             releasedAt: input.settledAt
@@ -1537,7 +1527,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       if (state?.settlement?.status === "forfeited-by-remort") {
         if (input.releaseLease) {
           await releaseSoloCombatLease(tx, {
-            syncBardInspiration: this.options.bardSupportEnabled === true,
             sessionId,
             state,
             releasedAt: input.settledAt
@@ -1619,7 +1608,6 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (input.releaseLease) {
         await releaseSoloCombatLease(tx, {
-          syncBardInspiration: this.options.bardSupportEnabled === true,
           sessionId,
           state: nextState ?? state,
           releasedAt: input.settledAt
@@ -1667,21 +1655,16 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   private mapSoloCombatSessionRecord(
     record: PrismaSoloCombatSessionRecord
   ): SoloCombatSessionRecord | null {
-    return mapSoloCombatSessionRecord(record, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return mapSoloCombatSessionRecord(record);
   }
 
   private parseCombatState(value: unknown): CombatState | null {
-    return parseCombatState(value, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return parseCombatState(value);
   }
 }
 
 export function mapSoloCombatSessionRecord(
-  record: PrismaSoloCombatSessionRecord,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
+  record: PrismaSoloCombatSessionRecord
 ): SoloCombatSessionRecord | null {
   if (!record) {
     return null;
@@ -1693,7 +1676,7 @@ export function mapSoloCombatSessionRecord(
     monsterId: record.monsterId,
     status: parseStatus(record.status),
     turn: record.turn,
-    state: parseCombatState(record.stateJson, options),
+    state: parseCombatState(record.stateJson),
     reward: parseReward(record),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -1748,10 +1731,7 @@ function clampDueSessionLimit(value: number | undefined): number {
   return Math.min(100, Math.max(1, Math.floor(value)));
 }
 
-export function parseCombatState(
-  value: unknown,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
-): CombatState | null {
+export function parseCombatState(value: unknown): CombatState | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -1782,15 +1762,7 @@ export function parseCombatState(
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
   const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
-  const bardInspiration = options.bardSupportEnabled
-    ? parseBardInspirationCombatState(value.bardInspiration)
-    : null;
-
-  if (!options.bardSupportEnabled) {
-    for (const entry of turnLog) {
-      delete entry.bardInspiration;
-    }
-  }
+  const bardInspiration = parseBardInspirationCombatState(value.bardInspiration);
 
   if (turn === null || !status || !hero || !monster || enemies === "malformed") {
     return null;
@@ -2813,7 +2785,6 @@ async function releaseSoloCombatLease(
     sessionId: string;
     state: CombatState | null;
     releasedAt: Date;
-    syncBardInspiration?: boolean;
   }
 ): Promise<boolean> {
   const lease = await tx.activeCombatLease.findFirst({
@@ -2838,9 +2809,6 @@ async function releaseSoloCombatLease(
     tx,
     lease,
     releasedAt: input.releasedAt,
-    ...(input.syncBardInspiration !== undefined
-      ? { syncBardInspiration: input.syncBardInspiration }
-      : {}),
     ...(input.state?.varenykSated ? { sated: input.state.varenykSated } : {}),
     ...(input.state?.bardInspiration ? { inspiration: input.state.bardInspiration } : {})
   });

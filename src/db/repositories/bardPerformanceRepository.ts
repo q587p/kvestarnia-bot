@@ -134,7 +134,6 @@ export interface BardPerformanceRepository {
       activeAudienceSince: Date;
       allowNoAudience: boolean;
       requiredLevel: number;
-      bardSupportEnabled: boolean;
     }
   ): Promise<BardPerformanceStartResult>;
   respondToPerformanceForTelegramUser(

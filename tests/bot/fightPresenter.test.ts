@@ -375,7 +375,7 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Натиск Низу");
   });
 
-  it("keeps the persistent combat intro free of disabled Bard mechanics", () => {
+  it("keeps the persistent combat intro free of Big Barrel-specific Bard mechanics", () => {
     const bard = { ...character, classId: "class.bard", className: "Бард" };
     const intro = presentPersistentFightIntro({
       state: "persistent-active",

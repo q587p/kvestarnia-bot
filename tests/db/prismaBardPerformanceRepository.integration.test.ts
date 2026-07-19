@@ -116,6 +116,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
         preservedPayloadJson: {}
       }
     });
+    await prisma.characterCooldown.deleteMany({ where: { characterId: "character-life-bard" } });
     const lifeOne = await repository.startPerformanceForTelegramUser(163n, startInput({
       token: "12345678-1234-4234-9234-000000000164",
       rawHousePayoutGold: 0
@@ -139,8 +140,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
 
     const result = await repository.startPerformanceForTelegramUser(104n, startInput({
       token: "12345678-1234-4234-9234-000000000104",
-      rawHousePayoutGold: 0,
-      bardSupportEnabled: true
+      rawHousePayoutGold: 0
     }));
 
     expect(result.state).toBe("started");
@@ -244,8 +244,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
 
     await expect(repository.startPerformanceForTelegramUser(107n, startInput({
       token: "12345678-1234-4234-9234-000000000107",
-      rawHousePayoutGold: 0,
-      bardSupportEnabled: true
+      rawHousePayoutGold: 0
     }))).resolves.toMatchObject({
       state: "cooldown",
       availableAt: new Date("2026-06-26T11:03:00.000Z")
@@ -284,8 +283,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
 
     await expect(repository.startPerformanceForTelegramUser(101n, startInput({
       token: "12345678-1234-4234-9234-000000000109",
-      rawHousePayoutGold: 0,
-      bardSupportEnabled: true
+      rawHousePayoutGold: 0
     }))).resolves.toMatchObject({ state: "started" });
   });
 
@@ -1050,7 +1048,6 @@ function startInput(overrides: {
   rawHousePayoutGold: number;
   locationId?: string;
   allowNoAudience?: boolean;
-  bardSupportEnabled?: boolean;
 }) {
   const locationId = overrides.locationId ?? "location.korchma.bar";
 
@@ -1071,8 +1068,7 @@ function startInput(overrides: {
     cooldownAvailableAt: new Date("2026-06-26T11:33:00.000Z"),
     activeAudienceSince: new Date("2026-06-26T09:55:00.000Z"),
     allowNoAudience: overrides.allowNoAudience ?? locationId === "location.korchma.bar",
-    requiredLevel: 3,
-    bardSupportEnabled: overrides.bardSupportEnabled ?? false
+    requiredLevel: 3
   };
 }
 

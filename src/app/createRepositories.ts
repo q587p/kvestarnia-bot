@@ -42,7 +42,6 @@ export function createRepositories(
   prisma: PrismaClient,
   options: {
     hpRecoveryNotificationsEnabled?: boolean;
-    bardSupportEnabled?: boolean;
   } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
@@ -62,12 +61,7 @@ export function createRepositories(
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
     devGrants: new PrismaDevGrantRepository(prisma),
-    duelChallenges: new PrismaDuelChallengeRepository(
-      prisma,
-      hpRecoveryProducer,
-      undefined,
-      { bardSupportEnabled: options.bardSupportEnabled === true }
-    ),
+    duelChallenges: new PrismaDuelChallengeRepository(prisma, hpRecoveryProducer),
     duelTournaments: new PrismaDuelTournamentRepository(prisma),
     equipment: new PrismaEquipmentRepository(prisma, hpRecoveryProducer),
     huntContracts: new PrismaHuntContractRepository(prisma),
@@ -82,22 +76,14 @@ export function createRepositories(
     mantokChestRuns: new PrismaMantokChestRepository(prisma),
     pendingPassageEncounters: new PrismaPendingPassageEncounterRepository(prisma),
     passageSearches: new PrismaPassageSearchRepository(prisma),
-    partyBossSessions: new PrismaPartyBossRepository(
-      prisma,
-      hpRecoveryProducer,
-      { bardSupportEnabled: options.bardSupportEnabled === true }
-    ),
+    partyBossSessions: new PrismaPartyBossRepository(prisma, hpRecoveryProducer),
     partySessions: new PrismaPartySessionRepository(prisma),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma, hpRecoveryProducer),
-    soloCombatSessions: new PrismaSoloCombatSessionRepository(
-      prisma,
-      hpRecoveryProducer,
-      { bardSupportEnabled: options.bardSupportEnabled === true }
-    ),
+    soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma, hpRecoveryProducer),
     tavernGames: new PrismaTavernGameRepository(prisma),
     yegerNotchExchange: new PrismaYegerNotchExchangeRepository(prisma)
   };

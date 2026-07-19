@@ -215,8 +215,7 @@ describe("application factory wiring", () => {
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
         enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
-        devHelpersEnabled: nonProduction,
-        bardSupportEnabled
+        devHelpersEnabled: nonProduction
       }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial)
     `));
     expect(source).toContain(compact(`
@@ -268,14 +267,12 @@ describe("application factory wiring", () => {
     await expect(services.fightingCornerQuest.resetCurrentLifeForTelegramUser(42n)).resolves.toBe("disabled");
   });
 
-  it("keeps Bard dev mutation disabled when production support is enabled", async () => {
+  it("keeps Bard dev mutation disabled in production", async () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig({
       nodeEnv: "production",
-      bardSupportEnabled: true,
       devGrantCommandsEnabled: true
     }));
 
-    expect(services.bardPerformance.isBardSupportEnabled()).toBe(true);
     expect(services.bardPerformance.areDevHelpersEnabled()).toBe(false);
     await expect(services.bardPerformance.resetForDev(42n)).resolves.toEqual({ state: "disabled" });
     await expect(services.bardPerformance.setInspirationForDev(42n, 5)).resolves.toEqual({ state: "disabled" });
@@ -292,7 +289,6 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
     bigBarrelBrotherRaidEnabled: false,
-    bardSupportEnabled: false,
     ...overrides
   };
 }

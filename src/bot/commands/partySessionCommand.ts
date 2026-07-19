@@ -1040,8 +1040,7 @@ async function sendBossText(
       ? {
           reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
             ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
-            includeDevTimeout: keyboard.includeDevTimeout,
-            bardSupportEnabled: keyboard.partyBoss?.isBardSupportEnabled?.() ?? false
+            includeDevTimeout: keyboard.includeDevTimeout
           })
         }
       : {})
@@ -1383,8 +1382,7 @@ async function notifyPartyBossParticipants(
               participant.telegramUserId,
               session
             ),
-            includeDevTimeout: options.includeDevTimeout,
-            bardSupportEnabled: options.partyBoss?.isBardSupportEnabled?.() ?? false
+            includeDevTimeout: options.includeDevTimeout
           })
         }
       );

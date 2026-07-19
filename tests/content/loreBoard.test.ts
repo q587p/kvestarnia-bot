@@ -154,10 +154,17 @@ describe("lore board content", () => {
     expect(classLoreBody("class-warrior")).toContain("по зброї в кожній руці");
     expect(classLoreBody("class-warrior")).toContain("🛡️ На мене!");
     expect(classLoreBody("class-mage")).toContain("Чароковальнею");
-    expect(classLoreBody("class-bard")).toContain("може виступити");
+    expect(classLoreBody("class-bard")).toContain("У шинку бард може виступити");
+    expect(classLoreBody("class-bard")).toContain("добровільно лишити чайові");
+    expect(classLoreBody("class-bard")).toContain("«✨ Натхнення» від виступу не залежить від оплати");
+    expect(classLoreBody("class-bard")).toContain("«🎻 Журлива балада»");
     expect(classLoreBody("class-rogue")).toContain("Тихою кишенею");
     expect(classLoreBody("class-priest")).toContain("полікувати маною без бинтів");
+    expect(classLoreBody("class-varenyk-mancer")).toContain("«🍽️ Нагодувати»");
+    expect(classLoreBody("class-varenyk-mancer")).toContain("«😋 Ситий»");
+    expect(classLoreBody("class-bureaucramancer")).toContain("Протокол 13-З");
     expect(classLoreBody("class-ranger")).toContain("єгерський куток");
+    expect(classLoreBody("class-kharakternyk")).toContain("поставити знак");
     expect(loreEntries.filter((entry) => entry.categoryId === "classes").map((entry) => entry.body).join("\n"))
       .not.toContain("З 3 рівня");
   });

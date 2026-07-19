@@ -162,8 +162,7 @@ const partyBossInclude = {
 export class PrismaPartyBossRepository implements PartyBossRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
-    private readonly options: { bardSupportEnabled?: boolean } = {}
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
   ) {}
 
   async startFromRecruitingPartyForTelegramUser(
@@ -301,7 +300,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const state = createPartyBossState({
         partySessionId: party.id,
         variant: isBigBarrelParty ? "big-barrel" : "proof",
-        bardMusicEnabled: this.options.bardSupportEnabled === true,
         leaderCharacterId: party.leaderCharacterId,
         now: input.now,
         ...(wardSign ? { wardSign } : {}),
@@ -367,39 +365,35 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           if (frozen.sated) {
             participant.varenykSated = frozen.sated;
           }
-          if (this.options.bardSupportEnabled) {
-            const inspiration = await freezeBardInspirationFromCooldown({
+          const inspiration = await freezeBardInspirationFromCooldown({
+            tx,
+            characterId: participant.characterId,
+            remortCount: participant.remortCount,
+            now: input.now
+          });
+          if (inspiration) {
+            participant.bardInspiration = inspiration;
+          }
+          if (participant.combatStats.classId === "class.bard") {
+            const availableAt = await findBardMusicAvailableAt({
               tx,
               characterId: participant.characterId,
-              remortCount: participant.remortCount,
-              now: input.now
+              locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
+              remortCount: participant.remortCount
             });
-            if (inspiration) {
-              participant.bardInspiration = inspiration;
-            }
-            if (participant.combatStats.classId === "class.bard") {
-              const availableAt = await findBardMusicAvailableAt({
-                tx,
-                characterId: participant.characterId,
-                locationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-                remortCount: participant.remortCount
-              });
-              if (availableAt) {
-                participant.bardMusicAvailableAt = availableAt.toISOString();
-              }
+            if (availableAt) {
+              participant.bardMusicAvailableAt = availableAt.toISOString();
             }
           }
         }
-        if (this.options.bardSupportEnabled) {
-          const barrelPerformanceIds = [...new Set(state.participants.flatMap((participant) =>
-            participant.bardInspiration?.sourceLocationId === PRESENCE_LOCATION_KORCHMA_BARREL
-              ? [participant.bardInspiration.sourcePerformanceId]
-              : []
-          ))];
-          state.bardMusic = barrelPerformanceIds.length > 0
-            ? { kind: "inspiration", sourcePerformanceIds: barrelPerformanceIds }
-            : { kind: "none" };
-        }
+        const barrelPerformanceIds = [...new Set(state.participants.flatMap((participant) =>
+          participant.bardInspiration?.sourceLocationId === PRESENCE_LOCATION_KORCHMA_BARREL
+            ? [participant.bardInspiration.sourcePerformanceId]
+            : []
+        ))];
+        state.bardMusic = barrelPerformanceIds.length > 0
+          ? { kind: "inspiration", sourcePerformanceIds: barrelPerformanceIds }
+          : { kind: "none" };
       }
 
       await tx.activeCombatLease.createMany({
@@ -568,10 +562,6 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     turn: number,
     input: PartyBossResolveInput & { activationId: string }
   ): Promise<PartyBossActionResult> {
-    if (!this.options.bardSupportEnabled) {
-      return { state: "disabled" };
-    }
-
     let inserted: PartyBossActionResult;
     try {
       inserted = await this.prisma.$transaction(async (tx): Promise<PartyBossActionResult> => {
@@ -1177,8 +1167,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           tx,
           session.partySessionId,
           input.now,
-          resolved.state,
-          this.options.bardSupportEnabled === true
+          resolved.state
         );
       }
 
@@ -1197,15 +1186,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
   }
 
   private mapSession(row: PartyBossRow): PartyBossSessionRecord {
-    return mapSession(row, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return mapSession(row);
   }
 
   private parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
-    return parseState(row, {
-      bardSupportEnabled: this.options.bardSupportEnabled === true
-    });
+    return parseState(row);
   }
 }
 
@@ -1667,8 +1652,7 @@ async function releasePartyBossLocks(
   tx: TxClient,
   partySessionId: string,
   releasedAt: Date,
-  state: PartyBossState,
-  bardSupportEnabled = true
+  state: PartyBossState
 ): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
@@ -1696,7 +1680,6 @@ async function releasePartyBossLocks(
       tx,
       lease,
       releasedAt,
-      syncBardInspiration: bardSupportEnabled,
       ...(participant?.varenykSated ? { sated: participant.varenykSated } : {}),
       ...(participant?.bardInspiration ? { inspiration: participant.bardInspiration } : {})
     });
@@ -1792,11 +1775,8 @@ async function findByInviteToken(
   });
 }
 
-function mapSession(
-  row: PartyBossRow,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
-): PartyBossSessionRecord {
-  const state = parseState(row, options);
+function mapSession(row: PartyBossRow): PartyBossSessionRecord {
+  const state = parseState(row);
 
   return {
     id: row.id,
@@ -1816,10 +1796,6 @@ function mapSession(
       const item = parseActionItem(action.resultJson);
       const gearAbility = parseActionGearAbility(action.resultJson);
       const actionKey = parseActionKey(action.actionKey);
-
-      if (!options.bardSupportEnabled && actionKey === "lament") {
-        return [];
-      }
 
       return [{
         characterId: action.actorCharacterId,
@@ -1870,27 +1846,8 @@ function mapCharacterForCombat(
   };
 }
 
-function parseState(
-  row: Pick<PartyBossRow, "stateJson">,
-  options: { bardSupportEnabled?: boolean } = { bardSupportEnabled: true }
-): PartyBossState {
-  const state = clonePartyBossState(row.stateJson as unknown as PartyBossState);
-  if (options.bardSupportEnabled) {
-    return state;
-  }
-
-  delete state.bardMusic;
-  for (const participant of state.participants) {
-    delete participant.bardInspiration;
-    delete participant.bardMusicAvailableAt;
-  }
-  state.roundLog = state.roundLog.map((round) => {
-    const next = { ...round };
-    delete next.bardMusic;
-    next.actions = next.actions.filter((action) => action.action !== "lament");
-    return next;
-  });
-  return state;
+function parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
+  return clonePartyBossState(row.stateJson as unknown as PartyBossState);
 }
 
 function parseResult(value: Prisma.JsonValue, state: PartyBossState) {

@@ -5,8 +5,6 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findMantokAbilityGrantByKey } from "../../src/content";
 import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
-import { PrismaBardPerformanceRepository } from "../../src/db/repositories/prismaBardPerformanceRepository";
-import { freezeBardInspirationFromCooldown } from "../../src/db/repositories/prismaBardSupport";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import type {
   PartyBossActionResult,
@@ -16,9 +14,6 @@ import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/par
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { getLevelStartXp } from "../../src/domain/progression/level";
 import {
-  BARD_INSPIRATION_STATUS_KEY,
-  buildBardInspirationPayload,
-  freezeBardInspirationForCombat,
   getBardMusicAvailabilityKey
 } from "../../src/domain/noncombat/bardSupport";
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
@@ -221,104 +216,10 @@ describe("PrismaPartyBossRepository integration", () => {
       .toBe(new Date(expiresAt.getTime() - 2 * 60_000).toISOString());
   });
 
-  it("invalidates exhausted Big Barrel Inspiration on feature-off terminal release", async () => {
-    const leaderId = "big-bard-off-leader-character";
-    const startedAt = now();
-    await seedCharacter(prisma, "big-bard-off-leader", 1013n, "Бард без прапорця", {
-      classId: "class.bard",
-      level: 8,
-      hp: 300
-    });
-    await seedCharacter(prisma, "big-bard-off-joiner", 1014n, "Свідок без прапорця", {
-      level: 8,
-      hp: 300
-    });
-    const payload = buildBardInspirationPayload({
-      activationId: "big-bard-off-inspiration",
-      sourcePerformanceId: "performance-big-bard-off",
-      sourceCharacterId: "source-bard",
-      sourceLocationId: PRESENCE_LOCATION_KORCHMA_BARREL,
-      recipientCharacterId: leaderId,
-      recipientRemortCount: 0,
-      grade: "pleasant",
-      now: startedAt
-    });
-    await prisma.characterCooldown.create({
-      data: {
-        characterId: leaderId,
-        key: BARD_INSPIRATION_STATUS_KEY,
-        availableAt: new Date(payload.expiresAt),
-        resultJson: payload
-      }
-    });
-    await partyRepository.createForTelegramUser(1013n, {
-      ...partyInput("party-token-big-bard-off-terminal"),
-      originLocationId: "barrel.big-brother"
-    });
-    await partyRepository.joinByTokenForTelegramUser(
-      1014n,
-      "party-token-big-bard-off-terminal",
-      joinInput()
-    );
-    const supportEnabled = new PrismaPartyBossRepository(
-      prisma,
-      new HpRecoveryNotificationProducer(true),
-      { bardSupportEnabled: true }
-    );
-    const started = await supportEnabled.startFromRecruitingPartyForTelegramUser(1013n, {
-      partyInviteToken: "party-token-big-bard-off-terminal",
-      now: startedAt,
-      turnExpiresAt: new Date(startedAt.getTime() + 23_000)
-    });
-    const startedSession = expectPartyBossSession(started);
-    const stored = await prisma.partyBossSession.findUniqueOrThrow({ where: { id: startedSession.id } });
-    const storedState = stored.stateJson as unknown as PartyBossSessionRecord["state"];
-    const leader = storedState.participants.find((participant) => participant.characterId === leaderId)!;
-    const exhausted = {
-      ...freezeBardInspirationForCombat(payload, leaderId, 0, startedAt)!,
-      expiresAt: startedAt.toISOString(),
-      cursorAt: startedAt.toISOString(),
-      pulseIds: Array.from({ length: 13 }, (_, index) => `big-release-pulse-${index + 1}`)
-    };
-    leader.bardInspiration = exhausted;
-    await prisma.partyBossSession.update({
-      where: { id: startedSession.id },
-      data: { stateJson: storedState }
-    });
-    const featureOff = new PrismaPartyBossRepository(
-      prisma,
-      new HpRecoveryNotificationProducer(true),
-      { bardSupportEnabled: false }
-    );
-
-    await expect(featureOff.forceBigBarrelWinForTelegramUser(1013n, startedAt))
-      .resolves.toMatchObject({ state: "primed" });
-    const terminal = await featureOff.resolveTimedOutByToken(
-      "party-token-big-bard-off-terminal",
-      resolveInput(),
-      "due"
-    );
-    expect(expectPartyBossSession(terminal).status).toBe("won");
-    await expect(prisma.characterCooldown.findUnique({
-      where: { characterId_key: { characterId: leaderId, key: BARD_INSPIRATION_STATUS_KEY } }
-    })).resolves.toBeNull();
-    await expect(new PrismaBardPerformanceRepository(prisma).getInspirationForTelegramUser(
-      1013n,
-      new Date(startedAt.getTime() + 60_000)
-    )).resolves.toMatchObject({ inspiration: null });
-    await expect(prisma.$transaction((tx) => freezeBardInspirationFromCooldown({
-      tx,
-      characterId: leaderId,
-      remortCount: 0,
-      now: new Date(startedAt.getTime() + 60_000)
-    }))).resolves.toBeUndefined();
-  });
-
   it("atomically lets one Bard claim Lament and prevents overwrite or double cooldown spend", async () => {
     const supportRepository = new PrismaPartyBossRepository(
       prisma,
-      new HpRecoveryNotificationProducer(true),
-      { bardSupportEnabled: true }
+      new HpRecoveryNotificationProducer(true)
     );
     await seedCharacter(prisma, "lament-bard-a", 1005n, "Перший Бард", {
       classId: "class.bard",
@@ -386,17 +287,6 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     ]);
 
-    const rollbackRepository = new PrismaPartyBossRepository(
-      prisma,
-      new HpRecoveryNotificationProducer(true),
-      { bardSupportEnabled: false }
-    );
-    const restoredWithSupportOff = await rollbackRepository.findByPartyInviteToken(
-      "party-token-big-lament-race"
-    );
-    expect(restoredWithSupportOff?.state.bardMusic).toBeUndefined();
-    expect(restoredWithSupportOff?.queuedActions.some((action) => action.action === "lament")).toBe(false);
-
     const winnerTelegramUserId = winnerCharacterId === "lament-bard-a-character" ? 1005n : 1006n;
     await expect(supportRepository.submitActionForTelegramUser(
       winnerTelegramUserId,
@@ -411,39 +301,24 @@ describe("PrismaPartyBossRepository integration", () => {
     })).resolves.toEqual({ actionKey: "lament" });
 
     const otherTelegramUserId = winnerTelegramUserId === 1005n ? 1006n : 1005n;
-    const resolvedWithSupportOff = await rollbackRepository.submitActionForTelegramUser(
+    const resolved = await supportRepository.submitActionForTelegramUser(
       otherTelegramUserId,
       "party-token-big-lament-race",
       1,
       "attack",
       resolveInput()
     );
-    expect(resolvedWithSupportOff.state).toBe("resolved");
-    if (!("session" in resolvedWithSupportOff)) {
-      throw new Error("Expected feature-off round resolution.");
+    expect(resolved.state).toBe("resolved");
+    if (!("session" in resolved)) {
+      throw new Error("Expected Lament round resolution.");
     }
-    const resolvedRound = resolvedWithSupportOff.session.state.roundLog.at(-1);
-    expect(resolvedWithSupportOff.session.state.bardMusic).toBeUndefined();
-    expect(resolvedWithSupportOff.session.state.participants.every(
-      (participant) => participant.bardInspiration === undefined
-    )).toBe(true);
-    expect(resolvedRound?.bardMusic).toBeUndefined();
-    expect(resolvedRound?.bossRetaliations.every(
-      (retaliation) => !retaliation.lamentPreventedDamage
-    )).toBe(true);
-
-    const reenabled = await supportRepository.findByPartyInviteToken("party-token-big-lament-race");
-    expect(reenabled?.state.bardMusic).toBeUndefined();
-    expect(reenabled?.state.participants.every(
-      (participant) => participant.bardInspiration === undefined
-    )).toBe(true);
+    expect(resolved.session.state.roundLog.at(-1)?.bardMusic).toBeDefined();
   });
 
   it("ignores previous-life performance cooldown history when committing Lament", async () => {
     const supportRepository = new PrismaPartyBossRepository(
       prisma,
-      new HpRecoveryNotificationProducer(true),
-      { bardSupportEnabled: true }
+      new HpRecoveryNotificationProducer(true)
     );
     await seedCharacter(prisma, "lament-remort-bard", 1007n, "Бард Нового Життя", {
       classId: "class.bard",

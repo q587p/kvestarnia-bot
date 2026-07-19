@@ -204,11 +204,6 @@ describe("loadConfig", () => {
     expect(config.bigBarrelBrotherRaidEnabled).toBe(true);
   });
 
-  it("keeps Bard support off by default and can enable it explicitly", () => {
-    expect(loadConfig(validEnv).bardSupportEnabled).toBe(false);
-    expect(loadConfig({ ...validEnv, BARD_SUPPORT_ENABLED: "true" }).bardSupportEnabled).toBe(true);
-  });
-
   it("can enable tavern social games explicitly", () => {
     const config = loadConfig({
       ...validEnv,

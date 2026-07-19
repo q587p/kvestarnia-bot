@@ -552,20 +552,19 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-2"))).toContain("🗡️ Вдарити");
   });
 
-  it("shows Lament only for feature-on, ready Bards while the music slot is free", () => {
+  it("shows Lament only for ready Big Barrel Bards while the music slot is free", () => {
     const session = makeBossSession({ classId: "class.bard" }, { bigBarrel: true });
     const viewer = session.state.participants[0]!;
     session.state.bardMusic = { kind: "none" };
     const now = new Date("2026-06-30T10:00:00.000Z");
-    const options = { bardSupportEnabled: true, now };
+    const options = { now };
     const lamentCallback = "v1:party:ba:partyABC12:1:l";
 
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))
       .toContain(lamentCallback);
-    expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
-      bardSupportEnabled: false,
-      now
-    }))).not.toContain(lamentCallback);
+    const proofSession = makeBossSession({ classId: "class.bard" });
+    expect(keyboardText(buildPartyBossKeyboard(proofSession, "character-1", options)))
+      .not.toContain(lamentCallback);
 
     viewer.bardMusicAvailableAt = new Date(now.getTime() + 60_000).toISOString();
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", options)))

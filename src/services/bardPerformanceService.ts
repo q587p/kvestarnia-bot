@@ -122,12 +122,8 @@ export class BardPerformanceService {
     private readonly performances: BardPerformanceRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly options: { bardSupportEnabled?: boolean; devHelpersEnabled?: boolean } = {}
+    private readonly options: { devHelpersEnabled?: boolean } = {}
   ) {}
-
-  isBardSupportEnabled(): boolean {
-    return this.options.bardSupportEnabled === true;
-  }
 
   areDevHelpersEnabled(): boolean {
     return this.options.devHelpersEnabled === true;
@@ -195,8 +191,7 @@ export class BardPerformanceService {
       cooldownAvailableAt: new Date(now.getTime() + BARD_PERFORMANCE_COOLDOWN_MINUTES * 60_000),
       activeAudienceSince: new Date(now.getTime() - PRESENCE_ACTIVE_MS),
       allowNoAudience: isShynok,
-      requiredLevel: BARD_PERFORMANCE_MIN_LEVEL,
-      bardSupportEnabled: this.isBardSupportEnabled()
+      requiredLevel: BARD_PERFORMANCE_MIN_LEVEL
     });
 
     return presentStartResult(result);
@@ -242,9 +237,6 @@ export class BardPerformanceService {
   async getInspirationForTelegramUser(
     telegramUserId: bigint
   ): Promise<PresentedBardInspiration | null> {
-    if (!this.isBardSupportEnabled()) {
-      return null;
-    }
     const result = await this.performances.getInspirationForTelegramUser(
       telegramUserId,
       this.clock()

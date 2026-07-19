@@ -110,21 +110,24 @@ describe("party session presenter", () => {
     expect(presentPartyBossJournal(session, 2)).toContain("Остання нота стихла");
   });
 
-  it("advertises Bard support in raid tips only while the feature state is present", () => {
+  it("advertises Bard support only on the Big Barrel-specific raid surface", () => {
     const bard = participant("leader", "Бард");
     bard.combatStats.classId = "class.bard";
     const enabled = makeBigBossSession({ participants: [bard], bardMusic: { kind: "none" } });
     enabled.participants[0]!.classId = "class.bard";
     enabled.participants[0]!.raceId = "race.no-raid-hint";
-    const disabled = makeBigBossSession({ participants: [bard] });
-    disabled.participants[0]!.classId = "class.bard";
-    disabled.participants[0]!.raceId = "race.no-raid-hint";
+    const proof = makeBigBossSession({ participants: [bard] });
+    proof.rulesVersion = "party-boss-v1";
+    proof.bossKey = "party-boss-proof";
+    proof.state.rulesVersion = "party-boss-v1";
+    proof.participants[0]!.classId = "class.bard";
+    proof.participants[0]!.raceId = "race.no-raid-hint";
 
     expect(presentPartyBossIntro(enabled, "leader")).toContain("надихнути товариство виступом");
     expect(presentPartyBossIntro(enabled, "leader")).toContain("журливою баладою");
-    expect(presentPartyBossIntro(disabled, "leader")).not.toContain("надихнути товариство");
-    expect(presentPartyBossIntro(disabled, "leader")).not.toContain("журливою баладою");
-    expect(presentPartyBossIntro(disabled, "leader")).toContain("Порада дня:");
+    expect(presentPartyBossIntro(proof, "leader")).not.toContain("надихнути товариство");
+    expect(presentPartyBossIntro(proof, "leader")).not.toContain("журливою баладою");
+    expect(presentPartyBossIntro(proof, "leader")).toContain("Порада дня:");
   });
 
   it("shows carried Kharakternyk ward signs without a zero-support counter", () => {

@@ -6,8 +6,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
-import { PrismaBardPerformanceRepository } from "../../src/db/repositories/prismaBardPerformanceRepository";
-import { freezeBardInspirationFromCooldown } from "../../src/db/repositories/prismaBardSupport";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import type {
   DuelCombatSessionRecord,
@@ -32,11 +30,6 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_QUEST_TABLE } from "../../src/services/presenceService";
 import { FakeRandomSource } from "../../src/shared/random";
 import type { RandomSource } from "../../src/shared/random";
-import {
-  BARD_INSPIRATION_STATUS_KEY,
-  buildBardInspirationPayload,
-  freezeBardInspirationForCombat
-} from "../../src/domain/noncombat/bardSupport";
 
 describe("PrismaDuelChallengeRepository turn-based integration", () => {
   let dir: string;
@@ -88,123 +81,6 @@ describe("PrismaDuelChallengeRepository turn-based integration", () => {
     expect([101, 102]).toContain(stored.challengerMessageId);
     expect(stored.challengerChatId).toBe(42n);
     expect(claims.every((claim) => claim.session?.challengerMessageId === stored.challengerMessageId)).toBe(true);
-  });
-
-  it("strips persisted turn-duel Inspiration and replay status after restart with Bard support off", async () => {
-    const session = await seedActiveSession("bard-off-restart", new Date("2026-06-17T18:00:23.000Z"));
-    const characterId = session.state.participants.challenger.characterId;
-    const inspiration = {
-      version: 1 as const,
-      activationId: "duel-persisted-inspiration",
-      sourcePerformanceId: "performance-duel",
-      sourceLocationId: "location.korchma.bar",
-      recipientCharacterId: characterId,
-      recipientRemortCount: 0,
-      grade: "pleasant" as const,
-      accuracyBonusPp: 2 as const,
-      expiresAt: "2026-06-17T18:13:00.000Z",
-      cursorAt: "2026-06-17T18:00:00.000Z",
-      leaseStartedAt: "2026-06-17T18:00:00.000Z",
-      outsideRemainderMs: 0,
-      pulseIds: []
-    };
-    const state = {
-      ...session.state,
-      participants: {
-        ...session.state.participants,
-        challenger: { ...session.state.participants.challenger, bardInspiration: inspiration }
-      },
-      lastRound: session.state.lastRound
-        ? { ...session.state.lastRound, bardInspirationAfter: { challenger: inspiration } }
-        : undefined
-    };
-    await prisma.duelCombatSession.update({
-      where: { id: session.id },
-      data: { stateJson: state }
-    });
-    const restarted = new PrismaDuelChallengeRepository(
-      prisma,
-      new HpRecoveryNotificationProducer(false),
-      new FakeRandomSource([]),
-      { bardSupportEnabled: false }
-    );
-
-    const restored = await restarted.findTurnBasedByToken(session.challenge.inviteToken);
-
-    expect(restored?.state.participants.challenger.bardInspiration).toBeUndefined();
-    expect(restored?.state.lastRound?.bardInspirationAfter).toBeUndefined();
-  });
-
-  it("invalidates exhausted turn-duel Inspiration on feature-off terminal release", async () => {
-    const session = await seedActiveSession("bard-off-terminal", new Date("2026-07-19T12:00:23.000Z"));
-    const characterId = session.challengerCharacterId;
-    const telegramUserId = (await prisma.user.findFirstOrThrow({
-      where: { character: { is: { id: characterId } } },
-      select: { telegramUserId: true }
-    })).telegramUserId;
-    const startedAt = new Date("2026-07-19T12:00:00.000Z");
-    const completedAt = new Date("2026-07-19T12:00:11.000Z");
-    const payload = buildBardInspirationPayload({
-      activationId: "duel-bard-off-terminal",
-      sourcePerformanceId: "performance-duel-bard-off",
-      sourceCharacterId: "character-bard",
-      sourceLocationId: "location.korchma.bar",
-      recipientCharacterId: characterId,
-      recipientRemortCount: 0,
-      grade: "pleasant",
-      now: startedAt
-    });
-    const frozen = {
-      ...freezeBardInspirationForCombat(payload, characterId, 0, startedAt)!,
-      expiresAt: startedAt.toISOString(),
-      cursorAt: startedAt.toISOString(),
-      pulseIds: Array.from({ length: 13 }, (_, index) => `duel-release-pulse-${index + 1}`)
-    };
-    await prisma.characterCooldown.create({
-      data: { characterId, key: BARD_INSPIRATION_STATUS_KEY, availableAt: new Date(payload.expiresAt), resultJson: payload }
-    });
-    await prisma.activeCombatLease.updateMany({
-      where: { characterId, kind: "turn-based-duel", referenceId: session.id },
-      data: { createdAt: startedAt, updatedAt: startedAt }
-    });
-    const terminalState = makeTerminalState(session.state, "target", "surrender");
-    terminalState.participants.challenger.bardInspiration = frozen;
-    const featureOff = new PrismaDuelChallengeRepository(
-      prisma,
-      new HpRecoveryNotificationProducer(false),
-      new FakeRandomSource([]),
-      { bardSupportEnabled: false }
-    );
-
-    const resolved = await featureOff.updateTurnBasedIfActiveVersion(session.id, 1, 1, {
-      state: terminalState,
-      status: "forfeited",
-      now: completedAt,
-      deadlineMode: "player-action",
-      turnExpiresAt: session.turnExpiresAt,
-      completedAt,
-      result: makeTerminalResult(session, "target", "surrender", { challenger: 1, target: 4 }),
-      action: {
-        actorCharacterId: characterId,
-        turn: 1,
-        actionKey: "surrender",
-        result: { reason: "surrender" }
-      }
-    });
-    expect(resolved?.status).toBe("forfeited");
-    await expect(prisma.characterCooldown.findUnique({
-      where: { characterId_key: { characterId, key: BARD_INSPIRATION_STATUS_KEY } }
-    })).resolves.toBeNull();
-    await expect(new PrismaBardPerformanceRepository(prisma).getInspirationForTelegramUser(
-      telegramUserId,
-      new Date("2026-07-19T12:00:12.000Z")
-    )).resolves.toMatchObject({ inspiration: null });
-    await expect(prisma.$transaction((tx) => freezeBardInspirationFromCooldown({
-      tx,
-      characterId,
-      remortCount: 0,
-      now: new Date("2026-07-19T12:00:12.000Z")
-    }))).resolves.toBeUndefined();
   });
 
   it("releases a failed inert candidate without clearing a newer canonical winner", async () => {

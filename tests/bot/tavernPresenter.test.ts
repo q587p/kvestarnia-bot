@@ -978,7 +978,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("+25 XP");
   });
 
-  it("keeps pending and blocked Tavern raid cards free of disabled Bard mechanics", () => {
+  it("restores the Bard daily tip on pending and blocked Tavern raid cards", () => {
     const bard = { ...character, classId: "class.bard", className: "Бард" };
     const result = {
       state: "pending" as const,
@@ -989,8 +989,9 @@ describe("tavern presenter", () => {
     };
 
     for (const text of [presentTavernRaidPending(result), presentPendingRaidActionBlock(result)]) {
-      expect(text).toContain("Порада дня:");
-      expect(text).not.toContain("надихнути товариство");
+      expect(text).toContain(
+        "Порада дня: Барди у повному рейді дають бафи, дебафи й відповідають за моральний стан табуретів."
+      );
       expect(text).not.toContain("журливою баладою");
     }
   });
