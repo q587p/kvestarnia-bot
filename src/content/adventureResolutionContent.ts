@@ -1375,7 +1375,7 @@ function materializeSceneMethod(
     label: seed.label,
     hint: withRiskHint(seed.hint, consequence),
     intent: seed.intent,
-    techniques: seed.techniques,
+    techniques: [...seed.techniques],
     primaryStat: seed.primaryStat,
     ...(seed.secondaryStat ? { secondaryStat: seed.secondaryStat } : {}),
     baseChance: seed.baseChance,

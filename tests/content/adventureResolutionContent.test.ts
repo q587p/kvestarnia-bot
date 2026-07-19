@@ -209,20 +209,26 @@ describe("adventure resolution content", () => {
     const originalMethodCount = second.methods.length;
     const originalLabel = second.methods[0]!.label;
     const originalHeadline = second.methods[0]!.outcomeText.success.headline;
+    const firstSceneMethod = first.methods.find((method) => method.source === "scene")!;
+    const secondSceneMethod = second.methods.find((method) => method.id === firstSceneMethod.id)!;
+    const originalTechniques = [...secondSceneMethod.techniques];
 
     expect(first).toEqual(second);
     expect(first).not.toBe(second);
     expect(first.methods).not.toBe(second.methods);
     expect(first.methods[0]).not.toBe(second.methods[0]);
     expect(first.methods[0]!.outcomeText).not.toBe(second.methods[0]!.outcomeText);
+    expect(firstSceneMethod.techniques).not.toBe(secondSceneMethod.techniques);
 
     (first.methods as QuestMethodDefinition[]).pop();
     first.methods[0]!.label = "змінено лише в першій сцені";
     first.methods[0]!.outcomeText.success.headline = "змінено лише в першій сцені";
+    (firstSceneMethod.techniques as Array<(typeof firstSceneMethod.techniques)[number]>).pop();
 
     expect(second.methods).toHaveLength(originalMethodCount);
     expect(second.methods[0]!.label).toBe(originalLabel);
     expect(second.methods[0]!.outcomeText.success.headline).toBe(originalHeadline);
+    expect(secondSceneMethod.techniques).toEqual(originalTechniques);
   });
 
   it("keeps INT-heavy generated problems from hiding the class method", () => {
