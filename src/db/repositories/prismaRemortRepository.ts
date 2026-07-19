@@ -882,6 +882,10 @@ async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string)
     }),
     tx.barrelRaidNotification.deleteMany({
       where: { characterId }
+    }),
+    tx.bardPerformance.updateMany({
+      where: { characterId, status: "active" },
+      data: { status: "expired", liveGuard: null }
     })
   ]);
 }

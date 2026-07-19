@@ -560,6 +560,48 @@ describe("PartyBossService achievements", () => {
     expect(submitLamentForTelegramUser).not.toHaveBeenCalled();
   });
 
+  it("keeps a stale item menu locked only for the Bard who committed Lament", async () => {
+    const sourceSession = makeSessionWithParticipant({
+      resources: { hp: 10, hpMax: 25, mana: 10, manaMax: 10 }
+    });
+    sourceSession.state.bardMusic = {
+      kind: "lament",
+      activationId: "lament-item-lock",
+      sourceCharacterId: "character-leader",
+      grade: "pleasant",
+      damageReduction: 3,
+      remainingBossResponses: 3,
+      activatedTurn: 1
+    };
+    const otherSession = {
+      ...sourceSession,
+      state: {
+        ...sourceSession.state,
+        bardMusic: { ...sourceSession.state.bardMusic, sourceCharacterId: "character-other" }
+      }
+    } as PartyBossSessionRecord;
+    const findByPartyInviteToken = vi.fn<PartyBossRepository["findByPartyInviteToken"]>()
+      .mockResolvedValueOnce(sourceSession)
+      .mockResolvedValueOnce(otherSession);
+    const listByTelegramUserId = vi.fn<InventoryRepository["listByTelegramUserId"]>()
+      .mockResolvedValue([makeInventoryItem("character-leader", "item.field-kit", 1)]);
+    const service = new PartyBossService(
+      { findByPartyInviteToken } as unknown as PartyBossRepository,
+      { enabled: true },
+      undefined,
+      undefined,
+      undefined,
+      { listByTelegramUserId }
+    );
+
+    await expect(service.listCombatItemsForTelegramUser(123n, "token-1", 1))
+      .resolves.toEqual({ state: "stale", session: sourceSession });
+    expect(listByTelegramUserId).not.toHaveBeenCalled();
+    await expect(service.listCombatItemsForTelegramUser(123n, "token-1", 1))
+      .resolves.toMatchObject({ state: "ready", session: otherSession });
+    expect(listByTelegramUserId).toHaveBeenCalledTimes(1);
+  });
+
   it("tracks and returns existing round achievements when Lament resolves the final queued action", async () => {
     const occurredAt = new Date("2026-07-18T19:00:00.000Z");
     const session = makeSession("active");

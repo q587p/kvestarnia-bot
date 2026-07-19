@@ -255,6 +255,82 @@ describe("combat domain engine", () => {
       "fatal-inspiration:persistent-pve:fatal-session:1:hero"
     ]);
   });
+
+  it("pulses Inspiration once when a committed multi-enemy fumble kills the hero early", () => {
+    const state = startCombat({ hero: { ...warrior, hpCurrent: 1 }, monster });
+    state.hero.hp = 1;
+    state.enemies = [
+      { enemyId: "enemy:1", id: monster.monsterId, hp: 18, hpMax: 18 },
+      { enemyId: "enemy:2", id: secondMonster.monsterId, hp: 18, hpMax: 18 }
+    ];
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 1 }
+      }
+    };
+    state.bardInspiration = {
+      version: 1,
+      activationId: "fatal-multi-inspiration",
+      sourcePerformanceId: "performance-fatal-multi",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: "hero",
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      accuracyBonusPp: 2,
+      expiresAt: "2026-07-19T10:01:00.000Z",
+      cursorAt: "2026-07-19T10:00:00.000Z",
+      leaseStartedAt: "2026-07-19T10:00:00.000Z",
+      outsideRemainderMs: 0,
+      pulseIds: []
+    };
+    let committedCallbacks = 0;
+    const afterCommittedHeroAction = (committed: CombatState) => {
+      committedCallbacks += 1;
+      committed.hero.hp += 1;
+      applyBardInspirationPulseToSoloCombat({
+        state: committed,
+        combatKind: "persistent-pve",
+        sessionId: "fatal-multi-session",
+        committedTurn: 1,
+        recipientCharacterId: "hero",
+        now: new Date("2026-07-19T10:00:00.000Z")
+      });
+      return { hpRestored: 1, manaRestored: 0 };
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      afterCommittedHeroAction,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.status).toBe("lost");
+    expect(result.state.hero.hp).toBe(0);
+    expect(result.summary.satedRecovery).toBeUndefined();
+    expect(result.state.bardInspiration?.expiresAt).toBe("2026-07-19T10:00:00.000Z");
+    expect(result.state.bardInspiration?.pulseIds).toEqual([
+      "fatal-multi-inspiration:persistent-pve:fatal-multi-session:1:hero"
+    ]);
+
+    const replay = resolveCombatTurn({
+      state: result.state,
+      action: "skill",
+      hero: warrior,
+      monster,
+      enemies: [monster, secondMonster],
+      afterCommittedHeroAction,
+      rng: new FakeRandomSource([0, 0, 0, 0])
+    });
+    expect(replay.ok).toBe(false);
+    expect(committedCallbacks).toBe(1);
+    expect(replay.state.bardInspiration?.pulseIds).toEqual(result.state.bardInspiration?.pulseIds);
+  });
   it("maps every supported class to the intended MVP skill profile", () => {
     const expectedProfiles = {
       "class.warrior": {

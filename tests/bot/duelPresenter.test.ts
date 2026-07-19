@@ -69,6 +69,38 @@ describe("duel presenter", () => {
     expect(intro).toContain("</i>");
   });
 
+  it("keeps the turn-duel intro free of disabled Bard mechanics", () => {
+    const view = makeTurnBasedDuelView({});
+    view.challenger = {
+      name: "Бард дуелі",
+      pronoun: "they",
+      pronounLabel: "Вони",
+      path: "boundary",
+      raceId: "race.human-ish",
+      raceName: "Людисько",
+      classId: "class.bard",
+      className: "Бард",
+      title: "Бард межі",
+      level: 4,
+      xp: 0,
+      nextLevelXp: 1,
+      xpToNextLevel: 1,
+      gold: 0,
+      hpCurrent: 20,
+      hpMax: 24,
+      manaCurrent: 8,
+      manaMax: 12,
+      stats: { strength: 5, dexterity: 6, intelligence: 6, charisma: 9, luck: 6 },
+      levelBonus: { hpMax: 0, manaMax: 0, primaryStat: { stat: "charisma", bonus: 0 } }
+    };
+    view.target = { ...view.challenger, name: "Суперник", classId: "class.warrior", className: "Воїн" };
+
+    const intro = presentTurnBasedDuelIntro(view);
+    expect(intro).toContain("Порада дня:");
+    expect(intro).not.toContain("надихнути товариство");
+    expect(intro).not.toContain("журливою баладою");
+  });
+
   it("reveals round damage after both turn-based choices resolve", () => {
     const result = makeTurnBasedDuelView({
       lastRound: {

@@ -110,6 +110,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           where: {
             characterId: character.id,
             locationId: input.locationId,
+            remortCount,
             status: "active",
             expiresAt: { gt: input.now }
           },
@@ -120,7 +121,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
         }
 
         const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
-          where: { characterId: character.id, locationId: input.locationId },
+          where: { characterId: character.id, locationId: input.locationId, remortCount },
           orderBy: { cooldownAvailableAt: "desc" }
         }));
         const musicAvailableAt = input.bardSupportEnabled
@@ -160,7 +161,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
           input.rawHousePayoutGold,
           paidToday?._sum.housePayoutGold ?? 0
         );
-        const liveGuard = buildLiveGuard(character.id, input.locationId);
+        const liveGuard = buildLiveGuard(character.id, remortCount, input.locationId);
         const performance = mapPerformance(await tx.bardPerformance.create({
           data: {
             token: input.token,
@@ -292,11 +293,14 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       }
       const record = toCharacterRecord(character);
       const remortCount = getIncludedRemortCount(character);
-      const liveGuard = buildLiveGuard(character.id, input.locationId);
+      const liveGuard = buildLiveGuard(character.id, remortCount, input.locationId);
 
       const live = mapPerformance(await tx.bardPerformance.findFirst({
         where: {
           liveGuard,
+          characterId: character.id,
+          locationId: input.locationId,
+          remortCount,
           status: "active",
           expiresAt: { gt: input.now }
         },
@@ -307,7 +311,7 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
       }
 
       const lastPerformance = mapPerformance(await tx.bardPerformance.findFirst({
-        where: { characterId: character.id, locationId: input.locationId },
+        where: { characterId: character.id, locationId: input.locationId, remortCount },
         orderBy: { cooldownAvailableAt: "desc" }
       }));
       const musicAvailableAt = input.bardSupportEnabled
@@ -544,25 +548,36 @@ export class PrismaBardPerformanceRepository implements BardPerformanceRepositor
             remortCount
           )
         : null;
-      const frozenMatches = Boolean(
+      const leaseStartedAt = character.activeCombatLease?.createdAt.getTime();
+      const leaseOwnsInspiration = Boolean(
         inspiration &&
-        frozen?.activationId === inspiration.activationId &&
-        Date.parse(frozen.expiresAt) > Date.parse(frozen.cursorAt)
+        typeof leaseStartedAt === "number" &&
+        Date.parse(inspiration.startedAt) <= leaseStartedAt &&
+        Date.parse(inspiration.cursorAt) <= leaseStartedAt &&
+        Date.parse(inspiration.expiresAt) > leaseStartedAt
       );
+      const frozenMatches = Boolean(
+        inspiration && frozen?.activationId === inspiration.activationId
+      );
+      const frozenRemainingMs = frozenMatches && frozen
+        ? Math.max(0, Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt))
+        : 0;
       const wallClockActive = inspiration
         ? isBardInspirationActive(inspiration, character.id, remortCount, now)
         : false;
-      const activeInspiration = inspiration && (wallClockActive || frozenMatches)
-        ? frozenMatches && frozen
+      const activeInspiration = inspiration && leaseOwnsInspiration
+        ? frozenMatches && frozenRemainingMs > 0
           ? {
               ...inspiration,
               expiresAt: new Date(
-                now.getTime() + Date.parse(frozen.expiresAt) - Date.parse(frozen.cursorAt)
+                now.getTime() + frozenRemainingMs
               ).toISOString(),
               cursorAt: now.toISOString()
             }
-          : inspiration
-        : null;
+          : null
+        : inspiration && wallClockActive
+          ? inspiration
+          : null;
 
       return {
         character: toCharacterRecord(character),
@@ -750,7 +765,7 @@ async function findCharacter(tx: TxClient, telegramUserId: bigint) {
     include: {
       ...characterRecordInclude,
       activeCombatLease: {
-        select: { kind: true, referenceId: true }
+        select: { kind: true, referenceId: true, createdAt: true }
       }
     }
   });
@@ -762,7 +777,7 @@ async function findCharacterById(tx: TxClient, characterId: string) {
     include: {
       ...characterRecordInclude,
       activeCombatLease: {
-        select: { kind: true, referenceId: true }
+        select: { kind: true, referenceId: true, createdAt: true }
       }
     }
   });
@@ -820,8 +835,8 @@ async function expireLivePerformanceGuards(
   });
 }
 
-function buildLiveGuard(characterId: string, locationId: string): string {
-  return `${characterId}:${locationId}`;
+function buildLiveGuard(characterId: string, remortCount: number, locationId: string): string {
+  return `${characterId}:${remortCount}:${locationId}`;
 }
 
 function isLiveGuardUniqueError(error: unknown): boolean {

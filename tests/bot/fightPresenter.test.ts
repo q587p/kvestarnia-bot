@@ -375,6 +375,27 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Натиск Низу");
   });
 
+  it("keeps the persistent combat intro free of disabled Bard mechanics", () => {
+    const bard = { ...character, classId: "class.bard", className: "Бард" };
+    const intro = presentPersistentFightIntro({
+      state: "persistent-active",
+      character: bard,
+      session: persistentSession(),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: null
+    });
+
+    expect(intro).toContain("Порада дня:");
+    expect(intro).not.toContain("надихнути товариство");
+    expect(intro).not.toContain("журливою баладою");
+  });
+
   it("shows adventure remort pressure once in the battle intro and only when applied", () => {
     const buildResult = (remortCount: number) => ({
       state: "persistent-active" as const,

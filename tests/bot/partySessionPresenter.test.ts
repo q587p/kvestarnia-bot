@@ -76,6 +76,40 @@ describe("party session presenter", () => {
     ))).not.toContain("Журлива балада");
   });
 
+  it("stores and renders Lament activation, tick and expiry in raid journal pages", () => {
+    const round = (
+      turn: number,
+      activated: boolean,
+      remainingBossResponses: number,
+      expired: boolean
+    ): PartyBossSessionRecord["state"]["roundLog"][number] => ({
+      turn,
+      actions: [],
+      bossDamage: 0,
+      bossHpAfter: 55,
+      bossRetaliations: [],
+      bardMusic: {
+        kind: "lament",
+        activationId: "lament-journal",
+        sourceCharacterId: "leader",
+        damageReduction: 3,
+        activated,
+        remainingBossResponses,
+        expired
+      },
+      statusAfter: "active"
+    });
+    const session = makeBigBossSession({
+      turn: 4,
+      roundLog: [round(1, true, 2, false), round(2, false, 1, false), round(3, false, 0, true)]
+    });
+
+    expect(presentPartyBossJournal(session, 0)).toContain("затягує журливу баладу");
+    expect(presentPartyBossJournal(session, 0)).toContain("ще 2 відповіді");
+    expect(presentPartyBossJournal(session, 1)).toContain("ще 1 відповідь");
+    expect(presentPartyBossJournal(session, 2)).toContain("Остання нота стихла");
+  });
+
   it("advertises Bard support in raid tips only while the feature state is present", () => {
     const bard = participant("leader", "Бард");
     bard.combatStats.classId = "class.bard";
@@ -86,9 +120,11 @@ describe("party session presenter", () => {
     disabled.participants[0]!.classId = "class.bard";
     disabled.participants[0]!.raceId = "race.no-raid-hint";
 
-    expect(presentPartyBossIntro(enabled, "leader")).not.toContain("тримайте ритм і не сперечайтеся");
+    expect(presentPartyBossIntro(enabled, "leader")).toContain("надихнути товариство виступом");
+    expect(presentPartyBossIntro(enabled, "leader")).toContain("журливою баладою");
+    expect(presentPartyBossIntro(disabled, "leader")).not.toContain("надихнути товариство");
     expect(presentPartyBossIntro(disabled, "leader")).not.toContain("журливою баладою");
-    expect(presentPartyBossIntro(disabled, "leader")).toContain("тримайте ритм");
+    expect(presentPartyBossIntro(disabled, "leader")).toContain("Порада дня:");
   });
 
   it("shows carried Kharakternyk ward signs without a zero-support counter", () => {

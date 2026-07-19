@@ -1254,6 +1254,7 @@ function resolveMultiEnemyHeroAttack(
   let counterDamage = 0;
 
   if (nextState.hero.hp <= 0) {
+    applyAfterCommittedHeroAction(input, nextState);
     nextState.status = getLivingCombatEnemies(nextState).length === 0 ? "won" : "lost";
   } else {
     const activationPhase = resolveHeroActivationAndLivingEnemyPhase(

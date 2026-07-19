@@ -38,6 +38,8 @@ describe("PrismaBardPerformanceRepository integration", () => {
     await prisma.bardPerformanceReaction.deleteMany();
     await prisma.bardPerformance.deleteMany();
     await prisma.characterCooldown.deleteMany();
+    await prisma.duelCombatSession.deleteMany();
+    await prisma.partyBossSession.deleteMany();
     await prisma.activeCombatLease.deleteMany();
     await prisma.characterRemort.deleteMany();
     await prisma.characterEquipment.deleteMany();
@@ -86,6 +88,49 @@ describe("PrismaBardPerformanceRepository integration", () => {
     await expect(prisma.character.findUnique({ where: { id: "character-bard" } })).resolves.toMatchObject({
       gold: 13
     });
+  });
+
+  it("starts a new live performance after remort without reusing the previous-life guard", async () => {
+    await seedCharacter({
+      telegramUserId: 163n,
+      userId: "user-life-bard",
+      characterId: "character-life-bard",
+      classId: "class.bard",
+      level: 3
+    });
+    const lifeZero = await repository.startPerformanceForTelegramUser(163n, startInput({
+      token: "12345678-1234-4234-9234-000000000163",
+      rawHousePayoutGold: 0
+    }));
+    expect(lifeZero.state).toBe("started");
+
+    await prisma.characterRemort.create({
+      data: {
+        characterId: "character-life-bard",
+        token: "life-bard-remort-1",
+        remortNumber: 1,
+        previousLevel: 3,
+        previousXp: 25,
+        previousGold: 0,
+        displayNameSnapshot: "character-life-bard",
+        preservedPayloadJson: {}
+      }
+    });
+    const lifeOne = await repository.startPerformanceForTelegramUser(163n, startInput({
+      token: "12345678-1234-4234-9234-000000000164",
+      rawHousePayoutGold: 0
+    }));
+
+    expect(lifeOne.state).toBe("started");
+    const rows = await prisma.bardPerformance.findMany({
+      where: { characterId: "character-life-bard" },
+      orderBy: { remortCount: "asc" },
+      select: { remortCount: true, status: true, liveGuard: true }
+    });
+    expect(rows).toEqual([
+      { remortCount: 0, status: "active", liveGuard: "character-life-bard:0:location.korchma.bar" },
+      { remortCount: 1, status: "active", liveGuard: "character-life-bard:1:location.korchma.bar" }
+    ]);
   });
 
   it("atomically grants Inspiration to the frozen audience and writes shared music availability", async () => {
@@ -323,6 +368,84 @@ describe("PrismaBardPerformanceRepository integration", () => {
       expiresAt: released.expiresAt,
       cursorAt: released.cursorAt
     });
+  });
+
+  it.each([
+    ["solo combat", "solo-combat"],
+    ["turn duel", "turn-based-duel"],
+    ["Big Barrel", "party-boss"]
+  ] as const)("treats an exhausted frozen Inspiration snapshot as authoritative in %s", async (_label, kind) => {
+    const characterId = `character-exhausted-${kind}`;
+    const userId = `user-exhausted-${kind}`;
+    const referenceId = `reference-exhausted-${kind}`;
+    const startedAt = new Date("2026-06-26T10:00:00.000Z");
+    await seedCharacter({ telegramUserId: 170n, userId, characterId });
+    const payload = buildBardInspirationPayload({
+      activationId: `activation-exhausted-${kind}`,
+      sourcePerformanceId: "performance-exhausted",
+      sourceCharacterId: "character-bard",
+      sourceLocationId: "location.korchma.bar",
+      recipientCharacterId: characterId,
+      recipientRemortCount: 0,
+      grade: "pleasant",
+      now: startedAt
+    });
+    const frozen = {
+      ...freezeBardInspirationForCombat(payload, characterId, 0, startedAt)!,
+      expiresAt: startedAt.toISOString(),
+      cursorAt: startedAt.toISOString(),
+      pulseIds: Array.from({ length: 13 }, (_, index) => `pulse-${index + 1}`)
+    };
+    await prisma.characterCooldown.create({
+      data: {
+        characterId,
+        key: BARD_INSPIRATION_STATUS_KEY,
+        availableAt: new Date(payload.expiresAt),
+        resultJson: payload
+      }
+    });
+
+    if (kind === "solo-combat") {
+      await prisma.soloCombatSession.create({
+        data: {
+          id: referenceId,
+          characterId,
+          monsterId: "monster.test",
+          status: "active",
+          turn: 14,
+          stateJson: { bardInspiration: frozen },
+          expiresAt: new Date("2026-06-26T11:00:00.000Z")
+        }
+      });
+    } else if (kind === "turn-based-duel") {
+      await prisma.$executeRawUnsafe(
+        "INSERT INTO duel_combat_sessions (id, status, state_json) VALUES (?, 'active', ?)",
+        referenceId,
+        JSON.stringify({ participants: { challenger: { bardInspiration: frozen } } })
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        "INSERT INTO party_boss_sessions (id, party_session_id, status, state_json) VALUES (?, ?, 'active', ?)",
+        `boss-${referenceId}`,
+        referenceId,
+        JSON.stringify({ participants: [{ characterId, bardInspiration: frozen }] })
+      );
+    }
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId,
+        kind,
+        referenceId,
+        createdAt: startedAt,
+        updatedAt: startedAt
+      }
+    });
+
+    const result = await repository.getInspirationForTelegramUser(
+      170n,
+      new Date("2026-06-26T10:01:00.000Z")
+    );
+    expect(result?.inspiration).toBeNull();
   });
 
   it("normalizes legacy presence aliases for Bard start, audience matching and response", async () => {
@@ -855,7 +978,7 @@ describe("PrismaBardPerformanceRepository integration", () => {
         locationId: input.locationId ?? "location.korchma.bar",
         localDate: "2026-06-26",
         status: "active",
-        liveGuard: `character-bard:${input.locationId ?? "location.korchma.bar"}`,
+        liveGuard: `character-bard:0:${input.locationId ?? "location.korchma.bar"}`,
         grade: "pleasant",
         power: 26,
         housePayoutGold: input.housePayoutGold,
@@ -1044,6 +1167,17 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       expires_at DATETIME NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE duel_combat_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      state_json JSONB NOT NULL
+    )`,
+    `CREATE TABLE party_boss_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      party_session_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      state_json JSONB NOT NULL
     )`,
     `CREATE TABLE bard_performances (
       id TEXT PRIMARY KEY NOT NULL,

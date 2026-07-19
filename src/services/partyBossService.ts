@@ -291,6 +291,13 @@ export class PartyBossService {
     if (participant.status !== "active" || participant.resources.hp <= 0) {
       return { state: "stale", session };
     }
+    if (
+      session.state.bardMusic?.kind === "lament" &&
+      session.state.bardMusic.sourceCharacterId === participant.characterId &&
+      session.state.bardMusic.activatedTurn === turn
+    ) {
+      return { state: "stale", session };
+    }
 
     const inventoryItems = await this.inventory?.listByTelegramUserId(telegramUserId);
     if (!inventoryItems) {

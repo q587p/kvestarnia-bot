@@ -9,7 +9,10 @@ import {
   type SatedResourceState,
   type VarenykSatedCombatStateV1
 } from "../../domain/noncombat/varenykSatedSupport";
-import { advanceBardInspirationCursorThroughCombat } from "./prismaBardSupport";
+import {
+  advanceBardInspirationCursorThroughCombat,
+  invalidateBardInspirationOwnedByCombatLease
+} from "./prismaBardSupport";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -308,20 +311,23 @@ export async function releaseCombatLeaseWithTimedStatuses(input: {
         }
       : {})
   });
-  if (input.syncBardInspiration !== false) {
+  if (input.syncBardInspiration !== false && input.inspiration) {
     await advanceBardInspirationCursorThroughCombat({
       tx: input.tx,
       characterId: input.lease.characterId,
-      ...(input.inspiration ? { activationId: input.inspiration.activationId } : {}),
+      activationId: input.inspiration.activationId,
       now: input.releasedAt,
       leaseStartedAt: input.lease.createdAt,
-      ...(input.inspiration
-        ? {
-            outsideRemainderMs: input.inspiration.outsideRemainderMs,
-            combatExpiresAt: new Date(input.inspiration.expiresAt),
-            combatCursorAt: new Date(input.inspiration.cursorAt)
-          }
-        : {})
+      outsideRemainderMs: input.inspiration.outsideRemainderMs,
+      combatExpiresAt: new Date(input.inspiration.expiresAt),
+      combatCursorAt: new Date(input.inspiration.cursorAt)
+    });
+  } else {
+    await invalidateBardInspirationOwnedByCombatLease({
+      tx: input.tx,
+      characterId: input.lease.characterId,
+      leaseStartedAt: input.lease.createdAt,
+      ...(input.inspiration ? { activationId: input.inspiration.activationId } : {})
     });
   }
 

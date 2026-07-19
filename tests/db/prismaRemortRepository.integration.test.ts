@@ -230,6 +230,12 @@ describe("PrismaRemortRepository integration", () => {
         sentAt: new Date(now.getTime() - 30_000)
       }
     });
+    await prisma.$executeRawUnsafe(
+      "INSERT INTO bard_performances (id, character_id, status, live_guard) VALUES (?, ?, 'active', ?)",
+      "performance-remort-live",
+      "character-remort-solo",
+      "character-remort-solo:0:location.korchma.bar"
+    );
     await prisma.itemTransfer.create({
       data: {
         id: "transfer-remort-postal",
@@ -355,6 +361,10 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.barrelRaidNotification.count({
       where: { characterId: "character-remort-solo" }
     })).resolves.toBe(0);
+    await expect(prisma.$queryRawUnsafe<Array<{ status: string; live_guard: string | null }>>(
+      "SELECT status, live_guard FROM bard_performances WHERE id = ?",
+      "performance-remort-live"
+    )).resolves.toEqual([{ status: "expired", live_guard: null }]);
     await expect(prisma.itemTransfer.findUnique({
       where: { id: "transfer-remort-postal" }
     })).resolves.toMatchObject({
@@ -1146,6 +1156,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       result_json JSONB,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(character_id, key)
+    )`,
+    `CREATE TABLE bard_performances (
+      id TEXT PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      live_guard TEXT,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE hunt_contracts (
       id TEXT PRIMARY KEY,

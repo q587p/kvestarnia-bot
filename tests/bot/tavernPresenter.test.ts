@@ -978,6 +978,23 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("+25 XP");
   });
 
+  it("keeps pending and blocked Tavern raid cards free of disabled Bard mechanics", () => {
+    const bard = { ...character, classId: "class.bard", className: "Бард" };
+    const result = {
+      state: "pending" as const,
+      character: bard,
+      availableAt: new Date("2026-06-13T10:38:00.000Z"),
+      now: new Date("2026-06-13T10:30:00.000Z"),
+      periodId: "2026-06-13T10:23"
+    };
+
+    for (const text of [presentTavernRaidPending(result), presentPendingRaidActionBlock(result)]) {
+      expect(text).toContain("Порада дня:");
+      expect(text).not.toContain("надихнути товариство");
+      expect(text).not.toContain("журливою баладою");
+    }
+  });
+
   it("varies pending barrel flavor when the player checks again", () => {
     const first = presentTavernRaidPending({
       state: "pending",

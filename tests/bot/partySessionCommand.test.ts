@@ -935,6 +935,37 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("v1:party:bi:partyABC12:1:field1");
   });
 
+  it("restores the canonical raid card for a stale source-Lament item-menu callback", async () => {
+    const session = makeBossSession({
+      bardMusic: {
+        kind: "lament",
+        activationId: "lament-stale-items",
+        sourceCharacterId: "character-42",
+        grade: "pleasant",
+        damageReduction: 3,
+        remainingBossResponses: 3,
+        activatedTurn: 1
+      }
+    });
+    const listCombatItemsForTelegramUser = vi.fn().mockResolvedValue({ state: "stale", session });
+    const { ctx, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-items", token: session.partyInviteToken, turn: 1 },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ listCombatItemsForTelegramUser })
+      }
+    );
+
+    expect(listCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
+    expect(messageText(editMessageText)).toContain("Показую канонічний стан");
+    expect(messageText(editMessageText)).not.toContain("Одноразові манатки");
+    expect(keyboardJson(editMessageText)).not.toContain(":bi:");
+  });
+
   it("routes forged non-dev boss timeout callbacks through the due-timeout path only", async () => {
     const session = makeBossSession();
     const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "queued", session });

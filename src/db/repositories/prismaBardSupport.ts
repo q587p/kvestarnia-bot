@@ -338,6 +338,53 @@ export async function advanceBardInspirationCursorThroughCombat(input: {
   }
 }
 
+export async function invalidateBardInspirationOwnedByCombatLease(input: {
+  tx: TxClient;
+  characterId: string;
+  leaseStartedAt: Date;
+  activationId?: string;
+}): Promise<void> {
+  const row = await input.tx.characterCooldown.findUnique({
+    where: {
+      characterId_key: {
+        characterId: input.characterId,
+        key: BARD_INSPIRATION_STATUS_KEY
+      }
+    }
+  });
+  const payload = parseBardInspirationPayload(row?.resultJson);
+  if (!row || !payload) {
+    return;
+  }
+  if (input.activationId && payload.activationId !== input.activationId) {
+    if (Date.parse(payload.startedAt) > input.leaseStartedAt.getTime()) {
+      return;
+    }
+    throw new BardSupportCasError("activation");
+  }
+
+  const leaseStartedAt = input.leaseStartedAt.getTime();
+  const activationWasActiveAtLeaseStart =
+    payload.recipientCharacterId === input.characterId &&
+    Date.parse(payload.startedAt) <= leaseStartedAt &&
+    Date.parse(payload.cursorAt) <= leaseStartedAt &&
+    Date.parse(payload.expiresAt) > leaseStartedAt;
+  if (!activationWasActiveAtLeaseStart) {
+    return;
+  }
+
+  const deleted = await input.tx.characterCooldown.deleteMany({
+    where: {
+      id: row.id,
+      availableAt: row.availableAt,
+      resultJson: { equals: row.resultJson ?? Prisma.JsonNull }
+    }
+  });
+  if (deleted.count !== 1) {
+    throw new BardSupportCasError("invalidate");
+  }
+}
+
 export class BardSupportCasError extends Error {
   constructor(stage: string) {
     super(`Bard support ${stage} compare-and-swap lost.`);

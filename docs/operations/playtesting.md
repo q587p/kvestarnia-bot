@@ -574,6 +574,11 @@ Manual Telegram QA status for the implementation pass: not run. Use two Bard-cap
 7. Reopen the raid card after a local bot refresh; verify the stored grade/counter and journal text are unchanged. Finish/cancel and start a new raid; verify no old Lament transfers.
 8. Try a performance after Lament and a Lament after performance in the same location; verify both show the same canonical remaining wait.
 9. Set `NODE_ENV=production`, leave `BARD_SUPPORT_ENABLED=true` and `DEV_GRANT_COMMANDS_ENABLED=true`; verify the helper is absent from registration/help/menu and cannot mutate through its service path.
+10. With `BARD_SUPPORT_ENABLED=false`, open a pending Tavern raid block, persistent-fight intro, turn-duel intro and active Big Barrel card as a Bard; verify none advertises Inspiration or Lament, and an old Lament callback keeps the canonical raid card.
+11. Exhaust frozen Inspiration in solo/Training, turn duel and Big Barrel, terminalize with the flag off, then re-enable before the original wall-clock expiry; verify `/hero` and a new combat do not resurrect or extend it. Repeat once after an off-mode active turn followed by re-enable before release.
+12. Start a performance, remort before its 13-minute live window ends, restore new-life Bard eligibility at the same location and perform again; verify the old performance/reactions remain audit history but only the new-life live guard controls the new performance.
+13. In multi-enemy PvE, force a 1-HP Bard-supported hero to die from a committed critical fumble or reflection; verify the final Inspiration minute is consumed once, `Ситий` does not revive the hero, and replay does not add another pulse.
+14. Commit Lament, then press a previously rendered `🎒 Одноразові манатки` button from the source Bard and another participant; verify the source returns to the canonical locked raid card while the other participant can still open the submenu.
 
 ## 0.2.5 — Bard Performance smoke
 

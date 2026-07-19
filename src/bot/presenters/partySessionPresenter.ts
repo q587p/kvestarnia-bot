@@ -1,5 +1,8 @@
 import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
-import { selectCharacterFlavorLine } from "../../content/characterFlavor";
+import {
+  BARD_SUPPORT_RAID_PREP_HINT,
+  selectCharacterFlavorLine
+} from "../../content/characterFlavor";
 import type {
   PartyCancelResult,
   PartyCreateResult,
@@ -1510,8 +1513,8 @@ function presentPartyBossStartTip(
     return null;
   }
 
-  if (participant.classId === "class.bard" && session.state.bardMusic === undefined) {
-    return "<i>Порада дня: у рейді тримайте ритм і не сперечайтеся з бочкою про акустику.</i>";
+  if (participant.classId === "class.bard" && session.state.bardMusic !== undefined) {
+    return `<i>Порада дня: ${escapeHtml(BARD_SUPPORT_RAID_PREP_HINT)}</i>`;
   }
 
   const flavor = selectCharacterFlavorLine(summarizeCharacter(participant, {

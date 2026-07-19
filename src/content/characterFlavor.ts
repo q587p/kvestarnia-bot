@@ -15,6 +15,9 @@ export type FlavorPlacement =
 
 export type FlavorScene = "shawarma" | "fight" | "cellar" | "barrel";
 
+export const BARD_SUPPORT_RAID_PREP_HINT =
+  "Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає.";
+
 export interface CharacterFlavorSelector {
   raceIds?: string[];
   classIds?: string[];
@@ -1367,7 +1370,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
   ...buildCellarOutcomeRaceLines(),
   ...buildCellarOutcomeClassLines(),
   ...buildCellarOutcomeComboLines(),
-  // Future raid role flavor only. No mechanical roles or raid balance effects yet.
+  // Shared raid-prep flavor must remain safe on surfaces that do not know feature flags.
   {
     id: "barrel.raid-hint.class.warrior",
     placement: "raid.prep-hint",
@@ -1387,7 +1390,7 @@ export const characterFlavorLines: CharacterFlavorLine[] = [
     placement: "raid.prep-hint",
     scene: "barrel",
     selector: { classIds: ["class.bard"] },
-    text: "Перед рейдом Бард може надихнути товариство виступом, а в самому рейді — послабити Старшого Брата журливою баладою. За моральний стан табуретів він усе одно відповідає."
+    text: "Бардам у повному рейді довірять ритм, настрій і табурети. Принаймні один із цих пунктів переживе Бочку."
   },
   {
     id: "barrel.raid-hint.class.rogue",
