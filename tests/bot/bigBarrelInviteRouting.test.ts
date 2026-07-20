@@ -118,6 +118,7 @@ describe("Big Barrel Brother invite routing", () => {
       schedulerPublished.resolve();
       return Promise.resolve({ chat: { id: 42 }, message_id: 101 });
     });
+    const schedulerEditMessage = vi.fn().mockResolvedValue(true);
     const schedulerRaidChat = {
       prepareDisabledRedactions: vi.fn().mockResolvedValue(0),
       cleanupExpired: vi.fn().mockResolvedValue(0),
@@ -155,7 +156,7 @@ describe("Big Barrel Brother invite routing", () => {
     };
     const schedulerBot = {
       api: {
-        editMessageText: vi.fn(),
+        editMessageText: schedulerEditMessage,
         sendMessage: schedulerSendMessage
       }
     } as unknown as Bot;
@@ -170,8 +171,8 @@ describe("Big Barrel Brother invite routing", () => {
     ]);
 
     const routeRecruitingCards = [...firstRouteCalls, ...secondRouteCalls].filter(hasRecruitingRaidChat);
-    const schedulerRecruitingCards = schedulerSendMessage.mock.calls.filter((call) =>
-      String(call[1]).includes("💬 <b>Рейд-чат (останні 13):</b>")
+    const schedulerRecruitingCards = schedulerEditMessage.mock.calls.filter((call) =>
+      String(call[2]).includes("💬 <b>Рейд-чат (останні 13):</b>")
     );
     expect(routeRecruitingCards).toHaveLength(0);
     expect(schedulerRecruitingCards).toHaveLength(1);
@@ -241,13 +242,14 @@ describe("Big Barrel Brother invite routing", () => {
       partyCharacter: { level: 3, remortCount: 1 },
       raidChatView: makeRaidChatView()
     });
-    createForTelegramUser.mockResolvedValue({ state: "live", session });
+    createForTelegramUser.mockResolvedValue({ state: "live-membership", session });
     const scheduler = makeRecruitingScheduler(session, { chatId: 42n, messageId: 101 });
 
     const routeCalls = await captureMessageApiCalls("/raid", services, { botUsername: BOT_USERNAME });
     await runPartyRaidChatDeliveryTick(scheduler.services, scheduler.bot, { botUsername: BOT_USERNAME });
 
     expect(routeCalls.filter(hasRecruitingRaidChat)).toHaveLength(0);
+    expect(routeCalls.filter(hasRecruitingRefreshAcknowledgement)).toHaveLength(1);
     expect(requestRecruitingRefresh).toHaveBeenCalledWith(42n, PARTY_TOKEN);
     expect(scheduler.sendMessage).not.toHaveBeenCalled();
     expect(scheduler.editMessage).toHaveBeenCalledWith(
@@ -279,6 +281,7 @@ describe("Big Barrel Brother invite routing", () => {
 
     expect(routeCalls.some((call) => call.method === "editMessageText" &&
       Number(call.payload.message_id) === 10 && hasRecruitingRaidChat(call))).toBe(false);
+    expect(routeCalls.filter(hasRecruitingRefreshAcknowledgement)).toHaveLength(1);
     expect(requestRecruitingRefresh).toHaveBeenCalledWith(42n, PARTY_TOKEN);
     expect(scheduler.editMessage).toHaveBeenCalledWith(
       42,
@@ -360,6 +363,12 @@ function hasRecruitingRaidChat(call: ApiCall): boolean {
 function hasRaidChatComposeButton(call: ApiCall): boolean {
   return (call.method === "sendMessage" || call.method === "editMessageText") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes("💬 Написати в рейд-чат");
+}
+
+function hasRecruitingRefreshAcknowledgement(call: ApiCall): boolean {
+  return call.method === "sendMessage" &&
+    String(call.payload.text) === "🔎 Оновлюю вашу картку збору вище в чаті." &&
+    call.payload.reply_markup === undefined;
 }
 
 function hasBigApproachNotice(call: ApiCall): boolean {

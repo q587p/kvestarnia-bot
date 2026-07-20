@@ -432,7 +432,11 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       const existing = await tx.partyRaidChatDeliveryState.findUnique({
         where: { participantId: authorization.participant.id }
       });
-      if (existing?.lastDeliveryClass === "in-flight") {
+      if (
+        existing?.lastDeliveryClass === "in-flight" &&
+        existing.nextAttemptAt.getTime() > now.getTime() &&
+        existing.nextAttemptAt.getTime() < IDLE_DELIVERY_AT.getTime()
+      ) {
         return true;
       }
       if (!existing) {
@@ -441,8 +445,8 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
             participantId: authorization.participant.id,
             partySessionId: authorization.session.id,
             surfaceMode: "recruiting_embed",
-            activeChatId: authorization.participant.chatId,
-            activeMessageId: authorization.participant.messageId,
+            activeChatId: null,
+            activeMessageId: null,
             desiredRevision: authorization.session.chatRevision,
             nextAttemptAt: now,
             lastDeliveryClass: "refresh-requested"
@@ -474,7 +478,7 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision },
         OR: [
           { lastDeliveryClass: null },
-          { lastDeliveryClass: { not: "refresh-requested" } }
+          { lastDeliveryClass: { notIn: ["refresh-requested", "in-flight"] } }
         ]
       },
       orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
@@ -488,13 +492,12 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         })
       ));
     }
-    const candidates = await this.prisma.partyRaidChatDeliveryState.findMany({
+    const priorityCandidates = await this.prisma.partyRaidChatDeliveryState.findMany({
       where: {
         nextAttemptAt: { lte: now },
         OR: [
           { redactionRequired: true },
-          { desiredRevision: { gt: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision } },
-          { lastDeliveryClass: "refresh-requested" }
+          { desiredRevision: { gt: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision } }
         ]
       },
       orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
@@ -508,6 +511,27 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         partySession: { select: { inviteToken: true } }
       }
     });
+    const refreshCandidates = priorityCandidates.length >= safeLimit
+      ? []
+      : await this.prisma.partyRaidChatDeliveryState.findMany({
+          where: {
+            nextAttemptAt: { lte: now },
+            redactionRequired: false,
+            desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision },
+            lastDeliveryClass: { in: ["refresh-requested", "in-flight"] }
+          },
+          orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
+          take: safeLimit - priorityCandidates.length,
+          include: {
+            participant: {
+              include: {
+                character: { include: { user: true } }
+              }
+            },
+            partySession: { select: { inviteToken: true } }
+          }
+        });
+    const candidates = [...priorityCandidates, ...refreshCandidates];
     const claimed: PartyRaidChatDeliveryRecord[] = [];
     const claimUntil = new Date(now.getTime() + DELIVERY_CLAIM_MS);
     for (const row of candidates) {
@@ -564,7 +588,6 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       const delivery = await tx.partyRaidChatDeliveryState.findUnique({
         where: { id: deliveryId },
         select: {
-          participantId: true,
           version: true,
           lastDeliveryClass: true,
           redactionRequired: true,
@@ -600,10 +623,6 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       if (updated.count !== 1) {
         return false;
       }
-      await tx.partyParticipant.update({
-        where: { id: delivery.participantId },
-        data: { chatId, messageId }
-      });
       return true;
     });
   }
@@ -735,8 +754,12 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         AND: [
           {
             OR: [
-              { chatId: { not: null }, messageId: { not: null } },
-              { raidChatDeliveryState: { is: { activeChatId: { not: null }, activeMessageId: { not: null } } } }
+              { raidChatDeliveryState: { is: { activeChatId: { not: null }, activeMessageId: { not: null } } } },
+              {
+                raidChatDeliveryState: { is: null },
+                chatId: { not: null },
+                messageId: { not: null }
+              }
             ]
           },
           {
@@ -765,8 +788,12 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       }
     });
     for (const participant of participants) {
-      const activeChatId = participant.raidChatDeliveryState?.activeChatId ?? participant.chatId;
-      const activeMessageId = participant.raidChatDeliveryState?.activeMessageId ?? participant.messageId;
+      const activeChatId = participant.raidChatDeliveryState
+        ? participant.raidChatDeliveryState.activeChatId
+        : participant.chatId;
+      const activeMessageId = participant.raidChatDeliveryState
+        ? participant.raidChatDeliveryState.activeMessageId
+        : participant.messageId;
       await this.prisma.partyRaidChatDeliveryState.upsert({
         where: { participantId: participant.id },
         create: {
@@ -1116,7 +1143,7 @@ async function markDeliveryDirty(
 ): Promise<void> {
   const participants = await tx.partyParticipant.findMany({
     where: { sessionId: partySessionId, status: "joined" },
-    select: { id: true, chatId: true, messageId: true }
+    select: { id: true }
   });
   const surfaceMode = surfaceModeForLifecycle(lifecycle);
   for (const participant of participants) {
@@ -1126,8 +1153,8 @@ async function markDeliveryDirty(
         participantId: participant.id,
         partySessionId,
         surfaceMode,
-        activeChatId: participant.chatId,
-        activeMessageId: participant.messageId,
+        activeChatId: null,
+        activeMessageId: null,
         desiredRevision: revision,
         nextAttemptAt: now
       },

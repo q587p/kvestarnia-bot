@@ -286,7 +286,14 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     const delivery = (await repository.listDueDeliveries(NOW, 23))
       .find((candidate) => candidate.partySessionId === "session-delivery");
     expect(delivery).toMatchObject({ surfaceMode: "recruiting_embed", redactionRequired: false });
-    await repository.markDeliveryRendered(delivery!.id, delivery!.desiredRevision, delivery!.version, NOW);
+    await expect(repository.recordDeliveryReference(
+      delivery!.id,
+      7006n,
+      1,
+      { version: delivery!.version, chatId: null, messageId: null },
+      NOW
+    )).resolves.toBe(true);
+    await repository.markDeliveryRendered(delivery!.id, delivery!.desiredRevision, delivery!.version + 1, NOW);
     expect((await repository.listDueDeliveries(new Date(NOW.getTime() + 93_000), 23))
       .some((candidate) => candidate.id === delivery!.id)).toBe(false);
 
@@ -410,8 +417,8 @@ describe("PrismaPartyRaidChatRepository integration", () => {
       const claimed = (await repository.listDueDeliveries(NOW, 130))
         .find((candidate) => candidate.partySessionId === `session-${key}`)!;
       expect(claimed).toMatchObject({
-        chatId: telegramUserId,
-        messageId: 1,
+        chatId: null,
+        messageId: null,
         desiredRevision: 1,
         renderedRevision: 0
       });
@@ -436,8 +443,8 @@ describe("PrismaPartyRaidChatRepository integration", () => {
           renderedRevision: true
         }
       })).resolves.toEqual({
-        activeChatId: telegramUserId,
-        activeMessageId: 1,
+        activeChatId: null,
+        activeMessageId: null,
         desiredRevision: 1,
         renderedRevision: 1
       });
@@ -504,7 +511,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     })).resolves.toBe(1);
   });
 
-  it("keeps one tracked reference when the Big Barrel flag is disabled after repeated reopen", async () => {
+  it("keeps the generic party reference separate when the Big Barrel flag is disabled after repeated reopen", async () => {
     await seedLineage(prisma, "flag-disable-reopen", 7_023n);
     await expect(repository.requestRecruitingRefresh(
       7_023n,
@@ -523,15 +530,119 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     );
 
     await expect(disabled.requestRecruitingRefresh(7_023n, "raid-flag-disable-reopen")).resolves.toBe(false);
-    await expect(disabled.prepareDisabledRedactions(130)).resolves.toBeGreaterThan(0);
+    await expect(disabled.prepareDisabledRedactions(130)).resolves.toBe(0);
     await expect(prisma.partyRaidChatDeliveryState.findMany({
       where: { partySessionId: "session-flag-disable-reopen" },
       select: { activeChatId: true, activeMessageId: true, redactionRequired: true }
     })).resolves.toEqual([{
-      activeChatId: 7_023n,
-      activeMessageId: 1,
-      redactionRequired: true
+      activeChatId: null,
+      activeMessageId: null,
+      redactionRequired: false
     }]);
+    await expect(prisma.partyParticipant.findUniqueOrThrow({
+      where: { id: "participant-flag-disable-reopen" },
+      select: { chatId: true, messageId: true }
+    })).resolves.toEqual({ chatId: 7_023n, messageId: 1 });
+  });
+
+  it("reclaims a clean in-flight refresh automatically at the exact 93-second lease boundary", async () => {
+    await seedLineage(prisma, "lease-reclaim", 7_024n);
+    await expect(repository.requestRecruitingRefresh(7_024n, "raid-lease-reclaim", NOW)).resolves.toBe(true);
+
+    const first = (await repository.listDueDeliveries(NOW, 130))
+      .find((candidate) => candidate.partySessionId === "session-lease-reclaim")!;
+    expect(first).toMatchObject({ renderedRevision: 0, desiredRevision: 0 });
+    await expect(repository.requestRecruitingRefresh(
+      7_024n,
+      "raid-lease-reclaim",
+      new Date(NOW.getTime() + 1)
+    )).resolves.toBe(true);
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: first.id },
+      select: { version: true, nextAttemptAt: true, lastDeliveryClass: true }
+    })).resolves.toEqual({
+      version: first.version,
+      nextAttemptAt: new Date(NOW.getTime() + 93_000),
+      lastDeliveryClass: "in-flight"
+    });
+    await expect(repository.listDueDeliveries(new Date(NOW.getTime() + 92_999), 130))
+      .resolves.not.toEqual(expect.arrayContaining([expect.objectContaining({ id: first.id })]));
+
+    const reclaimed = (await repository.listDueDeliveries(new Date(NOW.getTime() + 93_000), 130))
+      .find((candidate) => candidate.id === first.id)!;
+    expect(reclaimed).toMatchObject({
+      version: first.version + 1,
+      renderedRevision: 0,
+      desiredRevision: 0
+    });
+  });
+
+  it("makes expired and accidentally parked in-flight reopen requests due again", async () => {
+    await seedLineage(prisma, "reopen-stale-claim", 7_025n);
+    await expect(repository.requestRecruitingRefresh(
+      7_025n,
+      "raid-reopen-stale-claim",
+      NOW
+    )).resolves.toBe(true);
+    const first = (await repository.listDueDeliveries(NOW, 130))
+      .find((candidate) => candidate.partySessionId === "session-reopen-stale-claim")!;
+
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: first.id },
+      data: { nextAttemptAt: new Date(NOW.getTime() - 1), lastDeliveryClass: "in-flight" }
+    });
+    await expect(repository.requestRecruitingRefresh(
+      7_025n,
+      "raid-reopen-stale-claim",
+      NOW
+    )).resolves.toBe(true);
+    const expired = (await repository.listDueDeliveries(NOW, 130))
+      .find((candidate) => candidate.id === first.id)!;
+    expect(expired.version).toBeGreaterThan(first.version);
+
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: first.id },
+      data: {
+        nextAttemptAt: new Date("9999-12-31T23:59:59.999Z"),
+        lastDeliveryClass: "in-flight"
+      }
+    });
+    await expect(repository.requestRecruitingRefresh(
+      7_025n,
+      "raid-reopen-stale-claim",
+      new Date(NOW.getTime() + 1)
+    )).resolves.toBe(true);
+    await expect(repository.listDueDeliveries(new Date(NOW.getTime() + 1), 130)).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: first.id })])
+    );
+  });
+
+  it("adopts the canonical raid-chat reference without rewriting the generic party reference", async () => {
+    await seedLineage(prisma, "reference-separation", 7_026n);
+    await expect(repository.requestRecruitingRefresh(
+      7_026n,
+      "raid-reference-separation",
+      NOW
+    )).resolves.toBe(true);
+    const delivery = (await repository.listDueDeliveries(NOW, 130))
+      .find((candidate) => candidate.partySessionId === "session-reference-separation")!;
+    expect(delivery).toMatchObject({ chatId: null, messageId: null });
+
+    await expect(repository.recordDeliveryReference(
+      delivery.id,
+      7_026n,
+      587,
+      { version: delivery.version, chatId: null, messageId: null },
+      NOW
+    )).resolves.toBe(true);
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery.id },
+      select: { activeChatId: true, activeMessageId: true }
+    })).resolves.toEqual({ activeChatId: 7_026n, activeMessageId: 587 });
+    await expect(prisma.partyParticipant.findUniqueOrThrow({
+      where: { id: delivery.participantId },
+      select: { chatId: true, messageId: true }
+    })).resolves.toEqual({ chatId: 7_026n, messageId: 1 });
   });
 
   it("parks a current permanent send failure but not one for a superseded reference", async () => {
@@ -577,7 +688,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     await expect(prisma.partyParticipant.findUniqueOrThrow({
       where: { id: delivery.participantId },
       select: { chatId: true, messageId: true }
-    })).resolves.toEqual({ chatId: null, messageId: null });
+    })).resolves.toEqual({ chatId: 7012n, messageId: 1 });
   });
 
   it("repairs 70 clean due rows without starving the following dirty delivery", async () => {

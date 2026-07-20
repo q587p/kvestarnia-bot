@@ -122,7 +122,7 @@ Keep at most 130 entries per lineage. Prune oldest rows in bounded batches after
 Persist one `PartyRaidChatDeliveryState` per participant (or an equivalent explicit extension of `PartyParticipant`) with:
 
 - surface mode (`recruiting_embed`, `active_card`, `terminal_read_only` or `redacted`);
-- nullable active-card chat/message IDs; recruiting may reuse the existing canonical participant-card reference;
+- nullable canonical raid-chat card chat/message IDs, kept separate from generic `PartyParticipant` card references;
 - desired and rendered chat revisions;
 - redaction-required state;
 - next attempt, attempt count and last delivery class.
@@ -187,7 +187,9 @@ System payloads contain only stable IDs/enums and display-safe snapshots needed 
 
 Render the feed only in the authorized participant variant of the canonical gathering card. After commit, the durable desired revision makes every joined participant due. Extend permanent-edit recovery to replace a broken card for any participant, not only the leader.
 
-For every Big Barrel recruiting response with raid chat enabled, the durable scheduler is the sole owner of the participant card and its Telegram reference. The creation route may send the separate approach notice, but `/raid` and Tavern create/live/live-membership routes never render a transcript into their current message and never record a competing reference; reopen only requests a canonical refresh. Delivery claims are versioned, reference replacement is compare-and-set, and a losing new send is immediately retired without transcript content. This keeps one durable card across creation, reopen, membership reuse and concurrent accepted posts.
+For every Big Barrel recruiting response with raid chat enabled, the durable scheduler is the sole owner of the participant card and its Telegram reference. The creation route may send the separate approach notice, but `/raid` and Tavern create/live/live-membership routes never render a transcript into their current message and never record a competing reference; reopen only requests a canonical refresh and sends a compact transcript-free acknowledgement so an edit to an older card is visible from the current viewport.
+
+Missing-reference publication is privacy-safe and two-phase: send a harmless placeholder without transcript or controls, CAS-adopt that reference into the raid-chat delivery row, recheck the adopted claim, then edit only that canonical message with the authorized view. A CAS loser can leave at most the harmless placeholder even if retirement gets `429`, a network error or process death. A crash after adoption leaves a tracked harmless placeholder. The bounded scanner reclaims the still-`in-flight` row when its 93-second lease expires; only a live lease suppresses reopen, while an expired or accidentally parked `in-flight` state becomes due again. Dirty and redaction work remains ahead of clean refresh/reclaim work. This keeps one durable card across creation, reopen, membership reuse and concurrent accepted posts.
 
 `/online` describes these sessions as a gathering in progress, renders canonical `joined/participantCap` occupancy (for example `2/8`), and omits the inactive-raid notice while at least one recruiting Big Barrel session is visible.
 

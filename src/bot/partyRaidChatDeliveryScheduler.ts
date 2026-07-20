@@ -14,6 +14,8 @@ import { presentPartyView } from "./presenters/partySessionPresenter";
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
 const POLL_MS = 1_100;
+const PUBLICATION_PLACEHOLDER = "Картка рейду готується…";
+const RETIRED_PLACEHOLDER = "Ця картка рейду більше не використовується.";
 
 type PartyRaidChatDeliveryServices = {
   partyRaidChat: PartyRaidChatService;
@@ -73,7 +75,8 @@ export async function runPartyRaidChatDeliveryTick(
   const deliveries = await services.partyRaidChat.listDueDeliveries();
   for (const delivery of deliveries) {
     await deliverOne(services, bot, delivery, options).catch(async (error: unknown) => {
-      const retryAfter = getRetryAfterSeconds(error);
+      const telegramError = unwrapDeliveryAttemptError(error);
+      const retryAfter = getRetryAfterSeconds(telegramError);
       const backoffMs = retryAfter !== null
         ? retryAfter * 1_000
         : Math.min(93_000, 1_100 * (2 ** Math.min(delivery.attemptCount, 6)));
@@ -81,7 +84,7 @@ export async function runPartyRaidChatDeliveryTick(
         delivery.id,
         new Date(clock().getTime() + backoffMs),
         retryAfter !== null ? "telegram-429" : "telegram-retryable",
-        delivery.version
+        deliveryAttemptVersion(error) ?? delivery.version
       );
     });
   }
@@ -191,7 +194,7 @@ async function publish(
         if (!await services.partyRaidChat.isDeliveryClaimCurrent(delivery.id, claimVersion)) {
           return null;
         }
-        return bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions);
+        return bot.api.sendMessage(Number(delivery.telegramUserId), PUBLICATION_PLACEHOLDER);
       });
       if (!result) {
         return;
@@ -220,15 +223,41 @@ async function publish(
       }
     );
     if (!recorded) {
-      await retireUntrackedCard(bot, reference);
+      await retireUntrackedPlaceholder(bot, reference);
       return;
     }
     claimVersion += 1;
+
+    try {
+      const published = await partyRaidChatTelegramGate.enqueue(reference.chatId, async () => {
+        if (!await services.partyRaidChat.isDeliveryClaimCurrent(delivery.id, claimVersion)) {
+          return false;
+        }
+        await bot.api.editMessageText(Number(reference!.chatId), reference!.messageId, text, messageOptions);
+        return true;
+      });
+      if (!published) {
+        return;
+      }
+    } catch (error) {
+      if (isTelegramMessageNotModified(error)) {
+        // Telegram confirms that the adopted card already contains this exact view.
+      } else if (isRetryableTelegramError(error) || isPermanentPartyCardEditError(error)) {
+        throw new DeliveryAttemptError(error, claimVersion);
+      } else {
+        await services.partyRaidChat.markDeliveryRedacted(
+          delivery.id,
+          "permanent-unavailable",
+          deliveryAck(delivery, claimVersion, reference)
+        );
+        return;
+      }
+    }
   }
   await services.partyRaidChat.markDeliveryRendered(delivery.id, renderedRevision, claimVersion);
 }
 
-async function retireUntrackedCard(
+async function retireUntrackedPlaceholder(
   bot: Bot,
   reference: { chatId: bigint; messageId: number }
 ): Promise<void> {
@@ -236,10 +265,10 @@ async function retireUntrackedCard(
     await partyRaidChatTelegramGate.enqueue(reference.chatId, () => bot.api.editMessageText(
       Number(reference.chatId),
       reference.messageId,
-      "Рейд-чат більше недоступний."
+      RETIRED_PLACEHOLDER
     ));
   } catch {
-    // The losing publish is never adopted as canonical; Telegram cleanup is best-effort.
+    // The losing publish contains no transcript or controls, so failed cleanup is privacy-safe.
   }
 }
 
@@ -303,12 +332,37 @@ async function redact(
 }
 
 function redactionAck(delivery: PartyRaidChatDeliveryRecord) {
-  return {
-    version: delivery.version,
-    desiredRevision: delivery.desiredRevision,
+  return deliveryAck(delivery, delivery.version, {
     chatId: delivery.chatId,
     messageId: delivery.messageId
+  });
+}
+
+function deliveryAck(
+  delivery: PartyRaidChatDeliveryRecord,
+  version: number,
+  reference: { chatId: bigint | null; messageId: number | null }
+) {
+  return {
+    version,
+    desiredRevision: delivery.desiredRevision,
+    chatId: reference.chatId,
+    messageId: reference.messageId
   };
+}
+
+class DeliveryAttemptError extends Error {
+  constructor(readonly telegramError: unknown, readonly expectedVersion: number) {
+    super("Raid chat delivery attempt failed after reference adoption.");
+  }
+}
+
+function unwrapDeliveryAttemptError(error: unknown): unknown {
+  return error instanceof DeliveryAttemptError ? error.telegramError : error;
+}
+
+function deliveryAttemptVersion(error: unknown): number | null {
+  return error instanceof DeliveryAttemptError ? error.expectedVersion : null;
 }
 
 function isTelegramMessageNotModified(error: unknown): boolean {

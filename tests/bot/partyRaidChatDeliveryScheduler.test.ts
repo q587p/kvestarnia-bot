@@ -47,11 +47,18 @@ describe("party raid chat delivery recovery", () => {
 
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
+    expect(bot.sendMessageMock).toHaveBeenCalledWith(82, "Картка рейду готується…");
     expect(raidChat.recordDeliveryReference).toHaveBeenCalledWith("replace", 83n, 93, {
       version: 2,
       chatId: null,
       messageId: null
     });
+    expect(bot.editMessageMock).toHaveBeenCalledWith(
+      83,
+      93,
+      expect.stringContaining("💬 <b>Рейд-чат"),
+      expect.any(Object)
+    );
     expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 8, 3);
     expect(raidChat.recordDeliveryReference.mock.invocationCallOrder[0]).toBeLessThan(
       raidChat.markDeliveryRendered.mock.invocationCallOrder[0]!
@@ -160,17 +167,81 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.recordDeliveryReference).not.toHaveBeenCalled();
   });
 
-  it("retires a newly sent transcript card when reference CAS loses", async () => {
+  it.each([
+    { label: "429", error: { error_code: 429, parameters: { retry_after: 42 } } },
+    { label: "network failure", error: new Error("fetch failed") }
+  ])("keeps a CAS-losing publication harmless when placeholder retirement hits $label", async ({ error }) => {
     const delivery = makeDelivery({ id: "lost-reference", chatId: null, messageId: null });
     const { services, raidChat } = makeServices(delivery);
     raidChat.recordDeliveryReference.mockResolvedValue(false);
+    const bot = makeBot({ sentChatId: 82, sentMessageId: 587, editError: error });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.sendMessageMock).toHaveBeenCalledWith(82, "Картка рейду готується…");
+    expect(bot.sendMessageMock.mock.calls.flat().join(" ")).not.toContain("Рейд-чат (останні 13)");
+    expect(bot.editMessageMock).toHaveBeenCalledWith(
+      82,
+      587,
+      "Ця картка рейду більше не використовується."
+    );
+    expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
+  });
+
+  it("can crash after harmless placeholder send before adoption without exposing a transcript", async () => {
+    const delivery = makeDelivery({ id: "adoption-crash", chatId: null, messageId: null });
+    const { services, raidChat } = makeServices(delivery);
+    raidChat.recordDeliveryReference.mockRejectedValue(new Error("simulated process death"));
     const bot = makeBot({ sentChatId: 82, sentMessageId: 587 });
 
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
-    expect(bot.sendMessageMock).toHaveBeenCalledOnce();
-    expect(bot.editMessageMock).toHaveBeenCalledWith(82, 587, "Рейд-чат більше недоступний.");
+    expect(bot.sendMessageMock).toHaveBeenCalledWith(82, "Картка рейду готується…");
+    expect(bot.editMessageMock).not.toHaveBeenCalled();
     expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryFailure).toHaveBeenCalledWith(
+      "adoption-crash",
+      new Date(NOW.getTime() + 1_100),
+      "telegram-retryable",
+      2
+    );
+  });
+
+  it("checks the adopted claim before adding transcript content to the placeholder", async () => {
+    const delivery = makeDelivery({ id: "adopted-stale", chatId: null, messageId: null });
+    const { services, raidChat } = makeServices(delivery);
+    raidChat.isDeliveryClaimCurrent
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const bot = makeBot({ sentChatId: 82, sentMessageId: 587 });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(raidChat.recordDeliveryReference).toHaveBeenCalledOnce();
+    expect(bot.sendMessageMock).toHaveBeenCalledWith(82, "Картка рейду готується…");
+    expect(bot.editMessageMock).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
+  });
+
+  it("never presents transcript content or controls before a publication reference wins CAS", async () => {
+    const delivery = makeDelivery({ id: "privacy-order", chatId: null, messageId: null });
+    const { services, raidChat } = makeServices(delivery);
+    const bot = makeBot({ sentChatId: 82, sentMessageId: 587 });
+    raidChat.recordDeliveryReference.mockImplementation(() => {
+      expect(bot.sendMessageMock).toHaveBeenCalledWith(82, "Картка рейду готується…");
+      expect(bot.sendMessageMock.mock.calls[0]?.[2]).toBeUndefined();
+      expect(bot.editMessageMock).not.toHaveBeenCalled();
+      return Promise.resolve(false);
+    });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.editMessageMock).toHaveBeenCalledWith(
+      82,
+      587,
+      "Ця картка рейду більше не використовується."
+    );
   });
 });
 

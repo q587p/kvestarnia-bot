@@ -213,7 +213,7 @@ describe("PrismaPartySessionRepository integration", () => {
       });
     }
 
-    await expect(chat.markDisabledReferencesForRedaction(now(), 1)).resolves.toBe(1);
+    await expect(chat.markDisabledReferencesForRedaction(now(), 1)).resolves.toBe(0);
     for (const entry of cases) {
       await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
         where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } },

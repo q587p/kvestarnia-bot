@@ -185,8 +185,12 @@ export class PrismaPartyRaidChatTransactionWriter {
     const surfaceMode = participant?.raidChatDeliveryState?.surfaceMode ?? modeForStatus(
       participant?.session.status ?? "cancelled"
     );
-    const activeChatId = participant.raidChatDeliveryState?.activeChatId ?? participant.chatId;
-    const activeMessageId = participant.raidChatDeliveryState?.activeMessageId ?? participant.messageId;
+    const activeChatId = participant.raidChatDeliveryState
+      ? participant.raidChatDeliveryState.activeChatId
+      : participant.chatId;
+    const activeMessageId = participant.raidChatDeliveryState
+      ? participant.raidChatDeliveryState.activeMessageId
+      : participant.messageId;
     await tx.partyRaidChatDeliveryState.upsert({
       where: { participantId },
       create: {
@@ -231,7 +235,7 @@ async function markAuthorizedDeliveries(
 ): Promise<void> {
   const participants = await tx.partyParticipant.findMany({
     where: { sessionId: partySessionId, status: "joined" },
-    select: { id: true, chatId: true, messageId: true }
+    select: { id: true }
   });
 
   for (const participant of participants) {
@@ -241,8 +245,8 @@ async function markAuthorizedDeliveries(
         participantId: participant.id,
         partySessionId,
         surfaceMode,
-        activeChatId: participant.chatId,
-        activeMessageId: participant.messageId,
+        activeChatId: null,
+        activeMessageId: null,
         desiredRevision: revision,
         renderedRevision: 0,
         redactionRequired: false,

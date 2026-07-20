@@ -939,7 +939,13 @@ export async function sendTavernBarrel(
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
     }
     if (durableRaidChatCard && session?.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
-      await options.partyRaidChat!.requestRecruitingRefresh(telegramUserId, session.inviteToken);
+      const refreshRequested = await options.partyRaidChat!.requestRecruitingRefresh(
+        telegramUserId,
+        session.inviteToken
+      );
+      if (refreshRequested && (party.state === "live" || party.state === "live-membership")) {
+        await ctx.reply("🔎 Оновлюю вашу картку збору вище в чаті.");
+      }
       return true;
     }
     await sendBigPartyText(ctx, mode, createText, session
