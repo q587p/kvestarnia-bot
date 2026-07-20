@@ -102,7 +102,7 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Рейдова балачка біля Бочки");
+    expect(text).toContain("Рейдова балачка й вареники без уявних пригод");
     expect(text).toContain("У грі вже:");
     expect(text).toContain("учасники збору бачать приватний рейд-чат");
     expect(text).toContain("балачка переїжджає на власну компактну картку");

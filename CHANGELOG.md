@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat MVP
+## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat and Varenyk Presence Fix
 
 ### Added
 - Added a private Big Barrel raid chat for canonical joined participants. Recruiting cards embed the newest 13 player and typed system rows; the same lineage continues through one compact participant chat card during battle and becomes final-roster read-only for 13 days after settlement.
@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Big Barrel create/live/live-membership routes now leave every transcript-bearing recruiting card and reopen to the durable raid-chat scheduler. `/raid` and Tavern callbacks never reuse an arbitrary current message for private chat; repeated reopen leaves a short current-viewport acknowledgement without chat content. New publication sends a harmless control-free placeholder, durably adopts its separate raid-chat reference, and only then renders the authorized transcript. CAS loss, failed placeholder retirement and process death cannot strand an untracked private transcript; expired 93-second claims are reclaimed without delaying dirty/redaction work. Clean adopted placeholders also retry automatically after persisted Telegram `429` or transient deadlines, and reopening cannot shorten an authoritative `retry_after`.
 - Active raid-chat system rows now keep shared raid mechanics such as Ward, Protocol, Warrior Taunt and Bard Lament, but omit personal Form 13-B and Dangerous Couplet actions. Retained legacy personal-skill rows are hidden before selecting the newest 13 visible entries, while each canonical participant knockout adds one idempotent frozen-name line before the terminal result.
 - No chat reward or achievement was added because activity incentives would encourage spam. `📖 Перекази` needs no change: this is a private Telegram coordination surface, not a new world or class promise. Manual Telegram QA remains pending; automated evidence is recorded in the task QA document.
+- Fixed Varenyk feeding falsely treating `User.currentAdventureId` presence/navigation grouping as an active incompatible adventure. Cellar, Hunt, quest-table and stale combat markers no longer block self/other open, preview or commit by themselves; authoritative combat leases and active raids still fail closed for actor and recipient, with corrected Ukrainian blocker copy.
 
 ## [0.3.14] - 12026-07-19 - Bard Inspiration and Big Barrel Lament
 

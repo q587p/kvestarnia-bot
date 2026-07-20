@@ -166,7 +166,8 @@ describe("class noncombat presenter", () => {
       availableAt: new Date("2026-07-03T10:33:00.000Z")
     } as never);
 
-    expect(blocked).toContain("активну пригоду");
+    expect(blocked).toContain("завершіть бій або рейд");
+    expect(blocked).not.toContain("активну пригоду");
     expect(blocked).toContain("Миска почекає");
     expect(blocked).not.toContain("Жрець");
     expect(blocked).not.toContain("злодій");
@@ -277,7 +278,7 @@ describe("class noncombat presenter", () => {
     expect(text).not.toContain("активним протоколом");
   });
 
-  it("names the active adventure in the blocked Varenyk support surface", () => {
+  it("names only authoritative combat or raid blockers on the Varenyk support surface", () => {
     const text = presentClassNoncombatOpen({
       state: "ready",
       mode: "varenyk",
@@ -293,7 +294,10 @@ describe("class noncombat presenter", () => {
       locationName: "Прямий прохід"
     } as unknown as ClassNoncombatOpenResult);
 
-    expect(text).toContain("активну пригоду, бій або рейд");
+    expect(text).toContain("Годування: недоступне під час бою або рейду");
+    expect(text).toContain("Спершу завершіть бій або рейд");
+    expect(text).not.toContain("активну пригоду");
+    expect(text).not.toContain("пригодницької метушні");
     expect(text).not.toContain("Жрець");
   });
 

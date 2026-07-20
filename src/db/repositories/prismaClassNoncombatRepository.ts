@@ -11,9 +11,6 @@ import {
 import {
   getLocationName,
   normalizePresenceLocationId,
-  PRESENCE_ADVENTURE_MIMIC_FIGHT,
-  PRESENCE_ADVENTURE_SOLO_FIGHT,
-  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER,
   PRESENCE_LOCATION_KORCHMA_CELLAR,
   PRESENCE_LOCATION_KORCHMA_HALL,
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
@@ -69,11 +66,6 @@ const ROGUE_PICKPOCKET_COOLDOWN_KEY = "noncombat.rogue.pickpocket";
 const PUBLIC_SATED_SETTLEMENT_MAX_ATTEMPTS = 3;
 const PUBLIC_SATED_PAIR_READ_MAX_ATTEMPTS = 3;
 const VARENYK_SATED_PAIR_WAIT_RULES_VERSION = "varenyk-sated-pair-wait-v1";
-const COMBAT_PRESENCE_ADVENTURE_IDS = new Set([
-  PRESENCE_ADVENTURE_MIMIC_FIGHT,
-  PRESENCE_ADVENTURE_SOLO_FIGHT,
-  PRESENCE_ADVENTURE_TRAINING_DOPPELGANGER
-]);
 
 export class PrismaClassNoncombatRepository implements ClassNoncombatRepository {
   async isRogueRetaliationDuelInviteToken(inviteToken: string): Promise<boolean> {
@@ -2628,14 +2620,7 @@ function isBlocked(character: IncludedCharacter): boolean {
 }
 
 function isVarenykBlocked(character: IncludedCharacter): boolean {
-  if (isBlocked(character)) {
-    return true;
-  }
-
-  const currentAdventureId = character.user.currentAdventureId;
-  return Boolean(
-    currentAdventureId && !COMBAT_PRESENCE_ADVENTURE_IDS.has(currentAdventureId)
-  );
+  return isBlocked(character);
 }
 
 type IncludedCharacter = Character & {
