@@ -37,7 +37,7 @@ describe("party raid chat input routing", () => {
     expect(service.submitInput).not.toHaveBeenCalled();
   });
 
-  it("consumes only the exact bot-authored private ForceReply once and confirms the accepted post", async () => {
+  it("confirms an accepted post and immediately pushes it to the other participants", async () => {
     const { handler, service } = registerForTest({ boundPromptId: 13 });
     const next = vi.fn<NextFunction>().mockResolvedValue(undefined);
     const ctx = makeContext({ text: "Хало & привіт", replyMessageId: 13 });
@@ -54,6 +54,11 @@ describe("party raid chat input routing", () => {
     }));
     expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "Цей бланк уже використано.");
     expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
+    expect(ctx.api.sendMessage).toHaveBeenCalledWith(
+      84,
+      "💬 <b>Shannar &lt;de Kassal&gt;</b> поспішає сказати:\n<blockquote>Хало &amp; привіт</blockquote>",
+      { parse_mode: "HTML" }
+    );
     expect(ctx.replyMock.mock.invocationCallOrder[0])
       .toBeLessThan(vi.mocked(ctx.api.editMessageText).mock.invocationCallOrder[0]!);
   });
@@ -66,6 +71,17 @@ describe("party raid chat input routing", () => {
     await handler(ctx, vi.fn<NextFunction>().mockResolvedValue(undefined));
 
     expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
+  });
+
+  it("keeps an accepted post successful when a recipient cannot receive the immediate push", async () => {
+    const { handler } = registerForTest({ boundPromptId: 13 });
+    const ctx = makeContext({ text: "Не забудьте зілля", replyMessageId: 13 });
+    vi.mocked(ctx.api.sendMessage).mockRejectedValueOnce(new Error("bot blocked"));
+
+    await expect(handler(ctx, vi.fn<NextFunction>().mockResolvedValue(undefined))).resolves.toBeUndefined();
+
+    expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
+    expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "Цей бланк уже використано.");
   });
 
   it("passes media, captions and forwarded replies through without touching the composer", async () => {
@@ -142,7 +158,12 @@ function makeService(options: { dev?: boolean; boundPromptId?: number } = {}) {
     submitInput: vi.fn().mockResolvedValue({
       state: "accepted",
       inviteToken: "raid-token-1",
-      revision: 1
+      revision: 1,
+      notification: {
+        authorDisplayName: "Shannar <de Kassal>",
+        body: "Хало & привіт",
+        recipientTelegramUserIds: [84n]
+      }
     }),
     beginCompose: beginComposeMock,
     bindComposePrompt: bindComposePromptMock,
@@ -182,11 +203,17 @@ function makeContext(input: {
         from: { id: 587, is_bot: true }
       }
     },
-    api: { editMessageText: vi.fn().mockResolvedValue(true) },
+    api: {
+      editMessageText: vi.fn().mockResolvedValue(true),
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 95 })
+    },
     reply: replyMock,
     replyMock
   } as unknown as Context & {
-    api: { editMessageText: ReturnType<typeof vi.fn> };
+    api: {
+      editMessageText: ReturnType<typeof vi.fn>;
+      sendMessage: ReturnType<typeof vi.fn>;
+    };
     replyMock: ReturnType<typeof vi.fn>;
   };
 }

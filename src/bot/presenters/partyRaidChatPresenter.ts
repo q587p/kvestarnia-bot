@@ -105,6 +105,16 @@ function presentEntry(entry: PartyRaidChatEntryRecord, spansDates: boolean): str
   return `• ${time} — <i>${presentSystemEvent(entry)}</i>`;
 }
 
+export function presentPartyRaidChatPlayerNotification(input: {
+  authorDisplayName: string;
+  body: string;
+}): string {
+  return [
+    `💬 <b>${escapeHtml(input.authorDisplayName)}</b> поспішає сказати:`,
+    `<blockquote>${escapeHtml(input.body)}</blockquote>`
+  ].join("\n");
+}
+
 function presentSystemEvent(entry: PartyRaidChatEntryRecord): string {
   const name = escapeHtml(entry.actorDisplayName ?? "Пригодник");
   switch (entry.eventType) {

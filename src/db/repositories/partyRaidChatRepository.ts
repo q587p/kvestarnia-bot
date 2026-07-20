@@ -85,7 +85,16 @@ export interface PartyRaidChatBoundIntentRecord {
 }
 
 export type PartyRaidChatAcceptResult =
-  | { state: "accepted"; inviteToken: string; revision: number }
+  | {
+      state: "accepted";
+      inviteToken: string;
+      revision: number;
+      notification: {
+        authorDisplayName: string;
+        body: string;
+        recipientTelegramUserIds: bigint[];
+      };
+    }
   | { state: "duplicate-body"; inviteToken: string }
   | { state: "already-consumed" }
   | { state: "not-found" | "not-authorized" | "not-writable" | "expired" }

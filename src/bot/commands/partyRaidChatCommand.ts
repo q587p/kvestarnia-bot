@@ -6,7 +6,8 @@ import { buildPartyRaidChatKeyboard } from "../keyboards/partySessionKeyboard";
 import {
   presentPartyRaidChatCard,
   presentPartyRaidChatComposerPrompt,
-  presentPartyRaidChatInputError
+  presentPartyRaidChatInputError,
+  presentPartyRaidChatPlayerNotification
 } from "../presenters/partyRaidChatPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -172,6 +173,9 @@ async function handleSubmitResult(
       ? "✅ Повідомлення надіслано в рейд-чат."
       : "Таке повідомлення вже є в чаті.";
     await replyThroughRaidChatGate(ctx, confirmation);
+    if (result.state === "accepted") {
+      await notifyOtherRaidParticipants(ctx, result.notification);
+    }
     await editComposerPromptBestEffort(ctx, promptMessageId, "Цей бланк уже використано.");
     return;
   }
@@ -191,6 +195,20 @@ async function handleSubmitResult(
   if (result.state !== "already-consumed") {
     await editComposerPromptBestEffort(ctx, promptMessageId, "Рейд-чат уже не приймає цей бланк.");
   }
+}
+
+async function notifyOtherRaidParticipants(
+  ctx: Context,
+  notification: Extract<PartyRaidChatSubmitResult, { state: "accepted" }>["notification"]
+): Promise<void> {
+  const text = presentPartyRaidChatPlayerNotification(notification);
+  await Promise.allSettled(notification.recipientTelegramUserIds.map((telegramUserId) =>
+    partyRaidChatTelegramGate.enqueue(telegramUserId, () => ctx.api.sendMessage(
+      Number(telegramUserId),
+      text,
+      HTML_OPTIONS
+    ))
+  ));
 }
 
 async function editComposerPromptBestEffort(ctx: Context, messageId: number, text: string): Promise<void> {

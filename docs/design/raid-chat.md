@@ -11,8 +11,9 @@ Ship a private, durable coordination feed for the existing Big Barrel Brother ra
 
 - Recruiting participant cards embed the latest 13 unified player/system entries.
 - Active boss participants use one separate compact raid-chat card each. The combat card links to it and the chat card links back.
-- No fresh Telegram notification is pushed for every entry. Existing cards are edited and delivery is coalesced.
+- Every accepted player post best-effort pushes one separate escaped blockquote notification to every other current same-life participant. Existing cards remain canonical, are edited separately and keep coalesced durable delivery.
 - Only canonically authorized participants can read the feed. Only authorized participants in a writable recruiting/active state can post.
+- A knocked-out participant remains part of the frozen active boss roster and keeps raid-chat read/write access; only combat actions disappear.
 - Terminal chat is participant-only and read-only for 13 days, then hidden and cleaned up.
 - Chat never grants rewards, achievements, contribution, combat priority or public Chronicle events.
 
@@ -126,7 +127,7 @@ Persist one `PartyRaidChatDeliveryState` per participant (or an equivalent expli
 - redaction-required state;
 - next attempt, attempt count and last delivery class.
 
-Every committed entry advances the authorized targets' desired revision in the same transaction. Join/start/terminal/access-revocation transitions create or change the corresponding delivery states transactionally. This is a small durable dirty-state/outbox, not a per-entry delivery ledger: the MVP still does not push one new message per entry.
+Every committed entry advances the authorized targets' desired revision in the same transaction. Join/start/terminal/access-revocation transitions create or change the corresponding delivery states transactionally. This is a small durable dirty-state/outbox, not a per-entry notification ledger. An accepted player entry returns a bounded snapshot of the other current same-life recipients for an immediate best-effort notification; failed notification sends are not retried individually because the canonical coalesced card delivery still recovers the newest feed.
 
 A bounded worker scans due dirty/redaction rows at startup and continuously. Therefore a crash after entry commit but before Telegram fanout does not require player refresh: the worker resumes the latest desired revision. Manual refresh/reopen remains an additional repair path.
 
@@ -190,13 +191,13 @@ Render the feed only in the authorized participant variant of the canonical gath
 
 ### Active boss
 
-At canonical start, make every frozen authorized participant's durable delivery state target one compact raid-chat card. The worker sends and persists missing references. The combat keyboard exposes `💬 Рейд-чат`; the chat card exposes compose and `↩️ До рейду`. Opening chat repairs or replaces a missing reference.
+At canonical start, make every frozen authorized participant's durable delivery state target one compact raid-chat card. The worker sends and persists missing references. The combat keyboard exposes `💬 Рейд-чат`; the chat card exposes compose and `↩️ До рейду`. Opening chat repairs or replaces a missing reference. Knockout removes combat-action buttons only: the frozen participant still sees the raid-chat button and may read or post until the boss session leaves its active lifecycle.
 
 ### Coordinator
 
 - Durable DB desired/rendered/redaction state is canonical; Telegram failure never rolls back an entry.
 - Reuse per-session in-process serialization only for delivery ordering, not correctness. Startup/due scanning recovers work after restart.
-- Coalesce fanout to at most one render/edit cycle per session about every 1.1 seconds.
+- Coalesce card fanout to at most one render/edit cycle per session about every 1.1 seconds. Player-post notifications are separate best-effort sends and still pass through the shared Telegram gate.
 - Gate all raid-chat Telegram sends/edits/deletes (prompts, cards and redactions) across all sessions through one bounded fair queue capped at 13 operations per second, keep the same target chat at least about 1.1 seconds apart, and leave headroom below Telegram's documented bulk guidance. Prompt binding occurs after its queued send returns the message ID. Treat Telegram `429 retry_after` as authoritative by persisting the next due attempt; use bounded backoff for other retryable failures.
 - After a cycle, compare its rendered revision with current `chatRevision`; persist/reschedule if a newer entry arrived during delivery.
 - `🔎 Оновити` and reopening the chat always recover from canonical DB state.
@@ -221,7 +222,7 @@ Authorization guarantees no fresh server-approved read/write after access loss. 
 - Add a non-production `/dev_raid_chat fill|clear|expire` helper for last-13, cap, cooldown, compose expiry and retention QA. It must not register, appear in help or mutate in production under any dev-flag combination.
 - Do not add an achievement: rewarding chat activity encourages spam. Existing ability achievements remain unchanged.
 - Review Lore Board/flavor sources. Expected outcome is no lore change because this is a private Telegram coordination surface, not a new world/class mechanic; record the decision.
-- No push ledger, mute, reporting UI, edit/delete, replies, old-history pagination, group bridging or moderator dashboard in this release.
+- No durable notification ledger, mute, reporting UI, edit/delete, replies, old-history pagination, group bridging or moderator dashboard in this release.
 
 ## Primary references
 

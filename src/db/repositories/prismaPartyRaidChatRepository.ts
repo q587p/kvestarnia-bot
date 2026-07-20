@@ -356,8 +356,23 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
             }
           });
           await markDeliveryDirty(tx, authorization.session.id, revision, input.now, authorization.lifecycle);
+          const recipientTelegramUserIds = await listPlayerNotificationRecipients(
+            tx,
+            authorization,
+            intent.characterId,
+            intent.remortCount
+          );
           await pruneOverflow(tx, authorization.session.id);
-          return { state: "accepted", inviteToken: authorization.session.inviteToken, revision };
+          return {
+            state: "accepted",
+            inviteToken: authorization.session.inviteToken,
+            revision,
+            notification: {
+              authorDisplayName: authorization.participant.character.name,
+              body: input.normalizedBody,
+              recipientTelegramUserIds
+            }
+          };
         });
       } catch (error) {
         if (error instanceof PartyRaidChatCasError || isUniqueConflict(error)) {
@@ -977,6 +992,41 @@ async function markDeliveryDirty(
       }
     });
   }
+}
+
+async function listPlayerNotificationRecipients(
+  tx: TxClient,
+  authorization: Authorization,
+  authorCharacterId: string,
+  authorRemortCount: number
+): Promise<bigint[]> {
+  const participants = await tx.partyParticipant.findMany({
+    where: {
+      sessionId: authorization.session.id,
+      status: "joined"
+    },
+    select: {
+      characterId: true,
+      remortCount: true,
+      character: {
+        select: {
+          user: { select: { telegramUserId: true } },
+          _count: { select: { remorts: true } }
+        }
+      }
+    }
+  });
+  const bossState = authorization.session.bossSessions[0]?.stateJson;
+  return participants
+    .filter((participant) =>
+      (participant.characterId !== authorCharacterId || participant.remortCount !== authorRemortCount) &&
+      participant.remortCount === participant.character._count.remorts &&
+      (
+        authorization.lifecycle !== "active" ||
+        bossHasParticipant(bossState, participant.characterId, participant.remortCount)
+      )
+    )
+    .map((participant) => participant.character.user.telegramUserId);
 }
 
 function surfaceModeForLifecycle(lifecycle: PartyRaidChatLifecycle): PartyRaidChatSurfaceMode {

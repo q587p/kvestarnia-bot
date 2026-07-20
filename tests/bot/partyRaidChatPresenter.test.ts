@@ -2,10 +2,21 @@ import { describe, expect, it } from "vitest";
 import type { PartyRaidChatAuthorizedView } from "../../src/db/repositories/partyRaidChatRepository";
 import {
   appendPartyRaidChatWithinBudget,
+  presentPartyRaidChatPlayerNotification,
   presentPartyRaidChatSection
 } from "../../src/bot/presenters/partyRaidChatPresenter";
 
 describe("party raid chat presenter", () => {
+  it("renders an escaped immediate player notification as a Telegram blockquote", () => {
+    expect(presentPartyRaidChatPlayerNotification({
+      authorDisplayName: "Shannar <de Kassal>",
+      body: "Хілки & мана"
+    })).toBe(
+      "💬 <b>Shannar &lt;de Kassal&gt;</b> поспішає сказати:\n" +
+      "<blockquote>Хілки &amp; мана</blockquote>"
+    );
+  });
+
   it("renders Kyiv seconds, chronological rows and escaped plaintext", () => {
     const view = makeView([
       entry(1, "2026-01-20T10:00:00.000Z", "<Щур>", "Хало & привіт"),

@@ -30,6 +30,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
 
   it("accepts an exact durable composer once without bumping gameplay version", async () => {
     await seedLineage(prisma, "accept", 7001n);
+    await addParticipant(prisma, "accept", "recipient", 7014n);
     const begun = await repository.beginCompose(7001n, "raid-accept", 7001n, NOW);
     expect(begun.state).toBe("created");
     if (begun.state !== "created") {
@@ -59,6 +60,15 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     ]);
 
     expect([first.state, replay.state].sort()).toEqual(["accepted", "already-consumed"]);
+    const accepted = first.state === "accepted" ? first : replay;
+    expect(accepted).toMatchObject({
+      state: "accepted",
+      notification: {
+        authorDisplayName: "Гравець accept",
+        body: "Хало",
+        recipientTelegramUserIds: [7014n]
+      }
+    });
     await expect(prisma.partySession.findUniqueOrThrow({
       where: { inviteToken: "raid-accept" },
       select: { version: true, chatRevision: true }
@@ -187,6 +197,50 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     await expect(repository.getAuthorizedView(7005n, "raid-terminal", new Date(retentionUntil.getTime() - 1)))
       .resolves.toMatchObject({ lifecycle: "terminal", writable: false, entries: [{ body: "Запис" }] });
     await expect(repository.getAuthorizedView(7005n, "raid-terminal", retentionUntil)).resolves.toBeNull();
+  });
+
+  it("keeps an active knocked-out participant authorized to read and write", async () => {
+    await seedLineage(prisma, "knocked-out", 7015n);
+    await prisma.partySession.update({
+      where: { id: "session-knocked-out" },
+      data: { status: "active" }
+    });
+    const stateJson = JSON.stringify({
+      participants: [{
+        characterId: "character-knocked-out",
+        remortCount: 0,
+        status: "knocked-out"
+      }]
+    });
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "party_boss_sessions" (
+        "id", "party_session_id", "leader_character_id", "status", "turn", "version",
+        "rules_version", "boss_key", "state_json", "participants_json", "created_at", "updated_at"
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "boss-knocked-out",
+      "session-knocked-out",
+      "character-knocked-out",
+      "active",
+      1,
+      1,
+      "big-barrel-brother-v1",
+      "big-barrel-brother",
+      stateJson,
+      stateJson,
+      NOW.toISOString(),
+      NOW.toISOString()
+    );
+
+    await expect(repository.getAuthorizedView(7015n, "raid-knocked-out", NOW)).resolves.toMatchObject({
+      lifecycle: "active",
+      writable: true,
+      viewerCharacterId: "character-knocked-out"
+    });
+    await accept(repository, 7015n, "raid-knocked-out", 93, 94, "Ще тримаю зв'язок", NOW);
+    await expect(repository.getAuthorizedView(7015n, "raid-knocked-out", NOW)).resolves.toMatchObject({
+      writable: true,
+      entries: [{ body: "Ще тримаю зв'язок" }]
+    });
   });
 
   it("uses a fixed 42-per-93-second lineage window and resets at the exact boundary", async () => {
@@ -575,6 +629,45 @@ async function seedLineage(prisma: PrismaClient, key: string, telegramUserId: bi
           messageId: 1
         }
       }
+    }
+  });
+}
+
+async function addParticipant(
+  prisma: PrismaClient,
+  sessionKey: string,
+  participantKey: string,
+  telegramUserId: bigint
+): Promise<void> {
+  const userId = `user-${sessionKey}-${participantKey}`;
+  const characterId = `character-${sessionKey}-${participantKey}`;
+  await prisma.user.create({
+    data: {
+      id: userId,
+      telegramUserId,
+      character: {
+        create: {
+          id: characterId,
+          name: `Гравець ${participantKey}`,
+          raceId: "human",
+          classId: "warrior",
+          statsJson: {}
+        }
+      }
+    }
+  });
+  await prisma.partyParticipant.create({
+    data: {
+      id: `participant-${sessionKey}-${participantKey}`,
+      sessionId: `session-${sessionKey}`,
+      characterId,
+      remortCount: 0,
+      status: "joined",
+      joinSource: "dev",
+      joinedAt: NOW,
+      activeMembershipKey: `party-member:${characterId}`,
+      chatId: telegramUserId,
+      messageId: 1
     }
   });
 }

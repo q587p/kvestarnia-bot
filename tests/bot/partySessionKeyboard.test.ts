@@ -448,9 +448,11 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
-      includeDevTimeout: true
+      includeDevTimeout: true,
+      includeRaidChat: true
     }))).toEqual([
       "⏱️ Dev: добити хід",
+      "💬 Рейд-чат",
       "🔎 Оновити"
     ]);
   });
