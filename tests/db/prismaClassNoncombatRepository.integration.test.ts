@@ -2529,7 +2529,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(repository.isActorBlockedForTelegramUser(811n)).resolves.toBe(false);
   });
 
-  it("ignores presence-only adventure markers but blocks authoritative combat leases and raids", async () => {
+  it("ignores presence-only adventure and raid markers but blocks authoritative combat leases", async () => {
     await seedCharacter({
       telegramUserId: 812n,
       userId: "user-stale-combat-presence",
@@ -2571,6 +2571,21 @@ describe("PrismaClassNoncombatRepository integration", () => {
       data: {
         currentAdventureId: "adventure.mimic-shawarma",
         currentRaidId: "raid.big-barrel"
+      }
+    });
+    await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(false);
+    await expect(repository.getSnapshotForTelegramUser(812n, snapshotInput()))
+      .resolves.toMatchObject({ actorBlocked: true });
+    await expect(repository.getSnapshotForTelegramUser(812n, {
+      ...snapshotInput(),
+      mode: "rogue"
+    })).resolves.toMatchObject({ actorBlocked: true });
+
+    await prisma.activeCombatLease.create({
+      data: {
+        characterId: "stale-combat-presence",
+        kind: "party-boss",
+        referenceId: "active-big-barrel"
       }
     });
     await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(true);
@@ -2644,6 +2659,82 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(prisma.character.findUnique({ where: { id: "cellar-varenyk" } }))
       .resolves.toMatchObject({ manaCurrent: 29 - completed.action.manaCost });
     await expect(prisma.character.findUnique({ where: { id: "cellar-target" } }))
+      .resolves.toMatchObject({
+        hpCurrent: 20 + completed.action.immediateHpRestored,
+        manaCurrent: 10
+      });
+  });
+
+  it("feeds another visible player despite stale raid presence markers", async () => {
+    await seedCharacter({
+      telegramUserId: 815n,
+      userId: "user-passage-varenyk",
+      characterId: "passage-varenyk",
+      classId: "class.varenyk-mancer",
+      level: 10,
+      locationId: "location.korchma.deep.level1.straight",
+      manaCurrent: 29,
+      manaMax: 29,
+      statsJson: { dexterity: 9, luck: 7, charisma: 8, intelligence: 13 }
+    });
+    await seedCharacter({
+      telegramUserId: 816n,
+      userId: "user-passage-target",
+      characterId: "passage-target",
+      level: 10,
+      locationId: "location.korchma.deep.level1.straight",
+      hpCurrent: 20,
+      hpMax: 30,
+      manaCurrent: 10,
+      manaMax: 20
+    });
+    await prisma.user.updateMany({
+      where: { id: { in: ["user-passage-varenyk", "user-passage-target"] } },
+      data: { currentRaidId: "raid.big-barrel" }
+    });
+    const service = new ClassNoncombatService(repository, () => now);
+
+    const open = await service.openForTelegramUser(815n, "varenyk");
+    expect(open).toMatchObject({
+      state: "ready",
+      actorBlocked: false,
+      locationName: "Прямий прохід"
+    });
+    expect(open.state === "ready"
+      ? open.targets.find((target) => target.telegramUserId === 816n)
+      : null).toMatchObject({ canVarenykFeed: true });
+
+    const preview = await service.previewVarenykSatedForTelegramUser(815n, {
+      targetTelegramUserId: 816n,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    });
+    expect(preview).toMatchObject({
+      state: "preview",
+      targetTelegramUserId: 816n
+    });
+    if (preview.state !== "preview") {
+      throw new Error("Expected the visible passage target preview to be available.");
+    }
+
+    const completed = await service.feedVarenykSatedForTelegramUser(815n, {
+      targetTelegramUserId: 816n,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: preview.previewToken
+    });
+    expect(completed).toMatchObject({
+      state: "completed",
+      created: true,
+      action: { targetTelegramUserId: 816n }
+    });
+    if (completed.state !== "completed") {
+      throw new Error("Expected the visible passage target feeding to commit.");
+    }
+    await expect(prisma.character.findUnique({ where: { id: "passage-varenyk" } }))
+      .resolves.toMatchObject({ manaCurrent: 29 - completed.action.manaCost });
+    await expect(prisma.character.findUnique({ where: { id: "passage-target" } }))
       .resolves.toMatchObject({
         hpCurrent: 20 + completed.action.immediateHpRestored,
         manaCurrent: 10
