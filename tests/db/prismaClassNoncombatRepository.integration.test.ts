@@ -2497,7 +2497,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     expect(snapshot?.targets).toHaveLength(1);
   });
 
-  it("blocks only Varenyk feeding for current adventure and preserves Priest/Rogue gates", async () => {
+  it("does not treat an adventure presence marker as a Varenyk blocking flow", async () => {
     await seedCharacter({
       telegramUserId: 811n,
       userId: "user-priest",
@@ -2517,10 +2517,10 @@ describe("PrismaClassNoncombatRepository integration", () => {
       mode: "rogue"
     });
 
-    expect(varenykSnapshot).toMatchObject({ actorBlocked: true });
+    expect(varenykSnapshot).toMatchObject({ actorBlocked: false });
     expect(priestSnapshot).toMatchObject({ actorBlocked: false });
     expect(rogueSnapshot).toMatchObject({ actorBlocked: false });
-    await expect(repository.isActorBlockedForTelegramUser(811n)).resolves.toBe(true);
+    await expect(repository.isActorBlockedForTelegramUser(811n)).resolves.toBe(false);
 
     await prisma.character.update({
       where: { id: "priest" },
@@ -2529,7 +2529,7 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await expect(repository.isActorBlockedForTelegramUser(811n)).resolves.toBe(false);
   });
 
-  it("ignores stale combat presence markers without a lease but blocks active leases and real adventures", async () => {
+  it("ignores presence-only adventure markers but blocks authoritative combat leases and raids", async () => {
     await seedCharacter({
       telegramUserId: 812n,
       userId: "user-stale-combat-presence",
@@ -2568,9 +2568,86 @@ describe("PrismaClassNoncombatRepository integration", () => {
     await prisma.activeCombatLease.delete({ where: { characterId: "stale-combat-presence" } });
     await prisma.user.update({
       where: { id: "user-stale-combat-presence" },
-      data: { currentAdventureId: "adventure.mimic-shawarma" }
+      data: {
+        currentAdventureId: "adventure.mimic-shawarma",
+        currentRaidId: "raid.big-barrel"
+      }
     });
     await expect(repository.isActorBlockedForTelegramUser(812n)).resolves.toBe(true);
+  });
+
+  it("feeds another active player in the Cellar through public open, preview and confirm", async () => {
+    await seedCharacter({
+      telegramUserId: 813n,
+      userId: "user-cellar-varenyk",
+      characterId: "cellar-varenyk",
+      classId: "class.varenyk-mancer",
+      level: 10,
+      locationId: "location.korchma.cellar",
+      currentAdventureId: "adventure.cellar.mouse-errand",
+      manaCurrent: 29,
+      manaMax: 29,
+      statsJson: { dexterity: 9, luck: 7, charisma: 8, intelligence: 13 }
+    });
+    await seedCharacter({
+      telegramUserId: 814n,
+      userId: "user-cellar-target",
+      characterId: "cellar-target",
+      level: 10,
+      locationId: "location.korchma.cellar",
+      currentAdventureId: "adventure.cellar.mouse-errand",
+      hpCurrent: 20,
+      hpMax: 30,
+      manaCurrent: 10,
+      manaMax: 20
+    });
+    const service = new ClassNoncombatService(repository, () => now);
+
+    const open = await service.openForTelegramUser(813n, "varenyk");
+    expect(open).toMatchObject({
+      state: "ready",
+      actorBlocked: false,
+      locationName: "Льох корчми"
+    });
+    expect(open.state === "ready"
+      ? open.targets.find((target) => target.telegramUserId === 814n)
+      : null).toMatchObject({ canVarenykFeed: true });
+
+    const preview = await service.previewVarenykSatedForTelegramUser(813n, {
+      targetTelegramUserId: 814n,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      page: 0
+    });
+    expect(preview).toMatchObject({
+      state: "preview",
+      targetTelegramUserId: 814n
+    });
+    if (preview.state !== "preview") {
+      throw new Error("Expected the Cellar target preview to be available.");
+    }
+
+    const completed = await service.feedVarenykSatedForTelegramUser(813n, {
+      targetTelegramUserId: 814n,
+      expectedActorRemortCount: 0,
+      expectedTargetRemortCount: 0,
+      previewToken: preview.previewToken
+    });
+    expect(completed).toMatchObject({
+      state: "completed",
+      created: true,
+      action: { targetTelegramUserId: 814n }
+    });
+    if (completed.state !== "completed") {
+      throw new Error("Expected the Cellar feeding to commit.");
+    }
+    await expect(prisma.character.findUnique({ where: { id: "cellar-varenyk" } }))
+      .resolves.toMatchObject({ manaCurrent: 29 - completed.action.manaCost });
+    await expect(prisma.character.findUnique({ where: { id: "cellar-target" } }))
+      .resolves.toMatchObject({
+        hpCurrent: 20 + completed.action.immediateHpRestored,
+        manaCurrent: 10
+      });
   });
 
   it("marks same-day Rogue attempted targets in target snapshots", async () => {
