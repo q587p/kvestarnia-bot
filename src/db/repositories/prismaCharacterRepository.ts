@@ -9,12 +9,13 @@ import type {
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
   | { state: "insufficient"; character: CharacterRecord };
 
-export class PrismaCharacterRepository implements CharacterRepository {
+export class PrismaCharacterRepository implements CharacterRepository, RestartRepository {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
@@ -72,6 +73,36 @@ export class PrismaCharacterRepository implements CharacterRepository {
       });
 
       return true;
+    });
+  }
+
+  async restartByTelegramUserId(telegramUserId: bigint): Promise<RestartCharacterResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (!character) {
+        return "no-character";
+      }
+
+      const deleted = await tx.character.deleteMany({
+        where: {
+          id: character.id,
+          activeCombatLease: {
+            is: null
+          }
+        }
+      });
+
+      return deleted.count === 1 ? "deleted" : "active-combat";
     });
   }
 

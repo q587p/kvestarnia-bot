@@ -17,7 +17,8 @@ export function registerEquipmentCommand(bot: Bot, equipmentService: EquipmentSe
 export async function sendEquipment(
   ctx: Context,
   equipmentService: EquipmentService,
-  mode: SendMode
+  mode: SendMode,
+  options: { expanded?: boolean } = {}
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -32,13 +33,13 @@ export async function sendEquipment(
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, {
       parse_mode: "HTML" as const,
-      reply_markup: buildEquipmentKeyboard(result)
+      reply_markup: buildEquipmentKeyboard(result, options)
     });
     return;
   }
 
   await ctx.reply(text, {
     parse_mode: "HTML" as const,
-    reply_markup: buildEquipmentKeyboard(result)
+    reply_markup: buildEquipmentKeyboard(result, options)
   });
 }

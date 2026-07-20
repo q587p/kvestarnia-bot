@@ -6,6 +6,11 @@ import {
   type CombatGearAbilityInput
 } from "../combat/combatEngine";
 import {
+  getCombatClassAbilityProfile,
+  getCombatRaceAbilityProfile,
+  type CombatSkillProfile
+} from "../combat/combatActions";
+import {
   cloneCombatCooldowns,
   type CombatActorStats,
   type CombatState,
@@ -240,6 +245,12 @@ export interface PartyBossParticipantActionSummary {
   healing?: number;
   guard?: number;
   hpAfter?: number;
+  supportTargets?: Array<{
+    characterId: string;
+    healing?: number;
+    guard?: number;
+    counterDamage?: number;
+  }>;
   satedRecovery?: {
     hpRestored: number;
     manaRestored: number;
@@ -258,6 +269,7 @@ export interface PartyBossRetaliationSummary {
   lamentPreventedDamage?: number;
   tauntRedirected?: boolean;
   tauntOriginalKind?: "focused" | "broad";
+  counterDamage?: number;
 }
 
 export interface PartyBossRetaliationPlan {
@@ -342,7 +354,7 @@ export function createPartyBossState(input: {
       level: bossLevel,
       hp: bossHpMax,
       hpMax: bossHpMax,
-      attack: isBig ? 5 + bossLevel : 4 + level + participantCount,
+      attack: isBig ? 6 + bossLevel : 4 + level + participantCount,
       armor: isBig ? 2 + Math.floor(bossLevel / 4) : 2 + Math.floor(level / 3),
       resist: isBig ? 1 + Math.floor(bossLevel / 5) : 1 + Math.floor(level / 4),
       dexterity: 5 + Math.floor(bossLevel / 2),
@@ -432,6 +444,7 @@ export function resolvePartyBossRound(input: {
   const submitted = new Map(input.actions.map((action) => [action.characterId, action]));
   const actionSummaries: PartyBossParticipantActionSummary[] = [];
   let bossDamage = 0;
+  const counterDamageByCharacterId = new Map<string, number>();
   const expiredBeforeActions = expireUnableWarriorTaunt(next);
   const tauntRound: PartyBossWarriorTauntRoundSummary = {
     ...(expiredBeforeActions ? { expiredCharacterId: expiredBeforeActions } : {})
@@ -543,8 +556,15 @@ export function resolvePartyBossRound(input: {
     });
 
     participant.resources = result.actorState;
-    const support = action === "gear" && isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) && !result.summary.fumble
-      ? applyPartyBossGearSupport(participant, committed?.gearAbility?.profile)
+    const support = (action === "skill" || action === "race" || action === "gear") &&
+        isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) &&
+        !result.summary.fumble
+      ? applyPartyBossAbilitySupport(
+          next,
+          participant,
+          getPartyBossAbilityProfile(participant, action, committed?.gearAbility?.profile),
+          counterDamageByCharacterId
+        )
       : {};
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
@@ -584,7 +604,9 @@ export function resolvePartyBossRound(input: {
     tauntRound.expiredCharacterId = expiredAfterVictory;
     delete tauntRound.bossAttacksRemaining;
   }
-  const retaliationResolution = next.boss.hp > 0 ? applyBossRetaliation(next) : { retaliations: [] };
+  const retaliationResolution = next.boss.hp > 0
+    ? applyBossRetaliation(next, counterDamageByCharacterId)
+    : { retaliations: [] };
   if (retaliationResolution.warriorTaunt) {
     if (retaliationResolution.warriorTaunt.expiredCharacterId) {
       delete tauntRound.bossAttacksRemaining;
@@ -592,6 +614,7 @@ export function resolvePartyBossRound(input: {
     Object.assign(tauntRound, retaliationResolution.warriorTaunt);
   }
   const bossRetaliations = retaliationResolution.retaliations;
+  bossDamage += bossRetaliations.reduce((sum, retaliation) => sum + (retaliation.counterDamage ?? 0), 0);
   if (isBigBarrelBrotherState(next)) {
     for (const participant of roundParticipants) {
       const summary = actionSummaries.find((entry) => entry.characterId === participant.characterId);
@@ -696,7 +719,7 @@ export function resolvePartyBossRound(input: {
     statusAfter
   };
 
-  next.roundLog = [...next.roundLog, round].slice(-13);
+  next.roundLog = [...next.roundLog, round];
   next.status = statusAfter;
   if (statusAfter === "active") {
     next.turn += 1;
@@ -888,7 +911,10 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       ...round,
       actions: round.actions.map((action) => ({
         ...action,
-        ...(action.satedRecovery ? { satedRecovery: { ...action.satedRecovery } } : {})
+        ...(action.satedRecovery ? { satedRecovery: { ...action.satedRecovery } } : {}),
+        ...(action.supportTargets
+          ? { supportTargets: action.supportTargets.map((target) => ({ ...target })) }
+          : {})
       })),
       bossRetaliations: round.bossRetaliations.map((retaliation) => ({ ...retaliation })),
       ...(round.wardSign
@@ -1012,7 +1038,10 @@ function cloneAbilityCooldowns(
   );
 }
 
-function applyBossRetaliation(state: PartyBossState): {
+function applyBossRetaliation(
+  state: PartyBossState,
+  counterDamageByCharacterId: ReadonlyMap<string, number>
+): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
   personalProtocol?: PartyBossPersonalProtocolRoundSummary;
@@ -1093,6 +1122,11 @@ function applyBossRetaliation(state: PartyBossState): {
     }
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
+    const counterDamage = Math.min(
+      state.boss.hp,
+      Math.max(0, Math.floor(counterDamageByCharacterId.get(participant.characterId) ?? 0))
+    );
+    state.boss.hp = Math.max(0, state.boss.hp - counterDamage);
 
     if (participant.resources.hp <= 0) {
       participant.status = "knocked-out";
@@ -1107,7 +1141,8 @@ function applyBossRetaliation(state: PartyBossState): {
         : {}),
       ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
       ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {}),
-      ...(lamentPrevented > 0 ? { damageBeforeLament, lamentPreventedDamage: lamentPrevented } : {})
+      ...(lamentPrevented > 0 ? { damageBeforeLament, lamentPreventedDamage: lamentPrevented } : {}),
+      ...(counterDamage > 0 ? { counterDamage } : {})
     });
   }
 
@@ -1183,28 +1218,140 @@ function applyBossRetaliation(state: PartyBossState): {
   };
 }
 
-function applyPartyBossGearSupport(
-  participant: PartyBossParticipantState,
-  ability: CombatGearAbilityInput["profile"] | undefined
-): { healing?: number; guard?: number; hpAfter?: number } {
-  const healing = ability?.healAmount && ability.healAmount > 0
-    ? applyPartyBossHealing(participant.resources, ability.healAmount)
-    : 0;
-  const guard = ability?.guardReduction && ability.guardReduction > 0
-    ? Math.floor(ability.guardReduction)
-    : 0;
-
-  if (guard > 0) {
-    participant.resources.guard = {
-      consecutiveDefends: 1,
-      abilityDamageReduction: Math.max(1, guard)
-    };
+function applyPartyBossAbilitySupport(
+  state: PartyBossState,
+  actor: PartyBossParticipantState,
+  ability: CombatSkillProfile | undefined,
+  counterDamageByCharacterId: Map<string, number>
+): {
+  healing?: number;
+  guard?: number;
+  hpAfter?: number;
+  supportTargets?: NonNullable<PartyBossParticipantActionSummary["supportTargets"]>;
+} {
+  if (!ability) {
+    return {};
   }
-
+  const healingAmount = Math.max(0, Math.floor(ability.healAmount ?? 0));
+  const guard = Math.max(
+    0,
+    Math.floor(ability.source === "equipment"
+      ? ability.guardReduction ?? 0
+      : Math.max(ability.monsterDamageReduction, ability.guardReduction ?? 0))
+  );
+  const counterDamage = Math.max(0, Math.floor(ability.counterDamage ?? 0));
+  if (healingAmount === 0 && guard === 0 && counterDamage === 0) {
+    return {};
+  }
+  const healingTargets = healingAmount > 0
+    ? getPartyBossSupportTargets(
+        state,
+        actor,
+        isPartyBossSupportScope(ability.primaryTargetScope)
+          ? ability.primaryTargetScope
+          : ability.secondaryTargetScope ?? "self"
+      )
+    : [];
+  const protectionTargets = guard > 0 || counterDamage > 0
+    ? getPartyBossSupportTargets(
+        state,
+        actor,
+        ability.secondaryTargetScope ?? (
+          isPartyBossSupportScope(ability.primaryTargetScope) ? ability.primaryTargetScope : "self"
+        )
+      )
+    : [];
+  const targetIds = new Set([
+    ...healingTargets.map((target) => target.characterId),
+    ...protectionTargets.map((target) => target.characterId)
+  ]);
+  const supportTargets = [...targetIds].map((characterId) => {
+    const target = state.participants.find((participant) => participant.characterId === characterId)!;
+    const healing = healingTargets.some((candidate) => candidate.characterId === characterId)
+      ? applyPartyBossHealing(target.resources, healingAmount)
+      : 0;
+    const protects = protectionTargets.some((candidate) => candidate.characterId === characterId);
+    if (protects && guard > 0) {
+      target.resources.guard = {
+        consecutiveDefends: 1,
+        abilityDamageReduction: Math.max(
+          guard,
+          target.resources.guard?.abilityDamageReduction ?? 0
+        )
+      };
+    }
+    if (protects && counterDamage > 0) {
+      counterDamageByCharacterId.set(
+        target.characterId,
+        Math.max(counterDamage, counterDamageByCharacterId.get(target.characterId) ?? 0)
+      );
+    }
+    return {
+      characterId: target.characterId,
+      ...(healing > 0 ? { healing } : {}),
+      ...(protects && guard > 0 ? { guard } : {}),
+      ...(protects && counterDamage > 0 ? { counterDamage } : {})
+    };
+  });
+  const actorSupport = supportTargets.find((target) => target.characterId === actor.characterId);
   return {
-    ...(healing > 0 ? { healing, hpAfter: participant.resources.hp } : {}),
-    ...(guard > 0 ? { guard } : {})
+    ...(actorSupport?.healing ? { healing: actorSupport.healing, hpAfter: actor.resources.hp } : {}),
+    ...(actorSupport?.guard ? { guard: actorSupport.guard } : {}),
+    ...(supportTargets.length > 0 ? { supportTargets } : {})
   };
+}
+
+function getPartyBossAbilityProfile(
+  participant: PartyBossParticipantState,
+  action: "skill" | "race" | "gear",
+  gearAbility: CombatGearAbilityInput["profile"] | undefined
+): CombatSkillProfile | undefined {
+  if (action === "skill") {
+    return getCombatClassAbilityProfile(participant.combatStats.classId);
+  }
+  if (action === "race") {
+    return getCombatRaceAbilityProfile(participant.combatStats.raceId) ?? undefined;
+  }
+  return gearAbility;
+}
+
+function getPartyBossSupportTargets(
+  state: PartyBossState,
+  actor: PartyBossParticipantState,
+  scope: NonNullable<CombatSkillProfile["primaryTargetScope"]>
+): PartyBossParticipantState[] {
+  const living = state.participants.filter(
+    (participant) => participant.status === "active" && participant.resources.hp > 0
+  );
+  switch (scope) {
+    case "all-allies-including-self":
+      return living;
+    case "lowest-hp-ally": {
+      const allies = living.filter((participant) => participant.characterId !== actor.characterId);
+      const candidates = allies.length > 0 ? allies : [actor];
+      return [candidates.reduce((lowest, participant) =>
+        participant.resources.hp / Math.max(1, participant.resources.hpMax) <
+          lowest.resources.hp / Math.max(1, lowest.resources.hpMax)
+          ? participant
+          : lowest
+      )];
+    }
+    case "single-ally-or-self":
+    case "self":
+      return [actor];
+    default:
+      return [actor];
+  }
+}
+
+function isPartyBossSupportScope(
+  scope: CombatSkillProfile["primaryTargetScope"] | undefined
+): scope is Extract<NonNullable<CombatSkillProfile["primaryTargetScope"]>,
+  "self" | "single-ally-or-self" | "all-allies-including-self" | "lowest-hp-ally"> {
+  return scope === "self" ||
+    scope === "single-ally-or-self" ||
+    scope === "all-allies-including-self" ||
+    scope === "lowest-hp-ally";
 }
 
 function applyPartyBossHealing(

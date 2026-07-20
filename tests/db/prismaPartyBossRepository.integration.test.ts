@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findMantokAbilityGrantByKey } from "../../src/content";
 import { PrismaPartyBossRepository } from "../../src/db/repositories/prismaPartyBossRepository";
+import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import type {
   PartyBossActionResult,
@@ -1594,6 +1595,179 @@ describe("PrismaPartyBossRepository integration", () => {
       { eventType: "participant.knocked-out", actorCharacterId: "knockout-leader-user-character" }
     ]);
     expect(chatEntries.at(-1)).toEqual({ eventType: "raid.lost", actorCharacterId: null });
+  });
+
+  it("repairs one malformed due session without blocking healthy due work", async () => {
+    await seedCharacter(prisma, "repair-bad-leader", 1091n, "Зламаний лідер", { level: 8 });
+    await seedCharacter(prisma, "repair-bad-joiner", 1092n, "Зламаний свідок", { level: 8 });
+    await seedCharacter(prisma, "repair-good-leader", 1093n, "Справна лідерка", { level: 8 });
+    await seedCharacter(prisma, "repair-good-joiner", 1094n, "Справний свідок", { level: 8 });
+    await partyRepository.createForTelegramUser(1091n, partyInput("party-repair-bad"));
+    await partyRepository.joinByTokenForTelegramUser(1092n, "party-repair-bad", joinInput());
+    await partyRepository.createForTelegramUser(1093n, partyInput("party-repair-good"));
+    await partyRepository.joinByTokenForTelegramUser(1094n, "party-repair-good", joinInput());
+    const dueAt = new Date("2026-06-30T10:00:01.000Z");
+    await bossRepository.startFromRecruitingPartyForTelegramUser(1091n, {
+      partyInviteToken: "party-repair-bad",
+      now: now(),
+      turnExpiresAt: dueAt
+    });
+    await bossRepository.startFromRecruitingPartyForTelegramUser(1093n, {
+      partyInviteToken: "party-repair-good",
+      now: now(),
+      turnExpiresAt: dueAt
+    });
+    const badParty = await prisma.partySession.findUniqueOrThrow({ where: { inviteToken: "party-repair-bad" } });
+    await prisma.partyBossSession.update({
+      where: { partySessionId: badParty.id },
+      data: { stateJson: { rulesVersion: "big-barrel-brother-v1" } }
+    });
+
+    const due = await bossRepository.listDueTimedOutSessions(new Date("2026-06-30T10:00:23.000Z"));
+
+    expect(due.map((session) => session.partyInviteToken)).toContain("party-repair-good");
+    expect(due.map((session) => session.partyInviteToken)).not.toContain("party-repair-bad");
+    const goodParty = await prisma.partySession.findUniqueOrThrow({ where: { inviteToken: "party-repair-good" } });
+    await expect(prisma.partyBossSession.findUnique({ where: { partySessionId: badParty.id } })).resolves.toMatchObject({
+      status: "cancelled",
+      resultJson: { status: "cancelled" }
+    });
+    await expect(prisma.activeCombatLease.count({
+      where: { kind: "party-boss", referenceId: badParty.id }
+    })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({
+      where: { kind: "party-boss", referenceId: goodParty.id }
+    })).resolves.toBe(2);
+  });
+
+  it("releases an orphan party-boss lease during the bounded due scan", async () => {
+    await seedCharacter(prisma, "orphan-party-boss", 1095n, "Осиротілий учасник", { level: 8 });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "orphan-party-boss-lease",
+        characterId: "orphan-party-boss-character",
+        kind: "party-boss",
+        referenceId: "missing-party-session"
+      }
+    });
+
+    await bossRepository.listDueTimedOutSessions(new Date("2026-06-30T10:00:23.000Z"));
+
+    await expect(prisma.activeCombatLease.findUnique({ where: { id: "orphan-party-boss-lease" } })).resolves.toBeNull();
+  });
+
+  it("advances one turn when the last two participant actions arrive concurrently", async () => {
+    await seedCharacter(prisma, "last-two-leader", 1096n, "Перша дія", { hp: 300, level: 8 });
+    await seedCharacter(prisma, "last-two-joiner", 1097n, "Друга дія", { hp: 300, level: 8 });
+    await partyRepository.createForTelegramUser(1096n, partyInput("party-last-two-race"));
+    await partyRepository.joinByTokenForTelegramUser(1097n, "party-last-two-race", joinInput());
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(1096n, {
+      partyInviteToken: "party-last-two-race",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) throw new Error(`Expected started session, got ${started.state}`);
+
+    const results = await Promise.all([
+      bossRepository.submitActionForTelegramUser(1096n, "party-last-two-race", 1, "attack", resolveInput()),
+      bossRepository.submitActionForTelegramUser(1097n, "party-last-two-race", 1, "attack", resolveInput())
+    ]);
+
+    expect(results.filter((result) => result.state === "resolved")).toHaveLength(1);
+    await expect(prisma.partyBossSession.findUnique({ where: { id: started.session.id } })).resolves.toMatchObject({
+      status: "active",
+      turn: 2,
+      version: 2
+    });
+    await expect(prisma.partyBossAction.count({
+      where: { sessionId: started.session.id, turn: 1 }
+    })).resolves.toBe(2);
+  });
+
+  it("settles one turn when the final action races the due scheduler", async () => {
+    await seedCharacter(prisma, "timeout-race-leader", 91098n, "Ручна дія", { hp: 300, level: 8 });
+    await seedCharacter(prisma, "timeout-race-joiner", 91099n, "Таймер", { hp: 300, level: 8 });
+    await partyRepository.createForTelegramUser(91098n, partyInput("party-action-timeout-race"));
+    await partyRepository.joinByTokenForTelegramUser(91099n, "party-action-timeout-race", joinInput());
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(91098n, {
+      partyInviteToken: "party-action-timeout-race",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:01.000Z")
+    });
+    if (!("session" in started)) throw new Error(`Expected started session, got ${started.state}`);
+    await bossRepository.submitActionForTelegramUser(91098n, "party-action-timeout-race", 1, "attack", resolveInput());
+    const dueInput = {
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:46.000Z")
+    };
+
+    await Promise.all([
+      bossRepository.submitActionForTelegramUser(91099n, "party-action-timeout-race", 1, "attack", dueInput),
+      bossRepository.submitActionForTelegramUser(91099n, "party-action-timeout-race", 1, "attack", dueInput),
+      bossRepository.resolveTimedOutByToken("party-action-timeout-race", dueInput, "due")
+    ]);
+
+    const row = await prisma.partyBossSession.findUniqueOrThrow({ where: { id: started.session.id } });
+    expect(row.turn).toBe(2);
+    expect(row.version).toBe(2);
+    const state = row.stateJson as unknown as PartyBossSessionRecord["state"];
+    expect(state.roundLog).toHaveLength(1);
+    await expect(prisma.partyBossAction.count({
+      where: { sessionId: started.session.id, turn: 1 }
+    })).resolves.toBe(2);
+  });
+
+  it("keeps delete-vs-terminal-resolution races free of orphan combat leases", async () => {
+    await seedCharacter(prisma, "delete-race-leader", 91100n, "Лідер на вихід", { hp: 300, level: 8 });
+    await seedCharacter(prisma, "delete-race-joiner", 91101n, "Свідок розв'язки", { hp: 300, level: 8 });
+    await partyRepository.createForTelegramUser(91100n, partyInput("party-delete-resolve-race"));
+    await partyRepository.joinByTokenForTelegramUser(91101n, "party-delete-resolve-race", joinInput());
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(91100n, {
+      partyInviteToken: "party-delete-resolve-race",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    if (!("session" in started)) throw new Error(`Expected started session, got ${started.state}`);
+
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        stateJson: {
+          ...started.session.state,
+          boss: { ...started.session.state.boss, hp: 1 }
+        }
+      }
+    });
+    await bossRepository.submitActionForTelegramUser(
+      91100n,
+      "party-delete-resolve-race",
+      1,
+      "attack",
+      resolveInput()
+    );
+
+    const characters = new PrismaCharacterRepository(prisma);
+    const [resolved, restart] = await Promise.all([
+      bossRepository.submitActionForTelegramUser(
+        91101n,
+        "party-delete-resolve-race",
+        1,
+        "attack",
+        resolveInput()
+      ),
+      characters.restartByTelegramUserId(91100n)
+    ]);
+
+    expect(resolved.state).toBe("resolved");
+    expect(["active-combat", "deleted"]).toContain(restart);
+    const boss = await prisma.partyBossSession.findUnique({ where: { id: started.session.id } });
+    expect(boss?.status ?? "deleted").not.toBe("active");
+    await expect(prisma.activeCombatLease.count({
+      where: { referenceId: started.session.partySessionId, kind: "party-boss" }
+    })).resolves.toBe(0);
+    if (restart === "active-combat") {
+      await expect(prisma.character.findUnique({ where: { id: "delete-race-leader-character" } })).resolves.not.toBeNull();
+    }
   });
 
   it("manual dev timeout force-resolves missing actions before the turn deadline", async () => {

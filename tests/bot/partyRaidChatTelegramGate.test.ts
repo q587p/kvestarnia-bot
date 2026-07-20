@@ -62,4 +62,38 @@ describe("PartyRaidChatTelegramGate", () => {
 
     expect(startedAt).toBe(5_000);
   });
+
+  it("starts another target without waiting for a slow Telegram request to finish", async () => {
+    let now = 0;
+    const starts: Array<{ target: string; at: number }> = [];
+    let finishFirst!: () => void;
+    const firstPending = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
+    const gate = new PartyRaidChatTelegramGate({
+      now: () => now,
+      sleep: (milliseconds) => {
+        now += milliseconds;
+        return Promise.resolve();
+      }
+    });
+
+    const first = gate.enqueue("a", () => {
+      starts.push({ target: "a", at: now });
+      return firstPending;
+    });
+    const second = gate.enqueue("b", () => {
+      starts.push({ target: "b", at: now });
+      return Promise.resolve();
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(starts).toEqual([
+      { target: "a", at: 0 },
+      { target: "b", at: 77 }
+    ]);
+    finishFirst();
+    await Promise.all([first, second]);
+  });
 });

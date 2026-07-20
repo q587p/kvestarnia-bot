@@ -787,6 +787,12 @@ async function handleEquipmentCallback(
     return;
   }
 
+  if (action.type === "manage") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendEquipment(ctx, services.equipment, "edit", { expanded: true });
+    return;
+  }
+
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
   if (!telegramUserId) {
@@ -845,7 +851,7 @@ async function handleEquipmentCallback(
 
   await safeEditMessageText(ctx, presentEquipment(equipment), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildEquipmentKeyboard(equipment)
+    reply_markup: buildEquipmentKeyboard(equipment, { expanded: true })
   });
 }
 

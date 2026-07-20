@@ -77,7 +77,7 @@ export function buildPartySessionKeyboard(
         ).text("🔎 Оновити", makePartySessionViewCallbackData(token)).row();
         refreshPlaced = true;
         if (!session.wardSign && canPlaceKharakternykWardSign(viewer)) {
-          keyboard.text("🧿 Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
+          keyboard.text("✴️ Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
         } else if (canSupportKharakternykWardSign(session, viewer)) {
           keyboard.text("✋ Підперти знак", makePartySessionWardSupportCallbackData(token)).row();
         }

@@ -1295,6 +1295,7 @@ describe("fight presenter", () => {
     });
     const noMana = presentPersistentFightTurn({
       state: "not-enough-mana",
+      action: "skill",
       character,
       session: persistentSession({
         hero: {
@@ -1325,6 +1326,7 @@ describe("fight presenter", () => {
     const result: PersistentFightTurnResult = {
       state: "not-enough-mana",
       reason: "skill-on-cooldown",
+      action: "gear",
       character,
       session: persistentSession({
         hero: {
@@ -1352,6 +1354,30 @@ describe("fight presenter", () => {
     );
   });
 
+  it.each([
+    ["skill", "Класове вміння ще відсапується."],
+    ["race", "Расове вміння ще відсапується."]
+  ] as const)("names a blocked persistent %s action instead of equipment", (action, expected) => {
+    const text = presentPersistentFightTurn({
+      state: "not-enough-mana",
+      reason: "skill-on-cooldown",
+      action,
+      character,
+      session: persistentSession(),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain(expected);
+    expect(text).not.toContain("Дія спорядження ще відсапується.");
+  });
+
   it("formats persistent fight gear callback no-op notices", () => {
     expect(presentPersistentFightGearUnavailableNotice({
       state: "stale-turn",
@@ -1363,6 +1389,7 @@ describe("fight presenter", () => {
     expect(presentPersistentFightGearUnavailableNotice({
       state: "not-enough-mana",
       reason: "not-enough-mana",
+      action: "gear",
       character,
       session: persistentSession(),
       monster: {

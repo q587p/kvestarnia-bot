@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
+  presentRestartActiveCombat,
   presentRestartCancelled,
   presentRestartDeleted,
   presentRestartNoCharacter,
@@ -18,6 +19,11 @@ describe("restart presenter", () => {
   it("points back to /start after deletion or missing character", () => {
     expect(presentRestartDeleted()).toContain("/start");
     expect(presentRestartNoCharacter()).toContain("/start");
+  });
+
+  it("explains why restart is blocked during combat", () => {
+    expect(presentRestartActiveCombat()).toContain("активного бою");
+    expect(presentRestartActiveCombat()).toContain("завершіть бій");
   });
 
   it("keeps cancellation non-destructive", () => {

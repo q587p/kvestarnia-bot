@@ -170,7 +170,7 @@ describe("quest button markers", () => {
     ).toBe(QuestMarker.NONE);
   });
 
-  it("marks Charkokovalnia unlock as ready when the field kit is already owned", () => {
+  it("keeps the accepted Charkokovalnia unlock unmarked until the field kit is owned", () => {
     const missingKitInput = {
       characterLevel: 5,
       itemUpgrades: {
@@ -181,10 +181,11 @@ describe("quest button markers", () => {
       }
     };
 
-    expect(resolveQuestMarkerForTarget(missingKitInput, "quest.charkokovalnia")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.yard")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.quest-table")).toBe(QuestMarker.CAN_ACCEPT);
-    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.hall")).toBe(QuestMarker.CAN_ACCEPT);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "quest.charkokovalnia")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.yard")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.quest-table")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "location.korchma.hall")).toBe(QuestMarker.NONE);
+    expect(resolveQuestMarkerForTarget(missingKitInput, "menu.quest")).toBe(QuestMarker.NONE);
 
     const readyInput = {
       ...missingKitInput,

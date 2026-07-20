@@ -1,9 +1,10 @@
 import { Bot, type Context } from "grammy";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handlePartySessionCallback,
   registerPartySessionDevCommand,
-  sendPartyJoinFromStartPayload
+  sendPartyJoinFromStartPayload,
+  waitForPartyBossParticipantNotifications
 } from "../../src/bot/commands/partySessionCommand";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
@@ -12,6 +13,10 @@ import type { PartyBossService } from "../../src/services/partyBossService";
 import type { PresenceService } from "../../src/services/presenceService";
 
 describe("handlePartySessionCallback", () => {
+  afterEach(async () => {
+    await waitForPartyBossParticipantNotifications();
+  });
+
   it("does not create a dev party when the command is accidentally registered without dev helpers", async () => {
     const bot = new Bot("test-token", {
       botInfo: {
@@ -915,6 +920,7 @@ describe("handlePartySessionCallback", () => {
         partyBoss: partyBossWith({ submitActionForTelegramUser })
       }
     );
+    await waitForPartyBossParticipantNotifications();
 
     expect(submitActionForTelegramUser).toHaveBeenCalledWith(93n, session.partyInviteToken, 1, "defend");
     expect(messageText(editMessageText)).toContain("2 хід");
@@ -922,6 +928,54 @@ describe("handlePartySessionCallback", () => {
     expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Хід оновлено");
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("2 хід");
+  });
+
+  it("does not fan out the terminal raid again for a queued stale action", async () => {
+    const session = makeBossSession({
+      status: "won",
+      boss: {
+        ...makeBossSession().state.boss,
+        hp: 0
+      }
+    });
+    session.status = "won";
+    const submitActionForTelegramUser = vi.fn().mockResolvedValue({ state: "terminal", session });
+    const { ctx, editMessageText, sendMessage } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-action", token: session.partyInviteToken, turn: 17, action: "defend" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitActionForTelegramUser })
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("Ватага перемогла");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not hold the sequential update loop while participant pushes are in flight", async () => {
+    const session = makeBossSession({ turn: 2 });
+    const submitActionForTelegramUser = vi.fn().mockResolvedValue({ state: "resolved", session });
+    const pendingSend = deferred<true>();
+    const { ctx, sendMessage } = createCallbackContext(93);
+    sendMessage.mockImplementation(() => pendingSend.promise);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "boss-action", token: session.partyInviteToken, turn: 1, action: "defend" },
+      serviceWith({}),
+      {
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ submitActionForTelegramUser })
+      }
+    );
+
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+    pendingSend.resolve(true);
+    await waitForPartyBossParticipantNotifications();
   });
 
   it("keeps the canonical raid card when an old Lament callback arrives with Big Barrel disabled", async () => {
@@ -962,6 +1016,7 @@ describe("handlePartySessionCallback", () => {
         partyBoss: partyBossWith({ submitGearForTelegramUser })
       }
     );
+    await waitForPartyBossParticipantNotifications();
 
     expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1, "rldagr");
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Вибір оновлено." });
@@ -1049,6 +1104,7 @@ describe("handlePartySessionCallback", () => {
         partyBoss: partyBossWith({ submitGearForTelegramUser })
       }
     );
+    await waitForPartyBossParticipantNotifications();
 
     expect(submitGearForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1, "rldagr");
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
@@ -1268,6 +1324,7 @@ describe("handlePartySessionCallback", () => {
         })
       }
     );
+    await waitForPartyBossParticipantNotifications();
 
     expect(forceResolveTimedOutByToken).toHaveBeenCalledWith(session.partyInviteToken);
     expect(resolveDueTimedOutByToken).not.toHaveBeenCalled();
@@ -2127,9 +2184,9 @@ describe("handlePartySessionCallback", () => {
 
     expect(placeKharakternykWardSignForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken);
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Знак поставлено." });
-    expect(messageText(editMessageText)).toContain("🧿 Знак характерника стоїть біля бочки.");
+    expect(messageText(editMessageText)).toContain("✴️ Знак характерника стоїть біля бочки.");
     expect(reply).toHaveBeenCalledWith(
-      "🧿 <b>Ви поставили знак</b>\n\n💫 Мани витрачено: <b>9</b>.",
+      "✴️ <b>Ви поставили знак</b>\n\n💫 Мани витрачено: <b>9</b>.",
       expect.objectContaining({ parse_mode: "HTML" })
     );
   });
@@ -2161,7 +2218,7 @@ describe("handlePartySessionCallback", () => {
     expect(apiEditMessageText).toHaveBeenCalledWith(
       42,
       13,
-      expect.stringContaining("🧿 Знак характерника стоїть біля бочки."),
+      expect.stringContaining("✴️ Знак характерника стоїть біля бочки."),
       expect.objectContaining({ parse_mode: "HTML" })
     );
   });
@@ -2248,14 +2305,14 @@ describe("handlePartySessionCallback", () => {
 
     expect(supportKharakternykWardSignForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken);
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Підпор записано." });
-    expect(messageText(editMessageText)).toContain("🧿 Знак характерника стоїть біля бочки. Підпор: 1/7.");
+    expect(messageText(editMessageText)).toContain("✴️ Знак характерника стоїть біля бочки. Підпор: 1/7.");
     expect(reply).toHaveBeenCalledWith(
       "✋ <b>Ви підперли знак</b>\n\n💫 Мани витрачено: <b>6</b>.",
       expect.objectContaining({ parse_mode: "HTML" })
     );
     expect(sendMessage).toHaveBeenCalledWith(
       42,
-      expect.stringContaining("🧿 Знак характерника стоїть біля бочки. Підпор: 1/7."),
+      expect.stringContaining("✴️ Знак характерника стоїть біля бочки. Підпор: 1/7."),
       expect.objectContaining({ parse_mode: "HTML" })
     );
     expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, session.inviteToken, {

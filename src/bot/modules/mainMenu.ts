@@ -63,6 +63,7 @@ type MainMenuKeyboardOptions
 import {
 buildDailyKorchmaRoundSceneKeyboard
 } from "../keyboards/dailyKorchmaRoundKeyboard";
+import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
 import {
 presentDailyKorchmaRoundScene
 } from "../presenters/dailyKorchmaRoundPresenter";
@@ -158,8 +159,6 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    const replyMarkup = await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin });
-
     await ctx.reply(presentHelp({
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
@@ -169,7 +168,7 @@ export function registerMainMenuKeyboard(
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
     }), {
-      reply_markup: replyMarkup
+      reply_markup: buildHelpKeyboard()
     });
   });
 

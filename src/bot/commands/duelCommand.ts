@@ -48,6 +48,10 @@ import {
   presentTurnBasedDuelIntro,
   presentDuelView
 } from "../presenters/duelPresenter";
+import {
+  presentCombatActionCooldownNotice,
+  presentCombatActionManaNotice
+} from "../presenters/combatActionPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -433,14 +437,19 @@ export async function handleDuelCallback(
       action: callback.type === "gear" ? "gear" : callback.action,
       ...(callback.type === "gear" ? { grantKey: callback.grantKey } : {})
     });
+    const attemptedAction = callback.type === "gear"
+      ? "gear"
+      : callback.action === "race"
+        ? "race"
+        : "skill";
 
     await answerCallback(
       result.state === "wrong-turn"
         ? { text: "Зараз не ваш хід." }
         : result.state === "not-enough-mana"
-          ? { text: "Не вистачає мани для цієї дії спорядження." }
+          ? { text: presentCombatActionManaNotice(attemptedAction) }
         : result.state === "skill-on-cooldown"
-          ? { text: "Дія спорядження ще відсапується." }
+          ? { text: presentCombatActionCooldownNotice(attemptedAction) }
         : result.state === "stale"
           ? { text: "Цей хід уже змінився. Показую актуальний запис." }
           : result.state === "already-acted"

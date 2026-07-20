@@ -3,6 +3,7 @@ import {
   buildItemCallbackKeyMaps,
   makeEquipItemCallbackData,
   makeEquipmentCallbackData,
+  makeEquipmentManageCallbackData,
   makeInventoryCallbackData,
   makeInventoryPagePromptCallbackData,
   makeStableItemCallbackKey,
@@ -266,6 +267,12 @@ describe("item and equipment callback data", () => {
       ok: true,
       value: {
         type: "view"
+      }
+    });
+    expect(parseEquipmentCallbackData(makeEquipmentManageCallbackData())).toEqual({
+      ok: true,
+      value: {
+        type: "manage"
       }
     });
   });

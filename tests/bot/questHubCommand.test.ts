@@ -373,6 +373,37 @@ describe("quest hub command", () => {
     });
   });
 
+  it("keeps an accepted Charkokovalnia access quest unmarked until its field kit is owned", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+
+    await sendQuestHub(
+      makeContext(replies),
+      servicesWith({
+        itemUpgrades: {
+          getUnlockQuestForTelegramUser: vi.fn(() => Promise.resolve({
+            state: "unlock-required" as const,
+            character: characterAtLevel(4),
+            fieldKitQuantity: 0,
+            rewardXp: 13
+          }))
+        }
+      }),
+      "reply"
+    );
+
+    const buttons = (
+      replies[0]?.options as {
+        reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+      }
+    ).reply_markup.inline_keyboard.flat();
+
+    expect(buttons).toContainEqual({
+      text: "✨ Доступ до Чароковальні",
+      callback_data: makePlaceCallbackData("yard")
+    });
+    expect(buttons.some((button) => button.text.includes("Чароковальні ⚠️"))).toBe(false);
+  });
+
   it("keeps locked cellar and hunt out of the active list on level one", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const levelOneCharacter = characterAtLevel(1);

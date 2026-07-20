@@ -14,6 +14,16 @@ MVP має бути веселим, не ідеально збалансован
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
 
+`0.3.16` closes the PartyBoss class/race support parity gap. Existing support
+actions now apply their authored ally scope in group combat: Priest healing can
+select the lowest-HP living ally and protect the party, while Molfar protection
+and counter effects cover each living participant and counter only an actual
+boss target. No new action, reward, cost or cooldown was added. To offset the
+survivability gained from real ally support, Big Barrel base retaliation rises
+by one point. Seeded regression simulations still enforce the established
+`35–49%` prepared uneven-party corridor and `75–93%` full same-level corridor;
+focused tests also pin healing, protection, counter targeting and stored output.
+
 `0.3.12` makes the Varenyk-mancer's hidden Sated rank affect sustained recovery as well as price and immediate HP. Per complete eligible outside-combat minute or recipient-owned supported combat turn, ranks 1-5 restore capped HP/mana portions `1/1`, `2/1`, `2/2`, `3/2`, `3/3`. This preserves the entry-rank floor while giving a maximum-rank 23-mana bowl meaningful sustain. Wall-clock waiting during a stored combat lease consumes nothing; every fresh supported surviving pulse consumes exactly one complete frozen minute. Quick duels remain excluded, resources never exceed their maxima and rank stays hidden behind exact visible effects.
 
 `0.3.3` adds qualitative Adventure Choice risk bands before method-help presentation. Paid or `modest` methods cap as the safer lower-reward band and can still reach one `майже надійно` row at the favorable edge; ordinary standard methods are steady, generous/deception/injury methods are risky, and fight-handoff/local-failure/serious-injury/fight methods are wild. These caps affect displayed check reliability and resolution chance, but not reward replay, fight-handoff settlement, local-failure `0 XP / 0 gold / no item / no fight`, Daily Korchma Round rewards, or starter cellar reward formulas. Daily Korchma Round remains reward-neutral content variety, and the refreshed cellar mouse methods still resolve through the tiny level 2-3 reward envelope.

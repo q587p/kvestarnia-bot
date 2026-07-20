@@ -98,7 +98,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram.
 8. High-level character with regular `Три справи` ready: press `🗺️ Квести`; verify `🪧 Три справи на найближчий час` appears with `Зроблено`, `Далі`, and `Де` guidance.
 9. Level 4+ character with `Справа не до миші` offered or paused after a roleplay attempt: press `🗺️ Квести`; verify the row appears and names the current stage.
 10. Level 4+ character holding the grownup cellar bottle: press `🗺️ Квести`; verify `Справа не до миші` appears as claimable and points to Shynok turn-in.
-11. High-level character with Charkokovalnia unlock pending and no field kit: press `🗺️ Квести`; verify `Доступ до Чароковальні` says the elf-mage asked for `Польова аптечка` and points toward the Yeger hint.
+11. High-level character with Charkokovalnia unlock pending and no field kit: press `🗺️ Квести`; verify `Доступ до Чароковальні` says the elf-mage asked for `Польова аптечка` and points toward the Yeger hint, while the affair button, Quest Table, hall and yard route do not show `⚠️` for this already-accepted affair.
 12. High-level character with Charkokovalnia unlock pending and a field kit in the bag: press `🗺️ Квести`; verify the same row points back to Charkokovalnia turn-in, and the route buttons `Доступ до Чароковальні`, `Надвір`, `У задвірок`, and `Чароковальня` show `✅` instead of `⚠️`.
 13. High-level character with completed starter quests: press `🗺️ Квести`; verify starter shawarma/fight rows are absent.
 14. Character with no active/taken quests after starter follow-ups are completed/retired: verify the compact empty state points to `Стіл зі справами`.
@@ -136,7 +136,7 @@ Manual Telegram QA status for the implementation pass: not run in Telegram. Use 
 
 Use two or three local accounts with eligible Big Barrel Brother characters and `BIG_BARREL_BROTHER_RAID_ENABLED=true`.
 
-1. On a level `8+` `class.kharakternyk`, open `🛢️ Бочка`, create a Big Barrel Brother recruiting lobby and tap `🧿 Поставити знак`.
+1. On a level `8+` `class.kharakternyk`, open `🛢️ Бочка`, create a Big Barrel Brother recruiting lobby and tap `✴️ Поставити знак`.
 2. Verify the lobby shows `Знак характерника` count-only support state, the Kharakternyk spent the deterministic placement cost once, and duplicate taps replay without another spend.
 3. Join with a non-Kharakternyk and tap `✋ Підперти знак`; verify support is recorded once, mana spend matches the callback result, and duplicate taps replay safely.
 4. Join with another Kharakternyk if available; verify support uses the same deterministic support-cost range and still increases the count by one.
@@ -355,7 +355,7 @@ Use two or three local accounts with eligible characters: non-remorted level 8+ 
 14. Wait past the deadline and trigger the timeout path; verify missing participants defend deterministically.
 15. With dev helpers enabled, use the dev timeout control before the deadline; verify missing participants defend and the next turn appears.
 16. In a controlled high-HP scenario, continue past rounds 7 and 13 while both sides are still alive; verify there is no automatic loss by round count.
-17. Force or finish a victory; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, names terminal participant rows by character rather than `Ви`, and does not show active-only cooldown rows. Then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it is paginated, shows action descriptions, boss target rows and target-switch notes.
+17. Force or finish a victory after at least 17 resolved turns; verify the result card shows `🎉 Ви перемогли`, exact stored `Винагорода за бій` XP/gold and any item grant for the viewer, names terminal participant rows by character rather than `Ви`, and does not show active-only cooldown rows. Then replay terminal/action buttons and verify Barrel success, XP/gold/items and `party-boss` leases do not duplicate. Open `📜 Журнал` and verify it starts at turn 1 with `запис 1/17`, reaches turn 17 through first/back/next/end pagination, and shows action descriptions, boss target rows and target-switch notes.
 17a. Open the original `https://t.me/<bot>?start=party_<token>` invite after the victory or loss; verify it opens the stored raid result instead of an expired recruiting message.
 18. Use `/dev_raid_reset` locally when the same account needs another Barrel/Big Barrel Brother attempt in the same raid period without waiting for the next `:23` period boundary; after a Big loss, verify it clears the Big Barrel Brother loss retry cooldown for QA.
 19. Finish a loss in another period; verify no Barrel success, beer gate, gold or items are written, timeout-only AFK receives no loss attempt XP, and meaningful participants receive the `🎒 За спробу` line only when the 3-minute loss retry cooldown is not active.
@@ -561,6 +561,21 @@ Use one level 3+ account with local dev commands enabled where helpful.
 15. Move to another location, press an old descent, `Ярус I` or passage `🔎 Пошукати` button, and verify no search action, cooldown, encounter refresh/consume or combat starts.
 16. Defeat a pending monster in a first-tier passage, reopen that same passage before 3 minutes and verify `🔎 Пошукати` starts a safe 42-second passage search without a monster token.
 17. Use `/dev_reset_passage_search` locally and verify running search/cooldowns clear without changing combat state.
+
+## 0.3.16 — Help, equipment and Cellar navigation smoke
+
+Manual Telegram QA status for the implementation pass: not run.
+
+1. Open `/help` and the main keyboard's `📖 Допомога`; verify both show the same short five-section index rather than the complete command wall.
+2. Open every section, move with `⬅️` / `➡️`, and return through `📖 Розділи`; verify each command appears in one sensible section and the card stays within one mobile screen.
+3. With table games disabled and enabled, open `🍺 Корчма й люди`; verify `/games` follows the existing player-surface gate while dev commands never appear on any page.
+4. During active ordinary combat, open Help and move to `⚔️ Пригоди й бої`; verify the read-only pages remain available and do not advance or replace combat state.
+5. Open `/equipment`, `/gear`, `/equip`, the main `🛡️ Спорядження` button and an item-detail return to equipment; verify the first keyboard contains only `🔄 Змінити спорядження`, without `⬅️ До манаток` or seven slot rows. Use the persistent main keyboard to return to Manatky.
+6. Press `🔄 Змінити спорядження`; verify all seven slot filters appear, occupied slots keep their matching removal action, and `⬅️ До спорядження` collapses the controls again.
+7. Remove one equipped item from the expanded view; verify the item stays in inventory, the equipment card refreshes and the expanded controls remain open for another change.
+8. Open the Quest Table, move outside through another current action, then press the old `🧹 У льох` button; verify the bot opens `🐭 Льохова справа`, persists the Cellar location and does not answer `Квести видають усередині.`
+9. While genuinely outside, send `/cellar`; verify the command still replies `Квести видають усередині.` with `🚪 Зайти в корчму`, so only explicit movement buttons bypass the gate.
+10. Complete a `Корчмарський обхід` scene outside the hall, such as the broom incident in the yard; verify both the scene card and its result offer a named return to that exact place (`🚪 До задвірку` here), not `🍺 До зали`. Repeat one interior example such as Shynok or the Cellar.
 
 ## 0.3.15 — Big Barrel Raid Chat MVP smoke
 
@@ -836,6 +851,8 @@ npm.cmd run sample:loot -- --levels 3,4,8,13 --runs 100 --seed 1221
 6. Очікування: stale turn показує поточний стан і не проводить damage вдруге.
 7. На магічному/містичному класі витрать або вручну зануль ману в тестовому стані й натисни skill.
 8. Очікування: `мани не вистачило`, state не мутує, монстр не отримує безкоштовної відповіді.
+8a. Під час відкоту класового вміння натисни його ще раз. Картка має сказати `Класове вміння ще відсапується.`, а не назвати його дією спорядження.
+8b. Повтори перевірку для расового вміння й дії спорядження, а також у покроковій дуелі: кожне повідомлення має називати саме джерело натиснутої дії.
 9. Натисни `Захищатися`.
 10. Очікування: хід просувається, incoming damage зменшується, а повторний захист не виглядає як нескінченна найкраща дія.
 11. Дочекайся завершення короткого turn deadline на бойовому екрані, нічого не натискаючи.
@@ -894,6 +911,7 @@ Use this with the Adventure Choice, starter shawarma and cellar mouse smoke path
 7. With an active training fight or terminal persistent fight, press a stale/late Adventure handoff callback. Confirm the claim rolls back and the final presence/card stays on the canonical training or solo-fight route, not the quest table.
 8. Equip or level a hero so effective max HP exceeds the persisted base max, then take a quest injury. Confirm the stored audit keeps the damage-time effective max, while the result card's current HP line matches the returned post-claim `/hero` summary.
 9. Test a capped item-grant method, then force rollback after the hero gains the same item again. Confirm rollback removes only the applied quest grant and preserves the later item quantity.
+10. As an Elf Rogue with the `Естетична Зникальниця` title, resolve `Іспит для злодія здає викладача` through `🗝️ Поміняти місцями питання й відповідь`. Confirm the success result contains `Точний рух спрацьовує без фанфар і зайвих уламків.` exactly once, never shows the internal word `Фінес`, and says the title `лишає на справі підпис` exactly once.
 
 1. На двох персонажах 3+ рівня зайди в `🥊 Бійцівський куток` і створи `⚡ Миттєва дуель`.
 2. Очікування: основна картка каже, що результат зʼявиться одразу після згоди, а окреме forwardable-повідомлення має invite link, mode line, fairness line і кнопку `🎲 Інший текст`.

@@ -1502,6 +1502,50 @@ describe("handleDuelCallback", () => {
     expect(apiMessageText(apiEditMessageText, 99, 10)).toContain("Покрокова дуель");
   });
 
+  it("names a blocked turn-based class action as a class ability", async () => {
+    const target = makeCharacter(99n, "Ціль Виклику");
+    const activeSession = makeTurnBasedSession("active", target);
+    activeSession.targetChatId = 99n;
+    activeSession.targetMessageId = 10;
+    activeSession.challengerChatId = 42n;
+    activeSession.challengerMessageId = 123;
+    const resolveTurnBasedActionForTelegramUser = vi.fn().mockResolvedValue({
+      state: "skill-on-cooldown",
+      session: activeSession
+    });
+    const getByToken = vi.fn().mockResolvedValue({
+      state: "active",
+      challenge: {
+        ...makeChallenge("active", target),
+        mode: "turn-based"
+      },
+      challenger: makeCharacterSummary("Автор Виклику"),
+      target: makeCharacterSummary("Ціль Виклику"),
+      session: activeSession,
+      turnExpiresAt: activeSession.turnExpiresAt,
+      now: NOW
+    });
+    const service = serviceWith({
+      resolveTurnBasedActionForTelegramUser,
+      getByToken
+    });
+    const { ctx, answerCallbackQuery } = createCallbackContext(99, "private");
+
+    await handleDuelCallback(ctx, {
+      type: "turn",
+      token: TOKEN,
+      action: "skill",
+      turn: 2,
+      version: 4
+    }, service, {
+      presence: createPresence()
+    });
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Класове вміння ще відсапується."
+    });
+  });
+
   it("keeps resource-warning accept flow on the warning keyboard", async () => {
     const service = serviceWith({
       acceptForTelegramUser: vi.fn().mockResolvedValue({

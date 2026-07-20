@@ -60,9 +60,11 @@ Recently shipped:
 - [0.3.4-quest-overview-route.md](0.3.4-quest-overview-route.md) — compact read-only `🗺️ Квести` overview route over existing quest surfaces, keeping `/quest` and `Стіл зі справами` as the full Quest Hub.
 - [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — shipped performance instrumentation and bounded DailyAction/Yeger/Korchma hot paths without player-facing balance changes.
 
-Active release candidate and near-term drafts:
+## Active closeout and planned sequence
 
-Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
+`0.3.x` now has a closeout cutline. Do not activate an old `0.2.x-*` draft
+verbatim. After shipped raid chat, complete one risk-led
+closeout and start generic party-vs-many work on `0.4.x`.
 
 - [0.3.6-bureaucramancer-personal-protocol-13b.md](0.3.6-bureaucramancer-personal-protocol-13b.md) — shipped Bureaucramancer `📄 Форма 13-А` Big Barrel recruiting action that opens `Протокол 13-З`; merge is proven by PR #158, while deployment and refreshed full manual QA remain separately unproven.
 - [archive/0.3.x-bureaucramancer-personal-protocol.md](archive/0.3.x-bureaucramancer-personal-protocol.md) — superseded planning draft retained for history; do not implement.
@@ -75,11 +77,25 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.3.13-bugfix-release.md](0.3.13-bugfix-release.md) — patch-first fixes for Bard and quest-fight location preservation, complete duel quest progress, level/remort-aware quest encounters, Doppelganger block quotes and explicit barrel-beer instructions.
 - [0.3.14-bard-inspiration-and-raid-lament.md](0.3.14-bard-inspiration-and-raid-lament.md) — Bard performances grant hybrid-duration Inspiration, while the existing Big Barrel surface lets one Bard commit a replay-safe Lament when its music slot is free.
 - [0.3.x-test-suite-runtime-p0.md](0.3.x-test-suite-runtime-p0.md) — internal maintenance that removes measured content/date hot spots, bounds integration-file parallelism at two workers, and makes local/CI validation use the same named phases without reducing test coverage.
-- [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — implemented Big Barrel Raid Chat MVP with participant-only durable chat, exact ForceReply composition, transactional system events and restart-safe delivery/redaction recovery; manual Telegram QA remains pending.
+- [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — shipped by PR #179 with restart-safe delivery/redaction and adaptive recovery; target deployment and refreshed full manual Telegram QA remain separately unproven.
+- [0.3.16-closed-alpha-closeout.md](0.3.16-closed-alpha-closeout.md) — active final `0.3.x` lifecycle/repair/race/rollout/docs closeout.
+- [0.4.0-party-vs-many-proof.md](0.4.0-party-vs-many-proof.md) — proposed default-off rewardless 2–3 player versus 2–3 enemy proof on a separate generic group-combat runtime.
+- [0.4.1-group-combat-hardening.md](0.4.1-group-combat-hardening.md) — proposed ability/target/item/AI/repair/settlement hardening before rewards.
+- [0.4.2-guild-foundation.md](0.4.2-guild-foundation.md) — proposed small guild identity, membership/roles/invites and ordinary party creation without bank, power or boss.
+- [0.4.3-party-expedition-mvp.md](0.4.3-party-expedition-mvp.md) — proposed first production 2–3×2–3 expedition with capped per-player settlement.
+- [0.4.4-guild-weekly-goal.md](0.4.4-guild-weekly-goal.md) — proposed optional weekly guild goal using ordinary party expeditions.
+- [0.4.5-old-altar-blessings-mvp.md](0.4.5-old-altar-blessings-mvp.md) — proposed gold-only Old Altar MVP with an explicit canonical blessing-summary parity gate.
+- [0.4.6-nearby-greeting-buff.md](0.4.6-nearby-greeting-buff.md) — proposed bounded nearby greeting after one effect/stacking decision.
+- [0.4.7-shynok-food-buffs-mvp.md](0.4.7-shynok-food-buffs-mvp.md) — proposed one-active-buff Shynok food MVP; exact meal catalog/matrix must be accepted before implementation.
+- [0.4.8-consumable-manatka-uses.md](0.4.8-consumable-manatka-uses.md) — proposed curated existing-stack uses; exact ids/effects and any one typed ItemUseOrder extension are an activation gate.
+- [0.4.9-shynok-takeaway-consumables.md](0.4.9-shynok-takeaway-consumables.md) — proposed replay-safe take-away shelf for the accepted consumable catalog.
+- [0.4.10-shynok-resale-listings.md](0.4.10-shynok-resale-listings.md) — proposed server-owned high-value resale stock, distinct from the shipped 42% player sale.
+- [0.4.11-korchmar-recycling.md](0.4.11-korchmar-recycling.md) — proposed bounded neutral recycling after resale evidence and a frozen deterministic batch algorithm.
+- [0.4.12-guild-cosmetic-progression.md](0.4.12-guild-cosmetic-progression.md) — proposed data-gated cosmetic guild XP/history after observed weekly participation, with no combat power or shared custody.
 - [archive/0.2.x-raid-in-game-chat.md](archive/0.2.x-raid-in-game-chat.md) — superseded raid-chat planning draft retained for history; do not implement.
 - [0.3.x-varenyk-mancer-sated-support.md](0.3.x-varenyk-mancer-sated-support.md) — superseded planning draft retained for history; `0.3.12` is the active implementation record.
-- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
-- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
+- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — deferred private Rogue reputation/location-risk input; useful later, not a pre-0.4 blocker.
+- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — source draft for `0.4.6`; its alternative effects are not a combined scope and must not be implemented verbatim.
 
 - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
 - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
@@ -121,20 +137,20 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.29-barrel-beer-tutorial.md](0.2.29-barrel-beer-tutorial.md) — level 2-7 Barrel/beer tutorial quest using existing quest, Barrel raid, Shynok beer and item systems.
 - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
 - [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — archived draft activated as [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md).
-- [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
-- [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
-- [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
+- [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — superseded by shipped `0.2.15`; archive, do not implement.
+- [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — superseded by shipped `0.2.16`; archive, do not implement.
+- [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — post-MVP Big Barrel input only; generic party-vs-many follows the `0.4.x` architecture plan.
 - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — activated from the former `0.2.x` Kharakternyk Big Barrel ward-sign draft.
-- [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
+- [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — source draft activated and hardened as `0.4.5`; use the new versioned task and its combat-summary truthfulness gate.
 - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.
 - [0.2.x-old-root-grove-location.md](0.2.x-old-root-grove-location.md) — optional future location split if the altar needs its own `Тихий Корінь` / root-grove presence after playtest.
 - [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
-- [future-durable-resource-recovery-notifications.md](future-durable-resource-recovery-notifications.md) — queued follow-up for server-initiated full-life recovery notifications that are not triggered by pressing `/hero`, `/fight` or other buttons.
+- [future-durable-resource-recovery-notifications.md](future-durable-resource-recovery-notifications.md) — implemented by PR #159, but production rollout/copy/Telegram QA remains unresolved; rename/archive after the ledger decision.
 - [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — archived draft activated as [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
-- [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
+- [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — source draft split into `0.4.10` resale listings and `0.4.11` neutral recycling; do not combine them in one PR.
 - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
 - [0.2.x-mantok-equipment-rebalance.md](0.2.x-mantok-equipment-rebalance.md) — draft `0.2.x` task for expanded manatka equipment slots and a global item/equipment rebalance.
-- [0.2.x-consumable-manatka-uses.md](0.2.x-consumable-manatka-uses.md) — draft follow-up for giving coffee/tea/beer-style consumable manatky real one-use actions, take-away purchase, and `Разові` visibility without implementing it in `0.2.31`.
+- [0.2.x-consumable-manatka-uses.md](0.2.x-consumable-manatka-uses.md) — source draft split into `0.4.8` curated existing-item uses and `0.4.9` take-away purchases; legacy effect ids are not auto-activated.
 - [0.2.x-bard-performance-mvp.md](0.2.x-bard-performance-mvp.md) — archived draft that was activated as `0.2.5`; future non-combat XP needs a separate task.
 
 ## Closeout
@@ -145,4 +161,6 @@ After a versioned task is done:
 2. Produce a compact handoff.
 3. Start the next versioned task in a new Codex thread.
 
-After `0.1.25`, do not keep adding ordinary feature slices to `0.1.x`; use `0.2.0-safe-gifting-mvp.md` unless an emergency hotfix explicitly reopens the line.
+After `0.3.16`, do not keep adding ordinary thematic slices to `0.3.x`. Start
+`0.4.0-party-vs-many-proof.md` in a fresh thread unless an evidence-backed
+emergency hotfix explicitly reopens the line.

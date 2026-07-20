@@ -14,6 +14,7 @@ import { presentPartyView } from "./presenters/partySessionPresenter";
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
 const POLL_MS = 1_100;
+const MAINTENANCE_INTERVAL_MS = 42_000;
 const PUBLICATION_PLACEHOLDER = "Картка рейду готується…";
 const RETIRED_PLACEHOLDER = "Ця картка рейду більше не використовується.";
 
@@ -30,6 +31,7 @@ export function createPartyRaidChatDeliveryScheduler(
 ): { start(): void; stop(): void } {
   let timer: NodeJS.Timeout | null = null;
   let running = false;
+  let nextMaintenanceAt = 0;
 
   const tick = async (): Promise<void> => {
     if (running) {
@@ -37,7 +39,12 @@ export function createPartyRaidChatDeliveryScheduler(
     }
     running = true;
     try {
-      await runPartyRaidChatDeliveryTick(services, bot, options);
+      const now = new Date();
+      const runMaintenance = now.getTime() >= nextMaintenanceAt;
+      await runPartyRaidChatDeliveryTick(services, bot, options, () => now, { runMaintenance });
+      if (runMaintenance) {
+        nextMaintenanceAt = now.getTime() + MAINTENANCE_INTERVAL_MS;
+      }
     } catch (error) {
       console.error("Квестарня: відкладена доставка рейд-чату не завершилась.", {
         code: getSafeErrorCode(error)
@@ -68,11 +75,13 @@ export async function runPartyRaidChatDeliveryTick(
   services: PartyRaidChatDeliveryServices,
   bot: Bot,
   options: { botUsername?: string | undefined } = {},
-  clock: () => Date = () => new Date()
+  clock: () => Date = () => new Date(),
+  tickOptions: { runMaintenance?: boolean } = {}
 ): Promise<void> {
-  await services.partyRaidChat.prepareDisabledRedactions();
-  await services.partyRaidChat.cleanupExpired();
-  const deliveries = await services.partyRaidChat.listDueDeliveries();
+  const runMaintenance = tickOptions.runMaintenance !== false;
+  const deliveries = await services.partyRaidChat.listDueDeliveries(23, {
+    parkCleanDue: runMaintenance
+  });
   for (const delivery of deliveries) {
     await deliverOne(services, bot, delivery, options).catch(async (error: unknown) => {
       const telegramError = unwrapDeliveryAttemptError(error);
@@ -87,6 +96,10 @@ export async function runPartyRaidChatDeliveryTick(
         deliveryAttemptVersion(error) ?? delivery.version
       );
     });
+  }
+  if (runMaintenance) {
+    await services.partyRaidChat.prepareDisabledRedactions();
+    await services.partyRaidChat.cleanupExpired();
   }
 }
 

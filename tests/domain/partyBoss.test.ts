@@ -58,9 +58,9 @@ describe("party boss reducer", () => {
     });
 
     expect(resolved.round.actions[0]?.satedRecovery).toEqual({ hpRestored: 2, manaRestored: 1 });
-    expect(resolved.round.bossRetaliations[0]?.hpAfter).toBe(10);
-    expect(resolved.round.actions[0]?.hpAfter).toBe(12);
-    expect(resolved.state.participants[0]?.resources.hp).toBe(12);
+    expect(resolved.round.bossRetaliations[0]?.hpAfter).toBe(9);
+    expect(resolved.round.actions[0]?.hpAfter).toBe(11);
+    expect(resolved.state.participants[0]?.resources.hp).toBe(11);
     expect(resolved.state.participants[0]?.varenykSated?.pulseIds).toEqual([
       "sated-activation:big-barrel:big-barrel-sated:1:character-1"
     ]);
@@ -552,6 +552,62 @@ describe("party boss reducer", () => {
       consecutiveDefends: 1,
       abilityDamageReduction: 1
     });
+  });
+
+  it("applies Priest healing to the lowest ally and protection to the whole party", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-priest-support",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("priest", "Жриця", { classId: "class.priest", charisma: 15 }),
+        participant("ally", "Союзник", { hp: 30, hpCurrent: 10 })
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-priest-support",
+      actions: [
+        { characterId: "priest", action: "skill", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+
+    const action = result.round.actions.find((entry) => entry.characterId === "priest");
+    expect(action?.supportTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ characterId: "priest", guard: 2 }),
+      expect.objectContaining({ characterId: "ally", healing: 7, guard: 2 })
+    ]));
+    expect(result.state.participants.find((entry) => entry.characterId === "ally")?.resources.hp).toBeGreaterThan(10);
+  });
+
+  it("applies the Molfar fog guard and counter to every living party member", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-molfar-support",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("molfar", "Мольфар", { raceId: "race.molfar-soul", intelligence: 15 }),
+        participant("ally", "Союзниця")
+      ]
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-molfar-support",
+      actions: [
+        { characterId: "molfar", action: "race", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+
+    const action = result.round.actions.find((entry) => entry.characterId === "molfar");
+    expect(action?.supportTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ characterId: "molfar", guard: 3, counterDamage: 3 }),
+      expect.objectContaining({ characterId: "ally", guard: 3, counterDamage: 3 })
+    ]));
+    expect(result.round.bossRetaliations.some((entry) => entry.counterDamage === 3)).toBe(true);
   });
 
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {
@@ -1730,7 +1786,7 @@ describe("party boss reducer", () => {
       }
     };
 
-    for (let turn = 1; turn <= 14; turn += 1) {
+    for (let turn = 1; turn <= 17; turn += 1) {
       const resolved = resolvePartyBossRound({
         state,
         now: new Date(`2026-06-30T10:${turn.toString().padStart(2, "0")}:00.000Z`),
@@ -1745,7 +1801,11 @@ describe("party boss reducer", () => {
     }
 
     expect(state.status).toBe("active");
-    expect(state.turn).toBe(15);
+    expect(state.turn).toBe(18);
+    expect(state.roundLog).toHaveLength(17);
+    expect(state.roundLog.map((round) => round.turn)).toEqual(
+      Array.from({ length: 17 }, (_unused, index) => index + 1)
+    );
   });
 
   it("keeps the Big Barrel Brother solo no-manatka/no-remort baseline below 13 percent by the 13-round horizon", () => {
@@ -1909,6 +1969,7 @@ function participant(
     charisma?: number;
     luck?: number;
     classId?: string;
+    raceId?: string;
     hpCurrent?: number;
     manaCurrent?: number;
     equipmentAbilityGrantIds?: string[];
@@ -1932,7 +1993,7 @@ function participant(
       intelligence,
       charisma: overrides.charisma ?? 5,
       luck: overrides.luck ?? 5,
-      raceId: "race.human-ish",
+      raceId: overrides.raceId ?? "race.human-ish",
       classId: overrides.classId ?? "class.warrior",
       armor: Math.max(0, Math.floor(strength / 3)),
       resist: Math.max(0, Math.floor(intelligence / 3)),

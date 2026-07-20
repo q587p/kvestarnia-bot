@@ -232,6 +232,7 @@ ESLint uses a content cache under `.cache/eslint/`; it is safe to delete `.cache
 - `npm run maintenance:backfill-activity-events -- --apply` — застосувати підтягування після перевіреного dry-run.
 - `npm run maintenance:poll-activity-events` — read-only перегляд останніх public `ActivityEvent` rows з поточного `DATABASE_URL`.
 - `npm run maintenance:poll-activity-events -- --watch --interval=13` — polling нових activity rows без зміни БД.
+- `npm run report:closed-alpha -- --from=2026-04-01T00:00:00.000Z --to=2026-07-20T00:00:00.000Z` — read-only aggregate closed-alpha funnel for the selected UTC window.
 - `npm run maintenance:repair-character-resources` — dry-run перевірка over-max `hpCurrent`/`manaCurrent` у таблиці `characters` для БД з поточного `DATABASE_URL`.
 - `npm run maintenance:repair-character-resources -- --apply` — застосувати repair і clamp over-max ресурсів до поточних максимумів після перевіреного dry-run.
 
@@ -245,6 +246,24 @@ npm run db:deploy
 - `npm run db:studio` — Prisma Studio.
 
 ## Maintenance repair scripts
+
+### Privacy-safe closed-alpha report
+
+`npm run report:closed-alpha` reads the database selected by `DATABASE_URL` and
+prints JSON only; it never writes rows. The report contains aggregate creation,
+D1/D7 eligibility and return, three first-day PvE actions, duel accept/resolve and party
+create/join/start/finish counts. It deliberately emits no Telegram user ids,
+character ids, names, usernames or message content. Exact rematches, sessions
+and quest completion stay in `missingInstrumentation` until a future explicit
+event contract exists; do not infer those values from unrelated rows.
+
+Without arguments the window ends at command time and starts 93 days earlier.
+Use ISO timestamps for a reproducible observation record:
+
+```powershell
+$env:DATABASE_URL="file:./prisma/dev.db"
+npm run report:closed-alpha -- --from=2026-04-18T00:00:00.000Z --to=2026-07-20T00:00:00.000Z
+```
 
 `npm run maintenance:backfill-activity-events` безпечний за замовчуванням: він лише рахує архівні public activity rows, які може створити для `📜 Хронік Квестарні`, і не змінює БД без `-- --apply`.
 

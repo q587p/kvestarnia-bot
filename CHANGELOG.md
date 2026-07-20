@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.16] - 12026-07-21 - Closed Alpha Lifecycle and Player-Surface Closeout
+
+### Changed
+- `/restart` now performs a transactionally guarded character deletion and returns a typed active-combat result when any combat lease exists. `/remort` now blocks during active PartyBoss combat instead of cancelling a shared raid; solo behavior remains unchanged.
+- PartyBoss class/race support now honors ally scopes: healing can select the lowest-HP living ally, protection can cover the living party, and counter damage triggers only for participants actually targeted by the boss. Presenter and stored-round coverage keeps the effects visible. Big Barrel base retaliation increased by one point, while seeded prepared-party and full same-level simulation corridors remain inside their established bands.
+- PartyBoss reads now bound action history to 13 newest rows and resolve only current-turn actions; scheduler scans select bounded due ids before loading full rows. The orphan-lease repair query selects only leases without an active PartyBoss session.
+- `/help` now opens a compact five-section index. Inline pagination groups every available public command under Character, Adventures, Manatky, Korchma or reference/news pages and remains readable during active combat.
+- The equipment overview now opens with only one `Змінити спорядження` action instead of immediately rendering every slot, unequip control or a redundant return to Manatky. The full slot controls stay available on demand and remain open after an unequip action.
+
+### Fixed
+- Added strict versioned PartyBoss state validation for rules, turn, party identity, roster, duplicate identities, numeric bounds and stored journal shape. A malformed active row is CAS-cancelled without rewards, recoverable Sated/Inspiration state is released, party/chat state is terminalized, and one corrupt row cannot block healthy due work.
+- Added idempotent orphan `party-boss` lease recovery and real Prisma race coverage for final-slot joins, concurrent last actions, duplicate final actions, action/timeout/scheduler overlap and delete-versus-terminal-resolution safety.
+- Late PartyBoss callbacks that only replay an already-terminal session no longer fan the same final turn out to every participant. Multi-recipient combat and raid-chat pushes now leave grammY's sequential update path immediately, preserve per-raid turn order, use bounded Telegram concurrency, and isolate recipient failures.
+- Raid-chat maintenance no longer performs idle repair and cleanup writes every 1.1 seconds. Due delivery stays on the fast tick, maintenance runs every 42 seconds, and an accepted post dirties existing participant delivery rows with one set update instead of one upsert per participant, reducing SQLite lock pressure during active group chat.
+- Kharakternyk ward placement, lobby, combat and result lines now use `✴️`, keeping the sign visually distinct from the Molfar Soul's `🧿 Туманний оберіг` on the same raid surfaces.
+- Personalized Adventure and starter-quest results now add a shared race/class technique beat only once. The player-facing finesse beat uses natural `Точний рух спрацьовує…` copy instead of leaking the internal `Фінес` label, and title flavor no longer refers to a technical `result`.
+- Blocked combat actions now preserve their source: ordinary persistent fights and turn-based duel alerts identify class, race and equipment actions correctly instead of labeling every cooldown as an equipment action.
+- An accepted `Доступ до Чароковальні` affair no longer keeps `⚠️` lit on the Quest Table and the route leading to it while the field kit is still missing. Once the kit is owned, the existing `✅` turn-in marker remains visible.
+- Explicit `У льох` and Cellar place callbacks now enter the cellar even when an older card is pressed after presence moved outside. The direct `/cellar` command still requires entering the Korchma first.
+- Daily Korchma Round scene and action-result cards now return to the exact scene location instead of always routing to the hall. Every shipped round location has a named return action, including the yard, Shynok, Cellar, Barrel, boards, corners and Nyz.
+- PartyBoss and Big Barrel Brother state no longer discards journal rounds beyond the newest 13. Newly resolved battles retain every turn for the existing first/back/next/end journal pagination; journal prefixes already absent from previously stored state cannot be reconstructed.
+
+### Operations and documentation
+- Added the read-only `report:closed-alpha` command. It emits aggregate creation, D1/D7 eligibility/return, three-first-day-PvE-action, duel and party funnel counts without ids, names or message content, and explicitly reports unavailable rematch/session/quest instrumentation.
+- Added a truthful release-state ledger with target deployment, migration, flag, backup/restore, Telegram QA and observation gaps left as deferred rather than inferred.
+- Reconciled the 0.3.x closeout and 0.4.x party/guild cutline into canonical product, design, architecture and task docs. Preserved the complete source audit package under `docs/history/0.3x-to-0.4x-roadmap-audit-12026-07-20/`.
+- No schema, migration, production flag, dependency, quest, reward or new achievement definition was added. Lore needs no update because the change fixes existing combat support targeting and lifecycle safety rather than world canon.
+
 ## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat and Varenyk Presence Fix
 
 ### Added

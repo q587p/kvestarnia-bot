@@ -1495,6 +1495,7 @@ async function handlePlaceCallback(
       "reply",
       {
         tavernRaid: services.tavern,
+        requireKorchmaInterior: false,
         ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {}),
         ...(questMarkers ? { questMarkers } : {})
       }

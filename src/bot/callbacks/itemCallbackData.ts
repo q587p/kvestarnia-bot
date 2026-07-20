@@ -73,6 +73,7 @@ export type ItemCallback =
   | { type: "page-prompt"; totalPages: number; filter: InventoryFilter; sort: InventorySort };
 export type EquipmentCallback =
   | { type: "view" }
+  | { type: "manage" }
   | {
       type: "equip-item";
       itemId: string;
@@ -250,6 +251,10 @@ export function makeEquipmentCallbackData(): string {
   return assertCallbackData(`${EQUIPMENT_PREFIX}:view`);
 }
 
+export function makeEquipmentManageCallbackData(): string {
+  return assertCallbackData(`${EQUIPMENT_PREFIX}:manage`);
+}
+
 export function makeEquipItemCallbackData(
   itemId: string,
   targetSlot: EquipmentSlot | null = null,
@@ -294,6 +299,15 @@ export function parseEquipmentCallbackData(data: string | undefined): ParseEquip
       ok: true,
       value: {
         type: "view"
+      }
+    };
+  }
+
+  if (data === `${EQUIPMENT_PREFIX}:manage`) {
+    return {
+      ok: true,
+      value: {
+        type: "manage"
       }
     };
   }

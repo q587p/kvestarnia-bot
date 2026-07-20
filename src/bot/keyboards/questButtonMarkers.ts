@@ -303,7 +303,7 @@ function getCharkokovalniaMarker(
     return QuestMarker.NONE;
   }
 
-  return itemUpgrades.fieldKitQuantity > 0 ? QuestMarker.CAN_TURN_IN : QuestMarker.CAN_ACCEPT;
+  return itemUpgrades.fieldKitQuantity > 0 ? QuestMarker.CAN_TURN_IN : QuestMarker.NONE;
 }
 
 function getBarrelBeerTutorialMarker(

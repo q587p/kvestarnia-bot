@@ -8,6 +8,19 @@ import type { PartySessionService } from "../../src/services/partySessionService
 const NOW = new Date("2026-07-20T12:00:00.000Z");
 
 describe("party raid chat delivery recovery", () => {
+  it("keeps the fast delivery poll free of cleanup writes between maintenance passes", async () => {
+    const { services, raidChat } = makeServices(makeDelivery());
+    raidChat.listDueDeliveries.mockResolvedValue([]);
+
+    await runPartyRaidChatDeliveryTick(services, makeBot(), {}, () => NOW, {
+      runMaintenance: false
+    });
+
+    expect(raidChat.listDueDeliveries).toHaveBeenCalledWith(23, { parkCleanDue: false });
+    expect(raidChat.prepareDisabledRedactions).not.toHaveBeenCalled();
+    expect(raidChat.cleanupExpired).not.toHaveBeenCalled();
+  });
+
   it("redacts a durable reference request even while rollout is disabled", async () => {
     const delivery = makeDelivery({ id: "redact", redactionRequired: true, chatId: null, messageId: null });
     const { services, raidChat } = makeServices(delivery, { enabled: false, view: null });

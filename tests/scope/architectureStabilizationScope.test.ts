@@ -6,7 +6,7 @@ const root = process.cwd();
 const moduleDir = "src/bot/modules";
 const featureModuleOwners = {
   "raidChat.ts": [],
-  "core.ts": ["/^v1:menu:/", "/^v1:news:/", "/^v1:lore:/"],
+  "core.ts": ["/^v1:menu:/", "/^v1:help:/", "/^v1:news:/", "/^v1:lore:/"],
   "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:ach:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:craft:/", "/^v1:up:/", "/^v1:chest:/", "/^v1:lvlx:/"],
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:tour:/", "/^v1:mem:/", "/^v1:ev:/", "/^v[12]:cellar:/"],

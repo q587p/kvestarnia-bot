@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.15` — Big Barrel has participant-only durable raid chat under the existing Big Barrel production gate, with scheduler-owned create/live/live-membership cards, transcript-free two-phase placeholder adoption before authorized rendering, separate generic/raid-chat references, visible transcript-free reopen acknowledgement, version/reference CAS, 93-second expired-claim reclaim and clean retry reclaim at persisted Telegram deadlines without `/raid` shortening `retry_after`; active combat exposes the authorized surface, accepted posts best-effort notify other current participants, knocked-out members retain chat access, raid-wide preparation/Taunt/Lament and idempotent knockout rows remain visible while personal class-skill rows are omitted, and exact ForceReply composition, separate chat revision, disabled-prompt invalidation, permanent-target parking and actor-bounded remort keep restart/redaction safety. Varenyk feeding treats only authoritative combat leases as busy, not navigation/presence adventure or raid markers; active Big Barrel combat already owns such leases. Manual Telegram QA remains pending after the follow-up fixes.
+- Current version: `0.3.16` — final 0.3.x closeout. Transactional `/restart` and `/remort` guards preserve active multi-actor combat; strict PartyBoss parsing plus rewardless CAS repair releases malformed/orphaned leases and recoverable Sated/Inspiration state; current-turn/due reads are bounded while every newly resolved PartyBoss turn remains in the paginated journal beyond 13 entries; existing class/race ally support works in PartyBoss with seeded balance corridors; blocked combat-action notices preserve whether the attempted action was a class skill, race skill or equipment action; terminal replay callbacks do not repeat roster fan-out; multi-recipient Telegram pushes leave the sequential update path with per-raid ordering and bounded concurrency; raid-chat idle maintenance is decoupled from its fast delivery tick; `/help` is a compact five-section inline-paginated reference surface; the equipment overview initially shows only one explicit change action; explicit Cellar route buttons recover from stale outside presence while `/cellar` still requires the Korchma interior; Daily Korchma Round scene/result cards return to their exact authored location rather than hard-routing to the hall; an accepted Charkokovalnia access affair stays unmarked until its field kit makes turn-in ready; personalized Adventure and starter-quest results deduplicate a race/class technique shared by both profiles and avoid internal technique labels; and `report:closed-alpha` emits aggregate-only funnel evidence. Varenyk feeding treats only authoritative combat leases as busy, not navigation/presence adventure or raid markers; active Big Barrel combat already owns such leases. Target deploy, flags, backup/restore, full Telegram QA and observation remain deferred in the release-state ledger, not inferred from merged code.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -19,7 +19,7 @@
 
 ## Architecture
 
-- Stack: TypeScript, Node.js, grammY, Prisma, Vitest, ESLint; SQLite/PostgreSQL by environment.
+- Stack: TypeScript, Node.js, grammY, Prisma, Vitest, ESLint; SQLite is the current Prisma provider, while PostgreSQL remains a possible future migration target rather than a supported environment switch.
 - `src/bot/`: Telegram adapters, callbacks, keyboards, presenters.
 - `src/domain/`: pure deterministic game logic; no grammY/Telegram imports.
 - `src/services/`: application orchestration.
@@ -35,7 +35,8 @@
 - Stored combat surfaces that shared changes must consider: persistent PvE, Training Doppelganger, turn-based duels and party boss/Big Barrel rounds. Quick duels have no durable turn identity.
 - Under-Korchma combat terminology: `Спуск`, `Спуск до Низу`, `Ярус I: Сутерени Корчми`, later `Зіґурат`.
 - Group/party systems remain narrow opt-in slices. No generic market, profession, crafting, guild-war or Mini App direction is shipped by implication.
-- Big Barrel raid chat adds no config key and follows `BIG_BARREL_BROTHER_RAID_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. `/dev_raid_chat` is non-production only.
+- Big Barrel raid chat adds no config key and follows `BIG_BARREL_BROTHER_RAID_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. Kharakternyk ward surfaces use `✴️`, distinct from the Molfar `🧿 Туманний оберіг`. `/dev_raid_chat` is non-production only.
+- The next planned line is `0.4.x`: a separate generic 2–3 player versus 2–3 enemy runtime, followed by small guild identity, an expedition and a weekly goal. `0.4.5`–`0.4.11` then restore bounded Old Altar, greeting, Shynok food, consumable, resale and recycling promises; `0.4.12` keeps cosmetic guild progression data-gated. Do not turn `PartyBossSession` into N×M state or imply guild bank/trade/war scope.
 
 ## Shipped class support
 
@@ -77,8 +78,9 @@
 
 ## Key docs
 
-- `docs/tasks/0.3.14-bard-inspiration-and-raid-lament.md` — current release contract.
-- `docs/design/bard-inspiration-and-raid-lament.md` and `docs/qa/0.3.14-bard-inspiration-and-raid-lament-qa.md` — mechanic contract and pending manual Telegram checklist.
+- `docs/tasks/0.3.16-closed-alpha-closeout.md` — current release contract and evidence decisions.
+- `docs/operations/release-state-ledger.md` — repository/target availability truth; unknown production evidence stays deferred.
+- `docs/architecture/party-combat-evolution-plan.md` and `docs/design/guilds-and-party-progression.md` — canonical 0.4.x cutline.
 - `docs/design/game-design.md`, `docs/design/player-identity-abilities.md`, `docs/design/noncombat-techniques.md` — gameplay/design anchors.
 - `docs/design/achievements-catalog.md` — achievement catalog.
 - `docs/content/kvestarnia-lore-current-canon.md`, `src/content/loreBoard.ts` — current lore/reference surfaces.

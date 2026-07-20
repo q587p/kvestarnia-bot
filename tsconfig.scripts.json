@@ -4,5 +4,9 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["scripts/backfill-activity-events.ts", "scripts/poll-activity-events.ts"]
+  "include": [
+    "scripts/backfill-activity-events.ts",
+    "scripts/closed-alpha-report.ts",
+    "scripts/poll-activity-events.ts"
+  ]
 }

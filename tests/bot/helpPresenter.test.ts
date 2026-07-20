@@ -1,65 +1,59 @@
 import { describe, expect, it } from "vitest";
+import { getHelpCommandEntries } from "../../src/bot/botCommandCatalog";
+import type { HelpPage } from "../../src/bot/callbacks/helpCallbackData";
 import { presentDevHelp, presentHelp } from "../../src/bot/presenters/helpPresenter";
 
 describe("help presenter", () => {
-  it("renders player help with public command catalog rows", () => {
+  it("renders a compact section menu without the old command wall", () => {
     const text = presentHelp(false);
 
     expect(text).toContain("📖 Допомога Квестарні");
-    expect(text).toContain("👤 Персонаж — рівень, HP/мана, прогрес і титули.");
-    expect(text).toContain("🍺 Корчма — зала, стіл зі справами, Низ, Бочка, шинок і Дошка корчми.");
-    expect(text).toContain(
-      "📰 Дошка корчми — Вісти, Останні події, Перекази, подарунки й Пошта Квестарні."
-    );
-    expect(text).toContain("Квести — пригоди, Низ, Єгер, льох і бойові справи.");
-    expect(text).toContain(
-      "🎒 Манатки — інвентар, спорядження й корисні дрібниці; воїн може тримати по зброї в кожній руці."
-    );
-    expect(text).toContain("👀 Хто поруч — пригодники поруч і соціяльні дії.");
-    expect(text).toContain("Команди:");
-    expect(text).toContain("🚪 /start — почати пригоду");
-    expect(text).toContain("👤 /hero — персонаж і прогрес");
-    expect(text).toContain("🗺️ /quest — стіл зі справами");
-    expect(text).not.toContain("/upgrade");
-    expect(text).toContain("🗂️ /lore — Перекази Квестарні");
-    expect(text).toContain("📖 /help — допомога");
-    expect(text).toContain("🫙 /support — добровільна підтримка без бонусів");
-    expect(text).toContain("Підказка: найзручніше ходити кнопками основної клавіатури.");
+    expect(text).toContain("👤 Персонаж — початок, прогрес і нове життя.");
+    expect(text).toContain("⚔️ Пригоди й бої — справи, монстри та Низ.");
+    expect(text).toContain("🎒 Манатки — торба, спорядження й гачки.");
+    expect(text).toContain("🍺 Корчма й люди — місця, Бочка та дозвілля.");
+    expect(text).toContain("📰 Довідки й вісті — дошка, Перекази й підтримка.");
+    expect(text).toContain("Оберіть розділ кнопкою нижче.");
+    expect(text).not.toContain("Команди:");
+    expect(text).not.toContain("/start");
     expect(text).not.toContain("/dev_help");
-    expect(text).not.toContain("/dev_party");
-    expect(text).not.toContain("/dev_add_xp");
-    expect(text).not.toContain("🎲 Ігри за столом");
-    expect(text).not.toContain("/games");
-    expect(text).toContain("Крамниці, ремесло й ґільдії ще готуються.");
-    expect(text).toContain(
-      "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
-    );
   });
 
-  it("mentions Shynok table games only when their player surface is enabled", () => {
-    expect(presentHelp({
-      includeDevReset: false,
-      includeTavernGames: true
-    })).toContain("🎲 Ігри за столом — тавлеї та костяний покер у шинку.");
-    expect(presentHelp({
-      includeDevReset: false,
-      includeTavernGames: true
-    })).toContain("♟️ /games — ігри за столом");
+  it("places every available public command on exactly one focused page", () => {
+    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "news"];
+    const visibility = { includeDevReset: true, includeDevGrant: true, includeTavernGames: true };
+    const commandRows = pages.flatMap((page) =>
+      presentHelp(visibility, page).match(/^\S+ \/[a-z_]+ .+$/gmu) ?? []
+    );
+    const renderedCommands = commandRows.map((row) => row.match(/\/([a-z_]+)/u)?.[1]);
+    const expectedCommands = getHelpCommandEntries(visibility)
+      .filter((entry) => !entry.devOnly)
+      .map((entry) => entry.command);
 
-    expect(presentHelp({
-      includeDevReset: false,
-      includeTavernGames: false
-    })).not.toContain("🎲 Ігри за столом");
+    expect([...renderedCommands].sort()).toEqual([...expectedCommands].sort());
+    expect(new Set(renderedCommands).size).toBe(renderedCommands.length);
+    expect(presentHelp(visibility, "items")).toContain("Воїн може тримати по зброї в кожній руці.");
+    expect(presentHelp(visibility, "news")).toContain("Крамниці, ремесло й ґільдії ще готуються.");
+  });
+
+  it("shows table games only on the Korchma page when their surface is enabled", () => {
+    expect(presentHelp({ includeDevReset: false, includeTavernGames: true }, "korchma"))
+      .toContain("♟️ /games — ігри за столом");
+    expect(presentHelp({ includeDevReset: false, includeTavernGames: false }, "korchma"))
+      .not.toContain("/games");
   });
 
   it("keeps dev commands out of player help even when local gates are enabled", () => {
-    const resetOnly = presentHelp({ includeDevReset: true, includeDevGrant: false });
-    const grantsEnabled = presentHelp({ includeDevReset: true, includeDevGrant: true });
-    const partyEnabled = presentHelp({
+    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "news"];
+    const resetOnly = pages.map((page) => presentHelp({ includeDevReset: true }, page)).join("\n");
+    const grantsEnabled = pages.map((page) => presentHelp({
+      includeDevReset: true,
+      includeDevGrant: true
+    }, page)).join("\n");
+    const partyEnabled = pages.map((page) => presentHelp({
       includeDevReset: false,
-      includeDevGrant: false,
       includePartySessions: true
-    });
+    }, page)).join("\n");
 
     expect(resetOnly).not.toContain("/dev_help");
     expect(resetOnly).not.toContain("/dev_party");

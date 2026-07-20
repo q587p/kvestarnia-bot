@@ -25,7 +25,6 @@ import {
   markCombatSettlementForfeitedByRemort,
   type CombatState
 } from "../../domain/combat";
-import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
@@ -247,7 +246,7 @@ export class PrismaRemortRepository implements RemortRepository {
         return { state: "invalid-draft", reason: OUTGOING_POSTAL_CUSTODY_REMORT_REASON };
       }
 
-      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now, this.raidChat);
+      const activeCombat = await prepareActiveCombatForRemort(tx, character.id, input.now);
       if (activeCombat.state === "locked") {
         return { state: "active-combat" };
       }
@@ -466,8 +465,7 @@ export class PrismaRemortRepository implements RemortRepository {
 async function prepareActiveCombatForRemort(
   tx: TxClient,
   characterId: string,
-  now: Date,
-  raidChat: PrismaPartyRaidChatTransactionWriter
+  now: Date
 ): Promise<{ state: "ready" } | { state: "locked" }> {
   const lease = await tx.activeCombatLease.findUnique({
     where: {
@@ -480,8 +478,7 @@ async function prepareActiveCombatForRemort(
   }
 
   if (lease.kind === PARTY_BOSS_COMBAT_LEASE_KIND) {
-    await cancelPartyBossForRemort(tx, lease.referenceId, characterId, now, raidChat);
-    return { state: "ready" };
+    return { state: "locked" };
   }
 
   if (lease.kind !== SUPPORTED_REMORT_COMBAT_LEASE_KIND) {
@@ -540,122 +537,6 @@ async function prepareActiveCombatForRemort(
   });
 
   return { state: "ready" };
-}
-
-async function cancelPartyBossForRemort(
-  tx: TxClient,
-  partySessionId: string,
-  characterId: string,
-  now: Date,
-  raidChat: PrismaPartyRaidChatTransactionWriter
-): Promise<void> {
-  const session = await tx.partyBossSession.findUnique({
-    where: {
-      partySessionId
-    }
-  });
-  const partyState = session?.stateJson;
-
-  if (session?.status === "active") {
-    const stateJson = session.stateJson;
-    const state = stateJson && typeof stateJson === "object" && !Array.isArray(stateJson)
-      ? {
-          ...stateJson,
-          status: "cancelled",
-          completedAt: now.toISOString()
-        }
-      : {
-          status: "cancelled",
-          completedAt: now.toISOString()
-        };
-
-    await tx.partyBossSession.update({
-      where: {
-        id: session.id
-      },
-      data: {
-        status: "cancelled",
-        stateJson: state,
-        resultJson: {
-          status: "cancelled",
-          completedAt: now.toISOString(),
-          reason: "remort"
-        },
-        completedAt: now
-      }
-    });
-  }
-
-  const leases = await tx.activeCombatLease.findMany({
-    where: {
-      kind: PARTY_BOSS_COMBAT_LEASE_KIND,
-      referenceId: partySessionId
-    }
-  });
-  for (const lease of leases) {
-    const sated = findPartyParticipantSated(partyState, lease.characterId);
-    await releaseCombatLeaseWithTimedStatuses({
-      tx,
-      lease,
-      releasedAt: now,
-      ...(sated ? { sated } : {})
-    });
-  }
-  await tx.partySession.updateMany({
-    where: {
-      id: partySessionId,
-      status: "active"
-    },
-    data: {
-      status: "completed",
-      activeLeaderKey: null,
-      version: {
-        increment: 1
-      }
-    }
-  });
-  await raidChat.append(tx, {
-    partySessionId,
-    eventType: "raid.cancelled",
-    sourceKey: `party:${partySessionId}:terminal:remort`,
-    occurredAt: now
-  });
-  await raidChat.terminalize(tx, partySessionId, now);
-  const revokedParticipant = await tx.partyParticipant.findFirst({
-    where: { sessionId: partySessionId, characterId },
-    select: { id: true }
-  });
-  if (revokedParticipant) {
-    await raidChat.revokeParticipant(tx, revokedParticipant.id, partySessionId, characterId, now);
-  }
-  await tx.partyParticipant.updateMany({
-    where: {
-      sessionId: partySessionId,
-      activeMembershipKey: {
-        not: null
-      }
-    },
-    data: {
-      activeMembershipKey: null
-    }
-  });
-}
-
-function findPartyParticipantSated(value: Prisma.JsonValue | null | undefined, characterId: string) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-  const participants = (value as Record<string, unknown>).participants;
-  if (!Array.isArray(participants)) {
-    return undefined;
-  }
-  const participant = participants.find((entry) =>
-    entry !== null &&
-    typeof entry === "object" &&
-    !Array.isArray(entry) &&
-    (entry as Record<string, unknown>).characterId === characterId
-  ) as Record<string, unknown> | undefined;
-  return parseVarenykSatedCombatState(participant?.varenykSated) ?? undefined;
 }
 
 async function deleteOwnedPendingTrainingCooldown(

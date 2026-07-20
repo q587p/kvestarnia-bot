@@ -63,6 +63,27 @@ describe("cellar command", () => {
     });
   });
 
+  it("lets an explicit cellar route enter from a stale outside location", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const presence = new CapturingPresenceService({
+      locationId: PRESENCE_LOCATION_KORCHMA_FRONT,
+      insideKorchma: false
+    });
+
+    await sendCellarErrandRouted(makeContext(replies), cellarErrandService, presence, "reply", {
+      requireKorchmaInterior: false
+    });
+
+    expect(replies.map((reply) => reply.text)).not.toContain("Квести видають усередині.");
+    expect(replies[0]?.text).toContain("Корчмар показує на люк під баром.");
+    expect(replies[1]?.text).toContain("🐭 Льохова справа");
+    expect(presence.marks[0]).toMatchObject({
+      locationId: PRESENCE_LOCATION_KORCHMA_CELLAR,
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_CELLAR_MOUSE_ERRAND
+    });
+  });
+
   it("opens the grownup cellar quest for level four heroes", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const presence = new CapturingPresenceService({
