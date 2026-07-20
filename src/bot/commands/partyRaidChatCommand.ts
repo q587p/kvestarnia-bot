@@ -42,8 +42,10 @@ export function registerPartyRaidChatInput(bot: Bot, service: PartyRaidChatServi
       !telegramUserId ||
       ctx.chat.type !== "private" ||
       !replyTo?.from?.is_bot ||
+      text === undefined ||
+      "forward_origin" in message ||
       hasOffsetZeroCommand("entities" in message ? message.entities : undefined) ||
-      (text !== undefined && isPersistentMenuText(text))
+      isPersistentMenuText(text)
     ) {
       await next();
       return;
@@ -67,9 +69,7 @@ export function registerPartyRaidChatInput(bot: Bot, service: PartyRaidChatServi
         promptMessageId: replyTo.message_id,
         sourceMessageId: message.message_id,
         text,
-        entityTypes: "entities" in message ? message.entities?.map((entity) => entity.type) : undefined,
-        hasAttachment: text === undefined,
-        isForwarded: "forward_origin" in message
+        entityTypes: "entities" in message ? message.entities?.map((entity) => entity.type) : undefined
       });
     } catch (error) {
       console.error("Квестарня: тимчасовий збій рейд-чату.", { code: getSafeErrorCode(error) });
@@ -182,7 +182,7 @@ async function handleSubmitResult(
   if (result.state === "rate-limited") {
     await replyThroughRaidChatGate(
       ctx,
-      `Зачекайте ще ${formatWait(result.availableAt, result.now)}, тоді рейдова канцелярія прийме новий рядок.`
+      `Зачекайте ще ${formatPartyRaidChatWait(result.availableAt, result.now)}, тоді рейдова канцелярія прийме новий рядок.`
     );
     await issueComposer(ctx, service, telegramUserId, inviteToken);
     return;
@@ -255,7 +255,14 @@ function isPersistentMenuText(text: string): boolean {
   return isMainMenuLocationButtonText(text) || mainMenuQuestButtonTexts.includes(text);
 }
 
-function formatWait(availableAt: Date, now: Date): string {
+export function formatPartyRaidChatWait(availableAt: Date, now: Date): string {
   const seconds = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 1_000));
-  return seconds < 60 ? `${seconds} с` : `${Math.ceil(seconds / 60)} хв`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes === 0) {
+    return `${remainingSeconds} с`;
+  }
+  return remainingSeconds === 0
+    ? `${minutes} хв`
+    : `${minutes} хв ${remainingSeconds} с`;
 }

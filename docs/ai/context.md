@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.15` — Big Barrel has a default-off participant-only durable raid chat with exact ForceReply composition, typed transactional events, a separate chat revision and restart-safe card delivery/redaction. Manual Telegram QA remains pending.
+- Current version: `0.3.15` — Big Barrel has a default-off participant-only durable raid chat with exact ForceReply composition, typed transactional events, a separate chat revision and CAS-safe restart delivery/redaction; existing lifecycle cleanup remains active while fresh chat events are disabled. Manual Telegram QA remains pending.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.

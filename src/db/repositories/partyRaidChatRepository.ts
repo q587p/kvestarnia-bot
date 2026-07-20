@@ -160,7 +160,12 @@ export interface PartyRaidChatRepository {
     deliveryClass: string,
     now: Date
   ): Promise<void>;
-  markDeliveryRedacted(deliveryId: string, deliveryClass: string, now: Date): Promise<void>;
+  markDeliveryRedacted(
+    deliveryId: string,
+    deliveryClass: string,
+    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null },
+    now: Date
+  ): Promise<void>;
   markDisabledReferencesForRedaction(now: Date, limit?: number): Promise<number>;
   cleanupExpired(now: Date, limit?: number): Promise<number>;
 

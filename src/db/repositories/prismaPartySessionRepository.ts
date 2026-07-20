@@ -421,7 +421,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       await this.raidChat.append(tx, {
         partySessionId: session.id,
         eventType: "participant.joined",
-        sourceKey: `party:${session.id}:participant:${character.id}:joined:${character._count.remorts}`,
+        sourceKey: `party:${session.id}:participant:${character.id}:joined:v${session.version + 1}:life:${character._count.remorts}`,
         occurredAt: input.now,
         actorCharacterId: character.id,
         actorDisplayName: character.name,
@@ -1342,16 +1342,14 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           joinedAt: participant.joinedAt
         }
       });
-      if (this.raidChat.enabled) {
-        await tx.partyRaidChatDeliveryState.updateMany({
-          where: { participantId: participant.id },
-          data: {
-            activeChatId: input.chatId,
-            activeMessageId: input.messageId,
-            nextAttemptAt: input.now
-          }
-        });
-      }
+      await tx.partyRaidChatDeliveryState.updateMany({
+        where: { participantId: participant.id },
+        data: {
+          activeChatId: input.chatId,
+          activeMessageId: input.messageId,
+          nextAttemptAt: input.now
+        }
+      });
 
       const updated = await findSessionById(tx, session.id);
       return updated ? mapSession(updated) : null;

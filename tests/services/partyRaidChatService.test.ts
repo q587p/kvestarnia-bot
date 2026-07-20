@@ -43,7 +43,7 @@ describe("PartyRaidChatService", () => {
     expect(mocks.acceptReply).toHaveBeenCalledWith(expect.objectContaining({ normalizedBody: "Хало ватагo" }));
   });
 
-  it("rejects private entities, attachments, forwarding and overlong content before the repository", async () => {
+  it("defensively rejects private entities, direct attachment calls, forwarding and overlong content before the repository", async () => {
     const repository = makeRepository();
     const mocks = repository as unknown as RepositoryMocks;
     const service = new PartyRaidChatService(repository, { enabled: true, devHelpersEnabled: false }, () => now);

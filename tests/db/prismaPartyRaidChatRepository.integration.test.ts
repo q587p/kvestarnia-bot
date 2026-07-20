@@ -93,6 +93,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
   it("keeps only 130 stored rows while the newest 13 remain chronological", async () => {
     await seedLineage(prisma, "cap", 7003n);
     expect(await repository.devFillForTelegramUser(7003n, 130, NOW)).toBe(130);
+    expect(await repository.devFillForTelegramUser(7003n, 130, NOW)).toBe(130);
     await accept(
       repository,
       7003n,
@@ -106,7 +107,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     const view = await repository.getAuthorizedView(7003n, "raid-cap", NOW);
     expect(view?.entries).toHaveLength(13);
     expect(view?.entries.map((entry) => entry.revision)).toEqual(
-      Array.from({ length: 13 }, (_, index) => 119 + index)
+      Array.from({ length: 13 }, (_, index) => 249 + index)
     );
   });
 
@@ -201,7 +202,7 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     });
   });
 
-  it("parks clean deliveries and preserves the original surface until redaction succeeds", async () => {
+  it("acknowledges only the rendered snapshot and preserves newer delivery or redaction work", async () => {
     await seedLineage(prisma, "delivery", 7006n);
     await accept(repository, 7006n, "raid-delivery", 35, 64, "Рядок", NOW);
     const delivery = (await repository.listDueDeliveries(NOW, 23))
@@ -210,6 +211,44 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     await repository.markDeliveryRendered(delivery!.id, delivery!.desiredRevision, NOW);
     expect((await repository.listDueDeliveries(new Date(NOW.getTime() + 93_000), 23))
       .some((candidate) => candidate.id === delivery!.id)).toBe(false);
+
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery!.id },
+      data: {
+        desiredRevision: delivery!.desiredRevision + 1,
+        nextAttemptAt: new Date(NOW.getTime() + 1)
+      }
+    });
+    await repository.markDeliveryRendered(delivery!.id, delivery!.desiredRevision, new Date(NOW.getTime() + 1));
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery!.id },
+      select: { desiredRevision: true, renderedRevision: true, nextAttemptAt: true }
+    })).resolves.toEqual({
+      desiredRevision: delivery!.desiredRevision + 1,
+      renderedRevision: delivery!.desiredRevision,
+      nextAttemptAt: new Date(NOW.getTime() + 1)
+    });
+
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery!.id },
+      data: { redactionRequired: true }
+    });
+    await repository.markDeliveryRendered(
+      delivery!.id,
+      delivery!.desiredRevision + 1,
+      new Date(NOW.getTime() + 2)
+    );
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery!.id },
+      select: { redactionRequired: true, nextAttemptAt: true }
+    })).resolves.toEqual({
+      redactionRequired: true,
+      nextAttemptAt: new Date(NOW.getTime() + 1)
+    });
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery!.id },
+      data: { redactionRequired: false }
+    });
 
     await prisma.partyRaidChatDeliveryState.updateMany({
       where: { partySessionId: { not: "session-delivery" } },
@@ -226,8 +265,140 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     await expect(repository.listDueDeliveries(new Date(NOW.getTime() + 1))).resolves.toEqual([
       expect.objectContaining({ id: delivery!.id, surfaceMode: "recruiting_embed", redactionRequired: true })
     ]);
-    await repository.markDeliveryRedacted(delivery!.id, "redacted", new Date(NOW.getTime() + 1));
+    const redaction = (await repository.listDueDeliveries(new Date(NOW.getTime() + 1)))
+      .find((candidate) => candidate.id === delivery!.id)!;
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery!.id },
+      data: {
+        desiredRevision: redaction.desiredRevision + 1,
+        activeMessageId: 2,
+        redactionRequired: false
+      }
+    });
+    await repository.markDeliveryRedacted(delivery!.id, "redacted", {
+      desiredRevision: redaction.desiredRevision,
+      chatId: redaction.chatId,
+      messageId: redaction.messageId
+    }, new Date(NOW.getTime() + 1));
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery!.id },
+      select: { activeMessageId: true, redactionRequired: true, desiredRevision: true }
+    })).resolves.toEqual({
+      activeMessageId: 2,
+      redactionRequired: false,
+      desiredRevision: redaction.desiredRevision + 1
+    });
+
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery!.id },
+      data: { redactionRequired: true, nextAttemptAt: new Date(NOW.getTime() + 2) }
+    });
+    await repository.markDeliveryRedacted(delivery!.id, "redacted", {
+      desiredRevision: redaction.desiredRevision + 1,
+      chatId: redaction.chatId,
+      messageId: 2
+    }, new Date(NOW.getTime() + 2));
     await expect(repository.markDisabledReferencesForRedaction(new Date(NOW.getTime() + 2), 23)).resolves.toBe(0);
+  });
+
+  it("keeps existing chat lifecycle cleanup active while new chat events are disabled", async () => {
+    await seedLineage(prisma, "disabled-lifecycle", 7011n);
+    const enabled = new PrismaPartyRaidChatTransactionWriter(true);
+    const disabled = new PrismaPartyRaidChatTransactionWriter(false);
+    await prisma.$transaction((tx) => enabled.append(tx, {
+      partySessionId: "session-disabled-lifecycle",
+      eventType: "party.created",
+      sourceKey: "disabled-lifecycle.created",
+      occurredAt: NOW
+    }));
+    const begun = await repository.beginCompose(7011n, "raid-disabled-lifecycle", 7011n, NOW);
+    if (begun.state !== "created") {
+      throw new Error("Composer setup failed.");
+    }
+    await repository.bindComposePrompt(begun.intentId, begun.version, 93, NOW);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.partyParticipant.update({
+        where: { id: "participant-disabled-lifecycle" },
+        data: { status: "left", activeMembershipKey: null }
+      });
+      await disabled.revokeParticipant(
+        tx,
+        "participant-disabled-lifecycle",
+        "session-disabled-lifecycle",
+        "character-disabled-lifecycle",
+        NOW
+      );
+      await tx.partySession.update({
+        where: { id: "session-disabled-lifecycle" },
+        data: { status: "cancelled", activeLeaderKey: null }
+      });
+      await disabled.terminalize(tx, "session-disabled-lifecycle", NOW);
+      await disabled.append(tx, {
+        partySessionId: "session-disabled-lifecycle",
+        eventType: "raid.cancelled",
+        sourceKey: "disabled-lifecycle.cancelled",
+        occurredAt: NOW
+      });
+    });
+
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: "session-disabled-lifecycle" },
+      select: { raidChatRetentionUntil: true }
+    })).resolves.toEqual({
+      raidChatRetentionUntil: new Date(NOW.getTime() + 13 * 24 * 60 * 60_000)
+    });
+    await expect(prisma.partyRaidChatComposeIntent.findUniqueOrThrow({
+      where: { id: begun.intentId },
+      select: { status: true, activeKey: true }
+    })).resolves.toEqual({ status: "cancelled", activeKey: null });
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { participantId: "participant-disabled-lifecycle" },
+      select: { redactionRequired: true }
+    })).resolves.toEqual({ redactionRequired: true });
+    await expect(prisma.partyRaidChatEntry.count({
+      where: { partySessionId: "session-disabled-lifecycle" }
+    })).resolves.toBe(1);
+  });
+
+  it("parks a current permanent send failure but not one for a superseded reference", async () => {
+    await seedLineage(prisma, "permanent-send", 7012n);
+    await accept(repository, 7012n, "raid-permanent-send", 94, 95, "Рядок", NOW);
+    const delivery = (await repository.listDueDeliveries(NOW, 130))
+      .find((candidate) => candidate.partySessionId === "session-permanent-send")!;
+
+    await repository.markDeliveryRedacted(delivery.id, "permanent-unavailable", {
+      desiredRevision: delivery.desiredRevision,
+      chatId: 999n,
+      messageId: delivery.messageId
+    }, NOW);
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery.id },
+      select: { surfaceMode: true, nextAttemptAt: true }
+    })).resolves.toEqual({
+      surfaceMode: "recruiting_embed",
+      nextAttemptAt: NOW
+    });
+
+    await repository.markDeliveryRedacted(delivery.id, "permanent-unavailable", {
+      desiredRevision: delivery.desiredRevision,
+      chatId: delivery.chatId,
+      messageId: delivery.messageId
+    }, NOW);
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery.id },
+      select: {
+        surfaceMode: true,
+        activeChatId: true,
+        activeMessageId: true,
+        lastDeliveryClass: true
+      }
+    })).resolves.toEqual({
+      surfaceMode: "redacted",
+      activeChatId: null,
+      activeMessageId: null,
+      lastDeliveryClass: "permanent-unavailable"
+    });
   });
 
   it("cascades the complete transcript state with its party lineage", async () => {

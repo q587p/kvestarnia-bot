@@ -15,7 +15,11 @@ describe("party raid chat delivery recovery", () => {
     await runPartyRaidChatDeliveryTick(services, makeBot(), {}, () => NOW);
 
     expect(raidChat.prepareDisabledRedactions).toHaveBeenCalledOnce();
-    expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("redact", "no-reference");
+    expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("redact", "no-reference", {
+      desiredRevision: 1,
+      chatId: null,
+      messageId: null
+    });
     expect(raidChat.getAuthorizedView).not.toHaveBeenCalled();
   });
 
@@ -34,18 +38,63 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
   });
 
-  it("replaces a missing active card and persists the new reference before acknowledging revision", async () => {
+  it("replaces a missing active card and acknowledges the revision actually rendered", async () => {
     const delivery = makeDelivery({ id: "replace", chatId: null, messageId: null, desiredRevision: 7 });
-    const { services, raidChat } = makeServices(delivery);
+    const { services, raidChat } = makeServices(delivery, { view: makeView({ chatRevision: 8 }) });
     const bot = makeBot({ sentChatId: 83, sentMessageId: 93 });
 
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
     expect(raidChat.recordDeliveryReference).toHaveBeenCalledWith("replace", 83n, 93);
-    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 7);
+    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 8);
     expect(raidChat.recordDeliveryReference.mock.invocationCallOrder[0]).toBeLessThan(
       raidChat.markDeliveryRendered.mock.invocationCallOrder[0]!
     );
+  });
+
+  it("acknowledges message-not-modified without replacement or retry", async () => {
+    const delivery = makeDelivery({ id: "same", chatId: 82n, messageId: 42, desiredRevision: 9 });
+    const bot = makeBot({ editError: new Error("400: Bad Request: message is not modified") });
+    const { services, raidChat } = makeServices(delivery, { view: makeView({ chatRevision: 9 }) });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.sendMessageMock).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("same", 9);
+    expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
+  });
+
+  it("parks a permanent send failure as unavailable instead of retrying", async () => {
+    const delivery = makeDelivery({ id: "blocked", chatId: null, messageId: null, desiredRevision: 4 });
+    const bot = makeBot({
+      sendError: { error_code: 400, description: "Bad Request: PEER_ID_INVALID" }
+    });
+    const { services, raidChat } = makeServices(delivery, { view: makeView({ chatRevision: 4 }) });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("blocked", "permanent-unavailable", {
+      desiredRevision: 4,
+      chatId: null,
+      messageId: null
+    });
+    expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
+  });
+
+  it("keeps bounded retry for a transient send failure", async () => {
+    const delivery = makeDelivery({ id: "transient", chatId: null, messageId: null, attemptCount: 1 });
+    const bot = makeBot({ sendError: { error_code: 500, description: "Internal Server Error" } });
+    const { services, raidChat } = makeServices(delivery);
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(raidChat.markDeliveryFailure).toHaveBeenCalledWith(
+      "transient",
+      new Date(NOW.getTime() + 2_200),
+      "telegram-retryable"
+    );
+    expect(raidChat.markDeliveryRedacted).not.toHaveBeenCalled();
   });
 });
 
@@ -92,11 +141,11 @@ function makeServices(
   };
 }
 
-function makeView() {
+function makeView(overrides: { chatRevision?: number } = {}) {
   return {
     partySessionId: "party-1",
     inviteToken: "raid-token-1",
-    chatRevision: 1,
+    chatRevision: overrides.chatRevision ?? 1,
     lifecycle: "active" as const,
     writable: true,
     retentionUntil: null,
@@ -105,20 +154,27 @@ function makeView() {
   };
 }
 
+type TestBot = Bot & { sendMessageMock: ReturnType<typeof vi.fn> };
+
 function makeBot(options: {
   editError?: unknown;
+  sendError?: unknown;
   sentChatId?: number;
   sentMessageId?: number;
-} = {}): Bot {
+} = {}): TestBot {
+  const sendMessageMock = options.sendError
+    ? vi.fn().mockRejectedValue(options.sendError)
+    : vi.fn().mockResolvedValue({
+        chat: { id: options.sentChatId ?? 82 },
+        message_id: options.sentMessageId ?? 42
+      });
   return {
     api: {
       editMessageText: options.editError
         ? vi.fn().mockRejectedValue(options.editError)
         : vi.fn().mockResolvedValue(true),
-      sendMessage: vi.fn().mockResolvedValue({
-        chat: { id: options.sentChatId ?? 82 },
-        message_id: options.sentMessageId ?? 42
-      })
-    }
-  } as unknown as Bot;
+      sendMessage: sendMessageMock
+    },
+    sendMessageMock
+  } as unknown as TestBot;
 }

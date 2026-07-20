@@ -126,7 +126,7 @@ async function deliverOne(
         includeDevExpire: services.partySessions.areDevHelpersEnabled(),
         includeRaidChat: view.writable
       })
-    }, true);
+    }, view.chatRevision, true);
     return;
   }
 
@@ -138,7 +138,7 @@ async function deliverOne(
       active: view.lifecycle === "active",
       terminal: view.lifecycle === "terminal"
     })
-  }, false);
+  }, view.chatRevision, false);
 }
 
 async function publish(
@@ -147,6 +147,7 @@ async function publish(
   services: { partyRaidChat: PartyRaidChatService; partySessions: PartySessionService },
   text: string,
   messageOptions: Parameters<Bot["api"]["editMessageText"]>[3],
+  renderedRevision: number,
   recruiting: boolean
 ): Promise<void> {
   let reference = delivery.chatId && delivery.messageId
@@ -161,16 +162,32 @@ async function publish(
         messageOptions
       ));
     } catch (error) {
-      if (!isPermanentPartyCardEditError(error)) {
+      if (isTelegramMessageNotModified(error)) {
+        // Telegram confirms that this exact card is already current.
+      } else if (!isPermanentPartyCardEditError(error)) {
         throw error;
+      } else {
+        reference = null;
       }
-      reference = null;
     }
   }
   if (!reference) {
-    const sent = await partyRaidChatTelegramGate.enqueue(delivery.telegramUserId, () =>
-      bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions)
-    );
+    let sent: { chat: { id: number }; message_id: number };
+    try {
+      sent = await partyRaidChatTelegramGate.enqueue(delivery.telegramUserId, () =>
+        bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions)
+      );
+    } catch (error) {
+      if (isRetryableTelegramSendError(error)) {
+        throw error;
+      }
+      await services.partyRaidChat.markDeliveryRedacted(
+        delivery.id,
+        "permanent-unavailable",
+        redactionAck(delivery)
+      );
+      return;
+    }
     reference = { chatId: BigInt(sent.chat.id), messageId: sent.message_id };
     await services.partyRaidChat.recordDeliveryReference(delivery.id, reference.chatId, reference.messageId);
     if (recruiting) {
@@ -181,7 +198,7 @@ async function publish(
       );
     }
   }
-  await services.partyRaidChat.markDeliveryRendered(delivery.id, delivery.desiredRevision);
+  await services.partyRaidChat.markDeliveryRendered(delivery.id, renderedRevision);
 }
 
 async function redact(
@@ -191,7 +208,7 @@ async function redact(
   options: { botUsername?: string | undefined }
 ): Promise<void> {
   if (!delivery.chatId || !delivery.messageId) {
-    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "no-reference");
+    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "no-reference", redactionAck(delivery));
     return;
   }
   let text = "Рейд-чат більше недоступний.";
@@ -222,13 +239,70 @@ async function redact(
       text,
       messageOptions
     ));
-    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted");
+    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted", redactionAck(delivery));
   } catch (error) {
+    if (isTelegramMessageNotModified(error)) {
+      await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted", redactionAck(delivery));
+      return;
+    }
     if (!isPermanentPartyCardEditError(error)) {
       throw error;
     }
-    await services.partyRaidChat.markDeliveryRedacted(delivery.id, "permanent-unavailable");
+    await services.partyRaidChat.markDeliveryRedacted(
+      delivery.id,
+      "permanent-unavailable",
+      redactionAck(delivery)
+    );
   }
+}
+
+function redactionAck(delivery: PartyRaidChatDeliveryRecord) {
+  return {
+    desiredRevision: delivery.desiredRevision,
+    chatId: delivery.chatId,
+    messageId: delivery.messageId
+  };
+}
+
+function isTelegramMessageNotModified(error: unknown): boolean {
+  return telegramErrorText(error).includes("message is not modified");
+}
+
+function isRetryableTelegramSendError(error: unknown): boolean {
+  const errorCode = telegramErrorCode(error);
+  const text = telegramErrorText(error);
+  return errorCode === 429 ||
+    (errorCode !== null && errorCode >= 500) ||
+    text.includes("econnreset") ||
+    text.includes("econnrefused") ||
+    text.includes("etimedout") ||
+    text.includes("eai_again") ||
+    text.includes("enetunreach") ||
+    text.includes("fetch failed") ||
+    text.includes("network error") ||
+    text.includes("socket hang up");
+}
+
+function telegramErrorCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+  if ("error_code" in error && typeof error.error_code === "number") {
+    return error.error_code;
+  }
+  const match = telegramErrorText(error).match(/(?:^|\s)(\d{3})(?::|\s|$)/);
+  return match ? Number(match[1]) : null;
+}
+
+function telegramErrorText(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return "";
+  }
+  const parts = [
+    error instanceof Error ? error.message : null,
+    "description" in error && typeof error.description === "string" ? error.description : null
+  ];
+  return parts.filter((part): part is string => part !== null).join(" ").toLowerCase();
 }
 
 function getRetryAfterSeconds(error: unknown): number | null {

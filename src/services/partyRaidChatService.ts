@@ -137,8 +137,12 @@ export class PartyRaidChatService {
     return this.repository.markDeliveryFailure(deliveryId, nextAttemptAt, deliveryClass, this.clock());
   }
 
-  markDeliveryRedacted(deliveryId: string, deliveryClass: string): Promise<void> {
-    return this.repository.markDeliveryRedacted(deliveryId, deliveryClass, this.clock());
+  markDeliveryRedacted(
+    deliveryId: string,
+    deliveryClass: string,
+    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null }
+  ): Promise<void> {
+    return this.repository.markDeliveryRedacted(deliveryId, deliveryClass, expected, this.clock());
   }
 
   prepareDisabledRedactions(limit = 23): Promise<number> {

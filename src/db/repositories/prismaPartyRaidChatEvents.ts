@@ -127,7 +127,7 @@ export class PrismaPartyRaidChatTransactionWriter {
   }
 
   async terminalize(tx: TxClient, partySessionId: string, now: Date): Promise<void> {
-    if (!this.enabled) {
+    if (!await hasExistingRaidChatState(tx, partySessionId)) {
       return;
     }
     const retentionUntil = new Date(now.getTime() + PARTY_RAID_CHAT_RETENTION_MS);
@@ -164,36 +164,43 @@ export class PrismaPartyRaidChatTransactionWriter {
     characterId: string,
     now: Date
   ): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
     const participant = await tx.partyParticipant.findUnique({
       where: { id: participantId },
       select: {
         chatId: true,
         messageId: true,
         session: { select: { status: true, originLocationId: true } },
-        raidChatDeliveryState: { select: { surfaceMode: true } }
+        raidChatDeliveryState: {
+          select: { surfaceMode: true, activeChatId: true, activeMessageId: true }
+        }
       }
     });
-    if (!participant || participant.session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+    if (
+      !participant ||
+      participant.session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
+      !await hasExistingRaidChatState(tx, partySessionId)
+    ) {
       return;
     }
     const surfaceMode = participant?.raidChatDeliveryState?.surfaceMode ?? modeForStatus(
       participant?.session.status ?? "cancelled"
     );
+    const activeChatId = participant.raidChatDeliveryState?.activeChatId ?? participant.chatId;
+    const activeMessageId = participant.raidChatDeliveryState?.activeMessageId ?? participant.messageId;
     await tx.partyRaidChatDeliveryState.upsert({
       where: { participantId },
       create: {
         participantId,
         partySessionId,
         surfaceMode,
-        activeChatId: participant?.chatId ?? null,
-        activeMessageId: participant?.messageId ?? null,
+        activeChatId,
+        activeMessageId,
         redactionRequired: true,
         nextAttemptAt: now
       },
       update: {
+        activeChatId,
+        activeMessageId,
         redactionRequired: true,
         nextAttemptAt: now,
         lastDeliveryClass: null
@@ -253,18 +260,49 @@ async function markAuthorizedDeliveries(
 }
 
 async function pruneOverflow(tx: TxClient, partySessionId: string): Promise<void> {
-  const overflow = await tx.partyRaidChatEntry.findMany({
-    where: { partySessionId },
-    orderBy: { id: "desc" },
-    skip: 130,
-    take: 23,
-    select: { id: true }
-  });
-  if (overflow.length > 0) {
+  for (let batch = 0; batch < Math.ceil(130 / 23); batch += 1) {
+    const overflow = await tx.partyRaidChatEntry.findMany({
+      where: { partySessionId },
+      orderBy: { id: "desc" },
+      skip: 130,
+      take: 23,
+      select: { id: true }
+    });
+    if (overflow.length === 0) {
+      return;
+    }
     await tx.partyRaidChatEntry.deleteMany({
       where: { id: { in: overflow.map((entry) => entry.id) } }
     });
+    if (overflow.length < 23) {
+      return;
+    }
   }
+}
+
+async function hasExistingRaidChatState(tx: TxClient, partySessionId: string): Promise<boolean> {
+  const session = await tx.partySession.findUnique({
+    where: { id: partySessionId },
+    select: {
+      originLocationId: true,
+      chatRevision: true,
+      raidChatRetentionUntil: true,
+      _count: {
+        select: {
+          raidChatEntries: true,
+          raidChatComposeIntents: true,
+          raidChatDeliveryStates: true
+        }
+      }
+    }
+  });
+  return session?.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID && (
+    session.chatRevision > 0 ||
+    session.raidChatRetentionUntil !== null ||
+    session._count.raidChatEntries > 0 ||
+    session._count.raidChatComposeIntents > 0 ||
+    session._count.raidChatDeliveryStates > 0
+  );
 }
 
 function modeForStatus(status: string): PartyRaidChatSurfaceMode {

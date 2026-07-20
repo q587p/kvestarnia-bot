@@ -1,6 +1,9 @@
 import type { Bot, Context, NextFunction } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import { registerPartyRaidChatInput } from "../../src/bot/commands/partyRaidChatCommand";
+import {
+  formatPartyRaidChatWait,
+  registerPartyRaidChatInput
+} from "../../src/bot/commands/partyRaidChatCommand";
 import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
 
 describe("party raid chat input routing", () => {
@@ -52,19 +55,25 @@ describe("party raid chat input routing", () => {
     expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "✅ Додано до рейд-чату.");
   });
 
-  it("routes an attachment replying to the exact prompt into validation", async () => {
+  it("passes media, captions and forwarded replies through without touching the composer", async () => {
     const { handler, service } = registerForTest({ boundPromptId: 13 });
-    service.submitInput.mockResolvedValue({ state: "invalid", reason: "attachment" });
     const next = vi.fn<NextFunction>().mockResolvedValue(undefined);
-    const ctx = makeContext({ replyMessageId: 13, attachment: true, chatId: 44 });
 
-    await handler(ctx, next);
+    await handler(makeContext({ replyMessageId: 13, attachment: true, chatId: 44 }), next);
+    await handler(makeContext({ replyMessageId: 13, attachment: true, caption: "Підпис", chatId: 44 }), next);
+    await handler(makeContext({ replyMessageId: 13, text: "Переслане", forwarded: true, chatId: 44 }), next);
 
-    expect(service.submitInput).toHaveBeenCalledWith(expect.objectContaining({
-      text: undefined,
-      hasAttachment: true
-    }));
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(3);
+    expect(service.findBoundIntent).not.toHaveBeenCalled();
+    expect(service.submitInput).not.toHaveBeenCalled();
+    expect(service.beginComposeMock).not.toHaveBeenCalled();
+    expect(service.bindComposePromptMock).not.toHaveBeenCalled();
+  });
+
+  it("formats the canonical 93-second wait without rounding it to two minutes", () => {
+    const now = new Date("2026-07-20T12:00:00.000Z");
+    expect(formatPartyRaidChatWait(new Date(now.getTime() + 59_001), now)).toBe("1 хв");
+    expect(formatPartyRaidChatWait(new Date(now.getTime() + 93_000), now)).toBe("1 хв 33 с");
   });
 
   it("offers a newly bound composer after a transient repository failure without logging private text", async () => {
@@ -137,6 +146,8 @@ function makeContext(input: {
   replyMessageId: number;
   command?: boolean;
   attachment?: boolean;
+  caption?: string;
+  forwarded?: boolean;
   chatId?: number;
 }) {
   const chatId = input.chatId ?? 42;
@@ -147,6 +158,8 @@ function makeContext(input: {
       message_id: 93,
       ...(input.text === undefined ? {} : { text: input.text }),
       ...(input.attachment ? { photo: [{ file_id: "photo-1" }] } : {}),
+      ...(input.caption === undefined ? {} : { caption: input.caption }),
+      ...(input.forwarded ? { forward_origin: { type: "user", sender_user: { id: 91 } } } : {}),
       entities: input.command && input.text
         ? [{ type: "bot_command", offset: 0, length: input.text.length }]
         : undefined,

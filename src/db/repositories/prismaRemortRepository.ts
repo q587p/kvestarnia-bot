@@ -916,34 +916,49 @@ async function cancelLivePartySessionsForRemort(
   now: Date,
   raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<void> {
-  await tx.partySession.updateMany({
+  const dueSessions = await tx.partySession.findMany({
     where: {
       status: "recruiting",
-      expiresAt: {
-        lte: now
-      }
+      expiresAt: { lte: now }
     },
-    data: {
-      status: "expired",
-      activeLeaderKey: null,
-      version: {
-        increment: 1
+    include: {
+      participants: {
+        where: { status: "joined" },
+        select: { id: true, characterId: true }
       }
     }
   });
-  await tx.partyParticipant.updateMany({
-    where: {
-      activeMembershipKey: {
-        not: null
+  for (const session of dueSessions) {
+    const expired = await tx.partySession.updateMany({
+      where: {
+        id: session.id,
+        status: "recruiting",
+        expiresAt: { lte: now }
       },
-      session: {
-        status: "expired"
+      data: {
+        status: "expired",
+        activeLeaderKey: null,
+        version: { increment: 1 }
       }
-    },
-    data: {
-      activeMembershipKey: null
+    });
+    if (expired.count === 1) {
+      await raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "raid.expired",
+        sourceKey: `party:${session.id}:terminal:expired`,
+        occurredAt: now
+      });
+      await raidChat.terminalize(tx, session.id, now);
+      const actorMembership = session.participants.find((participant) => participant.characterId === characterId);
+      if (actorMembership) {
+        await raidChat.revokeParticipant(tx, actorMembership.id, session.id, characterId, now);
+      }
+      await tx.partyParticipant.updateMany({
+        where: { sessionId: session.id, activeMembershipKey: { not: null } },
+        data: { activeMembershipKey: null }
+      });
     }
-  });
+  }
 
   const memberships = await tx.partyParticipant.findMany({
     where: {
@@ -951,7 +966,8 @@ async function cancelLivePartySessionsForRemort(
       status: "joined",
       activeMembershipKey: `party-member:${characterId}`,
       session: {
-        status: "recruiting"
+        status: "recruiting",
+        expiresAt: { gt: now }
       }
     },
     include: {

@@ -435,13 +435,26 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
 
   async markDeliveryRendered(deliveryId: string, revision: number, _now: Date): Promise<void> {
     void _now;
-    await this.prisma.partyRaidChatDeliveryState.updateMany({
-      where: { id: deliveryId },
-      data: {
-        renderedRevision: revision,
-        attemptCount: 0,
-        lastDeliveryClass: "ok",
-        nextAttemptAt: IDLE_DELIVERY_AT
+    await this.prisma.$transaction(async (tx) => {
+      const parked = await tx.partyRaidChatDeliveryState.updateMany({
+        where: {
+          id: deliveryId,
+          redactionRequired: false,
+          desiredRevision: { lte: revision },
+          renderedRevision: { lte: revision }
+        },
+        data: {
+          renderedRevision: revision,
+          attemptCount: 0,
+          lastDeliveryClass: "ok",
+          nextAttemptAt: IDLE_DELIVERY_AT
+        }
+      });
+      if (parked.count === 0) {
+        await tx.partyRaidChatDeliveryState.updateMany({
+          where: { id: deliveryId, renderedRevision: { lt: revision } },
+          data: { renderedRevision: revision }
+        });
       }
     });
   }
@@ -463,23 +476,27 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
     });
   }
 
-  async markDeliveryRedacted(deliveryId: string, deliveryClass: string, _now: Date): Promise<void> {
+  async markDeliveryRedacted(
+    deliveryId: string,
+    deliveryClass: string,
+    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null },
+    _now: Date
+  ): Promise<void> {
     void _now;
-    const row = await this.prisma.partyRaidChatDeliveryState.findUnique({
-      where: { id: deliveryId },
-      select: { desiredRevision: true }
-    });
-    if (!row) {
-      return;
-    }
-    await this.prisma.partyRaidChatDeliveryState.update({
-      where: { id: deliveryId },
+    await this.prisma.partyRaidChatDeliveryState.updateMany({
+      where: {
+        id: deliveryId,
+        ...(deliveryClass === "permanent-unavailable" ? {} : { redactionRequired: true }),
+        desiredRevision: expected.desiredRevision,
+        activeChatId: expected.chatId,
+        activeMessageId: expected.messageId
+      },
       data: {
         surfaceMode: "redacted",
         redactionRequired: false,
         activeChatId: null,
         activeMessageId: null,
-        renderedRevision: row.desiredRevision,
+        renderedRevision: expected.desiredRevision,
         attemptCount: 0,
         lastDeliveryClass: deliveryClass,
         nextAttemptAt: IDLE_DELIVERY_AT
@@ -490,7 +507,6 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
   async markDisabledReferencesForRedaction(now: Date, limit = 23): Promise<number> {
     const participants = await this.prisma.partyParticipant.findMany({
       where: {
-        status: "joined",
         AND: [
           {
             OR: [
@@ -504,7 +520,17 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
               { raidChatDeliveryState: { is: { surfaceMode: { not: "redacted" }, redactionRequired: false } } }
             ]
           }
-        ]
+        ],
+        session: {
+          originLocationId: "barrel.big-brother",
+          OR: [
+            { chatRevision: { gt: 0 } },
+            { raidChatRetentionUntil: { not: null } },
+            { raidChatEntries: { some: {} } },
+            { raidChatComposeIntents: { some: {} } },
+            { raidChatDeliveryStates: { some: {} } }
+          ]
+        }
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
@@ -514,18 +540,22 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       }
     });
     for (const participant of participants) {
+      const activeChatId = participant.raidChatDeliveryState?.activeChatId ?? participant.chatId;
+      const activeMessageId = participant.raidChatDeliveryState?.activeMessageId ?? participant.messageId;
       await this.prisma.partyRaidChatDeliveryState.upsert({
         where: { participantId: participant.id },
         create: {
           participantId: participant.id,
           partySessionId: participant.sessionId,
           surfaceMode: surfaceModeForLifecycle(resolveLifecycle(participant.session.status) ?? "terminal"),
-          activeChatId: participant.chatId,
-          activeMessageId: participant.messageId,
+          activeChatId,
+          activeMessageId,
           redactionRequired: true,
           nextAttemptAt: now
         },
         update: {
+          activeChatId,
+          activeMessageId,
           redactionRequired: true,
           nextAttemptAt: now
         }
@@ -594,7 +624,7 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
             actorDisplayName: authorization.participant.character.name,
             actorRemortCount: authorization.participant.remortCount,
             body: `Тестовий рядок ${index + 1}`,
-            sourceKey: `dev-fill:${now.getTime()}:${index}`,
+            sourceKey: `dev-fill:${authorization.session.id}:${revision}`,
             occurredAt: new Date(now.getTime() + index)
           }
         });
@@ -894,15 +924,22 @@ function surfaceModeForLifecycle(lifecycle: PartyRaidChatLifecycle): PartyRaidCh
 }
 
 async function pruneOverflow(tx: TxClient, partySessionId: string): Promise<void> {
-  const overflow = await tx.partyRaidChatEntry.findMany({
-    where: { partySessionId },
-    orderBy: { id: "desc" },
-    skip: PARTY_RAID_CHAT_STORAGE_CAP,
-    take: 23,
-    select: { id: true }
-  });
-  if (overflow.length > 0) {
+  const maxBatches = Math.ceil(PARTY_RAID_CHAT_STORAGE_CAP / 23);
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    const overflow = await tx.partyRaidChatEntry.findMany({
+      where: { partySessionId },
+      orderBy: { id: "desc" },
+      skip: PARTY_RAID_CHAT_STORAGE_CAP,
+      take: 23,
+      select: { id: true }
+    });
+    if (overflow.length === 0) {
+      return;
+    }
     await tx.partyRaidChatEntry.deleteMany({ where: { id: { in: overflow.map((entry) => entry.id) } } });
+    if (overflow.length < 23) {
+      return;
+    }
   }
 }
 
