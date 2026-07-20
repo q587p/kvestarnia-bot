@@ -64,6 +64,7 @@ import { ActivityEventService } from "../../src/services/activityEventService";
 describe("application factory wiring", () => {
   it("creates the expected concrete Prisma repositories", () => {
     const repositories = createRepositories({} as PrismaClient);
+    const source = compact(read("src/app/createRepositories.ts"));
 
     expect(repositories.activityEvents).toBeInstanceOf(PrismaActivityEventRepository);
     expect(repositories.achievements).toBeInstanceOf(PrismaAchievementRepository);
@@ -92,6 +93,8 @@ describe("application factory wiring", () => {
     expect(repositories.shynok).toBeInstanceOf(PrismaShynokRepository);
     expect(repositories.soloCombatSessions).toBeInstanceOf(PrismaSoloCombatSessionRepository);
     expect(repositories.yegerNotchExchange).toBeInstanceOf(PrismaYegerNotchExchangeRepository);
+    expect(source).toContain("new PrismaPartyRaidChatTransactionWriter(true)");
+    expect(source).not.toContain("bigBarrelRaidChatEnabled");
   });
 
   it("creates the expected application service surface", () => {
@@ -130,6 +133,9 @@ describe("application factory wiring", () => {
 
   it("pins service constructor dependencies", () => {
     const source = compact(read("src/app/createServices.ts"));
+
+    expect(source).toContain("const partyRaidChatEnabled = config.bigBarrelBrotherRaidEnabled");
+    expect(source).not.toContain("config.bigBarrelRaidChatEnabled");
 
     expect(source).toContain(compact(`
       const fight = new FightService({
@@ -256,16 +262,14 @@ describe("application factory wiring", () => {
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
   });
 
-  it("requires both Big Barrel and raid-chat rollout flags and isolates the helper in production", async () => {
+  it("keeps raid chat on the existing Big Barrel rollout and isolates the helper in production", async () => {
     const repositories = createRepositories({} as PrismaClient);
     expect(createServices(repositories, makeConfig({
-      bigBarrelRaidChatEnabled: true,
       bigBarrelBrotherRaidEnabled: false
     })).partyRaidChat.isEnabled()).toBe(false);
 
     const production = createServices(repositories, makeConfig({
       nodeEnv: "production",
-      bigBarrelRaidChatEnabled: true,
       bigBarrelBrotherRaidEnabled: true
     })).partyRaidChat;
     expect(production.isEnabled()).toBe(true);
@@ -308,7 +312,6 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
     bigBarrelBrotherRaidEnabled: false,
-    bigBarrelRaidChatEnabled: false,
     ...overrides
   };
 }

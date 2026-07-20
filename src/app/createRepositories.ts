@@ -44,15 +44,12 @@ export function createRepositories(
   prisma: PrismaClient,
   options: {
     hpRecoveryNotificationsEnabled?: boolean;
-    bigBarrelRaidChatEnabled?: boolean;
   } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
     options.hpRecoveryNotificationsEnabled === true
   );
-  const partyRaidChatWriter = new PrismaPartyRaidChatTransactionWriter(
-    options.bigBarrelRaidChatEnabled === true
-  );
+  const partyRaidChatWriter = new PrismaPartyRaidChatTransactionWriter(true);
 
   return {
     activityEvents: new PrismaActivityEventRepository(prisma),

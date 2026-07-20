@@ -3,7 +3,7 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current version: `0.3.15` — Big Barrel has a default-off participant-only durable raid chat with exact ForceReply composition, typed transactional events, a separate chat revision and CAS-safe restart delivery/redaction; disabled startup invalidates old prompts, permanent Telegram targets park, and remort touches only the actor's canonical membership. Manual Telegram QA remains pending.
+- Current version: `0.3.15` — Big Barrel has participant-only durable raid chat under the existing Big Barrel production gate, with exact ForceReply composition, typed transactional events, a separate chat revision and CAS-safe restart delivery/redaction; disabled startup invalidates old prompts, permanent Telegram targets park, and remort touches only the actor's canonical membership. Manual Telegram QA remains pending.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -35,7 +35,7 @@
 - Stored combat surfaces that shared changes must consider: persistent PvE, Training Doppelganger, turn-based duels and party boss/Big Barrel rounds. Quick duels have no durable turn identity.
 - Under-Korchma combat terminology: `Спуск`, `Спуск до Низу`, `Ярус I: Сутерени Корчми`, later `Зіґурат`.
 - Group/party systems remain narrow opt-in slices. No generic market, profession, crafting, guild-war or Mini App direction is shipped by implication.
-- Big Barrel raid chat requires both `BIG_BARREL_BROTHER_RAID_ENABLED=true` and `BIG_BARREL_RAID_CHAT_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. `/dev_raid_chat` is non-production only.
+- Big Barrel raid chat adds no config key and follows `BIG_BARREL_BROTHER_RAID_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. `/dev_raid_chat` is non-production only.
 
 ## Shipped class support
 

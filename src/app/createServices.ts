@@ -58,7 +58,7 @@ export function createServices(
   config: AppConfig
 ): ApplicationServices {
   const nonProduction = config.nodeEnv !== "production";
-  const partyRaidChatEnabled = config.bigBarrelRaidChatEnabled && config.bigBarrelBrotherRaidEnabled;
+  const partyRaidChatEnabled = config.bigBarrelBrotherRaidEnabled;
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);

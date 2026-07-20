@@ -132,7 +132,7 @@ A bounded worker scans due dirty/redaction rows at startup and continuously. The
 
 ## Input state machine
 
-1. The compose callback reloads canonical state and verifies both `BIG_BARREL_BROTHER_RAID_ENABLED` and `BIG_BARREL_RAID_CHAT_ENABLED`, Big Barrel lineage, membership, remort life and writable lifecycle.
+1. The compose callback reloads canonical state and verifies the existing `BIG_BARREL_BROTHER_RAID_ENABLED` surface, Big Barrel lineage, membership, remort life and writable lifecycle.
 2. Atomically create a new intent generation in `awaiting_prompt`, cancelling the prior generation. Send a fresh ForceReply, then CAS-bind the returned exact bot prompt ID and move to `awaiting_reply`. A slower concurrent callback cannot reactivate its older generation. A crash before binding leaves only a harmless unbound/orphan prompt that cannot accept input and expires.
 3. Register `/cancel_raid_chat` and the narrow input middleware early enough to work during active combat. The middleware calls `next()` unless the update is a text reply from the same Telegram user/private chat to the exact bot-authored prompt.
 4. Commands (including an offset-zero `bot_command` entity), persistent main-menu button texts, non-replies, replies to other prompts, callbacks, media and captions remain owned by existing handlers and do not consume the composer.
@@ -147,9 +147,9 @@ After acceptance, best-effort edit the bot prompt to `✅ Додано до ре
 
 ## System events
 
-Append a typed event in the same Prisma transaction as the winning canonical mutation, with a deterministic source key. Feature-disabled writers are injected as no-ops. Duplicate callbacks/retries must not create a second entry or second revision.
+Append a typed event in the same Prisma transaction as the winning canonical mutation, with a deterministic source key. The application wires this writer independently of the fresh chat UI gate so existing state can still terminalize and redact safely. Duplicate callbacks/retries must not create a second entry or second revision.
 
-Availability decision: while enabled, this small bounded DB insert is part of the gameplay transaction, so a genuine chat-write failure rolls back that mutation. This deliberately preserves exact system-event truth. Event construction/validation must be pure and bounded, duplicate insertion must be a safe upsert/no-op, and no Telegram I/O occurs inside the transaction. The independent default-off flag is the operational rollback if chat-specific persistence fails.
+Availability decision: while the existing Big Barrel surface is enabled, this small bounded DB insert is part of the gameplay transaction, so a genuine chat-write failure rolls back that mutation. This deliberately preserves exact system-event truth. Event construction/validation must be pure and bounded, duplicate insertion must be a safe upsert/no-op, and no Telegram I/O occurs inside the transaction. The existing Big Barrel flag remains the operational rollback; this slice adds no parallel chat flag.
 
 Allowlist:
 
@@ -207,7 +207,7 @@ Telegram documents practical limits of about one message per second in one chat 
 - The same feed continues from recruiting into active combat.
 - Terminal transition makes the feed read-only and sets a 13-day retention deadline in the same transaction.
 - Leave/removal/remort and retention expiry mark affected delivery states for redaction transactionally. On feature disable, the always-running worker uses a bounded scan to mark active refs. It edits the old recruiting card without transcript or replaces the active chat card with `Рейд-чат більше недоступний.` and removes controls; it may delete the bot message where safe.
-- Feature disable hides controls/read surface and blocks new player/system chat writes, but does not modify raid state or erase existing rows. Re-enable resumes without backfilling events that occurred while disabled.
+- Disabling the existing Big Barrel surface hides controls/read surface and blocks new player chat writes, but does not erase existing rows. Re-enable resumes without backfilling chat events that could not occur while the parent raid surface was disabled.
 - Bounded lazy/startup cleanup removes expired intents and post-retention entries only after scheduling redaction. Cleanup must not require loading unbounded sessions.
 - Remort cleanup cancels the old-life composer; every request still validates life at use time.
 
@@ -215,7 +215,7 @@ Authorization guarantees no fresh server-approved read/write after access loss. 
 
 ## Rollout and project decisions
 
-- Add `BIG_BARREL_RAID_CHAT_ENABLED=false`, nested under the existing Big Barrel feature. Production remains off by default.
+- Add no raid-chat environment/config key. Chat availability follows the existing `BIG_BARREL_BROTHER_RAID_ENABLED` production gate.
 - Add a non-production `/dev_raid_chat fill|clear|expire` helper for last-13, cap, cooldown, compose expiry and retention QA. It must not register, appear in help or mutate in production under any dev-flag combination.
 - Do not add an achievement: rewarding chat activity encourages spam. Existing ability achievements remain unchanged.
 - Review Lore Board/flavor sources. Expected outcome is no lore change because this is a private Telegram coordination surface, not a new world/class mechanic; record the decision.
