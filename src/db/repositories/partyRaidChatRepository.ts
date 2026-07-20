@@ -130,6 +130,7 @@ export interface PartyRaidChatRepository {
   ): Promise<PartyRaidChatBoundIntentRecord | null>;
 
   cancelCompose(telegramUserId: bigint, now: Date): Promise<boolean>;
+  cancelDisabledComposeIntents(now: Date): Promise<number>;
 
   acceptReply(input: {
     telegramUserId: bigint;

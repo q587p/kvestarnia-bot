@@ -1346,8 +1346,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         where: { participantId: participant.id },
         data: {
           activeChatId: input.chatId,
-          activeMessageId: input.messageId,
-          nextAttemptAt: input.now
+          activeMessageId: input.messageId
         }
       });
 
@@ -1437,7 +1436,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
   async cleanupLiveMembershipsForRemort(characterId: string, now: Date): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await expireRecruitingTx(tx, now, 23, this.raidChat);
       const liveRows = await tx.partyParticipant.findMany({
         where: {
           characterId,
@@ -1454,6 +1452,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       });
 
       for (const row of liveRows) {
+        if (row.session.expiresAt <= now) {
+          await terminalizeSessionTx(tx, row.sessionId, "expired", now, this.raidChat);
+          await this.raidChat.revokeParticipant(tx, row.id, row.sessionId, characterId, now);
+          continue;
+        }
         await tx.partyParticipant.update({
           where: { id: row.id },
           data: {
@@ -1488,18 +1491,19 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         if (remaining.length === 0) {
           await terminalizeSessionTx(tx, row.sessionId, "cancelled", now, this.raidChat);
         } else if (row.session.leaderCharacterId === characterId) {
-          await tx.partySession.update({
+          const transferred = await tx.partySession.update({
             where: { id: row.sessionId },
             data: {
               leaderCharacterId: remaining[0]!.characterId,
               activeLeaderKey: leaderKey(remaining[0]!.characterId),
               version: { increment: 1 }
-            }
+            },
+            select: { version: true }
           });
           await this.raidChat.append(tx, {
             partySessionId: row.sessionId,
             eventType: "leader.transferred",
-            sourceKey: `party:${row.sessionId}:leader:${remaining[0]!.characterId}:remort`,
+            sourceKey: `party:${row.sessionId}:leader:${remaining[0]!.characterId}:remort:${transferred.version}`,
             occurredAt: now,
             actorCharacterId: remaining[0]!.characterId,
             actorDisplayName: remaining[0]!.character.name,

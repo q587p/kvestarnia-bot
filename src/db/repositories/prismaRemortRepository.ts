@@ -916,58 +916,13 @@ async function cancelLivePartySessionsForRemort(
   now: Date,
   raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<void> {
-  const dueSessions = await tx.partySession.findMany({
-    where: {
-      status: "recruiting",
-      expiresAt: { lte: now }
-    },
-    include: {
-      participants: {
-        where: { status: "joined" },
-        select: { id: true, characterId: true }
-      }
-    }
-  });
-  for (const session of dueSessions) {
-    const expired = await tx.partySession.updateMany({
-      where: {
-        id: session.id,
-        status: "recruiting",
-        expiresAt: { lte: now }
-      },
-      data: {
-        status: "expired",
-        activeLeaderKey: null,
-        version: { increment: 1 }
-      }
-    });
-    if (expired.count === 1) {
-      await raidChat.append(tx, {
-        partySessionId: session.id,
-        eventType: "raid.expired",
-        sourceKey: `party:${session.id}:terminal:expired`,
-        occurredAt: now
-      });
-      await raidChat.terminalize(tx, session.id, now);
-      const actorMembership = session.participants.find((participant) => participant.characterId === characterId);
-      if (actorMembership) {
-        await raidChat.revokeParticipant(tx, actorMembership.id, session.id, characterId, now);
-      }
-      await tx.partyParticipant.updateMany({
-        where: { sessionId: session.id, activeMembershipKey: { not: null } },
-        data: { activeMembershipKey: null }
-      });
-    }
-  }
-
   const memberships = await tx.partyParticipant.findMany({
     where: {
       characterId,
       status: "joined",
       activeMembershipKey: `party-member:${characterId}`,
       session: {
-        status: "recruiting",
-        expiresAt: { gt: now }
+        status: "recruiting"
       }
     },
     include: {
@@ -977,6 +932,35 @@ async function cancelLivePartySessionsForRemort(
   });
 
   for (const membership of memberships) {
+    if (membership.session.expiresAt <= now) {
+      const expired = await tx.partySession.updateMany({
+        where: {
+          id: membership.sessionId,
+          status: "recruiting",
+          expiresAt: { lte: now }
+        },
+        data: {
+          status: "expired",
+          activeLeaderKey: null,
+          version: { increment: 1 }
+        }
+      });
+      if (expired.count === 1) {
+        await raidChat.append(tx, {
+          partySessionId: membership.sessionId,
+          eventType: "raid.expired",
+          sourceKey: `party:${membership.sessionId}:terminal:expired`,
+          occurredAt: now
+        });
+        await raidChat.terminalize(tx, membership.sessionId, now);
+        await raidChat.revokeParticipant(tx, membership.id, membership.sessionId, characterId, now);
+        await tx.partyParticipant.updateMany({
+          where: { sessionId: membership.sessionId, activeMembershipKey: { not: null } },
+          data: { activeMembershipKey: null }
+        });
+      }
+      continue;
+    }
     await tx.partyParticipant.update({
       where: {
         id: membership.id
@@ -1039,7 +1023,7 @@ async function cancelLivePartySessionsForRemort(
 
     if (membership.session.leaderCharacterId === characterId) {
       const nextLeader = remaining[0]!;
-      await tx.partySession.update({
+      const transferred = await tx.partySession.update({
         where: {
           id: membership.sessionId
         },
@@ -1049,12 +1033,13 @@ async function cancelLivePartySessionsForRemort(
           version: {
             increment: 1
           }
-        }
+        },
+        select: { version: true }
       });
       await raidChat.append(tx, {
         partySessionId: membership.sessionId,
         eventType: "leader.transferred",
-        sourceKey: `party:${membership.sessionId}:leader:${nextLeader.characterId}:remort`,
+        sourceKey: `party:${membership.sessionId}:leader:${nextLeader.characterId}:remort:${transferred.version}`,
         occurredAt: now,
         actorCharacterId: nextLeader.characterId,
         actorDisplayName: nextLeader.character.name,

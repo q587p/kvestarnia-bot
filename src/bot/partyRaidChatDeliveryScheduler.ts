@@ -164,10 +164,17 @@ async function publish(
     } catch (error) {
       if (isTelegramMessageNotModified(error)) {
         // Telegram confirms that this exact card is already current.
-      } else if (!isPermanentPartyCardEditError(error)) {
+      } else if (isPermanentPartyCardEditError(error)) {
+        reference = null;
+      } else if (isRetryableTelegramError(error)) {
         throw error;
       } else {
-        reference = null;
+        await services.partyRaidChat.markDeliveryRedacted(
+          delivery.id,
+          "permanent-unavailable",
+          redactionAck(delivery)
+        );
+        return;
       }
     }
   }
@@ -178,7 +185,7 @@ async function publish(
         bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions)
       );
     } catch (error) {
-      if (isRetryableTelegramSendError(error)) {
+      if (isRetryableTelegramError(error)) {
         throw error;
       }
       await services.partyRaidChat.markDeliveryRedacted(
@@ -245,7 +252,7 @@ async function redact(
       await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted", redactionAck(delivery));
       return;
     }
-    if (!isPermanentPartyCardEditError(error)) {
+    if (isRetryableTelegramError(error)) {
       throw error;
     }
     await services.partyRaidChat.markDeliveryRedacted(
@@ -268,7 +275,7 @@ function isTelegramMessageNotModified(error: unknown): boolean {
   return telegramErrorText(error).includes("message is not modified");
 }
 
-function isRetryableTelegramSendError(error: unknown): boolean {
+function isRetryableTelegramError(error: unknown): boolean {
   const errorCode = telegramErrorCode(error);
   const text = telegramErrorText(error);
   return errorCode === 429 ||

@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
 import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
+import { PartyRaidChatService } from "../../src/services/partyRaidChatService";
 
 const NOW = new Date("2026-07-20T10:00:00.000Z");
 
@@ -149,6 +150,29 @@ describe("PrismaPartyRaidChatRepository integration", () => {
       "Другий",
       new Date(NOW.getTime() + 3_000)
     );
+  });
+
+  it("invalidates a bound composer across a quick disabled and re-enabled rollout", async () => {
+    await seedLineage(prisma, "quick-rollout", 7013n);
+    const rollout = { enabled: true, devHelpersEnabled: false };
+    const service = new PartyRaidChatService(repository, rollout, () => NOW);
+    const begun = await service.beginCompose(7013n, "raid-quick-rollout", 7013n);
+    if (begun.state !== "created") {
+      throw new Error("Composer setup failed.");
+    }
+    await expect(service.bindComposePrompt(begun.intentId, begun.version, 587)).resolves.toMatchObject({
+      state: "bound"
+    });
+
+    rollout.enabled = false;
+    await expect(service.prepareDisabledRedactions()).resolves.toBeGreaterThanOrEqual(1);
+    rollout.enabled = true;
+
+    await expect(service.findBoundIntent(7013n, 7013n, 587)).resolves.toBeNull();
+    await expect(prisma.partyRaidChatComposeIntent.findUniqueOrThrow({
+      where: { id: begun.intentId },
+      select: { status: true, activeKey: true }
+    })).resolves.toEqual({ status: "cancelled", activeKey: null });
   });
 
   it("keeps a pre-boss terminal transcript for the final joined roster until the exact retention boundary", async () => {
@@ -399,6 +423,43 @@ describe("PrismaPartyRaidChatRepository integration", () => {
       activeMessageId: null,
       lastDeliveryClass: "permanent-unavailable"
     });
+    await expect(prisma.partyParticipant.findUniqueOrThrow({
+      where: { id: delivery.participantId },
+      select: { chatId: true, messageId: true }
+    })).resolves.toEqual({ chatId: null, messageId: null });
+  });
+
+  it("repairs 70 clean due rows without starving the following dirty delivery", async () => {
+    const idleAt = new Date("9999-12-31T23:59:59.999Z");
+    await prisma.partyRaidChatDeliveryState.updateMany({ data: { nextAttemptAt: idleAt } });
+    for (let index = 0; index <= 70; index += 1) {
+      const key = `scanner-${String(index).padStart(3, "0")}`;
+      await seedLineage(prisma, key, 8_000n + BigInt(index));
+      await prisma.partyRaidChatDeliveryState.create({
+        data: {
+          id: `delivery-${key}`,
+          participantId: `participant-${key}`,
+          partySessionId: `session-${key}`,
+          activeChatId: 8_000n + BigInt(index),
+          activeMessageId: index + 1,
+          desiredRevision: index === 70 ? 2 : 1,
+          renderedRevision: 1,
+          nextAttemptAt: NOW
+        }
+      });
+    }
+
+    await expect(repository.listDueDeliveries(NOW, 23)).resolves.toEqual([
+      expect.objectContaining({ id: "delivery-scanner-070", desiredRevision: 2, renderedRevision: 1 })
+    ]);
+    await expect(prisma.partyRaidChatDeliveryState.count({
+      where: {
+        id: { startsWith: "delivery-scanner-" },
+        desiredRevision: 1,
+        renderedRevision: 1,
+        nextAttemptAt: idleAt
+      }
+    })).resolves.toBe(23);
   });
 
   it("cascades the complete transcript state with its party lineage", async () => {

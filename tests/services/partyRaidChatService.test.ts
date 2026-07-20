@@ -9,6 +9,8 @@ type RepositoryMocks = {
   bindComposePrompt: ReturnType<typeof vi.fn>;
   acceptReply: ReturnType<typeof vi.fn>;
   devFillForTelegramUser: ReturnType<typeof vi.fn>;
+  cancelDisabledComposeIntents: ReturnType<typeof vi.fn>;
+  markDisabledReferencesForRedaction: ReturnType<typeof vi.fn>;
 };
 
 describe("PartyRaidChatService", () => {
@@ -25,6 +27,18 @@ describe("PartyRaidChatService", () => {
     expect(mocks.beginCompose).not.toHaveBeenCalled();
     expect(mocks.bindComposePrompt).not.toHaveBeenCalled();
     expect(mocks.devFillForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("cancels durable composers during a disabled startup pass", async () => {
+    const repository = makeRepository();
+    const mocks = repository as unknown as RepositoryMocks;
+    mocks.cancelDisabledComposeIntents.mockResolvedValue(2);
+    mocks.markDisabledReferencesForRedaction.mockResolvedValue(1);
+    const service = new PartyRaidChatService(repository, { enabled: false, devHelpersEnabled: false }, () => now);
+
+    await expect(service.prepareDisabledRedactions()).resolves.toBe(3);
+    expect(mocks.cancelDisabledComposeIntents).toHaveBeenCalledWith(now);
+    expect(mocks.markDisabledReferencesForRedaction).toHaveBeenCalledWith(now, 23);
   });
 
   it("normalizes valid text before accepting it", async () => {
@@ -98,6 +112,7 @@ function makeRepository(): PartyRaidChatRepository {
     bindComposePrompt: vi.fn(),
     findBoundIntent: vi.fn(),
     cancelCompose: vi.fn(),
+    cancelDisabledComposeIntents: vi.fn(),
     acceptReply: vi.fn(),
     getAuthorizedView: vi.fn(),
     listDueDeliveries: vi.fn(),

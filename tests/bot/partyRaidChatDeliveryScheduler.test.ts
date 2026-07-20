@@ -82,6 +82,46 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
   });
 
+  it("parks an edit-side blocked target without attempting replacement delivery", async () => {
+    const delivery = makeDelivery({ id: "edit-blocked", chatId: 82n, messageId: 42, desiredRevision: 5 });
+    const bot = makeBot({
+      editError: { error_code: 403, description: "Forbidden: bot was blocked by the user" }
+    });
+    const { services, raidChat } = makeServices(delivery, { view: makeView({ chatRevision: 5 }) });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.sendMessageMock).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("edit-blocked", "permanent-unavailable", {
+      desiredRevision: 5,
+      chatId: 82n,
+      messageId: 42
+    });
+    expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
+  });
+
+  it("parks an edit-side blocked target during redaction", async () => {
+    const delivery = makeDelivery({
+      id: "redact-blocked",
+      chatId: 82n,
+      messageId: 42,
+      redactionRequired: true
+    });
+    const bot = makeBot({
+      editError: { error_code: 403, description: "Forbidden: chat not found" }
+    });
+    const { services, raidChat } = makeServices(delivery);
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("redact-blocked", "permanent-unavailable", {
+      desiredRevision: 1,
+      chatId: 82n,
+      messageId: 42
+    });
+    expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
+  });
+
   it("keeps bounded retry for a transient send failure", async () => {
     const delivery = makeDelivery({ id: "transient", chatId: null, messageId: null, attemptCount: 1 });
     const bot = makeBot({ sendError: { error_code: 500, description: "Internal Server Error" } });

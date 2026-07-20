@@ -145,11 +145,16 @@ export class PartyRaidChatService {
     return this.repository.markDeliveryRedacted(deliveryId, deliveryClass, expected, this.clock());
   }
 
-  prepareDisabledRedactions(limit = 23): Promise<number> {
+  async prepareDisabledRedactions(limit = 23): Promise<number> {
     if (this.isEnabled()) {
-      return Promise.resolve(0);
+      return 0;
     }
-    return this.repository.markDisabledReferencesForRedaction(this.clock(), limit);
+    const now = this.clock();
+    const [cancelled, redactions] = await Promise.all([
+      this.repository.cancelDisabledComposeIntents(now),
+      this.repository.markDisabledReferencesForRedaction(now, limit)
+    ]);
+    return cancelled + redactions;
   }
 
   cleanupExpired(limit = 23): Promise<number> {

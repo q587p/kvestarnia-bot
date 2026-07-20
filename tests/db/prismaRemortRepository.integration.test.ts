@@ -644,7 +644,7 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(1);
   });
 
-  it("terminalizes due Big Barrel chat before remort clears its memberships", async () => {
+  it("terminalizes only the actor's due Big Barrel chat during remort", async () => {
     const now = new Date("2026-06-22T12:30:00.000Z");
     const joinedAt = new Date(now.getTime() - 14 * 60_000);
     const actorId = "character-remort-due-chat";
@@ -725,8 +725,8 @@ describe("PrismaRemortRepository integration", () => {
       where: { id: unrelatedPartyId },
       select: { status: true, raidChatRetentionUntil: true }
     })).resolves.toEqual({
-      status: "expired",
-      raidChatRetentionUntil: new Date(now.getTime() + PARTY_RAID_CHAT_RETENTION_MS)
+      status: "recruiting",
+      raidChatRetentionUntil: null
     });
     await expect(prisma.partyRaidChatEntry.count({
       where: { partySessionId: partyId, eventType: "raid.expired" }
@@ -742,10 +742,13 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
       where: { participant: { characterId: unrelatedLeaderId } },
       select: { surfaceMode: true, redactionRequired: true }
-    })).resolves.toEqual({ surfaceMode: "terminal_read_only", redactionRequired: false });
+    })).resolves.toEqual({ surfaceMode: "recruiting_embed", redactionRequired: false });
+    await expect(prisma.partyRaidChatEntry.count({
+      where: { partySessionId: unrelatedPartyId, eventType: "raid.expired" }
+    })).resolves.toBe(0);
     await expect(prisma.partyParticipant.count({
       where: { sessionId: { in: [partyId, unrelatedPartyId] }, activeMembershipKey: { not: null } }
-    })).resolves.toBe(0);
+    })).resolves.toBe(2);
   });
 
   it("keeps canonically persisted Big Barrel pre-lease Sated recovery when another participant remorts", async () => {
