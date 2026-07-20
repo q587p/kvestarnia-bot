@@ -186,6 +186,8 @@ System payloads contain only stable IDs/enums and display-safe snapshots needed 
 
 Render the feed only in the authorized participant variant of the canonical gathering card. After commit, the durable desired revision makes every joined participant due. Extend permanent-edit recovery to replace a broken card for any participant, not only the leader.
 
+`/online` describes these sessions as a gathering in progress, renders canonical `joined/participantCap` occupancy (for example `2/8`), and omits the inactive-raid notice while at least one recruiting Big Barrel session is visible.
+
 ### Active boss
 
 At canonical start, make every frozen authorized participant's durable delivery state target one compact raid-chat card. The worker sends and persists missing references. The combat keyboard exposes `💬 Рейд-чат`; the chat card exposes compose and `↩️ До рейду`. Opening chat repairs or replaces a missing reference.

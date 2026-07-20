@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The initial Big Barrel recruiting card opened from the Barrel or `/raid` now renders the authorized raid-chat excerpt and compose control through the same bounded Telegram gate as later gathering refreshes.
 - A successful raid-chat post now sends a fresh `✅ Повідомлення надіслано в рейд-чат.` confirmation. The older ForceReply prompt is still marked as used when Telegram permits editing it, but an edit failure can no longer leave the sender without visible acknowledgement.
 - Raid-chat player rows now bold only the author's escaped name, while typed technical/system-event sentences render in italics so coordination messages remain visually distinct from lifecycle notices.
+- `/online` now labels Big Barrel recruiting parties as `У зборі на груповий рейд`, shows canonical occupancy such as `2/8`, and no longer follows a visible gathering with the contradictory `Активного рейду зараз немає.` line.
 - No chat reward or achievement was added because activity incentives would encourage spam. `📖 Перекази` needs no change: this is a private Telegram coordination surface, not a new world or class promise. Manual Telegram QA remains pending; automated evidence is recorded in the task QA document.
 
 ## [0.3.14] - 12026-07-19 - Bard Inspiration and Big Barrel Lament

@@ -336,9 +336,10 @@ describe("online command", () => {
 
     expect(listRecruitingBigBarrelBrother).toHaveBeenCalledOnce();
     expect(replies).toHaveLength(1);
-    expect(replies[0]?.text).toContain("🍺 У груповому рейді «Старший Брат Бочки»: 2");
+    expect(replies[0]?.text).toContain("🛢️ У зборі на груповий рейд «Старший Брат Бочки»: 2/8");
     expect(replies[0]?.text).toContain("— <b>Kyjivan BooksDragon</b>");
-    expect(replies[0]?.text).toContain("🍺 У груповому рейді «Старший Брат Бочки»: 1");
+    expect(replies[0]?.text).toContain("🛢️ У зборі на груповий рейд «Старший Брат Бочки»: 1/8");
+    expect(replies[0]?.text).not.toContain("🍺 Активного рейду зараз немає.");
     expect(inlineButtonTexts(replies[0]?.options)).toEqual([
       "🤝 До рейду: Kyjivan BooksDragon",
       "🤝 До рейду: Ватажок Другий"
