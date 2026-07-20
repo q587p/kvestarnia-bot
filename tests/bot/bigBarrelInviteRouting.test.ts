@@ -1,13 +1,16 @@
-import type { Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { sendCurrentLocation } from "../../src/bot/modules/mainMenu";
+import { runPartyRaidChatDeliveryTick } from "../../src/bot/partyRaidChatDeliveryScheduler";
 import type { PartyRaidChatAuthorizedView } from "../../src/db/repositories/partyRaidChatRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
+import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_HALL
@@ -61,7 +64,7 @@ describe("Big Barrel Brother invite routing", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("opens Big recruiting from /raid without auto-sending the forwardable invite card", async () => {
+  it("leaves the initial /raid recruiting card to the durable raid-chat scheduler", async () => {
     const {
       services,
       createForTelegramUser,
@@ -80,15 +83,96 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
-    expect(calls.some(hasShareInviteButton)).toBe(true);
-    expect(calls.some(hasRecruitingRaidChat)).toBe(true);
-    expect(calls.some(hasRaidChatComposeButton)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(false);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(false);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(false);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
-    expect(getRaidChatAuthorizedView).toHaveBeenCalledWith(42n, PARTY_TOKEN);
-    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, PARTY_TOKEN, {
-      chatId: 42n,
-      messageId: 101
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
+  });
+
+  it("publishes exactly one initial recruiting card when the scheduler wins the creation race", async () => {
+    const creationCommitted = deferred<void>();
+    const schedulerPublished = deferred<void>();
+    const {
+      services,
+      session,
+      createForTelegramUser,
+      getRaidChatAuthorizedView,
+      recordParticipantMessageReference
+    } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
+    createForTelegramUser.mockImplementation(async () => {
+      creationCommitted.resolve();
+      await schedulerPublished.promise;
+      return { state: "created", session };
+    });
+
+    const schedulerSendMessage = vi.fn().mockImplementation(() => {
+      schedulerPublished.resolve();
+      return Promise.resolve({ chat: { id: 42 }, message_id: 101 });
+    });
+    const schedulerRaidChat = {
+      prepareDisabledRedactions: vi.fn().mockResolvedValue(0),
+      cleanupExpired: vi.fn().mockResolvedValue(0),
+      listDueDeliveries: vi.fn().mockImplementation(async () => {
+        await creationCommitted.promise;
+        return [{
+          id: "delivery-42",
+          participantId: "participant-42",
+          partySessionId: session.id,
+          inviteToken: session.inviteToken,
+          participantCharacterId: session.leaderCharacterId,
+          telegramUserId: 42n,
+          surfaceMode: "recruiting_embed",
+          chatId: null,
+          messageId: null,
+          desiredRevision: 1,
+          renderedRevision: 0,
+          redactionRequired: false,
+          attemptCount: 0
+        }];
+      }),
+      isEnabled: vi.fn().mockReturnValue(true),
+      getAuthorizedView: vi.fn().mockResolvedValue(makeRaidChatView()),
+      markDeliveryFailure: vi.fn(),
+      markDeliveryRedacted: vi.fn(),
+      markDeliveryRendered: vi.fn().mockResolvedValue(undefined),
+      recordDeliveryReference: vi.fn().mockResolvedValue(undefined)
+    };
+    const schedulerPartySessions = {
+      areDevHelpersEnabled: () => false,
+      getByToken: vi.fn().mockResolvedValue({ state: "ready", session }),
+      recordParticipantMessageReference: vi.fn().mockResolvedValue(session)
+    };
+    const schedulerBot = {
+      api: {
+        editMessageText: vi.fn(),
+        sendMessage: schedulerSendMessage
+      }
+    } as unknown as Bot;
+
+    const [routeCalls] = await Promise.all([
+      captureMessageApiCalls("/raid", services, { botUsername: BOT_USERNAME }),
+      runPartyRaidChatDeliveryTick({
+        partyRaidChat: schedulerRaidChat as unknown as PartyRaidChatService,
+        partySessions: schedulerPartySessions as unknown as PartySessionService
+      }, schedulerBot, { botUsername: BOT_USERNAME })
+    ]);
+
+    const routeRecruitingCards = routeCalls.filter(hasRecruitingRaidChat);
+    const schedulerRecruitingCards = schedulerSendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("💬 <b>Рейд-чат (останні 13):</b>")
+    );
+    expect(routeRecruitingCards).toHaveLength(0);
+    expect(schedulerRecruitingCards).toHaveLength(1);
+    expect(routeRecruitingCards.length + schedulerRecruitingCards.length).toBe(1);
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
+    expect(schedulerPartySessions.recordParticipantMessageReference).toHaveBeenCalledOnce();
   });
 
   it("shows a Big loss cooldown wait message from /raid without creating invite controls", async () => {
@@ -113,7 +197,7 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
 
-  it("opens explicit Barrel raid recruiting without auto-sending the forwardable invite card", async () => {
+  it("leaves the initial explicit Barrel recruiting card to the durable raid-chat scheduler", async () => {
     const { services, createForTelegramUser, getRaidChatAuthorizedView } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
       partyCharacter: { level: 3, remortCount: 1 },
@@ -127,11 +211,11 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
-    expect(calls.some(hasShareInviteButton)).toBe(true);
-    expect(calls.some(hasRecruitingRaidChat)).toBe(true);
-    expect(calls.some(hasRaidChatComposeButton)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(false);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(false);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(false);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
-    expect(getRaidChatAuthorizedView).toHaveBeenCalledWith(42n, PARTY_TOKEN);
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
   });
 
   it("keeps a remorted level 2 character on the legacy Barrel route even when Big is enabled", async () => {
@@ -583,4 +667,12 @@ function commandUpdate(text: string) {
       ]
     }
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 }

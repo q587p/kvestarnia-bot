@@ -928,9 +928,15 @@ export async function sendTavernBarrel(
       originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
     });
     const session = "session" in party ? party.session : null;
+    const schedulerOwnsInitialRecruitingCard = Boolean(
+      session &&
+      party.state === "created" &&
+      session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
+      options.partyRaidChat?.isEnabled() === true
+    );
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
     const viewerCharacterId = session ? getPartyViewerCharacterId(session, telegramUserId) : null;
-    const raidChat = session
+    const raidChat = session && !schedulerOwnsInitialRecruitingCard
       ? await options.partyRaidChat?.getAuthorizedView(telegramUserId, session.inviteToken) ?? null
       : null;
     const createText = presentPartyCreate(party, {
@@ -941,6 +947,9 @@ export async function sendTavernBarrel(
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
+    }
+    if (schedulerOwnsInitialRecruitingCard) {
+      return true;
     }
     const sentMessageId = await sendBigPartyText(
       ctx,
