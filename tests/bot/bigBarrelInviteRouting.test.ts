@@ -4,6 +4,7 @@ import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { sendCurrentLocation } from "../../src/bot/modules/mainMenu";
+import type { PartyRaidChatAuthorizedView } from "../../src/db/repositories/partyRaidChatRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
@@ -61,9 +62,15 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
   it("opens Big recruiting from /raid without auto-sending the forwardable invite card", async () => {
-    const { services, createForTelegramUser, recordParticipantMessageReference } = servicesForBigBarrelRoute({
+    const {
+      services,
+      createForTelegramUser,
+      getRaidChatAuthorizedView,
+      recordParticipantMessageReference
+    } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
-      partyCharacter: { level: 3, remortCount: 1 }
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
     const calls = await captureMessageApiCalls("/raid", services, {
       botUsername: BOT_USERNAME
@@ -74,7 +81,10 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(true);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
+    expect(getRaidChatAuthorizedView).toHaveBeenCalledWith(42n, PARTY_TOKEN);
     expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, PARTY_TOKEN, {
       chatId: 42n,
       messageId: 101
@@ -104,9 +114,10 @@ describe("Big Barrel Brother invite routing", () => {
 
 
   it("opens explicit Barrel raid recruiting without auto-sending the forwardable invite card", async () => {
-    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+    const { services, createForTelegramUser, getRaidChatAuthorizedView } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
-      partyCharacter: { level: 3, remortCount: 1 }
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
     const calls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
       botUsername: BOT_USERNAME
@@ -117,7 +128,10 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
     expect(calls.some(hasShareInviteButton)).toBe(true);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(true);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(true);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
+    expect(getRaidChatAuthorizedView).toHaveBeenCalledWith(42n, PARTY_TOKEN);
   });
 
   it("keeps a remorted level 2 character on the legacy Barrel route even when Big is enabled", async () => {
@@ -182,6 +196,16 @@ function hasShareInviteButton(call: ApiCall): boolean {
   return (call.method === "sendMessage" || call.method === "editMessageText") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes("https://t.me/share/url") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes(`party_${PARTY_TOKEN}`);
+}
+
+function hasRecruitingRaidChat(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    String(call.payload.text).includes("💬 <b>Рейд-чат (останні 13):</b>");
+}
+
+function hasRaidChatComposeButton(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    JSON.stringify(call.payload.reply_markup ?? {}).includes("💬 Написати в рейд-чат");
 }
 
 function hasBigApproachNotice(call: ApiCall): boolean {
@@ -313,10 +337,12 @@ function servicesForBigBarrelRoute(options: {
     now?: Date | undefined;
   };
   currentLocationId?: string;
+  raidChatView?: PartyRaidChatAuthorizedView;
 } = {}): {
   services: BotServices;
   session: PartySessionRecord;
   createForTelegramUser: ReturnType<typeof vi.fn>;
+  getRaidChatAuthorizedView: ReturnType<typeof vi.fn>;
   recordParticipantMessageReference: ReturnType<typeof vi.fn>;
 } {
   const character = makeCharacterSummary(options.character);
@@ -326,6 +352,7 @@ function servicesForBigBarrelRoute(options: {
     session
   });
   const recordParticipantMessageReference = vi.fn().mockResolvedValue(session);
+  const getRaidChatAuthorizedView = vi.fn().mockResolvedValue(options.raidChatView ?? null);
   const services = {
     achievements: {},
     adventure: {},
@@ -353,6 +380,11 @@ function servicesForBigBarrelRoute(options: {
     partyBoss: {
       areDevHelpersEnabled: () => false,
       getActiveForTelegramUser: vi.fn().mockResolvedValue(null)
+    },
+    partyRaidChat: {
+      areDevHelpersEnabled: () => false,
+      getAuthorizedView: getRaidChatAuthorizedView,
+      isEnabled: () => options.raidChatView !== undefined
     },
     partySessions: {
       areDevHelpersEnabled: () => false,
@@ -397,7 +429,26 @@ function servicesForBigBarrelRoute(options: {
     yeger: {}
   } as unknown as BotServices;
 
-  return { services, session, createForTelegramUser, recordParticipantMessageReference };
+  return {
+    services,
+    session,
+    createForTelegramUser,
+    getRaidChatAuthorizedView,
+    recordParticipantMessageReference
+  };
+}
+
+function makeRaidChatView(): PartyRaidChatAuthorizedView {
+  return {
+    partySessionId: "party-1",
+    inviteToken: PARTY_TOKEN,
+    chatRevision: 1,
+    lifecycle: "recruiting",
+    writable: true,
+    retentionUntil: null,
+    viewerCharacterId: "character-42",
+    entries: []
+  };
 }
 
 function makePartySession(characterOverrides: Partial<PartySessionRecord["leader"]> = {}): PartySessionRecord {

@@ -92,6 +92,8 @@ import {
   presentPartyBoss,
   presentPartyCreate
 } from "../presenters/partySessionPresenter";
+import { appendPartyRaidChatWithinBudget } from "../presenters/partyRaidChatPresenter";
+import { partyRaidChatTelegramGate } from "../partyRaidChatTelegramGate";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
@@ -928,23 +930,34 @@ export async function sendTavernBarrel(
     const session = "session" in party ? party.session : null;
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
     const viewerCharacterId = session ? getPartyViewerCharacterId(session, telegramUserId) : null;
+    const raidChat = session
+      ? await options.partyRaidChat?.getAuthorizedView(telegramUserId, session.inviteToken) ?? null
+      : null;
+    const createText = presentPartyCreate(party, {
+      inviteUrl,
+      viewerCharacterId
+    });
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
     }
-    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, {
-      inviteUrl,
-      viewerCharacterId
-    }), session
+    const sentMessageId = await sendBigPartyText(
+      ctx,
+      mode,
+      raidChat ? appendPartyRaidChatWithinBudget(createText, raidChat) : createText,
+      session
       ? {
           session,
           inviteUrl,
           viewerCharacterId,
           includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
-          includeDevExpire: options.partySessions.areDevHelpersEnabled()
+          includeDevExpire: options.partySessions.areDevHelpersEnabled(),
+          includeRaidChat: raidChat?.writable === true,
+          serializeRaidChat: raidChat !== null
         }
-      : false);
+      : false
+    );
     if (session && sentMessageId && ctx.chat?.id) {
       await options.partySessions.recordParticipantMessageReference(telegramUserId, session.inviteToken, {
         chatId: BigInt(ctx.chat.id),
@@ -1002,6 +1015,8 @@ async function sendBigPartyText(
         viewerCharacterId?: string | null | undefined;
         includeBossStart?: boolean | undefined;
         includeDevExpire?: boolean | undefined;
+        includeRaidChat?: boolean | undefined;
+        serializeRaidChat?: boolean | undefined;
       }
 ): Promise<number | null> {
   const options = {
@@ -1012,19 +1027,36 @@ async function sendBigPartyText(
             viewerCharacterId: keyboard.viewerCharacterId,
             inviteUrl: keyboard.inviteUrl,
             includeBossStart: keyboard.includeBossStart,
-            includeDevExpire: keyboard.includeDevExpire
+            includeDevExpire: keyboard.includeDevExpire,
+            includeRaidChat: keyboard.includeRaidChat
           })
         }
       : {})
   };
 
   if (mode === "edit") {
-    await safeEditMessageText(ctx, text, options);
+    await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.serializeRaidChat === true, () =>
+      safeEditMessageText(ctx, text, options)
+    );
     return null;
   }
 
-  const message = await ctx.reply(text, options);
+  const message = await runPartyRaidChatTelegramOperation(
+    ctx,
+    keyboard && keyboard.serializeRaidChat === true,
+    () => ctx.reply(text, options)
+  );
   return message.message_id ?? null;
+}
+
+function runPartyRaidChatTelegramOperation<T>(
+  ctx: Context,
+  serialize: boolean,
+  operation: () => Promise<T>
+): Promise<T> {
+  return serialize
+    ? partyRaidChatTelegramGate.enqueue(ctx.chat?.id ?? 0, operation)
+    : operation();
 }
 
 async function sendBigBossText(
