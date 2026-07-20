@@ -11,6 +11,7 @@ import { registerCoreBotModule } from "./modules/core";
 import { registerInventoryBotModule } from "./modules/inventory";
 import { resumeBotNotifications } from "./modules/notifications";
 import { registerQuestBotModule } from "./modules/quest";
+import { registerRaidChatBotModule } from "./modules/raidChat";
 import { registerSocialBotModule } from "./modules/social";
 import { registerTavernBotModule } from "./modules/tavern";
 
@@ -26,6 +27,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   });
 
   installMessageFreshnessTracking(bot);
+  registerRaidChatBotModule(bot, { services, options });
   registerCombatLockMiddleware(bot, services);
   registerPresenceMiddleware(bot, services.presence);
 

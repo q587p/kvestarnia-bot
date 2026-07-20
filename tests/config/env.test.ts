@@ -204,6 +204,15 @@ describe("loadConfig", () => {
     expect(config.bigBarrelBrotherRaidEnabled).toBe(true);
   });
 
+  it("ignores the removed standalone raid-chat environment key", () => {
+    const config = loadConfig({
+      ...validEnv,
+      BIG_BARREL_RAID_CHAT_ENABLED: "true"
+    });
+
+    expect(config).not.toHaveProperty("bigBarrelRaidChatEnabled");
+  });
+
   it("can enable tavern social games explicitly", () => {
     const config = loadConfig({
       ...validEnv,

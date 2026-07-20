@@ -78,7 +78,10 @@ export function presentOnline(
         suppressTitleForTelegramUserIds: renderedLocationPeople
       })
     );
-  } else if (snapshot.location.id === PRESENCE_LOCATION_KORCHMA_BARREL) {
+  } else if (
+    snapshot.location.id === PRESENCE_LOCATION_KORCHMA_BARREL &&
+    recruitingParties.length === 0
+  ) {
     lines.push("");
     lines.push("🍺 Активного рейду зараз немає.");
   }
@@ -181,7 +184,7 @@ function presentActivitySummary(
 function presentRecruitingParties(sessions: readonly PartySessionRecord[]): string[] {
   return sessions.flatMap((session, index) => {
     const joined = session.participants.filter((participant) => participant.status === "joined");
-    const header = `🍺 У груповому рейді «Старший Брат Бочки»: ${joined.length}`;
+    const header = `🛢️ У зборі на груповий рейд «Старший Брат Бочки»: ${joined.length}/${session.participantCap}`;
     const participants = joined.map((participant) =>
       `— ${presentCharacterDisplayName(participant.character, {
         maxNameLength: MAX_PRESENCE_NAME_LENGTH,

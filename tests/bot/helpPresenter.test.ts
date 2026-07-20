@@ -138,6 +138,11 @@ describe("help presenter", () => {
       includeDevGrant: false,
       includeHpRecovery: true
     });
+    const raidChatEnabled = presentDevHelp({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includeRaidChat: true
+    });
     const disabled = presentDevHelp({ includeDevReset: false, includeDevGrant: false });
 
     expect(resetOnly).toContain("🧰 Dev-довідка Квестарні");
@@ -172,6 +177,8 @@ describe("help presenter", () => {
     expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
     expect(grantsEnabled).toContain("🎲 /dev_reset_tavern_games");
     expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
+    expect(partyEnabled).not.toContain("/dev_raid_chat");
+    expect(raidChatEnabled).toContain("💬 /dev_raid_chat");
     expect(partyEnabled).not.toContain("/dev_help");
     expect(hpRecoveryEnabled).toContain(
       "❤️‍🩹 /dev_hp_recovery_due — підготувати сповіщення про відновлення HP локально"

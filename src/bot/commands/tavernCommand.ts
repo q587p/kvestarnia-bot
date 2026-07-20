@@ -19,6 +19,7 @@ import type { BardPerformanceService, PresentedLiveBardPerformance } from "../..
 import type { DuelTournamentService } from "../../services/duelTournamentService";
 import { getBarrelRaidPeriod } from "../../services/tavernRaidService";
 import type { PartyBossService } from "../../services/partyBossService";
+import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import {
   buildPartyInviteUrl,
   BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
@@ -153,6 +154,7 @@ type TavernCommandKeyboard =
 export interface TavernCommandOptions {
   botUsername?: string | undefined;
   partyBoss?: PartyBossService | undefined;
+  partyRaidChat?: PartyRaidChatService | undefined;
   partySessions?: PartySessionService | undefined;
   playerHintService?: Pick<PlayerHintService, "claimKorchmaHallYegerCountHint"> | undefined;
   openBigBarrelRecruiting?: boolean | undefined;
@@ -896,6 +898,7 @@ export async function sendTavernBarrel(
         session: activeBoss,
         viewerCharacterId,
         partyBoss: options.partyBoss,
+        partyRaidChat: options.partyRaidChat,
         telegramUserId,
         includeDevTimeout: options.partyBoss?.areDevHelpersEnabled()
       });
@@ -916,24 +919,36 @@ export async function sendTavernBarrel(
     }
 
     const period = getBarrelRaidPeriod(new Date());
+    const durableRaidChatCard = options.partyRaidChat?.isEnabled() === true;
     const party = await options.partySessions.createForTelegramUser(telegramUserId, {
-      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
-      messageId: ctx.callbackQuery?.message?.message_id ?? null,
+      chatId: durableRaidChatCard ? null : ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      messageId: durableRaidChatCard ? null : ctx.callbackQuery?.message?.message_id ?? null,
       periodId: period.id,
       originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
     });
     const session = "session" in party ? party.session : null;
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
     const viewerCharacterId = session ? getPartyViewerCharacterId(session, telegramUserId) : null;
+    const createText = presentPartyCreate(party, {
+      inviteUrl,
+      viewerCharacterId
+    });
 
     await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_BARREL);
     if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
     }
-    const sentMessageId = await sendBigPartyText(ctx, mode, presentPartyCreate(party, {
-      inviteUrl,
-      viewerCharacterId
-    }), session
+    if (durableRaidChatCard && session?.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      const refreshRequested = await options.partyRaidChat!.requestRecruitingRefresh(
+        telegramUserId,
+        session.inviteToken
+      );
+      if (refreshRequested && (party.state === "live" || party.state === "live-membership")) {
+        await ctx.reply("🔎 Оновлюю вашу картку збору вище в чаті.");
+      }
+      return true;
+    }
+    await sendBigPartyText(ctx, mode, createText, session
       ? {
           session,
           inviteUrl,
@@ -941,13 +956,8 @@ export async function sendTavernBarrel(
           includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
           includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
-      : false);
-    if (session && sentMessageId && ctx.chat?.id) {
-      await options.partySessions.recordParticipantMessageReference(telegramUserId, session.inviteToken, {
-        chatId: BigInt(ctx.chat.id),
-        messageId: sentMessageId
-      });
-    }
+      : false
+    );
     return true;
   }
 
@@ -1000,7 +1010,7 @@ async function sendBigPartyText(
         includeBossStart?: boolean | undefined;
         includeDevExpire?: boolean | undefined;
       }
-): Promise<number | null> {
+): Promise<void> {
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     ...(keyboard
@@ -1014,14 +1024,11 @@ async function sendBigPartyText(
         }
       : {})
   };
-
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, options);
-    return null;
+    return;
   }
-
-  const message = await ctx.reply(text, options);
-  return message.message_id ?? null;
+  await ctx.reply(text, options);
 }
 
 async function sendBigBossText(
@@ -1032,6 +1039,7 @@ async function sendBigBossText(
     session: Parameters<typeof buildPartyBossKeyboard>[0];
     viewerCharacterId?: string | null | undefined;
     partyBoss?: PartyBossService | undefined;
+    partyRaidChat?: PartyRaidChatService | undefined;
     telegramUserId?: bigint | undefined;
     includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
@@ -1047,7 +1055,8 @@ async function sendBigBossText(
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildPartyBossKeyboard(keyboard.session, keyboard.viewerCharacterId ?? null, {
       ...(includeCombatItems === undefined ? {} : { includeCombatItems }),
-      includeDevTimeout: keyboard.includeDevTimeout
+      includeDevTimeout: keyboard.includeDevTimeout,
+      includeRaidChat: keyboard.partyRaidChat?.isEnabled() === true
     })
   };
 

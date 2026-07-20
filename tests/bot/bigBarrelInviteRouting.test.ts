@@ -1,12 +1,19 @@
-import type { Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
 import { makePlaceCallbackData } from "../../src/bot/callbacks/placeCallbackData";
 import { makeTavernCallbackData } from "../../src/bot/callbacks/tavernCallbackData";
 import { sendCurrentLocation } from "../../src/bot/modules/mainMenu";
+import { runPartyRaidChatDeliveryTick } from "../../src/bot/partyRaidChatDeliveryScheduler";
+import type {
+  PartyRaidChatAuthorizedView,
+  PartyRaidChatDeliveryRecord
+} from "../../src/db/repositories/partyRaidChatRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
+import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 import {
   PRESENCE_LOCATION_KORCHMA_BARREL,
   PRESENCE_LOCATION_KORCHMA_HALL
@@ -60,10 +67,16 @@ describe("Big Barrel Brother invite routing", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
   });
 
-  it("opens Big recruiting from /raid without auto-sending the forwardable invite card", async () => {
-    const { services, createForTelegramUser, recordParticipantMessageReference } = servicesForBigBarrelRoute({
+  it("leaves the initial /raid recruiting card to the durable raid-chat scheduler", async () => {
+    const {
+      services,
+      createForTelegramUser,
+      getRaidChatAuthorizedView,
+      recordParticipantMessageReference
+    } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
-      partyCharacter: { level: 3, remortCount: 1 }
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
     const calls = await captureMessageApiCalls("/raid", services, {
       botUsername: BOT_USERNAME
@@ -73,12 +86,101 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
-    expect(calls.some(hasShareInviteButton)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(false);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(false);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(false);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
-    expect(recordParticipantMessageReference).toHaveBeenCalledWith(42n, PARTY_TOKEN, {
-      chatId: 42n,
-      messageId: 101
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
+  });
+
+  it("publishes one canonical card when creation, the scheduler and an immediate second /raid interleave", async () => {
+    const creationCommitted = deferred<void>();
+    const schedulerPublished = deferred<void>();
+    const {
+      services,
+      session,
+      createForTelegramUser,
+      getRaidChatAuthorizedView,
+      recordParticipantMessageReference
+    } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
+    createForTelegramUser.mockImplementation(async () => {
+      creationCommitted.resolve();
+      await schedulerPublished.promise;
+      return { state: "created", session };
+    });
+
+    const schedulerSendMessage = vi.fn().mockImplementation(() => {
+      schedulerPublished.resolve();
+      return Promise.resolve({ chat: { id: 42 }, message_id: 101 });
+    });
+    const schedulerEditMessage = vi.fn().mockResolvedValue(true);
+    const schedulerRaidChat = {
+      prepareDisabledRedactions: vi.fn().mockResolvedValue(0),
+      cleanupExpired: vi.fn().mockResolvedValue(0),
+      listDueDeliveries: vi.fn().mockImplementation(async () => {
+        await creationCommitted.promise;
+        return [{
+          id: "delivery-42",
+          version: 2,
+          participantId: "participant-42",
+          partySessionId: session.id,
+          inviteToken: session.inviteToken,
+          participantCharacterId: session.leaderCharacterId,
+          telegramUserId: 42n,
+          surfaceMode: "recruiting_embed",
+          chatId: null,
+          messageId: null,
+          desiredRevision: 1,
+          renderedRevision: 0,
+          redactionRequired: false,
+          attemptCount: 0
+        }];
+      }),
+      isEnabled: vi.fn().mockReturnValue(true),
+      getAuthorizedView: vi.fn().mockResolvedValue(makeRaidChatView()),
+      isDeliveryClaimCurrent: vi.fn().mockResolvedValue(true),
+      markDeliveryFailure: vi.fn(),
+      markDeliveryRedacted: vi.fn(),
+      markDeliveryRendered: vi.fn().mockResolvedValue(true),
+      recordDeliveryReference: vi.fn().mockResolvedValue(true)
+    };
+    const schedulerPartySessions = {
+      areDevHelpersEnabled: () => false,
+      getByToken: vi.fn().mockResolvedValue({ state: "ready", session }),
+      recordParticipantMessageReference: vi.fn().mockResolvedValue(session)
+    };
+    const schedulerBot = {
+      api: {
+        editMessageText: schedulerEditMessage,
+        sendMessage: schedulerSendMessage
+      }
+    } as unknown as Bot;
+
+    const [firstRouteCalls, secondRouteCalls] = await Promise.all([
+      captureMessageApiCalls("/raid", services, { botUsername: BOT_USERNAME }),
+      captureMessageApiCalls("/raid", services, { botUsername: BOT_USERNAME }),
+      runPartyRaidChatDeliveryTick({
+        partyRaidChat: schedulerRaidChat as unknown as PartyRaidChatService,
+        partySessions: schedulerPartySessions as unknown as PartySessionService
+      }, schedulerBot, { botUsername: BOT_USERNAME })
+    ]);
+
+    const routeRecruitingCards = [...firstRouteCalls, ...secondRouteCalls].filter(hasRecruitingRaidChat);
+    const schedulerRecruitingCards = schedulerEditMessage.mock.calls.filter((call) =>
+      String(call[2]).includes("💬 <b>Рейд-чат (останні 13):</b>")
+    );
+    expect(routeRecruitingCards).toHaveLength(0);
+    expect(schedulerRecruitingCards).toHaveLength(1);
+    expect(routeRecruitingCards.length + schedulerRecruitingCards.length).toBe(1);
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
+    expect(schedulerPartySessions.recordParticipantMessageReference).not.toHaveBeenCalled();
+    expect(createForTelegramUser).toHaveBeenCalledTimes(2);
   });
 
   it("shows a Big loss cooldown wait message from /raid without creating invite controls", async () => {
@@ -103,10 +205,16 @@ describe("Big Barrel Brother invite routing", () => {
   });
 
 
-  it("opens explicit Barrel raid recruiting without auto-sending the forwardable invite card", async () => {
-    const { services, createForTelegramUser } = servicesForBigBarrelRoute({
+  it("leaves the initial explicit Barrel recruiting card to the durable raid-chat scheduler", async () => {
+    const {
+      services,
+      createForTelegramUser,
+      getRaidChatAuthorizedView,
+      requestRecruitingRefresh
+    } = servicesForBigBarrelRoute({
       character: { level: 3, remortCount: 1 },
-      partyCharacter: { level: 3, remortCount: 1 }
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
     });
     const calls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
       botUsername: BOT_USERNAME
@@ -116,8 +224,71 @@ describe("Big Barrel Brother invite routing", () => {
     expect(calls.some(hasMainRecruitingFurnitureNotice)).toBe(false);
     expect(calls.some(hasBigRecruitingCardInviteLine)).toBe(false);
     expect(calls.some(hasForwardableInviteUrl)).toBe(false);
-    expect(calls.some(hasShareInviteButton)).toBe(true);
+    expect(calls.some(hasShareInviteButton)).toBe(false);
+    expect(calls.some(hasRecruitingRaidChat)).toBe(false);
+    expect(calls.some(hasRaidChatComposeButton)).toBe(false);
     expect(createForTelegramUser).toHaveBeenCalledOnce();
+    expect(createForTelegramUser).toHaveBeenCalledWith(42n, expect.objectContaining({
+      chatId: null,
+      messageId: null
+    }));
+    expect(requestRecruitingRefresh).toHaveBeenCalledWith(42n, PARTY_TOKEN);
+    expect(getRaidChatAuthorizedView).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an existing /raid card through its durable reference without replying with a transcript", async () => {
+    const { services, session, createForTelegramUser, requestRecruitingRefresh } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
+    });
+    createForTelegramUser.mockResolvedValue({ state: "live-membership", session });
+    const scheduler = makeRecruitingScheduler(session, { chatId: 42n, messageId: 101 });
+
+    const routeCalls = await captureMessageApiCalls("/raid", services, { botUsername: BOT_USERNAME });
+    await runPartyRaidChatDeliveryTick(scheduler.services, scheduler.bot, { botUsername: BOT_USERNAME });
+
+    expect(routeCalls.filter(hasRecruitingRaidChat)).toHaveLength(0);
+    expect(routeCalls.filter(hasRecruitingRefreshAcknowledgement)).toHaveLength(1);
+    expect(requestRecruitingRefresh).toHaveBeenCalledWith(42n, PARTY_TOKEN);
+    expect(scheduler.sendMessage).not.toHaveBeenCalled();
+    expect(scheduler.editMessage).toHaveBeenCalledWith(
+      42,
+      101,
+      expect.stringContaining("💬 <b>Рейд-чат (останні 13):</b>"),
+      expect.any(Object)
+    );
+  });
+
+  it("keeps a live Tavern callback menu unrelated to the canonical recruiting transcript", async () => {
+    const {
+      services,
+      session,
+      createForTelegramUser,
+      requestRecruitingRefresh
+    } = servicesForBigBarrelRoute({
+      character: { level: 3, remortCount: 1 },
+      partyCharacter: { level: 3, remortCount: 1 },
+      raidChatView: makeRaidChatView()
+    });
+    createForTelegramUser.mockResolvedValue({ state: "live", session });
+    const scheduler = makeRecruitingScheduler(session, { chatId: 42n, messageId: 101 });
+
+    const routeCalls = await captureCallbackApiCalls(makeTavernCallbackData("raid"), services, {
+      botUsername: BOT_USERNAME
+    });
+    await runPartyRaidChatDeliveryTick(scheduler.services, scheduler.bot, { botUsername: BOT_USERNAME });
+
+    expect(routeCalls.some((call) => call.method === "editMessageText" &&
+      Number(call.payload.message_id) === 10 && hasRecruitingRaidChat(call))).toBe(false);
+    expect(routeCalls.filter(hasRecruitingRefreshAcknowledgement)).toHaveLength(1);
+    expect(requestRecruitingRefresh).toHaveBeenCalledWith(42n, PARTY_TOKEN);
+    expect(scheduler.editMessage).toHaveBeenCalledWith(
+      42,
+      101,
+      expect.stringContaining("💬 <b>Рейд-чат (останні 13):</b>"),
+      expect.any(Object)
+    );
   });
 
   it("keeps a remorted level 2 character on the legacy Barrel route even when Big is enabled", async () => {
@@ -182,6 +353,22 @@ function hasShareInviteButton(call: ApiCall): boolean {
   return (call.method === "sendMessage" || call.method === "editMessageText") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes("https://t.me/share/url") &&
     JSON.stringify(call.payload.reply_markup ?? {}).includes(`party_${PARTY_TOKEN}`);
+}
+
+function hasRecruitingRaidChat(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    String(call.payload.text).includes("💬 <b>Рейд-чат (останні 13):</b>");
+}
+
+function hasRaidChatComposeButton(call: ApiCall): boolean {
+  return (call.method === "sendMessage" || call.method === "editMessageText") &&
+    JSON.stringify(call.payload.reply_markup ?? {}).includes("💬 Написати в рейд-чат");
+}
+
+function hasRecruitingRefreshAcknowledgement(call: ApiCall): boolean {
+  return call.method === "sendMessage" &&
+    String(call.payload.text) === "🔎 Оновлюю вашу картку збору вище в чаті." &&
+    call.payload.reply_markup === undefined;
 }
 
 function hasBigApproachNotice(call: ApiCall): boolean {
@@ -302,6 +489,55 @@ async function captureMessageApiCalls(
   return calls;
 }
 
+function makeRecruitingScheduler(
+  session: PartySessionRecord,
+  overrides: Partial<PartyRaidChatDeliveryRecord> = {}
+) {
+  const delivery: PartyRaidChatDeliveryRecord = {
+    id: "delivery-42",
+    version: 2,
+    participantId: "participant-42",
+    partySessionId: session.id,
+    inviteToken: session.inviteToken,
+    participantCharacterId: session.leaderCharacterId,
+    telegramUserId: 42n,
+    surfaceMode: "recruiting_embed",
+    chatId: null,
+    messageId: null,
+    desiredRevision: 1,
+    renderedRevision: 0,
+    redactionRequired: false,
+    attemptCount: 0,
+    ...overrides
+  };
+  const editMessage = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockResolvedValue({ chat: { id: 42 }, message_id: 101 });
+  const raidChat = {
+    prepareDisabledRedactions: vi.fn().mockResolvedValue(0),
+    cleanupExpired: vi.fn().mockResolvedValue(0),
+    listDueDeliveries: vi.fn().mockResolvedValue([delivery]),
+    isEnabled: vi.fn().mockReturnValue(true),
+    getAuthorizedView: vi.fn().mockResolvedValue(makeRaidChatView()),
+    isDeliveryClaimCurrent: vi.fn().mockResolvedValue(true),
+    markDeliveryFailure: vi.fn(),
+    markDeliveryRedacted: vi.fn(),
+    markDeliveryRendered: vi.fn().mockResolvedValue(true),
+    recordDeliveryReference: vi.fn().mockResolvedValue(true)
+  };
+  return {
+    bot: { api: { editMessageText: editMessage, sendMessage } } as unknown as Bot,
+    editMessage,
+    sendMessage,
+    services: {
+      partyRaidChat: raidChat as unknown as PartyRaidChatService,
+      partySessions: {
+        areDevHelpersEnabled: () => false,
+        getByToken: vi.fn().mockResolvedValue({ state: "ready", session })
+      } as unknown as PartySessionService
+    }
+  };
+}
+
 function servicesForBigBarrelRoute(options: {
   character?: Partial<CharacterSummary>;
   partyCharacter?: Partial<PartySessionRecord["leader"]>;
@@ -313,11 +549,14 @@ function servicesForBigBarrelRoute(options: {
     now?: Date | undefined;
   };
   currentLocationId?: string;
+  raidChatView?: PartyRaidChatAuthorizedView;
 } = {}): {
   services: BotServices;
   session: PartySessionRecord;
   createForTelegramUser: ReturnType<typeof vi.fn>;
+  getRaidChatAuthorizedView: ReturnType<typeof vi.fn>;
   recordParticipantMessageReference: ReturnType<typeof vi.fn>;
+  requestRecruitingRefresh: ReturnType<typeof vi.fn>;
 } {
   const character = makeCharacterSummary(options.character);
   const session = makePartySession(options.partyCharacter);
@@ -326,6 +565,8 @@ function servicesForBigBarrelRoute(options: {
     session
   });
   const recordParticipantMessageReference = vi.fn().mockResolvedValue(session);
+  const getRaidChatAuthorizedView = vi.fn().mockResolvedValue(options.raidChatView ?? null);
+  const requestRecruitingRefresh = vi.fn().mockResolvedValue(true);
   const services = {
     achievements: {},
     adventure: {},
@@ -353,6 +594,12 @@ function servicesForBigBarrelRoute(options: {
     partyBoss: {
       areDevHelpersEnabled: () => false,
       getActiveForTelegramUser: vi.fn().mockResolvedValue(null)
+    },
+    partyRaidChat: {
+      areDevHelpersEnabled: () => false,
+      getAuthorizedView: getRaidChatAuthorizedView,
+      requestRecruitingRefresh,
+      isEnabled: () => options.raidChatView !== undefined
     },
     partySessions: {
       areDevHelpersEnabled: () => false,
@@ -397,7 +644,27 @@ function servicesForBigBarrelRoute(options: {
     yeger: {}
   } as unknown as BotServices;
 
-  return { services, session, createForTelegramUser, recordParticipantMessageReference };
+  return {
+    services,
+    session,
+    createForTelegramUser,
+    getRaidChatAuthorizedView,
+    recordParticipantMessageReference,
+    requestRecruitingRefresh
+  };
+}
+
+function makeRaidChatView(): PartyRaidChatAuthorizedView {
+  return {
+    partySessionId: "party-1",
+    inviteToken: PARTY_TOKEN,
+    chatRevision: 1,
+    lifecycle: "recruiting",
+    writable: true,
+    retentionUntil: null,
+    viewerCharacterId: "character-42",
+    entries: []
+  };
 }
 
 function makePartySession(characterOverrides: Partial<PartySessionRecord["leader"]> = {}): PartySessionRecord {
@@ -532,4 +799,12 @@ function commandUpdate(text: string) {
       ]
     }
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 }

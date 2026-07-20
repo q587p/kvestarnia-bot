@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -14,6 +14,8 @@ import {
 } from "../../src/domain/equipment/equipmentAttunement";
 import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureaucramancerProtocol";
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
+import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -31,7 +33,8 @@ describe("PrismaPartySessionRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaPartySessionRepository(prisma);
+    await applyRaidChatMigration(prisma);
+    repository = new PrismaPartySessionRepository(prisma, new PrismaPartyRaidChatTransactionWriter(true));
   }, 60_000);
 
   afterAll(async () => {
@@ -94,6 +97,181 @@ describe("PrismaPartySessionRepository integration", () => {
         }
       }
     })).toBe(1);
+  });
+
+  it("records every same-life rejoin once and re-arms its existing chat delivery", async () => {
+    const token = "party-token-chat-rejoin";
+    await seedCharacter(prisma, "chat-rejoin-leader-user", 2011n, "Ватажок Чату", { level: 8 });
+    await seedCharacter(prisma, "chat-rejoin-member-user", 2012n, "Поворотниця", { level: 8 });
+    await repository.createForTelegramUser(2011n, bigBarrelInput(token));
+
+    await expect(repository.joinByTokenForTelegramUser(2012n, token, joinInput())).resolves.toMatchObject({
+      state: "joined"
+    });
+    await expect(repository.leaveByTokenForTelegramUser(2012n, token, now())).resolves.toMatchObject({
+      state: "left"
+    });
+    await expect(repository.joinByTokenForTelegramUser(2012n, token, joinInput("dev"))).resolves.toMatchObject({
+      state: "joined"
+    });
+    await expect(repository.joinByTokenForTelegramUser(2012n, token, joinInput("dev"))).resolves.toMatchObject({
+      state: "already-joined"
+    });
+
+    const session = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: token },
+      select: { id: true, chatRevision: true }
+    });
+    const participant = await prisma.partyParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, character: { user: { telegramUserId: 2012n } } },
+      select: { id: true }
+    });
+    const joinedEntries = await prisma.partyRaidChatEntry.findMany({
+      where: {
+        partySessionId: session.id,
+        eventType: "participant.joined",
+        actorCharacterId: "chat-rejoin-member-user-character"
+      },
+      orderBy: { revision: "asc" },
+      select: { sourceKey: true }
+    });
+    expect(joinedEntries).toHaveLength(2);
+    expect(new Set(joinedEntries.map((entry) => entry.sourceKey)).size).toBe(2);
+    expect(joinedEntries.every((entry) => entry.sourceKey.includes(":life:0"))).toBe(true);
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { participantId: participant.id },
+      select: { redactionRequired: true, desiredRevision: true, nextAttemptAt: true }
+    })).resolves.toEqual({
+      redactionRequired: false,
+      desiredRevision: session.chatRevision,
+      nextAttemptAt: now()
+    });
+  });
+
+  it("revokes leave and remort composers outside a bounded disabled rollout scan", async () => {
+    const chat = new PrismaPartyRaidChatRepository(prisma);
+    const disabledRepository = new PrismaPartySessionRepository(
+      prisma,
+      new PrismaPartyRaidChatTransactionWriter(false)
+    );
+    const cases = [
+      {
+        token: "party-token-disabled-leave",
+        leaderUser: "disabled-leave-leader-user",
+        leaderTelegramId: 2021n,
+        memberUser: "disabled-leave-member-user",
+        memberTelegramId: 2022n
+      },
+      {
+        token: "party-token-disabled-remort",
+        leaderUser: "disabled-remort-leader-user",
+        leaderTelegramId: 2023n,
+        memberUser: "disabled-remort-member-user",
+        memberTelegramId: 2024n
+      }
+    ];
+    for (const entry of cases) {
+      await seedCharacter(prisma, entry.leaderUser, entry.leaderTelegramId, "Ватажок Вимкненого Чату", { level: 8 });
+      await seedCharacter(prisma, entry.memberUser, entry.memberTelegramId, "Учасниця Вимкненого Чату", { level: 8 });
+      await repository.createForTelegramUser(entry.leaderTelegramId, bigBarrelInput(entry.token));
+      await repository.joinByTokenForTelegramUser(entry.memberTelegramId, entry.token, joinInput());
+      for (let reopen = 0; reopen < 2; reopen += 1) {
+        await prisma.partyRaidChatDeliveryState.updateMany({
+          where: {
+            participant: {
+              character: { user: { telegramUserId: entry.memberTelegramId } },
+              session: { inviteToken: entry.token }
+            }
+          },
+          data: {
+            version: { increment: 1 },
+            nextAttemptAt: now(),
+            lastDeliveryClass: "refresh-requested"
+          }
+        });
+      }
+      const session = await prisma.partySession.findUniqueOrThrow({
+        where: { inviteToken: entry.token },
+        select: { id: true }
+      });
+      await prisma.partyRaidChatComposeIntent.create({
+        data: {
+          partySessionId: session.id,
+          characterId: `${entry.memberUser}-character`,
+          remortCount: 0,
+          telegramUserId: entry.memberTelegramId,
+          privateChatId: entry.memberTelegramId,
+          promptMessageId: 93,
+          activeKey: `compose:${entry.memberUser}`,
+          status: "awaiting_reply",
+          expiresAt: new Date(now().getTime() + 93_000)
+        }
+      });
+      await prisma.partyParticipant.updateMany({
+        where: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } },
+        data: { updatedAt: new Date("9998-01-01T00:00:00.000Z") }
+      });
+    }
+
+    await expect(chat.markDisabledReferencesForRedaction(now(), 1)).resolves.toBe(0);
+    for (const entry of cases) {
+      await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
+        where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } },
+        select: { redactionRequired: true }
+      })).resolves.toEqual({ redactionRequired: false });
+    }
+
+    await expect(disabledRepository.leaveByTokenForTelegramUser(
+      cases[0]!.memberTelegramId,
+      cases[0]!.token,
+      now()
+    )).resolves.toMatchObject({ state: "left" });
+    await disabledRepository.cleanupLiveMembershipsForRemort(`${cases[1]!.memberUser}-character`, now());
+
+    for (const entry of cases) {
+      await expect(prisma.partyRaidChatComposeIntent.findFirstOrThrow({
+        where: { characterId: `${entry.memberUser}-character`, partySession: { inviteToken: entry.token } },
+        select: { status: true, activeKey: true }
+      })).resolves.toEqual({ status: "cancelled", activeKey: null });
+      await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
+        where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } },
+        select: { redactionRequired: true }
+      })).resolves.toEqual({ redactionRequired: true });
+      await expect(prisma.partyRaidChatDeliveryState.count({
+        where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } }
+      })).resolves.toBe(1);
+    }
+  });
+
+  it("uses a unique source key when remort transfers leadership to the same member twice", async () => {
+    const token = "party-token-remort-leader-repeat";
+    await seedCharacter(prisma, "remort-leader-repeat-a", 2025n, "Пан А", { level: 8 });
+    await seedCharacter(prisma, "remort-leader-repeat-b", 2026n, "Пані Б", { level: 8 });
+    await repository.createForTelegramUser(2025n, bigBarrelInput(token));
+    await repository.joinByTokenForTelegramUser(2026n, token, joinInput());
+
+    await repository.cleanupLiveMembershipsForRemort("remort-leader-repeat-a-character", now());
+    await repository.joinByTokenForTelegramUser(2025n, token, joinInput());
+    await repository.leaveByTokenForTelegramUser(2026n, token, now());
+    await repository.joinByTokenForTelegramUser(2026n, token, joinInput());
+    await repository.cleanupLiveMembershipsForRemort("remort-leader-repeat-a-character", now());
+
+    const session = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: token },
+      select: { id: true }
+    });
+    const transfers = await prisma.partyRaidChatEntry.findMany({
+      where: {
+        partySessionId: session.id,
+        eventType: "leader.transferred",
+        actorCharacterId: "remort-leader-repeat-b-character"
+      },
+      orderBy: { revision: "asc" },
+      select: { sourceKey: true }
+    });
+    expect(transfers).toHaveLength(2);
+    expect(new Set(transfers.map((entry) => entry.sourceKey)).size).toBe(2);
+    expect(transfers.every((entry) => entry.sourceKey?.includes(":remort:"))).toBe(true);
   });
 
   it("returns honest stale state when join loses the recruiting version CAS", async () => {
@@ -444,6 +622,18 @@ describe("PrismaPartySessionRepository integration", () => {
     });
     await expectPersonalProtocolSnapshotCount(prisma, "party-token-protocol", 1);
     await expectPersonalProtocolSignatureSnapshotCount(prisma, "party-token-protocol", 2);
+    await expect(prisma.partyRaidChatEntry.groupBy({
+      by: ["eventType"],
+      where: {
+        partySession: { inviteToken: "party-token-protocol" },
+        eventType: { in: ["protocol.filed", "protocol.signed"] }
+      },
+      _count: { _all: true },
+      orderBy: { eventType: "asc" }
+    })).resolves.toEqual([
+      { eventType: "protocol.filed", _count: { _all: 1 } },
+      { eventType: "protocol.signed", _count: { _all: 1 } }
+    ]);
   });
 
   it("uses exact current attunement lookup after more than 13 historical rows for protocol cost", async () => {
@@ -932,12 +1122,21 @@ describe("PrismaPartySessionRepository integration", () => {
     })).resolves.toEqual({ manaCurrent: 10 });
   });
 
-  it("records the actual sent recruiting card message reference for a joined participant", async () => {
+  it("keeps a generic party-card reference separate from the durable raid-chat reference", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
       ...bigBarrelInput("party-token-message-ref"),
       chatId: null,
       messageId: null
+    });
+    const delivery = await prisma.partyRaidChatDeliveryState.findFirstOrThrow({
+      where: { participant: { session: { inviteToken: "party-token-message-ref" } } },
+      select: { id: true }
+    });
+    const idleAt = new Date("9999-12-31T23:59:59.999Z");
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery.id },
+      data: { desiredRevision: 1, renderedRevision: 1, nextAttemptAt: idleAt }
     });
 
     const updated = await repository.recordParticipantMessageReference(2151n, "party-token-message-ref", {
@@ -964,6 +1163,25 @@ describe("PrismaPartySessionRepository integration", () => {
       chatId: 2151n,
       messageId: 42
     });
+    await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+      where: { id: delivery.id },
+      select: { activeChatId: true, activeMessageId: true, nextAttemptAt: true }
+    })).resolves.toEqual({
+      activeChatId: null,
+      activeMessageId: null,
+      nextAttemptAt: idleAt
+    });
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery.id },
+      data: {
+        version: { increment: 1 },
+        nextAttemptAt: now(),
+        lastDeliveryClass: "refresh-requested"
+      }
+    });
+    const due = (await new PrismaPartyRaidChatRepository(prisma).listDueDeliveries(now(), 130))
+      .find((candidate) => candidate.id === delivery.id);
+    expect(due).toMatchObject({ chatId: null, messageId: null });
   });
 
   it("records a replacement card reference after the party becomes terminal-ineligible", async () => {
@@ -1449,6 +1667,18 @@ async function withForcedSessionVersionCasLoss<T>(
     return await action();
   } finally {
     await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${safeTriggerName}`);
+  }
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 

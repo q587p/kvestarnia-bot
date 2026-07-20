@@ -224,6 +224,7 @@ export function registerTavernBotModule(
   registerTavernCommand(bot, services.tavern, services.presence, {
     botUsername: options.botUsername,
     partyBoss: services.partyBoss,
+    partyRaidChat: services.partyRaidChat,
     partySessions: services.partySessions,
     playerHintService: services.playerHints,
     resolveQuestMarkers: (telegramUserId) => buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
@@ -1331,6 +1332,7 @@ async function handlePlaceCallback(
     await sendTavernBarrel(ctx, services.tavern, services.presence, "reply", {
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
+      partyRaidChat: services.partyRaidChat,
       partySessions: services.partySessions,
       ...(questMarkers ? { questMarkers } : {})
     });
@@ -1697,6 +1699,7 @@ async function handleTavernCallback(
     const bigHandled = await sendTavernBarrel(ctx, tavernRaidService, presenceService, "edit", {
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
+      partyRaidChat: services.partyRaidChat,
       partySessions: services.partySessions,
       openBigBarrelRecruiting: true,
       onlyBigBarrelRecruiting: true

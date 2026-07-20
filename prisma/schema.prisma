@@ -74,6 +74,9 @@ model Character {
   duelTournamentClaims DuelTournamentClaim[]
   partySessionsLed PartySession[] @relation("PartySessionLeader")
   partyParticipants PartyParticipant[]
+  partyRaidChatEntries PartyRaidChatEntry[] @relation("PartyRaidChatEntryActor")
+  partyRaidChatComposeIntents PartyRaidChatComposeIntent[]
+  partyRaidChatAuthorStates PartyRaidChatAuthorState[]
   tavernGameSessionsCreated TavernGameSession[] @relation("TavernGameCreator")
   tavernGameParticipants TavernGameParticipant[]
   partyBossActions PartyBossAction[]
@@ -967,11 +970,18 @@ model PartySession {
   joinUntilAt         DateTime  @map("join_until_at")
   expiresAt           DateTime  @map("expires_at")
   version             Int       @default(1)
+  chatRevision        Int       @default(0) @map("chat_revision")
+  raidChatRetentionUntil DateTime? @map("raid_chat_retention_until")
   activeLeaderKey     String?   @unique @map("active_leader_key")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
   participants        PartyParticipant[]
   bossSessions        PartyBossSession[]
+  raidChatEntries        PartyRaidChatEntry[]
+  raidChatComposeIntents PartyRaidChatComposeIntent[]
+  raidChatAuthorStates   PartyRaidChatAuthorState[]
+  raidChatRateState      PartyRaidChatRateState?
+  raidChatDeliveryStates PartyRaidChatDeliveryState[]
 
   @@index([status, joinUntilAt])
   @@index([status, expiresAt])
@@ -997,11 +1007,117 @@ model PartyParticipant {
   activeMembershipKey String?   @unique @map("active_membership_key")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
+  raidChatDeliveryState PartyRaidChatDeliveryState?
 
   @@unique([sessionId, characterId])
   @@index([characterId, status])
   @@index([sessionId, status])
   @@map("party_participants")
+}
+
+model PartyRaidChatEntry {
+  id               Int          @id @default(autoincrement())
+  partySessionId   String       @map("party_session_id")
+  partySession     PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  revision         Int
+  kind             String
+  eventType        String?      @map("event_type")
+  actorCharacterId String?      @map("actor_character_id")
+  actorCharacter   Character?   @relation("PartyRaidChatEntryActor", fields: [actorCharacterId], references: [id], onDelete: SetNull)
+  actorDisplayName String?      @map("actor_display_name")
+  actorRemortCount Int?         @map("actor_remort_count")
+  body             String?
+  payloadJson      Json?        @map("payload_json")
+  sourceKey        String?      @map("source_key")
+  occurredAt       DateTime     @map("occurred_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  @@unique([partySessionId, revision])
+  @@unique([partySessionId, sourceKey])
+  @@index([partySessionId, id])
+  @@index([actorCharacterId, occurredAt])
+  @@map("party_raid_chat_entries")
+}
+
+model PartyRaidChatComposeIntent {
+  id                String       @id @default(uuid())
+  partySessionId    String       @map("party_session_id")
+  partySession      PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  characterId       String       @map("character_id")
+  character         Character    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount       Int          @map("remort_count")
+  telegramUserId    BigInt       @map("telegram_user_id")
+  privateChatId     BigInt       @map("private_chat_id")
+  promptMessageId   Int?         @map("prompt_message_id")
+  activeKey         String?      @unique @map("active_key")
+  status            String       @default("awaiting_prompt")
+  version           Int          @default(1)
+  expiresAt         DateTime     @map("expires_at")
+  consumedAt        DateTime?    @map("consumed_at")
+  cancelledAt       DateTime?    @map("cancelled_at")
+  acceptedSourceKey String?      @map("accepted_source_key")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  @@index([telegramUserId, privateChatId, promptMessageId, status])
+  @@index([status, expiresAt])
+  @@index([partySessionId, characterId])
+  @@map("party_raid_chat_compose_intents")
+}
+
+model PartyRaidChatAuthorState {
+  id             String       @id @default(uuid())
+  partySessionId String       @map("party_session_id")
+  partySession   PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  characterId    String       @map("character_id")
+  character      Character    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount    Int          @map("remort_count")
+  version        Int          @default(1)
+  nextAllowedAt  DateTime?    @map("next_allowed_at")
+  lastBodyHash   String?      @map("last_body_hash")
+  lastBodyAt     DateTime?    @map("last_body_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([partySessionId, characterId, remortCount])
+  @@index([characterId, remortCount])
+  @@map("party_raid_chat_author_states")
+}
+
+model PartyRaidChatRateState {
+  partySessionId  String       @id @map("party_session_id")
+  partySession    PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  version         Int          @default(1)
+  windowStartedAt DateTime?    @map("window_started_at")
+  acceptedCount   Int          @default(0) @map("accepted_count")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@map("party_raid_chat_rate_states")
+}
+
+model PartyRaidChatDeliveryState {
+  id                String           @id @default(uuid())
+  version           Int              @default(1)
+  participantId     String           @unique @map("participant_id")
+  participant       PartyParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  partySessionId    String           @map("party_session_id")
+  partySession      PartySession     @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  surfaceMode       String           @default("recruiting_embed") @map("surface_mode")
+  activeChatId      BigInt?          @map("active_chat_id")
+  activeMessageId   Int?             @map("active_message_id")
+  desiredRevision   Int              @default(0) @map("desired_revision")
+  renderedRevision  Int              @default(0) @map("rendered_revision")
+  redactionRequired Boolean          @default(false) @map("redaction_required")
+  nextAttemptAt     DateTime         @default(now()) @map("next_attempt_at")
+  attemptCount      Int              @default(0) @map("attempt_count")
+  lastDeliveryClass String?          @map("last_delivery_class")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([nextAttemptAt, redactionRequired, desiredRevision, renderedRevision])
+  @@index([partySessionId, surfaceMode])
+  @@map("party_raid_chat_delivery_states")
 }
 
 model PartyBossSession {

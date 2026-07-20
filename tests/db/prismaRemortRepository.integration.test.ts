@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositories/prismaPendingPassageEncounterRepository";
@@ -12,6 +12,11 @@ import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquip
 import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import type { RemortCompletionInput } from "../../src/db/repositories/remortRepository";
 import type { CombatState } from "../../src/domain/combat";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
+import {
+  PARTY_RAID_CHAT_RETENTION_MS,
+} from "../../src/db/repositories/partyRaidChatRepository";
+import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
 import { HeroService } from "../../src/services/heroService";
 import {
   settleVarenykSatedOutsideCombat,
@@ -36,9 +41,11 @@ describe("PrismaRemortRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    repository = new PrismaRemortRepository(prisma);
+    await applyRaidChatMigration(prisma);
+    const raidChat = new PrismaPartyRaidChatTransactionWriter(true);
+    repository = new PrismaRemortRepository(prisma, undefined, raidChat);
     passages = new PrismaPendingPassageEncounterRepository(prisma);
-    partyBosses = new PrismaPartyBossRepository(prisma);
+    partyBosses = new PrismaPartyBossRepository(prisma, undefined, raidChat);
   }, 60_000);
 
   afterAll(async () => {
@@ -635,6 +642,118 @@ describe("PrismaRemortRepository integration", () => {
     )).resolves.toMatchObject({ state: "completed" });
     await expect(prisma.activeCombatLease.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(0);
     await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-stale-lease" } })).resolves.toBe(1);
+  });
+
+  it("terminalizes only the actor's due Big Barrel chat during remort", async () => {
+    const now = new Date("2026-06-22T12:30:00.000Z");
+    const joinedAt = new Date(now.getTime() - 14 * 60_000);
+    const actorId = "character-remort-due-chat";
+    const survivorId = "character-remort-due-chat-survivor";
+    const partyId = "party-remort-due-chat";
+    const inviteToken = "party-remort-due-chat-token";
+    const unrelatedLeaderId = "character-remort-due-chat-unrelated-leader";
+    const unrelatedMemberId = "character-remort-due-chat-unrelated-member";
+    const unrelatedPartyId = "party-remort-due-chat-unrelated";
+    await seedCharacter(prisma, {
+      userId: "user-remort-due-chat",
+      characterId: actorId,
+      telegramUserId: 99304n
+    });
+    await seedDraft(prisma, actorId, "token-remort-due-chat", now);
+    await seedCharacter(prisma, {
+      userId: "user-remort-due-chat-survivor",
+      characterId: survivorId,
+      telegramUserId: 99305n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-remort-due-chat-unrelated-leader",
+      characterId: unrelatedLeaderId,
+      telegramUserId: 99306n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-remort-due-chat-unrelated-member",
+      characterId: unrelatedMemberId,
+      telegramUserId: 99307n
+    });
+    await seedRecruitingBigBarrel(prisma, {
+      partyId,
+      inviteToken,
+      actorId,
+      survivorId,
+      joinedAt
+    });
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: unrelatedPartyId,
+      inviteToken: "party-remort-due-chat-unrelated-token",
+      actorId: unrelatedLeaderId,
+      survivorId: unrelatedMemberId,
+      joinedAt
+    });
+    const writer = new PrismaPartyRaidChatTransactionWriter(true);
+    await prisma.$transaction((tx) => writer.append(tx, {
+      partySessionId: partyId,
+      eventType: "party.created",
+      sourceKey: `${partyId}:created`,
+      occurredAt: joinedAt
+    }));
+    await prisma.$transaction((tx) => writer.append(tx, {
+      partySessionId: unrelatedPartyId,
+      eventType: "party.created",
+      sourceKey: `${unrelatedPartyId}:created`,
+      occurredAt: joinedAt
+    }));
+    const chat = new PrismaPartyRaidChatRepository(prisma);
+    const begun = await chat.beginCompose(99304n, inviteToken, 99304n, now);
+    if (begun.state !== "created") {
+      throw new Error("Composer setup failed.");
+    }
+    await chat.bindComposePrompt(begun.intentId, begun.version, 42, now);
+    await expect(chat.requestRecruitingRefresh(99304n, inviteToken, now)).resolves.toBe(true);
+    await expect(chat.requestRecruitingRefresh(99304n, inviteToken, now)).resolves.toBe(true);
+
+    await expect(repository.completeDraftForTelegramUser(
+      99304n,
+      makeCompletionInput("token-remort-due-chat", now)
+    )).resolves.toMatchObject({ state: "completed" });
+
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: partyId },
+      select: { status: true, raidChatRetentionUntil: true }
+    })).resolves.toEqual({
+      status: "expired",
+      raidChatRetentionUntil: new Date(now.getTime() + PARTY_RAID_CHAT_RETENTION_MS)
+    });
+    await expect(prisma.partySession.findUniqueOrThrow({
+      where: { id: unrelatedPartyId },
+      select: { status: true, raidChatRetentionUntil: true }
+    })).resolves.toEqual({
+      status: "recruiting",
+      raidChatRetentionUntil: null
+    });
+    await expect(prisma.partyRaidChatEntry.count({
+      where: { partySessionId: partyId, eventType: "raid.expired" }
+    })).resolves.toBe(1);
+    await expect(prisma.partyRaidChatComposeIntent.findUniqueOrThrow({
+      where: { id: begun.intentId },
+      select: { status: true, activeKey: true }
+    })).resolves.toEqual({ status: "cancelled", activeKey: null });
+    await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
+      where: { participant: { characterId: actorId } },
+      select: { surfaceMode: true, redactionRequired: true }
+    })).resolves.toEqual({ surfaceMode: "terminal_read_only", redactionRequired: true });
+    await expect(prisma.partyRaidChatDeliveryState.count({
+      where: { participant: { characterId: actorId } }
+    })).resolves.toBe(1);
+    await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
+      where: { participant: { characterId: unrelatedLeaderId } },
+      select: { surfaceMode: true, redactionRequired: true }
+    })).resolves.toEqual({ surfaceMode: "recruiting_embed", redactionRequired: false });
+    await expect(prisma.partyRaidChatEntry.count({
+      where: { partySessionId: unrelatedPartyId, eventType: "raid.expired" }
+    })).resolves.toBe(0);
+    await expect(prisma.partyParticipant.count({
+      where: { sessionId: { in: [partyId, unrelatedPartyId] }, activeMembershipKey: { not: null } }
+    })).resolves.toBe(2);
   });
 
   it("keeps canonically persisted Big Barrel pre-lease Sated recovery when another participant remorts", async () => {
@@ -1398,6 +1517,18 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     )`
   ]) {
     await prisma.$executeRawUnsafe(statement);
+  }
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 

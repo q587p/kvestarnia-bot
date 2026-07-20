@@ -18,6 +18,7 @@ import {
   type PartyBossStandardActionKey,
   type PartyBossCombatItemInput,
   type PartyBossParticipantActionSummary,
+  type PartyBossRoundSummary,
   type PartyBossResult,
   type PartyBossRewardSnapshot,
   type PartyBossState
@@ -64,6 +65,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
 import { buildBardLamentPlan } from "../../domain/noncombat/bardSupport";
 import { SeededRandomSource } from "../../shared/random";
+import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -163,7 +165,8 @@ const partyBossInclude = {
 export class PrismaPartyBossRepository implements PartyBossRepository {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    private readonly raidChat = new PrismaPartyRaidChatTransactionWriter(false)
   ) {}
 
   async startFromRecruitingPartyForTelegramUser(
@@ -239,6 +242,13 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             if (party.expiresAt <= input.now && input.allowExpiredRecruiting === true) {
               const terminalized = await terminalizeIneligibleRecruitingParty(tx, party);
               if (terminalized) {
+                await this.raidChat.append(tx, {
+                  partySessionId: party.id,
+                  eventType: "raid.expired",
+                  sourceKey: `party:${party.id}:terminal:ineligible`,
+                  occurredAt: input.now
+                });
+                await this.raidChat.terminalize(tx, party.id, input.now);
                 return { state: "terminal-ineligible" };
               }
 
@@ -444,6 +454,25 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         },
         include: partyBossInclude
       });
+
+      await this.raidChat.append(tx, {
+        partySessionId: party.id,
+        eventType: "raid.started",
+        sourceKey: `party:${party.id}:boss:${boss.id}:started`,
+        occurredAt: input.now,
+        actorCharacterId: party.leaderCharacterId,
+        actorDisplayName: joined.find((participant) => participant.characterId === party.leaderCharacterId)?.character.name ?? null
+      });
+      if (state.bardMusic?.kind === "inspiration") {
+        await this.raidChat.append(tx, {
+          partySessionId: party.id,
+          eventType: "raid.music.started",
+          sourceKey: `party:${party.id}:boss:${boss.id}:music:inspiration`,
+          occurredAt: input.now,
+          payload: { kind: "inspiration" }
+        });
+      }
+      await this.raidChat.activate(tx, party.id, input.now);
 
       return { state: "started", session: this.mapSession(boss) };
     }).catch(async (error: unknown): Promise<PartyBossStartResult> => {
@@ -1140,6 +1169,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
+      await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
+
       for (const action of actionInputs) {
         if (action.action === "item" && action.item) {
           await consumePartyBossCombatItem(tx, action.characterId, action.item.id);
@@ -1193,6 +1224,13 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           input.now,
           resolved.state
         );
+        await this.raidChat.append(tx, {
+          partySessionId: session.partySessionId,
+          eventType: status === "won" ? "raid.won" : status === "lost" ? "raid.lost" : "raid.cancelled",
+          sourceKey: `party:${session.partySessionId}:boss:${session.id}:terminal:${status}`,
+          occurredAt: input.now
+        });
+        await this.raidChat.terminalize(tx, session.partySessionId, input.now);
       }
 
       const current = await tx.partyBossSession.findUnique({
@@ -1215,6 +1253,67 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
   private parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
     return parseState(row);
+  }
+}
+
+async function appendResolvedRaidChatEvents(
+  raidChat: PrismaPartyRaidChatTransactionWriter,
+  tx: TxClient,
+  session: PartyBossRow,
+  previousState: PartyBossState,
+  nextState: PartyBossState,
+  round: PartyBossRoundSummary,
+  occurredAt: Date
+): Promise<void> {
+  const actorSnapshot = (characterId: string) => {
+    const participant = nextState.participants.find((row) => row.characterId === characterId);
+    return {
+      actorCharacterId: characterId,
+      actorDisplayName: participant?.name ?? null,
+      actorRemortCount: participant?.remortCount ?? null
+    };
+  };
+
+  if (round.warriorTaunt?.activatedCharacterId) {
+    const characterId = round.warriorTaunt.activatedCharacterId;
+    await raidChat.append(tx, {
+      partySessionId: session.partySessionId,
+      eventType: "ability.taunt",
+      sourceKey: `party:${session.partySessionId}:boss:${session.id}:turn:${round.turn}:taunt:${characterId}`,
+      occurredAt,
+      ...actorSnapshot(characterId)
+    });
+  }
+
+  if (round.bardMusic?.activated) {
+    const characterId = round.bardMusic.sourceCharacterId;
+    await raidChat.append(tx, {
+      partySessionId: session.partySessionId,
+      eventType: "ability.lament",
+      sourceKey: `party:${session.partySessionId}:boss:${session.id}:turn:${round.turn}:lament:${round.bardMusic.activationId}`,
+      occurredAt,
+      ...actorSnapshot(characterId)
+    });
+  }
+
+  const previousParticipants = new Map(previousState.participants.map((participant) => [
+    participant.characterId,
+    participant
+  ]));
+  for (const participant of nextState.participants) {
+    const previous = previousParticipants.get(participant.characterId);
+    if (previous?.status !== "active" || participant.status !== "knocked-out") {
+      continue;
+    }
+    await raidChat.append(tx, {
+      partySessionId: session.partySessionId,
+      eventType: "participant.knocked-out",
+      sourceKey: `party:${session.partySessionId}:boss:${session.id}:turn:${previousState.turn}:knocked-out:${participant.characterId}`,
+      occurredAt,
+      actorCharacterId: participant.characterId,
+      actorDisplayName: participant.name,
+      actorRemortCount: participant.remortCount
+    });
   }
 }
 

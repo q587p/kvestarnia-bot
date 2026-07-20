@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findMantokAbilityGrantByKey } from "../../src/content";
@@ -18,6 +18,7 @@ import {
 } from "../../src/domain/noncombat/bardSupport";
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../src/services/presenceService";
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
+import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 
 function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
   if (!("session" in result)) {
@@ -25,6 +26,18 @@ function expectPartyBossSession(result: PartyBossActionResult): PartyBossSession
   }
 
   return result.session;
+}
+
+async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
+  }
 }
 
 describe("PrismaPartyBossRepository integration", () => {
@@ -44,8 +57,10 @@ describe("PrismaPartyBossRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
-    partyRepository = new PrismaPartySessionRepository(prisma);
-    bossRepository = new PrismaPartyBossRepository(prisma, new HpRecoveryNotificationProducer(true));
+    await applyRaidChatMigration(prisma);
+    const raidChat = new PrismaPartyRaidChatTransactionWriter(true);
+    partyRepository = new PrismaPartySessionRepository(prisma, raidChat);
+    bossRepository = new PrismaPartyBossRepository(prisma, new HpRecoveryNotificationProducer(true), raidChat);
   }, 60_000);
 
   afterAll(async () => {
@@ -268,6 +283,15 @@ describe("PrismaPartyBossRepository integration", () => {
       },
       select: { actionKey: true }
     })).resolves.toEqual({ actionKey: "lament" });
+    await expect(prisma.partyRaidChatEntry.findMany({
+      where: { partySession: { inviteToken: "party-token-big-solo-lament" } },
+      orderBy: { revision: "asc" },
+      select: { eventType: true, actorCharacterId: true }
+    })).resolves.toEqual([
+      { eventType: "party.created", actorCharacterId: "solo-lament-bard-character" },
+      { eventType: "raid.started", actorCharacterId: "solo-lament-bard-character" },
+      { eventType: "ability.lament", actorCharacterId: "solo-lament-bard-character" }
+    ]);
   });
 
   it("terminalizes a due Big Barrel party if a joined participant began a legacy solo raid after joining", async () => {
@@ -558,6 +582,12 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(firstResolved.achievementEvents).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "warrior.raid-taunt.activated" })
     ]));
+    expect(await prisma.partyRaidChatEntry.count({
+      where: {
+        partySession: { inviteToken: "party-token-warrior-taunt" },
+        eventType: "ability.taunt"
+      }
+    })).toBe(0);
 
     await bossRepository.submitActionForTelegramUser(
       1051n,
@@ -590,6 +620,12 @@ describe("PrismaPartyBossRepository integration", () => {
         characterId: "taunt-warrior-user-character"
       })
     ]));
+    expect(await prisma.partyRaidChatEntry.count({
+      where: {
+        partySession: { inviteToken: "party-token-warrior-taunt" },
+        eventType: "ability.taunt"
+      }
+    })).toBe(1);
 
     const stale = await bossRepository.submitActionForTelegramUser(
       1051n,
@@ -1491,10 +1527,13 @@ describe("PrismaPartyBossRepository integration", () => {
     })).resolves.toEqual({ quantity: 1 });
   });
 
-  it("releases leases and live party keys when timeout resolution knocks out all participants", async () => {
-    await seedCharacter(prisma, "knockout-leader-user", 2001n, "Крихка Лідерка", { hp: 1 });
-    await seedCharacter(prisma, "knockout-joiner-user", 2002n, "Крихкий Помічник", { hp: 1 });
-    await partyRepository.createForTelegramUser(2001n, partyInput("party-token-knockout"));
+  it("records every Big Barrel knockout once before releasing leases and live party keys", async () => {
+    await seedCharacter(prisma, "knockout-leader-user", 2001n, "Крихка Лідерка", { hp: 1, level: 8 });
+    await seedCharacter(prisma, "knockout-joiner-user", 2002n, "Крихкий Помічник", { hp: 1, level: 8 });
+    await partyRepository.createForTelegramUser(2001n, {
+      ...partyInput("party-token-knockout"),
+      originLocationId: "barrel.big-brother"
+    });
     await partyRepository.joinByTokenForTelegramUser(2002n, "party-token-knockout", joinInput());
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(2001n, {
@@ -1504,6 +1543,23 @@ describe("PrismaPartyBossRepository integration", () => {
     });
 
     expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error(`Expected started session, got ${started.state}`);
+    }
+    await prisma.partyBossSession.update({
+      where: { id: started.session.id },
+      data: {
+        turn: 4,
+        stateJson: {
+          ...started.session.state,
+          turn: 4,
+          participants: started.session.state.participants.map((participant) => ({
+            ...participant,
+            resources: { ...participant.resources, hp: 1 }
+          }))
+        }
+      }
+    });
     const resolved = await bossRepository.resolveTimedOutByToken("party-token-knockout", {
       now: new Date("2026-06-30T10:01:00.000Z"),
       nextTurnExpiresAt: new Date("2026-06-30T10:01:23.000Z")
@@ -1521,6 +1577,23 @@ describe("PrismaPartyBossRepository integration", () => {
         }
       }
     })).toBe(0);
+    const chatEntries = await prisma.partyRaidChatEntry.findMany({
+      where: { partySession: { inviteToken: "party-token-knockout" } },
+      orderBy: { revision: "asc" },
+      select: { eventType: true, actorCharacterId: true }
+    });
+    expect(chatEntries.slice(0, 3)).toEqual([
+      { eventType: "party.created", actorCharacterId: "knockout-leader-user-character" },
+      { eventType: "participant.joined", actorCharacterId: "knockout-joiner-user-character" },
+      { eventType: "raid.started", actorCharacterId: "knockout-leader-user-character" }
+    ]);
+    expect(chatEntries.slice(3, 5).sort((left, right) =>
+      String(left.actorCharacterId).localeCompare(String(right.actorCharacterId))
+    )).toEqual([
+      { eventType: "participant.knocked-out", actorCharacterId: "knockout-joiner-user-character" },
+      { eventType: "participant.knocked-out", actorCharacterId: "knockout-leader-user-character" }
+    ]);
+    expect(chatEntries.at(-1)).toEqual({ eventType: "raid.lost", actorCharacterId: null });
   });
 
   it("manual dev timeout force-resolves missing actions before the turn deadline", async () => {

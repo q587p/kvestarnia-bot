@@ -51,6 +51,7 @@ import {
   calculateBureaucramancerProtocolManaCost,
   BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL
 } from "../../services/bureaucramancerProtocol";
+import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -136,14 +137,17 @@ const partySessionInclude = {
 } satisfies Prisma.PartySessionInclude;
 
 export class PrismaPartySessionRepository implements PartySessionRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly raidChat = new PrismaPartyRaidChatTransactionWriter(false)
+  ) {}
 
   async createForTelegramUser(
     telegramUserId: bigint,
     input: CreatePartySessionInput
   ): Promise<PartyCreateRepositoryResult> {
     const result = await this.prisma.$transaction(async (tx) => {
-      await expireRecruitingTx(tx, input.now);
+      await expireRecruitingTx(tx, input.now, 23, this.raidChat);
       const character = await findCharacterByTelegramUser(tx, telegramUserId);
 
       if (!character) {
@@ -219,6 +223,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         },
         include: partySessionInclude
       });
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "party.created",
+        sourceKey: `party:${session.id}:created`,
+        occurredAt: input.now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: character._count.remorts
+      });
 
       return {
         state: "created",
@@ -256,7 +269,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     input: JoinPartySessionInput
   ): Promise<PartyJoinRepositoryResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyJoinRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, input.now);
+      await expireTokenIfNeededTx(tx, inviteToken, input.now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -280,7 +293,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         session.status !== LIVE_STATUS ||
         (session.expiresAt <= input.now && session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
       ) {
-        const expired = await expireSessionTx(tx, session.id);
+        const expired = await expireSessionTx(tx, session.id, input.now, this.raidChat);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
       }
 
@@ -343,7 +356,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       if (liveMembership && liveMembership.id !== session.id) {
-        await terminalizeSessionTx(tx, liveMembership.id, "cancelled");
+        await terminalizeSessionTx(tx, liveMembership.id, "cancelled", input.now, this.raidChat);
         const cancelled = await findSessionById(tx, liveMembership.id);
         cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
       }
@@ -405,6 +418,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         throw new PartyCapacityRaceError();
       }
 
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "participant.joined",
+        sourceKey: `party:${session.id}:participant:${character.id}:joined:v${session.version + 1}:life:${character._count.remorts}`,
+        occurredAt: input.now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: character._count.remorts
+      });
+
       const updated = await findSessionById(tx, session.id);
       return updated
         ? {
@@ -460,7 +483,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     now: Date
   ): Promise<PartyLeaveRepositoryResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyLeaveRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -525,8 +548,19 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         );
       }
 
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "participant.left",
+        sourceKey: `party:${session.id}:participant:${character.id}:left:${participant.joinedAt.toISOString()}`,
+        occurredAt: now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: participant.remortCount
+      });
+      await this.raidChat.revokeParticipant(tx, participant.id, session.id, character.id, now);
+
       if (remaining.length === 0) {
-        await terminalizeSessionTx(tx, session.id, "cancelled");
+        await terminalizeSessionTx(tx, session.id, "cancelled", now, this.raidChat);
         const cancelled = await findSessionById(tx, session.id);
         return cancelled ? { state: "cancelled", session: mapSession(cancelled) } : { state: "not-found" };
       }
@@ -539,6 +573,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             leaderCharacterId: nextLeader.characterId,
             activeLeaderKey: leaderKey(nextLeader.characterId)
           }
+        });
+        await this.raidChat.append(tx, {
+          partySessionId: session.id,
+          eventType: "leader.transferred",
+          sourceKey: `party:${session.id}:leader:${nextLeader.characterId}:${session.version + 1}`,
+          occurredAt: now,
+          actorCharacterId: nextLeader.characterId,
+          actorDisplayName: nextLeader.character.name,
+          actorRemortCount: nextLeader.remortCount
         });
         const updated = await findSessionById(tx, session.id);
         return updated ? { state: "leader-transferred", session: mapSession(updated) } : { state: "not-found" };
@@ -570,7 +613,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     now: Date
   ): Promise<PartyCancelRepositoryResult> {
     return this.prisma.$transaction(async (tx) => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -594,7 +637,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "stale", session: mapSession(session) };
       }
 
-      await terminalizeSessionTx(tx, session.id, "cancelled");
+      await terminalizeSessionTx(tx, session.id, "cancelled", now, this.raidChat);
       const updated = await findSessionById(tx, session.id);
       if (!updated) {
         return { state: "not-found" };
@@ -613,7 +656,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     now: Date
   ): Promise<PartyReadinessRepositoryResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyReadinessRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -724,7 +767,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     now: Date
   ): Promise<PartyWardSignPlaceRepositoryResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyWardSignPlaceRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -812,6 +855,15 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         }
       });
 
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "ward.placed",
+        sourceKey: `party:${session.id}:ward:${character.id}`,
+        occurredAt: now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: character._count.remorts
+      });
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
     });
@@ -824,7 +876,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
   ): Promise<PartyWardSignSupportRepositoryResult> {
     try {
       return await this.prisma.$transaction(async (tx): Promise<PartyWardSignSupportRepositoryResult> => {
-        await expireTokenIfNeededTx(tx, inviteToken, now);
+        await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
         const session = await findSessionByToken(tx, inviteToken);
 
         if (!session) {
@@ -908,6 +960,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           throw new KharakternykWardSupportManaSpendLostError(session.id);
         }
 
+        await this.raidChat.append(tx, {
+          partySessionId: session.id,
+          eventType: "ward.supported",
+          sourceKey: `party:${session.id}:ward-support:${character.id}`,
+          occurredAt: now,
+          actorCharacterId: character.id,
+          actorDisplayName: character.name,
+          actorRemortCount: character._count.remorts
+        });
+
         const updated = await findSessionById(tx, session.id);
         return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
       });
@@ -937,7 +999,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
   ): Promise<PartyPersonalProtocolFileRepositoryResult> {
     try {
       return await this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolFileRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -1105,6 +1167,18 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         );
       }
 
+
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "protocol.filed",
+        sourceKey: `party:${session.id}:protocol:${protocolId}:filed`,
+        occurredAt: now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: character._count.remorts,
+        payload: { protocolId }
+      });
+
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
       });
@@ -1140,7 +1214,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     now: Date
   ): Promise<PartyPersonalProtocolSignRepositoryResult> {
     return this.prisma.$transaction(async (tx): Promise<PartyPersonalProtocolSignRepositoryResult> => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
 
       if (!session) {
@@ -1194,6 +1268,17 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       if (reserved !== "reserved") {
         return resolvePersonalProtocolSignReservationLoss(reserved, character.id, character._count.remorts);
       }
+
+      await this.raidChat.append(tx, {
+        partySessionId: session.id,
+        eventType: "protocol.signed",
+        sourceKey: `party:${session.id}:protocol:${protocol.protocolId}:signed:${character.id}`,
+        occurredAt: now,
+        actorCharacterId: character.id,
+        actorDisplayName: character.name,
+        actorRemortCount: character._count.remorts,
+        payload: { protocolId: protocol.protocolId }
+      });
 
       const updated = await findSessionById(tx, session.id);
       return updated ? { state: "updated", session: mapSession(updated) } : { state: "not-found" };
@@ -1257,7 +1342,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           joinedAt: participant.joinedAt
         }
       });
-
       const updated = await findSessionById(tx, session.id);
       return updated ? mapSession(updated) : null;
     });
@@ -1314,13 +1398,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
   async expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
-      await expireTokenIfNeededTx(tx, inviteToken, now);
+      await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
       const session = await findSessionByToken(tx, inviteToken);
       return session ? mapSession(session) : null;
     });
   }
 
-  async forceExpireByToken(inviteToken: string): Promise<PartySessionRecord | null> {
+  async forceExpireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const session = await findSessionByToken(tx, inviteToken);
 
@@ -1329,7 +1413,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       }
 
       if (session.status === LIVE_STATUS) {
-        await terminalizeSessionTx(tx, session.id, "expired");
+        await terminalizeSessionTx(tx, session.id, "expired", now, this.raidChat);
         const updated = await findSessionById(tx, session.id);
         return updated ? mapSession(updated) : null;
       }
@@ -1339,12 +1423,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
   }
 
   async expireRecruiting(now: Date, limit = 23): Promise<number> {
-    return expireRecruitingTx(this.prisma, now, limit);
+    return this.prisma.$transaction((tx) => expireRecruitingTx(tx, now, limit, this.raidChat));
   }
 
   async cleanupLiveMembershipsForRemort(characterId: string, now: Date): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await expireRecruitingTx(tx, now);
       const liveRows = await tx.partyParticipant.findMany({
         where: {
           characterId,
@@ -1355,11 +1438,17 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           }
         },
         include: {
-          session: true
+          session: true,
+          character: { select: { name: true } }
         }
       });
 
       for (const row of liveRows) {
+        if (row.session.expiresAt <= now) {
+          await terminalizeSessionTx(tx, row.sessionId, "expired", now, this.raidChat);
+          await this.raidChat.revokeParticipant(tx, row.id, row.sessionId, characterId, now);
+          continue;
+        }
         await tx.partyParticipant.update({
           where: { id: row.id },
           data: {
@@ -1368,6 +1457,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
             activeMembershipKey: null
           }
         });
+        await this.raidChat.append(tx, {
+          partySessionId: row.sessionId,
+          eventType: "participant.removed",
+          sourceKey: `party:${row.sessionId}:participant:${characterId}:remort:${row.remortCount}`,
+          occurredAt: now,
+          actorCharacterId: characterId,
+          actorDisplayName: row.character.name,
+          actorRemortCount: row.remortCount
+        });
+        await this.raidChat.revokeParticipant(tx, row.id, row.sessionId, characterId, now);
 
         const remaining = await tx.partyParticipant.findMany({
           where: {
@@ -1377,19 +1476,30 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           orderBy: [
             { joinedAt: "asc" },
             { id: "asc" }
-          ]
+          ],
+          include: { character: { select: { name: true } } }
         });
 
         if (remaining.length === 0) {
-        await terminalizeSessionTx(tx, row.sessionId, "cancelled");
+          await terminalizeSessionTx(tx, row.sessionId, "cancelled", now, this.raidChat);
         } else if (row.session.leaderCharacterId === characterId) {
-          await tx.partySession.update({
+          const transferred = await tx.partySession.update({
             where: { id: row.sessionId },
             data: {
               leaderCharacterId: remaining[0]!.characterId,
               activeLeaderKey: leaderKey(remaining[0]!.characterId),
               version: { increment: 1 }
-            }
+            },
+            select: { version: true }
+          });
+          await this.raidChat.append(tx, {
+            partySessionId: row.sessionId,
+            eventType: "leader.transferred",
+            sourceKey: `party:${row.sessionId}:leader:${remaining[0]!.characterId}:remort:${transferred.version}`,
+            occurredAt: now,
+            actorCharacterId: remaining[0]!.characterId,
+            actorDisplayName: remaining[0]!.character.name,
+            actorRemortCount: remaining[0]!.remortCount
           });
         }
       }
@@ -1496,7 +1606,12 @@ async function findLiveMembershipSession(
   return participant?.session ?? null;
 }
 
-async function expireTokenIfNeededTx(tx: TxClient, inviteToken: string, now: Date): Promise<void> {
+async function expireTokenIfNeededTx(
+  tx: TxClient,
+  inviteToken: string,
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
+): Promise<void> {
   const session = await tx.partySession.findUnique({
     where: { inviteToken },
     select: {
@@ -1512,22 +1627,25 @@ async function expireTokenIfNeededTx(tx: TxClient, inviteToken: string, now: Dat
     session.expiresAt <= now &&
     session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
   ) {
-    await terminalizeSessionTx(tx, session.id, "expired");
+    await terminalizeSessionTx(tx, session.id, "expired", now, raidChat);
   }
 }
 
 async function expireSessionTx(
   tx: TxClient,
-  sessionId: string
+  sessionId: string,
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<PartySessionRow | null> {
-  await terminalizeSessionTx(tx, sessionId, "expired");
+  await terminalizeSessionTx(tx, sessionId, "expired", now, raidChat);
   return findSessionById(tx, sessionId);
 }
 
 async function expireRecruitingTx(
-  prisma: Pick<PrismaClient, "partySession" | "partyParticipant"> | TxClient,
+  prisma: TxClient,
   now: Date,
-  limit = 23
+  limit: number,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<number> {
   const sessions = await prisma.partySession.findMany({
     where: {
@@ -1549,16 +1667,18 @@ async function expireRecruitingTx(
   });
 
   for (const session of sessions) {
-    await terminalizeSessionTx(prisma, session.id, "expired");
+    await terminalizeSessionTx(prisma, session.id, "expired", now, raidChat);
   }
 
   return sessions.length;
 }
 
 async function terminalizeSessionTx(
-  tx: Pick<PrismaClient, "partySession" | "partyParticipant"> | TxClient,
+  tx: TxClient,
   sessionId: string,
-  status: "cancelled" | "expired"
+  status: "cancelled" | "expired",
+  now: Date,
+  raidChat: PrismaPartyRaidChatTransactionWriter
 ): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
@@ -1576,6 +1696,13 @@ async function terminalizeSessionTx(
   if (transitioned.count !== 1) {
     return;
   }
+  await raidChat.append(tx, {
+    partySessionId: sessionId,
+    eventType: status === "expired" ? "raid.expired" : "raid.cancelled",
+    sourceKey: `party:${sessionId}:terminal:${status}`,
+    occurredAt: now
+  });
+  await raidChat.terminalize(tx, sessionId, now);
   await tx.partyParticipant.updateMany({
     where: {
       sessionId,

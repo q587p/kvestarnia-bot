@@ -20,6 +20,8 @@ import {
   makePartyBossJournalCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
+  makePartyRaidChatComposeCallbackData,
+  makePartyRaidChatOpenCallbackData,
   makePartySessionCancelCallbackData,
   makePartySessionExpireCallbackData,
   makePartySessionInviteRotateCallbackData,
@@ -47,6 +49,7 @@ export function buildPartySessionKeyboard(
     inviteUrl?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
     includeBossStart?: boolean | undefined;
+    includeRaidChat?: boolean | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -93,6 +96,10 @@ export function buildPartySessionKeyboard(
 
     if (!options.includeBossStart && options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (viewer && options.includeRaidChat) {
+      keyboard.text("💬 Написати в рейд-чат", makePartyRaidChatComposeCallbackData(token)).row();
     }
 
     if (isBigBarrel && options.inviteUrl) {
@@ -161,6 +168,7 @@ export function buildPartyBossKeyboard(
     includeCombatItems?: boolean | undefined;
     includeDevTimeout?: boolean | undefined;
     now?: Date | undefined;
+    includeRaidChat?: boolean | undefined;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -253,7 +261,27 @@ export function buildPartyBossKeyboard(
   if (session.status !== "active") {
     keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
   }
+  if (options.includeRaidChat && viewer) {
+    keyboard.text("💬 Рейд-чат", makePartyRaidChatOpenCallbackData(session.partyInviteToken)).row();
+  }
+
   return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+}
+
+export function buildPartyRaidChatKeyboard(input: {
+  token: string;
+  writable: boolean;
+  active: boolean;
+  terminal?: boolean | undefined;
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (input.writable) {
+    keyboard.text("💬 Написати в рейд-чат", makePartyRaidChatComposeCallbackData(input.token)).row();
+  }
+  return keyboard.text(
+    input.active ? "↩️ До рейду" : input.terminal ? "↩️ До результатів" : "↩️ До збору",
+    makePartySessionViewCallbackData(input.token)
+  );
 }
 
 export function buildPartyBossItemsKeyboard(input: {

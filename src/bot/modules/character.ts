@@ -96,6 +96,7 @@ export function registerCharacterBotModule(
     {
       ...(services.duel ? { duel: services.duel } : {}),
       ...(services.partyBoss ? { partyBoss: services.partyBoss } : {}),
+      ...(services.partyRaidChat ? { partyRaidChat: services.partyRaidChat } : {}),
       ...(services.partySessions ? { partySessions: services.partySessions } : {}),
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
       presence: services.presence,

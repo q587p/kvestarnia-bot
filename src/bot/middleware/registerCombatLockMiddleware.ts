@@ -144,6 +144,8 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:party:bm:") &&
       !data.startsWith("v1:party:bi:") &&
       !data.startsWith("v1:party:bt:") &&
+      !data.startsWith("v1:party:rc:") &&
+      !data.startsWith("v1:party:rw:") &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -186,6 +188,8 @@ function isPendingRaidSafeCallback(data: string | undefined): boolean {
 function isCombatLockSafeCommand(command: string): boolean {
   return (
     command === "help" ||
+    command === "cancel_raid_chat" ||
+    command === "dev_raid_chat" ||
     command === "version" ||
     command === "hero" ||
     command === "profile" ||
@@ -414,7 +418,8 @@ async function redirectPartyBossLockIfNeeded(
         telegramUserId,
         active
       ),
-      includeDevTimeout: services.partyBoss.areDevHelpersEnabled()
+      includeDevTimeout: services.partyBoss.areDevHelpersEnabled(),
+      includeRaidChat: services.partyRaidChat?.isEnabled() === true
     }),
     preserveCallbackSource: options.preserveCallbackSource
   });

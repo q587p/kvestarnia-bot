@@ -35,6 +35,7 @@ import { MantokChestService } from "../services/mantokChestService";
 import { OnboardingService } from "../services/onboardingService";
 import { PassageSearchService } from "../services/passageSearchService";
 import { PartyBossService } from "../services/partyBossService";
+import { PartyRaidChatService } from "../services/partyRaidChatService";
 import { PartySessionService } from "../services/partySessionService";
 import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
@@ -57,6 +58,7 @@ export function createServices(
   config: AppConfig
 ): ApplicationServices {
   const nonProduction = config.nodeEnv !== "production";
+  const partyRaidChatEnabled = config.bigBarrelBrotherRaidEnabled;
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
@@ -239,6 +241,10 @@ export function createServices(
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
     }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
+    partyRaidChat: new PartyRaidChatService(repositories.partyRaidChat, {
+      enabled: partyRaidChatEnabled,
+      devHelpersEnabled: nonProduction && partyRaidChatEnabled
+    }),
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||

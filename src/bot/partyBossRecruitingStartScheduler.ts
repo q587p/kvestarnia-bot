@@ -1,5 +1,6 @@
 import type { Bot } from "grammy";
 import type { PartyBossService } from "../services/partyBossService";
+import type { PartyRaidChatService } from "../services/partyRaidChatService";
 import type { PartySessionService } from "../services/partySessionService";
 import { buildPartyBossKeyboard } from "./keyboards/partySessionKeyboard";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
@@ -9,6 +10,7 @@ import {
 } from "./presenters/partySessionPresenter";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 import { deliverTerminalIneligiblePartyCards } from "./partyTerminalIneligibleDelivery";
+import { partyRaidChatTelegramGate } from "./partyRaidChatTelegramGate";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
@@ -20,6 +22,7 @@ export function createPartyBossRecruitingStartScheduler(
   services: {
     partySessions: PartySessionService;
     partyBoss: PartyBossService;
+    partyRaidChat?: PartyRaidChatService | undefined;
   },
   bot: Bot,
   options: { intervalMs?: number } = {}
@@ -63,7 +66,7 @@ export function createPartyBossRecruitingStartScheduler(
           }
 
           processed += 1;
-          await notifyParticipants(bot, services.partyBoss, result.session, "started");
+          await notifyParticipants(bot, services.partyBoss, result.session, "started", undefined, services.partyRaidChat);
         }
       }
 
@@ -81,7 +84,8 @@ export function createPartyBossRecruitingStartScheduler(
           services.partyBoss,
           result.session,
           result.session.status === "active" ? "timeout" : "terminal",
-          result.achievementUnlocksByCharacterId
+          result.achievementUnlocksByCharacterId,
+          services.partyRaidChat
         );
       }
 
@@ -123,18 +127,27 @@ async function notifyParticipants(
   partyBoss: PartyBossService,
   session: Parameters<typeof buildPartyBossKeyboard>[0],
   reason: "started" | "timeout" | "terminal",
-  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>,
+  partyRaidChat?: PartyRaidChatService
 ): Promise<void> {
   await Promise.allSettled(session.participants.map(async (participant) => {
     if (reason === "started") {
-      await bot.api.sendMessage(
+      const sendIntro = () => bot.api.sendMessage(
         Number(participant.telegramUserId),
         presentPartyBossIntro(session, participant.id),
         HTML_MESSAGE_OPTIONS
       );
+      await (partyRaidChat?.isEnabled()
+        ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendIntro)
+        : sendIntro());
     }
 
-    await bot.api.sendMessage(
+    const includeCombatItems = await resolvePartyBossCombatItemShortcut(
+      partyBoss,
+      participant.telegramUserId,
+      session
+    );
+    const sendBoss = () => bot.api.sendMessage(
       Number(participant.telegramUserId),
       presentPartyBoss(session, {
         viewerCharacterId: participant.id,
@@ -143,14 +156,14 @@ async function notifyParticipants(
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPartyBossKeyboard(session, participant.id, {
-          includeCombatItems: await resolvePartyBossCombatItemShortcut(
-            partyBoss,
-            participant.telegramUserId,
-            session
-          )
+          includeCombatItems,
+          includeRaidChat: partyRaidChat?.isEnabled() === true
         })
       }
     );
+    await (partyRaidChat?.isEnabled()
+      ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendBoss)
+      : sendBoss());
     const achievementText = presentAchievementUnlockNotification(
       achievementUnlocksByCharacterId?.[participant.id] ?? []
     );

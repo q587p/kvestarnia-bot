@@ -75,6 +75,8 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.3.13-bugfix-release.md](0.3.13-bugfix-release.md) — patch-first fixes for Bard and quest-fight location preservation, complete duel quest progress, level/remort-aware quest encounters, Doppelganger block quotes and explicit barrel-beer instructions.
 - [0.3.14-bard-inspiration-and-raid-lament.md](0.3.14-bard-inspiration-and-raid-lament.md) — Bard performances grant hybrid-duration Inspiration, while the existing Big Barrel surface lets one Bard commit a replay-safe Lament when its music slot is free.
 - [0.3.x-test-suite-runtime-p0.md](0.3.x-test-suite-runtime-p0.md) — internal maintenance that removes measured content/date hot spots, bounds integration-file parallelism at two workers, and makes local/CI validation use the same named phases without reducing test coverage.
+- [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — implemented Big Barrel Raid Chat MVP with participant-only durable chat, exact ForceReply composition, transactional system events and restart-safe delivery/redaction recovery; manual Telegram QA remains pending.
+- [archive/0.2.x-raid-in-game-chat.md](archive/0.2.x-raid-in-game-chat.md) — superseded raid-chat planning draft retained for history; do not implement.
 - [0.3.x-varenyk-mancer-sated-support.md](0.3.x-varenyk-mancer-sated-support.md) — superseded planning draft retained for history; `0.3.12` is the active implementation record.
 - [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
 - [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
@@ -122,7 +124,6 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
 - [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
 - [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
 - [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
-- [0.2.x-raid-in-game-chat.md](0.2.x-raid-in-game-chat.md) — draft future in-game raid chat for joined participants, scoped to one raid and guarded against non-participant reads, stale writes and reward abuse.
 - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — activated from the former `0.2.x` Kharakternyk Big Barrel ward-sign draft.
 - [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
 - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.

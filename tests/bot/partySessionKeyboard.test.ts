@@ -3,6 +3,7 @@ import {
   buildPartyBossItemsKeyboard,
   buildPartyBossKeyboard,
   buildPartyBossJournalKeyboard,
+  buildPartyRaidChatKeyboard,
   buildPartySessionInviteShareKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
@@ -26,6 +27,25 @@ describe("party session keyboard", () => {
       viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: false
     }))).not.toContain("⏱️ Dev: завершити строк");
+  });
+
+  it("shows raid-chat controls only when explicitly enabled for a participant", () => {
+    const session = makeSession();
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId
+    }))).not.toContain("v1:party:rw:");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      includeRaidChat: true
+    }))).toContain("v1:party:rw:partyABC12");
+    expect(keyboardText(buildPartyBossKeyboard(makeBossSession(), "character-1", {
+      includeRaidChat: true
+    }))).toContain("v1:party:rc:partyABC12");
+    expect(inlineButtonTexts(buildPartyRaidChatKeyboard({
+      token: "partyABC12",
+      writable: true,
+      active: true
+    }))).toEqual(["💬 Написати в рейд-чат", "↩️ До рейду"]);
   });
 
   it("shows compact party boss actions only to active participants", () => {
@@ -428,9 +448,11 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1", {
-      includeDevTimeout: true
+      includeDevTimeout: true,
+      includeRaidChat: true
     }))).toEqual([
       "⏱️ Dev: добити хід",
+      "💬 Рейд-чат",
       "🔎 Оновити"
     ]);
   });
