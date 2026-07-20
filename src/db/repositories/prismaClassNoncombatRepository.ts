@@ -2620,7 +2620,7 @@ function isBlocked(character: IncludedCharacter): boolean {
 }
 
 function isVarenykBlocked(character: IncludedCharacter): boolean {
-  return isBlocked(character);
+  return Boolean(character.activeCombatLease);
 }
 
 type IncludedCharacter = Character & {
