@@ -2,10 +2,14 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Bot } from "grammy";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { runPartyRaidChatDeliveryTick } from "../../src/bot/partyRaidChatDeliveryScheduler";
+import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
 import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 import { PartyRaidChatService } from "../../src/services/partyRaidChatService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 
 const NOW = new Date("2026-07-20T10:00:00.000Z");
 
@@ -645,6 +649,150 @@ describe("PrismaPartyRaidChatRepository integration", () => {
     })).resolves.toEqual({ chatId: 7_026n, messageId: 1 });
   });
 
+  it.each([
+    {
+      label: "429 retry_after",
+      telegramUserId: 7_027n,
+      key: "clean-retry-429",
+      error: { error_code: 429, parameters: { retry_after: 42 } },
+      deliveryClass: "telegram-429",
+      retryMs: 42_000,
+      reopenBeforeDue: true
+    },
+    {
+      label: "network failure",
+      telegramUserId: 7_028n,
+      key: "clean-retry-network",
+      error: new Error("fetch failed"),
+      deliveryClass: "telegram-retryable",
+      retryMs: 1_100,
+      reopenBeforeDue: false
+    }
+  ])(
+    "automatically retries an adopted clean placeholder after $label",
+    async ({ telegramUserId, key, error, deliveryClass, retryMs, reopenBeforeDue }) => {
+      await prisma.partyRaidChatDeliveryState.updateMany({
+        data: {
+          surfaceMode: "redacted",
+          desiredRevision: 0,
+          renderedRevision: 0,
+          redactionRequired: false,
+          nextAttemptAt: new Date("9999-12-31T23:59:59.999Z"),
+          lastDeliveryClass: "ok"
+        }
+      });
+      await seedLineage(prisma, key, telegramUserId);
+      let clockNow = NOW;
+      const raidChat = new PartyRaidChatService(
+        repository,
+        { enabled: true, devHelpersEnabled: false },
+        () => clockNow
+      );
+      const party = makeRecruitingSession(key, telegramUserId);
+      const sendMessage = vi.fn().mockResolvedValue({
+        chat: { id: Number(telegramUserId) },
+        message_id: 587
+      });
+      const editMessageText = vi.fn()
+        .mockRejectedValueOnce(error)
+        .mockResolvedValue(true);
+      const bot = { api: { sendMessage, editMessageText } } as unknown as Bot;
+      const services = {
+        partyRaidChat: raidChat,
+        partySessions: {
+          areDevHelpersEnabled: () => false,
+          getByToken: vi.fn().mockResolvedValue({ state: "ready", session: party })
+        } as unknown as PartySessionService
+      };
+      const retryAt = new Date(NOW.getTime() + retryMs);
+
+      await expect(raidChat.requestRecruitingRefresh(telegramUserId, `raid-${key}`)).resolves.toBe(true);
+      await runPartyRaidChatDeliveryTick(services, bot, {}, () => clockNow);
+
+      const failed = await prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+        where: { participantId: `participant-${key}` },
+        select: {
+          version: true,
+          activeChatId: true,
+          activeMessageId: true,
+          desiredRevision: true,
+          renderedRevision: true,
+          attemptCount: true,
+          lastDeliveryClass: true,
+          nextAttemptAt: true
+        }
+      });
+      expect(failed).toMatchObject({
+        activeChatId: telegramUserId,
+        activeMessageId: 587,
+        desiredRevision: 0,
+        renderedRevision: 0,
+        attemptCount: 1,
+        lastDeliveryClass: deliveryClass,
+        nextAttemptAt: retryAt
+      });
+      expect(sendMessage).toHaveBeenCalledWith(Number(telegramUserId), "Картка рейду готується…");
+      expect(editMessageText).toHaveBeenCalledTimes(1);
+
+      if (reopenBeforeDue) {
+        clockNow = new Date(NOW.getTime() + 1);
+        await expect(raidChat.requestRecruitingRefresh(telegramUserId, `raid-${key}`)).resolves.toBe(true);
+        await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+          where: { participantId: `participant-${key}` },
+          select: { version: true, lastDeliveryClass: true, nextAttemptAt: true }
+        })).resolves.toEqual({
+          version: failed.version,
+          lastDeliveryClass: "telegram-429",
+          nextAttemptAt: retryAt
+        });
+      }
+
+      clockNow = new Date(retryAt.getTime() - 1);
+      await runPartyRaidChatDeliveryTick(services, bot, {}, () => clockNow);
+      expect(editMessageText).toHaveBeenCalledTimes(1);
+      await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+        where: { participantId: `participant-${key}` },
+        select: { version: true, lastDeliveryClass: true, nextAttemptAt: true }
+      })).resolves.toEqual({
+        version: failed.version,
+        lastDeliveryClass: deliveryClass,
+        nextAttemptAt: retryAt
+      });
+
+      clockNow = retryAt;
+      await runPartyRaidChatDeliveryTick(services, bot, {}, () => clockNow);
+
+      expect(sendMessage).toHaveBeenCalledOnce();
+      expect(editMessageText).toHaveBeenCalledTimes(2);
+      expect(editMessageText.mock.calls[1]).toEqual([
+        Number(telegramUserId),
+        587,
+        expect.stringContaining("💬 <b>Рейд-чат"),
+        expect.any(Object)
+      ]);
+      await expect(prisma.partyRaidChatDeliveryState.findUniqueOrThrow({
+        where: { participantId: `participant-${key}` },
+        select: {
+          activeChatId: true,
+          activeMessageId: true,
+          desiredRevision: true,
+          renderedRevision: true,
+          attemptCount: true,
+          lastDeliveryClass: true,
+          nextAttemptAt: true
+        }
+      })).resolves.toEqual({
+        activeChatId: telegramUserId,
+        activeMessageId: 587,
+        desiredRevision: 0,
+        renderedRevision: 0,
+        attemptCount: 0,
+        lastDeliveryClass: "ok",
+        nextAttemptAt: new Date("9999-12-31T23:59:59.999Z")
+      });
+    }
+  );
+
   it("parks a current permanent send failure but not one for a superseded reference", async () => {
     await seedLineage(prisma, "permanent-send", 7012n);
     await accept(repository, 7012n, "raid-permanent-send", 94, 95, "Рядок", NOW);
@@ -839,6 +987,62 @@ async function seedLineage(prisma: PrismaClient, key: string, telegramUserId: bi
       }
     }
   });
+}
+
+function makeRecruitingSession(key: string, telegramUserId: bigint): PartySessionRecord {
+  const characterId = `character-${key}`;
+  const character = {
+    id: characterId,
+    userId: `user-${key}`,
+    currentLocationId: "barrel.big-brother",
+    name: `Гравець ${key}`,
+    pronoun: "they",
+    path: "wanderer",
+    raceId: "human",
+    classId: "warrior",
+    level: 8,
+    xp: 0,
+    gold: 0,
+    hpCurrent: 42,
+    hpMax: 42,
+    manaCurrent: 13,
+    manaMax: 13,
+    statsJson: {},
+    telegramUserId,
+    remortCount: 0
+  };
+
+  return {
+    id: `session-${key}`,
+    inviteToken: `raid-${key}`,
+    status: "recruiting",
+    leaderCharacterId: characterId,
+    periodId: null,
+    originLocationId: "barrel.big-brother",
+    participantCap: 8,
+    minimumParticipants: 1,
+    joinUntilAt: new Date(NOW.getTime() + 93_000),
+    expiresAt: new Date(NOW.getTime() + 93_000),
+    version: 7,
+    activeLeaderKey: `party-leader:${characterId}`,
+    createdAt: NOW,
+    updatedAt: NOW,
+    leader: character,
+    participants: [{
+      id: `participant-${key}`,
+      sessionId: `session-${key}`,
+      characterId,
+      remortCount: 0,
+      status: "joined",
+      joinSource: "dev",
+      joinedAt: NOW,
+      leftAt: null,
+      chatId: telegramUserId,
+      messageId: 1,
+      readiness: "waiting",
+      character
+    }]
+  };
 }
 
 async function addParticipant(

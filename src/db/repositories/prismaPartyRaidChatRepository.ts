@@ -25,6 +25,7 @@ type TxClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaClient | TxClient;
 const IDLE_DELIVERY_AT = new Date("9999-12-31T23:59:59.999Z");
 const DELIVERY_CLAIM_MS = 93_000;
+const CLEAN_RETRY_DELIVERY_CLASSES = ["telegram-429", "telegram-retryable"] as const;
 
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const ACTIVE_COMPOSE_STATUSES = ["awaiting_prompt", "awaiting_reply"] as const;
@@ -432,11 +433,11 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       const existing = await tx.partyRaidChatDeliveryState.findUnique({
         where: { participantId: authorization.participant.id }
       });
-      if (
-        existing?.lastDeliveryClass === "in-flight" &&
+      const hasAuthoritativeFutureDeadline =
+        (existing?.lastDeliveryClass === "in-flight" || existing?.lastDeliveryClass === "telegram-429") &&
         existing.nextAttemptAt.getTime() > now.getTime() &&
-        existing.nextAttemptAt.getTime() < IDLE_DELIVERY_AT.getTime()
-      ) {
+        existing.nextAttemptAt.getTime() < IDLE_DELIVERY_AT.getTime();
+      if (hasAuthoritativeFutureDeadline) {
         return true;
       }
       if (!existing) {
@@ -478,7 +479,11 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision },
         OR: [
           { lastDeliveryClass: null },
-          { lastDeliveryClass: { notIn: ["refresh-requested", "in-flight"] } }
+          {
+            lastDeliveryClass: {
+              notIn: ["refresh-requested", "in-flight", ...CLEAN_RETRY_DELIVERY_CLASSES]
+            }
+          }
         ]
       },
       orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
@@ -518,7 +523,9 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
             nextAttemptAt: { lte: now },
             redactionRequired: false,
             desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision },
-            lastDeliveryClass: { in: ["refresh-requested", "in-flight"] }
+            lastDeliveryClass: {
+              in: ["refresh-requested", "in-flight", ...CLEAN_RETRY_DELIVERY_CLASSES]
+            }
           },
           orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
           take: safeLimit - priorityCandidates.length,
