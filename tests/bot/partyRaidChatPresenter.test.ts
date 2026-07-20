@@ -13,8 +13,24 @@ describe("party raid chat presenter", () => {
     ]);
 
     const text = presentPartyRaidChatSection(view);
-    expect(text).toContain("12:00:00 &lt;Щур&gt;: Хало &amp; привіт");
+    expect(text).toContain("12:00:00 <b>&lt;Щур&gt;</b>: Хало &amp; привіт");
+    expect(text).not.toContain("<b>Хало &amp; привіт</b>");
     expect(text.indexOf("12:00:00")).toBeLessThan(text.indexOf("12:00:03"));
+  });
+
+  it("renders technical event sentences in italics and player names in bold", () => {
+    const text = presentPartyRaidChatSection(makeView([
+      entry(1, "2026-07-20T13:03:25.000Z", "Shannar de Kassal", "Всі готові?"),
+      {
+        ...entry(2, "2026-07-20T13:04:25.000Z", "Kyjivan <BooksDragon>", ""),
+        kind: "system",
+        eventType: "participant.joined",
+        body: null
+      }
+    ]));
+
+    expect(text).toContain("16:03:25 <b>Shannar de Kassal</b>: Всі готові?");
+    expect(text).toContain("16:04:25 — <i>Kyjivan &lt;BooksDragon&gt; приєднується до збору.</i>");
   });
 
   it("uses date prefixes when visible rows cross Kyiv midnight", () => {

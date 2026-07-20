@@ -175,8 +175,8 @@ System payloads contain only stable IDs/enums and display-safe snapshots needed 
 - Query `ORDER BY id DESC LIMIT 13`, then render oldest to newest.
 - Store UTC; render in `Europe/Kyiv` as `HH:mm:ss`.
 - If the visible 13 entries span more than one Kyiv calendar date, render every row as `DD.MM HH:mm:ss`.
-- Player row: `• <time> <escaped name>: <escaped body>`.
-- System row: `• <time> — <localized typed event sentence>`.
+- Player row: `• <time> <b><escaped name></b>: <escaped body>`; only the escaped player name is bold.
+- System row: `• <time> — <i><localized typed event sentence></i>`; the complete technical event sentence is italic.
 - Escape before measuring the final Telegram HTML payload. Drop the oldest visible chat rows until the full card fits the 4096-character budget; never clip inside an HTML entity or grapheme. If budget leaves fewer than the queried set, change the header to `💬 Рейд-чат (останні N із 13):`; do not claim 13 visible rows when fewer fit.
 - Keep precise resources, reward forecasts and hidden combat calculations out of copy.
 

@@ -100,9 +100,9 @@ function presentEntry(entry: PartyRaidChatEntryRecord, spansDates: boolean): str
     ? `${kyivDateFormatter.format(entry.occurredAt)} ${kyivTimeFormatter.format(entry.occurredAt)}`
     : kyivTimeFormatter.format(entry.occurredAt);
   if (entry.kind === "player") {
-    return `• ${time} ${escapeHtml(entry.actorDisplayName ?? "Пригодник")}: ${escapeHtml(entry.body ?? "")}`;
+    return `• ${time} <b>${escapeHtml(entry.actorDisplayName ?? "Пригодник")}</b>: ${escapeHtml(entry.body ?? "")}`;
   }
-  return `• ${time} — ${presentSystemEvent(entry)}`;
+  return `• ${time} — <i>${presentSystemEvent(entry)}</i>`;
 }
 
 function presentSystemEvent(entry: PartyRaidChatEntryRecord): string {
