@@ -29,9 +29,14 @@ function expectPartyBossSession(result: PartyBossActionResult): PartyBossSession
 }
 
 async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
-  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
-  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
-    await prisma.$executeRawUnsafe(statement);
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 

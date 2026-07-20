@@ -708,6 +708,8 @@ describe("PrismaRemortRepository integration", () => {
       throw new Error("Composer setup failed.");
     }
     await chat.bindComposePrompt(begun.intentId, begun.version, 42, now);
+    await expect(chat.requestRecruitingRefresh(99304n, inviteToken, now)).resolves.toBe(true);
+    await expect(chat.requestRecruitingRefresh(99304n, inviteToken, now)).resolves.toBe(true);
 
     await expect(repository.completeDraftForTelegramUser(
       99304n,
@@ -739,6 +741,9 @@ describe("PrismaRemortRepository integration", () => {
       where: { participant: { characterId: actorId } },
       select: { surfaceMode: true, redactionRequired: true }
     })).resolves.toEqual({ surfaceMode: "terminal_read_only", redactionRequired: true });
+    await expect(prisma.partyRaidChatDeliveryState.count({
+      where: { participant: { characterId: actorId } }
+    })).resolves.toBe(1);
     await expect(prisma.partyRaidChatDeliveryState.findFirstOrThrow({
       where: { participant: { characterId: unrelatedLeaderId } },
       select: { surfaceMode: true, redactionRequired: true }
@@ -1516,9 +1521,14 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
 }
 
 async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
-  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
-  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
-    await prisma.$executeRawUnsafe(statement);
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 

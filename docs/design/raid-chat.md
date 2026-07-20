@@ -187,7 +187,7 @@ System payloads contain only stable IDs/enums and display-safe snapshots needed 
 
 Render the feed only in the authorized participant variant of the canonical gathering card. After commit, the durable desired revision makes every joined participant due. Extend permanent-edit recovery to replace a broken card for any participant, not only the leader.
 
-For a newly created Big Barrel gathering with raid chat enabled, the durable scheduler is the sole owner of the first participant-card publication. The creation route may send the separate approach notice, but it must neither send the recruiting card nor record a competing Telegram reference. Reopening an existing gathering may still use the normal route render/edit path. This ownership boundary prevents the worker from observing a missing reference and racing a duplicate card before the route records its own send.
+For every Big Barrel recruiting response with raid chat enabled, the durable scheduler is the sole owner of the participant card and its Telegram reference. The creation route may send the separate approach notice, but `/raid` and Tavern create/live/live-membership routes never render a transcript into their current message and never record a competing reference; reopen only requests a canonical refresh. Delivery claims are versioned, reference replacement is compare-and-set, and a losing new send is immediately retired without transcript content. This keeps one durable card across creation, reopen, membership reuse and concurrent accepted posts.
 
 `/online` describes these sessions as a gathering in progress, renders canonical `joined/participantCap` occupancy (for example `2/8`), and omits the inactive-raid notice while at least one recruiting Big Barrel session is visible.
 

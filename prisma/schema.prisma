@@ -1098,6 +1098,7 @@ model PartyRaidChatRateState {
 
 model PartyRaidChatDeliveryState {
   id                String           @id @default(uuid())
+  version           Int              @default(1)
   participantId     String           @unique @map("participant_id")
   participant       PartyParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   partySessionId    String           @map("party_session_id")

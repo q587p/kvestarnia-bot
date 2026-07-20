@@ -1342,14 +1342,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           joinedAt: participant.joinedAt
         }
       });
-      await tx.partyRaidChatDeliveryState.updateMany({
-        where: { participantId: participant.id },
-        data: {
-          activeChatId: input.chatId,
-          activeMessageId: input.messageId
-        }
-      });
-
       const updated = await findSessionById(tx, session.id);
       return updated ? mapSession(updated) : null;
     });

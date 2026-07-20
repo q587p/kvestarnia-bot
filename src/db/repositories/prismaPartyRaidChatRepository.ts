@@ -24,6 +24,7 @@ import {
 type TxClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaClient | TxClient;
 const IDLE_DELIVERY_AT = new Date("9999-12-31T23:59:59.999Z");
+const DELIVERY_CLAIM_MS = 93_000;
 
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const ACTIVE_COMPOSE_STATUSES = ["awaiting_prompt", "awaiting_reply"] as const;
@@ -418,13 +419,63 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
     };
   }
 
+  async requestRecruitingRefresh(
+    telegramUserId: bigint,
+    inviteToken: string,
+    now: Date
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const authorization = await authorize(tx, telegramUserId, inviteToken, now);
+      if (!authorization || authorization.lifecycle !== "recruiting") {
+        return false;
+      }
+      const existing = await tx.partyRaidChatDeliveryState.findUnique({
+        where: { participantId: authorization.participant.id }
+      });
+      if (existing?.lastDeliveryClass === "in-flight") {
+        return true;
+      }
+      if (!existing) {
+        await tx.partyRaidChatDeliveryState.create({
+          data: {
+            participantId: authorization.participant.id,
+            partySessionId: authorization.session.id,
+            surfaceMode: "recruiting_embed",
+            activeChatId: authorization.participant.chatId,
+            activeMessageId: authorization.participant.messageId,
+            desiredRevision: authorization.session.chatRevision,
+            nextAttemptAt: now,
+            lastDeliveryClass: "refresh-requested"
+          }
+        });
+      } else {
+        await tx.partyRaidChatDeliveryState.updateMany({
+          where: { id: existing.id, version: existing.version },
+          data: {
+            version: { increment: 1 },
+            surfaceMode: "recruiting_embed",
+            desiredRevision: authorization.session.chatRevision,
+            redactionRequired: false,
+            nextAttemptAt: now,
+            lastDeliveryClass: "refresh-requested"
+          }
+        });
+      }
+      return true;
+    });
+  }
+
   async listDueDeliveries(now: Date, limit = 23): Promise<PartyRaidChatDeliveryRecord[]> {
     const safeLimit = Math.max(limit, 1);
     const clean = await this.prisma.partyRaidChatDeliveryState.findMany({
       where: {
         nextAttemptAt: { lte: now },
         redactionRequired: false,
-        desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision }
+        desiredRevision: { lte: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision },
+        OR: [
+          { lastDeliveryClass: null },
+          { lastDeliveryClass: { not: "refresh-requested" } }
+        ]
       },
       orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
       take: safeLimit
@@ -432,24 +483,18 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
     if (clean.length > 0) {
       await this.prisma.$transaction(clean.map((row) =>
         this.prisma.partyRaidChatDeliveryState.updateMany({
-          where: {
-            id: row.id,
-            redactionRequired: false,
-            desiredRevision: row.desiredRevision,
-            renderedRevision: row.renderedRevision,
-            nextAttemptAt: row.nextAttemptAt
-          },
-          data: { nextAttemptAt: IDLE_DELIVERY_AT }
+          where: { id: row.id, version: row.version, nextAttemptAt: row.nextAttemptAt },
+          data: { version: { increment: 1 }, nextAttemptAt: IDLE_DELIVERY_AT }
         })
       ));
     }
-
-    const due = await this.prisma.partyRaidChatDeliveryState.findMany({
+    const candidates = await this.prisma.partyRaidChatDeliveryState.findMany({
       where: {
         nextAttemptAt: { lte: now },
         OR: [
           { redactionRequired: true },
-          { desiredRevision: { gt: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision } }
+          { desiredRevision: { gt: this.prisma.partyRaidChatDeliveryState.fields.renderedRevision } },
+          { lastDeliveryClass: "refresh-requested" }
         ]
       },
       orderBy: [{ nextAttemptAt: "asc" }, { id: "asc" }],
@@ -463,59 +508,150 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         partySession: { select: { inviteToken: true } }
       }
     });
-    return due.map((row) => ({
-      id: row.id,
-      participantId: row.participantId,
-      partySessionId: row.partySessionId,
-      inviteToken: row.partySession.inviteToken,
-      participantCharacterId: row.participant.characterId,
-      telegramUserId: row.participant.character.user.telegramUserId,
-      surfaceMode: parseSurfaceMode(row.surfaceMode),
-      chatId: row.activeChatId ?? row.participant.chatId,
-      messageId: row.activeMessageId ?? row.participant.messageId,
-      desiredRevision: row.desiredRevision,
-      renderedRevision: row.renderedRevision,
-      redactionRequired: row.redactionRequired,
-      attemptCount: row.attemptCount
-    }));
+    const claimed: PartyRaidChatDeliveryRecord[] = [];
+    const claimUntil = new Date(now.getTime() + DELIVERY_CLAIM_MS);
+    for (const row of candidates) {
+      const claim = await this.prisma.partyRaidChatDeliveryState.updateMany({
+        where: {
+          id: row.id,
+          version: row.version,
+          nextAttemptAt: row.nextAttemptAt
+        },
+        data: {
+          version: { increment: 1 },
+          nextAttemptAt: claimUntil,
+          lastDeliveryClass: "in-flight"
+        }
+      });
+      if (claim.count !== 1) {
+        continue;
+      }
+      claimed.push({
+        id: row.id,
+        version: row.version + 1,
+        participantId: row.participantId,
+        partySessionId: row.partySessionId,
+        inviteToken: row.partySession.inviteToken,
+        participantCharacterId: row.participant.characterId,
+        telegramUserId: row.participant.character.user.telegramUserId,
+        surfaceMode: parseSurfaceMode(row.surfaceMode),
+        chatId: row.activeChatId,
+        messageId: row.activeMessageId,
+        desiredRevision: row.desiredRevision,
+        renderedRevision: row.renderedRevision,
+        redactionRequired: row.redactionRequired,
+        attemptCount: row.attemptCount
+      });
+    }
+    return claimed;
+  }
+
+  async isDeliveryClaimCurrent(deliveryId: string, version: number): Promise<boolean> {
+    return (await this.prisma.partyRaidChatDeliveryState.count({
+      where: { id: deliveryId, version, lastDeliveryClass: "in-flight" }
+    })) === 1;
   }
 
   async recordDeliveryReference(
     deliveryId: string,
     chatId: bigint,
     messageId: number,
+    expected: { version: number; chatId: bigint | null; messageId: number | null },
     _now: Date
-  ): Promise<void> {
+  ): Promise<boolean> {
     void _now;
-    await this.prisma.partyRaidChatDeliveryState.updateMany({
-      where: { id: deliveryId },
-      data: { activeChatId: chatId, activeMessageId: messageId }
+    return this.prisma.$transaction(async (tx) => {
+      const delivery = await tx.partyRaidChatDeliveryState.findUnique({
+        where: { id: deliveryId },
+        select: {
+          participantId: true,
+          version: true,
+          lastDeliveryClass: true,
+          redactionRequired: true,
+          activeChatId: true,
+          activeMessageId: true
+        }
+      });
+      const currentChatId = delivery?.activeChatId ?? null;
+      const currentMessageId = delivery?.activeMessageId ?? null;
+      if (
+        !delivery ||
+        delivery.version !== expected.version ||
+        delivery.lastDeliveryClass !== "in-flight" ||
+        delivery.redactionRequired ||
+        currentChatId !== expected.chatId ||
+        currentMessageId !== expected.messageId
+      ) {
+        return false;
+      }
+      const updated = await tx.partyRaidChatDeliveryState.updateMany({
+        where: {
+          id: deliveryId,
+          version: expected.version,
+          lastDeliveryClass: "in-flight",
+          redactionRequired: false
+        },
+        data: {
+          version: { increment: 1 },
+          activeChatId: chatId,
+          activeMessageId: messageId
+        }
+      });
+      if (updated.count !== 1) {
+        return false;
+      }
+      await tx.partyParticipant.update({
+        where: { id: delivery.participantId },
+        data: { chatId, messageId }
+      });
+      return true;
     });
   }
 
-  async markDeliveryRendered(deliveryId: string, revision: number, _now: Date): Promise<void> {
-    void _now;
-    await this.prisma.$transaction(async (tx) => {
+  async markDeliveryRendered(
+    deliveryId: string,
+    revision: number,
+    expectedVersion: number,
+    now: Date
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
       const parked = await tx.partyRaidChatDeliveryState.updateMany({
         where: {
           id: deliveryId,
+          version: expectedVersion,
+          lastDeliveryClass: "in-flight",
           redactionRequired: false,
           desiredRevision: { lte: revision },
           renderedRevision: { lte: revision }
         },
         data: {
+          version: { increment: 1 },
           renderedRevision: revision,
           attemptCount: 0,
           lastDeliveryClass: "ok",
           nextAttemptAt: IDLE_DELIVERY_AT
         }
       });
-      if (parked.count === 0) {
-        await tx.partyRaidChatDeliveryState.updateMany({
-          where: { id: deliveryId, renderedRevision: { lt: revision } },
-          data: { renderedRevision: revision }
-        });
+      if (parked.count === 1) {
+        return true;
       }
+      const dirty = await tx.partyRaidChatDeliveryState.updateMany({
+        where: {
+          id: deliveryId,
+          version: expectedVersion,
+          lastDeliveryClass: "in-flight",
+          redactionRequired: false,
+          desiredRevision: { gt: revision }
+        },
+        data: {
+          version: { increment: 1 },
+          renderedRevision: revision,
+          attemptCount: 0,
+          lastDeliveryClass: null,
+          nextAttemptAt: now
+        }
+      });
+      return dirty.count === 1;
     });
   }
 
@@ -523,12 +659,14 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
     deliveryId: string,
     nextAttemptAt: Date,
     deliveryClass: string,
+    expectedVersion: number,
     _now: Date
   ): Promise<void> {
     void _now;
     await this.prisma.partyRaidChatDeliveryState.updateMany({
-      where: { id: deliveryId },
+      where: { id: deliveryId, version: expectedVersion, lastDeliveryClass: "in-flight" },
       data: {
+        version: { increment: 1 },
         attemptCount: { increment: 1 },
         lastDeliveryClass: deliveryClass,
         nextAttemptAt
@@ -539,7 +677,12 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
   async markDeliveryRedacted(
     deliveryId: string,
     deliveryClass: string,
-    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null },
+    expected: {
+      version: number;
+      desiredRevision: number;
+      chatId: bigint | null;
+      messageId: number | null;
+    },
     _now: Date
   ): Promise<void> {
     void _now;
@@ -554,12 +697,15 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       const parked = await tx.partyRaidChatDeliveryState.updateMany({
         where: {
           id: deliveryId,
+          version: expected.version,
+          lastDeliveryClass: "in-flight",
           ...(deliveryClass === "permanent-unavailable" ? {} : { redactionRequired: true }),
           desiredRevision: expected.desiredRevision,
           activeChatId: expected.chatId,
           activeMessageId: expected.messageId
         },
         data: {
+          version: { increment: 1 },
           surfaceMode: "redacted",
           redactionRequired: false,
           activeChatId: null,
@@ -633,6 +779,7 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
           nextAttemptAt: now
         },
         update: {
+          version: { increment: 1 },
           activeChatId,
           activeMessageId,
           redactionRequired: true,
@@ -667,6 +814,7 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
         await tx.partyRaidChatDeliveryState.updateMany({
           where: { partySessionId: session.id },
           data: {
+            version: { increment: 1 },
             redactionRequired: true,
             nextAttemptAt: now
           }
@@ -984,6 +1132,7 @@ async function markDeliveryDirty(
         nextAttemptAt: now
       },
       update: {
+        version: { increment: 1 },
         surfaceMode,
         desiredRevision: revision,
         redactionRequired: false,

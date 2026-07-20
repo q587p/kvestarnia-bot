@@ -121,26 +121,53 @@ export class PartyRaidChatService {
     return this.repository.getAuthorizedView(telegramUserId, inviteToken, this.clock());
   }
 
+  requestRecruitingRefresh(telegramUserId: bigint, inviteToken: string): Promise<boolean> {
+    if (!this.isEnabled()) {
+      return Promise.resolve(false);
+    }
+    return this.repository.requestRecruitingRefresh(telegramUserId, inviteToken, this.clock());
+  }
+
   listDueDeliveries(limit = 23): Promise<PartyRaidChatDeliveryRecord[]> {
     return this.repository.listDueDeliveries(this.clock(), limit);
   }
 
-  recordDeliveryReference(deliveryId: string, chatId: bigint, messageId: number): Promise<void> {
-    return this.repository.recordDeliveryReference(deliveryId, chatId, messageId, this.clock());
+  isDeliveryClaimCurrent(deliveryId: string, version: number): Promise<boolean> {
+    return this.repository.isDeliveryClaimCurrent(deliveryId, version);
   }
 
-  markDeliveryRendered(deliveryId: string, revision: number): Promise<void> {
-    return this.repository.markDeliveryRendered(deliveryId, revision, this.clock());
+  recordDeliveryReference(
+    deliveryId: string,
+    chatId: bigint,
+    messageId: number,
+    expected: { version: number; chatId: bigint | null; messageId: number | null }
+  ): Promise<boolean> {
+    return this.repository.recordDeliveryReference(deliveryId, chatId, messageId, expected, this.clock());
   }
 
-  markDeliveryFailure(deliveryId: string, nextAttemptAt: Date, deliveryClass: string): Promise<void> {
-    return this.repository.markDeliveryFailure(deliveryId, nextAttemptAt, deliveryClass, this.clock());
+  markDeliveryRendered(deliveryId: string, revision: number, expectedVersion: number): Promise<boolean> {
+    return this.repository.markDeliveryRendered(deliveryId, revision, expectedVersion, this.clock());
+  }
+
+  markDeliveryFailure(
+    deliveryId: string,
+    nextAttemptAt: Date,
+    deliveryClass: string,
+    expectedVersion: number
+  ): Promise<void> {
+    return this.repository.markDeliveryFailure(
+      deliveryId,
+      nextAttemptAt,
+      deliveryClass,
+      expectedVersion,
+      this.clock()
+    );
   }
 
   markDeliveryRedacted(
     deliveryId: string,
     deliveryClass: string,
-    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null }
+    expected: { version: number; desiredRevision: number; chatId: bigint | null; messageId: number | null }
   ): Promise<void> {
     return this.repository.markDeliveryRedacted(deliveryId, deliveryClass, expected, this.clock());
   }

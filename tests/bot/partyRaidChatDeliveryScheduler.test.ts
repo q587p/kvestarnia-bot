@@ -16,6 +16,7 @@ describe("party raid chat delivery recovery", () => {
 
     expect(raidChat.prepareDisabledRedactions).toHaveBeenCalledOnce();
     expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("redact", "no-reference", {
+      version: 2,
       desiredRevision: 1,
       chatId: null,
       messageId: null
@@ -33,7 +34,8 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.markDeliveryFailure).toHaveBeenCalledWith(
       "retry",
       new Date(NOW.getTime() + 42_000),
-      "telegram-429"
+      "telegram-429",
+      2
     );
     expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
   });
@@ -45,8 +47,12 @@ describe("party raid chat delivery recovery", () => {
 
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
-    expect(raidChat.recordDeliveryReference).toHaveBeenCalledWith("replace", 83n, 93);
-    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 8);
+    expect(raidChat.recordDeliveryReference).toHaveBeenCalledWith("replace", 83n, 93, {
+      version: 2,
+      chatId: null,
+      messageId: null
+    });
+    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 8, 3);
     expect(raidChat.recordDeliveryReference.mock.invocationCallOrder[0]).toBeLessThan(
       raidChat.markDeliveryRendered.mock.invocationCallOrder[0]!
     );
@@ -60,7 +66,7 @@ describe("party raid chat delivery recovery", () => {
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
     expect(bot.sendMessageMock).not.toHaveBeenCalled();
-    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("same", 9);
+    expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("same", 9, 2);
     expect(raidChat.markDeliveryFailure).not.toHaveBeenCalled();
   });
 
@@ -74,6 +80,7 @@ describe("party raid chat delivery recovery", () => {
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
     expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("blocked", "permanent-unavailable", {
+      version: 2,
       desiredRevision: 4,
       chatId: null,
       messageId: null
@@ -93,6 +100,7 @@ describe("party raid chat delivery recovery", () => {
 
     expect(bot.sendMessageMock).not.toHaveBeenCalled();
     expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("edit-blocked", "permanent-unavailable", {
+      version: 2,
       desiredRevision: 5,
       chatId: 82n,
       messageId: 42
@@ -115,6 +123,7 @@ describe("party raid chat delivery recovery", () => {
     await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
 
     expect(raidChat.markDeliveryRedacted).toHaveBeenCalledWith("redact-blocked", "permanent-unavailable", {
+      version: 2,
       desiredRevision: 1,
       chatId: 82n,
       messageId: 42
@@ -132,15 +141,43 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.markDeliveryFailure).toHaveBeenCalledWith(
       "transient",
       new Date(NOW.getTime() + 2_200),
-      "telegram-retryable"
+      "telegram-retryable",
+      2
     );
     expect(raidChat.markDeliveryRedacted).not.toHaveBeenCalled();
+  });
+
+  it("does not let a stale pre-gate claim overwrite a newer rendered revision", async () => {
+    const delivery = makeDelivery({ id: "stale", chatId: 82n, messageId: 42, desiredRevision: 7 });
+    const { services, raidChat } = makeServices(delivery, { view: makeView({ chatRevision: 7 }) });
+    raidChat.isDeliveryClaimCurrent.mockResolvedValue(false);
+    const bot = makeBot();
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.editMessageMock).not.toHaveBeenCalled();
+    expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
+    expect(raidChat.recordDeliveryReference).not.toHaveBeenCalled();
+  });
+
+  it("retires a newly sent transcript card when reference CAS loses", async () => {
+    const delivery = makeDelivery({ id: "lost-reference", chatId: null, messageId: null });
+    const { services, raidChat } = makeServices(delivery);
+    raidChat.recordDeliveryReference.mockResolvedValue(false);
+    const bot = makeBot({ sentChatId: 82, sentMessageId: 587 });
+
+    await runPartyRaidChatDeliveryTick(services, bot, {}, () => NOW);
+
+    expect(bot.sendMessageMock).toHaveBeenCalledOnce();
+    expect(bot.editMessageMock).toHaveBeenCalledWith(82, 587, "Рейд-чат більше недоступний.");
+    expect(raidChat.markDeliveryRendered).not.toHaveBeenCalled();
   });
 });
 
 function makeDelivery(overrides: Partial<PartyRaidChatDeliveryRecord> = {}): PartyRaidChatDeliveryRecord {
   return {
     id: "delivery-1",
+    version: 2,
     participantId: "participant-1",
     partySessionId: "party-1",
     inviteToken: "raid-token-1",
@@ -167,10 +204,11 @@ function makeServices(
     listDueDeliveries: vi.fn().mockResolvedValue([delivery]),
     isEnabled: vi.fn().mockReturnValue(options.enabled ?? true),
     getAuthorizedView: vi.fn().mockResolvedValue(options.view === undefined ? makeView() : options.view),
+    isDeliveryClaimCurrent: vi.fn().mockResolvedValue(true),
     markDeliveryFailure: vi.fn().mockResolvedValue(undefined),
     markDeliveryRedacted: vi.fn().mockResolvedValue(undefined),
-    markDeliveryRendered: vi.fn().mockResolvedValue(undefined),
-    recordDeliveryReference: vi.fn().mockResolvedValue(undefined)
+    markDeliveryRendered: vi.fn().mockResolvedValue(true),
+    recordDeliveryReference: vi.fn().mockResolvedValue(true)
   };
   return {
     raidChat,
@@ -194,7 +232,10 @@ function makeView(overrides: { chatRevision?: number } = {}) {
   };
 }
 
-type TestBot = Bot & { sendMessageMock: ReturnType<typeof vi.fn> };
+type TestBot = Bot & {
+  editMessageMock: ReturnType<typeof vi.fn>;
+  sendMessageMock: ReturnType<typeof vi.fn>;
+};
 
 function makeBot(options: {
   editError?: unknown;
@@ -208,13 +249,15 @@ function makeBot(options: {
         chat: { id: options.sentChatId ?? 82 },
         message_id: options.sentMessageId ?? 42
       });
+  const editMessageMock = options.editError
+    ? vi.fn().mockRejectedValue(options.editError)
+    : vi.fn().mockResolvedValue(true);
   return {
     api: {
-      editMessageText: options.editError
-        ? vi.fn().mockRejectedValue(options.editError)
-        : vi.fn().mockResolvedValue(true),
+      editMessageText: editMessageMock,
       sendMessage: sendMessageMock
     },
+    editMessageMock,
     sendMessageMock
   } as unknown as TestBot;
 }

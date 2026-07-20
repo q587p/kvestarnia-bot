@@ -92,8 +92,6 @@ import {
   presentPartyBoss,
   presentPartyCreate
 } from "../presenters/partySessionPresenter";
-import { appendPartyRaidChatWithinBudget } from "../presenters/partyRaidChatPresenter";
-import { partyRaidChatTelegramGate } from "../partyRaidChatTelegramGate";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
@@ -921,24 +919,16 @@ export async function sendTavernBarrel(
     }
 
     const period = getBarrelRaidPeriod(new Date());
+    const durableRaidChatCard = options.partyRaidChat?.isEnabled() === true;
     const party = await options.partySessions.createForTelegramUser(telegramUserId, {
-      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
-      messageId: ctx.callbackQuery?.message?.message_id ?? null,
+      chatId: durableRaidChatCard ? null : ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+      messageId: durableRaidChatCard ? null : ctx.callbackQuery?.message?.message_id ?? null,
       periodId: period.id,
       originLocationId: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
     });
     const session = "session" in party ? party.session : null;
-    const schedulerOwnsInitialRecruitingCard = Boolean(
-      session &&
-      party.state === "created" &&
-      session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID &&
-      options.partyRaidChat?.isEnabled() === true
-    );
     const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
     const viewerCharacterId = session ? getPartyViewerCharacterId(session, telegramUserId) : null;
-    const raidChat = session && !schedulerOwnsInitialRecruitingCard
-      ? await options.partyRaidChat?.getAuthorizedView(telegramUserId, session.inviteToken) ?? null
-      : null;
     const createText = presentPartyCreate(party, {
       inviteUrl,
       viewerCharacterId
@@ -948,31 +938,20 @@ export async function sendTavernBarrel(
     if (session && party.state === "created" && session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
       await sendBigBarrelApproachIntro(ctx, session.inviteToken);
     }
-    if (schedulerOwnsInitialRecruitingCard) {
+    if (durableRaidChatCard && session?.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      await options.partyRaidChat!.requestRecruitingRefresh(telegramUserId, session.inviteToken);
       return true;
     }
-    const sentMessageId = await sendBigPartyText(
-      ctx,
-      mode,
-      raidChat ? appendPartyRaidChatWithinBudget(createText, raidChat) : createText,
-      session
+    await sendBigPartyText(ctx, mode, createText, session
       ? {
           session,
           inviteUrl,
           viewerCharacterId,
           includeBossStart: session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
-          includeDevExpire: options.partySessions.areDevHelpersEnabled(),
-          includeRaidChat: raidChat?.writable === true,
-          serializeRaidChat: raidChat !== null
+          includeDevExpire: options.partySessions.areDevHelpersEnabled()
         }
       : false
     );
-    if (session && sentMessageId && ctx.chat?.id) {
-      await options.partySessions.recordParticipantMessageReference(telegramUserId, session.inviteToken, {
-        chatId: BigInt(ctx.chat.id),
-        messageId: sentMessageId
-      });
-    }
     return true;
   }
 
@@ -1024,10 +1003,8 @@ async function sendBigPartyText(
         viewerCharacterId?: string | null | undefined;
         includeBossStart?: boolean | undefined;
         includeDevExpire?: boolean | undefined;
-        includeRaidChat?: boolean | undefined;
-        serializeRaidChat?: boolean | undefined;
       }
-): Promise<number | null> {
+): Promise<void> {
   const options = {
     ...HTML_MESSAGE_OPTIONS,
     ...(keyboard
@@ -1036,36 +1013,16 @@ async function sendBigPartyText(
             viewerCharacterId: keyboard.viewerCharacterId,
             inviteUrl: keyboard.inviteUrl,
             includeBossStart: keyboard.includeBossStart,
-            includeDevExpire: keyboard.includeDevExpire,
-            includeRaidChat: keyboard.includeRaidChat
+            includeDevExpire: keyboard.includeDevExpire
           })
         }
       : {})
   };
-
   if (mode === "edit") {
-    await runPartyRaidChatTelegramOperation(ctx, keyboard && keyboard.serializeRaidChat === true, () =>
-      safeEditMessageText(ctx, text, options)
-    );
-    return null;
+    await safeEditMessageText(ctx, text, options);
+    return;
   }
-
-  const message = await runPartyRaidChatTelegramOperation(
-    ctx,
-    keyboard && keyboard.serializeRaidChat === true,
-    () => ctx.reply(text, options)
-  );
-  return message.message_id ?? null;
-}
-
-function runPartyRaidChatTelegramOperation<T>(
-  ctx: Context,
-  serialize: boolean,
-  operation: () => Promise<T>
-): Promise<T> {
-  return serialize
-    ? partyRaidChatTelegramGate.enqueue(ctx.chat?.id ?? 0, operation)
-    : operation();
+  await ctx.reply(text, options);
 }
 
 async function sendBigBossText(

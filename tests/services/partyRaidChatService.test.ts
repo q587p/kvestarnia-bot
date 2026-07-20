@@ -9,6 +9,7 @@ type RepositoryMocks = {
   bindComposePrompt: ReturnType<typeof vi.fn>;
   acceptReply: ReturnType<typeof vi.fn>;
   devFillForTelegramUser: ReturnType<typeof vi.fn>;
+  requestRecruitingRefresh: ReturnType<typeof vi.fn>;
   cancelDisabledComposeIntents: ReturnType<typeof vi.fn>;
   markDisabledReferencesForRedaction: ReturnType<typeof vi.fn>;
 };
@@ -22,10 +23,12 @@ describe("PartyRaidChatService", () => {
     await expect(service.beginCompose(1n, "raid-token", 1n)).resolves.toEqual({ state: "disabled" });
     await expect(service.bindComposePrompt("intent-1", 1, 13)).resolves.toEqual({ state: "stale" });
     await expect(service.getAuthorizedView(1n, "raid-token")).resolves.toBeNull();
+    await expect(service.requestRecruitingRefresh(1n, "raid-token")).resolves.toBe(false);
     await expect(service.devFill(1n, 14)).resolves.toBe(0);
     await expect(service.devClear(1n)).resolves.toBe(false);
     expect(mocks.beginCompose).not.toHaveBeenCalled();
     expect(mocks.bindComposePrompt).not.toHaveBeenCalled();
+    expect(mocks.requestRecruitingRefresh).not.toHaveBeenCalled();
     expect(mocks.devFillForTelegramUser).not.toHaveBeenCalled();
   });
 
@@ -115,7 +118,9 @@ function makeRepository(): PartyRaidChatRepository {
     cancelDisabledComposeIntents: vi.fn(),
     acceptReply: vi.fn(),
     getAuthorizedView: vi.fn(),
+    requestRecruitingRefresh: vi.fn(),
     listDueDeliveries: vi.fn(),
+    isDeliveryClaimCurrent: vi.fn(),
     recordDeliveryReference: vi.fn(),
     markDeliveryRendered: vi.fn(),
     markDeliveryFailure: vi.fn(),

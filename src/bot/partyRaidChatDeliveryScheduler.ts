@@ -80,7 +80,8 @@ export async function runPartyRaidChatDeliveryTick(
       await services.partyRaidChat.markDeliveryFailure(
         delivery.id,
         new Date(clock().getTime() + backoffMs),
-        retryAfter !== null ? "telegram-429" : "telegram-retryable"
+        retryAfter !== null ? "telegram-429" : "telegram-retryable",
+        delivery.version
       );
     });
   }
@@ -108,7 +109,8 @@ async function deliverOne(
       await services.partyRaidChat.markDeliveryFailure(
         delivery.id,
         new Date(Date.now() + POLL_MS),
-        "canonical-transition"
+        "canonical-transition",
+        delivery.version
       );
       return;
     }
@@ -126,7 +128,7 @@ async function deliverOne(
         includeDevExpire: services.partySessions.areDevHelpersEnabled(),
         includeRaidChat: view.writable
       })
-    }, view.chatRevision, true);
+    }, view.chatRevision);
     return;
   }
 
@@ -138,7 +140,7 @@ async function deliverOne(
       active: view.lifecycle === "active",
       terminal: view.lifecycle === "terminal"
     })
-  }, view.chatRevision, false);
+  }, view.chatRevision);
 }
 
 async function publish(
@@ -147,20 +149,24 @@ async function publish(
   services: { partyRaidChat: PartyRaidChatService; partySessions: PartySessionService },
   text: string,
   messageOptions: Parameters<Bot["api"]["editMessageText"]>[3],
-  renderedRevision: number,
-  recruiting: boolean
+  renderedRevision: number
 ): Promise<void> {
+  let claimVersion = delivery.version;
   let reference = delivery.chatId && delivery.messageId
     ? { chatId: delivery.chatId, messageId: delivery.messageId }
     : null;
   if (reference) {
     try {
-      await partyRaidChatTelegramGate.enqueue(reference.chatId, () => bot.api.editMessageText(
-        Number(reference!.chatId),
-        reference!.messageId,
-        text,
-        messageOptions
-      ));
+      const published = await partyRaidChatTelegramGate.enqueue(reference.chatId, async () => {
+        if (!await services.partyRaidChat.isDeliveryClaimCurrent(delivery.id, claimVersion)) {
+          return false;
+        }
+        await bot.api.editMessageText(Number(reference!.chatId), reference!.messageId, text, messageOptions);
+        return true;
+      });
+      if (!published) {
+        return;
+      }
     } catch (error) {
       if (isTelegramMessageNotModified(error)) {
         // Telegram confirms that this exact card is already current.
@@ -181,9 +187,16 @@ async function publish(
   if (!reference) {
     let sent: { chat: { id: number }; message_id: number };
     try {
-      sent = await partyRaidChatTelegramGate.enqueue(delivery.telegramUserId, () =>
-        bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions)
-      );
+      const result = await partyRaidChatTelegramGate.enqueue(delivery.telegramUserId, async () => {
+        if (!await services.partyRaidChat.isDeliveryClaimCurrent(delivery.id, claimVersion)) {
+          return null;
+        }
+        return bot.api.sendMessage(Number(delivery.telegramUserId), text, messageOptions);
+      });
+      if (!result) {
+        return;
+      }
+      sent = result;
     } catch (error) {
       if (isRetryableTelegramError(error)) {
         throw error;
@@ -196,16 +209,38 @@ async function publish(
       return;
     }
     reference = { chatId: BigInt(sent.chat.id), messageId: sent.message_id };
-    await services.partyRaidChat.recordDeliveryReference(delivery.id, reference.chatId, reference.messageId);
-    if (recruiting) {
-      await services.partySessions.recordParticipantMessageReference(
-        delivery.telegramUserId,
-        delivery.inviteToken,
-        reference
-      );
+    const recorded = await services.partyRaidChat.recordDeliveryReference(
+      delivery.id,
+      reference.chatId,
+      reference.messageId,
+      {
+        version: claimVersion,
+        chatId: delivery.chatId,
+        messageId: delivery.messageId
+      }
+    );
+    if (!recorded) {
+      await retireUntrackedCard(bot, reference);
+      return;
     }
+    claimVersion += 1;
   }
-  await services.partyRaidChat.markDeliveryRendered(delivery.id, renderedRevision);
+  await services.partyRaidChat.markDeliveryRendered(delivery.id, renderedRevision, claimVersion);
+}
+
+async function retireUntrackedCard(
+  bot: Bot,
+  reference: { chatId: bigint; messageId: number }
+): Promise<void> {
+  try {
+    await partyRaidChatTelegramGate.enqueue(reference.chatId, () => bot.api.editMessageText(
+      Number(reference.chatId),
+      reference.messageId,
+      "Рейд-чат більше недоступний."
+    ));
+  } catch {
+    // The losing publish is never adopted as canonical; Telegram cleanup is best-effort.
+  }
 }
 
 async function redact(
@@ -240,12 +275,16 @@ async function redact(
     }
   }
   try {
-    await partyRaidChatTelegramGate.enqueue(delivery.chatId, () => bot.api.editMessageText(
-      Number(delivery.chatId!),
-      delivery.messageId!,
-      text,
-      messageOptions
-    ));
+    const published = await partyRaidChatTelegramGate.enqueue(delivery.chatId, async () => {
+      if (!await services.partyRaidChat.isDeliveryClaimCurrent(delivery.id, delivery.version)) {
+        return false;
+      }
+      await bot.api.editMessageText(Number(delivery.chatId!), delivery.messageId!, text, messageOptions);
+      return true;
+    });
+    if (!published) {
+      return;
+    }
     await services.partyRaidChat.markDeliveryRedacted(delivery.id, "redacted", redactionAck(delivery));
   } catch (error) {
     if (isTelegramMessageNotModified(error)) {
@@ -265,6 +304,7 @@ async function redact(
 
 function redactionAck(delivery: PartyRaidChatDeliveryRecord) {
   return {
+    version: delivery.version,
     desiredRevision: delivery.desiredRevision,
     chatId: delivery.chatId,
     messageId: delivery.messageId

@@ -102,6 +102,7 @@ export type PartyRaidChatAcceptResult =
 
 export interface PartyRaidChatDeliveryRecord {
   id: string;
+  version: number;
   participantId: string;
   partySessionId: string;
   inviteToken: string;
@@ -156,24 +157,28 @@ export interface PartyRaidChatRepository {
     now: Date
   ): Promise<PartyRaidChatAuthorizedView | null>;
 
+  requestRecruitingRefresh(telegramUserId: bigint, inviteToken: string, now: Date): Promise<boolean>;
   listDueDeliveries(now: Date, limit?: number): Promise<PartyRaidChatDeliveryRecord[]>;
+  isDeliveryClaimCurrent(deliveryId: string, version: number): Promise<boolean>;
   recordDeliveryReference(
     deliveryId: string,
     chatId: bigint,
     messageId: number,
+    expected: { version: number; chatId: bigint | null; messageId: number | null },
     now: Date
-  ): Promise<void>;
-  markDeliveryRendered(deliveryId: string, revision: number, now: Date): Promise<void>;
+  ): Promise<boolean>;
+  markDeliveryRendered(deliveryId: string, revision: number, expectedVersion: number, now: Date): Promise<boolean>;
   markDeliveryFailure(
     deliveryId: string,
     nextAttemptAt: Date,
     deliveryClass: string,
+    expectedVersion: number,
     now: Date
   ): Promise<void>;
   markDeliveryRedacted(
     deliveryId: string,
     deliveryClass: string,
-    expected: { desiredRevision: number; chatId: bigint | null; messageId: number | null },
+    expected: { version: number; desiredRevision: number; chatId: bigint | null; messageId: number | null },
     now: Date
   ): Promise<void>;
   markDisabledReferencesForRedaction(now: Date, limit?: number): Promise<number>;

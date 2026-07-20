@@ -175,6 +175,21 @@ describe("PrismaPartySessionRepository integration", () => {
       await seedCharacter(prisma, entry.memberUser, entry.memberTelegramId, "Учасниця Вимкненого Чату", { level: 8 });
       await repository.createForTelegramUser(entry.leaderTelegramId, bigBarrelInput(entry.token));
       await repository.joinByTokenForTelegramUser(entry.memberTelegramId, entry.token, joinInput());
+      for (let reopen = 0; reopen < 2; reopen += 1) {
+        await prisma.partyRaidChatDeliveryState.updateMany({
+          where: {
+            participant: {
+              character: { user: { telegramUserId: entry.memberTelegramId } },
+              session: { inviteToken: entry.token }
+            }
+          },
+          data: {
+            version: { increment: 1 },
+            nextAttemptAt: now(),
+            lastDeliveryClass: "refresh-requested"
+          }
+        });
+      }
       const session = await prisma.partySession.findUniqueOrThrow({
         where: { inviteToken: entry.token },
         select: { id: true }
@@ -222,6 +237,9 @@ describe("PrismaPartySessionRepository integration", () => {
         where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } },
         select: { redactionRequired: true }
       })).resolves.toEqual({ redactionRequired: true });
+      await expect(prisma.partyRaidChatDeliveryState.count({
+        where: { participant: { characterId: `${entry.memberUser}-character`, session: { inviteToken: entry.token } } }
+      })).resolves.toBe(1);
     }
   });
 
@@ -1104,7 +1122,7 @@ describe("PrismaPartySessionRepository integration", () => {
     })).resolves.toEqual({ manaCurrent: 10 });
   });
 
-  it("records the actual sent recruiting card message reference for a joined participant", async () => {
+  it("keeps a generic party-card reference separate from the durable raid-chat reference", async () => {
     await seedCharacter(prisma, "message-ref-user", 2151n, "Карткова", { level: 8 });
     await repository.createForTelegramUser(2151n, {
       ...bigBarrelInput("party-token-message-ref"),
@@ -1149,10 +1167,21 @@ describe("PrismaPartySessionRepository integration", () => {
       where: { id: delivery.id },
       select: { activeChatId: true, activeMessageId: true, nextAttemptAt: true }
     })).resolves.toEqual({
-      activeChatId: 2151n,
-      activeMessageId: 42,
+      activeChatId: null,
+      activeMessageId: null,
       nextAttemptAt: idleAt
     });
+    await prisma.partyRaidChatDeliveryState.update({
+      where: { id: delivery.id },
+      data: {
+        version: { increment: 1 },
+        nextAttemptAt: now(),
+        lastDeliveryClass: "refresh-requested"
+      }
+    });
+    const due = (await new PrismaPartyRaidChatRepository(prisma).listDueDeliveries(now(), 130))
+      .find((candidate) => candidate.id === delivery.id);
+    expect(due).toMatchObject({ chatId: null, messageId: null });
   });
 
   it("records a replacement card reference after the party becomes terminal-ineligible", async () => {
@@ -1642,9 +1671,14 @@ async function withForcedSessionVersionCasLoss<T>(
 }
 
 async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
-  const sql = await readFile(resolve("prisma/migrations/20260720013000_add_party_raid_chat/migration.sql"), "utf8");
-  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
-    await prisma.$executeRawUnsafe(statement);
+  for (const migration of [
+    "20260720013000_add_party_raid_chat",
+    "20260720171500_add_party_raid_chat_delivery_version"
+  ]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 
