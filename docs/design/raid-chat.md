@@ -143,7 +143,7 @@ A bounded worker scans due dirty/redaction rows at startup and continuously. The
 9. A duplicate update or concurrent loser returns a no-op/already-consumed result and never creates a second entry.
 10. Invalid or rate-limited content does not consume the correction opportunity. Return one reason or exact wait, send a replacement ForceReply and CAS-update its exact prompt binding. A stale prompt can no longer write. Same-author/same-body suppression is a valid no-op: consume the composer, but create no quota use, entry or revision, and show `Таке повідомлення вже є в чаті.`
 
-After acceptance, best-effort edit the bot prompt to `✅ Додано до рейд-чату.` and schedule delivery. `/cancel_raid_chat` cancels only the composer, never the raid.
+After acceptance, first send a fresh visible confirmation `✅ Повідомлення надіслано в рейд-чат.`, then best-effort edit the bot prompt to `Цей бланк уже використано.`, and schedule delivery. The fresh reply is required even when Telegram no longer permits editing the old prompt. `/cancel_raid_chat` cancels only the composer, never the raid.
 
 ## System events
 

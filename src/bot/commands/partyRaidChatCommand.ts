@@ -168,10 +168,11 @@ async function handleSubmitResult(
   result: PartyRaidChatSubmitResult
 ): Promise<void> {
   if (result.state === "accepted" || result.state === "duplicate-body") {
-    const text = result.state === "accepted"
-      ? "✅ Додано до рейд-чату."
+    const confirmation = result.state === "accepted"
+      ? "✅ Повідомлення надіслано в рейд-чат."
       : "Таке повідомлення вже є в чаті.";
-    await editComposerPromptBestEffort(ctx, promptMessageId, text);
+    await replyThroughRaidChatGate(ctx, confirmation);
+    await editComposerPromptBestEffort(ctx, promptMessageId, "Цей бланк уже використано.");
     return;
   }
   if (result.state === "invalid") {

@@ -37,7 +37,7 @@ describe("party raid chat input routing", () => {
     expect(service.submitInput).not.toHaveBeenCalled();
   });
 
-  it("consumes only the exact bot-authored private ForceReply once", async () => {
+  it("consumes only the exact bot-authored private ForceReply once and confirms the accepted post", async () => {
     const { handler, service } = registerForTest({ boundPromptId: 13 });
     const next = vi.fn<NextFunction>().mockResolvedValue(undefined);
     const ctx = makeContext({ text: "Хало & привіт", replyMessageId: 13 });
@@ -52,7 +52,20 @@ describe("party raid chat input routing", () => {
       sourceMessageId: 93,
       text: "Хало & привіт"
     }));
-    expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "✅ Додано до рейд-чату.");
+    expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "Цей бланк уже використано.");
+    expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
+    expect(ctx.replyMock.mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(ctx.api.editMessageText).mock.invocationCallOrder[0]!);
+  });
+
+  it("still sends a visible confirmation when the old composer prompt cannot be edited", async () => {
+    const { handler } = registerForTest({ boundPromptId: 13 });
+    const ctx = makeContext({ text: "Точно дійшло?", replyMessageId: 13 });
+    vi.mocked(ctx.api.editMessageText).mockRejectedValueOnce(new Error("message cannot be edited"));
+
+    await handler(ctx, vi.fn<NextFunction>().mockResolvedValue(undefined));
+
+    expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
   });
 
   it("passes media, captions and forwarded replies through without touching the composer", async () => {
@@ -151,6 +164,7 @@ function makeContext(input: {
   chatId?: number;
 }) {
   const chatId = input.chatId ?? 42;
+  const replyMock = vi.fn().mockResolvedValue({ message_id: 94 });
   return {
     from: { id: 42 },
     chat: { id: chatId, type: "private" },
@@ -169,6 +183,10 @@ function makeContext(input: {
       }
     },
     api: { editMessageText: vi.fn().mockResolvedValue(true) },
-    reply: vi.fn().mockResolvedValue({ message_id: 94 })
-  } as unknown as Context & { api: { editMessageText: ReturnType<typeof vi.fn> } };
+    reply: replyMock,
+    replyMock
+  } as unknown as Context & {
+    api: { editMessageText: ReturnType<typeof vi.fn> };
+    replyMock: ReturnType<typeof vi.fn>;
+  };
 }
