@@ -942,6 +942,47 @@ describe("PrismaPartyRaidChatRepository integration", () => {
       select: { chatRevision: true, raidChatRetentionUntil: true }
     })).resolves.toEqual({ chatRevision: 0, raidChatRetentionUntil: null });
   });
+
+  it("backfills the newest 13 visible rows while hiding legacy combat ability events", async () => {
+    await seedLineage(prisma, "hidden-abilities", 7093n);
+    const hiddenEventTypes = [
+      "ability.form-thirteen-b",
+      "ability.dangerous-couplet"
+    ];
+    await prisma.partyRaidChatEntry.createMany({
+      data: [
+        ...Array.from({ length: 13 }, (_, index) => ({
+          partySessionId: "session-hidden-abilities",
+          revision: index + 1,
+          kind: "player",
+          actorCharacterId: "character-hidden-abilities",
+          actorDisplayName: "Видимий Гравець",
+          actorRemortCount: 0,
+          body: `Репліка ${index + 1}`,
+          occurredAt: new Date(NOW.getTime() + index)
+        })),
+        ...hiddenEventTypes.map((eventType, index) => ({
+          partySessionId: "session-hidden-abilities",
+          revision: 14 + index,
+          kind: "system",
+          eventType,
+          actorCharacterId: "character-hidden-abilities",
+          actorDisplayName: "Невидима Здібність",
+          actorRemortCount: 0,
+          body: null,
+          occurredAt: new Date(NOW.getTime() + 14 + index)
+        }))
+      ]
+    });
+
+    const view = await repository.getAuthorizedView(7093n, "raid-hidden-abilities", NOW);
+
+    expect(view?.entries).toHaveLength(13);
+    expect(view?.entries.map((entry) => entry.body)).toEqual(
+      Array.from({ length: 13 }, (_, index) => `Репліка ${index + 1}`)
+    );
+    expect(view?.entries.some((entry) => entry.eventType?.startsWith("ability."))).toBe(false);
+  });
 });
 
 async function seedLineage(prisma: PrismaClient, key: string, telegramUserId: bigint): Promise<void> {

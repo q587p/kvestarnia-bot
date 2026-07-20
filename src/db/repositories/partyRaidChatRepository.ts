@@ -15,6 +15,11 @@ export type PartyRaidChatSurfaceMode =
   | "terminal_read_only"
   | "redacted";
 
+export const PARTY_RAID_CHAT_HIDDEN_SYSTEM_EVENT_TYPES = [
+  "ability.form-thirteen-b",
+  "ability.dangerous-couplet"
+] as const;
+
 export type PartyRaidChatSystemEventType =
   | "party.created"
   | "participant.joined"
@@ -27,6 +32,7 @@ export type PartyRaidChatSystemEventType =
   | "protocol.signed"
   | "raid.started"
   | "raid.music.started"
+  | "participant.knocked-out"
   | "ability.taunt"
   | "ability.lament"
   | "ability.form-thirteen-b"

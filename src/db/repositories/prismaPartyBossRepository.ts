@@ -1169,7 +1169,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
-      await appendResolvedRaidChatEvents(this.raidChat, tx, session, resolved.round, input.now);
+      await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
 
       for (const action of actionInputs) {
         if (action.action === "item" && action.item) {
@@ -1260,14 +1260,16 @@ async function appendResolvedRaidChatEvents(
   raidChat: PrismaPartyRaidChatTransactionWriter,
   tx: TxClient,
   session: PartyBossRow,
+  previousState: PartyBossState,
+  nextState: PartyBossState,
   round: PartyBossRoundSummary,
   occurredAt: Date
 ): Promise<void> {
   const actorSnapshot = (characterId: string) => {
-    const participant = session.partySession.participants.find((row) => row.characterId === characterId);
+    const participant = nextState.participants.find((row) => row.characterId === characterId);
     return {
       actorCharacterId: characterId,
-      actorDisplayName: participant?.character.name ?? null,
+      actorDisplayName: participant?.name ?? null,
       actorRemortCount: participant?.remortCount ?? null
     };
   };
@@ -1294,25 +1296,23 @@ async function appendResolvedRaidChatEvents(
     });
   }
 
-  for (const action of round.actions) {
-    const eventType = action.skillId === "skill.form-thirteen-b"
-      ? "ability.form-thirteen-b" as const
-      : action.skillId === "skill.dangerous-couplet"
-        ? "ability.dangerous-couplet" as const
-        : null;
-    if (
-      !eventType ||
-      action.outcome === "not-enough-mana" ||
-      action.outcome === "skill-on-cooldown"
-    ) {
+  const previousParticipants = new Map(previousState.participants.map((participant) => [
+    participant.characterId,
+    participant
+  ]));
+  for (const participant of nextState.participants) {
+    const previous = previousParticipants.get(participant.characterId);
+    if (previous?.status !== "active" || participant.status !== "knocked-out") {
       continue;
     }
     await raidChat.append(tx, {
       partySessionId: session.partySessionId,
-      eventType,
-      sourceKey: `party:${session.partySessionId}:boss:${session.id}:turn:${round.turn}:${eventType}:${action.characterId}`,
+      eventType: "participant.knocked-out",
+      sourceKey: `party:${session.partySessionId}:boss:${session.id}:turn:${previousState.turn}:knocked-out:${participant.characterId}`,
       occurredAt,
-      ...actorSnapshot(action.characterId)
+      actorCharacterId: participant.characterId,
+      actorDisplayName: participant.name,
+      actorRemortCount: participant.remortCount
     });
   }
 }

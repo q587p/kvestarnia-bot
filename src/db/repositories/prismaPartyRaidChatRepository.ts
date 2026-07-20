@@ -7,6 +7,7 @@ import {
   PARTY_RAID_CHAT_ENTRY_LIMIT,
   PARTY_RAID_CHAT_LINEAGE_WINDOW_CAP,
   PARTY_RAID_CHAT_LINEAGE_WINDOW_MS,
+  PARTY_RAID_CHAT_HIDDEN_SYSTEM_EVENT_TYPES,
   PARTY_RAID_CHAT_STORAGE_CAP,
   type PartyRaidChatAcceptResult,
   type PartyRaidChatAuthorizedView,
@@ -404,7 +405,13 @@ export class PrismaPartyRaidChatRepository implements PartyRaidChatRepository {
       return null;
     }
     const entries = await this.prisma.partyRaidChatEntry.findMany({
-      where: { partySessionId: authorization.session.id },
+      where: {
+        partySessionId: authorization.session.id,
+        OR: [
+          { eventType: null },
+          { eventType: { notIn: [...PARTY_RAID_CHAT_HIDDEN_SYSTEM_EVENT_TYPES] } }
+        ]
+      },
       orderBy: { id: "desc" },
       take: PARTY_RAID_CHAT_ENTRY_LIMIT
     });

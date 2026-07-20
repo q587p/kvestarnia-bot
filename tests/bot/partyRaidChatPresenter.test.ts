@@ -70,16 +70,31 @@ describe("party raid chat presenter", () => {
     expect(text.length).toBeLessThanOrEqual(4_096);
   });
 
-  it("names Form 13-B correctly in the typed system event", () => {
-    const text = presentPartyRaidChatSection(makeView([{
-      ...entry(1, "2026-07-20T10:00:00.000Z", "Бюрокрамант", ""),
-      kind: "system",
-      eventType: "ability.form-thirteen-b",
-      body: null
-    }]));
+  it("shows knockouts while hiding legacy combat ability rows", () => {
+    const text = presentPartyRaidChatSection(makeView([
+      {
+        ...entry(1, "2026-07-20T10:00:00.000Z", "Бюрокрамант", ""),
+        kind: "system",
+        eventType: "ability.form-thirteen-b",
+        body: null
+      },
+      {
+        ...entry(2, "2026-07-20T10:00:01.000Z", "Крихітний Вояка", ""),
+        kind: "system",
+        eventType: "ability.lament",
+        body: null
+      },
+      {
+        ...entry(3, "2026-07-20T10:00:02.000Z", "Крихітний Вояка", ""),
+        kind: "system",
+        eventType: "participant.knocked-out",
+        body: null
+      }
+    ]));
 
-    expect(text).toContain("Форму 13-Б");
-    expect(text).not.toContain("Форму 13-А через бойову");
+    expect(text).not.toContain("Форму 13-Б");
+    expect(text).toContain("Крихітний Вояка заводить журливу баладу.");
+    expect(text).toContain("Крихітний Вояка гине в бою. На щастя, лише за документами Бочки.");
   });
 });
 

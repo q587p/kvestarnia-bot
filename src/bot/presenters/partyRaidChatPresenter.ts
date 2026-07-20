@@ -1,6 +1,7 @@
-import type {
-  PartyRaidChatAuthorizedView,
-  PartyRaidChatEntryRecord
+import {
+  PARTY_RAID_CHAT_HIDDEN_SYSTEM_EVENT_TYPES,
+  type PartyRaidChatAuthorizedView,
+  type PartyRaidChatEntryRecord
 } from "../../db/repositories/partyRaidChatRepository";
 import { escapeHtml } from "./telegramHtml";
 
@@ -23,18 +24,20 @@ export function presentPartyRaidChatSection(
   view: PartyRaidChatAuthorizedView,
   visibleEntries = view.entries
 ): string {
-  const spansDates = new Set(visibleEntries.map((entry) => kyivDateFormatter.format(entry.occurredAt))).size > 1;
-  const pruned = visibleEntries.length < view.entries.length;
+  const allowedEntries = withoutHiddenSystemEvents(view.entries);
+  const displayedEntries = withoutHiddenSystemEvents(visibleEntries);
+  const spansDates = new Set(displayedEntries.map((entry) => kyivDateFormatter.format(entry.occurredAt))).size > 1;
+  const pruned = displayedEntries.length < allowedEntries.length;
   const header = pruned
-    ? `💬 <b>Рейд-чат (останні ${visibleEntries.length} із 13):</b>`
+    ? `💬 <b>Рейд-чат (останні ${displayedEntries.length} із 13):</b>`
     : "💬 <b>Рейд-чат (останні 13):</b>";
-  if (visibleEntries.length === 0) {
+  if (displayedEntries.length === 0) {
     return `${header}\n• Поки тихо. Бочка ще думає, що це добрий знак.`;
   }
 
   return [
     header,
-    ...visibleEntries.map((entry) => presentEntry(entry, spansDates))
+    ...displayedEntries.map((entry) => presentEntry(entry, spansDates))
   ].join("\n");
 }
 
@@ -144,10 +147,8 @@ function presentSystemEvent(entry: PartyRaidChatEntryRecord): string {
       return `${name} забирає увагу Бочки на себе.`;
     case "ability.lament":
       return `${name} заводить журливу баладу.`;
-    case "ability.form-thirteen-b":
-      return `${name} проводить Форму 13-Б через бойову канцелярію.`;
-    case "ability.dangerous-couplet":
-      return `${name} запускає небезпечний куплет.`;
+    case "participant.knocked-out":
+      return `${name} гине в бою. На щастя, лише за документами Бочки.`;
     case "raid.won":
       return "Рейд переміг. Бочка подає апеляцію в піну.";
     case "raid.lost":
@@ -159,4 +160,9 @@ function presentSystemEvent(entry: PartyRaidChatEntryRecord): string {
     default:
       return "Рейдова канцелярія оновила запис.";
   }
+}
+
+function withoutHiddenSystemEvents(entries: readonly PartyRaidChatEntryRecord[]): PartyRaidChatEntryRecord[] {
+  const hidden = new Set<string>(PARTY_RAID_CHAT_HIDDEN_SYSTEM_EVENT_TYPES);
+  return entries.filter((entry) => entry.kind !== "system" || !entry.eventType || !hidden.has(entry.eventType));
 }

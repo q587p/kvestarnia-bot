@@ -162,18 +162,19 @@ Allowlist:
 - Form 13-A filed / Protocol 13-Z opened and protocol signed;
 - raid started, whether early or automatic;
 - post-`0.3.14` starting raid-music state only when it is a visible canonical fact;
-- actual activation/resolution of the narrow high-signal stateful raid abilities, including Warrior Taunt, Bard Lament/raid song and the real post-merge `skill.form-thirteen-b` / `skill.dangerous-couplet` actions when applicable;
+- actual activation/resolution of raid-wide stateful mechanics, including Warrior Taunt and Bard Lament/raid song;
+- each participant's canonical active→knocked-out transition, once per transition;
 - raid won, lost, cancelled or expired.
 
-Resolve combat ability entries from the winning round result/action summaries. Do not append when a replaceable queued action is selected; the last choice wins and only the resolved action happened.
+Resolve raid-wide mechanic and knockout entries from the winning round result/state transition. Do not append when a replaceable queued action is selected; the last choice wins and only the resolved state happened.
 
-Exclude readiness toggles, refresh/share, denied/stale/no-op attempts, ordinary attack/defend/skill/item actions, damage, HP/mana, rewards, hidden contribution, every ward/protocol trigger and unrelated Shynok/Priest/food/equipment state. The noncombat Shynok Bard performance is not a raid event merely because the actor is a Bard.
+Exclude readiness toggles, refresh/share, denied/stale/no-op attempts, ordinary attack/defend/item actions, personal class/race/equipment skill actions such as Form 13-B and Dangerous Couplet, damage, HP/mana, rewards, hidden contribution, every ward/protocol trigger and unrelated Shynok/Priest/food/equipment state. The noncombat Shynok Bard performance is not a raid event merely because the actor is a Bard. Legacy retained personal-skill rows are filtered before the newest-13 query and never rendered.
 
 System payloads contain only stable IDs/enums and display-safe snapshots needed by the presenter. Never include failure reasons, Telegram identifiers, invite tokens or hidden balance values.
 
 ## Rendering
 
-- Query `ORDER BY id DESC LIMIT 13`, then render oldest to newest.
+- Exclude legacy personal class-skill event types, then query `ORDER BY id DESC LIMIT 13` and render oldest to newest.
 - Store UTC; render in `Europe/Kyiv` as `HH:mm:ss`.
 - If the visible 13 entries span more than one Kyiv calendar date, render every row as `DD.MM HH:mm:ss`.
 - Player row: `• <time> <b><escaped name></b>: <escaped body>`; only the escaped player name is bold.
