@@ -1172,7 +1172,6 @@ model PartyBossRound {
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@unique([sessionId, turn])
-  @@index([sessionId, turn])
   @@map("party_boss_rounds")
 }
 

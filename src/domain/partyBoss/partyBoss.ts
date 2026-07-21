@@ -365,18 +365,19 @@ export function createPartyBossState(input: {
     participants: input.participants.map((participant) => {
       const hpMax = Math.max(1, Math.floor(participant.combatStats.hpMax));
       const manaMax = Math.max(0, Math.floor(participant.combatStats.manaMax));
+      const hp = clamp(Math.floor(participant.combatStats.hpCurrent), 0, hpMax);
 
       return {
         characterId: participant.characterId,
         name: participant.name,
         remortCount: participant.remortCount,
-        status: "active",
+        status: hp > 0 ? "active" : "knocked-out",
         combatStats: participant.combatStats,
         ...(participant.equipmentAbilityGrantIds && participant.equipmentAbilityGrantIds.length > 0
           ? { equipmentAbilityGrantIds: [...participant.equipmentAbilityGrantIds] }
           : {}),
         resources: {
-          hp: clamp(Math.floor(participant.combatStats.hpCurrent), 0, hpMax),
+          hp,
           hpMax,
           mana: clamp(Math.floor(participant.combatStats.manaCurrent), 0, manaMax),
           manaMax

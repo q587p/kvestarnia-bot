@@ -5,6 +5,7 @@ import {
   createPartyBossState
 } from "../../src/domain/partyBoss/partyBoss";
 import {
+  parsePartyBossRoundSummaryStrict,
   parsePartyBossStateStrict,
   PartyBossStateValidationError
 } from "../../src/domain/partyBoss/partyBossStateValidation";
@@ -51,6 +52,7 @@ describe("PartyBoss strict state validation", () => {
     ["resource maximum mismatch", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hpMax += 1; }],
     ["active participant at zero hp", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hp = 0; }],
     ["invalid cooldown", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.cooldowns = { skill: { id: "skill", remainingTurns: "2" as never } }; }],
+    ["string accuracy bonus", (state: ReturnType<typeof validState>) => { (state.participants[0]!.combatStats as unknown as { accuracyBonusPp: unknown }).accuracyBonusPp = "3"; }],
     ["invalid timed status", (state: ReturnType<typeof validState>) => { state.participants[0]!.bardMusicAvailableAt = "not-a-date"; }]
   ])("rejects strict runtime field corruption: %s", (_label, mutate) => {
     const state = validState();
@@ -66,6 +68,30 @@ describe("PartyBoss strict state validation", () => {
     const state = stateWithRound();
     mutate(state);
     expectValidationCode(state, "numeric");
+  });
+
+  it.each([
+    ["supportCap", "7"],
+    ["usesRemaining", "2"],
+    ["usesMax", -1],
+    ["supportCap", 0],
+    ["usesRemaining", 3]
+  ])("rejects invalid historical ward %s", (field, value) => {
+    const round = stateWithWardRound().roundLog[0]! as unknown as Record<string, unknown>;
+    const ward = round.wardSign as Record<string, unknown>;
+    ward[field] = value;
+
+    expect(() => parsePartyBossRoundSummaryStrict(round)).toThrowError(PartyBossStateValidationError);
+  });
+
+  it("rejects optional runtime-read enum and resource corruption before journal rendering", () => {
+    const invalidOutcome = stateWithRound().roundLog[0]!;
+    (invalidOutcome.actions[0] as unknown as { outcome: unknown }).outcome = "almost-hit";
+    expect(() => parsePartyBossRoundSummaryStrict(invalidOutcome)).toThrowError(PartyBossStateValidationError);
+
+    const invalidKnockout = stateWithRound().roundLog[0]!;
+    invalidKnockout.participantsAfter![0]!.status = "knocked-out";
+    expect(() => parsePartyBossRoundSummaryStrict(invalidKnockout)).toThrowError(PartyBossStateValidationError);
   });
 
   it("accepts a terminal frozen roster without comparing mutable live participants", () => {
@@ -165,5 +191,21 @@ function stateWithRound() {
     }],
     statusAfter: "active"
   }];
+  return state;
+}
+
+function stateWithWardRound() {
+  const state = stateWithRound();
+  state.roundLog[0]!.wardSign = {
+    kind: "kharakternyk",
+    status: "triggered",
+    supportCount: 2,
+    supportCap: 7,
+    usesRemaining: 1,
+    usesMax: 2,
+    mitigationPercent: 13,
+    preventedDamage: 3,
+    affectedCharacterIds: ["leader"]
+  };
   return state;
 }

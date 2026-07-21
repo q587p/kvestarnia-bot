@@ -60,6 +60,56 @@ describe("party boss recruiting start scheduler", () => {
     expect(JSON.stringify(sendMessage.mock.calls[2]?.[2])).not.toContain("📜 Журнал");
   });
 
+  it("isolates one failed recruiting start and still starts the next party plus scans due turns", async () => {
+    const malformed = makePartySession();
+    const healthy = {
+      ...makePartySession(),
+      id: "party-healthy",
+      inviteToken: "partyHealthy"
+    };
+    const dueSession = {
+      ...makeBossSession(),
+      id: "boss-due-after-bad-start",
+      partyInviteToken: "partyDueAfterBadStart"
+    };
+    const startFromPartyForTelegramUser = vi.fn()
+      .mockRejectedValueOnce(new Error("invalid stored recruiting row"))
+      .mockResolvedValueOnce({ state: "started", session: makeBossSession() });
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({
+      state: "resolved",
+      session: makeBossSession({ turn: 2 })
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const scheduler = createPartyBossRecruitingStartScheduler({
+      partySessions: {
+        isBigBarrelBrotherEnabled: () => true,
+        listDueRecruitingBigBarrelBrother: vi.fn().mockResolvedValue([malformed, healthy])
+      } as unknown as PartySessionService,
+      partyBoss: {
+        isEnabled: () => true,
+        listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
+        startFromPartyForTelegramUser,
+        resolveDueTimedOutByToken,
+        hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
+      } as unknown as PartyBossService
+    }, { api: { sendMessage } } as unknown as Bot);
+
+    try {
+      await expect(scheduler.tick()).resolves.toBe(2);
+    } finally {
+      error.mockRestore();
+    }
+
+    expect(startFromPartyForTelegramUser).toHaveBeenNthCalledWith(
+      2,
+      healthy.leader.telegramUserId,
+      healthy.inviteToken,
+      { allowExpiredRecruiting: true }
+    );
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledWith(dueSession.partyInviteToken);
+  });
+
   it("isolates terminal notification failures while keeping later participants and due turns healthy", async () => {
     const party = makePartySession();
     const dueSession = {

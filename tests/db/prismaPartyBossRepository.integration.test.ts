@@ -9,9 +9,11 @@ import { PrismaCharacterRepository } from "../../src/db/repositories/prismaChara
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import type {
   PartyBossActionResult,
-  PartyBossSessionRecord
+  PartyBossSessionRecord,
+  PartyBossStartResult
 } from "../../src/db/repositories/partyBossRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY } from "../../src/domain/partyBoss/partyBoss";
+import { PartyBossStateValidationError } from "../../src/domain/partyBoss/partyBossStateValidation";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { getLevelStartXp } from "../../src/domain/progression/level";
 import {
@@ -22,7 +24,7 @@ import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidSe
 import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 import { PartyBossService } from "../../src/services/partyBossService";
 
-function expectPartyBossSession(result: PartyBossActionResult): PartyBossSessionRecord {
+function expectPartyBossSession(result: PartyBossActionResult | PartyBossStartResult): PartyBossSessionRecord {
   if (!("session" in result)) {
     throw new Error(`Expected party boss session result, got ${result.state}`);
   }
@@ -30,12 +32,17 @@ function expectPartyBossSession(result: PartyBossActionResult): PartyBossSession
   return result.session;
 }
 
-async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
-  for (const migration of [
+const RAID_CHAT_MIGRATIONS = [
     "20260720013000_add_party_raid_chat",
     "20260720171500_add_party_raid_chat_delivery_version",
     "20260721113000_party_boss_round_history"
-  ]) {
+] as const;
+
+async function applyRaidChatMigration(
+  prisma: PrismaClient,
+  migrations: readonly string[] = RAID_CHAT_MIGRATIONS
+): Promise<void> {
+  for (const migration of migrations) {
     const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
       await prisma.$executeRawUnsafe(statement);
@@ -1672,6 +1679,125 @@ describe("PrismaPartyBossRepository integration", () => {
     await expect(prisma.activeCombatLease.findUnique({ where: { id: "orphan-party-boss-lease" } })).resolves.toBeNull();
   });
 
+  it("freezes a zero-HP leader as knocked out while starting the healthy joiner", async () => {
+    await seedCharacter(prisma, "zero-leader", 90001n, "Нульова провідниця", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await seedCharacter(prisma, "zero-leader-joiner", 90002n, "Здорова супутниця", { hp: 25, level: 8 });
+    await partyRepository.createForTelegramUser(90001n, partyInput("party-zero-leader"));
+    await partyRepository.joinByTokenForTelegramUser(90002n, "party-zero-leader", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(90001n, {
+      partyInviteToken: "party-zero-leader",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toMatchObject({ state: "started" });
+    expect(expectPartyBossSession(started).state.participants.map(({ characterId, status, resources }) => ({
+      characterId,
+      status,
+      hp: resources.hp
+    }))).toEqual(expect.arrayContaining([
+      { characterId: "zero-leader-character", status: "knocked-out", hp: 0 },
+      { characterId: "zero-leader-joiner-character", status: "active", hp: 25 }
+    ]));
+  });
+
+  it("freezes a zero-HP joiner as knocked out while keeping the leader active", async () => {
+    await seedCharacter(prisma, "zero-joiner-leader", 90003n, "Здорова провідниця", { hp: 25, level: 8 });
+    await seedCharacter(prisma, "zero-joiner", 90004n, "Нульовий супутник", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await partyRepository.createForTelegramUser(90003n, partyInput("party-zero-joiner"));
+    await partyRepository.joinByTokenForTelegramUser(90004n, "party-zero-joiner", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(90003n, {
+      partyInviteToken: "party-zero-joiner",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toMatchObject({ state: "started" });
+    expect(expectPartyBossSession(started).state.participants.find(
+      (participant) => participant.characterId === "zero-joiner-leader-character"
+    )).toMatchObject({ status: "active", resources: { hp: 25 } });
+    expect(expectPartyBossSession(started).state.participants.find(
+      (participant) => participant.characterId === "zero-joiner-character"
+    )).toMatchObject({ status: "knocked-out", resources: { hp: 0 } });
+  });
+
+  it("starts a mixed roster with each zero-HP participant frozen as knocked out", async () => {
+    await seedCharacter(prisma, "mixed-leader", 90005n, "Провідник", { hp: 25, level: 8 });
+    await seedCharacter(prisma, "mixed-zero", 90006n, "Вибита супутниця", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await seedCharacter(prisma, "mixed-healthy", 90007n, "Стійкий супутник", { hp: 25, level: 8 });
+    await partyRepository.createForTelegramUser(90005n, partyInput("party-zero-mixed"));
+    await partyRepository.joinByTokenForTelegramUser(90006n, "party-zero-mixed", joinInput());
+    await partyRepository.joinByTokenForTelegramUser(90007n, "party-zero-mixed", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(90005n, {
+      partyInviteToken: "party-zero-mixed",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+
+    expect(started).toMatchObject({ state: "started" });
+    expect(expectPartyBossSession(started).state.participants.map(({ characterId, status }) => ({
+      characterId,
+      status
+    }))).toEqual(expect.arrayContaining([
+      { characterId: "mixed-leader-character", status: "active" },
+      { characterId: "mixed-zero-character", status: "knocked-out" },
+      { characterId: "mixed-healthy-character", status: "active" }
+    ]));
+  });
+
+  it("starts an all-zero-HP roster without a poison row and settles it rewardlessly", async () => {
+    await seedCharacter(prisma, "all-zero-leader", 90008n, "Вибита провідниця", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await seedCharacter(prisma, "all-zero-joiner", 90009n, "Вибитий супутник", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await partyRepository.createForTelegramUser(90008n, partyInput("party-all-zero"));
+    await partyRepository.joinByTokenForTelegramUser(90009n, "party-all-zero", joinInput());
+
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(90008n, {
+      partyInviteToken: "party-all-zero",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    expect(started).toMatchObject({ state: "started" });
+    expect(expectPartyBossSession(started).state.participants.every(
+      (participant) => participant.status === "knocked-out" && participant.resources.hp === 0
+    )).toBe(true);
+
+    const resolved = await bossRepository.resolveTimedOutByToken("party-all-zero", {
+      now: new Date("2026-06-30T10:00:24.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:47.000Z")
+    }, "due");
+    expect(resolved).toMatchObject({ state: "resolved", session: { status: "lost" } });
+    await expect(prisma.activeCombatLease.count({
+      where: { referenceId: expectPartyBossSession(started).partySessionId, kind: "party-boss" }
+    })).resolves.toBe(0);
+    await expect(prisma.dailyAction.count({
+      where: { characterId: { in: ["all-zero-leader-character", "all-zero-joiner-character"] } }
+    })).resolves.toBe(0);
+  });
+
+  it("scheduled start accepts a due zero-HP member as a frozen knockout", async () => {
+    const dueAt = new Date("2026-06-30T10:13:01.000Z");
+    await seedCharacter(prisma, "scheduled-zero-leader", 90010n, "Планова провідниця", { hp: 25, level: 8 });
+    await seedCharacter(prisma, "scheduled-zero-joiner", 90011n, "Плановий нокаут", { hpCurrent: 0, hpMax: 25, level: 8 });
+    await partyRepository.createForTelegramUser(90010n, {
+      ...partyInput("party-scheduled-zero"),
+      originLocationId: "barrel.big-brother"
+    });
+    await partyRepository.joinByTokenForTelegramUser(90011n, "party-scheduled-zero", joinInput());
+    const service = new PartyBossService(bossRepository, { enabled: true }, () => dueAt);
+
+    const started = await service.startFromPartyForTelegramUser(90010n, "party-scheduled-zero", {
+      allowExpiredRecruiting: true
+    });
+
+    expect(started).toMatchObject({ state: "started" });
+    expect(expectPartyBossSession(started).state.participants.find(
+      (participant) => participant.characterId === "scheduled-zero-joiner-character"
+    )).toMatchObject({ status: "knocked-out", resources: { hp: 0 } });
+  });
+
   it("finishes an already-active raid after restart with the player-facing flag off", async () => {
     await seedCharacter(prisma, "flag-off-leader", 91108n, "Лідер без прапорця", { hp: 300, level: 8 });
     await seedCharacter(prisma, "flag-off-joiner", 91109n, "Свідок без прапорця", { hp: 300, level: 8 });
@@ -1752,6 +1878,154 @@ describe("PrismaPartyBossRepository integration", () => {
     expect(first?.journal).toMatchObject({ page: 0, totalPages: 25, round: { turn: 1 } });
     expect(last?.journal).toMatchObject({ page: 24, totalPages: 25, round: { turn: 25 } });
   });
+
+  it("rejects corrupt persisted ward counters before a historical page can render NaN", async () => {
+    const history = await seedTerminalBossHistory(prisma, partyRepository, bossRepository, {
+      token: "party-history-corrupt-ward",
+      leaderUserId: "history-corrupt-ward-leader",
+      leaderTelegramId: 91116n,
+      joinerUserId: "history-corrupt-ward-joiner",
+      joinerTelegramId: 91117n
+    });
+    const stored = await prisma.partyBossRound.findUniqueOrThrow({
+      where: { sessionId_turn: { sessionId: history.bossSessionId, turn: 1 } }
+    });
+    const corruptRound = stored.roundJson as Record<string, unknown>;
+    corruptRound.wardSign = {
+      kind: "kharakternyk",
+      status: "triggered",
+      supportCount: 2,
+      supportCap: "not-a-number",
+      usesRemaining: 1,
+      usesMax: 2,
+      mitigationPercent: 13,
+      preventedDamage: 3,
+      affectedCharacterIds: [history.leaderCharacterId]
+    };
+    await prisma.partyBossRound.update({
+      where: { id: stored.id },
+      data: { roundJson: corruptRound as never }
+    });
+
+    await expect(bossRepository.findJournalPageByPartyInviteToken(history.token, 0))
+      .rejects.toBeInstanceOf(PartyBossStateValidationError);
+  });
+
+  it("backfills the original leader from a real pre-migration terminal JSON fixture", async () => {
+    const legacyDir = await mkdtemp(join(tmpdir(), "kvestarnia-party-boss-legacy-history-"));
+    const legacyPrisma = new PrismaClient({
+      datasources: { db: { url: `file:${join(legacyDir, "test.db").replace(/\\/g, "/")}` } }
+    });
+
+    try {
+      await createMinimalSchema(legacyPrisma);
+      await applyRaidChatMigration(legacyPrisma, RAID_CHAT_MIGRATIONS.slice(0, 2));
+      const legacyRaidChat = new PrismaPartyRaidChatTransactionWriter(true);
+      const legacyParties = new PrismaPartySessionRepository(legacyPrisma, legacyRaidChat);
+      const legacyBosses = new PrismaPartyBossRepository(
+        legacyPrisma,
+        new HpRecoveryNotificationProducer(true),
+        legacyRaidChat
+      );
+      await seedCharacter(legacyPrisma, "legacy-history-leader", 91114n, "Первісна провідниця", { hp: 300, level: 8 });
+      await seedCharacter(legacyPrisma, "legacy-history-joiner", 91115n, "Свідок історії", { hp: 300, level: 8 });
+      await legacyParties.createForTelegramUser(91114n, partyInput("party-legacy-history"));
+      await legacyParties.joinByTokenForTelegramUser(91115n, "party-legacy-history", joinInput());
+      const started = await legacyBosses.startFromRecruitingPartyForTelegramUser(91114n, {
+        partyInviteToken: "party-legacy-history",
+        now: now(),
+        turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      });
+      const session = expectPartyBossSession(started);
+      const completedAt = new Date("2026-06-30T10:13:00.000Z");
+      const rounds = Array.from({ length: 25 }, (_, index) => ({
+        turn: index + 1,
+        actions: session.state.participants.map((participant) => ({
+          characterId: participant.characterId,
+          action: "attack" as const,
+          origin: "manual" as const,
+          outcome: "hit" as const,
+          damage: 1,
+          manaSpent: 0
+        })),
+        bossDamage: session.state.participants.length,
+        bossHpAfter: index === 24 ? 0 : Math.max(1, session.state.boss.hp - index - 1),
+        bossRetaliations: [],
+        participantsAfter: session.state.participants.map((participant) => ({
+          characterId: participant.characterId,
+          status: participant.status,
+          hp: participant.resources.hp,
+          hpMax: participant.resources.hpMax,
+          mana: participant.resources.mana,
+          manaMax: participant.resources.manaMax
+        })),
+        statusAfter: index === 24 ? "won" as const : "active" as const
+      }));
+      const terminalState = {
+        ...session.state,
+        status: "won" as const,
+        turn: 26,
+        boss: { ...session.state.boss, hp: 0 },
+        roundLog: [rounds[24]!],
+        completedAt: completedAt.toISOString()
+      };
+      const { leaderCharacterId: originalHistoricalLeader, ...legacyStateWithoutLeader } = terminalState;
+      expect(originalHistoricalLeader).toBe("legacy-history-leader-character");
+      await legacyPrisma.$transaction(async (tx) => {
+        await tx.partyBossSession.update({
+          where: { id: session.id },
+          data: {
+            status: "won",
+            turn: 26,
+            stateJson: legacyStateWithoutLeader,
+            resultJson: null,
+            completedAt,
+            turnExpiresAt: completedAt
+          }
+        });
+        await tx.activeCombatLease.deleteMany({ where: { referenceId: session.partySessionId, kind: "party-boss" } });
+        await tx.partyParticipant.updateMany({
+          where: { sessionId: session.partySessionId },
+          data: { activeMembershipKey: null }
+        });
+        await tx.partySession.update({
+          where: { id: session.partySessionId },
+          data: { status: "completed", activeLeaderKey: null }
+        });
+      });
+      const beforeMigration = await legacyPrisma.partyBossSession.findUniqueOrThrow({
+        where: { id: session.id },
+        select: { stateJson: true }
+      });
+      expect(beforeMigration.stateJson).not.toHaveProperty("leaderCharacterId");
+
+      await applyRaidChatMigration(legacyPrisma, RAID_CHAT_MIGRATIONS.slice(2));
+      await legacyPrisma.partyBossRound.createMany({
+        data: rounds.map((round) => ({ sessionId: session.id, turn: round.turn, roundJson: round }))
+      });
+      const characters = new PrismaCharacterRepository(legacyPrisma);
+      await expect(characters.restartByTelegramUserId(91114n)).resolves.toBe("deleted");
+
+      const reloaded = await legacyBosses.findByPartyInviteToken("party-legacy-history");
+      expect(reloaded).toMatchObject({
+        status: "won",
+        leaderCharacterId: originalHistoricalLeader,
+        result: { status: "won" }
+      });
+      expect(reloaded?.result?.participants.map((participant) => participant.characterId)).toEqual(expect.arrayContaining([
+        "legacy-history-leader-character",
+        "legacy-history-joiner-character"
+      ]));
+      expect(reloaded?.result?.participants).toHaveLength(2);
+      for (let page = 0; page < 25; page += 1) {
+        await expect(legacyBosses.findJournalPageByPartyInviteToken("party-legacy-history", page))
+          .resolves.toMatchObject({ journal: { page, totalPages: 25, round: { turn: page + 1 } } });
+      }
+    } finally {
+      await legacyPrisma.$disconnect();
+      await rm(legacyDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  }, 60_000);
 
   it("advances one turn when the last two participant actions arrive concurrently", async () => {
     await seedCharacter(prisma, "last-two-leader", 1096n, "Перша дія", { hp: 300, level: 8 });

@@ -43,30 +43,34 @@ export function createPartyBossRecruitingStartScheduler(
         const due = await services.partySessions.listDueRecruitingBigBarrelBrother();
 
         for (const party of due) {
-          const result = await serializePartySessionDelivery(party.inviteToken, () =>
-            services.partyBoss.startFromPartyForTelegramUser(
-              party.leader.telegramUserId,
-              party.inviteToken,
-              { allowExpiredRecruiting: true }
-            )
-          );
-
-          if (result.state === "terminal-ineligible") {
-            processed += 1;
-            await deliverTerminalIneligiblePartyCards(
-              bot.api,
-              services.partySessions,
-              party.inviteToken
+          try {
+            const result = await serializePartySessionDelivery(party.inviteToken, () =>
+              services.partyBoss.startFromPartyForTelegramUser(
+                party.leader.telegramUserId,
+                party.inviteToken,
+                { allowExpiredRecruiting: true }
+              )
             );
-            continue;
-          }
 
-          if (!("session" in result) || result.state !== "started") {
-            continue;
-          }
+            if (result.state === "terminal-ineligible") {
+              processed += 1;
+              await deliverTerminalIneligiblePartyCards(
+                bot.api,
+                services.partySessions,
+                party.inviteToken
+              );
+              continue;
+            }
 
-          processed += 1;
-          await notifyParticipants(bot, services.partyBoss, result.session, "started", undefined, services.partyRaidChat);
+            if (!("session" in result) || result.state !== "started") {
+              continue;
+            }
+
+            processed += 1;
+            await notifyParticipants(bot, services.partyBoss, result.session, "started", undefined, services.partyRaidChat);
+          } catch (error) {
+            console.error(`Kvestarnia: skipped failed scheduled PartyBoss start for ${party.inviteToken}.`, error);
+          }
         }
       }
 

@@ -409,6 +409,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             }
           }
           participant.resources = { ...participant.resources, ...frozen.resources };
+          participant.status = participant.resources.hp > 0 ? "active" : "knocked-out";
           if (frozen.sated) {
             participant.varenykSated = frozen.sated;
           }

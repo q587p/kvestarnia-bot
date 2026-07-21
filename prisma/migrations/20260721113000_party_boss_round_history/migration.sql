@@ -1,3 +1,12 @@
+UPDATE "party_boss_sessions"
+SET "state_json" = json_set("state_json", '$.leaderCharacterId', "leader_character_id")
+WHERE CASE
+  WHEN json_valid("state_json") THEN
+    json_type("state_json") = 'object'
+    AND json_type("state_json", '$.leaderCharacterId') IS NULL
+  ELSE 0
+END;
+
 CREATE TABLE "party_boss_rounds" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "session_id" TEXT NOT NULL,
@@ -8,4 +17,3 @@ CREATE TABLE "party_boss_rounds" (
 );
 
 CREATE UNIQUE INDEX "party_boss_rounds_session_id_turn_key" ON "party_boss_rounds"("session_id", "turn");
-CREATE INDEX "party_boss_rounds_session_id_turn_idx" ON "party_boss_rounds"("session_id", "turn");

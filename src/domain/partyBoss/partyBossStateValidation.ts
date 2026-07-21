@@ -66,7 +66,7 @@ export function parsePartyBossStateStrict(
   }
 
   const boss = record(state.boss, "boss", "PartyBoss state has no valid boss snapshot.");
-  if (boss.monsterId !== contract.bossKey || typeof boss.name !== "string" || !Array.isArray(boss.tags)) {
+  if (boss.monsterId !== contract.bossKey || typeof boss.name !== "string" || !isStringArray(boss.tags)) {
     fail("boss", "PartyBoss boss identity does not match the session row.");
   }
   for (const key of ["level", "hp", "hpMax", "attack", "armor", "resist", "dexterity"] as const) {
@@ -100,6 +100,14 @@ export function parsePartyBossStateStrict(
     );
     for (const key of ["level", "hpMax", "manaMax", "strength", "dexterity", "intelligence", "charisma", "luck", "armor", "resist", "weaponDamage", "spellPower"] as const) {
       requireFiniteNonNegative(combatStats[key], `participants.${index}.combatStats.${key}`);
+    }
+    if (combatStats.accuracyBonusPp !== undefined) {
+      requireFiniteNonNegative(combatStats.accuracyBonusPp, `participants.${index}.combatStats.accuracyBonusPp`);
+    }
+    for (const field of ["raceId", "classId"] as const) {
+      if (combatStats[field] !== undefined) {
+        requireString(combatStats[field], `participants.${index}.combatStats.${field}`);
+      }
     }
     const resources = record(
       participant.resources,
@@ -217,6 +225,7 @@ function requireFiniteNonNegative(value: unknown, path: string): void {
 export function parsePartyBossRoundSummaryStrict(value: unknown): PartyBossRoundSummary {
   const round = record(value, "round-log", "PartyBoss historical round is invalid.");
   validateRoundSummary(round, "round");
+  assertFiniteNumbers(round, "round");
   return JSON.parse(JSON.stringify(round)) as PartyBossRoundSummary;
 }
 
@@ -311,7 +320,22 @@ function validateRoundAction(value: unknown, path: string): void {
   requireString(action.characterId, `${path}.characterId`, "round-log");
   if (!["attack", "defend", "skill", "race", "gear", "item", "taunt", "lament"].includes(action.action as string)) fail("round-log", `${path}.action is invalid.`);
   if (action.origin !== "manual" && action.origin !== "timeout") fail("round-log", `${path}.origin is invalid.`);
-  requireString(action.outcome, `${path}.outcome`, "round-log");
+  if (![
+    "hit",
+    "critical-hit",
+    "miss",
+    "defended",
+    "not-enough-mana",
+    "skill-on-cooldown",
+    "critical-fumble",
+    "won",
+    "item-used",
+    "taunt-activated",
+    "taunt-failed",
+    "lament-activated"
+  ].includes(action.outcome as string)) {
+    fail("round-log", `${path}.outcome is invalid.`);
+  }
   ["damage", "manaSpent"].forEach((field) => requireFiniteNonNegative(action[field], `${path}.${field}`));
   ["healing", "guard", "hpAfter"].forEach((field) => {
     if (action[field] !== undefined) requireFiniteNonNegative(action[field], `${path}.${field}`);
@@ -350,7 +374,9 @@ function validateRoundSummary(round: Record<string, unknown>, path: string): voi
   if (round.wardSign !== undefined) {
     const ward = record(round.wardSign, "round-log", `${path}.wardSign is invalid.`);
     if (ward.kind !== "kharakternyk" || ward.status !== "triggered") fail("round-log", `${path}.wardSign identity is invalid.`);
-    ["supportCount", "mitigationPercent", "preventedDamage"].forEach((field) => requireFiniteNonNegative(ward[field], `${path}.wardSign.${field}`));
+    requireNonNegativeInteger(ward.supportCount, `${path}.wardSign.supportCount`);
+    ["mitigationPercent", "preventedDamage"].forEach((field) => requireFiniteNonNegative(ward[field], `${path}.wardSign.${field}`));
+    validateWardCounterBounds(ward, `${path}.wardSign`);
     if (!isStringArray(ward.affectedCharacterIds)) fail("round-log", `${path}.wardSign.affectedCharacterIds is invalid.`);
   }
   if (round.personalProtocol !== undefined) {
@@ -392,7 +418,13 @@ function validateParticipantAfter(value: unknown, path: string): void {
   requireString(participant.characterId, `${path}.characterId`, "round-log");
   if (!isParticipantStatus(participant.status)) fail("round-log", `${path}.status is invalid.`);
   ["hp", "hpMax", "mana", "manaMax"].forEach((field) => requireFiniteNonNegative(participant[field], `${path}.${field}`));
-  if ((participant.hp as number) > (participant.hpMax as number) || (participant.mana as number) > (participant.manaMax as number)) fail("numeric", `${path} resources are outside valid bounds.`);
+  if (
+    (participant.hpMax as number) <= 0 ||
+    (participant.hp as number) > (participant.hpMax as number) ||
+    (participant.mana as number) > (participant.manaMax as number) ||
+    (participant.status === "active" && (participant.hp as number) <= 0) ||
+    (participant.status === "knocked-out" && (participant.hp as number) !== 0)
+  ) fail("numeric", `${path} resources are outside valid bounds.`);
   validateResourceStatuses(participant, path);
   validateCombatItems(participant.combatItems, `${path}.combatItems`);
   validateVarenykSated(participant.varenykSated, `${path}.varenykSated`);
@@ -404,8 +436,10 @@ function validateTopLevelStatuses(state: Record<string, unknown>): void {
     const ward = record(state.wardSign, "participants", "PartyBoss ward sign is invalid.");
     if (ward.kind !== "kharakternyk" || (ward.status !== "carried" && ward.status !== "broken")) fail("participants", "PartyBoss ward sign status is invalid.");
     requireString(ward.placerCharacterId, "wardSign.placerCharacterId");
-    ["supportCount", "mitigationPercent"].forEach((field) => requireFiniteNonNegative(ward[field], `wardSign.${field}`));
-    ["supportCap", "usesRemaining", "usesMax", "triggeredTurn", "preventedDamage"].forEach((field) => {
+    requireNonNegativeInteger(ward.supportCount, "wardSign.supportCount");
+    requireFiniteNonNegative(ward.mitigationPercent, "wardSign.mitigationPercent");
+    validateWardCounterBounds(ward, "wardSign");
+    ["triggeredTurn", "preventedDamage"].forEach((field) => {
       if (ward[field] !== undefined) requireFiniteNonNegative(ward[field], `wardSign.${field}`);
     });
     if (ward.affectedCharacterIds !== undefined && !isStringArray(ward.affectedCharacterIds)) fail("participants", "PartyBoss ward recipients are invalid.");
@@ -464,6 +498,41 @@ function assertFiniteNumbers(value: unknown, path: string): void {
     for (const [key, entry] of Object.entries(value)) {
       assertFiniteNumbers(entry, `${path}.${key}`);
     }
+  }
+}
+
+function requireNonNegativeInteger(value: unknown, path: string): void {
+  requireFiniteNonNegative(value, path);
+  if (!Number.isInteger(value)) {
+    fail("numeric", `PartyBoss numeric field ${path} must be an integer.`);
+  }
+}
+
+function validateWardCounterBounds(ward: Record<string, unknown>, path: string): void {
+  if (ward.supportCap !== undefined && !isPositiveInteger(ward.supportCap)) {
+    fail("numeric", `PartyBoss numeric field ${path}.supportCap is invalid.`);
+  }
+  for (const field of ["usesRemaining", "usesMax"] as const) {
+    if (ward[field] !== undefined) {
+      requireNonNegativeInteger(ward[field], `${path}.${field}`);
+    }
+  }
+  if (ward.usesMax !== undefined && (ward.usesMax as number) <= 0) {
+    fail("numeric", `PartyBoss numeric field ${path}.usesMax is invalid.`);
+  }
+  if (
+    ward.usesRemaining !== undefined &&
+    ward.usesMax !== undefined &&
+    (ward.usesRemaining as number) > (ward.usesMax as number)
+  ) {
+    fail("numeric", `PartyBoss Ward counters at ${path} are outside valid bounds.`);
+  }
+  if (
+    ward.supportCap !== undefined &&
+    typeof ward.supportCount === "number" &&
+    ward.supportCount > ward.supportCap
+  ) {
+    fail("numeric", `PartyBoss Ward support at ${path} is outside valid bounds.`);
   }
 }
 

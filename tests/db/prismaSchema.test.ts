@@ -3,6 +3,27 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Prisma schema", () => {
+  it("stores PartyBoss history with one unique session-turn index and legacy leader backfill", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260721113000_party_boss_round_history",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+    const model = schema.slice(schema.indexOf("model PartyBossRound"), schema.indexOf("model TavernGameSession"));
+
+    expect(model).toContain("@@unique([sessionId, turn])");
+    expect(model).not.toContain("@@index([sessionId, turn])");
+    expect(migration).toContain("json_set(\"state_json\", '$.leaderCharacterId', \"leader_character_id\")");
+    expect(migration).toContain("CREATE UNIQUE INDEX \"party_boss_rounds_session_id_turn_key\"");
+    expect(migration).not.toContain("party_boss_rounds_session_id_turn_idx");
+  });
+
   it("represents DailyAction uniqueness for once-per-day rewards", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
 
