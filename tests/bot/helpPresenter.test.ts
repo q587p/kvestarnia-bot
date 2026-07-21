@@ -23,9 +23,11 @@ describe("help presenter", () => {
     const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "news"];
     const visibility = { includeDevReset: true, includeDevGrant: true, includeTavernGames: true };
     const commandRows = pages.flatMap((page) =>
-      presentHelp(visibility, page).match(/^\S+ \/[a-z_]+ .+$/gmu) ?? []
+      presentHelp(visibility, page).match(/^\S+ \/[a-z_]+(?:, \/[a-z_]+)* — .+$/gmu) ?? []
     );
-    const renderedCommands = commandRows.map((row) => row.match(/\/([a-z_]+)/u)?.[1]);
+    const renderedCommands = commandRows.flatMap((row) =>
+      [...row.matchAll(/\/([a-z_]+)/gu)].map((match) => match[1])
+    );
     const expectedCommands = getHelpCommandEntries(visibility)
       .filter((entry) => !entry.devOnly)
       .map((entry) => entry.command);
@@ -34,6 +36,18 @@ describe("help presenter", () => {
     expect(new Set(renderedCommands).size).toBe(renderedCommands.length);
     expect(presentHelp(visibility, "items")).toContain("Воїн може тримати по зброї в кожній руці.");
     expect(presentHelp(visibility, "news")).toContain("Крамниці, ремесло й ґільдії ще готуються.");
+  });
+
+  it("keeps related command aliases on shared compact rows", () => {
+    expect(presentHelp(false, "hero")).toContain(
+      "👤 /hero, /profile — персонаж і прогрес"
+    );
+    expect(presentHelp(false, "adventures")).toContain(
+      "📚 /bestiary, /monsters — бестіарій із 3 рівня"
+    );
+    expect(presentHelp(false, "items")).toContain(
+      "⚙️ /gear, /equip — гачки спорядження"
+    );
   });
 
   it("shows table games only on the Korchma page when their surface is enabled", () => {

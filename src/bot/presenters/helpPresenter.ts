@@ -21,6 +21,12 @@ const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> =
   news: ["guild", "version", "news", "lore", "chronicles", "help", "support"]
 };
 
+const HELP_COMMAND_ALIAS_GROUPS = [
+  { commands: ["hero", "profile"], description: "персонаж і прогрес" },
+  { commands: ["bestiary", "monsters"], description: "бестіарій із 3 рівня" },
+  { commands: ["gear", "equip"], description: "гачки спорядження" }
+] as const;
+
 export function presentHelp(
   visibility: boolean | HelpVisibility,
   page: HelpPage = "menu"
@@ -54,9 +60,38 @@ function commandsForPage(
   page: Exclude<HelpPage, "menu">
 ): string[] {
   const allowed = new Set(HELP_PAGE_COMMANDS[page]);
-  return commands
-    .filter((entry) => allowed.has(entry.command))
-    .map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`);
+  const available = new Map(
+    commands
+      .filter((entry) => allowed.has(entry.command))
+      .map((entry) => [entry.command, entry] as const)
+  );
+  const rendered = new Set<string>();
+  const rows: string[] = [];
+
+  for (const command of HELP_PAGE_COMMANDS[page]) {
+    if (rendered.has(command)) {
+      continue;
+    }
+
+    const entry = available.get(command);
+    if (!entry) {
+      continue;
+    }
+
+    const aliasGroup = HELP_COMMAND_ALIAS_GROUPS.find((group) =>
+      group.commands.some((alias) => alias === command)
+    );
+    const aliases = aliasGroup?.commands
+      .flatMap((alias) => available.get(alias) ? [alias] : [])
+      ?? [command];
+
+    aliases.forEach((alias) => rendered.add(alias));
+    rows.push(
+      `${entry.icon} ${aliases.map((alias) => `/${alias}`).join(", ")} — ${aliasGroup?.description ?? entry.description}`
+    );
+  }
+
+  return rows;
 }
 
 function pageContent(
