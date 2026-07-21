@@ -101,7 +101,7 @@ describe("bot command catalog", () => {
     const entries = getHelpCommandEntries(false);
 
     expect(entries.find((entry) => entry.command === "items")?.description).toBe("манатки за абеткою");
-    expect(entries.find((entry) => entry.command === "bag")?.description).toBe("недавно відкриті види манаток");
+    expect(entries.find((entry) => entry.command === "bag")?.description).toBe("свіжі стоси манаток спершу");
     expect(entries.find((entry) => entry.command === "gear")?.description).toBe("огляд спорядження");
     expect(entries.find((entry) => entry.command === "equip")?.description).toBe("змінити спорядження");
   });

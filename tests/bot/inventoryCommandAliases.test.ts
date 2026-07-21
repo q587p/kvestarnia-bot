@@ -30,18 +30,20 @@ describe("inventory command aliases", () => {
     ]);
   });
 
-  it("keeps /items alphabetical and /bag ordered by first acquisition when A is reacquired after B", async () => {
+  it("shows A ahead of B in /bag after A, B, full depletion, and A reacquisition", async () => {
     const replies: ReplyPayload[] = [];
     const bot = createTestBot(replies);
+    const bagItems: TestItem[] = [];
+    acquire(bagItems, "item.abetka", "Абетка", "2026-07-18T10:00:00.000Z");
+    acquire(bagItems, "item.yakir", "Якір", "2026-07-19T10:00:00.000Z");
+    acquire(bagItems, "item.bochka", "Бочка", "2026-07-20T10:00:00.000Z");
+    deplete(bagItems, "item.yakir");
+    acquire(bagItems, "item.yakir", "Якір", "2026-07-21T10:00:00.000Z");
     const inventory = {
       listForTelegramUser: () => Promise.resolve({
         state: "found" as const,
         totalGoldValue: 0,
-        items: [
-          item("item.yakir", "Якір", "2026-07-20T10:00:00.000Z", 2),
-          item("item.abetka", "Абетка", "2026-07-19T10:00:00.000Z"),
-          item("item.bochka", "Бочка", "2026-07-21T10:00:00.000Z")
-        ]
+        items: bagItems
       })
     } as unknown as InventoryService;
     registerInventoryCommand(bot, inventory);
@@ -49,9 +51,9 @@ describe("inventory command aliases", () => {
     await bot.handleUpdate(commandUpdate("/items", 1));
     await bot.handleUpdate(commandUpdate("/bag", 2));
 
-    expect(itemButtonTexts(replies[0])).toEqual(["🔎 Абетка", "🔎 Бочка", "🔎 Якір (2)"]);
+    expect(itemButtonTexts(replies[0])).toEqual(["🔎 Абетка", "🔎 Бочка", "🔎 Якір"]);
     expect(flatButtonTexts(replies[0])).toContain("🔤 Я-А");
-    expect(itemButtonTexts(replies[1])).toEqual(["🔎 Бочка", "🔎 Якір (2)", "🔎 Абетка"]);
+    expect(itemButtonTexts(replies[1])).toEqual(["🔎 Якір", "🔎 Бочка", "🔎 Абетка"]);
     expect(flatButtonTexts(replies[1])).toContain("🕒 Нові в кінці");
   });
 });
@@ -113,6 +115,23 @@ function item(itemId: string, name: string, createdAt: string, quantity = 1) {
       priceless: true
     }
   };
+}
+
+type TestItem = ReturnType<typeof item>;
+
+function acquire(items: TestItem[], itemId: string, name: string, acquiredAt: string): void {
+  const existing = items.find((entry) => entry.itemId === itemId);
+  if (existing) {
+    existing.quantity += 1;
+    return;
+  }
+
+  items.push(item(itemId, name, acquiredAt));
+}
+
+function deplete(items: TestItem[], itemId: string): void {
+  const index = items.findIndex((entry) => entry.itemId === itemId);
+  if (index >= 0) items.splice(index, 1);
 }
 
 function itemButtonTexts(payload: ReplyPayload | undefined): string[] {
