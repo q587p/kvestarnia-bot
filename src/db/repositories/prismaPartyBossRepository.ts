@@ -25,6 +25,7 @@ import {
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
 import {
+  parsePartyBossResultStrict,
   parsePartyBossStateStrict,
   parsePartyBossRoundSummaryStrict,
   parsePartyBossStatusStrict
@@ -2084,7 +2085,10 @@ function buildBigBarrelReward(
   participant: PartyBossState["participants"][number]
 ): { meaningful: boolean; tier: "none" | "partial" | "full"; xp: number; gold: number } {
   const meaningful = isMeaningfulBigBarrelParticipant(participant);
-  const availableRounds = Math.max(1, state.roundLog.length);
+  const availableRounds = Math.max(
+    1,
+    participant.contribution.submittedActions + participant.contribution.timeoutActions
+  );
   const full =
     meaningful &&
     participant.contribution.submittedActions >= Math.ceil(availableRounds / 2) &&
@@ -2329,7 +2333,7 @@ function clampJournalPage(page: number, total: number): number {
 
 function parseResult(value: Prisma.JsonValue, state: PartyBossState) {
   return value
-    ? value as unknown as ReturnType<typeof buildResult>
+    ? parsePartyBossResultStrict(value, state)
     : buildResult(state, new Date());
 }
 

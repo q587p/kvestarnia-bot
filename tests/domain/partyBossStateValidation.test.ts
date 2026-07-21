@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   BIG_BARREL_BROTHER_BOSS_KEY,
   BIG_BARREL_BROTHER_RULES_VERSION,
+  buildResult,
   createPartyBossState
 } from "../../src/domain/partyBoss/partyBoss";
 import {
   parsePartyBossRoundSummaryStrict,
+  parsePartyBossResultStrict,
   parsePartyBossStateStrict,
   PartyBossStateValidationError
 } from "../../src/domain/partyBoss/partyBossStateValidation";
@@ -105,6 +107,20 @@ describe("PartyBoss strict state validation", () => {
       status: "cancelled",
       participantCharacterIds: undefined
     })).not.toThrow();
+  });
+
+  it("strictly validates terminal result participants before replay", () => {
+    const state = validState();
+    state.status = "won";
+    state.boss.hp = 0;
+    state.completedAt = new Date("2026-07-20T10:01:00.000Z").toISOString();
+    const result = buildResult(state, new Date(state.completedAt));
+    if (!result) throw new Error("Expected terminal PartyBoss result.");
+
+    expect(parsePartyBossResultStrict(result, state)).toEqual(result);
+    (result.participants as unknown[]).push("corrupt-result-participant");
+    expect(() => parsePartyBossResultStrict(result, state))
+      .toThrowError(PartyBossStateValidationError);
   });
 });
 

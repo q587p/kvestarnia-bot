@@ -2,6 +2,7 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   clonePartyBossState,
   PARTY_BOSS_RULES_VERSION,
+  type PartyBossResult,
   type PartyBossState,
   type PartyBossRoundSummary,
   type PartyBossStatus
@@ -227,6 +228,76 @@ export function parsePartyBossRoundSummaryStrict(value: unknown): PartyBossRound
   validateRoundSummary(round, "round");
   assertFiniteNumbers(round, "round");
   return JSON.parse(JSON.stringify(round)) as PartyBossRoundSummary;
+}
+
+export function parsePartyBossResultStrict(value: unknown, state: PartyBossState): PartyBossResult {
+  const result = record(value, "not-object", "PartyBoss result must be an object.");
+  if (state.status === "active" || !isPartyBossStatus(result.status) || result.status === "active") {
+    fail("status", "PartyBoss terminal result has an invalid status.");
+  }
+  if (result.status !== state.status) {
+    fail("status", "PartyBoss result status does not match the frozen state.");
+  }
+  if (!isIsoDate(result.completedAt)) {
+    fail("timestamp", "PartyBoss result completion timestamp is invalid.");
+  }
+  requireFiniteNonNegative(result.bossHpAfter, "result.bossHpAfter");
+  if (result.bossHpAfter !== state.boss.hp || !Array.isArray(result.participants)) {
+    fail("participants", "PartyBoss result does not match the frozen state.");
+  }
+
+  const stateParticipants = new Map(state.participants.map((participant) => [participant.characterId, participant]));
+  const resultParticipantIds = new Set<string>();
+  for (const [index, raw] of result.participants.entries()) {
+    const participant = record(raw, "participants", `PartyBoss result participant ${index} is invalid.`);
+    requireString(participant.characterId, `result.participants.${index}.characterId`);
+    const characterId = participant.characterId;
+    if (resultParticipantIds.has(characterId) || !stateParticipants.has(characterId)) {
+      fail("roster", "PartyBoss result roster does not match the frozen state.");
+    }
+    resultParticipantIds.add(characterId);
+    if (!isParticipantStatus(participant.status) ||
+      participant.status !== stateParticipants.get(characterId)?.status) {
+      fail("participants", `PartyBoss result participant ${characterId} has an invalid status.`);
+    }
+    requireFiniteNonNegative(participant.damageDealt, `result.participants.${index}.damageDealt`);
+    requireNonNegativeInteger(participant.submittedActions, `result.participants.${index}.submittedActions`);
+    requireNonNegativeInteger(participant.timeoutActions, `result.participants.${index}.timeoutActions`);
+    if (participant.attemptXp !== undefined) {
+      requireFiniteNonNegative(participant.attemptXp, `result.participants.${index}.attemptXp`);
+    }
+    if (participant.reward !== undefined) {
+      const reward = record(
+        participant.reward,
+        "participants",
+        `PartyBoss result participant ${characterId} reward is invalid.`
+      );
+      requireFiniteNonNegative(reward.xp, `result.participants.${index}.reward.xp`);
+      requireFiniteNonNegative(reward.gold, `result.participants.${index}.reward.gold`);
+      if (!Array.isArray(reward.itemGrants)) {
+        fail("participants", `PartyBoss result participant ${characterId} item grants are invalid.`);
+      }
+      reward.itemGrants.forEach((rawGrant, grantIndex) => {
+        const grant = record(
+          rawGrant,
+          "participants",
+          `PartyBoss result participant ${characterId} item grant ${grantIndex} is invalid.`
+        );
+        requireString(grant.itemId, `result.participants.${index}.reward.itemGrants.${grantIndex}.itemId`);
+        requireString(grant.name, `result.participants.${index}.reward.itemGrants.${grantIndex}.name`);
+        requireNonNegativeInteger(
+          grant.quantity,
+          `result.participants.${index}.reward.itemGrants.${grantIndex}.quantity`
+        );
+      });
+    }
+  }
+  if (resultParticipantIds.size !== stateParticipants.size) {
+    fail("roster", "PartyBoss result roster does not match the frozen state.");
+  }
+
+  assertFiniteNumbers(result, "result");
+  return JSON.parse(JSON.stringify(result)) as PartyBossResult;
 }
 
 function requireString(value: unknown, path: string, code: PartyBossStateValidationCode = "participants"): asserts value is string {

@@ -23,6 +23,11 @@ describe("Prisma schema", () => {
     expect(migration).toContain("json_type(participant.value, '$.resources.hp') IN ('integer', 'real')");
     expect(migration).toContain("json_type(participant_after.value, '$.hp') IN ('integer', 'real')");
     expect(migration).toContain("json_set(result_participant.value, '$.status', 'knocked-out')");
+    expect(migration).toContain("CASE participant.type");
+    expect(migration).toContain("CASE round_entry.type");
+    expect(migration).toContain("CASE participant_after.type");
+    expect(migration).toContain("CASE result_participant.type");
+    expect(migration).toContain("CASE state_participant.type");
     expect(migration).toContain("CREATE UNIQUE INDEX \"party_boss_rounds_session_id_turn_key\"");
     expect(migration).not.toContain("party_boss_rounds_session_id_turn_idx");
   });
