@@ -87,8 +87,12 @@ describe("public news rendering", () => {
       expect(tail[1]).toBe("");
       expect(tail[2]).toMatch(/^Ще не відчинено: \S[^\n]*$/u);
     }
+
+    const version = latest?.title.match(/^(\d+\.\d+\.\d+)\b/u)?.[1];
+    expect(version).toBeDefined();
+    expect(body).not.toContain(version);
     expect(body).not.toMatch(
-      /^Ще не відчинено:.*(?:ручн|QA|CI|депло|deploy|rollout|feature.?flag|production|продакш|Telegram-перевір)/imu
+      /(?:\bQA\b|\bCI\b|ручн\p{L}*\s+перевір|Telegram-перевір|цільов\p{L}*\s+(?:Квестарн|середовищ|бот)|збірк\p{L}*|пакет\p{L}*|депло\p{L}*|deploy|розгортан\p{L}*|rollout|feature.?flag|production|продакш\p{L}*|мердж\p{L}*|merge|готов\p{L}*\s+до\s+реліз)/iu
     );
   });
 
