@@ -3,7 +3,10 @@ import type {
   ClassNoncombatRepository,
   PriestBlessingRecord
 } from "../db/repositories/classNoncombatRepository";
-import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
+import type {
+  CharacterEquipmentSnapshot,
+  EquipmentRepository
+} from "../db/repositories/equipmentRepository";
 import type { CharacterItemRecord, InventoryRepository } from "../db/repositories/inventoryRepository";
 import type { RemortRepository } from "../db/repositories/remortRepository";
 import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositories/shynokRepository";
@@ -54,6 +57,15 @@ export type HeroLookupResult =
       classNoncombatBlocked: boolean;
       activeCosmeticTitle: string | null;
       restoreToFullItemId: string | null;
+      recoveryNotice?: ResourceRecoveryNotice;
+    };
+
+export type ShortHeroLookupResult =
+  | { state: "no-character" }
+  | {
+      state: "existing-character";
+      character: CharacterSummary;
+      satedRecovery: { hpRestored: number; manaRestored: number } | null;
       recoveryNotice?: ResourceRecoveryNotice;
     };
 
@@ -116,6 +128,59 @@ export class HeroService {
     }
   }
 
+  async findShortByTelegramUserId(telegramUserId: bigint): Promise<ShortHeroLookupResult> {
+    const now = this.clock();
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const satedSettlement = await this.classNoncombat?.settleVarenykSatedForTelegramUser(
+      telegramUserId,
+      now,
+      character.id,
+      character
+    ) ?? null;
+    const authoritativeCharacter = satedSettlement?.character ?? character;
+    const [equipmentSnapshot, remortCount, recoveryDrink, activePriestBlessing] = await Promise.all([
+      this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
+      this.remorts?.countByTelegramUserId(telegramUserId) ?? Promise.resolve(0),
+      this.shynok?.getRecoveryDrinkForTelegramUser?.(telegramUserId) ??
+        this.shynok?.getActiveDrinkForTelegramUser(telegramUserId, now) ??
+        Promise.resolve(null),
+      this.classNoncombat?.getActivePriestBlessingForTelegramUser(telegramUserId, now) ?? Promise.resolve(null)
+    ]);
+    const { equippedItems, equipmentAttunements } = buildHeroEquipmentContext(equipmentSnapshot);
+    const multiplierWindows = buildShynokRecoveryWindows(recoveryDrink);
+    const resourceAware = await summarizeAndSyncCharacterResources({
+      characters: this.characters,
+      telegramUserId,
+      character: authoritativeCharacter,
+      equippedItems,
+      equipmentAttunements,
+      remortCount,
+      now,
+      ...(multiplierWindows.length > 0 ? { multiplierWindows } : {})
+    });
+    const presentedPriestBlessing = presentHeroActivePriestBlessing(activePriestBlessing);
+    const characterSummary = applyPriestBlessingBonusToSummary(
+      resourceAware.character,
+      presentedPriestBlessing,
+      now
+    );
+    const recoveryNotice = satedSettlement?.passiveRecoveryNotice ?? resourceAware.recoveryNotice;
+
+    return {
+      state: "existing-character",
+      character: characterSummary,
+      satedRecovery: satedSettlement && (satedSettlement.hpRestored > 0 || satedSettlement.manaRestored > 0)
+        ? { hpRestored: satedSettlement.hpRestored, manaRestored: satedSettlement.manaRestored }
+        : null,
+      ...(recoveryNotice ? { recoveryNotice } : {})
+    };
+  }
+
   async findByTelegramUserId(telegramUserId: bigint): Promise<HeroLookupResult> {
     const now = this.clock();
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -155,22 +220,7 @@ export class HeroService {
       this.bardPerformance?.getInspirationForTelegramUser(telegramUserId) ?? Promise.resolve(null)
     ]);
 
-    const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
-    const equipmentAttunements = equipmentSnapshot
-      ? equipmentSnapshot.equipment.flatMap((row) => {
-          if (row.attunement?.state !== "tuning") {
-            return [];
-          }
-
-          const item = items.find((candidate) => candidate.id === row.itemId);
-
-          return [{
-            itemName: item?.name ?? row.itemId,
-            readyAt: row.attunement.readyAt,
-            strength: row.attunement.strength
-          }];
-        })
-      : [];
+    const { equippedItems, equipmentAttunements } = buildHeroEquipmentContext(equipmentSnapshot);
     const activeCosmeticTitle = await this.achievements?.getActiveCosmeticTitleForCharacter(
       character.id,
       character.activeCosmeticTitleGrantId
@@ -344,6 +394,27 @@ export class HeroService {
 
     return result ? { state: "ready", result } : { state: "no-character" };
   }
+}
+
+function buildHeroEquipmentContext(equipmentSnapshot: CharacterEquipmentSnapshot | null) {
+  const equippedItems = equipmentSnapshot ? getEquippedItemContents(equipmentSnapshot.equipment) : [];
+  const equipmentAttunements = equipmentSnapshot
+    ? equipmentSnapshot.equipment.flatMap((row) => {
+        if (row.attunement?.state !== "tuning") {
+          return [];
+        }
+
+        const item = items.find((candidate) => candidate.id === row.itemId);
+
+        return [{
+          itemName: item?.name ?? row.itemId,
+          readyAt: row.attunement.readyAt,
+          strength: row.attunement.strength
+        }];
+      })
+    : [];
+
+  return { equippedItems, equipmentAttunements };
 }
 
 function resolveRestoreToFullItemId(

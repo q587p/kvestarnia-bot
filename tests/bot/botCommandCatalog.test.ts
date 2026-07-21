@@ -101,8 +101,9 @@ describe("bot command catalog", () => {
     const entries = getHelpCommandEntries(false);
 
     expect(entries.find((entry) => entry.command === "items")?.description).toBe("манатки за абеткою");
-    expect(entries.find((entry) => entry.command === "bag")?.description).toBe("нові манатки спершу");
-    expect(entries.find((entry) => entry.command === "equip")?.description).toBe("приміряти манатки");
+    expect(entries.find((entry) => entry.command === "bag")?.description).toBe("недавно відкриті види манаток");
+    expect(entries.find((entry) => entry.command === "gear")?.description).toBe("огляд спорядження");
+    expect(entries.find((entry) => entry.command === "equip")?.description).toBe("змінити спорядження");
   });
 
   it("lists /lore and /chronicles in help without adding them to the side menu", () => {

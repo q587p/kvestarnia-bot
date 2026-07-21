@@ -24,7 +24,7 @@ const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> =
 const HELP_COMMAND_ALIAS_GROUPS = [
   { commands: ["hero", "profile"], description: "персонаж і прогрес" },
   { commands: ["bestiary", "monsters"], description: "бестіарій із 3 рівня" },
-  { commands: ["gear", "equip"], description: "гачки спорядження" }
+  { commands: ["equipment", "gear"], description: "огляд спорядження" }
 ] as const;
 
 export function presentHelp(

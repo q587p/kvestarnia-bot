@@ -113,7 +113,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "bag",
     icon: "👜",
-    description: "нові манатки спершу",
+    description: "недавно відкриті види манаток",
     includeInMenu: false
   },
   {
@@ -125,13 +125,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "gear",
     icon: "⚙️",
-    description: "гачки спорядження",
+    description: "огляд спорядження",
     includeInMenu: false
   },
   {
     command: "equip",
     icon: "🪝",
-    description: "приміряти манатки",
+    description: "змінити спорядження",
     includeInMenu: false
   },
   {

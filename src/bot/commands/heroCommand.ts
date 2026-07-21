@@ -14,7 +14,12 @@ import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallba
 import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
-import { presentHero, presentHeroMissing, presentShortHero } from "../presenters/heroPresenter";
+import {
+  presentHero,
+  presentHeroMissing,
+  presentHeroRecoveryNotice,
+  presentShortHero
+} from "../presenters/heroPresenter";
 import { presentVarenykSatedRecoveryNotice } from "../presenters/varenykSatedPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -52,15 +57,23 @@ export async function sendShortHero(ctx: Context, heroService: HeroService): Pro
     return;
   }
 
-  const result = await heroService.findByTelegramUserId(telegramUserId);
+  const result = await heroService.findShortByTelegramUserId(telegramUserId);
 
-  await sendText(
-    ctx,
-    "reply",
-    result.state === "existing-character"
-      ? presentShortHero(result.character)
-      : presentHeroMissing()
-  );
+  if (result.state === "no-character") {
+    await sendText(ctx, "reply", presentHeroMissing());
+    return;
+  }
+
+  await sendText(ctx, "reply", presentShortHero(result.character));
+  if (result.recoveryNotice) {
+    await ctx.reply(presentHeroRecoveryNotice(result.recoveryNotice), { parse_mode: "HTML" });
+  }
+  if (result.satedRecovery) {
+    const satedRecoveryNotice = presentVarenykSatedRecoveryNotice(result.satedRecovery);
+    if (satedRecoveryNotice) {
+      await ctx.reply(satedRecoveryNotice, { parse_mode: "HTML" });
+    }
+  }
 }
 
 export async function sendHero(

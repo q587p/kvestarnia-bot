@@ -30,7 +30,7 @@ describe("inventory command aliases", () => {
     ]);
   });
 
-  it("opens /items alphabetically and /bag with newest manatky first", async () => {
+  it("keeps /items alphabetical and /bag ordered by first acquisition when A is reacquired after B", async () => {
     const replies: ReplyPayload[] = [];
     const bot = createTestBot(replies);
     const inventory = {
@@ -38,7 +38,7 @@ describe("inventory command aliases", () => {
         state: "found" as const,
         totalGoldValue: 0,
         items: [
-          item("item.yakir", "Якір", "2026-07-20T10:00:00.000Z"),
+          item("item.yakir", "Якір", "2026-07-20T10:00:00.000Z", 2),
           item("item.abetka", "Абетка", "2026-07-19T10:00:00.000Z"),
           item("item.bochka", "Бочка", "2026-07-21T10:00:00.000Z")
         ]
@@ -49,9 +49,9 @@ describe("inventory command aliases", () => {
     await bot.handleUpdate(commandUpdate("/items", 1));
     await bot.handleUpdate(commandUpdate("/bag", 2));
 
-    expect(itemButtonTexts(replies[0])).toEqual(["🔎 Абетка", "🔎 Бочка", "🔎 Якір"]);
+    expect(itemButtonTexts(replies[0])).toEqual(["🔎 Абетка", "🔎 Бочка", "🔎 Якір (2)"]);
     expect(flatButtonTexts(replies[0])).toContain("🔤 Я-А");
-    expect(itemButtonTexts(replies[1])).toEqual(["🔎 Бочка", "🔎 Якір", "🔎 Абетка"]);
+    expect(itemButtonTexts(replies[1])).toEqual(["🔎 Бочка", "🔎 Якір (2)", "🔎 Абетка"]);
     expect(flatButtonTexts(replies[1])).toContain("🕒 Нові в кінці");
   });
 });
@@ -98,11 +98,11 @@ function commandUpdate(text: string, updateId: number) {
   };
 }
 
-function item(itemId: string, name: string, createdAt: string) {
+function item(itemId: string, name: string, createdAt: string, quantity = 1) {
   return {
     id: `character-${itemId}`,
     itemId,
-    quantity: 1,
+    quantity,
     createdAt: new Date(createdAt),
     content: {
       id: itemId,

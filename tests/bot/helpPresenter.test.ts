@@ -46,8 +46,9 @@ describe("help presenter", () => {
       "📚 /bestiary, /monsters — бестіарій із 3 рівня"
     );
     expect(presentHelp(false, "items")).toContain(
-      "⚙️ /gear, /equip — гачки спорядження"
+      "🧥 /equipment, /gear — огляд спорядження"
     );
+    expect(presentHelp(false, "items")).toContain("🪝 /equip — змінити спорядження");
   });
 
   it("shows table games only on the Korchma page when their surface is enabled", () => {

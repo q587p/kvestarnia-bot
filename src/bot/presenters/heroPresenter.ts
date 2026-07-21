@@ -29,6 +29,13 @@ export function presentShortHero(summary: CharacterSummary): string {
   ].join("\n");
 }
 
+export function presentHeroRecoveryNotice(notice: ResourceRecoveryNotice): string {
+  return [
+    `❤️ <b>Здоров’я знову повне: ${notice.hpCurrent}/${notice.hpMax}</b>.`,
+    "Корчмар мовчки підсунув кухоль води й записав це як сервіс."
+  ].join("\n");
+}
+
 export function presentHero(
   summary: CharacterSummary,
   options: {
@@ -137,8 +144,7 @@ export function presentHero(
   return [
     ...(options.recoveryNotice
       ? [
-          `❤️ <b>Здоров’я знову повне: ${options.recoveryNotice.hpCurrent}/${options.recoveryNotice.hpMax}</b>.`,
-          "Корчмар мовчки підсунув кухоль води й записав це як сервіс.",
+          presentHeroRecoveryNotice(options.recoveryNotice),
           ""
         ]
       : []),
