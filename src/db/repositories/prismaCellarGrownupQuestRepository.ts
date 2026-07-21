@@ -14,6 +14,7 @@ import type {
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -27,6 +28,28 @@ export class PrismaCellarGrownupQuestRepository implements CellarGrownupQuestRep
     telegramUserId: bigint,
     keys: CellarGrownupQuestRepositoryKeys
   ): Promise<CellarGrownupQuestSnapshot | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      return {
+        character: markerSnapshot.character,
+        completedAction: markerSnapshot.dailyActions.find(
+          (action) => action.key === keys.completionKey && action.localDate === keys.onceLocalDate
+        ) ?? null,
+        roleplayCooldown: markerSnapshot.cooldowns.find(
+          (cooldown) => cooldown.key === keys.roleplayCooldownKey
+        ) ?? null,
+        cheeseSealQuantity: markerSnapshot.items.find(
+          (item) => item.itemId === keys.cheeseSealItemId
+        )?.quantity ?? 0,
+        bottleQuantity: markerSnapshot.items.find(
+          (item) => item.itemId === keys.bottleItemId
+        )?.quantity ?? 0
+      };
+    }
+
     return this.prisma.$transaction((tx) => getSnapshot(tx, telegramUserId, keys));
   }
 

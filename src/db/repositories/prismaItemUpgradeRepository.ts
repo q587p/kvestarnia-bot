@@ -37,6 +37,7 @@ import type {
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -89,6 +90,20 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
   }
 
   async getQuestSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeQuestSnapshot | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      const unlocked = markerSnapshot.dailyActions.some(
+        (action) => action.key === ITEM_UPGRADE_UNLOCK_KEY && action.localDate === ITEM_UPGRADE_UNLOCK_LOCAL_DATE
+      );
+      const fieldKitQuantity = markerSnapshot.items.find(
+        (item) => item.itemId === FIELD_KIT_ITEM_ID
+      )?.quantity ?? 0;
+      return { character: markerSnapshot.character, fieldKitQuantity, unlocked };
+    }
+
     const character = await findCharacter(this.prisma, telegramUserId);
     if (!character) {
       return null;

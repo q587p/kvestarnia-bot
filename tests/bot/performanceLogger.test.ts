@@ -187,6 +187,32 @@ describe("performance logger", () => {
     });
   });
 
+  it("allowlists and bounds callback timing fields and presentation methods", () => {
+    const payload = sanitizePerfTimingPayload({
+      route: "callback.shynok.dice-rules",
+      preRouteMs: Number.POSITIVE_INFINITY,
+      pendingRaidMs: -42,
+      combatLockMs: 93_000,
+      presenceMs: Number.NaN,
+      ackMs: 13.04,
+      firstPresentationMs: 23.04,
+      firstPresentationMethod: "private-method" as "edit",
+      totalMs: 42
+    });
+
+    expect(payload).toMatchObject({
+      route: "callback.shynok.dice-rules",
+      pendingRaidMs: 0,
+      combatLockMs: 60_000,
+      ackMs: 13,
+      firstPresentationMs: 23,
+      totalMs: 42
+    });
+    expect(payload).not.toHaveProperty("preRouteMs");
+    expect(payload).not.toHaveProperty("presenceMs");
+    expect(payload).not.toHaveProperty("firstPresentationMethod");
+  });
+
   it("counts non-nested Fight DB stages and keeps durations finite and non-negative", async () => {
     const times = [0, 13, 20, 10, 30, Number.POSITIVE_INFINITY];
     const attribution = createFightTurnDbAttribution(() => times.shift() ?? 30);

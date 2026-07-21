@@ -36,6 +36,7 @@ import {
   isTurnBasedDuelCardCallback,
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
+import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -43,90 +44,103 @@ const HTML_MESSAGE_OPTIONS = {
 
 export function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
   bot.use(async (ctx, next) => {
-    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-    const callbackData = ctx.callbackQuery?.data;
+    const measurement = beginUpdateComponent("combatLock");
+    try {
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      const callbackData = ctx.callbackQuery?.data;
 
-    if (!telegramUserId) {
-      await next();
-      return;
-    }
+      if (!telegramUserId) {
+        measurement.end();
+        await next();
+        return;
+      }
 
-    if (
-      callbackData?.startsWith("v1:rm:") &&
-      typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
-      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
-    ) {
-      return;
-    }
+      if (
+        callbackData?.startsWith("v1:rm:") &&
+        typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+        (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern))
+      ) {
+        return;
+      }
 
-    if (isRestartOrRemortRoute(ctx) && await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)) {
-      return;
-    }
+      if (
+        isRestartOrRemortRoute(ctx) &&
+        await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)
+      ) {
+        return;
+      }
 
-    const parsedDuelCallback = parseDuelCallbackData(callbackData);
-    const cardRoute = parsedDuelCallback.ok && services.duel
-      ? await classifyTurnBasedDuelRoute(
-          ctx,
-          parsedDuelCallback.value,
-          telegramUserId,
-          services.duel
-        )
-      : null;
-    const preservesHistoricalCanonicalSource =
-      cardRoute?.state === "resolved" && cardRoute.sourceIsCanonical;
+      const parsedDuelCallback = parseDuelCallbackData(callbackData);
+      const cardRoute = parsedDuelCallback.ok && services.duel
+        ? await classifyTurnBasedDuelRoute(
+            ctx,
+            parsedDuelCallback.value,
+            telegramUserId,
+            services.duel
+          )
+        : null;
+      const preservesHistoricalCanonicalSource =
+        cardRoute?.state === "resolved" && cardRoute.sourceIsCanonical;
 
-    const duelRouteToken = getDuelRouteToken(ctx);
-    const precheckedActiveDuel = duelRouteToken
-      ? await getActiveTurnBasedDuel(telegramUserId, services)
-      : undefined;
-    if (duelRouteToken && precheckedActiveDuel?.challenge.inviteToken === duelRouteToken) {
+      const duelRouteToken = getDuelRouteToken(ctx);
+      const precheckedActiveDuel = duelRouteToken
+        ? await getActiveTurnBasedDuel(telegramUserId, services)
+        : undefined;
+      if (duelRouteToken && precheckedActiveDuel?.challenge.inviteToken === duelRouteToken) {
+        if (
+          parsedDuelCallback.ok &&
+          cardRoute?.state === "active" &&
+          isTurnBasedDuelCardCallback(parsedDuelCallback.value)
+        ) {
+          rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+        }
+        measurement.end();
+        await next();
+        return;
+      }
+
       if (
         parsedDuelCallback.ok &&
         cardRoute?.state === "active" &&
+        cardRoute.sourceIsCanonical &&
         isTurnBasedDuelCardCallback(parsedDuelCallback.value)
       ) {
         rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
+        measurement.end();
+        await next();
+        return;
       }
+
+      if (!shouldCheckCombatLock(ctx)) {
+        measurement.end();
+        await next();
+        return;
+      }
+
+      if (
+        (ctx.callbackQuery || isDuelRoute(ctx)) &&
+        !isPendingRaidSafeCallback(callbackData) &&
+        typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
+        (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
+          preserveCallbackSource: preservesHistoricalCanonicalSource
+        }))
+      ) {
+        return;
+      }
+
+      if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services, {
+        refreshPresence: !isDuelRoute(ctx),
+        preserveCallbackSource: preservesHistoricalCanonicalSource,
+        ...(duelRouteToken ? { activeDuel: precheckedActiveDuel ?? null } : {})
+      })) {
+        return;
+      }
+
+      measurement.end();
       await next();
-      return;
+    } finally {
+      measurement.end();
     }
-
-    if (
-      parsedDuelCallback.ok &&
-      cardRoute?.state === "active" &&
-      cardRoute.sourceIsCanonical &&
-      isTurnBasedDuelCardCallback(parsedDuelCallback.value)
-    ) {
-      rememberTurnBasedDuelRouteClassification(ctx, cardRoute);
-      await next();
-      return;
-    }
-
-    if (!shouldCheckCombatLock(ctx)) {
-      await next();
-      return;
-    }
-
-    if (
-      (ctx.callbackQuery || isDuelRoute(ctx)) &&
-      !isPendingRaidSafeCallback(callbackData) &&
-      typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
-      (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
-        preserveCallbackSource: preservesHistoricalCanonicalSource
-      }))
-    ) {
-      return;
-    }
-
-    if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services, {
-      refreshPresence: !isDuelRoute(ctx),
-      preserveCallbackSource: preservesHistoricalCanonicalSource,
-      ...(duelRouteToken ? { activeDuel: precheckedActiveDuel ?? null } : {})
-    })) {
-      return;
-    }
-
-    await next();
   });
 }
 
@@ -305,7 +319,10 @@ async function redirectCombatLockIfNeeded(
     return false;
   }
 
-  const lock = await services.fight.getFightOverviewForTelegramUser(telegramUserId);
+  const lock = await memoizeUpdateRead(
+    `fight-overview:${telegramUserId}`,
+    () => services.fight.getFightOverviewForTelegramUser(telegramUserId)
+  );
 
   if (lock.state === "persistent-active") {
     await answerCombatLockCallback(ctx);

@@ -32,6 +32,7 @@ import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../doma
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -82,6 +83,15 @@ export class PrismaShynokRepository implements ShynokRepository {
     telegramUserId: bigint,
     now: Date
   ): Promise<ShynokDrinkStateRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    const markerDrinkState = markerSnapshot?.drinkState;
+    if (markerDrinkState && markerDrinkState.expiresAt > now) {
+      return mapDrinkState(markerDrinkState);
+    }
+    if (markerSnapshot && !markerSnapshot.drinkState) {
+      return null;
+    }
+
     const state = await this.prisma.characterDrinkState.findFirst({
       where: {
         character: { user: { telegramUserId } }
@@ -100,6 +110,11 @@ export class PrismaShynokRepository implements ShynokRepository {
   }
 
   async getRecoveryDrinkForTelegramUser(telegramUserId: bigint): Promise<ShynokDrinkStateRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return mapDrinkState(markerSnapshot.drinkState);
+    }
+
     const state = await this.prisma.characterDrinkState.findFirst({
       where: {
         character: { user: { telegramUserId } }

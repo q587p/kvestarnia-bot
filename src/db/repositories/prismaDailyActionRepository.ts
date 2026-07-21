@@ -18,6 +18,7 @@ import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { normalizePresenceLocationId } from "../../services/presenceService";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(
@@ -29,6 +30,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDate: string }
   ): Promise<DailyActionRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.dailyActions.find(
+        (action) => action.key === input.key && action.localDate === input.localDate
+      ) ?? null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -59,6 +67,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string }
   ): Promise<DailyActionRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.dailyActions
+        .filter((action) => action.key === input.key)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -82,6 +97,57 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       orderBy: {
         createdAt: "desc"
       }
+    });
+  }
+
+  async listForCharacterByLocalDates(
+    characterId: string,
+    input: { key: string; localDates: readonly string[]; take: number }
+  ): Promise<DailyActionRecord[]> {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    if (markerSnapshot?.character?.id === characterId) {
+      const localDates = new Set(input.localDates);
+      return markerSnapshot.dailyActions
+        .filter((action) => action.key === input.key && localDates.has(action.localDate))
+        .slice(0, Math.max(0, Math.min(93, Math.floor(input.take))));
+    }
+
+    const localDates = [...new Set(input.localDates)];
+    const take = Math.min(localDates.length, Math.max(0, Math.floor(input.take)), 93);
+    if (take === 0) {
+      return [];
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId,
+        key: input.key,
+        localDate: { in: localDates }
+      },
+      take
+    });
+  }
+
+  async listForCharacterByLocalDatePrefix(
+    characterId: string,
+    input: { key: string; localDatePrefix: string; take: number }
+  ): Promise<DailyActionRecord[]> {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    if (markerSnapshot?.character?.id === characterId) {
+      return markerSnapshot.dailyActions
+        .filter((action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix))
+        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+        .slice(0, Math.max(1, Math.min(93, Math.floor(input.take))));
+    }
+
+    return this.prisma.dailyAction.findMany({
+      where: {
+        characterId,
+        key: input.key,
+        localDate: { startsWith: input.localDatePrefix }
+      },
+      orderBy: { createdAt: "asc" },
+      take: Math.max(1, Math.min(93, Math.floor(input.take)))
     });
   }
 
@@ -607,6 +673,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDatePrefix: string }
   ): Promise<number | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character
+        ? markerSnapshot.dailyActions.filter(
+            (action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix)
+          ).length
+        : null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -637,6 +712,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDateNot?: string }
   ): Promise<boolean | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character
+        ? markerSnapshot.dailyActions.some(
+            (action) => action.key === input.key && action.localDate !== input.localDateNot
+          )
+        : null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -676,6 +760,18 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string; localDatePrefix: string; take: number }
   ): Promise<DailyActionRecord[] | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character
+        ? markerSnapshot.dailyActions
+            .filter(
+              (action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix)
+            )
+            .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+            .slice(0, Math.max(1, Math.floor(input.take)))
+        : null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -710,6 +806,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     characterId: string,
     input: { keys: readonly string[]; localDate: string; take: number }
   ): Promise<DailyActionRecord[]> {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    if (markerSnapshot?.character?.id === characterId) {
+      const keys = new Set(input.keys);
+      return markerSnapshot.dailyActions
+        .filter((action) => keys.has(action.key) && action.localDate === input.localDate)
+        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+        .slice(0, Math.max(1, Math.min(keys.size, Math.floor(input.take))));
+    }
+
     const keys = [...new Set(input.keys)].filter((key) => key.length > 0);
 
     if (keys.length === 0) {

@@ -184,6 +184,16 @@ export interface DailyActionRepository {
     input: { keys: readonly string[]; localDate: string; take: number }
   ): Promise<DailyActionRecord[]>;
 
+  listForCharacterByLocalDates?(
+    characterId: string,
+    input: { key: string; localDates: readonly string[]; take: number }
+  ): Promise<DailyActionRecord[]>;
+
+  listForCharacterByLocalDatePrefix?(
+    characterId: string,
+    input: { key: string; localDatePrefix: string; take: number }
+  ): Promise<DailyActionRecord[]>;
+
   sumItemGrantQuantityForTelegramUserInCreatedAtRange?(
     telegramUserId: bigint,
     input: {

@@ -377,6 +377,22 @@ async function handleShynokCallback(
     return;
   }
 
+  if (action.type === "game-dice-poker-rules") {
+    if (!services.tavernGames) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentDicePokerRules(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: action.token
+        ? buildBackToDicePokerKeyboard(action.token)
+        : buildShynokGameRulesKeyboard("kosti", services.tavernGames.getMaxStake())
+    });
+    return;
+  }
+
   const questMarkers = await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services);
   const shynokNavigationOptions = {
     ...(questMarkers ? { questMarkers } : {})
@@ -532,22 +548,6 @@ async function handleShynokCallback(
         reply_markup: buildShynokGameRulesKeyboard(action.gameKey, services.tavernGames.getMaxStake())
       }
     );
-    return;
-  }
-
-  if (action.type === "game-dice-poker-rules") {
-    if (!services.tavernGames) {
-      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-      return;
-    }
-
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentDicePokerRules(), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: action.token
-        ? buildBackToDicePokerKeyboard(action.token)
-        : buildShynokGameRulesKeyboard("kosti", services.tavernGames.getMaxStake())
-    });
     return;
   }
 

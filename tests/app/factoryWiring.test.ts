@@ -27,6 +27,7 @@ import { PrismaPendingPassageEncounterRepository } from "../../src/db/repositori
 import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
 import { PrismaPlayerHintReceiptRepository } from "../../src/db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../../src/db/repositories/prismaPresenceRepository";
+import { PrismaQuestMarkerReadRepository } from "../../src/db/repositories/prismaQuestMarkerReadRepository";
 import { PrismaRemortRepository } from "../../src/db/repositories/prismaRemortRepository";
 import { PrismaShynokRepository } from "../../src/db/repositories/prismaShynokRepository";
 import { PrismaSoloCombatSessionRepository } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
@@ -53,6 +54,7 @@ import { OnboardingService } from "../../src/services/onboardingService";
 import { PartySessionService } from "../../src/services/partySessionService";
 import { PlayerHintService } from "../../src/services/playerHintService";
 import { PresenceService } from "../../src/services/presenceService";
+import { QuestMarkerReadService } from "../../src/services/questMarkerReadService";
 import { RemortService } from "../../src/services/remortService";
 import { RestartService } from "../../src/services/restartService";
 import { ShynokService } from "../../src/services/shynokService";
@@ -88,6 +90,7 @@ describe("application factory wiring", () => {
     expect(repositories.partySessions).toBeInstanceOf(PrismaPartySessionRepository);
     expect(repositories.playerHintReceipts).toBeInstanceOf(PrismaPlayerHintReceiptRepository);
     expect(repositories.presence).toBeInstanceOf(PrismaPresenceRepository);
+    expect(repositories.questMarkerReads).toBeInstanceOf(PrismaQuestMarkerReadRepository);
     expect(repositories.remorts).toBeInstanceOf(PrismaRemortRepository);
     expect(repositories.roundPurchases).toBeInstanceOf(PrismaKorchmaRoundPurchaseRepository);
     expect(repositories.shynok).toBeInstanceOf(PrismaShynokRepository);
@@ -123,6 +126,7 @@ describe("application factory wiring", () => {
     expect(services.partySessions).toBeInstanceOf(PartySessionService);
     expect(services.playerHints).toBeInstanceOf(PlayerHintService);
     expect(services.presence).toBeInstanceOf(PresenceService);
+    expect(services.questMarkerReads).toBeInstanceOf(QuestMarkerReadService);
     expect(services.remort).toBeInstanceOf(RemortService);
     expect(services.restart).toBeInstanceOf(RestartService);
     expect(services.shynok).toBeInstanceOf(ShynokService);

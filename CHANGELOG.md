@@ -7,6 +7,19 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.3.17] - 12026-07-22 - Callback Read-Path Collapse
+
+### Changed
+- Collapsed the Friday Barrel pending guard from a 24-period awaited SQL waterfall into one Character read plus two bounded exact-key batch reads, preserving newest-to-oldest period selection, completion and remort behavior.
+- Added update-local single-flight reuse for pending-Friday and Fight overview reads. Global middleware, handler guards, Daily Korchma markers and marker-aware navigation can share the same pre-mutation Promise without a process-wide cache.
+- Grouped Fight/problem markers now share one Character snapshot, one exact DailyAction batch and a bounded combat-win aggregate capped at 93; direct character-id lease reads avoid resolving the same player twice.
+- Static Shynok dice rules, Hero, Quest Table, News Corner, Fighting Corner, Deep and passage-preview routes now branch before unused quest-marker construction. Ordinary location navigation uses a bounded exact-location Daily Korchma pending-scene check before the authoritative open.
+- Callback telemetry now begins before combat/pending/presence middleware and records allowlisted route class, pre-route/component time, first successful acknowledgement and first successful presentation without ids, callback payloads, SQL or raw errors.
+
+### Verification and compatibility
+- Added isolated Prisma query-event tests proving Friday budgets of one statement without a character and at most three with a character, grouped Fight/problem budgets of one to five statements, and a complete full-source marker reduction from 75 reads to 10. Fixtures with 10,000 irrelevant combat or DailyAction rows keep the same statement counts, and valid win counting stops at 93.
+- Added route-order, request-local memo/invalidation, telemetry privacy/bounds, Daily Korchma exact-location and existing fail-soft regression coverage. This internal optimization changes no gameplay, reward, odds, cooldown, callback data, keyboard label, dependency, schema, migration, production flag, achievement, balance or lore contract.
+
 ## [0.3.16] - 12026-07-21 - Closed Alpha Lifecycle and Player-Surface Closeout
 
 ### Changed

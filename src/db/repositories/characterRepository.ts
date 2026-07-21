@@ -65,6 +65,7 @@ export interface CreateCharacterResult {
 export interface CharacterRepository {
   findByUserId(userId: string): Promise<CharacterRecord | null>;
   findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null>;
+  findGuardSnapshotByTelegramUserId?(telegramUserId: bigint): Promise<CharacterRecord | null>;
   updateResourcesForTelegramUser?(
     telegramUserId: bigint,
     input: UpdateCharacterResourcesInput

@@ -239,7 +239,8 @@ export class TavernRaidService {
     const now = this.clock();
     const current = await this.findRelevantPendingFridayBarrelRaid(
       telegramUserId,
-      getBarrelRaidPeriod(now)
+      getBarrelRaidPeriod(now),
+      { guardSnapshot: true }
     );
 
     if (!current) {
@@ -543,9 +544,12 @@ export class TavernRaidService {
 
   private async findRelevantPendingFridayBarrelRaid(
     telegramUserId: bigint,
-    period: BarrelRaidPeriod
+    period: BarrelRaidPeriod,
+    options: { guardSnapshot?: boolean } = {}
   ): Promise<PendingFridayBarrelRaid | null> {
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const character = options.guardSnapshot && this.characters.findGuardSnapshotByTelegramUserId
+      ? await this.characters.findGuardSnapshotByTelegramUserId(telegramUserId)
+      : await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return null;
@@ -560,7 +564,51 @@ export class TavernRaidService {
       };
     }
 
-    for (const candidate of getRecentBarrelRaidPeriods(period, 24)) {
+    const candidates = getRecentBarrelRaidPeriods(period, 24).filter(
+      (candidate, index, all) => all.findIndex((row) => row.id === candidate.id) === index
+    );
+
+    if (
+      this.pendingRaids.listForCharacterByKeys &&
+      this.dailyActions.listForCharacterByLocalDates
+    ) {
+      const [cooldowns, completions] = await Promise.all([
+        this.pendingRaids.listForCharacterByKeys(
+          character.id,
+          candidates.map((candidate) => buildFridayBarrelRaidPendingKey(candidate.id))
+        ),
+        this.dailyActions.listForCharacterByLocalDates(character.id, {
+          key: FRIDAY_BARREL_RAID_KEY,
+          localDates: candidates.map((candidate) => candidate.id),
+          take: candidates.length
+        })
+      ]);
+      const cooldownByKey = new Map(cooldowns.map((cooldown) => [cooldown.key, cooldown]));
+      const completedPeriods = new Set(completions.map((completion) => completion.localDate));
+
+      for (const candidate of candidates) {
+        const current = cooldownByKey.get(buildFridayBarrelRaidPendingKey(candidate.id));
+        if (!current || completedPeriods.has(candidate.id)) {
+          continue;
+        }
+
+        return {
+          availableAt: current.availableAt,
+          startedAt: current.updatedAt,
+          character,
+          periodId: candidate.id
+        };
+      }
+
+      return {
+        availableAt: null,
+        startedAt: null,
+        character,
+        periodId: period.id
+      };
+    }
+
+    for (const candidate of candidates) {
       const current = await this.pendingRaids.findForTelegramUser(
         telegramUserId,
         buildFridayBarrelRaidPendingKey(candidate.id)

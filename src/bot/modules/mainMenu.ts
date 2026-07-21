@@ -99,9 +99,7 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendHero(ctx, services.hero, "reply", {
-      mainMenuKeyboard: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
-    });
+    await sendHero(ctx, services.hero, "reply");
   });
 
   bot.hears([...mainMenuLocationButtonTexts], async (ctx) => {
@@ -234,22 +232,6 @@ export async function buildCurrentMainMenuKeyboard(
     locationId: place.state === "ready" ? place.locationId : null,
     ...(options.questMarkers === undefined ? {} : { questMarkers: options.questMarkers }),
     ...(options.includeAdmin === undefined ? {} : { includeAdmin: options.includeAdmin })
-  });
-}
-
-async function buildCurrentMainMenuKeyboardWithQuestMarkers(
-  ctx: Context,
-  services: BotServices,
-  options: Pick<MainMenuKeyboardOptions, "includeAdmin"> = {}
-): Promise<ReturnType<typeof buildMainMenuKeyboard>> {
-  const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-  const questMarkers = telegramUserId
-    ? await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
-    : null;
-
-  return buildCurrentMainMenuKeyboard(ctx, services.presence, {
-    ...options,
-    ...(questMarkers ? { questMarkers } : {})
   });
 }
 
@@ -553,26 +535,16 @@ export async function sendDailyKorchmaRoundSceneAtLocation(
     return false;
   }
 
-  const current = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
-
-  if (current.state !== "ready" && current.state !== "turn-in-ready") {
-    return false;
-  }
-
-  const sceneIndex = current.offer.scenes.findIndex(
-    (scene) =>
-      scene.locationId === locationId &&
-      !current.offer.completedSceneIds.includes(scene.id) &&
-      current.offer.omittedSceneId !== scene.id
-  );
-
-  if (sceneIndex < 0) {
+  const pending = typeof services.dailyKorchmaRound.findPendingSceneAtLocationForTelegramUser === "function"
+    ? await services.dailyKorchmaRound.findPendingSceneAtLocationForTelegramUser(telegramUserId, locationId)
+    : await findPendingSceneFromLegacyContext(services, telegramUserId, locationId);
+  if (!pending) {
     return false;
   }
 
   const result = await services.dailyKorchmaRound.openScene(telegramUserId, {
-    dayToken: current.offer.dayToken,
-    sceneIndex
+    dayToken: pending.dayToken,
+    sceneIndex: pending.sceneIndex
   });
 
   if (result.state !== "scene") {
@@ -592,6 +564,24 @@ export async function sendDailyKorchmaRoundSceneAtLocation(
   return true;
 }
 
+async function findPendingSceneFromLegacyContext(
+  services: BotServices,
+  telegramUserId: bigint,
+  locationId: string
+): Promise<{ dayToken: string; sceneIndex: number } | null> {
+  const current = await services.dailyKorchmaRound.getExistingForTelegramUser(telegramUserId);
+  if (current.state !== "ready" && current.state !== "turn-in-ready") {
+    return null;
+  }
+  const sceneIndex = current.offer.scenes.findIndex(
+    (scene) =>
+      scene.locationId === locationId &&
+      !current.offer.completedSceneIds.includes(scene.id) &&
+      current.offer.omittedSceneId !== scene.id
+  );
+  return sceneIndex < 0 ? null : { dayToken: current.offer.dayToken, sceneIndex };
+}
+
 async function sendCurrentPresenceLocation(
   ctx: Context,
   locationId: string,
@@ -599,6 +589,41 @@ async function sendCurrentPresenceLocation(
   options: MainMenuRouteOptions = {}
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+  if (locationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
+    await sendQuestHub(ctx, buildQuestHubCommandOptions(services), "reply");
+    return;
+  }
+  if (locationId === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
+    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
+    return;
+  }
+  if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {
+    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
+      ...(services.duelTournaments ? { tournamentService: services.duelTournaments } : {})
+    });
+    return;
+  }
+  if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP) {
+    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
+      passageSearch: services.passageSearch
+    });
+    return;
+  }
+  if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1) {
+    await sendFight(ctx, services.fight, "reply", {
+      presence: services.presence,
+      tavernRaid: services.tavern,
+      passageSearch: services.passageSearch,
+      requireKorchmaInterior: true,
+      openDifficulty: true
+    });
+    return;
+  }
+  const passageFight = presenceLocationToPersistentFightPassage(locationId);
+  if (passageFight) {
+    await sendPersistentFightPassagePreview(ctx, services, passageFight, "reply");
+    return;
+  }
   const questMarkers = telegramUserId
     ? await buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
     : null;
@@ -623,11 +648,6 @@ async function sendCurrentPresenceLocation(
       playerHintService: services.playerHints,
       ...(questMarkers ? { questMarkers } : {})
     });
-    return;
-  }
-
-  if (locationId === PRESENCE_LOCATION_KORCHMA_QUEST_TABLE) {
-    await sendQuestHub(ctx, buildQuestHubCommandOptions(services), "reply");
     return;
   }
 
@@ -666,11 +686,6 @@ async function sendCurrentPresenceLocation(
     return;
   }
 
-  if (locationId === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
-    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
-    return;
-  }
-
   if (locationId === PRESENCE_LOCATION_KORCHMA_RANGER_CORNER) {
     await sendHuntBoard(ctx, services.yeger, "reply", {
       presence: services.presence,
@@ -678,38 +693,6 @@ async function sendCurrentPresenceLocation(
       resolveFieldKitHelp: (telegramUserId) => shouldShowYegerFieldKitHelp(telegramUserId, services),
       ...(questMarkers ? { questMarkers } : {})
     });
-    return;
-  }
-
-  if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {
-    await sendKorchmaFightingCorner(ctx, services.tavern, services.presence, "reply", {
-      ...(services.duelTournaments ? { tournamentService: services.duelTournaments } : {})
-    });
-    return;
-  }
-
-  if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP) {
-    await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
-      passageSearch: services.passageSearch
-    });
-    return;
-  }
-
-  if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1) {
-    await sendFight(ctx, services.fight, "reply", {
-      presence: services.presence,
-      tavernRaid: services.tavern,
-      passageSearch: services.passageSearch,
-      requireKorchmaInterior: true,
-      openDifficulty: true
-    });
-    return;
-  }
-
-  const passageFight = presenceLocationToPersistentFightPassage(locationId);
-
-  if (passageFight) {
-    await sendPersistentFightPassagePreview(ctx, services, passageFight, "reply");
     return;
   }
 

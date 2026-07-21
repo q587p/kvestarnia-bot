@@ -228,6 +228,7 @@ export interface AdoptLegacySoloCombatSettlementResult {
 export interface SoloCombatSessionRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<SoloCombatSessionRecord | null>;
   findLeasedByTelegramUserId?(telegramUserId: bigint): Promise<SoloCombatLeaseLookupResult>;
+  findLeasedByCharacterId?(characterId: string): Promise<SoloCombatLeaseLookupResult>;
   releaseLeaseBySessionId?(sessionId: string, now?: Date): Promise<boolean>;
   listDueActiveSessions?(
     now: Date,
@@ -255,6 +256,15 @@ export interface SoloCombatSessionRepository {
       monsterIds: readonly string[];
       completedSince: Date;
       life: Pick<CombatLifeState, "remortCount">;
+      limit: number;
+    }
+  ): Promise<number>;
+  countBoundedWonByTelegramUserId?(
+    telegramUserId: bigint,
+    options: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: Pick<CombatLifeState, "remortCount">;
       limit: number;
     }
   ): Promise<number>;

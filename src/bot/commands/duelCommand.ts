@@ -220,7 +220,7 @@ export async function handleDuelCallback(
     (callback.type === "rematch" || callback.type === "rematch-risk");
   if (
     isResolvedCanonicalRematch &&
-    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "reply")
+    await sendPendingRaidBlockIfNeeded(ctx, telegramUserId, options.tavernRaid, "reply", { fresh: true })
   ) {
     await answerCallback();
     return;

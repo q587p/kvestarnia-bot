@@ -13,6 +13,7 @@ import type { HpLossAudit, ItemGrant } from "./dailyActionRepository";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -26,6 +27,16 @@ export class PrismaCooldownRepository implements CooldownRepository {
     telegramUserId: bigint,
     key: string
   ): Promise<{ cooldown: CharacterCooldownRecord | null; character: CharacterRecord } | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character
+        ? {
+            character: markerSnapshot.character,
+            cooldown: markerSnapshot.cooldowns.find((cooldown) => cooldown.key === key) ?? null
+          }
+        : null;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -52,6 +63,30 @@ export class PrismaCooldownRepository implements CooldownRepository {
       cooldown,
       character: toCharacterRecord(character)
     };
+  }
+
+  async listForCharacterByKeys(
+    characterId: string,
+    keys: readonly string[]
+  ): Promise<CharacterCooldownRecord[]> {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    if (markerSnapshot?.character?.id === characterId) {
+      const keySet = new Set(keys);
+      return markerSnapshot.cooldowns.filter((cooldown) => keySet.has(cooldown.key));
+    }
+
+    const uniqueKeys = [...new Set(keys)].slice(0, 93);
+    if (uniqueKeys.length === 0) {
+      return [];
+    }
+
+    return this.prisma.characterCooldown.findMany({
+      where: {
+        characterId,
+        key: { in: uniqueKeys }
+      },
+      take: uniqueKeys.length
+    });
   }
 
   async claimRewardForTelegramUser(

@@ -33,6 +33,7 @@ import { PrismaPartyRaidChatTransactionWriter } from "../db/repositories/prismaP
 import { PrismaPartySessionRepository } from "../db/repositories/prismaPartySessionRepository";
 import { PrismaPlayerHintReceiptRepository } from "../db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../db/repositories/prismaPresenceRepository";
+import { PrismaQuestMarkerReadRepository } from "../db/repositories/prismaQuestMarkerReadRepository";
 import { PrismaRemortRepository } from "../db/repositories/prismaRemortRepository";
 import { PrismaShynokRepository } from "../db/repositories/prismaShynokRepository";
 import { PrismaSoloCombatSessionRepository } from "../db/repositories/prismaSoloCombatSessionRepository";
@@ -84,6 +85,7 @@ export function createRepositories(
     partySessions: new PrismaPartySessionRepository(prisma, partyRaidChatWriter),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
     presence: new PrismaPresenceRepository(prisma),
+    questMarkerReads: new PrismaQuestMarkerReadRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
     shynok: new PrismaShynokRepository(prisma, hpRecoveryProducer),

@@ -34,6 +34,7 @@ import type { PartyRaidChatService } from "../services/partyRaidChatService";
 import type { PartySessionService } from "../services/partySessionService";
 import type { PlayerHintService } from "../services/playerHintService";
 import type { PresenceService } from "../services/presenceService";
+import type { QuestMarkerReadService } from "../services/questMarkerReadService";
 import type { RemortService } from "../services/remortService";
 import type { RestartService } from "../services/restartService";
 import type { ShynokService } from "../services/shynokService";
@@ -78,6 +79,7 @@ export interface BotServices {
   shynok?: ShynokService;
   tavernGames?: TavernGameService;
   presence: PresenceService;
+  questMarkerReads?: QuestMarkerReadService;
   devGrant?: DevGrantService;
   duel?: DuelChallengeService;
   duelTournaments?: DuelTournamentService;

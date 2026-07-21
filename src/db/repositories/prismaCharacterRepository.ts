@@ -9,6 +9,7 @@ import type {
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 
 export type SpendGoldForTelegramUserResult =
@@ -35,6 +36,11 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
   }
 
   async findByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character;
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
@@ -47,6 +53,30 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
     });
 
     return character ? toCharacterRecord(character) : null;
+  }
+
+  async findGuardSnapshotByTelegramUserId(telegramUserId: bigint): Promise<CharacterRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return markerSnapshot.character;
+    }
+
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      include: {
+        _count: {
+          select: { remorts: true }
+        }
+      }
+    });
+
+    return character
+      ? {
+          ...character,
+          currentLocationId: null,
+          remortCount: getIncludedRemortCount(character)
+        }
+      : null;
   }
 
   async deleteByTelegramUserId(telegramUserId: bigint): Promise<boolean> {

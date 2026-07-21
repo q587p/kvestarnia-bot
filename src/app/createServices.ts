@@ -39,6 +39,7 @@ import { PartyRaidChatService } from "../services/partyRaidChatService";
 import { PartySessionService } from "../services/partySessionService";
 import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
+import { QuestMarkerReadService } from "../services/questMarkerReadService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
 import { ShynokService } from "../services/shynokService";
@@ -254,6 +255,7 @@ export function createServices(
     }, undefined, achievements),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
+    questMarkerReads: new QuestMarkerReadService(repositories.questMarkerReads),
     remort: new RemortService(repositories.remorts, undefined, achievements),
     restart: new RestartService(repositories.characters),
     shynok: new ShynokService(
