@@ -45,7 +45,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a truthful release-state ledger with target deployment, migration, flag, backup/restore, Telegram QA and observation gaps left as deferred rather than inferred.
 - Reconciled the 0.3.x closeout and 0.4.x party/guild cutline into canonical product, design, architecture and task docs. Preserved the complete source audit package under `docs/history/0.3x-to-0.4x-roadmap-audit-12026-07-20/`.
 - Added one forward-only schema migration for the legacy terminal-leader backfill and append-only PartyBoss round history. Its unique session/turn constraint supplies the required lookup prefix without a redundant non-unique index. No production flag, dependency, quest, reward or new achievement definition was added. Lore needs no update because the change fixes existing combat support targeting and lifecycle safety rather than world canon.
-- Final repository verification passed 316 unit files / 3955 tests and 23 integration files / 552 tests, including cache-disabled unit and integration repeats, all 56 PartyBoss reducer tests, and the five targeted simulation corridors. Target deployment, migration application, flags, backup/restore, Telegram QA and observation remain unverified.
+- Final repository verification passed 316 unit files / 3956 tests and 23 integration files / 552 tests, including cache-disabled unit and integration repeats, all 56 PartyBoss reducer tests, and the five targeted simulation corridors. Target deployment, migration application, flags, backup/restore, Telegram QA and observation remain unverified.
 
 ## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat and Varenyk Presence Fix
 
