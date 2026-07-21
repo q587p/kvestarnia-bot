@@ -104,8 +104,10 @@ describe("health server", () => {
     expect(text).not.toContain("Поточні команди й можливості");
     expect(text).toContain("Ватага, лад і корчмарські маршрути");
     expect(text).toContain("У грі вже:");
-    expect(text).toContain("не стирають пригодника, доки триває спільний бій");
-    expect(text).toContain("лікування й захисні вміння у ватазі");
+    expect(text).toContain("ця звістка описує вміст збірки, а не підтверджене розгортання");
+    expect(text).toContain("гуртовий похід на Старшого Брата Бочки лишається за зачиненими дверима");
+    expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");
+    expect(text).not.toContain("лікування й захисні вміння у ватазі");
     expect(text).toContain("У грі зараз: 4");
     expect(text).toContain("Активних: 3");
     expect(text).toContain("Притихлих: 1");
