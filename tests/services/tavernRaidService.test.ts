@@ -1427,6 +1427,16 @@ class FakeCooldownRepository implements CooldownRepository {
     };
   }
 
+  listForCharacterByKeys(
+    characterId: string,
+    keys: readonly string[]
+  ): Promise<CharacterCooldownRecord[]> {
+    const wanted = new Set(keys);
+    return Promise.resolve(this.records.filter(
+      (cooldown) => cooldown.characterId === characterId && wanted.has(cooldown.key)
+    ));
+  }
+
   async claimRewardForTelegramUser(
     userTelegramId: bigint,
     input: ClaimCooldownRewardInput
@@ -1552,6 +1562,19 @@ class FakeDailyActionRepository implements DailyActionRepository {
     }
 
     return this.actions.get(`${character.id}:${input.key}:${input.localDate}`) ?? null;
+  }
+
+  listForCharacterByLocalDates(
+    characterId: string,
+    input: { key: string; localDates: readonly string[]; take: number }
+  ): Promise<DailyActionRecord[]> {
+    const localDates = new Set(input.localDates);
+    return Promise.resolve(this.records.filter(
+      (action) =>
+        action.characterId === characterId &&
+        action.key === input.key &&
+        localDates.has(action.localDate)
+    ).slice(0, input.take));
   }
 
   async findLatestForTelegramUser(

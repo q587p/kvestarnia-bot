@@ -31,7 +31,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_QUEST_TABLE,
   type PresenceService
 } from "./presenceService";
-import type { TavernRaidService } from "./tavernRaidService";
+import type { TavernPendingRaidResult, TavernRaidService } from "./tavernRaidService";
 import { trackRewardAchievementsSafely } from "./achievementTracking";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 
@@ -209,9 +209,56 @@ export class DailyKorchmaRoundService {
     return this.resultFromContext(context);
   }
 
+  async findPendingSceneAtLocationForTelegramUser(
+    telegramUserId: bigint,
+    locationId: string
+  ): Promise<{ dayToken: string; sceneIndex: number } | null> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      return null;
+    }
+
+    const dayKey = getKyivDayKey(this.clock());
+    const offerRecord = this.dailyActions.listForCharacterByKeys
+      ? (await this.dailyActions.listForCharacterByKeys(character.id, {
+          keys: [DAILY_KORCHMA_ROUND_OFFER_KEY],
+          localDate: dayKey,
+          take: 1
+        }))[0] ?? null
+      : await this.dailyActions.findForTelegramUser(telegramUserId, {
+          key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+          localDate: dayKey
+        });
+    const offer = buildOfferFromRecord(offerRecord, Math.max(0, Math.floor(character.remortCount ?? 0)));
+    if (!offer) {
+      return null;
+    }
+
+    const completedSceneIds = new Set(
+      (this.dailyActions.listForCharacterByLocalDatePrefix
+        ? await this.dailyActions.listForCharacterByLocalDatePrefix(character.id, {
+            key: DAILY_KORCHMA_ROUND_STEP_KEY,
+            localDatePrefix: `${offer.dayKey}:`,
+            take: 13
+          })
+        : await this.listStepRecords(telegramUserId, offer.dayKey, offer.scenes))
+        .map((record) => readStepJson(record)?.sceneId)
+        .filter(isString)
+    );
+    if (completedSceneIds.size >= DAILY_KORCHMA_ROUND_REQUIRED_STEPS) {
+      return null;
+    }
+    const sceneIndex = offer.scenes.findIndex(
+      (scene) => scene.locationId === locationId && !completedSceneIds.has(scene.id)
+    );
+
+    return sceneIndex < 0 ? null : { dayToken: offer.dayToken, sceneIndex };
+  }
+
   async getQuestMarkerForTelegramUser(
     telegramUserId: bigint,
-    sharedFight: Promise<FightLookupResult | null>
+    sharedFight: Promise<FightLookupResult | null>,
+    sharedPendingBarrel?: Promise<TavernPendingRaidResult>
   ): Promise<DailyKorchmaRoundMarkerLookupResult> {
     const characterRecord = await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -238,7 +285,7 @@ export class DailyKorchmaRoundService {
 
     const [fight, hasPendingBarrel] = await Promise.all([
       sharedFight,
-      this.hasPendingBarrel(telegramUserId)
+      this.hasPendingBarrel(telegramUserId, sharedPendingBarrel)
     ]);
 
     if (!fight) {
@@ -855,12 +902,17 @@ export class DailyKorchmaRoundService {
     return fight.state === "persistent-active" || fight.state === "training-active";
   }
 
-  private async hasPendingBarrel(telegramUserId: bigint): Promise<boolean> {
+  private async hasPendingBarrel(
+    telegramUserId: bigint,
+    sharedPending?: Promise<TavernPendingRaidResult>
+  ): Promise<boolean> {
     if (!this.tavern) {
       return false;
     }
 
-    const pending = await this.tavern.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId);
+    const pending = sharedPending
+      ? await sharedPending
+      : await this.tavern.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId);
 
     return pending.state === "pending";
   }

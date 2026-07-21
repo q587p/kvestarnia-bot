@@ -6,6 +6,7 @@ import {
   startPerfSpan,
   type QuestMarkerPerformanceSource
 } from "./performanceLogger";
+import { getMemoizedUpdateRead, memoizeUpdateRead } from "./updatePerformanceTrace";
 
 export async function buildQuestMarkerSnapshotForTelegramUser(
   telegramUserId: bigint,
@@ -17,7 +18,8 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     | "dailyKorchmaRound"
     | "fight"
     | "yeger"
-  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "firstKorchmaQuest" | "itemUpgrades">>
+  > & Partial<Pick<BotServices, "barrelBeerTutorial" | "firstKorchmaQuest" | "itemUpgrades" | "questMarkerReads" | "tavern">>,
+  options: { sharedSnapshot?: boolean } = {}
 ): Promise<QuestMarkerInput | null> {
   if (
     typeof services.adventure?.getAdventureOfferForTelegramUser !== "function" ||
@@ -32,17 +34,40 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
     return null;
   }
 
+  if (!options.sharedSnapshot && services.questMarkerReads) {
+    return services.questMarkerReads.run(
+      telegramUserId,
+      () => buildQuestMarkerSnapshotForTelegramUser(
+        telegramUserId,
+        services,
+        { sharedSnapshot: true }
+      )
+    );
+  }
+
   const barrelBeerTutorialService = services.barrelBeerTutorial;
   const firstKorchmaQuestService = services.firstKorchmaQuest;
   const itemUpgradesService = services.itemUpgrades;
   const cellarGrownupService = services.cellarGrownup;
   const perf = startPerfSpan("main-menu.quest-markers", { telegramUserId });
   const attribution = createQuestMarkerDbAttribution();
+  const sharedFight = getMemoizedUpdateRead<
+    Awaited<ReturnType<BotServices["fight"]["getFightOverviewForTelegramUser"]>>
+  >(`fight-overview:${telegramUserId}`);
+  const sharedPendingBarrel = services.tavern &&
+    typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function"
+      ? memoizeUpdateRead(
+          `pending-friday:${telegramUserId}`,
+          () => services.tavern!.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId),
+          "pendingRaid"
+        )
+      : undefined;
   const fightMarkersPromise = attribution.measure(
     "fight",
     () => resolveFightQuestMarkers(
       telegramUserId,
       services.fight,
+      sharedFight,
       (sourceCount) => attribution.addSources(sourceCount)
     ),
     typeof services.fight.getQuestMarkerSnapshotForTelegramUser === "function" ? 1 : 2
@@ -117,7 +142,8 @@ export async function buildQuestMarkerSnapshotForTelegramUser(
             "daily korchma round",
             () => services.dailyKorchmaRound.getQuestMarkerForTelegramUser(
               telegramUserId,
-              fightMarkersPromise.then(({ fight }) => fight)
+              fightMarkersPromise.then(({ fight }) => fight),
+              sharedPendingBarrel
             )
           )
         )
@@ -268,17 +294,21 @@ async function resolveLegacyAdventureQuestMarkers(
 async function resolveFightQuestMarkers(
   telegramUserId: bigint,
   service: BotServices["fight"],
+  sharedFight: Promise<Awaited<ReturnType<BotServices["fight"]["getFightOverviewForTelegramUser"]>>> | undefined,
   addFallbackSources: (sourceCount: number) => void
 ) {
   if (typeof service.getQuestMarkerSnapshotForTelegramUser === "function") {
     const grouped = await optionalQuestMarkerLookup(
       "fight snapshot",
-      () => service.getQuestMarkerSnapshotForTelegramUser(telegramUserId)
+      () => service.getQuestMarkerSnapshotForTelegramUser(
+        telegramUserId,
+        sharedFight ? { fight: sharedFight } : {}
+      )
     );
 
     if (!grouped) {
       addFallbackSources(2);
-      return resolveLegacyFightQuestMarkers(telegramUserId, service);
+      return resolveLegacyFightQuestMarkers(telegramUserId, service, sharedFight);
     }
 
     const [fight, problemQuest, fightingCornerQuest] = await Promise.all([
@@ -292,17 +322,22 @@ async function resolveFightQuestMarkers(
     return { fight, problemQuest, fightingCornerQuest };
   }
 
-  return resolveLegacyFightQuestMarkers(telegramUserId, service);
+  return resolveLegacyFightQuestMarkers(telegramUserId, service, sharedFight);
 }
 
 async function resolveLegacyFightQuestMarkers(
   telegramUserId: bigint,
-  service: BotServices["fight"]
+  service: BotServices["fight"],
+  sharedFight: Promise<Awaited<ReturnType<BotServices["fight"]["getFightOverviewForTelegramUser"]>>> | undefined
 ) {
+  const fightPromise = sharedFight ?? memoizeUpdateRead(
+    `fight-overview:${telegramUserId}`,
+    () => service.getFightOverviewForTelegramUser(telegramUserId)
+  );
   const [fight, problemQuest] = await Promise.all([
     optionalQuestMarkerLookup(
       "fight overview",
-      () => service.getFightOverviewForTelegramUser(telegramUserId)
+      () => fightPromise
     ),
     optionalQuestMarkerLookup(
       "problem quest",

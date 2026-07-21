@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
 
 export interface HotPathTimingInput {
@@ -22,6 +23,13 @@ export interface HotPathTimingInput {
   computeMs?: number | null;
   telegramMs?: number | null;
   telegramEditMs?: number | null;
+  preRouteMs?: number | null;
+  pendingRaidMs?: number | null;
+  combatLockMs?: number | null;
+  presenceMs?: number | null;
+  ackMs?: number | null;
+  firstPresentationMs?: number | null;
+  firstPresentationMethod?: CallbackPresentationMethod | null;
   totalMs: number;
   thresholdMs?: number;
   outcome?: "success" | "error";
@@ -37,7 +45,8 @@ export type PerformanceErrorCategory =
   | "telegram-api"
   | "unknown";
 
-export type PerformanceErrorComponent = "db" | "compute" | "telegram";
+export type PerformanceErrorComponent = "db" | "compute" | "telegram" | "middleware" | "handler";
+export type CallbackPresentationMethod = "edit" | "send";
 
 export type QuestMarkerPerformanceSource =
   | "adventure"
@@ -75,6 +84,7 @@ const FIGHT_TURN_PERFORMANCE_STAGES = new Set<FightTurnPerformanceStage>([
   "presence",
   "reward-progress"
 ]);
+const performanceRecordStorage = new AsyncLocalStorage<{ nested?: HotPathTimingInput }>();
 
 export function hotPathNow(): number {
   return performance.now();
@@ -85,6 +95,42 @@ export function elapsedMs(startedAt: number): number {
 }
 
 export function logPerformanceTiming(input: HotPathTimingInput): void {
+  const aggregate = performanceRecordStorage.getStore();
+  if (aggregate) {
+    if (!aggregate.nested || shouldPreferNestedTiming(input, aggregate.nested)) {
+      aggregate.nested = input;
+    }
+    return;
+  }
+
+  emitPerformanceTiming(input);
+}
+
+export function runWithSinglePerformanceRecord<T>(callback: () => Promise<T>): Promise<T> {
+  return performanceRecordStorage.run({}, callback);
+}
+
+export function logAggregatedPerformanceTiming(input: HotPathTimingInput): void {
+  const nested = performanceRecordStorage.getStore()?.nested;
+  if (!nested) {
+    emitPerformanceTiming(input);
+    return;
+  }
+
+  const resultState = nested.resultState ?? input.resultState;
+  const errorCategory = nested.errorCategory ?? input.errorCategory;
+  const errorComponent = nested.errorComponent ?? input.errorComponent;
+  emitPerformanceTiming({
+    ...nested,
+    ...input,
+    route: nested.route,
+    ...(resultState === undefined ? {} : { resultState }),
+    ...(errorCategory === undefined ? {} : { errorCategory }),
+    ...(errorComponent === undefined ? {} : { errorComponent })
+  });
+}
+
+function emitPerformanceTiming(input: HotPathTimingInput): void {
   const thresholdMs = input.thresholdMs ?? getSlowPerfThresholdMs();
   const totalMs = input.totalMs;
   const slow = totalMs >= thresholdMs;
@@ -106,6 +152,18 @@ export function logPerformanceTiming(input: HotPathTimingInput): void {
         : "Kvestarnia sampled perf timing",
     payload
   );
+}
+
+function shouldPreferNestedTiming(
+  candidate: HotPathTimingInput,
+  current: HotPathTimingInput
+): boolean {
+  const candidateFailed = candidate.outcome === "error" || candidate.errorCategory != null;
+  const currentFailed = current.outcome === "error" || current.errorCategory != null;
+  if (candidateFailed !== currentFailed) {
+    return candidateFailed;
+  }
+  return candidate.totalMs > current.totalMs;
 }
 
 export function startPerfSpan(
@@ -257,6 +315,15 @@ export function sanitizePerfTimingPayload(
     MAX_FIGHT_TURN_DB_STAGE_MS
   );
 
+  const callbackTimings = {
+    preRouteMs: sanitizeBoundedNumber(input.preRouteMs, MAX_QUEST_MARKER_SOURCE_MS),
+    pendingRaidMs: sanitizeBoundedNumber(input.pendingRaidMs, MAX_QUEST_MARKER_SOURCE_MS),
+    combatLockMs: sanitizeBoundedNumber(input.combatLockMs, MAX_QUEST_MARKER_SOURCE_MS),
+    presenceMs: sanitizeBoundedNumber(input.presenceMs, MAX_QUEST_MARKER_SOURCE_MS),
+    ackMs: sanitizeBoundedNumber(input.ackMs, MAX_QUEST_MARKER_SOURCE_MS),
+    firstPresentationMs: sanitizeBoundedNumber(input.firstPresentationMs, MAX_QUEST_MARKER_SOURCE_MS)
+  };
+
   return {
     route: input.route,
     slow: input.totalMs >= thresholdMs,
@@ -292,6 +359,14 @@ export function sanitizePerfTimingPayload(
     ...(input.computeMs != null ? { computeMs: roundMs(input.computeMs) } : {}),
     ...(input.telegramMs != null ? { telegramMs: roundMs(input.telegramMs) } : {}),
     ...(input.telegramEditMs != null ? { telegramEditMs: roundMs(input.telegramEditMs) } : {}),
+    ...Object.fromEntries(
+      Object.entries(callbackTimings)
+        .filter((entry): entry is [string, number] => entry[1] !== undefined)
+        .map(([key, value]) => [key, roundMs(value)])
+    ),
+    ...(input.firstPresentationMethod === "edit" || input.firstPresentationMethod === "send"
+      ? { firstPresentationMethod: input.firstPresentationMethod }
+      : {}),
     totalMs: roundMs(input.totalMs)
   };
 }

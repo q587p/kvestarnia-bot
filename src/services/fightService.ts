@@ -1230,7 +1230,7 @@ export class FightService {
 
   async getFightOverviewForTelegramUser(
     telegramUserId: bigint,
-    options: { character?: CharacterRecord } = {}
+    options: { character?: CharacterRecord; questProgress?: ThirteenSmallProblemsProgress } = {}
   ): Promise<FightLookupResult> {
     const character = options.character ?? await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -1254,8 +1254,12 @@ export class FightService {
       };
     }
 
-    const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+    const questProgress = options.questProgress ??
+      await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(
+      telegramUserId,
+      character.id
+    );
     const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: leasedSession.state === "none"
     });
@@ -1647,9 +1651,12 @@ export class FightService {
   }
 
   async getQuestMarkerSnapshotForTelegramUser(
-    telegramUserId: bigint
+    telegramUserId: bigint,
+    options: { fight?: Promise<FightLookupResult> } = {}
   ): Promise<FightQuestMarkerSnapshot> {
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    const character = this.characters.findGuardSnapshotByTelegramUserId
+      ? await this.characters.findGuardSnapshotByTelegramUserId(telegramUserId)
+      : await this.characters.findByTelegramUserId(telegramUserId);
 
     if (!character) {
       return {
@@ -1661,13 +1668,47 @@ export class FightService {
       };
     }
 
-    const [fight, problemQuest, fightingCornerQuest] = await Promise.allSettled([
-      this.getFightOverviewForTelegramUser(telegramUserId, { character }),
-      this.getProblemQuestProgressForTelegramUser(telegramUserId, { character }),
+    if (!this.dailyActions.listForCharacterByKeys) {
+      const [fight, problemQuest, fightingCornerQuest] = await Promise.allSettled([
+        options.fight ?? this.getFightOverviewForTelegramUser(telegramUserId, { character }),
+        this.getProblemQuestProgressForTelegramUser(telegramUserId, { character }),
+        this.fightingCornerQuest
+          ? this.fightingCornerQuest.getForTelegramUser(telegramUserId, { character })
+          : Promise.resolve({ state: "disabled" } as const)
+      ]);
+
+      return {
+        fight,
+        problemQuest,
+        ...(this.fightingCornerQuest ? { fightingCornerQuest } : {})
+      };
+    }
+
+    const markerProgress = this.getProblemQuestMarkerProgress(telegramUserId, character);
+    const fightPromise = options.fight ?? markerProgress.then(({ progress }) =>
+      this.getFightOverviewForTelegramUser(telegramUserId, { character, questProgress: progress })
+    );
+    const [fight, progressResult, fightingCornerQuest] = await Promise.allSettled([
+      fightPromise,
+      markerProgress,
       this.fightingCornerQuest
         ? this.fightingCornerQuest.getForTelegramUser(telegramUserId, { character })
         : Promise.resolve({ state: "disabled" } as const)
     ]);
+    const problemQuest: PromiseSettledResult<ProblemQuestProgressLookupResult> =
+      progressResult.status === "rejected"
+        ? progressResult
+        : {
+            status: "fulfilled",
+            value: {
+              state: "ready",
+              character: fight.status === "fulfilled" && "character" in fight.value
+                ? fight.value.character
+                : await this.summarizeCharacterWithEquipment(telegramUserId, character),
+              progress: progressResult.value.progress,
+              archive: progressResult.value.archive
+            }
+          };
 
     return {
       fight,
@@ -1703,7 +1744,10 @@ export class FightService {
     }
 
     const questProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId);
+    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(
+      telegramUserId,
+      character.id
+    );
 
     if (leasedSession.state === "unsupported") {
       const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
@@ -2597,7 +2641,9 @@ export class FightService {
           )
         : null;
 
-    const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const refreshedQuestProgress = updated.status === "active"
+      ? questProgress
+      : await this.getThirteenSmallProblemsProgress(telegramUserId);
     const achievementUnlocks = input.action === "gear" && grant
       ? (await this.achievements?.trackEventSafely({
           type: "mantok.gear-action.used",
@@ -3301,6 +3347,76 @@ export class FightService {
     });
   }
 
+  private async getProblemQuestMarkerProgress(
+    telegramUserId: bigint,
+    character: CharacterRecord
+  ): Promise<{ progress: ThirteenSmallProblemsProgress; archive: ProblemQuestProgress[] }> {
+    if (!this.dailyActions.listForCharacterByKeys) {
+      const progress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+      return {
+        progress,
+        archive: await this.getProblemQuestArchiveProgress(telegramUserId, progress)
+      };
+    }
+
+    const keys = PROBLEM_QUEST_STAGES.flatMap((stage) => [stage.issueKey, stage.rewardKey]);
+    const actions = await this.dailyActions.listForCharacterByKeys(character.id, {
+      keys,
+      localDate: PROBLEM_QUEST_BUCKET,
+      take: keys.length
+    });
+    const actionByKey = new Map(actions.map((action) => [action.key, action]));
+    const stageRecords = PROBLEM_QUEST_STAGES.map((stage) => ({
+      stage,
+      issuedAt: actionByKey.get(stage.issueKey)?.createdAt ?? null,
+      rewarded: actionByKey.has(stage.rewardKey)
+    }));
+    const stageState = resolveCurrentProblemQuestStage(stageRecords);
+    const progress = stageState.branchComplete
+      ? buildCompletedProblemQuestBranchProgress()
+      : buildProblemQuestProgress({
+          stage: stageState.stage,
+          wins: this.combatSessions
+            ? await this.countProblemQuestWins(
+                telegramUserId,
+                character,
+                stageState.stage.id === "13" ? undefined : stageState.issuedAt ?? undefined
+              )
+            : 0,
+          rewardClaimed: actionByKey.has(stageState.stage.rewardKey),
+          issued: stageState.issuedAt !== null
+        });
+    const archive = stageRecords.flatMap((record) => {
+      if (!record.rewarded) {
+        return [];
+      }
+      return [record.stage.id === progress.stageId
+        ? progress
+        : buildCompletedProblemQuestProgress(record.stage)];
+    });
+    if (progress.completed && !archive.some((row) => row.stageId === progress.stageId)) {
+      archive.push(progress);
+    }
+
+    return { progress, archive };
+  }
+
+  private async countProblemQuestWins(
+    telegramUserId: bigint,
+    character: CharacterRecord,
+    since?: Date
+  ): Promise<number> {
+    const options = {
+      excludeMonsterIds: [TRAINING_DOPPELGANGER_MONSTER_ID],
+      life: { remortCount: character.remortCount ?? 0 },
+      limit: 93,
+      ...(since ? { since } : {})
+    };
+    return this.combatSessions?.countBoundedWonByTelegramUserId
+      ? this.combatSessions.countBoundedWonByTelegramUserId(telegramUserId, options)
+      : this.combatSessions?.countWonByTelegramUserId(telegramUserId, options) ?? 0;
+  }
+
   private async getProblemQuestArchiveProgress(
     telegramUserId: bigint,
     currentProgress: ProblemQuestProgress
@@ -3733,9 +3849,12 @@ export class FightService {
 
   private async findLeasedSoloCombatSessionForTelegramUser(
     telegramUserId: bigint,
+    characterId?: string,
     attempts = 0
   ): Promise<LeasedSoloCombatSessionLookup> {
-    const lookup = await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
+    const lookup = characterId && this.combatSessions?.findLeasedByCharacterId
+      ? await this.combatSessions.findLeasedByCharacterId(characterId)
+      : await this.combatSessions?.findLeasedByTelegramUserId?.(telegramUserId);
 
     if (!lookup) {
       const session = await this.combatSessions?.findActiveByTelegramUserId(telegramUserId);
@@ -3769,7 +3888,7 @@ export class FightService {
 
     return attempts >= 1
       ? { state: "none" }
-      : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, attempts + 1);
+      : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, characterId, attempts + 1);
   }
 
   private async adoptLegacyLeasedSettlementIfNeeded(

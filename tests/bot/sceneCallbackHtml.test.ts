@@ -1309,6 +1309,88 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("v1:sh:brp:fine");
   });
 
+  it("rebuilds Friday Barrel markers from the post-start pending state", async () => {
+    let started = false;
+    const getActivePendingFridayBarrelRaidForTelegramUser = vi.fn(() => Promise.resolve(
+      started
+        ? {
+            state: "pending" as const,
+            character,
+            availableAt: new Date("2026-07-24T10:42:00.000Z"),
+            now: new Date("2026-07-24T10:00:00.000Z")
+          }
+        : { state: "none" as const }
+    ));
+    const getQuestMarkerForTelegramUser = vi.fn(async (
+      _telegramUserId: bigint,
+      _sharedFight: Promise<unknown>,
+      sharedPending: Promise<{ state: string }> | undefined
+    ) => {
+      expect(await sharedPending).toMatchObject({ state: "pending" });
+      return { state: "pending-barrel" as const, character };
+    });
+
+    await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser,
+          advanceFridayBarrelRaid: () => {
+            started = true;
+            return Promise.resolve({
+              state: "pending-started" as const,
+              character,
+              availableAt: new Date("2026-07-24T10:42:00.000Z"),
+              now: new Date("2026-07-24T10:00:00.000Z"),
+              periodId: "2026-07-24T10:23"
+            });
+          }
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        dailyKorchmaRound: { getQuestMarkerForTelegramUser }
+      })
+    );
+
+    expect(getActivePendingFridayBarrelRaidForTelegramUser).toHaveBeenCalledTimes(2);
+    expect(getQuestMarkerForTelegramUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the pre-route Friday lookup when the raid callback does not mutate pending state", async () => {
+    const getActivePendingFridayBarrelRaidForTelegramUser = vi.fn(() =>
+      Promise.resolve({ state: "none" as const })
+    );
+    const getQuestMarkerForTelegramUser = vi.fn(async (
+      _telegramUserId: bigint,
+      _sharedFight: Promise<unknown>,
+      sharedPending: Promise<{ state: string }> | undefined
+    ) => {
+      expect(await sharedPending).toMatchObject({ state: "none" });
+      return { state: "not-issued" as const, character };
+    });
+
+    await captureApiCalls(
+      makeTavernCallbackData("raid"),
+      servicesWith({
+        tavern: {
+          getActivePendingFridayBarrelRaidForTelegramUser,
+          advanceFridayBarrelRaid: () => Promise.resolve({
+            state: "audit-break" as const,
+            character,
+            now: new Date("2026-07-24T10:00:00.000Z"),
+            nextAvailableAt: new Date("2026-07-24T10:23:00.000Z")
+          })
+        },
+        fight: questMarkerFightService(),
+        yeger: questMarkerYegerService(),
+        dailyKorchmaRound: { getQuestMarkerForTelegramUser }
+      })
+    );
+
+    expect(getActivePendingFridayBarrelRaidForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getQuestMarkerForTelegramUser).toHaveBeenCalledTimes(1);
+  });
+
   it("offers immediate Shynok turn-in after issuing a recovered completed problem paper", async () => {
     const calls = await captureApiCalls(
       makeQuestCallbackData("problem-next"),
@@ -1384,6 +1466,12 @@ describe("scene callback HTML options", () => {
   });
 
   it("refreshes Shynok hall return markers after issuing a problem paper", async () => {
+    let issued = false;
+    const getFightOverviewForTelegramUser = vi.fn(() => Promise.resolve(
+      issued
+        ? { state: "ready" as const, character }
+        : { state: "no-character" as const }
+    ));
     const calls = await captureApiCalls(
       makeQuestCallbackData("problem-next"),
       servicesWith({
@@ -1406,7 +1494,7 @@ describe("scene callback HTML options", () => {
         fight: {
           getMimicShawarmaForTelegramUser: () => Promise.resolve({ state: "no-character" }),
           completeMimicShawarma: () => Promise.resolve({ state: "no-character" }),
-          getFightOverviewForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getFightOverviewForTelegramUser,
           getProblemQuestProgressForTelegramUser: () =>
             Promise.resolve({
               state: "ready",
@@ -1422,8 +1510,9 @@ describe("scene callback HTML options", () => {
                 branchComplete: false
               }
             }),
-          issueNextProblemQuestForTelegramUser: () =>
-            Promise.resolve({
+          issueNextProblemQuestForTelegramUser: () => {
+            issued = true;
+            return Promise.resolve({
               state: "issued",
               character,
               progress: {
@@ -1461,7 +1550,8 @@ describe("scene callback HTML options", () => {
                 nextStageId: "42"
               },
               issued: "created"
-            })
+            });
+          }
         },
         yeger: questMarkerYegerService(),
         cellarErrand: {
@@ -1476,6 +1566,71 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
 
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain("⬅️ До зали ⚠️");
+    expect(getFightOverviewForTelegramUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses the pre-route Fight lookup when problem issuance is idempotent", async () => {
+    const progress = {
+      stageId: "23" as const,
+      title: "Двадцять три підозрілі проблеми",
+      wins: 0,
+      target: 23,
+      completed: false,
+      rewardClaimed: false,
+      issued: true,
+      branchComplete: false
+    };
+    const stage = {
+      id: "23" as const,
+      title: progress.title,
+      target: 23,
+      reward: { xp: 42, gold: 23, itemId: "item.apophenia-receipt-of-twenty-three" },
+      issueKey: "quest.problem-chain.23.issued",
+      rewardKey: "quest.problem-chain.23.reward",
+      nextStageId: "42" as const
+    };
+    const getFightOverviewForTelegramUser = vi.fn(() =>
+      Promise.resolve({ state: "ready" as const, character })
+    );
+
+    await captureApiCalls(
+      makeQuestCallbackData("problem-next"),
+      servicesWith({
+        presence: {
+          markAction: () => Promise.resolve(),
+          getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+          getCurrentPlaceForTelegramUser: () => Promise.resolve({
+            state: "ready",
+            locationId: "location.korchma.bar",
+            locationName: "Шинок",
+            insideKorchma: true
+          })
+        },
+        fight: {
+          getFightOverviewForTelegramUser,
+          getProblemQuestProgressForTelegramUser: () => Promise.resolve({
+            state: "ready",
+            character,
+            progress
+          }),
+          issueNextProblemQuestForTelegramUser: () => Promise.resolve({
+            state: "issued",
+            character,
+            progress,
+            stage,
+            nextStage: stage,
+            issued: "already-issued"
+          })
+        },
+        yeger: questMarkerYegerService(),
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready", character })
+        }
+      })
+    );
+
+    expect(getFightOverviewForTelegramUser).toHaveBeenCalledTimes(1);
   });
 
   it.each([

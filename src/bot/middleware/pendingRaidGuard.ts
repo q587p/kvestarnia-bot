@@ -4,6 +4,7 @@ import { buildTavernResultKeyboard } from "../keyboards/tavernKeyboard";
 import { presentPendingRaidActionBlock } from "../presenters/tavernPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { memoizeUpdateRead } from "../updatePerformanceTrace";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -15,8 +16,10 @@ export async function editPendingRaidBlockIfNeeded(
   tavernRaidService: TavernRaidService,
   behavior: { preserveCallbackSource?: boolean } = {}
 ): Promise<boolean> {
-  const pending = await tavernRaidService.getActivePendingFridayBarrelRaidForTelegramUser(
-    telegramUserId
+  const pending = await memoizeUpdateRead(
+    `pending-friday:${telegramUserId}`,
+    () => tavernRaidService.getActivePendingFridayBarrelRaidForTelegramUser(telegramUserId),
+    "pendingRaid"
   );
 
   if (pending.state !== "pending") {

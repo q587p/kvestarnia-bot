@@ -21,6 +21,7 @@ import {
   type EquipmentAttunementPayload
 } from "../../domain/equipment/equipmentAttunement";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type TxClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
@@ -31,6 +32,23 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
   ) {}
 
   async listByTelegramUserId(telegramUserId: bigint): Promise<CharacterEquipmentSnapshot | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      const attunements = markerSnapshot.dailyActions.filter(
+        (action) => action.key === EQUIPMENT_ATTUNEMENT_ACTION_KEY
+      );
+      return {
+        characterId: markerSnapshot.character.id,
+        equipment: markerSnapshot.equipment.flatMap((row) => {
+          const record = toRecord(row, findAttunementForRow(row, attunements, new Date()));
+          return record ? [record] : [];
+        })
+      };
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {

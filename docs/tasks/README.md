@@ -78,7 +78,8 @@ closeout and start generic party-vs-many work on `0.4.x`.
 - [0.3.14-bard-inspiration-and-raid-lament.md](0.3.14-bard-inspiration-and-raid-lament.md) — Bard performances grant hybrid-duration Inspiration, while the existing Big Barrel surface lets one Bard commit a replay-safe Lament when its music slot is free.
 - [0.3.x-test-suite-runtime-p0.md](0.3.x-test-suite-runtime-p0.md) — internal maintenance that removes measured content/date hot spots, bounds integration-file parallelism at two workers, and makes local/CI validation use the same named phases without reducing test coverage.
 - [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — shipped by PR #179 with restart-safe delivery/redaction and adaptive recovery; target deployment and refreshed full manual Telegram QA remain separately unproven.
-- [0.3.16-closed-alpha-closeout.md](0.3.16-closed-alpha-closeout.md) — active final `0.3.x` lifecycle/repair/race/rollout/docs closeout.
+- [0.3.16-closed-alpha-closeout.md](0.3.16-closed-alpha-closeout.md) — shipped final lifecycle/repair/race/rollout/docs closeout from PR #182.
+- [0.3.17-callback-read-path-collapse.md](0.3.17-callback-read-path-collapse.md) — semantics-preserving callback performance release with bounded Friday/Fight SQL reads, request-local reuse, route-first marker avoidance and end-to-end callback telemetry.
 - [0.4.0-party-vs-many-proof.md](0.4.0-party-vs-many-proof.md) — proposed default-off rewardless 2–3 player versus 2–3 enemy proof on a separate generic group-combat runtime.
 - [0.4.1-group-combat-hardening.md](0.4.1-group-combat-hardening.md) — proposed ability/target/item/AI/repair/settlement hardening before rewards.
 - [0.4.2-guild-foundation.md](0.4.2-guild-foundation.md) — proposed small guild identity, membership/roles/invites and ordinary party creation without bank, power or boss.

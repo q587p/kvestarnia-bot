@@ -63,6 +63,11 @@ export interface CooldownRepository {
     key: string
   ): Promise<{ cooldown: CharacterCooldownRecord | null; character: CharacterRecord } | null>;
 
+  listForCharacterByKeys?(
+    characterId: string,
+    keys: readonly string[]
+  ): Promise<CharacterCooldownRecord[]>;
+
   claimRewardForTelegramUser(
     telegramUserId: bigint,
     input: ClaimCooldownRewardInput

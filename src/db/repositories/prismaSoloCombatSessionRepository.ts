@@ -62,6 +62,7 @@ import type {
 } from "./soloCombatSessionRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 
 type PrismaSoloCombatSessionRecord = Awaited<
   ReturnType<PrismaClient["soloCombatSession"]["findFirst"]>
@@ -94,6 +95,12 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   async findActiveByTelegramUserId(
     telegramUserId: bigint
   ): Promise<SoloCombatSessionRecord | null> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      const session = this.mapSoloCombatSessionRecord(markerSnapshot.activeCombatSession);
+      return session?.status === "active" ? session : null;
+    }
+
     const record = await this.prisma.soloCombatSession.findFirst({
       where: {
         status: "active",
@@ -214,6 +221,55 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       const state = this.parseCombatState(record.stateJson);
       return isVictoryProgressEligible("won", state) && combatLifeMatchesProgressFilter(state, options.life);
     }).length;
+  }
+
+  async countBoundedWonByTelegramUserId(
+    telegramUserId: bigint,
+    options: {
+      excludeMonsterIds?: readonly string[];
+      since?: Date;
+      life?: Pick<CombatLifeState, "remortCount">;
+      limit: number;
+    }
+  ): Promise<number> {
+    const limit = Math.max(1, Math.min(MAX_PROGRESS_ELIGIBLE_WIN_COUNT, Math.floor(options.limit)));
+    const excluded = [...new Set(options.excludeMonsterIds ?? [])];
+    const remortCount = options.life
+      ? Math.max(0, Math.floor(options.life.remortCount))
+      : null;
+    const rows = await this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT session.id
+        FROM solo_combat_sessions AS session
+        INNER JOIN characters AS character ON character.id = session.character_id
+        INNER JOIN users AS user ON user.id = character.user_id
+        WHERE user.telegram_user_id = ${telegramUserId}
+          AND session.status = 'won'
+          ${excluded.length > 0
+            ? Prisma.sql`AND session.monster_id NOT IN (${Prisma.join(excluded)})`
+            : Prisma.empty}
+          ${options.since
+            ? Prisma.sql`AND session.created_at > ${options.since}`
+            : Prisma.empty}
+          AND (
+            json_type(session.state_json, '$.settlement') IS NULL
+            OR json_extract(session.state_json, '$.settlement.status') = 'completed'
+          )
+          ${remortCount === null
+            ? Prisma.empty
+            : Prisma.sql`AND (
+                CAST(json_extract(session.state_json, '$.life.remortCount') AS INTEGER) = ${remortCount}
+                OR (
+                  json_type(session.state_json, '$.life.remortCount') IS NULL
+                  AND ${remortCount} = 0
+                )
+              )`}
+        LIMIT ${limit}
+      ) AS bounded_wins
+    `);
+
+    return Math.min(limit, Math.max(0, Number(rows[0]?.count ?? 0)));
   }
 
   async listCompletedByTelegramUserIdSince(
@@ -1032,26 +1088,39 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   async findLeasedByTelegramUserId(
     telegramUserId: bigint
   ): Promise<SoloCombatLeaseLookupResult> {
+    const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
+    if (markerSnapshot) {
+      return this.findLeasedInMarkerSnapshot(markerSnapshot.character?.id ?? null);
+    }
+
     const character = await this.prisma.character.findFirst({
       where: {
         user: {
           telegramUserId
         }
       },
-      select: {
-        id: true,
-        activeCombatLease: {
-          select: {
-            kind: true,
-            referenceId: true
-          }
-        }
-      }
+      select: { id: true }
     });
 
-    const lease = character?.activeCombatLease;
+    if (!character) {
+      return { state: "none" };
+    }
 
-    if (!character || !lease) {
+    return this.findLeasedByCharacterId(character.id);
+  }
+
+  async findLeasedByCharacterId(characterId: string): Promise<SoloCombatLeaseLookupResult> {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    if (markerSnapshot?.character?.id === characterId) {
+      return this.findLeasedInMarkerSnapshot(characterId);
+    }
+
+    const lease = await this.prisma.activeCombatLease.findUnique({
+      where: { characterId },
+      select: { kind: true, referenceId: true }
+    });
+
+    if (!lease) {
       return { state: "none" };
     }
 
@@ -1066,7 +1135,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     const record = await this.prisma.soloCombatSession.findFirst({
       where: {
         id: lease.referenceId,
-        characterId: character.id
+        characterId
       }
     });
 
@@ -1098,6 +1167,31 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       return { state: "terminal-forfeited", session };
     }
 
+    return { state: "terminal-pending", session };
+  }
+
+  private findLeasedInMarkerSnapshot(characterId: string | null): SoloCombatLeaseLookupResult {
+    const markerSnapshot = getQuestMarkerReadSnapshot();
+    const lease = markerSnapshot?.activeCombatLease;
+    if (!characterId || !lease) {
+      return { state: "none" };
+    }
+    if (lease.kind !== "solo-combat") {
+      return { state: "unsupported", kind: lease.kind, referenceId: lease.referenceId };
+    }
+    const session = this.mapSoloCombatSessionRecord(markerSnapshot.activeCombatSession);
+    if (!session || session.id !== lease.referenceId) {
+      return { state: "missing-session", referenceId: lease.referenceId };
+    }
+    if (session.status === "active") {
+      return { state: "active", session };
+    }
+    if (session.state?.settlement?.status === "completed") {
+      return { state: "terminal-completed", session };
+    }
+    if (session.state?.settlement?.status === "forfeited-by-remort") {
+      return { state: "terminal-forfeited", session };
+    }
     return { state: "terminal-pending", session };
   }
 

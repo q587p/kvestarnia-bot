@@ -14,6 +14,10 @@ import { registerQuestBotModule } from "./modules/quest";
 import { registerRaidChatBotModule } from "./modules/raidChat";
 import { registerSocialBotModule } from "./modules/social";
 import { registerTavernBotModule } from "./modules/tavern";
+import {
+  installUpdatePerformanceTracing,
+  registerUpdateRouteBoundary
+} from "./updatePerformanceTrace";
 
 export type { BotOptions } from "./botOptions";
 export type { BotServices } from "./botServices";
@@ -27,9 +31,11 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   });
 
   installMessageFreshnessTracking(bot);
+  installUpdatePerformanceTracing(bot);
   registerRaidChatBotModule(bot, { services, options });
   registerCombatLockMiddleware(bot, services);
   registerPresenceMiddleware(bot, services.presence);
+  registerUpdateRouteBoundary(bot);
 
   registerCoreBotModule(bot, { services, options });
   registerCharacterBotModule(bot, { services, options });

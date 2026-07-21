@@ -78,6 +78,31 @@ describe("DailyKorchmaRoundService", () => {
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_OFFER_KEY)).toHaveLength(1);
   });
 
+  it("finds only an unfinished scene authored for the exact current location", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 3 }));
+    const issued = await world.service.getForTelegramUser(telegramUserId);
+    expect(issued.state).toBe("ready");
+    if (issued.state !== "ready") {
+      return;
+    }
+    const scene = issued.offer.scenes[0]!;
+
+    await expect(world.service.findPendingSceneAtLocationForTelegramUser(
+      telegramUserId,
+      scene.locationId
+    )).resolves.toEqual({ dayToken: issued.offer.dayToken, sceneIndex: 0 });
+    await expect(world.service.findPendingSceneAtLocationForTelegramUser(
+      telegramUserId,
+      "location.not-authored"
+    )).resolves.toBeNull();
+
+    world.daily.addStepRecord(issued.offer.dayKey, scene, scene.actions[0]!.id);
+    await expect(world.service.findPendingSceneAtLocationForTelegramUser(
+      telegramUserId,
+      scene.locationId
+    )).resolves.toBeNull();
+  });
+
   it("uses bounded marker reads for every marker state without invoking the Fight service", async () => {
     const noCharacter = new FakeWorld(null);
     await expect(markerLookup(noCharacter)).resolves.toEqual({ state: "no-character" });
