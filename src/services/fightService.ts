@@ -2641,7 +2641,9 @@ export class FightService {
           )
         : null;
 
-    const refreshedQuestProgress = await this.getThirteenSmallProblemsProgress(telegramUserId);
+    const refreshedQuestProgress = updated.status === "active"
+      ? questProgress
+      : await this.getThirteenSmallProblemsProgress(telegramUserId);
     const achievementUnlocks = input.action === "gear" && grant
       ? (await this.achievements?.trackEventSafely({
           type: "mantok.gear-action.used",

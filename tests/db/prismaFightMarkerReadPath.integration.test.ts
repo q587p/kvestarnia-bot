@@ -14,7 +14,7 @@ import {
 
 const telegramUserId = 317n;
 
-describe("FightService quest-marker SQL budget", () => {
+describe("FightService read-path SQL budgets", () => {
   let dir: string;
   let prisma: PrismaClient;
   let statements: string[];
@@ -114,6 +114,53 @@ describe("FightService quest-marker SQL budget", () => {
     })).resolves.toBe(93);
     expectReadBudget(statements, 1);
   });
+
+  it("keeps a fresh nonterminal fight turn within its statement budget", async () => {
+    await seedCharacter(prisma, { level: 13 });
+    await prisma.dailyAction.create({
+      data: {
+        id: "problem-issued",
+        characterId: "character-317",
+        key: PROBLEM_QUEST_STAGES[0]!.issueKey,
+        localDate: PROBLEM_QUEST_BUCKET,
+        rewardXp: 0,
+        rewardGold: 0
+      }
+    });
+    const repository = new PrismaSoloCombatSessionRepository(prisma);
+    const service = createService(prisma, repository);
+    const started = await service.getFightForTelegramUser(telegramUserId);
+
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active" || !started.session.state) {
+      return;
+    }
+
+    await repository.updateById(started.session.id, {
+      state: {
+        ...started.session.state,
+        monster: {
+          ...started.session.state.monster,
+          hp: 999,
+          maxHp: 999
+        }
+      },
+      status: "active"
+    });
+    statements.length = 0;
+
+    const result = await service.resolvePersistentFightTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: started.session.state.turn,
+      action: "defend"
+    });
+
+    expect(result).toMatchObject({
+      state: "updated",
+      session: { status: "active" }
+    });
+    expectStatementBudget(statements, { reads: 27, writes: 1, total: 30 });
+  });
 });
 
 function createService(
@@ -134,6 +181,16 @@ function expectReadBudget(statements: readonly string[], maximum: number): void 
   expect(writes).toHaveLength(0);
   expect(reads).toHaveLength(maximum);
   expect(statements.length).toBe(reads.length);
+}
+
+function expectStatementBudget(
+  statements: readonly string[],
+  expected: { reads: number; writes: number; total: number }
+): void {
+  const reads = statements.filter((statement) => /^(SELECT|WITH)/i.test(statement));
+  const writes = statements.filter((statement) => /^(INSERT|UPDATE|DELETE)/i.test(statement));
+
+  expect({ reads: reads.length, writes: writes.length, total: statements.length }).toEqual(expected);
 }
 
 async function seedCharacter(prisma: PrismaClient, input: { level: number }): Promise<void> {
@@ -232,5 +289,10 @@ async function createSchema(prisma: PrismaClient): Promise<void> {
     id TEXT NOT NULL PRIMARY KEY, character_id TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
     reference_id TEXT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL
+  )`);
+  await prisma.$executeRawUnsafe(`CREATE TABLE character_cooldowns (
+    id TEXT NOT NULL PRIMARY KEY, character_id TEXT NOT NULL, key TEXT NOT NULL,
+    available_at DATETIME NOT NULL, result_json JSONB, updated_at DATETIME NOT NULL,
+    UNIQUE(character_id, key)
   )`);
 }
