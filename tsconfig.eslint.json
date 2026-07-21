@@ -9,6 +9,7 @@
     "src/**/*.ts",
     "tests/**/*.ts",
     "scripts/backfill-activity-events.ts",
+    "scripts/closed-alpha-report.ts",
     "scripts/poll-activity-events.ts"
   ],
   "exclude": ["node_modules", "dist", "coverage"]

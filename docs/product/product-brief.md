@@ -57,24 +57,29 @@
 
 ## Поточний playable slice
 
-Поточний foundation уже показує тон і базову форму гри:
+Closed-alpha foundation уже доводить тон, довгу прогресію й кілька видів
+соціяльної взаємодії:
 
-- створення пригодника через `/start`;
-- аркуш персонажа через `/hero`, `/profile`, `/me`;
-- корчма й solo-рейд на Бочку Пінного Міражу;
-- перший соціяльний gold sink `🍻 Всім пива` у локації `🍻 Шинок`;
-- `Стіл зі справами` для quest hub;
-- коротка пригода з підозрілою шаурмою;
-- безпечна бойова перевірка без persistent HP loss;
-- repeatable «Льохова справа» після витрачених денних активностей;
-- persistent манатки;
-- перший character impact loop: раса, клас і дивна біографія персонажа можуть змінювати короткі репліки без зміни reward math;
-- легка presence-система без точного Telegram-стеження;
-- `/version`, `/news`, `/restart` для сервісного UX.
+- створення й розвиток пригодника до 13 рівня та remort;
+- persistent PvE з одним або кількома ворогами, класовими/расовими діями,
+  предметами, ресурсами, журналом і replay-safe settlement;
+- квести, пригоди, Низ, Єгерські справи, квестовий overview, Перекази й Хроніки;
+- манатки, сім слотів спорядження, set/ability synergies, upgrade/attunement;
+- training, quick/turn-based duels, tournament rewards і share/rematch cards;
+- безпечні подарунки, пошта, корчемні ігри й класові дії поруч;
+- тимчасові гурти, party-vs-one proof і перший feature-flagged Big Barrel raid;
+- класова raid support і raid chat у кодовому baseline, із production-доступністю лише за ledger-рішенням;
+- privacy-safe presence, combat locks, performance/combat telemetry.
 
-Цей slice треба продавати як ранній playable foundation, а не як завершену гру.
+Цей slice треба продавати як ранню живу гру, а не завершену MMO. Наявність
+feature-flagged коду не підтверджує production enablement без release-state
+ledger і ручної Telegram QA.
 
-Public-facing опис не має починатися з «українська РПГ» як першого гачка або називати гру «пародійною» як головний жанр. Можна казати «гумористична», «іронічна», «абсурдно-фентезійна». Не продавати ґільдії, справжні групові рейди, PvP, market, crafting або monetization як готові фічі; ґільдії й рейди згадувати лише як roadmap / майбутній напрям.
+Public-facing опис не має починатися з «українська РПГ» як першого гачка або
+називати гру «пародійною» як головний жанр. Можна казати «гумористична»,
+«іронічна», «абсурдно-фентезійна». Не продавати generic party-vs-many,
+ґільдії, market, crafting або monetization як готові фічі. Big Barrel називати
+першим вузьким гуртовим доказом лише там, де він реально enabled.
 
 ## MVP scope
 

@@ -65,7 +65,7 @@ FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
 
 Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before any production enablement:
 
-1. Stop or snapshot the source database through the normal production backup procedure. Copy that backup into an isolated workspace; never point these commands at the mounted live database. The following PowerShell sequence must show 44 completed migrations before deploy and 45 afterward:
+1. Stop or snapshot the source database through the normal production backup procedure. Copy that backup into an isolated workspace; never point these commands at the mounted live database. Record the source count instead of assuming its state; after deploying the current repository into the isolated copy, the sequence must show 48 completed migrations:
 
    ```powershell
    $source = Resolve-Path 'C:\backups\kvestarnia-before-hp-recovery.db'
@@ -79,7 +79,7 @@ Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before 
    sqlite3.exe $qa ".read scripts/explain-hp-recovery-candidates.sql"
    ```
 
-   The final read-only SQL script must report 45 completed migrations, the three queue indexes, four fixed index-backed candidate branches, and no `MULTI-INDEX OR`. It sets `PRAGMA query_only=ON` before the schema smoke and `EXPLAIN`. Repository integration tests use temporary handcrafted SQLite schemas and are separate automated evidence; they do not validate this restored production-shaped copy.
+   The final read-only SQL script must report 48 completed migrations, the three queue indexes, four fixed index-backed candidate branches, and no `MULTI-INDEX OR`. It sets `PRAGMA query_only=ON` before the schema smoke and `EXPLAIN`. Repository integration tests use temporary handcrafted SQLite schemas and are separate automated evidence; they do not validate this restored production-shaped copy.
 2. Run `npx.cmd prisma validate` in the checkout. Refresh the isolated local bot with the flag enabled, run `/dev_hp_recovery_due`, and verify the task-doc scenarios with a maintainer test account. This QA is a maintainer step; a passing automated suite is not a claim that Telegram QA happened.
 3. Enable one controlled production window. Watch only aggregate scheduler logs: tick duration and due/claimed/sent/retried/suppressed/error counts. Logs must not include Telegram ids or player data.
 4. Abort and turn the flag off on any duplicate notice, any three consecutive ticks with `errors > 0`, or any three consecutive ticks with `due = 13`. This conservative saturation signal needs no unbounded `COUNT(*)` or backlog scan. Flag-off stops both producers and the scheduler; it does not scan or mutate the queue.
@@ -115,6 +115,8 @@ BOT_USERNAME=kvestarnia_bot
 ## Локальні dev-команди
 
 `/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
+
+За `NODE_ENV=development` постійна клавіятура завжди тримає `🧰 Адмінка` праворуч від `📖 Допомога` в нижньому рядку. Кнопка відкриває згруповану dev-довідку; у `production` вона не показується навіть за помилково переданого запиту на її додавання.
 
 Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Будь-який новий player-facing timer/cooldown/retry/once-per-period gate, включно з класовими або соціяльними вміннями, має отримати вузьку локальну `/dev_*` команду до PR-ready стану або явний виняток у task doc і PR body. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
 
@@ -232,6 +234,7 @@ ESLint uses a content cache under `.cache/eslint/`; it is safe to delete `.cache
 - `npm run maintenance:backfill-activity-events -- --apply` — застосувати підтягування після перевіреного dry-run.
 - `npm run maintenance:poll-activity-events` — read-only перегляд останніх public `ActivityEvent` rows з поточного `DATABASE_URL`.
 - `npm run maintenance:poll-activity-events -- --watch --interval=13` — polling нових activity rows без зміни БД.
+- `npm run report:closed-alpha -- --from=2026-04-01T00:00:00.000Z --to=2026-07-20T00:00:00.000Z` — read-only aggregate closed-alpha funnel for the selected UTC window.
 - `npm run maintenance:repair-character-resources` — dry-run перевірка over-max `hpCurrent`/`manaCurrent` у таблиці `characters` для БД з поточного `DATABASE_URL`.
 - `npm run maintenance:repair-character-resources -- --apply` — застосувати repair і clamp over-max ресурсів до поточних максимумів після перевіреного dry-run.
 
@@ -245,6 +248,27 @@ npm run db:deploy
 - `npm run db:studio` — Prisma Studio.
 
 ## Maintenance repair scripts
+
+### Privacy-safe closed-alpha report
+
+`npm run report:closed-alpha` reads the database selected by `DATABASE_URL` and
+prints JSON only; it never writes rows. The report reads only immutable
+`ActivityEvent` rows whose occurrence is inside `[from, to)` and whose ledger row
+was recorded before `to`; a later backfill therefore cannot change a historical
+result. It deliberately emits no Telegram user ids, character ids, names,
+usernames or message content. Recorded character creation, duel completion and
+group-raid completion event counts are labeled as recorded evidence. Exact
+acquisition, D1/D7 retention, first-day PvE, duel acceptance/completion/rematches
+and party funnel KPIs remain `null` or listed in `missingInstrumentation` because
+the best-effort event ledger does not certify complete historical coverage.
+
+Without arguments the window ends at command time and starts 93 days earlier.
+Use ISO timestamps for a reproducible observation record:
+
+```powershell
+$env:DATABASE_URL="file:./prisma/dev.db"
+npm run report:closed-alpha -- --from=2026-04-18T00:00:00.000Z --to=2026-07-20T00:00:00.000Z
+```
 
 `npm run maintenance:backfill-activity-events` безпечний за замовчуванням: він лише рахує архівні public activity rows, які може створити для `📜 Хронік Квестарні`, і не змінює БД без `-- --apply`.
 

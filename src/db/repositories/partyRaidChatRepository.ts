@@ -164,7 +164,11 @@ export interface PartyRaidChatRepository {
   ): Promise<PartyRaidChatAuthorizedView | null>;
 
   requestRecruitingRefresh(telegramUserId: bigint, inviteToken: string, now: Date): Promise<boolean>;
-  listDueDeliveries(now: Date, limit?: number): Promise<PartyRaidChatDeliveryRecord[]>;
+  listDueDeliveries(
+    now: Date,
+    limit?: number,
+    options?: { parkCleanDue?: boolean }
+  ): Promise<PartyRaidChatDeliveryRecord[]>;
   isDeliveryClaimCurrent(deliveryId: string, version: number): Promise<boolean>;
   recordDeliveryReference(
     deliveryId: string,

@@ -1,12 +1,17 @@
 import type { Bot, Context, NextFunction } from "grammy";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatPartyRaidChatWait,
-  registerPartyRaidChatInput
+  registerPartyRaidChatInput,
+  waitForPartyRaidChatAcceptedPostDeliveries
 } from "../../src/bot/commands/partyRaidChatCommand";
 import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
 
 describe("party raid chat input routing", () => {
+  afterEach(async () => {
+    await waitForPartyRaidChatAcceptedPostDeliveries();
+  });
+
   it("does not register the dev helper when production isolation disables it", () => {
     const command = vi.fn();
     const on = vi.fn();
@@ -43,6 +48,7 @@ describe("party raid chat input routing", () => {
     const ctx = makeContext({ text: "Хало & привіт", replyMessageId: 13 });
 
     await handler(ctx, next);
+    await waitForPartyRaidChatAcceptedPostDeliveries();
 
     expect(next).not.toHaveBeenCalled();
     expect(service.submitInput).toHaveBeenCalledWith(expect.objectContaining({
@@ -79,9 +85,27 @@ describe("party raid chat input routing", () => {
     vi.mocked(ctx.api.sendMessage).mockRejectedValueOnce(new Error("bot blocked"));
 
     await expect(handler(ctx, vi.fn<NextFunction>().mockResolvedValue(undefined))).resolves.toBeUndefined();
+    await waitForPartyRaidChatAcceptedPostDeliveries();
 
     expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
     expect(ctx.api.editMessageText).toHaveBeenCalledWith(42, 13, "Цей бланк уже використано.");
+  });
+
+  it("does not hold the sequential update loop while accepted-post fan-out is in flight", async () => {
+    const { handler } = registerForTest({ boundPromptId: 13 });
+    const ctx = makeContext({ text: "Швидка перевірка", replyMessageId: 13, chatId: 46 });
+    let finishSend!: () => void;
+    const pendingSend = new Promise<{ message_id: number }>((resolve) => {
+      finishSend = () => resolve({ message_id: 96 });
+    });
+    vi.mocked(ctx.api.sendMessage).mockImplementation(() => pendingSend);
+
+    await handler(ctx, vi.fn<NextFunction>().mockResolvedValue(undefined));
+
+    expect(ctx.replyMock).toHaveBeenCalledWith("✅ Повідомлення надіслано в рейд-чат.");
+    await vi.waitFor(() => expect(ctx.api.sendMessage).toHaveBeenCalledOnce());
+    finishSend();
+    await waitForPartyRaidChatAcceptedPostDeliveries();
   });
 
   it("passes media, captions and forwarded replies through without touching the composer", async () => {

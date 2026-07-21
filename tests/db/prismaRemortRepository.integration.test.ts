@@ -19,7 +19,6 @@ import {
 import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
 import { HeroService } from "../../src/services/heroService";
 import {
-  settleVarenykSatedOutsideCombat,
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
@@ -756,7 +755,7 @@ describe("PrismaRemortRepository integration", () => {
     })).resolves.toBe(2);
   });
 
-  it("keeps canonically persisted Big Barrel pre-lease Sated recovery when another participant remorts", async () => {
+  it("keeps the Big Barrel and frozen Sated state intact when a participant tries to remort", async () => {
     const startAt = new Date("2026-06-22T12:25:00.000Z");
     const now = new Date("2026-06-22T12:30:00.000Z");
     const actorId = "character-remort-party-boss";
@@ -817,23 +816,24 @@ describe("PrismaRemortRepository integration", () => {
       hpRegenAt: startAt,
       manaRegenAt: startAt
     });
+    const frozenCursorAtStart = ((await prisma.characterCooldown.findUniqueOrThrow({
+      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
+    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
 
     await expect(repository.completeDraftForTelegramUser(
       9315n,
       makeCompletionInput("token-remort-party-boss", now)
-    )).resolves.toMatchObject({ state: "completed" });
+    )).resolves.toEqual({ state: "active-combat" });
     const bossSession = await prisma.partyBossSession.findUnique({
       where: { partySessionId: "party-remort-boss" }
     });
     const bossResult = bossSession?.resultJson;
 
-    expect(bossSession?.status).toBe("cancelled");
-    expect(bossResult && typeof bossResult === "object" && !Array.isArray(bossResult)
-      ? bossResult.reason
-      : undefined).toBe("remort");
-    await expect(prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: "party-remort-boss" } })).resolves.toBe(0);
+    expect(bossSession?.status).toBe("active");
+    expect(bossResult).toBeNull();
+    await expect(prisma.activeCombatLease.count({ where: { kind: "party-boss", referenceId: "party-remort-boss" } })).resolves.toBe(2);
     await expect(prisma.partyParticipant.findUnique({ where: { id: "participant-remort-party-boss" } })).resolves.toMatchObject({
-      activeMembershipKey: null
+      activeMembershipKey: "party-member:character-remort-party-boss"
     });
     await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
       hpCurrent: 114,
@@ -844,20 +844,72 @@ describe("PrismaRemortRepository integration", () => {
     const survivorCooldown = await prisma.characterCooldown.findUniqueOrThrow({
       where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
     });
-    const releasedPayload = survivorCooldown.resultJson as unknown as VarenykSatedPayloadV1;
-    expect(releasedPayload.cursorAt).toBe("2026-06-22T12:29:30.000Z");
-    expect(settleVarenykSatedOutsideCombat({
-      payload: releasedPayload,
-      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
-      now: new Date(now.getTime() + 29_000),
-      combatBlocked: false
-    }).elapsedMinutes).toBe(0);
-    expect(settleVarenykSatedOutsideCombat({
-      payload: releasedPayload,
-      resources: { hp: 40, hpMax: 60, mana: 20, manaMax: 40 },
-      now: new Date(now.getTime() + 30_000),
-      combatBlocked: false
-    })).toMatchObject({ elapsedMinutes: 1, hpRestored: 1, manaRestored: 1 });
+    const frozenPayload = survivorCooldown.resultJson as unknown as VarenykSatedPayloadV1;
+    expect(frozenPayload.cursorAt).toBe(frozenCursorAtStart);
+  });
+
+  it("serializes real remort confirmation against PartyBoss start without SQLite timeout or mixed-life leases", async () => {
+    const now = new Date("2026-06-22T12:40:00.000Z");
+    const actorId = "character-remort-start-race";
+    const survivorId = "character-remort-start-race-survivor";
+    await seedCharacter(prisma, {
+      userId: "user-remort-start-race",
+      characterId: actorId,
+      telegramUserId: 99321n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-remort-start-race-survivor",
+      characterId: survivorId,
+      telegramUserId: 99322n
+    });
+    await seedDraft(prisma, actorId, "token-remort-start-race", now);
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-start-race",
+      inviteToken: "party-remort-start-race-token",
+      actorId,
+      survivorId,
+      joinedAt: now
+    });
+
+    const outcomes = await Promise.allSettled([
+      repository.completeDraftForTelegramUser(99321n, makeCompletionInput("token-remort-start-race", now)),
+      partyBosses.startFromRecruitingPartyForTelegramUser(99321n, {
+        partyInviteToken: "party-remort-start-race-token",
+        now,
+        turnExpiresAt: new Date(now.getTime() + 23_000)
+      })
+    ]);
+    expect(outcomes.every((outcome) => outcome.status === "fulfilled")).toBe(true);
+    const remort = outcomes[0].status === "fulfilled" ? outcomes[0].value : null;
+    const start = outcomes[1].status === "fulfilled" ? outcomes[1].value : null;
+    const remortWon = remort?.state === "completed";
+    const startWon = start?.state === "started" || start?.state === "already-active";
+    expect(Number(remortWon) + Number(startWon)).toBe(1);
+    if (startWon) {
+      expect(remort).toEqual({ state: "active-combat" });
+    } else {
+      expect(["terminal-ineligible", "not-recruiting", "ineligible", "not-leader"]).toContain(start?.state);
+    }
+
+    const activeBoss = await prisma.partyBossSession.findFirst({
+      where: { partySessionId: "party-remort-start-race", status: "active" }
+    });
+    const leases = await prisma.activeCombatLease.findMany({
+      where: { kind: "party-boss", referenceId: "party-remort-start-race" }
+    });
+    if (activeBoss) {
+      const state = activeBoss.stateJson as unknown as { participants: Array<{ characterId: string; remortCount: number }> };
+      const liveRemorts = await prisma.characterRemort.groupBy({
+        by: ["characterId"],
+        where: { characterId: { in: state.participants.map((participant) => participant.characterId) } },
+        _count: { _all: true }
+      });
+      const counts = new Map(liveRemorts.map((row) => [row.characterId, row._count._all]));
+      expect(state.participants.every((participant) => participant.remortCount === (counts.get(participant.characterId) ?? 0))).toBe(true);
+      expect(leases).toHaveLength(state.participants.length);
+    } else {
+      expect(leases).toEqual([]);
+    }
   });
 
   it("returns only the new-life Hero snapshot when real remort deletes Sated between preliminary Character and absence guard", async () => {
@@ -979,7 +1031,7 @@ describe("PrismaRemortRepository integration", () => {
     })).resolves.toBeNull();
   });
 
-  it("does not write raid-time resources back after a real Big Barrel round and participant remort", async () => {
+  it("blocks participant remort during an active Big Barrel without changing the raid", async () => {
     const startAt = new Date("2026-06-22T15:00:00.000Z");
     const now = new Date("2026-06-22T15:00:20.000Z");
     const actorId = "character-remort-party-round-actor";
@@ -1034,22 +1086,16 @@ describe("PrismaRemortRepository integration", () => {
       manaRegenAt: startAt
     });
 
-    const first = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
-    const cursorAfterFirst = ((await prisma.characterCooldown.findUniqueOrThrow({
-      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
-    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
-    const replay = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
-    const cursorAfterReplay = ((await prisma.characterCooldown.findUniqueOrThrow({
-      where: { characterId_key: { characterId: survivorId, key: VARENYK_SATED_STATUS_KEY } }
-    })).resultJson as unknown as VarenykSatedPayloadV1).cursorAt;
+    const characters = new PrismaCharacterRepository(prisma);
+    await expect(characters.restartByTelegramUserId(9317n)).resolves.toBe("active-combat");
+    await expect(characters.restartByTelegramUserId(9318n)).resolves.toBe("active-combat");
+    await expect(prisma.character.count({ where: { id: { in: [actorId, survivorId] } } })).resolves.toBe(2);
 
-    expect(first).toMatchObject({ state: "completed" });
-    expect(replay).toMatchObject({
-      state: "replayed",
-      remort: { id: first.state === "completed" ? first.remort.id : undefined }
-    });
-    expect(cursorAfterFirst).toBe("2026-06-22T14:59:50.000Z");
-    expect(cursorAfterReplay).toBe(cursorAfterFirst);
+    const first = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+    const retry = await repository.completeDraftForTelegramUser(9317n, makeCompletionInput("token-remort-party-round", now));
+
+    expect(first).toEqual({ state: "active-combat" });
+    expect(retry).toEqual({ state: "active-combat" });
     await expect(prisma.character.findUnique({ where: { id: survivorId } })).resolves.toMatchObject({
       hpCurrent: 114,
       manaCurrent: 56,
@@ -1058,7 +1104,11 @@ describe("PrismaRemortRepository integration", () => {
     });
     await expect(prisma.activeCombatLease.count({
       where: { kind: "party-boss", referenceId: "party-remort-after-round" }
-    })).resolves.toBe(0);
+    })).resolves.toBe(2);
+    await expect(prisma.partyBossSession.findUnique({
+      where: { partySessionId: "party-remort-after-round" }
+    })).resolves.toMatchObject({ status: "active", turn: 2 });
+    await expect(prisma.characterRemort.count({ where: { characterId: actorId } })).resolves.toBe(0);
   });
 
   it("expires unreadable legacy solo state without rewards or character resource rollback", async () => {
@@ -1523,7 +1573,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
 async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
   for (const migration of [
     "20260720013000_add_party_raid_chat",
-    "20260720171500_add_party_raid_chat_delivery_version"
+    "20260720171500_add_party_raid_chat_delivery_version",
+    "20260721113000_party_boss_round_history"
   ]) {
     const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {

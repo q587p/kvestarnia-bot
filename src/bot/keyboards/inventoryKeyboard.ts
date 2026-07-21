@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 import {
   makeEquipItemCallbackData,
   makeEquipmentCallbackData,
+  makeEquipmentManageCallbackData,
   makeInventoryCallbackData,
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData,
@@ -181,7 +182,9 @@ export function buildItemDetailKeyboard(
         options.equipPreview === undefined ||
         (
           (options.equipPreview?.state === "can-equip" ||
-            options.equipPreview?.state === "twohand-confirm-required") &&
+            options.equipPreview?.state === "twohand-confirm-required" ||
+            options.equipPreview?.state === "attunement-confirm-required" ||
+            options.equipPreview?.state === "attunement-interrupt-confirm-required") &&
           options.equipPreview.slot === targetSlot
         );
 
@@ -351,11 +354,18 @@ export function buildEquipItemResultKeyboard(result?: EquipItemResult): InlineKe
     .text("🛡️ Спорядження", makeEquipmentCallbackData());
 }
 
-export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard {
+export function buildEquipmentKeyboard(
+  result: EquipmentResult,
+  options: { expanded?: boolean } = {}
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   if (result.state === "no-character") {
     return keyboard;
+  }
+
+  if (result.state === "ready" && !options.expanded) {
+    return keyboard.text("🔄 Змінити спорядження", makeEquipmentManageCallbackData());
   }
 
   if (result.state === "ready") {
@@ -372,7 +382,7 @@ export function buildEquipmentKeyboard(result: EquipmentResult): InlineKeyboard 
     }
   }
 
-  return keyboard.text("⬅️ До манаток", makeInventoryCallbackData());
+  return keyboard.text("⬅️ До спорядження", makeEquipmentCallbackData());
 }
 
 const equipmentSlotButtons: ReadonlyArray<{ slot: EquipmentSlot; showLabel: string }> = [

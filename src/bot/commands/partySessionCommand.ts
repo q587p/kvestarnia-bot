@@ -303,9 +303,9 @@ export async function handlePartySessionCallback(
         }
       : false);
     await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
-    if (result.state === "resolved" || result.state === "terminal") {
+    if (result.state === "resolved") {
       const big = isBigBossSession(result.session);
-      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+      schedulePartyBossParticipantNotifications(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
@@ -361,9 +361,9 @@ export async function handlePartySessionCallback(
         }
       : false);
     await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
-    if (result.state === "resolved" || result.state === "terminal") {
+    if (result.state === "resolved") {
       const big = isBigBossSession(result.session);
-      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+      schedulePartyBossParticipantNotifications(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
@@ -458,9 +458,9 @@ export async function handlePartySessionCallback(
         }
       : false);
     await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
-    if (result.state === "resolved" || result.state === "terminal") {
+    if (result.state === "resolved") {
       const big = isBigBossSession(result.session);
-      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+      schedulePartyBossParticipantNotifications(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
@@ -504,9 +504,9 @@ export async function handlePartySessionCallback(
         }
       : false);
     await sendBossAchievementUnlocks(ctx, result, viewerCharacterId);
-    if (result.state === "resolved" || result.state === "terminal") {
+    if (result.state === "resolved") {
       const big = isBigBossSession(result.session);
-      await notifyPartyBossParticipants(ctx, result.session, telegramUserId, {
+      schedulePartyBossParticipantNotifications(ctx, result.session, telegramUserId, {
         partyBoss: options.partyBoss,
         partyRaidChat: options.partyRaidChat,
         includeDevTimeout: options.partyBoss.areDevHelpersEnabled(),
@@ -539,7 +539,9 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const boss = await options.partyBoss.getByPartyInviteToken(callback.token);
+    const boss = typeof options.partyBoss.getJournalPageByPartyInviteToken === "function"
+      ? await options.partyBoss.getJournalPageByPartyInviteToken(callback.token, callback.page)
+      : await options.partyBoss.getByPartyInviteToken(callback.token);
     await safeAnswerCallbackQuery(ctx);
     if (!boss) {
       await sendBossText(ctx, "edit", "Бій не знайшовся.", false);
@@ -564,7 +566,7 @@ export async function handlePartySessionCallback(
 
     await sendBossJournalText(ctx, presentPartyBossJournal(boss, callback.page), {
       session: boss,
-      page: callback.page ?? boss.state.roundLog.length - 1
+      page: boss.journal?.page ?? callback.page ?? boss.state.roundLog.length - 1
     });
     return;
   }
@@ -1530,68 +1532,98 @@ async function loadCanonicalPartyState(
     : { state: "missing", result };
 }
 
+type PartyBossParticipantNotificationOptions = {
+  partyBoss?: PartyBossService | undefined;
+  partyRaidChat?: PartyRaidChatService | undefined;
+  includeDevTimeout?: boolean | undefined;
+  includeIntro?: boolean | undefined;
+  achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>;
+  notice: string;
+};
+
+const partyBossParticipantNotificationTails = new Map<string, Promise<void>>();
+
+export async function waitForPartyBossParticipantNotifications(): Promise<void> {
+  while (partyBossParticipantNotificationTails.size > 0) {
+    await Promise.allSettled([...partyBossParticipantNotificationTails.values()]);
+  }
+}
+
+function schedulePartyBossParticipantNotifications(
+  ctx: Context,
+  session: Parameters<typeof buildPartyBossKeyboard>[0],
+  actorTelegramUserId: bigint,
+  options: PartyBossParticipantNotificationOptions
+): void {
+  const key = session.partyInviteToken;
+  const previous = partyBossParticipantNotificationTails.get(key) ?? Promise.resolve();
+  const next = previous
+    .catch(() => undefined)
+    .then(() => notifyPartyBossParticipants(ctx, session, actorTelegramUserId, options));
+  partyBossParticipantNotificationTails.set(key, next);
+  void next.then(
+    () => clearPartyBossParticipantNotificationTail(key, next),
+    () => clearPartyBossParticipantNotificationTail(key, next)
+  );
+}
+
+function clearPartyBossParticipantNotificationTail(key: string, completed: Promise<void>): void {
+  if (partyBossParticipantNotificationTails.get(key) === completed) {
+    partyBossParticipantNotificationTails.delete(key);
+  }
+}
+
 async function notifyPartyBossParticipants(
   ctx: Context,
   session: Parameters<typeof buildPartyBossKeyboard>[0],
   actorTelegramUserId: bigint,
-  options: {
-    partyBoss?: PartyBossService | undefined;
-    partyRaidChat?: PartyRaidChatService | undefined;
-    includeDevTimeout?: boolean | undefined;
-    includeIntro?: boolean | undefined;
-    achievementUnlocksByCharacterId?: Record<string, Parameters<typeof presentAchievementUnlockNotification>[0]>;
-    notice: string;
-  }
+  options: PartyBossParticipantNotificationOptions
 ): Promise<void> {
-  for (const participant of session.participants) {
-    if (participant.telegramUserId === actorTelegramUserId) {
-      continue;
-    }
+  await Promise.allSettled(
+    session.participants
+      .filter((participant) => participant.telegramUserId !== actorTelegramUserId)
+      .map(async (participant) => {
+        if (options.includeIntro) {
+          const sendIntro = () => ctx.api.sendMessage(
+            Number(participant.telegramUserId),
+            presentPartyBossIntro(session, participant.id),
+            HTML_MESSAGE_OPTIONS
+          );
+          await (options.partyRaidChat?.isEnabled()
+            ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendIntro)
+            : sendIntro());
+        }
 
-    try {
-      if (options.includeIntro) {
-        const sendIntro = () => ctx.api.sendMessage(
+        const includeCombatItems = await resolvePartyBossCombatItemShortcut(
+          options.partyBoss,
+          participant.telegramUserId,
+          session
+        );
+        const sendBoss = () => ctx.api.sendMessage(
           Number(participant.telegramUserId),
-          presentPartyBossIntro(session, participant.id),
-          HTML_MESSAGE_OPTIONS
+          presentPartyBoss(session, {
+            viewerCharacterId: participant.id,
+            notice: options.notice
+          }),
+          {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: buildPartyBossKeyboard(session, participant.id, {
+              includeCombatItems,
+              includeDevTimeout: options.includeDevTimeout,
+              includeRaidChat: options.partyRaidChat?.isEnabled() === true
+            })
+          }
         );
         await (options.partyRaidChat?.isEnabled()
-          ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendIntro)
-          : sendIntro());
-      }
-
-      const includeCombatItems = await resolvePartyBossCombatItemShortcut(
-        options.partyBoss,
-        participant.telegramUserId,
-        session
-      );
-      const sendBoss = () => ctx.api.sendMessage(
-        Number(participant.telegramUserId),
-        presentPartyBoss(session, {
-          viewerCharacterId: participant.id,
-          notice: options.notice
-        }),
-        {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPartyBossKeyboard(session, participant.id, {
-            includeCombatItems,
-            includeDevTimeout: options.includeDevTimeout,
-            includeRaidChat: options.partyRaidChat?.isEnabled() === true
-          })
-        }
-      );
-      await (options.partyRaidChat?.isEnabled()
-        ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendBoss)
-        : sendBoss());
-      await sendAchievementUnlocksToChat(
-        ctx,
-        participant.telegramUserId,
-        options.achievementUnlocksByCharacterId?.[participant.id] ?? []
-      );
-    } catch {
-      // Best-effort private push; refresh callbacks still replay the canonical state.
-    }
-  }
+          ? partyRaidChatTelegramGate.enqueue(participant.telegramUserId, sendBoss)
+          : sendBoss());
+        await sendAchievementUnlocksToChat(
+          ctx,
+          participant.telegramUserId,
+          options.achievementUnlocksByCharacterId?.[participant.id] ?? []
+        );
+      })
+  );
 }
 
 async function sendBossAchievementUnlocks(
@@ -1743,7 +1775,7 @@ function presentWardPlaceConfirmation(
   const manaCost = session.wardSign?.manaCost;
 
   return typeof manaCost === "number"
-    ? `🧿 <b>Ви поставили знак</b>\n\n${presentManaSpentLine(manaCost)}`
+    ? `✴️ <b>Ви поставили знак</b>\n\n${presentManaSpentLine(manaCost)}`
     : null;
 }
 

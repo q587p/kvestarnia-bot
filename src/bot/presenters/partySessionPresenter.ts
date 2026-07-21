@@ -743,10 +743,13 @@ function presentPartyBossQueuedActionPlan(
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {
-  const rounds = session.state.roundLog;
+  const rounds = session.journal
+    ? session.journal.round ? [session.journal.round] : []
+    : session.state.roundLog;
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
-  const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const page = session.journal?.page ?? clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const totalPages = session.journal?.totalPages ?? rounds.length;
   const satedLines = presentVarenykSatedCombatEffectLines(session.state.participants.map((participant) => ({
     sated: participant.varenykSated,
     subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
@@ -760,7 +763,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     });
   }
 
-  const round = rounds[page]!;
+  const round = session.journal ? rounds[0]! : rounds[page]!;
   const actionLines: string[] = [];
   const satedRecoveryLines: string[] = [];
   const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
@@ -815,7 +818,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     headerLines: ["", getBossStatusLine(session)],
     turn: round.turn,
     page,
-    totalPages: rounds.length,
+    totalPages,
     opponentRows: [
       presentBattleCombatantResourceLine({
         icon: "👹",
@@ -1064,25 +1067,25 @@ function presentKharakternykWardTriggeredLine(
   const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage));
   if (preventedDamage <= 0) {
     if (wardSign.supportCount > 0 && usesRemaining > 0) {
-      return `🧿 Знак характерника частково луснув, але цього разу шкода прослизнула повз нього. Підпор лишилося: ${usesRemaining}.`;
+      return `✴️ Знак характерника частково луснув, але цього разу шкода прослизнула повз нього. Підпор лишилося: ${usesRemaining}.`;
     }
 
     if (wardSign.supportCount > 0) {
-      return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього. Підпор не лишилося.";
+      return "✴️ Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього. Підпор не лишилося.";
     }
 
-    return "🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.";
+    return "✴️ Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.";
   }
 
   if (wardSign.supportCount > 0 && usesRemaining > 0) {
-    return `🧿 Знак характерника частково луснув і цього разу забрав на себе ${preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
+    return `✴️ Знак характерника частково луснув і цього разу забрав на себе ${preventedDamage} шкоди. Підпор лишилося: ${usesRemaining}.`;
   }
 
   if (wardSign.supportCount > 0) {
-    return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди. Підпор не лишилося.`;
+    return `✴️ Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди. Підпор не лишилося.`;
   }
 
-  return `🧿 Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди.`;
+  return `✴️ Знак характерника луснув зовсім і цього разу забрав на себе ${preventedDamage} шкоди.`;
 }
 
 function presentBigBarrelAoeRetaliationLine(
@@ -1091,7 +1094,12 @@ function presentBigBarrelAoeRetaliationLine(
   verb: "застосовує" | "застосував"
 ): string {
   const targets = retaliations
-    .map((retaliation) => `${escapeHtml(names.get(retaliation.characterId) ?? "учасник")} отримує ${retaliation.damage} шкоди`)
+    .map((retaliation) => {
+      const counter = retaliation.counterDamage && retaliation.counterDamage > 0
+        ? ` й відповідає на ${retaliation.counterDamage} шкоди`
+        : "";
+      return `${escapeHtml(names.get(retaliation.characterId) ?? "учасник")} отримує ${retaliation.damage} шкоди${counter}`;
+    })
     .join("; ");
 
   return `Старший Брат Бочки ${verb} ${BIG_BARREL_AOE_ATTACK_LABEL}: ${targets}.`;
@@ -1103,17 +1111,20 @@ function presentBossRetaliationLine(
   retaliation: PartyBossSessionRecord["state"]["roundLog"][number]["bossRetaliations"][number],
   verb: "атакує"
 ): string {
+  const counter = retaliation.counterDamage && retaliation.counterDamage > 0
+    ? ` 🧿 Оберіг відповідає на ${retaliation.counterDamage} шкоди.`
+    : "";
   if (retaliation.tauntRedirected && retaliation.tauntOriginalKind === "broad") {
-    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.`;
+    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
   }
   if (retaliation.tauntRedirected) {
-    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.`;
+    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
   }
   if ((retaliation.protocolPreventedDamage ?? 0) > 0) {
-    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.`;
+    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.${counter}`;
   }
 
-  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.`;
+  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.${counter}`;
 }
 
 function presentBureaucramancerProtocolTriggeredLine(
@@ -1248,8 +1259,8 @@ function presentKharakternykWardBossLine(
   const preventedDamage = Math.max(0, Math.floor(wardSign.preventedDamage ?? 0));
   if (wardSign.status === "broken") {
     return preventedDamage > 0
-      ? `🧿 Знак характерника вже зовсім тріснув і всього забрав на себе ${preventedDamage} шкоди.`
-      : "🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.";
+      ? `✴️ Знак характерника вже зовсім тріснув і всього забрав на себе ${preventedDamage} шкоди.`
+      : "✴️ Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.";
   }
 
   if (wardSign.supportCount > 0) {
@@ -1257,14 +1268,14 @@ function presentKharakternykWardBossLine(
     const supportCap = Math.max(wardSign.supportCount, Math.floor(wardSign.supportCap ?? 7));
     if (wardSign.triggeredTurn) {
       return preventedDamage > 0
-        ? `🧿 Знак характерника частково тріснув і всього забрав на себе ${preventedDamage} шкоди. Підпор: ${remaining}/${supportCap}.`
-        : `🧿 Знак характерника частково тріснув, але шкода поки прослизає повз нього. Підпор: ${remaining}/${supportCap}.`;
+        ? `✴️ Знак характерника частково тріснув і всього забрав на себе ${preventedDamage} шкоди. Підпор: ${remaining}/${supportCap}.`
+        : `✴️ Знак характерника частково тріснув, але шкода поки прослизає повз нього. Підпор: ${remaining}/${supportCap}.`;
     }
 
-    return `🧿 Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;
+    return `✴️ Знак характерника тримається. Підпор: ${remaining}/${supportCap}.`;
   }
 
-  return "🧿 Знак характерника тримається.";
+  return "✴️ Знак характерника тримається.";
 }
 
 function presentBureaucramancerProtocolBossLine(
@@ -1365,10 +1376,10 @@ function presentKharakternykWardLobbyLine(session: PartySessionRecord): string {
   const supportCount = session.wardSign?.supportCount ?? 0;
   const supportCap = session.wardSign?.supportCap ?? 7;
   if (supportCount <= 0) {
-    return "🧿 Знак характерника стоїть біля бочки.";
+    return "✴️ Знак характерника стоїть біля бочки.";
   }
 
-  return `🧿 Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
+  return `✴️ Знак характерника стоїть біля бочки. Підпор: ${supportCount}/${supportCap}.`;
 }
 
 function presentBureaucramancerProtocolLobbyLine(session: PartySessionRecord): string {
@@ -1745,8 +1756,15 @@ function presentPartyBossActionSupport(
   const line = presentCombatSupportEffectLine(action, {
     healingPrefix: "HP відновлено на"
   });
+  const supportedAllies = action.supportTargets?.filter((target) =>
+    target.characterId !== action.characterId &&
+    ((target.healing ?? 0) > 0 || (target.guard ?? 0) > 0 || (target.counterDamage ?? 0) > 0)
+  ).length ?? 0;
+  const alliesLine = supportedAllies > 0
+    ? ` Підтримка охоплює ще ${supportedAllies} ${supportedAllies === 1 ? "учасника" : "учасників"}.`
+    : "";
 
-  return line ? ` ${line}` : "";
+  return `${line ? ` ${line}` : ""}${alliesLine}`;
 }
 
 function presentPartyBossItemHealing(

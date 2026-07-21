@@ -31,6 +31,7 @@ type CellarRouteOptions = {
   grownupQuest?: CellarGrownupQuestService;
   afterIntro?: () => Promise<void>;
   questMarkers?: QuestMarkerInput | null;
+  requireKorchmaInterior?: boolean;
 };
 
 export function registerCellarCommand(
@@ -81,7 +82,7 @@ export async function sendCellarErrandRouted(
     return;
   }
 
-  if (!place.insideKorchma) {
+  if (options?.requireKorchmaInterior !== false && !place.insideKorchma) {
     await sendText(ctx, mode, presentKorchmaQuestGate(), "enter-korchma");
     return;
   }

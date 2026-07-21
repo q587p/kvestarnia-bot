@@ -1,13 +1,16 @@
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type { RestartRepository } from "../db/repositories/restartRepository";
 
-export type RestartResult = { state: "deleted" } | { state: "no-character" };
+export type RestartResult =
+  | { state: "deleted" }
+  | { state: "no-character" }
+  | { state: "active-combat" };
 
 export class RestartService {
-  constructor(private readonly characters: CharacterRepository) {}
+  constructor(private readonly characters: RestartRepository) {}
 
   async restartCurrentUser(telegramUserId: bigint): Promise<RestartResult> {
-    const deleted = await this.characters.deleteByTelegramUserId(telegramUserId);
+    const result = await this.characters.restartByTelegramUserId(telegramUserId);
 
-    return deleted ? { state: "deleted" } : { state: "no-character" };
+    return { state: result };
   }
 }

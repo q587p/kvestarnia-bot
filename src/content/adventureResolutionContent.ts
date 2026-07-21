@@ -1533,14 +1533,14 @@ type AdventureIdentityBeats = {
 
 function buildSignatureIdentityBeat(raceTechnique: QuestTechniqueId, classTechnique: QuestTechniqueId, title: string | null): AdventureIdentityBeats {
   const raceBeat = techniqueIdentityBeat(raceTechnique);
-  const classBeat = techniqueIdentityBeat(classTechnique);
-  const titleBeat = title ? ` Титул «${title}» лишається в результаті як свідок із дуже серйозним виглядом.` : "";
+  const classBeat = classTechnique === raceTechnique ? null : techniqueIdentityBeat(classTechnique);
+  const titleBeat = title ? ` Титул «${title}» лишає на справі підпис із дуже серйозним виглядом.` : "";
 
   return {
-    strong: `${raceBeat.strong} ${classBeat.strong}${titleBeat}`,
-    success: `${raceBeat.success} ${classBeat.success}${titleBeat}`,
-    mixed: `${raceBeat.mixed} ${classBeat.mixed}${titleBeat}`,
-    complication: `${raceBeat.complication} ${classBeat.complication}${titleBeat}`
+    strong: `${raceBeat.strong}${classBeat ? ` ${classBeat.strong}` : ""}${titleBeat}`,
+    success: `${raceBeat.success}${classBeat ? ` ${classBeat.success}` : ""}${titleBeat}`,
+    mixed: `${raceBeat.mixed}${classBeat ? ` ${classBeat.mixed}` : ""}${titleBeat}`,
+    complication: `${raceBeat.complication}${classBeat ? ` ${classBeat.complication}` : ""}${titleBeat}`
   };
 }
 
@@ -1631,7 +1631,7 @@ const TECHNIQUE_IDENTITY_BEATS = {
     },
     finesse: {
       strong: "Точний рух прибирає зайве так чисто, що сцена моргає із запізненням.",
-      success: "Фінес тримає результат без фанфар і без зайвих уламків.",
+      success: "Точний рух спрацьовує без фанфар і зайвих уламків.",
       mixed: "Рух майже ідеальний, та один край лишає дрібний слід.",
       complication: "Точність зривається на волосину, і волосина виявляється дуже гострою."
     }

@@ -22,6 +22,7 @@ import {
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
+import { findRaceAbility } from "../../src/content/playerAbilities";
 import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
 
 describe("party session presenter", () => {
@@ -196,7 +197,7 @@ describe("party session presenter", () => {
     expect(presentPartyBossIntro(proof, "leader")).toContain("Порада дня:");
   });
 
-  it("shows carried Kharakternyk ward signs without a zero-support counter", () => {
+  it("keeps the Kharakternyk ward sign distinct from the Fog Amulet icon", () => {
     const text = presentPartyBoss(makeBigBossSession({
       wardSign: {
         kind: "kharakternyk",
@@ -210,7 +211,9 @@ describe("party session presenter", () => {
       }
     }));
 
-    expect(text).toContain("🧿 Знак характерника тримається.");
+    expect(text).toContain("✴️ Знак характерника тримається.");
+    expect(findRaceAbility("race.molfar-soul")?.label).toBe("🧿 Туманний оберіг");
+    expect(text).not.toContain("🧿 Знак характерника");
     expect(text).not.toContain("Підпор: 0/7");
   });
 
@@ -231,7 +234,7 @@ describe("party session presenter", () => {
       }
     }));
 
-    expect(text).toContain("🧿 Знак характерника частково тріснув і всього забрав на себе 12 шкоди. Підпор: 1/7.");
+    expect(text).toContain("✴️ Знак характерника частково тріснув і всього забрав на себе 12 шкоди. Підпор: 1/7.");
   });
 
   it("shows cumulative Kharakternyk ward damage after final breakage on active cards", () => {
@@ -251,7 +254,7 @@ describe("party session presenter", () => {
       }
     }));
 
-    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув і всього забрав на себе 23 шкоди.");
+    expect(text).toContain("✴️ Знак характерника вже зовсім тріснув і всього забрав на себе 23 шкоди.");
   });
 
   it("avoids zero-damage Kharakternyk ward totals on active cards", () => {
@@ -271,7 +274,7 @@ describe("party session presenter", () => {
       }
     }));
 
-    expect(text).toContain("🧿 Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.");
+    expect(text).toContain("✴️ Знак характерника вже зовсім тріснув, але шкода так і прослизнула повз нього.");
     expect(text).not.toContain("0 шкоди");
   });
 
@@ -298,7 +301,7 @@ describe("party session presenter", () => {
       }]
     }));
 
-    expect(text).toContain("🧿 Знак характерника луснув зовсім і цього разу забрав на себе 11 шкоди. Підпор не лишилося.");
+    expect(text).toContain("✴️ Знак характерника луснув зовсім і цього разу забрав на себе 11 шкоди. Підпор не лишилося.");
   });
 
   it("avoids zero-damage Kharakternyk ward recent-action lines", () => {
@@ -324,7 +327,7 @@ describe("party session presenter", () => {
       }]
     }));
 
-    expect(text).toContain("🧿 Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.");
+    expect(text).toContain("✴️ Знак характерника луснув зовсім, але цього разу шкода прослизнула повз нього.");
     expect(text).not.toContain("0 шкоди");
   });
 
@@ -676,6 +679,24 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Рикошетний постріл відсапується");
     expect(text).toContain("🎯 На наступний хід увага боса переходить на Шкодійка.");
     expect(text).not.toContain("Бос отримав:");
+  });
+
+  it("renders every stored Big Barrel Brother turn beyond the former 13-entry limit", () => {
+    const roundLog = Array.from({ length: 17 }, (_unused, index) => ({
+      turn: index + 1,
+      actions: [],
+      bossDamage: 0,
+      bossHpAfter: 100,
+      bossRetaliations: [],
+      statusAfter: index === 16 ? "won" as const : "active" as const
+    }));
+    const session = makeBigBossSession(
+      { status: "won", turn: 17, roundLog },
+      { status: "won" }
+    );
+
+    expect(presentPartyBossJournal(session, 0)).toContain("Хід <b>1</b> · запис 1/17");
+    expect(presentPartyBossJournal(session, 16)).toContain("Хід <b>17</b> · запис 17/17");
   });
 
   it("hides stale cooldown notices for knocked-out participants in Big Barrel Brother journal pages", () => {

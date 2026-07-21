@@ -14,7 +14,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 ## Lobby Placement
 
 1. Create a Big Barrel Brother recruiting lobby from the Kharakternyk account.
-2. Verify the joined Kharakternyk sees `🧿 Поставити знак`.
+2. Verify the joined Kharakternyk sees `✴️ Поставити знак`.
 3. Tap it once and verify:
    - the card shows a count-only ward sign line;
    - the actor receives a separate confirmation with `💫 Мани витрачено`;
@@ -26,7 +26,7 @@ Manual Telegram QA status: pending live Telegram smoke. Automated coverage cover
 ## Placement Race
 
 1. Join the same Big Barrel Brother recruiting lobby with two level `3+` Kharakternyk accounts that each have at least `13` mana.
-2. Have both accounts tap `🧿 Поставити знак` as close together as possible.
+2. Have both accounts tap `✴️ Поставити знак` as close together as possible.
 3. Verify exactly one card shows the sign as placed and the other account receives clear no-mutation copy such as `Знак уже стоїть біля бочки.`.
 4. Verify only the winning Kharakternyk spent the deterministic placement cost; the losing Kharakternyk's mana did not change.
 5. Refresh the lobby and verify there is one count-only sign line, not two signs or signer names.

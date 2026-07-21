@@ -36,9 +36,12 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
+import { makeDevHelpCallbackData } from "../../src/bot/callbacks/devHelpCallbackData";
+import { makeHelpCallbackData } from "../../src/bot/callbacks/helpCallbackData";
 import { buildDuelResultKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import {
   makeEquipItemCallbackData,
+  makeEquipmentManageCallbackData,
   makeInventoryCallbackData,
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData
@@ -1571,6 +1574,40 @@ describe("scene callback HTML options", () => {
     expect(String(messages[1]?.payload.text)).toContain("🐭 Льохова справа");
     expect(String(messages[2]?.payload.text)).toContain("Ви спустилися до льоху корчми.");
     expect(movementMessages).toHaveLength(1);
+  });
+
+  it("opens a stale quest-table cellar route after presence moved outside", async () => {
+    let currentLocationId = "location.korchma.front";
+    const calls = await captureApiCalls(
+      makeQuestCallbackData("cellar"),
+      servicesWith({
+        cellarErrand: {
+          getForTelegramUser: () => Promise.resolve({ state: "ready" as const, character }),
+          complete: () => Promise.resolve({ state: "no-character" as const })
+        },
+        presence: {
+          markAction: (input) => {
+            currentLocationId = input.locationId;
+            return Promise.resolve();
+          },
+          getCurrentPlaceForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              locationId: currentLocationId,
+              locationName: currentLocationId === "location.korchma.cellar" ? "Льох" : "Надворі",
+              insideKorchma: currentLocationId === "location.korchma.cellar"
+            })
+        }
+      })
+    );
+    const messages = calls
+      .filter((call) => call.method === "sendMessage")
+      .map((call) => String(call.payload.text));
+
+    expect(messages).not.toContain("Квести видають усередині.");
+    expect(messages.some((message) => message.includes("Корчмар показує на люк під баром."))).toBe(true);
+    expect(messages.some((message) => message.includes("🐭 Льохова справа"))).toBe(true);
+    expect(currentLocationId).toBe("location.korchma.cellar");
   });
 
   it("does not move the player to the quest table before Barrel tutorial turn-in validation", async () => {
@@ -5872,6 +5909,35 @@ describe("scene callback HTML options", () => {
     expect(equipmentCalls).toBe(1);
     expect(String(reply?.payload.text)).toContain("🧥 <b>Спорядження</b>");
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
+    const keyboard = JSON.stringify(reply?.payload.reply_markup);
+    expect(keyboard).toContain("🔄 Змінити спорядження");
+    expect(keyboard).not.toContain("⬅️ До манаток");
+    expect(keyboard).not.toContain("Показати голову");
+  });
+
+  it("opens equipment slot controls only after the player asks to change equipment", async () => {
+    const calls = await captureApiCalls(
+      makeEquipmentManageCallbackData(),
+      servicesWith({
+        equipment: {
+          getEquipmentForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready",
+              character,
+              slots: [],
+              activeSetBonuses: []
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(String(edit?.payload.text)).toContain("🧥 <b>Спорядження</b>");
+    expect(keyboard).toContain("Показати голову");
+    expect(keyboard).toContain("v1:item:inventory:s:h");
+    expect(keyboard).toContain("⬅️ До спорядження");
+    expect(keyboard).not.toContain("🔄 Змінити спорядження");
   });
 
   it.each([
@@ -6086,6 +6152,68 @@ describe("scene callback HTML options", () => {
     expect(itemCalls).toBe(1);
     expect(String(edit?.payload.text)).toContain("Такої манатки в торбі не знайшлося");
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+  });
+
+  it("offers magical equipment actions from a slot-filtered Manatky detail", async () => {
+    const itemId = "item.set.yeger-shadow.hood";
+    const content = {
+      id: itemId,
+      name: "Каптур тихого сліду",
+      description: "Ховає намір пояснювати.",
+      rarity: "epic" as const,
+      slot: "armor" as const,
+      equipmentSlot: "head" as const,
+      goldValue: 137
+    };
+    const previewItemEquipForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "attunement-confirm-required" as const,
+        item: { itemId, content },
+        slot: "head" as const,
+        currentItem: null,
+        strength: "strong" as const,
+        durationMinutes: 42
+      })
+    );
+    const calls = await captureApiCalls(
+      makeItemDetailCallbackData(itemId, 0, "head"),
+      servicesWith({
+        inventory: {
+          getItemForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              item: {
+                id: "character-item-yeger-hood",
+                itemId,
+                quantity: 1,
+                enhancementLevel: 4,
+                content
+              }
+            })
+        },
+        equipment: {
+          getEquipmentForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              slots: []
+            }),
+          previewItemEquipForTelegramUser
+        },
+        itemUse: {
+          getAvailability: () => ({ state: "not-usable" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(previewItemEquipForTelegramUser).toHaveBeenCalledWith(42n, itemId, "head");
+    expect(String(edit?.payload.text)).toContain("Магічні бонуси почнуть діяти після налаштування");
+    expect(String(edit?.payload.text)).toContain("приблизно за <b>42 хв</b>");
+    expect(keyboard).toContain("🧥 Екіпірувати");
+    expect(keyboard).toContain("⬅️ До списку слота");
+    expect(keyboard).toContain("🛡️ Спорядження");
+    expect(keyboard).not.toContain("✨ До Чароковальні");
   });
 
   it("skips equip preview and craft checks for non-equippable item detail callbacks", async () => {
@@ -7189,11 +7317,37 @@ describe("scene callback HTML options", () => {
 
     expect(String(reply?.payload.text)).not.toContain("Бій тримає вас за рукав");
     expect(String(reply?.payload.text)).toContain("📖 Допомога Квестарні");
-    expect(String(reply?.payload.text)).toContain("/start");
-    expect(String(reply?.payload.text)).toContain("/help");
-    expect(String(reply?.payload.text)).toContain("/support");
+    expect(String(reply?.payload.text)).toContain("⚔️ Пригоди й бої");
+    expect(String(reply?.payload.text)).not.toContain("/start");
     expect(String(reply?.payload.text)).not.toContain("Підтримати:");
     expect(String(reply?.payload.text)).not.toContain("/dev_help");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(makeHelpCallbackData("adventures"));
+  });
+
+  it("pages through Help during an active fight", async () => {
+    const calls = await captureApiCalls(
+      makeHelpCallbackData("adventures"),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () =>
+            Promise.resolve({
+              state: "persistent-active" as const,
+              character,
+              session: persistentSession("monster.deadline-spider"),
+              monster: null,
+              questProgress: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("⚔️ Пригоди й бої · 2/5");
+    expect(String(edit?.payload.text)).toContain("/adventure");
+    expect(String(edit?.payload.text)).toContain("/cellar");
+    expect(String(edit?.payload.text)).not.toContain("/inventory");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeHelpCallbackData("menu"));
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeHelpCallbackData("items"));
   });
 
   it("opens dev help from the admin main-menu button when local grants are enabled", async () => {
@@ -7211,9 +7365,26 @@ describe("scene callback HTML options", () => {
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).toContain("🧰 Dev-довідка Квестарні");
-    expect(String(reply?.payload.text)).toContain("/dev_help");
-    expect(String(reply?.payload.text)).toContain("/dev_add_xp");
-    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(mainMenuButtons.admin);
+    expect(String(reply?.payload.text)).not.toContain("/dev_help");
+    expect(String(reply?.payload.text)).not.toContain("/dev_add_xp");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(makeDevHelpCallbackData("general"));
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(makeDevHelpCallbackData("resources"));
+  });
+
+  it("opens one dev-help section at a time", async () => {
+    const calls = await captureApiCalls(
+      makeDevHelpCallbackData("resources"),
+      servicesWith({
+        devReset: { isEnabled: () => true },
+        devGrant: { isEnabled: () => true }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🎒 Ресурси й манатки");
+    expect(String(edit?.payload.text)).toContain("/dev_add_xp");
+    expect(String(edit?.payload.text)).not.toContain("/dev_party");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeDevHelpCallbackData("menu"));
   });
 
   it("primes deterministic natural Iskrokamin loot through the existing Passage Search reset command", async () => {
@@ -7553,6 +7724,7 @@ describe("scene callback HTML options", () => {
     const resolvePersistentFightTurn = vi.fn().mockResolvedValue({
       state: "not-enough-mana" as const,
       reason: "skill-on-cooldown" as const,
+      action: "gear" as const,
       character,
       session,
       monster: {
@@ -7590,6 +7762,46 @@ describe("scene callback HTML options", () => {
       show_alert: true
     });
     expect(String(edit?.payload.text)).toContain("Дія спорядження ще відсапується");
+  });
+
+  it("labels a blocked persistent class action as a class ability", async () => {
+    const session = persistentSessionWithOrigin("location.korchma.deep.level1.right");
+    const resolvePersistentFightTurn = vi.fn().mockResolvedValue({
+      state: "not-enough-mana" as const,
+      reason: "skill-on-cooldown" as const,
+      action: "skill" as const,
+      character,
+      session,
+      monster: {
+        id: "monster.deadline-spider",
+        name: "Павук дедлайнів",
+        description: "Плете павутину з «сьогодні швиденько».",
+        level: 2,
+        tags: ["beast", "time", "web"]
+      },
+      questProgress: null
+    });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({
+        sessionId: session.id,
+        turn: 1,
+        action: "skill"
+      }),
+      servicesWith({
+        fight: {
+          resolvePersistentFightTurn
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(resolvePersistentFightTurn).toHaveBeenCalledWith(42n, {
+      sessionId: session.id,
+      turn: 1,
+      action: "skill"
+    });
+    expect(String(edit?.payload.text)).toContain("Класове вміння ще відсапується.");
+    expect(String(edit?.payload.text)).not.toContain("Дія спорядження ще відсапується.");
   });
 
   it("removes combat action buttons when a persistent turn callback needs recovery", async () => {

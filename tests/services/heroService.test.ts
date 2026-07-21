@@ -137,6 +137,86 @@ describe("HeroService", () => {
     expect(characters.resourceUpdateCount).toBe(1);
   });
 
+  it("settles passive recovery through the lightweight short lookup exactly once", async () => {
+    const marker = new Date("2026-06-13T11:40:00.000Z");
+    const characters = new FakeCharacterRepository(
+      buildCharacter({
+        hpCurrent: 1,
+        hpMax: 22,
+        hpRegenAt: marker,
+        manaRegenAt: marker
+      })
+    );
+    const inventory = new FakeInventoryRepository([]);
+    const shynok = new FakeShynokRepository(null, null);
+    const noncombat = new FakeClassNoncombatRepository(null);
+    const service = new HeroService(
+      characters,
+      inventory,
+      undefined,
+      undefined,
+      shynok,
+      () => new Date("2026-06-13T12:00:00.000Z"),
+      undefined,
+      noncombat
+    );
+
+    await expect(service.findShortByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      character: { hpCurrent: 22, hpMax: 22 },
+      recoveryNotice: { type: "hp-full", hpCurrent: 22, hpMax: 22 },
+      satedRecovery: null
+    });
+    const replay = await service.findShortByTelegramUserId(telegramUserId);
+
+    expect(replay).toMatchObject({
+      state: "existing-character",
+      character: { hpCurrent: 22, hpMax: 22 },
+      satedRecovery: null
+    });
+    expect(replay).not.toHaveProperty("recoveryNotice");
+    expect(characters.resourceUpdateCount).toBe(1);
+    expect(inventory.listCount).toBe(0);
+    expect(shynok.activeDrinkReadCount).toBe(0);
+    expect(shynok.recoveryDrinkReadCount).toBe(2);
+    expect(noncombat.selfBlessReadCount).toBe(0);
+    expect(noncombat.blockedReadCount).toBe(0);
+  });
+
+  it("returns expired Sated recovery from the lightweight short lookup without unrelated reads", async () => {
+    const now = new Date("2026-07-03T09:00:00.000Z");
+    const stale = buildCharacter({ hpCurrent: 1, manaCurrent: 1, hpRegenAt: now, manaRegenAt: now });
+    const authoritative = buildCharacter({ hpCurrent: 4, manaCurrent: 3, hpRegenAt: now, manaRegenAt: now });
+    const inventory = new FakeInventoryRepository([]);
+    const noncombat = new FakeClassNoncombatRepository(null, false, null, {
+      payload: null,
+      hpRestored: 3,
+      manaRestored: 2,
+      character: authoritative,
+      passiveRecoveryNotice: null,
+      personalAvailableAt: null
+    });
+    const service = new HeroService(
+      new FakeCharacterRepository(stale),
+      inventory,
+      undefined,
+      undefined,
+      undefined,
+      () => now,
+      undefined,
+      noncombat
+    );
+
+    await expect(service.findShortByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      character: { hpCurrent: 4, manaCurrent: 3 },
+      satedRecovery: { hpRestored: 3, manaRestored: 2 }
+    });
+    expect(inventory.listCount).toBe(0);
+    expect(noncombat.selfBlessReadCount).toBe(0);
+    expect(noncombat.blockedReadCount).toBe(0);
+  });
+
   it("offers restore-to-full from hero lookup only when bandages cover the missing HP", async () => {
     const enough = new HeroService(
       new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
@@ -530,16 +610,21 @@ class FakeEquipmentRepository implements EquipmentRepository {
 }
 
 class FakeShynokRepository {
+  activeDrinkReadCount = 0;
+  recoveryDrinkReadCount = 0;
+
   constructor(
     private readonly activeDrink: ShynokDrinkStateRecord | null,
     private readonly recoveryDrink: ShynokDrinkStateRecord | null
   ) {}
 
   getActiveDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
+    this.activeDrinkReadCount += 1;
     return Promise.resolve(this.activeDrink);
   }
 
   getRecoveryDrinkForTelegramUser(): Promise<ShynokDrinkStateRecord | null> {
+    this.recoveryDrinkReadCount += 1;
     return Promise.resolve(this.recoveryDrink);
   }
 }
@@ -552,6 +637,8 @@ class FakeClassNoncombatRepository implements Pick<
   | "settleVarenykSatedForTelegramUser"
 > {
   readonly satedSettlementCharacterIds: string[] = [];
+  selfBlessReadCount = 0;
+  blockedReadCount = 0;
   constructor(
     private readonly blessing: PriestBlessingRecord | null,
     private readonly actorBlocked = false,
@@ -564,10 +651,12 @@ class FakeClassNoncombatRepository implements Pick<
   }
 
   getPriestSelfBlessAvailableAtForTelegramUser(): Promise<Date | null> {
+    this.selfBlessReadCount += 1;
     return Promise.resolve(this.selfBlessAvailableAt);
   }
 
   isActorBlockedForTelegramUser(): Promise<boolean> {
+    this.blockedReadCount += 1;
     return Promise.resolve(this.actorBlocked);
   }
 

@@ -2,6 +2,14 @@ import { type Bot, type Context } from "grammy";
 import type { BotServices } from "../botServices";
 import { registerParsedCallbackRoute } from "../callbackRoute";
 import {
+  parseHelpCallbackData,
+  type HelpPage
+} from "../callbacks/helpCallbackData";
+import {
+  parseDevHelpCallbackData,
+  type DevHelpPage
+} from "../callbacks/devHelpCallbackData";
+import {
   parseLoreBoardCallbackData,
   type LoreBoardCallback
 } from "../callbacks/loreBoardCallbackData";
@@ -28,13 +36,15 @@ import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
 import { telegramUserIdFromContext } from "../context";
 import { buildShynokGameHubKeyboard } from "../keyboards/shynokKeyboard";
-import { presentHelp } from "../presenters/helpPresenter";
+import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
+import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
+import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
 import { presentTavernGameHub } from "../presenters/tavernGamePresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 import {
-  buildCurrentMainMenuKeyboard,
+  buildDevHelpVisibility,
   registerCallbackMainMenuLocationRefresh,
   registerMainMenuKeyboard,
   shouldIncludeAdminMainMenu
@@ -59,10 +69,7 @@ export function registerCoreBotModule(
     partyRaidChatService: services.partyRaidChat,
     tavernGameService: services.tavernGames,
     fightingCornerQuestService: services.fightingCornerQuest,
-    healthRecoveryNotificationService: services.healthRecoveryNotifications,
-    buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
-      includeAdmin: shouldIncludeAdminMainMenu(services)
-    })
+    healthRecoveryNotificationService: services.healthRecoveryNotifications
   });
   registerNewsCommand(bot);
   registerLoreBoardCommand(bot);
@@ -86,6 +93,16 @@ export function registerCoreBotModule(
   registerParsedCallbackRoute(bot, /^v1:menu:/, parseMenuCallbackData, async (ctx, action) => {
     await handleMenuCallback(ctx, action, services);
   });
+
+  registerParsedCallbackRoute(bot, /^v1:help:/, parseHelpCallbackData, async (ctx, page) => {
+    await handleHelpCallback(ctx, page, services);
+  });
+
+  if (shouldIncludeAdminMainMenu(services)) {
+    registerParsedCallbackRoute(bot, /^v1:dh:/, parseDevHelpCallbackData, async (ctx, page) => {
+      await handleDevHelpCallback(ctx, page, services);
+    });
+  }
 
   registerParsedCallbackRoute(bot, /^v1:news:/, parseNewsCallbackData, handleNewsCallback);
 
@@ -111,8 +128,11 @@ async function handleMenuCallback(
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
       includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
+      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
-    }));
+    }), {
+      reply_markup: buildHelpKeyboard()
+    });
     return;
   }
 
@@ -123,6 +143,38 @@ async function handleMenuCallback(
 
   await sendTavern(ctx, services.tavern, services.presence, "edit", {
     playerHintService: services.playerHints
+  });
+}
+
+async function handleHelpCallback(
+  ctx: Context,
+  page: HelpPage,
+  services: BotServices
+): Promise<void> {
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentHelp({
+    includeDevReset: services.devReset.isEnabled(),
+    includeDevGrant: services.devGrant?.isEnabled() ?? false,
+    includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+    includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+    includeTavernGames: services.tavernGames?.isEnabled() ?? false,
+    includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+  }, page), {
+    reply_markup: buildHelpKeyboard(page)
+  });
+}
+
+async function handleDevHelpCallback(
+  ctx: Context,
+  page: DevHelpPage,
+  services: BotServices
+): Promise<void> {
+  const visibility = buildDevHelpVisibility(services);
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentDevHelp(visibility, page), {
+    reply_markup: buildDevHelpKeyboard(visibility, page)
   });
 }
 

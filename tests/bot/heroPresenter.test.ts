@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { presentHero, presentHeroMissing } from "../../src/bot/presenters/heroPresenter";
+import { presentHero, presentHeroMissing, presentShortHero } from "../../src/bot/presenters/heroPresenter";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 const summary: CharacterSummary = {
@@ -47,6 +47,17 @@ describe("hero presenter", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("renders /me as only identity, level, resources, and characteristics", () => {
+    expect(presentShortHero(summary)).toBe([
+      "👤 <b>Мандрівник</b>",
+      "Людисько · Воїн",
+      "Титул: <i>Пересічний Пригодник</i>",
+      "Рівень <b>2</b> · ❤️ 24/24 · 🔮 12/12",
+      "Сила 9 · Спритність 6 · Розум 6",
+      "Харизма 6 · Вдача 6"
+    ].join("\n"));
   });
 
   it("shows race, class, stats, and a next step for an existing character", () => {

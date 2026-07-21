@@ -544,11 +544,13 @@ function appendSignatureBeat(
   title: string | null
 ): string {
   const core = base.outcomeText[grade].body.join(" ");
-  const raceBeat = techniqueIdentityBeat(firstTechnique(race));
-  const classBeat = techniqueIdentityBeat(firstTechnique(heroClass));
-  const titleBeat = title ? ` Титул «${title}» зʼявляється тільки як смішний свідок результату.` : "";
+  const raceTechnique = firstTechnique(race);
+  const classTechnique = firstTechnique(heroClass);
+  const raceBeat = techniqueIdentityBeat(raceTechnique);
+  const classBeat = classTechnique === raceTechnique ? null : techniqueIdentityBeat(classTechnique);
+  const titleBeat = title ? ` Титул «${title}» лишає на справі підпис із дуже серйозним виглядом.` : "";
 
-  return `${core} ${raceBeat[grade]} ${classBeat[grade]}${titleBeat}`;
+  return `${core} ${raceBeat[grade]}${classBeat ? ` ${classBeat[grade]}` : ""}${titleBeat}`;
 }
 
 function techniqueIdentityBeat(technique: QuestMethodDefinition["techniques"][number]): Record<keyof QuestMethodDefinition["outcomeText"], string> {
@@ -609,7 +611,7 @@ function techniqueIdentityBeat(technique: QuestMethodDefinition["techniques"][nu
     },
     finesse: {
       "strong-success": "Точний рух прибирає зайве так чисто, що сцена моргає із запізненням.",
-      success: "Фінес тримає результат без фанфар і без зайвих уламків.",
+      success: "Точний рух спрацьовує без фанфар і зайвих уламків.",
       "mixed-success": "Рух майже ідеальний, та один край лишає дрібний слід.",
       complication: "Точність зривається на волосину, і волосина виявляється дуже гострою."
     },

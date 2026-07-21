@@ -71,6 +71,7 @@ import {
 } from "../presenters/onboardingPresenter";
 import { presentRemortConfirm, presentRemortUpdate } from "../presenters/remortPresenter";
 import {
+  presentRestartActiveCombat,
   presentRestartCancelled,
   presentRestartDeleted,
   presentRestartNoCharacter
@@ -539,8 +540,11 @@ async function handleRestartCallback(
   }
 
   const result = await restartService.restartCurrentUser(player.telegramUserId);
-  const message =
-    result.state === "deleted" ? presentRestartDeleted() : presentRestartNoCharacter();
+  const message = result.state === "deleted"
+    ? presentRestartDeleted()
+    : result.state === "active-combat"
+      ? presentRestartActiveCombat()
+      : presentRestartNoCharacter();
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, message);

@@ -32,7 +32,10 @@ import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
-import { presentCombatSupportEffectLine } from "./combatActionPresenter";
+import {
+  presentCombatActionCooldownNotice,
+  presentCombatSupportEffectLine
+} from "./combatActionPresenter";
 import {
   presentVarenykSatedCombatEffectLines,
   presentVarenykSatedJournalRecovery
@@ -357,7 +360,7 @@ export function presentPersistentFightTurn(
 
     if (result.state === "not-enough-mana") {
       return result.reason === "skill-on-cooldown"
-        ? "Дія спорядження ще відсапується. Корчма показує поточний стан без зайвого удару."
+        ? `${presentCombatActionCooldownNotice(result.action)} Корчма показує поточний стан без зайвого удару.`
         : "Мани не стало навіть на драматичний жест. Корчма показує поточний стан без зайвого удару.";
     }
 

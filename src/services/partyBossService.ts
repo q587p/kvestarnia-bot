@@ -347,10 +347,6 @@ export class PartyBossService {
   }
 
   async resolveDueTimedOutByToken(partyInviteToken: string): Promise<PartyBossActionServiceResult> {
-    if (!this.isEnabled()) {
-      return { state: "disabled" };
-    }
-
     const now = this.clock();
     const result = await this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
@@ -396,11 +392,20 @@ export class PartyBossService {
     return this.sessions.findByPartyInviteToken(partyInviteToken);
   }
 
-  async listDueTimedOutSessions(options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
+  async getJournalPageByPartyInviteToken(
+    partyInviteToken: string,
+    requestedPage?: number | null
+  ): Promise<PartyBossSessionRecord | null> {
     if (!this.isEnabled()) {
-      return [];
+      return null;
     }
 
+    return this.sessions.findJournalPageByPartyInviteToken
+      ? this.sessions.findJournalPageByPartyInviteToken(partyInviteToken, requestedPage)
+      : this.sessions.findByPartyInviteToken(partyInviteToken);
+  }
+
+  async listDueTimedOutSessions(options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
     return this.sessions.listDueTimedOutSessions(this.clock(), options);
   }
 

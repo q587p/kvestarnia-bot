@@ -736,6 +736,7 @@ async function handleQuestCallback(
     "reply",
     {
       tavernRaid: services.tavern,
+      requireKorchmaInterior: false,
       ...(services.cellarGrownup ? { grownupQuest: services.cellarGrownup } : {})
     }
   );

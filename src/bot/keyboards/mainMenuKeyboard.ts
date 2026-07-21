@@ -112,11 +112,23 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.participants)
     .text(mainMenuButtons.help);
 
-  if (options.includeAdmin) {
+  if (shouldIncludeAdminButton(options.includeAdmin)) {
     keyboard.text(mainMenuButtons.admin);
   }
 
   return keyboard.resized().persistent().placeholder("Що робимо далі?");
+}
+
+function shouldIncludeAdminButton(requested: boolean | undefined): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  if (requested !== undefined) {
+    return requested;
+  }
+
+  return process.env.NODE_ENV !== "test";
 }
 
 export function getMainMenuLocationButtonText(locationId: string | null | undefined): string {

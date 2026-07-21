@@ -21,6 +21,7 @@ import {
   type MimicShawarmaResult
 } from "../../src/services/adventureService";
 import { buildAdventureResolutionScene } from "../../src/content/adventureResolutionContent";
+import { buildStarterQuestResolutionScene } from "../../src/content/starterQuestResolutionContent";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -390,6 +391,50 @@ describe("adventure presenter", () => {
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("Прочитати маршрут підошов.");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("у чоботи");
     expect(method?.outcomeText["strong-success"].body.join("\n")).not.toContain("перестає сперечатися");
+  });
+
+  it("does not repeat a shared race and class technique in signature outcomes", () => {
+    const scene = buildAdventureResolutionScene({
+      problemId: "class-rogue-exam",
+      title: "Іспит для злодія здає викладача",
+      character: {
+        ...character,
+        raceId: "race.elf",
+        raceName: "Ельф",
+        classId: "class.rogue",
+        className: "Злодій",
+        title: "Естетична Зникальниця"
+      }
+    });
+    const method = scene.methods.find(
+      (candidate) =>
+        candidate.source === "signature"
+        && candidate.affordanceId?.startsWith("exam-question-swap:signature:")
+    );
+    const body = method?.outcomeText.success.body.join("\n") ?? "";
+
+    expect(method).toBeDefined();
+    expect(body.match(/Точний рух спрацьовує без фанфар і зайвих уламків\./gu) ?? []).toHaveLength(1);
+    expect(body).not.toContain("Фінес");
+    expect(body).toContain(
+      "Титул «Естетична Зникальниця» лишає на справі підпис із дуже серйозним виглядом."
+    );
+
+    const starterScene = buildStarterQuestResolutionScene("shawarma", {
+      ...character,
+      raceId: "race.elf",
+      raceName: "Ельф",
+      classId: "class.rogue",
+      className: "Злодій",
+      title: "Естетична Зникальниця"
+    });
+    const starterBody = starterScene.methods.find(
+      (candidate) => candidate.source === "signature"
+    )?.outcomeText.success.body.join("\n") ?? "";
+
+    expect(starterBody.match(/Точний рух спрацьовує без фанфар і зайвих уламків\./gu) ?? [])
+      .toHaveLength(1);
+    expect(starterBody).not.toContain("Фінес");
   });
 
   it("uses a distinct non-warning icon for generated method complications", () => {

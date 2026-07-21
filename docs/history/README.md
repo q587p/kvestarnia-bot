@@ -31,6 +31,8 @@ Use these docs for completed phases, imported audit packages and old planning re
 
 - [`../phase2-roadmap-audit/README.md`](../phase2-roadmap-audit/README.md) — roadmap audit/handoff package.
 - [`../refactoring-audit/README.md`](../refactoring-audit/README.md) — refactoring audit package.
+- [`0.3x-to-0.4x-roadmap-audit-12026-07-20/README.md`](0.3x-to-0.4x-roadmap-audit-12026-07-20/README.md) — preserved 0.3.x closeout and 0.4.x roadmap audit package; current decisions are reconciled into canonical product, design, architecture and task docs.
+- [`0.3x-to-0.4x-roadmap-audit-v2-12026-07-20/README.md`](0.3x-to-0.4x-roadmap-audit-v2-12026-07-20/README.md) — updated audit package that restores explicit `0.4.5`–`0.4.11` social/economy slices and moves data-gated guild cosmetic progression to `0.4.12`; canonical docs use this revision.
 
 ## Rule
 

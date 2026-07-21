@@ -53,7 +53,7 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "quest",
     icon: "🗺️",
-    description: "стіл зі справами",
+    description: "список квестів",
     includeInMenu: true
   },
   {
@@ -107,13 +107,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "items",
     icon: "📦",
-    description: "перелік манаток",
+    description: "манатки за абеткою",
     includeInMenu: false
   },
   {
     command: "bag",
     icon: "👜",
-    description: "торба пригодника",
+    description: "свіжі стоси манаток спершу",
     includeInMenu: false
   },
   {
@@ -125,13 +125,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
   {
     command: "gear",
     icon: "⚙️",
-    description: "гачки спорядження",
+    description: "огляд спорядження",
     includeInMenu: false
   },
   {
     command: "equip",
     icon: "🪝",
-    description: "приміряти манатки",
+    description: "змінити спорядження",
     includeInMenu: false
   },
   {

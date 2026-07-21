@@ -23,8 +23,16 @@ export function registerInventoryCommand(
     "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
   >
 ): void {
-  bot.command(["inventory", "items", "bag"], async (ctx) => {
+  bot.command("inventory", async (ctx) => {
     await sendInventory(ctx, inventoryService, "reply", 0, null, equipmentService);
+  });
+
+  bot.command("items", async (ctx) => {
+    await sendInventory(ctx, inventoryService, "reply", 0, null, equipmentService, "name-asc");
+  });
+
+  bot.command("bag", async (ctx) => {
+    await sendInventory(ctx, inventoryService, "reply", 0, null, equipmentService, "date-desc");
   });
 }
 

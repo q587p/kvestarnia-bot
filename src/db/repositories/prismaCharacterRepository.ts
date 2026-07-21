@@ -9,12 +9,13 @@ import type {
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
+import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
   | { state: "insufficient"; character: CharacterRecord };
 
-export class PrismaCharacterRepository implements CharacterRepository {
+export class PrismaCharacterRepository implements CharacterRepository, RestartRepository {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
@@ -72,6 +73,38 @@ export class PrismaCharacterRepository implements CharacterRepository {
       });
 
       return true;
+    });
+  }
+
+  async restartByTelegramUserId(telegramUserId: bigint): Promise<RestartCharacterResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const character = await tx.character.findFirst({
+        where: {
+          user: {
+            telegramUserId
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (!character) {
+        return "no-character";
+      }
+
+      await reanchorTerminalPartyBossHistory(tx, character.id);
+
+      const deleted = await tx.character.deleteMany({
+        where: {
+          id: character.id,
+          activeCombatLease: {
+            is: null
+          }
+        }
+      });
+
+      return deleted.count === 1 ? "deleted" : "active-combat";
     });
   }
 
@@ -354,6 +387,50 @@ export class PrismaCharacterRepository implements CharacterRepository {
         state: "spent",
         character: toCharacterRecord(updated)
       };
+    });
+  }
+}
+
+async function reanchorTerminalPartyBossHistory(
+  tx: Prisma.TransactionClient,
+  characterId: string
+): Promise<void> {
+  const histories = await tx.partyBossSession.findMany({
+    where: {
+      leaderCharacterId: characterId,
+      status: { in: ["won", "lost", "cancelled"] }
+    },
+    select: {
+      id: true,
+      partySessionId: true,
+      partySession: {
+        select: {
+          participants: {
+            where: {
+              status: "joined",
+              characterId: { not: characterId }
+            },
+            orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+            take: 1,
+            select: { characterId: true }
+          }
+        }
+      }
+    }
+  });
+
+  for (const history of histories) {
+    const survivorId = history.partySession.participants[0]?.characterId;
+    if (!survivorId) {
+      continue;
+    }
+    await tx.partyBossSession.updateMany({
+      where: { id: history.id, leaderCharacterId: characterId, status: { not: "active" } },
+      data: { leaderCharacterId: survivorId }
+    });
+    await tx.partySession.updateMany({
+      where: { id: history.partySessionId, leaderCharacterId: characterId },
+      data: { leaderCharacterId: survivorId }
     });
   }
 }

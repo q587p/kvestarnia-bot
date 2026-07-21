@@ -1,0 +1,1961 @@
+diff --git a/README.md b/README.md
+index 9e39831f..52627508 100644
+--- a/README.md
++++ b/README.md
+@@ -70,7 +70,7 @@
+ - Дружня Скриня в інвентарі вже вміє auto-pick 5 найдешевших манаток або ручний вибір 5 речей із підтвердженням; автоматично вона не чіпає памʼятне/сюжетне, але вручну її можна переконати.
+ - `/version`, `/news`, `/restart`, `/remort`, `/support` — сервісні команди для версії, новин, повного перезапуску, реморту після 13 рівня й добровільної підтримки без ігрових переваг.
+
+-`0.1.x` закрито в `0.1.25` як Phase 2 Social Combat MVP: тренування, opt-in дуелі, реванші, картки результатів, запрошення поруч, бойові замки, памʼять проходів у Низі й перший обережний економічний зріз Шинку вже утворюють завершену ранню соціяльну петлю. Лінійка `0.2.x` розширює її безпечними подарунками, кількома ворогами, Переказами, Хроніками, медичними манатками, глибшим спорядженням і першим гуртовим доказом для Бочки; ширші рейди, ґільдії, ринок і велика економіка лишаються наступними окремими кроками, не вже відкритими кнопками.
++`0.1.x` і `0.2.x` закрито: гра вже має тренування й opt-in дуелі, кількох ворогів у звичайному PvE, подарунки й пошту, досягнення й титули, Перекази та Хроніки, корчемні ігри, глибше спорядження, тимчасові гурти й перший feature-flagged бій гурту проти Великої Бочки. Лінійка `0.3.x` готує цей фундамент до закритої альфи: додає класову підтримку, стабільність, вимірювання, квестову навігацію та raid chat. Наявність коду не дорівнює production-доступности: окремі гуртові й корчемні фічі лишаються за прапорцями до зафіксованої Telegram QA та rollout-рішення.
+
+ ## 🌫 Тон
+
+@@ -111,9 +111,9 @@
+
+ ## 🗺️ Куди рухається проєкт
+
+-Після `0.1.25` найближча мета — не тримати `0.1.x` відкритою безкінечно, а перейти до одного вузького `0.2.0` кроку: безпечної передачі однієї придатної манатки між гравцями з явною згодою отримувача.
++Найближча мета — чесно закрити `0.3.x`: завершити або явно відкласти raid chat, прибрати lifecycle-ризики `/restart` і `/remort` у багатокористувацьких боях, зафіксувати стан прапорців і ручної Telegram QA, а також синхронізувати документацію з реальною грою. Це release-прохід без нового великого gameplay-системного шару.
+
+-Після цього фокус поступово рухатиметься до обмінів, бойової різноманітности, кількох ворогів, гуртових боїв, справжніх рейдів, ґільдій, сезонних подій, рейтингів і колекцій. Квестарня має стати ботом, який хочеться додати в чат не тому, що «так треба для гри», а тому, що там буде смішніше разом.
++Після цього `0.4.x` починається з багаторазового ядра «2–3 пригодники проти 2–3 ворогів», не з розширення специфічної моделі Великої Бочки. На цьому ядрі послідовно зʼявляться мінімальна ідентичність ґільдії, перша нагородна гуртова експедиція й тижнева ґільдійна мета. Банк, торгівля, війни ґільдій, великі рейди й сезонна економіка лишаються окремими пізнішими кроками.
+
+ Детальні фази живуть у [`docs/product/roadmap.md`](docs/product/roadmap.md).
+
+diff --git a/docs/ai/context.md b/docs/ai/context.md
+index a6650e67..b3c51f12 100644
+--- a/docs/ai/context.md
++++ b/docs/ai/context.md
+@@ -3,7 +3,7 @@
+ ## Identity and language
+
+ - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
+-- Current version: `0.3.15` — Big Barrel has a default-off participant-only durable raid chat with exact ForceReply composition, typed transactional events, a separate chat revision and CAS-safe restart delivery/redaction; existing lifecycle cleanup remains active while fresh chat events are disabled. Manual Telegram QA remains pending.
++- Current release candidate: `0.3.15` — default-off Big Barrel raid chat. Head `e223073a` added CAS-safe revision/redaction acknowledgements, transition-unique same-life rejoin and partial permanent/transient send classification. Closeout audit still blocks merge on unconditional 1.1-second idle DB polling, synchronous non-draining scheduler stop, callback acknowledgement inside the message throttle, 403 edit retry and real grammY `HttpError` network classification gaps; manual Telegram QA remains pending.
+ - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
+ - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
+ - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
+@@ -37,6 +37,14 @@
+ - Group/party systems remain narrow opt-in slices. No generic market, profession, crafting, guild-war or Mini App direction is shipped by implication.
+ - Big Barrel raid chat requires both `BIG_BARREL_BROTHER_RAID_ENABLED=true` and `BIG_BARREL_RAID_CHAT_ENABLED=true`. It authorizes only canonical same-life participants, keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards, achievements or ordinary combat-journal duplication. `/dev_raid_chat` is non-production only.
+
++## 0.3.x closeout and 0.4.x boundary
++
++- `0.3.16` is a lifecycle/repair/race/rollout/docs closeout, not another themed feature. Transactionally block restart/remort in active multi-actor combat, add strict PartyBoss repair/orphan-lease handling, resolve support-action rollout parity, complete the feature-state ledger and record real QA/observation evidence.
++- Do not infer production enablement from merged code or `.env.example`; each flagged surface needs merged/migrated/target flag/automated/manual QA/kill-switch evidence and an `enabled`, `deferred` or `retired` decision.
++- `0.4.0` starts a separate default-off `GroupCombatSession` / participant / action runtime for 2–3 players versus 2–3 enemies. Reuse PartySession, ActiveCombatLease, actor-action and CAS/card ideas; do not widen Big-Barrel-specific PartyBoss state or add generic group workflow to `FightService`.
++- `0.4.1` hardens ally targeting, current ability/item/status parity, AI, repair, settlement skeleton and load/simulator evidence. `0.4.2` adds a small independent guild membership shell; `0.4.3` ships the first reward-bearing party expedition; `0.4.4` adds an optional guild weekly goal; `0.4.5` may add cosmetic progression only after observed weekly data.
++- Guild foundation has name/crest/roles/invites/audit and ordinary PartySession creation only. No bank, shared item custody, combat power, wars, raid finder or >3×3 implication.
++
+ ## Shipped class support
+
+ - Priest level 3+ noncombat heal/blessing uses active exact-location targets, transactional mana spend and replay-safe records. Do not rebalance it through adjacent class work.
+@@ -77,8 +85,9 @@
+
+ ## Key docs
+
+-- `docs/tasks/0.3.14-bard-inspiration-and-raid-lament.md` — current release contract.
+-- `docs/design/bard-inspiration-and-raid-lament.md` and `docs/qa/0.3.14-bard-inspiration-and-raid-lament-qa.md` — mechanic contract and pending manual Telegram checklist.
++- `docs/tasks/0.3.15-raid-chat-mvp.md` and `docs/qa/0.3.15-raid-chat-qa.md` — current release candidate and merge-blocking race addendum.
++- `docs/tasks/0.3.16-closed-alpha-closeout.md` — final planned `0.3.x` closeout.
++- `docs/architecture/party-combat-evolution-plan.md` and `docs/design/guilds-and-party-progression.md` — canonical `0.4.x` group-combat/guild boundary.
+ - `docs/design/game-design.md`, `docs/design/player-identity-abilities.md`, `docs/design/noncombat-techniques.md` — gameplay/design anchors.
+ - `docs/design/achievements-catalog.md` — achievement catalog.
+ - `docs/content/kvestarnia-lore-current-canon.md`, `src/content/loreBoard.ts` — current lore/reference surfaces.
+diff --git a/docs/architecture/README.md b/docs/architecture/README.md
+index 1d513093..2e0c3cb8 100644
+--- a/docs/architecture/README.md
++++ b/docs/architecture/README.md
+@@ -11,10 +11,11 @@ Use these docs when changing technical design, persistence, sessions, callbacks,
+
+ ## Combat and session architecture
+
++- [`party-combat-evolution-plan.md`](party-combat-evolution-plan.md) — canonical `0.4.x` boundary for separate generic 2–3×2–3 combat, lifecycle repair and per-participant settlement.
+ - [`bestiary-collection-data-model-notes.md`](bestiary-collection-data-model-notes.md) — data model notes for future bestiary collection work.
+ - [`combat-engine-design.md`](combat-engine-design.md) — combat engine design notes.
+ - [`effective-stats-and-equipment-effects-plan.md`](effective-stats-and-equipment-effects-plan.md) — effective stats and equipment-effect planning notes.
+-- [`GROUP_RAID_SESSION_MODEL.md`](GROUP_RAID_SESSION_MODEL.md) — proposed party/raid session model.
++- [`GROUP_RAID_SESSION_MODEL.md`](GROUP_RAID_SESSION_MODEL.md) — earlier proposed party/raid model; compare its proposed reward rows with the implemented PartyBoss delta before reuse.
+ - [`group-raid-session-notes.md`](group-raid-session-notes.md) — earlier session row, participant and idempotency notes if kept as active technical input.
+ - [`../phase2/GROUP_COMBAT_AND_RAIDS.md`](../phase2/GROUP_COMBAT_AND_RAIDS.md) — how raids grow from duels, party sessions and multi-enemy combat.
+ - [`../phase2/ITEM_TAGS_AND_CONSUMABLES.md`](../phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, one-use manatky and combat actions from items.
+diff --git a/docs/architecture/party-combat-evolution-plan.md b/docs/architecture/party-combat-evolution-plan.md
+new file mode 100644
+index 00000000..ae27c0f5
+--- /dev/null
++++ b/docs/architecture/party-combat-evolution-plan.md
+@@ -0,0 +1,171 @@
++# Party Combat Evolution Plan
++
++Status: proposed canonical boundary for `0.4.x`.
++
++## Decision
++
++Build generic 2–3 player versus 2–3 enemy combat beside the existing Big Barrel
++runtime. Reuse recruitment, actor-action primitives and concurrency patterns, but
++do not widen `PartyBossSession` or add group orchestration to `FightService`.
++
++The first production consumer is a small authored party expedition. A guild may
++create an ordinary party, but does not own combat state.
++
++## Why a separate runtime
++
++The current orchestration layers encode different cardinalities and policies:
++
++- persistent PvE owns one hero and one/two enemies, including a legacy singular
++  monster mirror and threat-escalation rules;
++- turn duels own exactly challenger and target;
++- PartyBoss owns a singular boss plus Big-Barrel-specific taunt, ward, protocol,
++  music, AI and settlement;
++- `FightService` is already a large application service and is not the place for
++  a fourth workflow.
++
++Renaming or widening PartyBoss would risk the shipped raid without providing
++ally targeting, participant delivery, repair or per-player settlement. A new
++model keeps migration optional and testable.
++
++## Reuse
++
++- `PartySession` / `PartyParticipant` recruitment and leader rules;
++- `ActiveCombatLease` as global incompatible-combat exclusion;
++- actor action resolution, availability, cooldown and stable RNG helpers;
++- PartyBoss unique actor/turn action and optimistic turn CAS;
++- turn-duel strict parsing/repair and canonical participant-card convergence;
++- deadline scheduler and server-owned timeout fallback concepts;
++- combat simulation and effective-stat snapshot helpers.
++
++Do not reuse an entire solo, duel or PartyBoss aggregate.
++
++## Persistence shape
++
++### GroupCombatSession
++
++- `id`, `partySessionId`, `encounterKey`, `rulesVersion`;
++- `status`, `turn`, `version`, `turnExpiresAt`;
++- strict versioned `stateJson` and terminal `resultJson`;
++- timestamps and an active-party uniqueness fence.
++
++### GroupCombatParticipant
++
++- session and same-life character identity;
++- stable roster order and frozen combat snapshot;
++- current canonical Telegram chat/message reference and reference version;
++- contribution summary;
++- resource/reward settlement status, attempts and receipt identity;
++- unique session + character-life membership.
++
++### GroupCombatAction
++
++- session, turn, actor and explicit target identity;
++- action kind, server-owned payload and deterministic result inputs;
++- timestamps;
++- unique session + turn + actor.
++
++### Optional GroupCombatRound
++
++Use a separate round summary only if product requires a complete journal. If
++state keeps only the latest bounded recap, call it a recap rather than a complete
++journal.
++
++Enemies may stay in versioned state JSON for the bounded 3×3 scope. The parser
++must validate rules version, session/party identity, turn, unique actor/enemy ids,
++roster equality, finite numbers and terminal invariants.
++
++## Round contract
++
++1. The session transaction validates actor life, membership, lease and current
++   turn from authoritative rows.
++2. An action names a supported self/ally/enemy target. The server re-resolves the
++   target; callback payloads never carry trusted stats or effects.
++3. One action per living participant is inserted under a unique key.
++4. The last required action and the timeout resolver race through the same
++   `(id, status, turn, version)` CAS.
++5. A deterministic pure resolver applies player actions, support effects, enemy
++   AI/responses, statuses and terminal rules.
++6. Only the CAS winner advances state, writes round summary/contribution and
++   emits durable outbox/activity effects.
++7. Telegram delivery observes committed DB state. Failure cannot affect the
++   round and later refresh converges on the canonical participant card.
++
++Timeout is a server-owned safe action. It must not spend an item or scarce
++resource and must have an explicit inactivity/forfeit policy.
++
++## Targeting and ability parity
++
++`CombatTargetScope` already includes ally scopes. The group resolver must cover
++current recipe kinds rather than silently treating them as self-only:
++
++- self and single ally;
++- all allies including self;
++- lowest-HP ally;
++- one enemy and all enemies where authored;
++- heal, guard, response reduction, counter and status effects;
++- mana/cooldown/fumble and unavailable-action no-op rules.
++
++Matrix tests must include Priest, Bard, Varenyk-mancer, Dwarf, Domovyk and
++Molfar support behavior before a reward-bearing encounter. Re-run Big Barrel
++simulations if a shared primitive changes its balance.
++
++## Lifecycle and repair
++
++Before introducing `group-combat`, centralize a typed lease-owner registry used
++by restart, remort, dev reset, timed status release and repair.
++
++- `/restart` and `/remort` are blocked transactionally during active multi-actor
++  combat in the initial policy. Middleware only explains the blocker.
++- strict parser failure CAS-invalidates the session without rewards;
++- repair releases participant leases and all frozen timed statuses that can be
++  recovered safely;
++- orphan leases are detected by kind/reference and released idempotently;
++- one malformed row cannot prevent healthy due sessions from resolving;
++- shutdown awaits active scheduler work at a safe boundary and starts no new
++  work after close.
++
++Any future cancel-all remort policy needs separate product approval, atomic
++survivor resource/item settlement and participant notifications.
++
++## Settlement
++
++The resolution transaction records a terminal plan, not every participant's
++entire reward mutation for an unbounded raid.
++
++Each participant has an idempotent settlement receipt. Resource, reward,
++achievement and activity mutations can retry independently while preserving one
++terminal plan. Partial delivery does not roll back combat. Participant count
++alone never multiplies encounter loot.
++
++Contribution may include damage, healing, guard prevented, control, damage
++taken and committed actions. It must not make support builds ineligible.
++
++## Performance budgets
++
++The target runtime is the small hosted baseline (0.5 CPU / 512 MB):
++
++- due scan reads lean ids/deadlines, not full history;
++- action resolution loads current-turn actions only;
++- state and active-card text have explicit size caps;
++- participant notifications are bounded O(P) and edit canonical cards;
++- idle scheduler work is zero or a documented low-frequency recovery sweep;
++- first load proof covers concurrent 3×3 sessions over 13–25 turns.
++
++## Delivery sequence
++
++- `0.3.16`: lifecycle, parser/repair and concurrency prerequisites.
++- `0.4.0`: flagged rewardless 2–3×2–3 proof with one authored encounter.
++- `0.4.1`: ability parity, AI/items/status hardening, settlement skeleton and
++  load/simulator coverage.
++- `0.4.2`: independent guild membership shell.
++- `0.4.3`: first reward-bearing party expedition.
++- `0.4.4`: guild weekly objective using the same party/group-combat runtime.
++- `0.4.5`: cosmetic guild progression after observed data.
++
++## Explicit non-goals
++
++- widening or migrating Big Barrel during the first proof;
++- >3×3 combat, raid finder or public matchmaking;
++- guild bank, trade custody, wars or PvP;
++- Redis, Mini App or a broad repository rewrite;
++- claiming a complete journal when only the latest rounds are retained.
+diff --git a/docs/architecture/technical-plan.md b/docs/architecture/technical-plan.md
+index 4c89b792..6ce21b3a 100644
+--- a/docs/architecture/technical-plan.md
++++ b/docs/architecture/technical-plan.md
+@@ -319,44 +319,53 @@ Rules:
+ - Completed remort resets level/XP/gold/resources, clears equipment, expires active solo fights, cancels pending Mantok Chest / level-barter / remort previews, clears stale adventure/raid ids and clears only the explicit per-life daily-action keys needed for starter shawarma/fight and Korchmar problem-chain issue/reward rows.
+ - Legacy power is capped: memory rank is `min(remortNumber, 5)` and grants only small starting HP/mana bonuses.
+
+-### future groups, parties and raids
+-Group raid tables remain future work and should follow duel/session primitives instead of preceding them.
++### parties, Big Barrel and generic group combat
+
+-Future groups:
+-- `id` UUID
+-- `telegram_chat_id` bigint unique
+-- `title`
+-- `created_at`
++Implemented baseline:
+
+-Future parties:
+-- `id` UUID
+-- `leader_character_id` FK
+-- `context_chat_id` nullable
+-- `invite_token`
+-- `status`
+-- `expires_at`
+-- `created_at`
++- `PartySession` and `PartyParticipant` own temporary recruiting, membership,
++  leader transfer, expiry and party identity.
++- `PartyBossSession` and `PartyBossAction` own the shipped one-party/one-boss
++  proof and the feature-flagged Big Barrel route.
++- `ActiveCombatLease` is the global incompatible-combat exclusion primitive.
++- Big Barrel state is intentionally specific: one `boss`, taunt, ward, protocol,
++  music and Barrel settlement semantics. It is not the generic N×M engine.
+
+-Future raids:
+-- `id` UUID
+-- `group_id` or `party_id` FK
+-- `boss_id` or `encounter_id`
+-- `state_json`
+-- `status`
+-- `starts_at`
+-- `ends_at`
++Before starting `0.4.x`, current multi-actor lifecycle must have transactional
++restart/remort guards, strict state parsing/repair, orphan-lease recovery and
++race coverage. Middleware redirects are UX only and cannot be the deletion or
++settlement authority.
+
+-Future raid participants:
+-- `raid_id` FK
+-- `character_id` FK
+-- `damage_done`
+-- `actions_count`
+-- unique (`raid_id`, `character_id`)
++Generic group combat should add separate persistence:
++
++- `GroupCombatSession`: party/encounter/rules identity, strict versioned state,
++  status, turn, version, deadline and terminal result;
++- `GroupCombatParticipant`: frozen actor snapshot, stable order, canonical
++  Telegram card reference, contribution and settlement state;
++- `GroupCombatAction`: unique session + turn + actor action with explicit target,
++  server-owned payload and result;
++- optional bounded `GroupCombatRound` rows when a complete journal is required.
+
+ Rules:
+-- Solo multi-enemy combat is the bridge, then party versus one boss, then party versus multiple enemies.
+-- Real raid rewards may include more serious or rare manatky than ordinary solo fights, but only through capped, contribution-aware, idempotent per-participant rows.
+-- No winner-takes-all rewards, duplicate reward claims or free loot multiplier from participant count alone.
++
++- reuse `PartySession`, actor-action/domain helpers, leases, CAS, deadlines and
++  canonical participant-card convergence; do not reuse a whole solo, duel or
++  PartyBoss orchestration layer;
++- do not add generic group workflows to `FightService`; extract a narrow shared
++  facade only when 0.4 acceptance proves it necessary;
++- target identity and ally support are first-class; self-only solo behavior must
++  not leak into group resolution;
++- parsers reject malformed/rules-mismatched state and a repair pass releases
++  recoverable locks without rewards before scheduler work;
++- fetch current-turn actions separately; do not load every historical action on
++  every submit/due scan;
++- terminal rewards/resources are replay-safe per participant and can be retried
++  independently; participant count alone never multiplies loot;
++- the first supported bound is 2–3 players versus 2–3 enemies;
++- Big Barrel stays on `PartyBossSession` until a later parity-tested migration.
++
++Canonical evolution plan:
++[`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
+
+ ## Content IDs
+ Контентні id мають бути стабільними:
+diff --git a/docs/design/README.md b/docs/design/README.md
+index 072f6aac..67387658 100644
+--- a/docs/design/README.md
++++ b/docs/design/README.md
+@@ -55,9 +55,10 @@ Use these docs when changing mechanics, content, authored copy, monsters, quests
+
+ ## Raid and party design
+
++- [`guilds-and-party-progression.md`](guilds-and-party-progression.md) — canonical `0.4.x` product boundary for temporary parties, 2–3×2–3 expeditions, guild foundation and weekly goals.
+ - [`bard-inspiration-and-raid-lament.md`](bard-inspiration-and-raid-lament.md) — `0.3.14` Bard Inspiration, shared local music availability and Big Barrel Lament contract.
+-- [`BIG_BARREL_BROTHER_GROUP_RAID.md`](BIG_BARREL_BROTHER_GROUP_RAID.md) — future group raid flow.
+-- [`BIG_BARREL_BROTHER_BALANCE.md`](BIG_BARREL_BROTHER_BALANCE.md) — future balance model and reward guardrails.
++- [`BIG_BARREL_BROTHER_GROUP_RAID.md`](BIG_BARREL_BROTHER_GROUP_RAID.md) — historical/full Big Barrel input, not the generic party-vs-many contract.
++- [`BIG_BARREL_BROTHER_BALANCE.md`](BIG_BARREL_BROTHER_BALANCE.md) — Big Barrel balance model and future reward guardrails.
+ - [`raid-role-flavor-notes.md`](raid-role-flavor-notes.md) — raid role flavor notes if present.
+ - [`../phase2/GROUP_COMBAT_AND_RAIDS.md`](../phase2/GROUP_COMBAT_AND_RAIDS.md) — how raids grow from duels, party sessions and multi-enemy combat.
+
+diff --git a/docs/design/game-design.md b/docs/design/game-design.md
+index c6c540b3..dae74d32 100644
+--- a/docs/design/game-design.md
++++ b/docs/design/game-design.md
+@@ -527,28 +527,48 @@ Rewards and anti-grind:
+ - multi-enemy combat;
+ - party combat and real raids.
+
+-## Групова активність later
+-Справжній груповий рейд лишається важливим напрямом, але тепер це later Phase 2 / Phase 4 slice, а не перший post-closeout крок.
++## Групова активність
+
+-Майбутній raid flow:
+-- party or group invite;
+-- 3+ explicit participants before reward-bearing finish;
+-- 1-3 compact actions per participant;
+-- summary with participation, not only damage table;
+-- idempotent per-player rewards;
+-- more serious/rare manatky than ordinary solo fights only through capped, contribution-aware reward rules;
+-- no winner-takes-all payout and no free loot multiplier just because more players joined;
+-- stale callbacks replay state instead of duplicating actions or loot.
++Тимчасові гурти, party-vs-one proof і feature-flagged Big Barrel уже існують.
++Наступний продуктовий доказ — не «ще складніша Бочка», а коротка експедиція
++2–3 пригодників проти 2–3 ворогів на окремому generic group-combat runtime.
+
+-Old group hook docs remain useful as input: [GROUP_HOOK_DESIGN.md](../history/early-raid/group-hook-design.md) and [GROUP_RAID_SESSION_NOTES.md](../architecture/group-raid-session-notes.md).
++Перший production flow:
++
++- private invite або запрошення від малої ґільдії у звичайний тимчасовий гурт;
++- 2–3 explicit participants із видимими eligibility/blocker reasons;
++- одна компактна дія кожного учасника за раунд з явною self/ally/enemy ціллю;
++- таймер із безпечною server-owned fallback action;
++- коротка active card і bounded journal замість нового повідомлення на кожен хід;
++- contribution summary не зводиться лише до damage: heal, guard, control і
++  прийнята шкода мають значення;
++- capped idempotent per-player rewards після production proof;
++- stale callbacks replay/refresh state, а не дублюють actions чи loot.
++
++Перша межа — 3×3. Великий raid finder, масові world bosses і безмежний журнал
++не входять у цю обіцянку. Канонічний дизайн:
++[`guilds-and-party-progression.md`](./guilds-and-party-progression.md).
++
++Old group hook docs лишаються історичним input:
++[GROUP_HOOK_DESIGN.md](../history/early-raid/group-hook-design.md) і
++[GROUP_RAID_SESSION_NOTES.md](../architecture/group-raid-session-notes.md).
+
+ ## Ґільдії
+-Post-MVP:
+-- Створення ґільдії за gold sink.
+-- Назва, герб emoji, опис.
+-- XP ґільдії.
+-- Бос ґільдії.
+-- Бонуси ґільдії без прямого pay-to-win.
++
++Ґільдія спершу є малою social identity, а не другим інвентарем чи джерелом
++бойової сили:
++
++- створення за зрозумілий gold sink;
++- нормалізовано унікальна назва, emoji-герб і короткий опис;
++- invite/join/leave та leader/officer/member;
++- audit важливих membership transitions;
++- зручне створення звичайного тимчасового PartySession;
++- після party expedition — одна тижнева групова мета;
++- після даних — cosmetic-first XP/milestones.
++
++Guild bank, item custody, trade, wars/PvP, power bonuses і guild boss не входять
++у foundation. Guild lifecycle та combat lifecycle лишаються окремими: вихід із
++ґільдії не повинен видаляти вже створений гурт або активний encounter.
+
+ ## Сезони
+ Сезон = 4–8 тижнів контенту:
+diff --git a/docs/design/guilds-and-party-progression.md b/docs/design/guilds-and-party-progression.md
+new file mode 100644
+index 00000000..590694e4
+--- /dev/null
++++ b/docs/design/guilds-and-party-progression.md
+@@ -0,0 +1,117 @@
++# Ґільдії та гуртова прогресія
++
++Статус: канонічна продуктова межа для `0.4.x`.
++
++## Продуктова гіпотеза
++
++Гравець повертається не лише по власний кулдаун, а й тому, що двоє-троє знайомих
++мають коротку спільну мету. Telegram має допомагати домовитися й сміятися з
++результату, а не перетворювати гру на обовʼязковий вечірній рейд.
++
++Перший доказ складається з двох незалежних шарів:
++
++- гурт — тимчасова команда для однієї активности;
++- ґільдія — тривала мала ідентичність, яка полегшує повторний збір гурту.
++
++## Гуртова експедиція
++
++Перша production-експедиція:
++
++- 2–3 пригодники;
++- 2–3 authored вороги;
++- одна дія кожного живого учасника за раунд;
++- явна ціль: себе, союзник або ворог відповідно до дії;
++- server-owned безпечна дія після таймера;
++- коротка canonical card кожного учасника;
++- bounded recap і contribution summary;
++- одна encounter reward budget з idempotent per-player settlement.
++
++Contribution враховує не лише шкоду: лікування, guard, контроль, прийняту шкоду
++й підтверджені дії. Support-персонаж не має виглядати «пасажиром».
++
++У першій rewardless proof-версії немає XP, золота, манаток, quest progress або
++achievement unlock. Вони додаються лише у production expedition після parity,
++race, repair, load і Telegram QA.
++
++## Telegram UX
++
++- Invite пояснює encounter, eligibility, склад і час без прихованих шансів.
++- Active card редагується, а не створює повідомлення після кожної дії.
++- Чітко видно, хто вже обрав дію, але чужий прихований вибір не розкривається.
++- Таймер показує canonical remaining time.
++- Stale card веде до refresh/replay, не повторює дію.
++- Збій Telegram не впливає на combat state; наступне відкриття відновлює картку.
++- Raid chat, якщо використовується, лишається participant-only і без нагород.
++
++## Guild foundation
++
++Мінімальна ґільдія комфортна для 3–5 людей і не потребує масової спільноти.
++
++Поля:
++
++- normalized unique name і player-visible display name;
++- emoji-герб;
++- короткий безпечний опис;
++- leader, officer, member;
++- created timestamp і durable audit важливих transitions.
++
++Дії:
++
++- створити за previewed gold sink;
++- запросити відомого/eligible гравця без витоку online/location;
++- прийняти, відхилити, скасувати, вийти;
++- передати leadership або підвищити/понизити officer;
++- створити звичайний тимчасовий гурт і запросити eligible членів.
++
++Membership ідентичність має явну remort policy. Базова рекомендація: ґільдія
++належить користувачеві/персонажній історії й переживає remort, але активна бойова
++участь завжди привʼязана до конкретного життя персонажа.
++
++## Weekly goal
++
++Після першої production expedition ґільдія отримує одну малу тижневу мету:
++
++- зрозумілий Kyiv/Holocene period;
++- прогрес лише від eligible завершених group encounters;
++- exact-once contribution receipt;
++- social/cosmetic-first спільний результат;
++- короткий recap у Хроніках без приватних подробиць;
++- відсутність FOMO-покарання за пропущений тиждень.
++
++Гравці без ґільдії можуть проходити звичайну party expedition. Ґільдія не
++монополізує базовий group-combat контент.
++
++## Safety і moderation
++
++- Немає публічного сорому за малий contribution або inactivity.
++- Немає точного location/online tracking у guild roster.
++- Назва й опис мають length/Unicode normalization, reserved-name і basic abuse
++  guard; moderation action лишає audit.
++- Invite spam має rate/cooldown і block-friendly поведінку.
++- Leader deletion/restart не каскадить активний party/group encounter.
++- Guild leave/kick не скасовує вже сформований окремий PartySession.
++
++## Не входить у foundation
++
++- guild bank або спільні предмети;
++- золото між членами, auction/market чи trade custody;
++- бойові стат-бонуси;
++- guild wars, territory, forced PvP або wagers;
++- raid finder, alliance/global guild chat;
++- season pass або monetization;
++- encounters понад 3×3.
++
++Ці системи потребують окремого task, abuse/economy audit і даних реальної малої
++ґільдії; вони не виростають автоматично з membership таблиці.
++
++## Метрики доказу
++
++- party create → join → start → finish;
++- частка гуртів із повторним спільним encounter протягом 7 днів;
++- timeout/forfeit/repair і permanent delivery failure rates;
++- guild invite → accept;
++- частка ґільдій із 2+ активними учасниками за тиждень;
++- weekly goal participation без зберігання приватного message content.
++
++Успіх — не максимальна кількість ґільдій, а повторний маленький соціяльний ритуал
++без руйнування solo loop і без експлуатаційного тиску.
+diff --git a/docs/operations/README.md b/docs/operations/README.md
+index 691d1be0..4a2232df 100644
+--- a/docs/operations/README.md
++++ b/docs/operations/README.md
+@@ -22,6 +22,7 @@ Use these docs when running, testing, smoking, debugging or reviewing Kvestarnia
+
+ ## Release and smoke records
+
++- [`release-state-ledger.md`](release-state-ledger.md) — current code/deploy/flag/automated/manual QA/kill-switch evidence; merged code alone is not player availability.
+ - [`../history/phase1/closeout-smoke.md`](../history/phase1/closeout-smoke.md) — Phase 1 final smoke gate.
+ - [`../history/phase2/closeout-smoke.md`](../history/phase2/closeout-smoke.md) — Phase 2 MVP closeout smoke if present.
+
+diff --git a/docs/operations/release-state-ledger.md b/docs/operations/release-state-ledger.md
+new file mode 100644
+index 00000000..94889f17
+--- /dev/null
++++ b/docs/operations/release-state-ledger.md
+@@ -0,0 +1,54 @@
++# Release State Ledger
++
++This ledger separates repository implementation from deployment and player
++availability. Update it from target-environment evidence during every closeout.
++Never infer hosted flag values from `.env.example`.
++
++Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated evidence
++link/reference. A release is truthful when every row has an explicit decision;
++not every feature must be enabled.
++
++## Current 0.3.x baseline
++
++| Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
++| --- | --- | --- | --- | --- | --- | --- | --- |
++| Party session foundation | yes (`0.2.15`) | unknown | unknown; default off | yes | unknown | `PARTY_SESSION_FOUNDATION_ENABLED`; owner TBD | verify or defer |
++| Big Barrel Brother | yes (`0.2.17`) | unknown | unknown; default off | yes + simulator | refreshed full QA pending | `BIG_BARREL_BROTHER_RAID_ENABLED`; owner TBD | verify or defer |
++| Tavern games / Tavlei / Dice Poker | yes (`0.2.21`, `0.2.27`) | unknown | unknown; defaults off | yes | unknown | table-game flags; owner TBD | verify or defer |
++| HP recovery notifications | yes (PR `#159`) | unknown | unknown; default off | yes | copy/runtime QA pending | `HP_RECOVERY_NOTIFICATIONS_ENABLED`; owner TBD | verify or defer |
++| Fighting Corner onboarding quest | yes (`0.3.10`) | unknown | unknown; default off | yes | rollout QA pending | `FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED`; owner TBD | verify or defer |
++| Varenyk-mancer Sated | yes (`0.3.12`) | unknown | part of runtime | yes | manual QA pending | deploy rollback owner TBD | verify |
++| Bard Inspiration / Lament | yes (`0.3.14`) | unknown | follows existing surfaces | yes | manual QA pending | raid flag + deploy rollback owner TBD | verify |
++| Big Barrel Raid Chat | release candidate (`0.3.15`) | not yet proven | default off | focused suite passes before blockers | pending | `BIG_BARREL_RAID_CHAT_ENABLED`; owner TBD | fix blockers, then decide |
++
++Replace `unknown` with evidence; do not replace it with an assumption.
++
++## Closeout evidence
++
++Record:
++
++- exact git SHA and package version;
++- migration list/checksum and backup timestamp;
++- target environment name, deploy id and flag values without secrets;
++- automated command/results and simulator seed/report;
++- manual QA date, accounts/roles, runtime and unperformed cases;
++- production observation window and privacy-safe counters;
++- kill-switch operator and rollback steps;
++- final decision: `enabled`, `deferred`, `retired` or `blocked`.
++
++## Minimum manual matrix for 0.3.x closeout
++
++Use 2–3 accounts and cover risk, not every historical happy-path sentence:
++
++- Charkokovalnia upgrade/attunement and effective equipment snapshot;
++- duel → tournament/journal/rematch and Fighting Corner quest if enabled;
++- Big Barrel create/join/start/round/terminal with Warrior, Kharakternyk,
++  Bureaucramancer, Bard and Sated interactions;
++- raid chat compose/newest-13/leave/rejoin/remort/flag-off/restart/`429`/permanent
++  failure and terminal retention;
++- `/restart` and `/remort` while leader/nonleader is in multi-actor combat;
++- timeout/manual-action races, stale callbacks and scheduler restart;
++- backup/restore plus post-deploy performance window on the target baseline.
++
++Unperformed cases are acceptable only when written down with a decision and
++owner. “Implemented” alone is not a rollout result.
+diff --git a/docs/product/product-brief.md b/docs/product/product-brief.md
+index 85cda9cd..447c9eba 100644
+--- a/docs/product/product-brief.md
++++ b/docs/product/product-brief.md
+@@ -57,24 +57,29 @@
+
+ ## Поточний playable slice
+
+-Поточний foundation уже показує тон і базову форму гри:
+-
+-- створення пригодника через `/start`;
+-- аркуш персонажа через `/hero`, `/profile`, `/me`;
+-- корчма й solo-рейд на Бочку Пінного Міражу;
+-- перший соціяльний gold sink `🍻 Всім пива` у локації `🍻 Шинок`;
+-- `Стіл зі справами` для quest hub;
+-- коротка пригода з підозрілою шаурмою;
+-- безпечна бойова перевірка без persistent HP loss;
+-- repeatable «Льохова справа» після витрачених денних активностей;
+-- persistent манатки;
+-- перший character impact loop: раса, клас і дивна біографія персонажа можуть змінювати короткі репліки без зміни reward math;
+-- легка presence-система без точного Telegram-стеження;
+-- `/version`, `/news`, `/restart` для сервісного UX.
+-
+-Цей slice треба продавати як ранній playable foundation, а не як завершену гру.
+-
+-Public-facing опис не має починатися з «українська РПГ» як першого гачка або називати гру «пародійною» як головний жанр. Можна казати «гумористична», «іронічна», «абсурдно-фентезійна». Не продавати ґільдії, справжні групові рейди, PvP, market, crafting або monetization як готові фічі; ґільдії й рейди згадувати лише як roadmap / майбутній напрям.
++Closed-alpha foundation уже доводить тон, довгу прогресію й кілька видів
++соціяльної взаємодії:
++
++- створення й розвиток пригодника до 13 рівня та remort;
++- persistent PvE з одним або кількома ворогами, класовими/расовими діями,
++  предметами, ресурсами, журналом і replay-safe settlement;
++- квести, пригоди, Низ, Єгерські справи, квестовий overview, Перекази й Хроніки;
++- манатки, сім слотів спорядження, set/ability synergies, upgrade/attunement;
++- training, quick/turn-based duels, tournament rewards і share/rematch cards;
++- безпечні подарунки, пошта, корчемні ігри й класові дії поруч;
++- тимчасові гурти, party-vs-one proof і перший feature-flagged Big Barrel raid;
++- класова raid support і raid chat як release candidate;
++- privacy-safe presence, combat locks, performance/combat telemetry.
++
++Цей slice треба продавати як ранню живу гру, а не завершену MMO. Наявність
++feature-flagged коду не підтверджує production enablement без release-state
++ledger і ручної Telegram QA.
++
++Public-facing опис не має починатися з «українська РПГ» як першого гачка або
++називати гру «пародійною» як головний жанр. Можна казати «гумористична»,
++«іронічна», «абсурдно-фентезійна». Не продавати generic party-vs-many,
++ґільдії, market, crafting або monetization як готові фічі. Big Barrel називати
++першим вузьким гуртовим доказом лише там, де він реально enabled.
+
+ ## MVP scope
+
+diff --git a/docs/product/roadmap.md b/docs/product/roadmap.md
+index db83b599..f6613536 100644
+--- a/docs/product/roadmap.md
++++ b/docs/product/roadmap.md
+@@ -1,266 +1,173 @@
+ # Roadmap
+
+-## Phase 0 — Foundation
+-Мета: створити репозиторій, доменну модель і мінімальну документацію.
+-
+-Deliverables:
+-- Проєкт TypeScript.
+-- Lint/typecheck/test/dev scripts.
+-- Локальна SQLite БД через `DATABASE_URL=file:./dev.db`.
+-- Базова схема БД.
+-- Content validation.
+-- `AGENTS.md` і docs у репозиторії.
+-
+-Done when:
+-- `npm test`, `npm run typecheck`, `npm run lint` проходять.
+-- Є один приклад content entity: race, class, monster, item.
+-
+-## Phase 1 — Solo MVP loop (closed in `0.1.0`)
+-Мета: гравець може створити персонажа, пройти бій, отримати XP/лут, екіпірувати предмет.
+-
+-Deliverables:
+-- `/start`, `/hero`, `/adventure`, `/fight`, `/inventory`.
+-- Race/class selection.
+-- First tiny `/adventure` scene: `Мімік-шаурма`, once-per-date reward, no full combat yet.
+-- First tiny `/fight` combat probe: deterministic preview, once-per-date reward, no persistent HP loss yet.
+-- First tiny `/inventory` and `/equipment` surface: persistent deterministic item grants and small equipment effects.
+-- Simple level-up thresholds for visible progress.
+-- Combat engine.
+-- Loot engine.
+-- Level-up 1–13.
+-- 20 монстрів, 50 предметів.
+-- Cooldowns.
+-
+-Done when:
+-- Новий гравець за 3 хвилини отримує перший предмет.
+-- Нагороди ідемпотентні.
+-- Бій має unit tests.
+-
+-Status:
+-- Closed by `0.1.0 — Phase 1 Closeout`.
+-- `0.0.x` is no longer the active build line after `0.0.30`.
+-- Phase 1 is playable and smokeable, not final-balanced and not closed-alpha complete.
+-- Next work belongs to the `0.1.x` stabilization/playtest line unless a blocker fix is required.
+-
+-Current tiny inventory slice:
+-- `/inventory`, `/items`, `/bag` show persistent манатки.
+-- `0.0.13` adds item detail callbacks, visible item value/priceless metadata, and preview-only `/equipment`, `/gear`, `/equip` without equipped state or stat effects.
+-- `0.0.14` persists selected equipment per slot through `character_equipment`, with equip/unequip actions for owned weapon/armor/accessory items, visible inventory total value, and hero wallet context for value in манатки.
+-- `0.0.15` adds deterministic starter sources for reachable weapon, armor, and accessory examples across `/fight`, the cellar errand, and the Barrel raid, still without equipment stat effects.
+-- `0.0.17` adds `/hunt` as the first runtime rotation over the bestiary: one deterministic Kyiv-local Hunt Board contract per hour, small rewards, and at most one deterministic monster trophy.
+-- `0.0.18` hardens Hunt Board callbacks with contract tokens and exposes `/bestiary`/`/monsters` as read-only monster notes without combat sessions, collection tracking, or random loot tables.
+-- `0.0.19` adds a persisted Hunt Board ledger so posted contracts are auditable and completed hunt callbacks can replay original XP/gold/item summaries without duplicate rewards; the same slice adds light onboarding gates: starter shawarma/fight run only on levels 1-2, cellar errands run on levels 2-3, Hunt Board starts from level 3, and read-only bestiary is held until level 3 to avoid early spoilers.
+-- `0.0.20` adds the pure domain Combat Engine: serializable fight state, attack/skill/flee resolution, HP/mana, status guards, monster stat derivation, deterministic RNG injection, and unarmed/basic fallback.
+-- `0.0.21` wires that engine into Telegram `/fight` for level 3+ heroes as persistent solo sessions with HP/mana, turn validation, stale callback safety, lazy expiry, and no XP/gold/items yet. Levels 1-2 keep the starter combat probe.
+-- `0.0.22` adds small equipment stat effects through one shared effective-stats helper: `/hero`, `/equipment`, item detail, and persistent solo combat read the same equipped-item contributions.
+-- `0.0.23` adds the first controlled loot engine and reward replay for won persistent solo fights: small XP/gold, at most one monsterLoot item, and stored replay so repeated callbacks do not reroll or duplicate rewards.
+-- `0.0.24` raises the current alpha cap to level 13, moves the capstone `/restart` suggestion there, and adds a narrow level 4+ cellar follow-up once the mouse errand retires.
+-- `0.0.25` adds persistent HP/mana attrition and lazy recovery, Loot Expansion v1 for persistent fights, level 4-13 monster trophy coverage, Hunt Board scaling, and the release-surface cleanup from PR #39.
+-- `0.0.26` is the recovery/balance stabilization pass: clearer HP 0 rest guidance, a small ordinary-monster curve tune for the 3/4/8/13 smoke band, and no new systems.
+-- `0.0.27` adds manual Mantok Chest input selection with compact callbacks and stale-input protection.
+-- `0.0.28` replaces the old hourly Hunt Board reward faucet with the first Yeger unquiet quest and front-door milestone board.
+-- `0.0.29` adds Yeger tracking wait/ready resolution and the first outside-korchma Munchkin level barter exchange.
+-- `0.0.30` hardens Munchkin barter with replay-safe audit rows, no gold-only/gold-heavy exchange, protected/equipped exclusions, and pending Barrel guards.
+-- `0.1.0` closes Phase 1 with version, release notes, changelog/news, smoke docs, roadmap/backlog alignment, and no new gameplay runtime.
+-- `0.1.2` fixes the first post-closeout presence/routing papercut and opens the first explicit level-13 `/remort` loop: `Шинок` is now a korchma interior location for routing gates, presence routing rules are tested outside `createBot.ts`, and remort drafts/history are replay-safe.
+-- `0.1.3` adds reliability polish for already-shipped loops: durable Barrel completion notifications survive restart/retry, and stale pending Дружня Скриня runs expire without touching inventory.
+-- `0.1.4` clarifies Quest Hub/fight navigation: fight buttons distinguish ready, active and terminal states; return paths consistently point back to `Стіл зі справами`; Quest Hub list/archive callbacks stay neutral in middleware and only successful handlers write quest-table presence after gates pass. Глибка remains deferred runtime.
+-- `0.1.5` opens the first Phase 2 prep surface: level 3+ `🥊 Бійцівський куток` and `/spar` run a turn-based XP-only training fight against the `Сумлінний Допельґанґер`, with no real duel invites, PvP state, gold/items/manatky rewards, `Тринадцять дрібних проблем` progress or group raid.
+-- `0.1.6` extends the Korchmar/Shynok problem wrapper into explicit `13 -> 23 -> 42 -> 93` stages: each new stage is accepted through the bar after the previous turn-in, counts only fresh ordinary won solo fights after its issue timestamp, and keeps doppelganger training out of quest progress.
+-- `0.1.9` adds the first reusable combat flavor intent layer and uses it only for `/spar` presentation: the doppelganger now shows class-aware counter flavor without changing rewards, problem-chain counters, cooldowns, level gates or PvP scope.
+-- `0.1.10` ships the first rewardless duel invite ledger: level 3+ `/duel`, dedicated Fighting Corner entry point, deep-link invites, accept/decline/cancel/expire handling, replay-safe quick results, partial HP/mana warnings, missing-character onboarding copy, a rewardless day/week/month duel winners board, clearer filtered equipment slot context and a closed `Глибка` route stub for future Korchmar monster fights.
+-- `0.1.11` adds rewardless duel result follow-ups: resolved cards can create a targeted rematch between the original participants or send a separate shareable saved-result card, while remort now clears per-life starter/problem-chain daily action keys after confirm.
+-- Phase 1 finish rule after `0.1.0`: бестіарій лишається data/content foundation і read-only довідником. Не розширювати його як окремий feature track, доки `0.1.x` playtest не покаже, що core loop стабільний. Achievements Phase 1 лишається rewardless later slice, не blocker для бойової петлі.
+-- Detailed finish sequence lives in `docs/history/phase1/finish-plan.md`; the closeout cutline for `0.0.x` → `0.1.x` lives in `docs/history/phase1/0.1-transition.md`, the final smoke gate lives in `docs/history/phase1/closeout-smoke.md`, and canonical release notes live in `docs/history/phase1/release-notes.md`. `docs/backlog/next-implementation-backlog.md` tracks the next small PR order.
+-- Tavern/adventure/fight first completions can grant fixed items.
+-- Full itemization, random loot tables, crafting, market, and trading remain later work after stabilization.
+-- Future equipment expansions should keep layering through the same equipment/effective-stats helper instead of adding presenter-specific math.
+-- Future `/fight` should replace the single generic `Вдарити` action with class/race/combo-aware attack options: physical strikes, mana-spending spells, tricks, seals, songs, traps, and equipment-shaped variants with visible resource costs.
+-- Future equipment rules should support level-gated items that can drop before they are wearable, plus rarer race/class/path-specific манатки with future bypass/attunement/respec tricks.
+-- Future player-to-player exchange should let heroes give unsuitable манатки to others without duplicating items or bypassing anti-abuse checks.
+-- Item economy now uses `goldValue` for display, the Скриня Манаток pressure valve, and the first Манчкін-скупник level exchange. Future selling/trading still needs item-instance safety and clearer player-to-player rules.
+-- New fight loot increases item volume, so `0.0.24` added the first `Дружня Скриня` / `Манатко-скриня` auto-pick sink: 5 eligible манаток become 1 better-than-average output item with confirmation and transaction safety. `0.0.27` added manual input selection with compact index callbacks, final preview, and stale-input protection; cleanup/reuse for abandoned pending runs remains future polish. Canonical planning doc: `docs/backlog/mantok-chest-backlog.md`.
+-
+-Current repeatable slice:
+-- `0.0.10` adds «Льохова справа» as the first low-stakes repeatable fallback after the daily shawarma quest and fight probe are spent.
+-- Cooldown lives in SQLite `character_cooldowns`, not Redis.
+-- `0.0.11` adds a compact `Стіл зі справами` quest hub for `/quest`, `🗺️ Квести`, daily shawarma, fight probe, and cellar fallback.
+-- `/cellar` exists only as a secondary fallback command; more repeatable activities and a full activity refactor remain later work.
+-- `0.0.24` adds `Справа не до миші` for level 4+ heroes who try the retired cellar route: buy a seal or roleplay past the mouse, obtain `Пляшка Пінного Міражу` once, then carry it to `🍻 Шинок` for permanent turn-in through `daily_actions`.
+-- Корчемний рейд у `0.0.11` отримав pending state на випадкові 5–8 хвилин: пригодник «у рейді», а квести, бої та схожі пригодові дії тимчасово недоступні до завершення.
+-- A future progression/balance pass should make level matter more strongly in HP, mana, combat math, event checks, content gates, and reward-facing decisions.
+-
+-## 0.1.x — Stabilization / Playtest line
+-Мета: стабілізувати закриту Phase 1 петлю, виправити реальні playtest-болі й лише потім обережно відкривати Phase 2.
+-
+-Status:
+-- Closed by `0.1.25 — Phase 2 MVP Closeout`.
+-- `0.1.x` should receive only emergency hotfixes after this closeout.
+-- Current implementation line is `0.2.x`: safe gifting shipped in `0.2.0`, multi-enemy foundation shipped in `0.2.1`, architecture stabilization shipped in `0.2.2`, ordinary threat escalation shipped in `0.2.3`, item tags/one-use bandages shipped in `0.2.4`, Bard Performance shipped in `0.2.5`, Passage Search shipped in `0.2.6`, Player Abilities shipped in `0.2.7`, rewardless achievements/cosmetic title records shipped in `0.2.8`, Daily Korchma Rounds shipped in `0.2.9`, Active Cosmetic Title Selection shipped in `0.2.10`, Combat Balance / Monster Signature Proof shipped in `0.2.11`, Two-Enemy Threat Simulation / Outlier Tuning shipped in `0.2.12`, Postal Manatka Delivery shipped in `0.2.13`, Adventure Quest Readability / Local Failure shipped in `0.2.14`, Party Session Foundation shipped in `0.2.15`, Party Vs One Boss MVP shipped in `0.2.16`, Big Barrel Brother Raid MVP shipped in `0.2.17`, Lore Board shipped in `0.2.18`, monster trophies / Yeger gates and deploy-notification wording shipped in `0.2.19`, Latest Events / Chronicles shipped in `0.2.20`, Tavern Social Games shipped in `0.2.21`, Dense Bandage / Field Kit shipped in `0.2.22`, Mantok equipment slots / balance / coverage / set synergies shipped across `0.2.23`, `0.2.24`, `0.2.26` and `0.2.28`, Priest/Rogue noncombat actions shipped in `0.2.25`, Dice Poker shipped in `0.2.27`, and Barrel Beer Tutorial shipped in `0.2.29`.
+-
+-Current order:
+-1. `0.1.1` — playtest bugfixes, copy polish, small UX papercuts, smoke fallout.
+-2. `0.1.2` — presence interior/routing cleanup plus first runtime `/remort` at level 13, because playtest reached the cap sooner than the old Phase 2 plan expected.
+-3. `0.1.3` — reliability polish за реальним болем: durable Barrel completion notifications плюс Mantok Chest pending cleanup.
+-4. `0.1.4` — fight/quest navigation cleanup; Глибка лишається відкладеною runtime-локацією, доки core navigation не перестане хитатися.
+-5. `0.1.5` — перший вузький Phase 2 runtime prep з 3 рівня: Бійцівський куток і тренувальний Сумлінний Допельґанґер з малим XP-only результатом, без золота/items/манаток, `Тринадцять дрібних проблем` progress і реального PvP.
+-6. `0.1.6` — Корчмарський problem-chain follow-up: `13 -> 23 -> 42 -> 93`, bar turn-in, fresh counters from issue time, no training/PvP/group-raid progress.
+-7. `0.1.9` — combat flavor intent foundation: class-aware `/spar` counter flavor as a presentation-only step toward monster signature moves and duel result cards.
+-8. `0.1.25` — release/docs/smoke closeout: Phase 2 MVP status, accepted two-account regression, deferred `0.2.x` order and no gameplay runtime changes.
+-
+-Guardrails:
+-- No new large gameplay system in `0.1.0`.
+-- New runtime feature tracks should wait for smoke and stabilization evidence.
+-- Phase 2 is now **Social Combat & Interactions**, not «group raid first».
+-- Old group-raid docs remain useful input for later party/raid work, but they are not the first post-closeout promise.
+-
+-## Phase 2 — Social Combat & Interactions
+-Мета: перша причина покликати іншого гравця в Квестарню — короткий opt-in соціяльний бій, результат якого хочеться показати в чаті.
+-
+-Canonical docs:
+-- [docs/phase2/SOCIAL_COMBAT_PLAN.md](../phase2/SOCIAL_COMBAT_PLAN.md)
+-- [docs/phase2/DUELS_AND_INVITES.md](../phase2/DUELS_AND_INVITES.md)
+-- [docs/phase2/COMBAT_TACTICS_AND_FLAVOR.md](../phase2/COMBAT_TACTICS_AND_FLAVOR.md)
+-- [docs/phase2/TRADING_AND_GIFTING.md](../phase2/TRADING_AND_GIFTING.md)
+-- [docs/phase2/GROUP_COMBAT_AND_RAIDS.md](../phase2/GROUP_COMBAT_AND_RAIDS.md)
+-- [docs/history/phase2/mvp-closeout-plan.md](../history/phase2/mvp-closeout-plan.md)
+-- [docs/history/phase2/closeout-smoke.md](../history/phase2/closeout-smoke.md)
+-- [docs/history/phase2/deferred-0.2.md](../history/phase2/deferred-0.2.md)
+-
+-Closeout cutline:
+-- `0.1.24` is the final feature release of the `0.1.x` Phase 2 MVP line.
+-- `0.1.25` closes the line as a docs/release/smoke milestone with no new gameplay.
+-- Safe gifting shipped first in `0.2.0`; `0.2.1` shipped only the backward-compatible two-enemy foundation; `0.2.2` shipped behavior-preserving architecture stabilization; `0.2.3` shipped ordinary-only threat escalation on top of that foundation; `0.2.4` shipped the first item-tag and one-use bandage slice; `0.2.5` shipped the first no-XP Bard Performance social technique; `0.2.6` shipped the first no-XP Passage Search side action for `Спуск до Низу` and passage previews; `0.2.7` shipped player class/race combat abilities; `0.2.8` shipped rewardless achievement browsing and cosmetic title grant records; `0.2.9` shipped the once-per-Kyiv-day Daily Korchma Round route; `0.2.10` shipped active cosmetic title selection; `0.2.11` shipped a bounded combat-balance and monster-signature readability proof; `0.2.12` shipped two-enemy threat simulation, backup pressure guards and targeted outlier tuning; `0.2.13` shipped paid postal delivery for bounded manatka packages to known recipients; `0.2.14` shipped Adventure selected-card readability and no-reward local failure; `0.2.15` shipped a dev/flagged party recruiting/session foundation without combat or rewards; `0.2.16` shipped a dev/flagged party-vs-one-boss proof with durable rounds, active combat leases and no rewards; `0.2.17` shipped the first feature-flagged Big Barrel Brother route with exact-once Barrel success settlement on the party-boss runtime; `0.2.18` through `0.2.29` added Lore Board, trophies/Yeger gates, Chronicles, table games, medical crafting, Mantok equipment depth, Priest/Rogue side actions, Dice Poker and the Barrel Beer Tutorial. The near-term roadmap should finish the active Mantok ability-grant foundation cleanly, reserve a narrow polish/QA slice if needed, then pivot back to social retention through turn-based duel tournament rewards, Rogue reputation/location risk and a clearer quest overview route.
+-- The next implementation prompt should be chosen from the current `0.2.x` task docs, with active title abilities and selected signature techniques split into separate evidence-gated follow-ups.
+-
+-Deliverables:
+-- Бійцівський куток із тренувальним `Сумлінним Допельґанґером`: копія поточного героя для level 3+ спарингу перед справжніми дуелями з гравцями. Майбутні дуелі також стартують з 3 рівня, якщо окремий балансний PR не змінить це явно.
+-- First duel invite MVP shipped in `0.1.10`: challenge, accept/decline/cancel/expire, quick rewardless resolve, replay-safe result, generated deep links via `BOT_USERNAME`, a dedicated Fighting Corner screen and a rewardless winners board. `0.1.11` adds manual targeted rematches and shareable saved-result cards without rerolls; `0.1.18` adds persistent turn-based duels with small XP-only terminal rewards and no gold/items/manatky rewards.
+-- Tournament cards without exact hidden formulas or toxic pressure.
+-- `0.2.0` Safe Gifting MVP: transfer one eligible манатка stack unit with explicit recipient acceptance, audit row, reservation checks and replay-safe terminal states.
+-- `0.2.1` Multi-Enemy Foundation: persistent PvE combat can store and resolve exactly two enemies behind a dev-only route while production starts remain one-enemy and rewards stay single-encounter.
+-- `0.2.2` Architecture Stabilization: shipped real vertical bot modules, extracted cross-cutting middleware, explicit composition root/runtime lifecycle and architecture boundary tests without gameplay, schema, callback or copy changes.
+-- `0.2.3` Threat Escalation MVP: three consecutive eligible one-enemy ordinary wins make the next eligible ordinary fight start with exactly two enemies, with stored stable escalation copy and no reward multiplication.
+-- `0.2.4` Item Tags and One-use Bandages: shipped a narrow item tag contract, one out-of-combat one-use bandage with replay-safe confirmation, Єгер bandage supply and a small authored monster-loot entry.
+-- `0.2.5` Bard Performance MVP: shipped a level 3+ Bard performance solo in Shynok or in any other current location with another active same-location character, frozen CHA/LUCK/level check, 93-minute per-location cooldown, 13-minute audience window, Shynok-only capped house gold, voluntary same-location applause/tips and no XP/items/buffs/profession engine.
+-- `0.2.6` Passage Search MVP: shipped `🔎 Пошукати` on `Спуск до Низу` and frozen passage previews, with a short timer, per-node cooldown, replay-safe ledger, tiny no-XP finds and a danger branch that starts the stored passage monster with the monster acting first.
+-- `0.2.7` Player Abilities MVP: shipped class/race ability catalogs, race action buttons, group-ready solo fallback and hidden fumble replay for persistent PvE, training and turn-based duels.
+-- `0.2.8` Achievements and Cosmetic Title Records: shipped rewardless achievement browsing from `/hero`, expanded seed unlock hooks, all/earned/locked filters, manual recalculation and persisted cosmetic title grant provenance with no power effects.
+-- `0.2.9` Daily Korchma Rounds: shipped level 3+ `Корчмарський обхід` with one yard scene, two distinct interior scenes, any-two completion, explicit Quest Table reward turn-in, replay/remort-safe `daily_actions` rows and no schema migration.
+-- `0.2.10` Active Cosmetic Title Selection: shipped `🏷️ Титули` from `/hero`, owned title browsing, one active cosmetic title pointer, clear action, remort-count stale callback protection, safe archive rows and a separate no-power hero-card display.
+-- `0.2.11` Combat Balance and Monster Signature Proof: shipped a bounded generic monster stat-curve tune, selected class ability constant tightening and presentation-only monster signature lines for stored skill/telegraph ids in active cards, multi-enemy responses and journal replay, with no reward/economy/schema/title-power changes.
+-- `0.2.12` Two-Enemy Threat Simulation and Outlier Tuning: shipped deterministic one-enemy/two-enemy simulator modes with race aggregates, backup threat pressure guards and narrow tax-dragon/siege-varenyk/race guardrail tuning, with no reward/economy/schema/achievement changes.
+-- `0.2.13` Postal Manatka Delivery MVP: shipped `📮 Пошта Квестарні` for paid delivery of 1-5 distinct eligible `itemId` stack types, 1-93 units each, to known recipients from completed transfer history, with explicit recipient acceptance, no location/online leak, sender-paid send-time fee, postal custody while packages are pending, one-week pending packages, explicit bandage/tag-blocked manual package support, in-transit/history overview rows and all-or-nothing replay-safe package movement.
+-- `0.2.14` Adventure Quest Readability and Local Failure: shipped explicit `Замовник` / `Проблема` / `Ціль` selected-card copy and authored no-reward local failure for a small risky method slice.
+-- `0.2.15` Party Session Foundation: shipped dev/flagged temporary party recruiting with opaque `/start` links, nearby private invites, replay-safe leave/cancel/expiry, leader transfer and remort cleanup, but no boss combat or rewards.
+-- `0.2.16` Party Vs One Boss MVP: shipped a dev/flagged proof from an existing temporary party into one shared boss target, with durable `party_boss_sessions` / `party_boss_actions`, one action per participant per turn, timeout defend fallback, `party-boss` leases and no rewards.
+-- `0.2.17` Big Barrel Brother Raid MVP: shipped a feature-flagged Barrel route for non-remorted level 8+ and remorted level 3+ characters on the existing party foundation and party-boss runtime, with Big-specific rules/version/copy/tuning, a narrow temporary focus-plus-fourth-turn-broad-hit rule, no hidden runtime round cap, deterministic 13-round balance probes, exact-once victory settlement through the existing Barrel success key, and no failure gold/items/success.
+-- Combat variety: guard, cooldowns, monster skills, action catalog, item tags, one-use manatky.
+-- Remort follow-ups after the `0.1.2` base loop: remort-only advanced options, richer legacy flavor and future cosmetic/social records, without hidden wipe or power snowball.
+-- Threat escalation follow-up: broader tiers, Yeger/Adventure integration, location pools and reward scaling remain deferred beyond the `0.2.3` ordinary-only MVP; see `docs/tasks/archive/queued-threat-streak-multi-enemy-fights.md` as design input, not shipped scope.
+-- Fuller production raid mechanics after the Big Barrel Brother MVP hardens, with richer contribution-aware rare/serious manatky rewards only through capped replay-safe rules.
+-
+-Done when:
+-- Гравець може потренуватися проти безпечної копії-допельґанґера перед викликом іншого гравця.
+-- Two players can complete an opt-in duel without reward duplication.
+-- Result/rematch cards are short, safe and useful in Telegram.
+-- Repeated/stale callbacks replay state instead of mutating it again.
+-- Social rewards are capped and do not create PvP/economy snowball.
+-- Remort follow-ups and raid reward paths are explicit, idempotent and do not create veteran runaway power.
+-- The data shape does not block later party combat, group raids, trading and gifting.
+-- The closeout smoke records that the shipped social-combat vertical slice has no blocker duplicate-reward, combat-lease, presence/privacy, remort-boundary or Shynok isolation regression.
+-- The accepted two-account regression/manual QA after `0.1.24` is referenced by the closeout docs.
+-
+-Non-goals for the first Phase 2 runtime slice:
+-- No item loss, gold steal, wagers, auction house, guild wars, paid power or forced PvP.
+-- No full MMO raid engine before smaller social sessions work.
+-- No Mini App dependency or planned Mini App track.
+-
+-## Phase 3 — Closed alpha
+-Мета: перевірити retention, гумор, UX, баланс і перші соціяльні взаємодії.
+-
+-Deliverables:
+-- Admin allowlist.
+-- Basic analytics events.
+-- Feedback command.
+-- Балансні симуляції.
+-- 2–3 тижні контенту.
+-- Duel/social-combat telemetry: challenge acceptance, rematch rate, stale callback rate, repeat-pair abuse signals.
+-
+-Done when:
+-- Є 30–100 тестерів.
+-- Зібрані 20+ якісних фідбеків.
+-- Визначені 5 найбільших friction points.
+-
+-## Phase 4 — Party Progression
+-Мета: виростити з Phase 2 social sessions справжні групові цілі.
+-
+-Deliverables:
+-- Party combat MVP.
+-- Real group raids with minimum participant rules, participant actions and idempotent per-player rewards.
+-- Raid rewards can include more serious/rare manatky than ordinary solo fights only through capped, contribution-aware rules.
+-- Створення, вступ і вихід із ґільдії.
+-- XP ґільдії.
+-- Бос ґільдії.
+-- Season 1 content.
+-- Cosmetic titles.
+-
+-Done when:
+-- Гравці мають групову мету на тиждень.
+-- Party/raid rewards не руйнують solo loop і новачковий досвід.
+-
+-## Phase 5 — Economy expansion
+-Мета: поглибити лут, sinks, gifting/trading і item identities, не зламавши баланс.
+-
+-Deliverables:
+-- Friendly Chest / Манатко-скриня as the first item-volume sink.
+-- Safe gifting/trading grows beyond the first Phase 2 MVP only after audit/idempotency proves stable.
+-- Postal/courier delivery shipped a first known-recipient package slice in `0.2.13`; future expansion must keep explicit delivery fees, recipient opt-in, privacy-safe recipient selection and the same reservation rules as safe gifting.
+-- Repair/enchant/reroll.
+-- Simple crafting.
+-- Item sink.
+-- Можливо, market з лімітами.
+-- Anti-abuse monitors.
+-
+-Done when:
+-- Gold inflation контролюється.
+-- У гравця є вибір, куди витрачати валюту.
+-
+-Very-later platform note:
+-- Повноцінний web-клієнт і боти для інших месенджерів на кшталт WhatsApp/Viber лишаються дуже далеким напрямом після стабілізації core loop, соціяльних систем і adapter boundaries. Це не частина `0.1.x` і не public promise.
+-
+-## Backlog фіч
+-- Achievement follow-ups: add durable ledgers for bestiary/news/memorial/nearby/location-history/Yeger-trail and lifetime class/race/title ability-use records before adding long-term counters such as 42-use achievements; add internal aggregate achievement statistics so admins can see completion counts/percentages like level 10 reached by 5% of characters and level 23 by 0%, without exposing personal data or adding rewards. Shipped catalog: `docs/design/achievements-catalog.md`; historical planning note: `docs/history/phase1/achievements-phase1.md`.
+-- Collections: «Бестіарій», «Музей Манаток».
+-- Inspiration-backed content packs із `docs/content/inspiration-content-backlog.md`: перші 10–15 монстрів, 20–30 манаток і 5–8 quest/adventure seeds у малих PR з тестами.
+-- Level-gated equipment, race/class/path-specific rare items, and safe player-to-player item exchange.
+-- Polish the suspicious outside-korchma Манчкін-скупник exchange: manual item selection, cleanup/reuse for stale previews, and future item-instance safety before shops/trading.
+-- Stronger level impact pass for resources, combat, event checks, and activity gates.
+-- Class/race/combo-aware combat actions: multiple attack variants, visible mana costs for spells, fallback actions when mana is low, and equipment/effective-stats integration so манатки eventually shape the numbers.
+-- Epic levels `14-23`: milestone abilities for races/classes in the spirit of Munchkin-style extra tricks, with visible text flavor and tested balance guardrails.
+-- Real time-of-day modifiers for tagged enemies and scenes: night strengthens night/dark enemies, while morning/day/evening can affect other encounter types without exposing exact timestamps.
+-- Повний надвірний журнал прибулих перед корчмою: durable first-arrival events і пагінований список пригодників, які вперше приєдналися або дісталися корчми. Поточна `📜 Табличка прибулих` є presence-based MVP без повної історії.
+-- Надвірна дошка рівневих досягнень: останні level-up записи, рейтинг за досягнутим рівнем і особливе оформлення 13 рівня.
+-- Стікерпак для level-up: коли персонаж бере новий рівень, бот зможе надсилати коротке привітання стікером перед або після текстового святкування.
+-- Daily tavern rumor.
+-- Корчемне соціяльне частування: пригостити їжею/питвом присутніх у корчмі після появи location presence list.
+-- Їжа в `🍻 Шинку` як gold sink із короткими бафами: один активний харчовий баф, підтвердження покупки, гумористичне меню, без stacking-а й без shortcuts до XP/loot.
+-- Бардівський виступ shipped in `0.2.5`: у `🍻 Шинку` навіть без інших пригодників або в будь-якій іншій поточній місцині з іншим активним пригодником, `93` хвилини cooldown на місцину, перевірка харизми/вдачі/рівня, малий capped house gold payout тільки в `🍻 Шинку`, voluntary applause/tips and no XP/items/buffs/profession engine. Future musical manatky or XP variants need their own task.
+-- Календарні корчемні дні: недільні/святкові гуляння, малі не-FOMO бонуси, київський час і середові жаби як власний квестарнянський мемний мотив.
+-- Player titles.
+-- Seasonal boss.
+-- Вісник ґільдії.
+-- Meme item generator with moderation.
+-- Рефералка без ігрових бонусів: запрошення для корчемного обліку, внутрішньої статистики й жартів у записах корчмаря про те, хто кого привів.
+-- Inline-bot виклики на драку для майбутнього соціяльного PvP: challenge card з інших чатів, але з opt-in, cooldowns і privacy guardrails.
+-- Moderation tools for group admins.
+-- Web dashboard for balancing.
+-- Very-later web play client and non-Telegram messenger adapters after the core bot architecture is stable.
+-
+-## Не робити до стабільної альфи
+-- Real-money power.
+-- NFT/crypto/P2E.
+-- Складний auction house.
+-- Втрата предметів у PvP.
+-- 100 рівнів і 200 класів до перевірки core loop.
+-- Lore bible на 80 сторінок до першого playable build.
++Цей документ описує поточну чергу продукту. Завершені релізи живуть у
++[`CHANGELOG.md`](../../CHANGELOG.md), [`docs/tasks/README.md`](../tasks/README.md) і
++[`docs/history/`](../history/); їх не треба повторювати тут довгим журналом.
++
++## Продуктова вісь
++
++Квестарня рухається від короткої сольної пригоди до Telegram-native соціяльної RPG:
++
++1. одна зрозуміла дія й смішний результат;
++2. персонаж, лут і довга прогресія;
++3. безпечні дуелі, подарунки й присутність;
++4. маленький гурт із спільною тактичною метою;
++5. ґільдія як ідентичність і причина повернутися;
++6. сезони, колекції та економіка лише після стабільного групового ядра.
++
++Український голос, коротка сесія, fair free-to-play, приватність і replay-safe
++мутації лишаються незмінними guardrails.
++
++## Стан фаз
++
++| Фаза | Стан | Доказ |
++| --- | --- | --- |
++| Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
++| Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
++| Closed Alpha Readiness / Season Zero Foundation | завершується | `0.3.x` |
++| Party Progression | наступна | `0.4.x` |
++| Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
++
++Наявність коду не дорівнює production-доступности. Для feature-flagged систем
++окремо фіксуються merge, migration, target environment, automated checks, ручна
++Telegram QA та kill switch у
++[`docs/operations/release-state-ledger.md`](../operations/release-state-ledger.md).
++
++## 0.3.x — завершити перед переходом
++
++Мета лінійки: залишити після себе перевірений і правдиво задокументований
++closed-alpha baseline, а не ще одну тематичну фічу.
++
++### 0.3.15 — Raid Chat release candidate
++
++Head `e223073a` вже додав CAS-safe render/redaction ack, transition-unique rejoin
++identity та частину permanent/transient/`429` Telegram transitions. До merge треба:
++
++- зберегти ці regression-тести й додати exact rejoin-vs-stale-redaction race;
++- зробити adaptive/event-driven delivery wake-up без постійного idle polling;
++- зробити async graceful stop, який дренує або безпечно завершує active tick;
++- винести callback acknowledgement поза per-chat message throttle;
++- класифікувати 403 edit як permanent і реальний grammY `HttpError` network request
++  як retryable, з точними regression-тестами;
++- пройти migration/restore check і ручну Telegram QA на 2–3 акаунтах.
++
++### 0.3.16 — Closed Alpha closeout
++
++Це вузький release/operations/doc slice без нової gameplay-економіки.
++
++Обовʼязково:
++
++- заблокувати `/restart` і, за рекомендованою політикою, `/remort` під час
++  активного багатокористувацького бою на транзакційній межі;
++- додати strict parser/repair для `PartyBossState`, orphan lease recovery і
++  гарантію, що один пошкоджений рядок не блокує scheduler;
++- закрити parity поточних class/race support abilities у PartyBoss або чесно
++  вимкнути непідтримані дії до окремого balance-verified patch;
++- додати race-тести для final-slot join, останніх concurrent actions,
++  action-vs-timeout і settlement exact-once;
++- заповнити release-state ledger для всіх default-off фіч;
++- пройти risk-based Telegram regression і записати unperformed cases;
++- зафіксувати privacy-safe product/social funnel та спосіб отримання feedback;
++- оновити README, roadmap, product/design/architecture/task/AI context docs;
++- провести коротке production observation window після rollout.
++
++`0.3.x` закрито, коли P0/P1 lifecycle і privacy ризики усунено, а кожна
++feature-flagged фіча має явний стан `enabled`, `deferred` або `retired` з доказом.
++Не обовʼязково вмикати всі прапорці.
++
++## 0.4.x — Party Progression
++
++### Архітектурний cutline
++
++- Не перетворювати `PartyBossSession` на універсальну N×M модель: вона зберігає
++  Big-Barrel-specific boss/taunt/ward/protocol semantics.
++- Не додавати новий груповий workflow у великий `FightService`.
++- Повторно використати `PartySession`, `ActiveCombatLease`, actor action atom,
++  queue/CAS/timeout і canonical-card ідеї.
++- Створити окремі `GroupCombatSession`, `GroupCombatParticipant` і
++  `GroupCombatAction` із versioned strict state, target identity, repair і
++  per-player settlement.
++- Межа першого runtime: 2–3 пригодники проти 2–3 ворогів. Масштаб понад 3×3 —
++  не прихована обіцянка.
++
++Канонічний технічний план:
++[`party-combat-evolution-plan.md`](../architecture/party-combat-evolution-plan.md).
++
++### 0.4.0 — Party-vs-many proof
++
++Feature-flagged/dev-only вертикальний доказ: наявний тимчасовий гурт, один
++authored encounter 2–3×2–3, детерміновані раунди, leases, timeouts, restart-safe
++state і canonical participant cards. Без XP, золота, манаток, квестового прогресу
++чи production rollout.
++
++### 0.4.1 — Group combat hardening
++
++Довести універсальний runtime до feature parity: ally targeting, heal/guard,
++multi-enemy AI/threat, gear/items/statuses, strict repair, restart/remort policy,
++settlement skeleton, concurrency/load tests і simulator coverage.
++
++### 0.4.2 — Guild foundation
++
++Малий соціяльний shell, який не чекає готового guild boss: унікальна
++нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
++leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
++`PartySession`; вона не володіє combat state.
++
++### 0.4.3 — First party expedition
++
++Перший production encounter 2–3×2–3 із location/quest/lore входом,
++idempotent per-player rewards/resource settlement, contribution summary,
++journal, achievements/activity events, metrics і kill switch.
++
++### 0.4.4 — Guild weekly goal
++
++Одна тижнева групова мета, що використовує звичайні PartySession +
++GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
++втрачають базову solo/party progression.
++
++### 0.4.5 — Guild cosmetic progression
++
++Невеликий XP/level шар ґільдії, косметичні milestones і season-zero recap після
++даних першої тижневої мети. Жодного прямого бойового pay-to-win бонусу.
++
++### Не входить у 0.4.x foundation
++
++- guild bank або спільний інвентар;
++- повний trade/market/auction house;
++- guild wars, forced PvP або ставки;
++- raid finder, world-scale chat або encounters понад 3×3;
++- одночасна міграція Big Barrel на новий runtime;
++- Redis/Mini App як передумова;
++- широкий рефакторинг усіх solo/duel orchestration layers.
++
++## Closed-alpha evidence, яке збираємо паралельно
++
++Технічні/performance й combat-balance вимірювання вже існують. Бракує не
++«аналітики взагалі», а вузького privacy-safe продуктового зрізу:
++
++- character creation completion;
++- D1/D7 return cohorts;
++- 3 PvE actions у перший день;
++- duel challenge → accept → rematch;
++- party create → join → start → finish;
++- guild invite → join і weekly participation після появи ґільдій;
++- stale callback, permanent delivery failure і combat repair rates;
++- категоризований feedback без зберігання зайвих персональних даних.
++
++Admin allowlist із раннього roadmap не є автоматичною вимогою. Перед closeout
++треба явно обрати: він потрібен для реального closed-alpha каналу або retired як
++невідповідний фактичному public-bot rollout.
++
++## Відкладений backlog
++
++Не загублено, але не блокує 0.4.0:
++
++- Rogue reputation/location risk;
++- ширший Hunt/Єгер loop і колекції;
++- Старий жертовник, greeting buff, їжа/consumables і resale;
++- item instances, двостороння торгівля й ринок;
++- fuller Big Barrel rewards та перенесення на generic runtime;
++- сезони, guild wars, crafting, web/Mini App.
++
++Активувати ці ідеї треба новим versioned task після даних, а не старим
++`0.2.x-*` draft verbatim.
+diff --git a/docs/qa/0.3.15-raid-chat-qa.md b/docs/qa/0.3.15-raid-chat-qa.md
+index 33a7b473..e52adf46 100644
+--- a/docs/qa/0.3.15-raid-chat-qa.md
++++ b/docs/qa/0.3.15-raid-chat-qa.md
+@@ -7,6 +7,18 @@ Record real evidence below only after running it. Do not convert this plan into
+
+ ## Automated matrix
+
++### Audit race addendum — merge blocking
++
++| Race / lifecycle | Required proof |
++|---|---|
++| Newer revision vs stale render ack | Fetch due revision N, append N+1, acknowledge N. The row remains due with desired N+1 and converges on the next tick. |
++| Revocation vs stale render ack | Fetch authorized render N, revoke through leave/remort/flag-off, then acknowledge N. Redaction remains immediately due and the next tick scrubs the card. |
++| Same-life rejoin | Join, leave, fetch due redaction, then rejoin before its acknowledgement. Rejoin emits one transition-unique event, stale redaction cannot win, and the current authorized card is due/renderable. Repeat after completed redaction too. |
++| Idle cadence | With no due rows and with the flag disabled, fake timers prove no 1.1-second repository loop. Any recovery/retention sweep is infrequent, bounded and asserted by repository-call count. |
++| Telegram failure classes | `429` persists exact `retry_after`; a real grammY `HttpError` network-request failure and 5xx retry boundedly; permanent 403/not-found send, edit and redaction reach terminal state and disappear from due scans; permanent missing-message edit repairs only when a replacement send is viable. |
++| Graceful stop | Hold a Telegram operation, call async stop and prove it waits for a safe boundary; no queued operation begins afterward and Prisma disconnect is later. |
++| Callback acknowledgement | Compose callback answer is immediate and bypasses the message gate while prompt/card sends retain per-target spacing. |
++
+ | Area | Required proof |
+ |---|---|
+ | Migration | Fresh database and an existing pre-chat database both migrate; existing recruiting/active/terminal raid rows remain readable; schema validation/generation pass; new relations cascade as designed. |
+diff --git a/docs/tasks/0.3.15-raid-chat-mvp.md b/docs/tasks/0.3.15-raid-chat-mvp.md
+index 0537ad15..a67e9846 100644
+--- a/docs/tasks/0.3.15-raid-chat-mvp.md
++++ b/docs/tasks/0.3.15-raid-chat-mvp.md
+@@ -1,10 +1,43 @@
+ # 0.3.15 — Big Barrel Raid Chat MVP
+
+-Status: implemented from verified `origin/main`; automated verification passed; manual Telegram QA pending.
++Status: release candidate. Head `e223073a` hardened delivery CAS, rejoin identity
++and initial-send failure classification with automated regressions. Unconditional
++idle polling, non-draining stop, throttled callback acknowledgement and incomplete
++403/real-network classification remain closeout blockers; manual Telegram QA is
++pending. Do not merge until the addendum below passes.
+
+ Design: `docs/design/raid-chat.md`
+ QA: `docs/qa/0.3.15-raid-chat-qa.md`
+
++## Closeout blocker addendum
++
++Audited head `af56de0d` exposed delivery-state races. Head `e223073a` added:
++
++- revision-aware render ack that leaves newer/redaction work due;
++- expected revision/reference redaction ack and transition-unique rejoin keys;
++- explicit message-not-modified, permanent send and transient/`429` paths;
++- focused repository/scheduler/rejoin/remort regressions.
++
++Keep those regressions. The remaining live-head blockers are:
++
++- scheduler construction and `setInterval(1_100)` still run four or more empty
++  DB statements per tick even while the feature is disabled;
++- `stop()` only clears the interval and does not await an active tick/gate before
++  runtime disconnects Prisma;
++- `answerCallbackQuery` still enters the per-chat message throttle;
++- a Telegram 403 during edit/redaction is not classified permanent and can retry
++  forever, while a real grammY `HttpError` with `Network request for ... failed!`
++  can be parked as permanent instead of retried.
++
++Replace the idle loop with adaptive/event-driven wake plus a documented bounded
++recovery/retention sweep; make stop async/draining; bypass the message gate for
++callback acknowledgement; classify 403 edit/redaction as permanent and real
++grammY network `HttpError` as retryable. Keep the exact leave/rejoin and superseded
++redaction regressions, and add 403 plus real-`HttpError` tests. Do not change
++schema, player copy, gameplay, rewards or version. Preserve restart recovery,
++exact `429 retry_after`, feature-off redaction and the durable DB-first delivery
++contract.
++
+ ## Preflight dependency
+
+ 1. Fetch current `origin/main` and live PR #176 metadata.
+@@ -53,6 +86,22 @@ Add a private, restart-safe chat to Big Barrel Brother. Joined participants see
+ 11. `BIG_BARREL_RAID_CHAT_ENABLED` defaults off and composes with the existing Big Barrel flag. The dev helper cannot register, appear or mutate in production.
+ 12. Migration, focused suites, Big Barrel regressions and `npm run check` pass. Manual Telegram QA is recorded as performed or pending, never inferred.
+ 13. Version/docs/news/context are current; the old draft is archived; no-achievement and expected no-lore-change decisions are explicit.
++14. A stale render acknowledgement cannot clear or park a newer desired revision.
++15. Redaction always has priority over an in-flight stale render acknowledgement;
++    access revoked by leave/remort/flag-off is immediately due for scrub.
++16. Every real same-life rejoin has transition-unique identity. A stale redaction
++    cannot beat reauthorization, and the authorized delivery becomes due without
++    waiting for another chat post.
++17. Disabled/empty operation performs no 1.1-second polling. A bounded infrequent
++    recovery/retention sweep is allowed and has a query-count test.
++18. Telegram `429` preserves the exact due time; real grammY network `HttpError`
++    and 5xx errors use bounded backoff; permanent 403/not-found send, edit and
++    redaction failures reach explicit terminal delivery state instead of retrying
++    forever.
++19. Async stop awaits an active tick to a safe boundary and starts no queued work
++    after close; runtime disconnect happens afterward.
++20. `answerCallbackQuery` bypasses the per-chat message gate while message sends
++    retain their spacing.
+
+ ## Relevant files / search terms
+
+@@ -65,7 +114,11 @@ Add a private, restart-safe chat to Big Barrel Brother. Joined participants see
+
+ ## Focused tests
+
+-Implement every row in `docs/qa/0.3.15-raid-chat-qa.md`. Use real concurrent integration calls where database uniqueness/CAS matters. Run targeted tests first, Prisma validation/generation, relevant Big Barrel simulations, then `npm run check` and `git diff --check`.
++Implement every row in `docs/qa/0.3.15-raid-chat-qa.md`, including the audit
++race addendum. Use fake timers for scheduler cadence/query-count/stop behavior and
++real concurrent integration calls where database uniqueness/CAS matters. Run
++targeted tests first, Prisma validation/generation, relevant Big Barrel
++simulations, then `npm run check` and `git diff --check`.
+
+ ## Manual Telegram QA
+
+diff --git a/docs/tasks/0.3.16-closed-alpha-closeout.md b/docs/tasks/0.3.16-closed-alpha-closeout.md
+new file mode 100644
+index 00000000..2c167cba
+--- /dev/null
++++ b/docs/tasks/0.3.16-closed-alpha-closeout.md
+@@ -0,0 +1,125 @@
++# 0.3.16 — Closed Alpha Closeout
++
++Status: proposed final `0.3.x` release after the corrected `0.3.15` raid-chat PR.
++
++## Preflight
++
++Fetch current main and live PR metadata. Start only when `0.3.15` is merged or
++the human explicitly retargets this task. Verify behavior by tree/content, not
++ancestry alone. Stop on version collision or unresolved `0.3.15` delivery/privacy
++blockers; do not stack this work onto the raid-chat PR.
++
++## Goal
++
++Leave a lifecycle-safe, repairable and truthfully documented closed-alpha
++baseline, then close `0.3.x`. This is a risk-driven closeout, not another themed
++feature release.
++
++## Scope
++
++- Transactional `/restart` guard for every active combat lease, especially
++  leader/nonleader in PartyBoss. Middleware remains explanatory only.
++- Recommended initial `/remort` policy: block while a multi-actor combat is
++  active. Preserve current solo semantics.
++- Strict versioned PartyBoss state parser and idempotent repair for malformed
++  sessions and orphan `party-boss` leases.
++- Repair releases both Varenyk Sated and Bard Inspiration when recoverable; one
++  malformed row cannot block healthy due work.
++- Party capacity and resolution race coverage: final-slot join, duplicate final
++  action, last two actions, action-vs-timeout and scheduler-vs-manual resolver.
++- Lean current-turn action/due queries where evidence shows the current full
++  historical include is on the hot path; no broad repository rewrite.
++- PartyBoss support-ability decision: fix current class/race support parity and
++  re-run balance simulations, or keep Big Barrel disabled and record the exact
++  blocker/owner before closeout. Never expose a spend-action no-op as supported.
++- Complete `docs/operations/release-state-ledger.md` from real target evidence.
++- Privacy-safe aggregate closed-alpha funnel/report and an explicit feedback /
++  admin-allowlist decision. Reuse current event/data sources; store no message
++  content and expose no individual player report.
++- Risk-based Telegram QA, backup/restore/migration proof, rollout/rollback notes,
++  production observation window and canonical documentation sync.
++
++## Non-goals
++
++- New quests, rewards, economy, guilds or party-vs-many gameplay.
++- Big Barrel migration to generic group combat.
++- Broad `FightService` decomposition, Redis or Mini App work.
++- Enabling every default-off flag.
++- Backfilling or claiming manual checks that were not run.
++- A free-text moderation platform; a safe feedback link/category route is enough.
++
++## Acceptance criteria
++
++1. Restart command and confirm callback cannot delete a leader or nonleader in an
++   active multi-actor combat. The authoritative DB transaction returns a typed
++   busy result and preserves session, roster, actions, leases and character.
++2. A delete-vs-resolve race has one safe winner and cannot create orphan leases,
++   ghost participants or a missing active session.
++3. Remort is blocked transactionally during active PartyBoss. Replays and races
++   preserve existing solo behavior and do not cancel another player's raid.
++4. Strict PartyBoss parsing rejects non-object, partial, rules/turn/party mismatch,
++   duplicate/missing roster and invalid numeric state. Repair is CAS/idempotent,
++   gives no rewards and releases recoverable leases/statuses.
++5. An orphan `party-boss` lease is repaired; a corrupt due row does not stop a
++   healthy row in the same scheduler pass.
++6. Concurrent final-slot joins never exceed capacity. Last-action/timeout races
++   advance one turn, consume each item at most once, create one activity/
++   achievement source and settle one terminal plan.
++7. Current-turn resolution does not load all historical actions. Lean due scans
++   and state/card size remain bounded on the hosted baseline.
++8. Current PartyBoss class/race support actions either have tested intended
++   effects and updated simulation evidence, or are not available in the target
++   rollout and the ledger names the follow-up owner.
++9. Every default-off surface has explicit merged/migrated/flag/automation/manual
++   QA/kill-switch evidence and final `enabled`, `deferred` or `retired` decision.
++10. A privacy-safe aggregate report covers creation, D1/D7, first-day PvE, duel
++    accept/rematch and party create/join/start/finish where data exists; missing
++    instrumentation is named, not fabricated.
++11. Feedback and admin allowlist each have an explicit implement/defer/retire
++    decision consistent with the actual closed-alpha channel.
++12. Migration/backup/restore, `npm run check`, combat simulations, focused race
++    suites, manual Telegram matrix and observation window are recorded honestly.
++13. README, roadmap, product brief, game design, technical plan, task index and
++    compact AI context match the release-state ledger and `0.4.x` cutline.
++14. Package/changelog/news/version surfaces call this the final `0.3.x` closeout;
++    no feature is described as production-playable without target evidence.
++
++## Relevant files / search terms
++
++- `registerCombatLockMiddleware`, `RestartService`, `deleteByTelegramUserId`.
++- `prepareActiveCombatForRemort`, `cancelPartyBossForRemort`, timed statuses.
++- `PrismaPartyBossRepository`, `parseState`, due scheduler, action includes.
++- `PartySession` capacity/version CAS and `ActiveCombatLease`.
++- combat analytics/activity events, `User.lastActionAt`, privacy logging.
++- `.env.example`, deploy/runtime docs and release-state ledger.
++- README, product/roadmap, product brief, game design, technical plan, AI context.
++
++## Focused tests
++
++- Prisma integration tests for leader/nonleader restart/remort, delete/resolve,
++  parser/repair/orphan leases and Sated+Inspiration release.
++- Real concurrent integration tests for final-slot join, last two/final duplicate
++  actions, action-vs-timeout and scheduler/manual overlap.
++- PartyBoss ability matrix if support parity ships; then existing 13-round
++  simulations and reward/resource regressions.
++- Query-count/load proof for 3 participants over 13–25 turns and multiple due
++  sessions; no timing-only flaky threshold.
++- Config/ledger/report tests sufficient to prove no PII/content export.
++- `npm run db:validate`, project-focused suites, `npm run check`,
++  `git diff --check`.
++
++## Manual Telegram QA
++
++Use 2–3 accounts. Cover upgrade/attunement, duel/tournament/quest, Big Barrel
++create/join/start/round/terminal, current raid roles/statuses, raid chat,
++leave/rejoin, restart/remort, stale callbacks, timeout/manual action, scheduler
++restart and feature off/on. Run backup/restore and observe the deployed target.
++Record runtime, SHA, flag values, cases passed and cases not performed.
++
++## Release surfaces
++
++- Version/package lock, changelog and spoiler-light Ukrainian news.
++- `docs/operations/release-state-ledger.md` with real evidence.
++- Canonical product/design/architecture/task/AI context docs.
++- No achievement/lore change unless a player-visible support behavior is fixed;
++  then make the explicit catalog/canon decision.
+diff --git a/docs/tasks/0.4.0-party-vs-many-proof.md b/docs/tasks/0.4.0-party-vs-many-proof.md
+new file mode 100644
+index 00000000..b7caf895
+--- /dev/null
++++ b/docs/tasks/0.4.0-party-vs-many-proof.md
+@@ -0,0 +1,100 @@
++# 0.4.0 — Party vs Many Proof
++
++Status: proposed first `0.4.x` task after accepted `0.3.16` closeout.
++
++Architecture: `docs/architecture/party-combat-evolution-plan.md`
++Design: `docs/design/guilds-and-party-progression.md`
++
++## Goal
++
++Prove a separate, reusable and restart-safe 2–3 player versus 2–3 enemy combat
++runtime through one feature-flagged non-production encounter with no economy.
++
++## Scope
++
++- Reuse an existing eligible `PartySession` roster.
++- Add `GroupCombatSession`, `GroupCombatParticipant` and `GroupCombatAction`
++  persistence plus safe migration/indexes.
++- One strict versioned state/result schema and parser/repair path.
++- One authored deterministic 2–3×2–3 encounter behind default-off and
++  non-production/dev entry points.
++- Freeze same-life actor/equipment/resource snapshots atomically with leases.
++- One explicit self/ally/enemy target action per living participant per turn.
++- Unique actor/turn queue, optimistic version CAS, deterministic resolver and
++  server-owned timeout fallback.
++- One canonical private participant card with edit/repair convergence.
++- Bounded recap and contribution counters, but no settlement rewards.
++- Central typed combat-lease owner/repair registry including the new kind.
++- Unit/integration/race/load tests, simulation seed and docs.
++
++## Non-goals
++
++- Production rollout, XP, gold, items, quest progress or achievements.
++- Guild schema or UI.
++- Big Barrel migration or behavior/copy/balance changes.
++- Full parity for every ability/item; unsupported actions are hidden with an
++  explicit inventory and follow-up contract for `0.4.1`.
++- >3 players, >3 enemies, public matchmaking, raid finder or group chat.
++- Broad solo/duel/FightService refactor.
++
++## Acceptance criteria
++
++1. Two and three eligible joined participants can start the dev encounter with
++   two and three enemies respectively; invalid party size/life/busy states fail
++   without partial leases or rows.
++2. Session/participant/action identities are relational and strict. Malformed or
++   rules-mismatched state is CAS-invalidated without rewards; repair releases all
++   recoverable locks and statuses.
++3. An action names an allowed target and server revalidation rejects dead,
++   missing, wrong-side and stale-turn targets without mutation.
++4. Exactly one action per actor/turn persists. Last-action, duplicate,
++   action-vs-timeout and concurrent scheduler races resolve at most once.
++5. Resolver output is deterministic for stored state/actions/RNG seed and keeps
++   stable actor/enemy order. Terminal rules cover victory, defeat and no living
++   target without reviving a zero-HP actor.
++6. Timeout fallback spends no item/scarce resource. Restart before/after action,
++   resolution and delivery converges from DB state.
++7. `/restart` and `/remort` are transactionally blocked for every participant.
++   Leave/kick/leader changes cannot delete or mutate the active combat roster.
++8. Each participant owns one canonical private card. Telegram edit/send failure
++   never rolls back combat; later refresh repairs safely without message spam.
++9. The proof writes no XP, gold, inventory, quest, achievement or ordinary
++   activity reward. Terminal result is explicit `rewardless-proof`.
++10. Due scans are lean, resolution loads current-turn actions only, recap/state/
++    cards are bounded and a 3×3 25-turn load fixture stays within documented
++    query/size budgets without flaky wall-clock assertions.
++11. Existing solo, duel and PartyBoss tests/simulations are unchanged and green.
++12. The flag defaults off; the dev route cannot register or mutate in production.
++
++## Relevant files / search terms
++
++- Prisma party/boss/session/action models and migrations.
++- `ActiveCombatLease`, restart/remort/repair dispatch.
++- `resolveActorCombatAction`, `CombatTargetScope`, effective snapshots, RNG.
++- PartyBoss turn CAS/timeout; turn-duel canonical card delivery/strict repair.
++- scheduler runtime lifecycle and feature flag registration.
++
++## Focused tests
++
++- Domain resolver: 2×2, 3×3, target validation, deaths, terminal order,
++  deterministic replay and bounded recap.
++- Prisma: start atomicity, lease conflict, unique action, last-action races,
++  timeout overlap, repair/orphan leases and restart/remort.
++- Bot: flag/dev isolation, callback bounds/staleness and canonical card repair.
++- Load/query-count: multiple concurrent 3×3 sessions, 13–25 turns.
++- Full existing combat regression, schema validation/generation,
++  `npm run check`, `git diff --check`.
++
++## Manual Telegram QA
++
++Use three local accounts. Start 2×2 and 3×3, choose different targets, allow one
++timeout, restart between queue/resolution/delivery, try stale buttons and
++restart/remort, kill different actors/enemies and finish win/loss. Confirm no
++resources/rewards changed and no dev surface exists in production-like config.
++
++## Release surfaces
++
++- `0.4.0` version/changelog and explicit non-production news wording only if the
++  repository convention exposes dev proofs there.
++- Architecture/design/task/QA/developer setup and compact AI context.
++- No achievement, lore or quest change for a hidden rewardless proof.
+diff --git a/docs/tasks/0.4.1-group-combat-hardening.md b/docs/tasks/0.4.1-group-combat-hardening.md
+new file mode 100644
+index 00000000..02f96b50
+--- /dev/null
++++ b/docs/tasks/0.4.1-group-combat-hardening.md
+@@ -0,0 +1,82 @@
++# 0.4.1 — Group Combat Hardening
++
++Status: proposed follow-up after the accepted rewardless `0.4.0` proof.
++
++## Goal
++
++Bring the generic 3×3-bounded runtime to current combat feature parity and leave
++an idempotent per-player settlement skeleton ready for the first production
++expedition.
++
++## Scope
++
++- Pure deterministic support/target resolver for current self/ally scopes.
++- Current class/race recipe parity: heal, guard, response reduction, counter,
++  cooldown, mana, fumble and unavailable-action semantics.
++- Multi-enemy AI/targeting, status and threat rules authored for the proof bounds.
++- Supported gear/item actions with explicit target policy and exact-once consume.
++- Participant resource/contribution/reward settlement-plan rows with a zero-reward
++  proof policy and independently retryable receipts.
++- Full strict parser/repair/lease/status lifecycle and scheduler observability.
++- Query/card/state budgets, concurrency matrix and combat simulator coverage.
++- Player-facing action/readability copy only on the flagged proof surface.
++
++## Non-goals
++
++- Production reward values or economy changes.
++- New classes/races/abilities/items.
++- Guilds, matchmaking, >3×3 or Big Barrel migration.
++- Making every solo-specific threat/escalation rule generic.
++
++## Acceptance criteria
++
++1. Priest, Bard, Varenyk-mancer, Dwarf, Domovyk and Molfar matrix tests prove
++   intended target/effect behavior; no supported action spends a turn for no
++   authored effect.
++2. Lowest-HP and all-allies targeting is deterministic with stable tie-breaks;
++   dead/ineligible targets never receive support.
++3. Enemy AI chooses only legal living targets, handles multiple deaths and
++   preserves stored deterministic replay.
++4. Supported item/gear use is atomic with action claim and consumed once under
++   duplicate/last-action/timeout races.
++5. Terminal resolution creates one immutable settlement plan. Each participant
++   zero-reward receipt replays independently; partial retry cannot mutate combat.
++6. Contribution includes damage, healing, guard prevented, control, damage taken
++   and committed actions without double counting.
++7. Parser/repair covers every new recipe/status/target form and releases all
++   frozen timed states at terminal/invalid repair.
++8. Simulator covers classes/races, 2×2/3×3, 13/25 turns and target policies with
++   explicit invariants rather than a single win-rate target.
++9. Concurrent sessions meet documented query/state/card budgets. No due scan or
++   action submit loads unbounded history or sends a new card each round.
++10. Existing solo, turn-duel and Big Barrel behavior remains green; any shared
++    primitive change includes parity tests and fresh Big Barrel balance evidence.
++
++## Relevant files / search terms
++
++- `CombatTargetScope`, player abilities/recipes and actor action resolution.
++- solo/duel support application and PartyBoss gear support.
++- group session participant/action/settlement repositories.
++- combat timed statuses, item consume, contribution and simulations.
++
++## Focused tests
++
++- Table-driven domain ability/target matrix and enemy AI determinism.
++- Integration races for item consume, timeout, terminal plan and per-participant
++  settlement replay.
++- Parser property/fixture tests for supported state variants and malformed data.
++- Multi-session query-count/size budget and full combat simulations.
++- `npm run check`, schema validation and `git diff --check`.
++
++## Manual Telegram QA
++
++With three accounts, exercise every supported target scope, support build,
++multi-death turn, item/gear action, timeout, restart and terminal repair on the
++flagged proof. Confirm contribution copy is truthful and no reward is granted.
++
++## Release surfaces
++
++- Version/changelog, task/QA, architecture and compact AI context.
++- Player news only if the proof is intentionally exposed to testers; otherwise
++  do not market a hidden dev surface.
++- Explicit no-new-achievement and no-lore decision.
+diff --git a/docs/tasks/0.4.2-guild-foundation.md b/docs/tasks/0.4.2-guild-foundation.md
+new file mode 100644
+index 00000000..9224502e
+--- /dev/null
++++ b/docs/tasks/0.4.2-guild-foundation.md
+@@ -0,0 +1,89 @@
++# 0.4.2 — Guild Foundation
++
++Status: proposed small social shell after group-combat hardening.
++
++Design: `docs/design/guilds-and-party-progression.md`
++
++## Goal
++
++Let 3–5 friends create a durable small guild identity and repeatedly form an
++ordinary temporary party, without adding shared economy or combat power.
++
++## Scope
++
++- `Guild`, `GuildMember`, durable invite and audit persistence with safe indexes.
++- Normalized unique display name, emoji crest and bounded short description.
++- Previewed replay-safe guild creation gold sink.
++- Invite/accept/decline/cancel, join/leave, leader transfer and officer/member
++  role changes.
++- One-guild membership policy with explicit same-life/remort identity.
++- Guild roster without exact online/location tracking.
++- Create a normal `PartySession` and privately invite eligible guild members.
++- Rate limits, stale callback safety, combat-flow compatibility, moderation-ready
++  audit and default-off rollout flag.
++- Read-only privacy-safe funnel counters and Telegram QA.
++
++## Non-goals
++
++- Guild bank, shared items/gold, trade or market.
++- Guild XP, weekly objective, boss, buffs or reward power.
++- Guild chat, alliances, wars, territory, PvP or matchmaking.
++- Making guild membership required for party combat.
++- Coupling Guild rows to active GroupCombat rows.
++
++## Acceptance criteria
++
++1. Eligible player sees creation preview and pays the exact configured sink once;
++   duplicate/stale confirm replays the same guild without a second charge.
++2. Unicode/name normalization, length, reserved-name and uniqueness rules are
++   server-owned and race-safe; two concurrent creates cannot claim one name.
++3. Invites reveal no private location/online state and cannot spam indefinitely.
++   Accept/decline/cancel/expire is replay-safe and one player cannot join two
++   guilds through races.
++4. Leader/officer/member permissions are enforced transactionally. A guild never
++   becomes leaderless; leave/delete flows require explicit transfer or safe
++   deterministic succession.
++5. Remort preserves guild membership but refreshes current character-life display
++   safely; active party/combat remains tied to its frozen life.
++6. Guild leave/kick/restart cannot cascade-delete an existing PartySession or
++   GroupCombatSession. Active combat blockers remain authoritative.
++7. Creating a party from guild UI calls the ordinary PartySession contract; a
++   nonmember may still join through normal allowed routes and the guild owns no
++   combat state.
++8. Roster shows only safe identity/role data, not exact activity timestamp or
++   location. Audit/logs contain no invite token or private Telegram identity.
++9. New player-visible actions have explicit rewardless achievement and lore/
++   quest decisions; create/join copy follows Ukrainian style and shows timers.
++10. Flag defaults off, migration/rollback is proven and manual 3-account QA is
++    recorded before target enablement.
++
++## Relevant files / search terms
++
++- User/Character life identity, remort and restart.
++- PartySession invitation/privacy patterns and normalized presence identity.
++- transfer/postal invite dedupe/audit patterns.
++- gold mutation/receipt helpers, callback token conventions and environment flags.
++- achievements catalog, Lore Board, Chronicles and quest overview decisions.
++
++## Focused tests
++
++- Normalization/uniqueness and concurrent create/accept races.
++- Gold exact-once, invite lifecycle, role permissions/succession and remort.
++- Guild leave/kick/restart while party/group combat exists.
++- Privacy/logging, callback bounds/staleness and production flag isolation.
++- Migration, `npm run check`, `git diff --check`.
++
++## Manual Telegram QA
++
++Use three accounts: create, duplicate name, invite/decline/reinvite/accept, role
++changes, leadership transfer, leave/rejoin, remort, blocked combat transitions
++and forming a normal party. Inspect privacy, gold, stale buttons, timers and
++feature off/on. Record target flag and rollback evidence.
++
++## Release surfaces
++
++- Version/changelog and spoiler-light Ukrainian news.
++- Design/task/QA, setup/playtesting, roadmap and compact AI context.
++- Decide one or two rewardless achievements (for example first create/first join)
++  without power. Add Lore/Chronicle copy only if it introduces canonical guild
++  terminology; do not invent a guild boss or season promise.
+diff --git a/docs/tasks/0.4.3-party-expedition-mvp.md b/docs/tasks/0.4.3-party-expedition-mvp.md
+new file mode 100644
+index 00000000..1c457ad7
+--- /dev/null
++++ b/docs/tasks/0.4.3-party-expedition-mvp.md
+@@ -0,0 +1,78 @@
++# 0.4.3 — Party Expedition MVP
++
++Status: proposed first production consumer of the generic group-combat runtime.
++
++## Goal
++
++Ship one authored, replay-safe 2–3 player versus 2–3 enemy expedition that gives
++a small reason to regroup without replacing or inflating the solo loop.
++
++## Scope
++
++- One canonical location/quest/lore entry with clear eligibility and party flow.
++- One authored encounter using only `0.4.1`-proven actions/targets/statuses.
++- Tuned 2-player and 3-player variants within the same rules version.
++- Idempotent per-player resource and capped reward settlement.
++- Contribution policy that includes support and inactivity guardrails.
++- Bounded journal/recap, participant result cards and safe Chronicle event.
++- Rewardless achievements as explicitly approved; no hidden reward hooks.
++- Simulator/balance report, funnel/repair/delivery metrics, default-off flag,
++  kill switch, rollback and staged Telegram rollout.
++
++## Non-goals
++
++- Guild-only access or weekly guild progression.
++- Rare economy-defining loot, unlimited farming or participant-count multiplier.
++- Big Barrel migration, raid finder, >3×3 or new chat platform.
++- New general quest engine or broad monster/item catalog expansion.
++
++## Acceptance criteria
++
++1. Eligible 2/3-player parties can discover, preview and start the encounter;
++   blocked players get canonical reason/timer without partial state.
++2. Two- and three-player tuning has a documented simulator envelope across
++   classes/races and does not require one mandatory support class.
++3. One terminal plan settles participant resources and capped rewards exactly
++   once. Partial retries converge; duplicate callbacks/restarts cannot duplicate
++   XP, gold, items, quest progress, achievements or Chronicle rows.
++4. Contribution credit covers damage/heal/guard/control/damage taken/actions and
++   excludes a zero-action passenger without publicly shaming them.
++5. Reward budget is per encounter, not per enemy or unbounded participant count,
++   and is compared with current solo/hour and Big Barrel rewards.
++6. Restart/remort/timeout/repair/Telegram failures preserve combat and settlement
++   invariants. Kill switch blocks fresh starts but lets active sessions finish or
++   follow an explicit safe policy.
++7. `🗺️ Квести`, location routing, Lore Board/canon and achievements catalog have
++   explicit updates; player copy remains compact Ukrainian and avoids hidden odds.
++8. Funnel, timeout, repair, delivery and settlement metrics contain no message
++   content or individual public ranking.
++9. Automated suites, simulations, migration/restore and 3-account Telegram QA
++   pass before production flag enablement; observation and rollback are recorded.
++
++## Relevant files / search terms
++
++- Group combat session/participant/action/settlement.
++- quest overview/location/lore/activity/achievement integration.
++- reward budget, effective resources, loot idempotency and Chronicle privacy.
++- flags, release ledger, playtesting and simulator commands.
++
++## Focused tests
++
++- Eligibility/start and 2/3-player authored encounter domain fixtures.
++- Terminal settlement replay, participant retry and reward budget invariants.
++- Restart/remort/timeout/repair and kill-switch behavior.
++- Quest/lore/achievement/activity exact-once integration.
++- Simulator matrix, migration, `npm run check`, `git diff --check`.
++
++## Manual Telegram QA
++
++Use three accounts and varied roles. Discover, form 2/3-player parties, play
++win/loss/timeout, exercise support contribution, restart during settlement,
++repair one Telegram card, toggle kill switch and verify quest/lore/Chronicle/
++reward state. Record flags, SHA, runtime and unperformed cases.
++
++## Release surfaces
++
++- Version/changelog, player news with one short in-world paragraph.
++- Task/QA/design/balance report, quest/lore/achievement decisions, playtesting,
++  release-state ledger and compact AI context.
+diff --git a/docs/tasks/0.4.4-guild-weekly-goal.md b/docs/tasks/0.4.4-guild-weekly-goal.md
+new file mode 100644
+index 00000000..cb97d7e9
+--- /dev/null
++++ b/docs/tasks/0.4.4-guild-weekly-goal.md
+@@ -0,0 +1,67 @@
++# 0.4.4 — Guild Weekly Goal
++
++Status: proposed after measured `0.4.3` party-expedition rollout.
++
++## Goal
++
++Give a small guild one optional weekly reason to form ordinary parties, using the
++same expedition/runtime and social/cosmetic-first rewards.
++
++## Scope
++
++- One Kyiv/Holocene weekly period and one server-owned goal definition.
++- Eligible completed party expeditions write replay-safe guild contribution
++  receipts for current members.
++- Compact guild progress/recap and participant-safe contribution wording.
++- One capped cosmetic/social completion result and safe Chronicle recognition.
++- Late join/leave/kick/remort policy, admin repair and period rollover.
++- Funnel/economy monitoring, default-off rollout and kill switch.
++
++## Non-goals
++
++- New combat engine, guild boss or guild-only encounter.
++- Guild bank, shared items, power buff, wars, leaderboard pressure or FOMO loss.
++- Locking non-guild players out of ordinary party expeditions.
++- Full guild XP tree; that follows only after observed weekly participation.
++
++## Acceptance criteria
++
++1. One eligible terminal expedition contributes once to one guild/period despite
++   callback, settlement, worker and restart retries.
++2. Membership at the documented contribution boundary is authoritative. Late
++   join/leave/kick/remort cannot duplicate or steal completed contribution.
++3. Support participants receive fair credit under the expedition policy; public
++   copy does not shame low activity or reveal private timestamps.
++4. Completion result is capped, social/cosmetic first and exact-once. It does not
++   change combat stats or multiply expedition rewards.
++5. Period rollover is timezone-tested and old cards become read-only/replay-safe.
++6. Admin repair recomputes from receipts without granting new combat/reward rows.
++7. Guild kill switch blocks new weekly writes/UI while ordinary party expedition
++   remains available and existing evidence is retained.
++8. Metrics show participation/completion without message content or public
++   individual rankings; rollout evidence updates the release-state ledger.
++
++## Relevant files / search terms
++
++- Guild membership/audit and GroupCombat participant settlement receipts.
++- tournament/daily/weekly period helpers and replay-safe reward claims.
++- Chronicles, achievements, privacy, release flags and repair commands.
++
++## Focused tests
++
++- Period boundaries and terminal contribution exact-once races.
++- Membership join/leave/kick/remort boundaries and admin repair.
++- Completion reward replay, kill switch and ordinary expedition isolation.
++- Privacy/logging, migration, `npm run check`, `git diff --check`.
++
++## Manual Telegram QA
++
++Use a three-member guild plus one nonmember. Complete expeditions across partial
++and full goal progress, repeat callbacks, change membership, cross a local week,
++repair/restart and toggle the goal flag. Confirm nonmembers keep ordinary access.
++
++## Release surfaces
++
++- Version/changelog and spoiler-light Ukrainian news.
++- Task/QA/design, achievement/lore/Chronicle decisions, release ledger,
++  playtesting and compact AI context.
+diff --git a/docs/tasks/0.4.5-guild-cosmetic-progression.md b/docs/tasks/0.4.5-guild-cosmetic-progression.md
+new file mode 100644
+index 00000000..7b47403b
+--- /dev/null
++++ b/docs/tasks/0.4.5-guild-cosmetic-progression.md
+@@ -0,0 +1,76 @@
++# 0.4.5 — Guild Cosmetic Progression
++
++Status: proposed, data-gated after at least one observed `0.4.4` weekly period.
++
++## Goal
++
++Turn repeated small-group participation into visible guild history and cosmetic
++milestones without combat power, shared item custody or FOMO pressure.
++
++## Activation gate
++
++Before implementation, review privacy-safe `0.4.3`/`0.4.4` participation,
++completion, repeat-party and timeout data. Retarget or defer this task if the
++weekly goal does not produce a healthy repeated social ritual.
++
++## Scope
++
++- One small deterministic guild XP/level curve from existing exact-once weekly
++  completion/contribution receipts.
++- Bounded cosmetic milestones: crest frames/markers, profile line, Chronicle
++  recap or rewardless titles as separately approved.
++- Read-only guild history/next-milestone view with no hidden odds.
++- Replay-safe backfill from canonical receipts, period repair and remort/member
++  boundary policy.
++- Privacy-safe aggregate metrics, flag/kill switch and staged rollout.
++
++## Non-goals
++
++- Combat stats, resource recovery, reward multipliers or paid power.
++- Guild bank/items/gold, crafting, market or trade.
++- Guild boss, wars, territory, season pass or infinite level grind.
++- Retroactive credit from noncanonical chat/activity noise.
++
++## Acceptance criteria
++
++1. XP derives only from canonical eligible weekly receipts and is exact-once under
++   retries, backfill, repair and concurrent period settlement.
++2. Curve and caps are documented, bounded and simulation-tested; no individual
++   member can create an uncapped farm or participant-count multiplier.
++3. Every milestone is cosmetic/social only and has explicit achievement, title,
++   Lore/Chronicle and copy decisions.
++4. Join/leave/kick/remort cannot duplicate or remove already-earned guild history;
++   personal history/privacy remains separate.
++5. Backfill is idempotent, resumable and produces the same total as live receipt
++   application without granting gameplay rewards.
++6. UI shows current level/progress/next milestone compactly and does not expose
++   exact private contribution timestamps or shame inactive members.
++7. Kill switch hides fresh progression writes/UI as documented while ordinary
++   guild membership, party and expedition flows remain intact.
++8. Rollout proceeds only after recorded metrics, migration/restore, automated
++   checks and three-account Telegram QA.
++
++## Relevant files / search terms
++
++- Guild weekly contribution/completion receipts and period helpers.
++- achievement/title provenance, Chronicle privacy and cosmetic presentation.
++- replay-safe backfill/repair patterns, flags and release-state ledger.
++
++## Focused tests
++
++- Curve/cap simulation and exact-once live/backfill parity.
++- Period settlement, concurrent repair and membership/remort boundaries.
++- Cosmetic-only invariant, privacy/logging and kill-switch isolation.
++- Migration, `npm run check`, `git diff --check`.
++
++## Manual Telegram QA
++
++Use a three-member guild across prepared historical/current weekly receipts.
++Open progress, cross milestones, retry/backfill/restart, change membership/remort
++and toggle the flag. Confirm no combat/resources/items/rewards change.
++
++## Release surfaces
++
++- Version/changelog and spoiler-light Ukrainian news.
++- Task/QA/design/balance curve, achievement/title/Lore/Chronicle decisions,
++  release ledger, playtesting and compact AI context.
+diff --git a/docs/tasks/README.md b/docs/tasks/README.md
+index 3861c531..c1bac6c9 100644
+--- a/docs/tasks/README.md
++++ b/docs/tasks/README.md
+@@ -60,9 +60,11 @@ Recently shipped:
+ - [0.3.4-quest-overview-route.md](0.3.4-quest-overview-route.md) — compact read-only `🗺️ Квести` overview route over existing quest surfaces, keeping `/quest` and `Стіл зі справами` as the full Quest Hub.
+ - [0.3.5-performance-p0-hardening.md](0.3.5-performance-p0-hardening.md) — shipped performance instrumentation and bounded DailyAction/Yeger/Korchma hot paths without player-facing balance changes.
+
+-Active release candidate and near-term drafts:
++## Active release candidate and planned sequence
+
+-Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0.2.x` filenames below are placeholders only until a human explicitly retargets them.
++`0.3.x` now has a closeout cutline. Do not activate an old `0.2.x-*` draft
++verbatim. After the corrected raid-chat release candidate, complete one risk-led
++closeout and start generic party-vs-many work on `0.4.x`.
+
+ - [0.3.6-bureaucramancer-personal-protocol-13b.md](0.3.6-bureaucramancer-personal-protocol-13b.md) — shipped Bureaucramancer `📄 Форма 13-А` Big Barrel recruiting action that opens `Протокол 13-З`; merge is proven by PR #158, while deployment and refreshed full manual QA remain separately unproven.
+ - [archive/0.3.x-bureaucramancer-personal-protocol.md](archive/0.3.x-bureaucramancer-personal-protocol.md) — superseded planning draft retained for history; do not implement.
+@@ -75,11 +77,18 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
+ - [0.3.13-bugfix-release.md](0.3.13-bugfix-release.md) — patch-first fixes for Bard and quest-fight location preservation, complete duel quest progress, level/remort-aware quest encounters, Doppelganger block quotes and explicit barrel-beer instructions.
+ - [0.3.14-bard-inspiration-and-raid-lament.md](0.3.14-bard-inspiration-and-raid-lament.md) — Bard performances grant hybrid-duration Inspiration, while the existing Big Barrel surface lets one Bard commit a replay-safe Lament when its music slot is free.
+ - [0.3.x-test-suite-runtime-p0.md](0.3.x-test-suite-runtime-p0.md) — internal maintenance that removes measured content/date hot spots, bounds integration-file parallelism at two workers, and makes local/CI validation use the same named phases without reducing test coverage.
+-- [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — implemented Big Barrel Raid Chat MVP with participant-only durable chat, exact ForceReply composition, transactional system events and restart-safe delivery/redaction recovery; manual Telegram QA remains pending.
++- [0.3.15-raid-chat-mvp.md](0.3.15-raid-chat-mvp.md) — release candidate; head `e223073a` hardened delivery CAS and same-life rejoin plus part of Telegram failure classification, while unconditional idle polling, non-draining stop, throttled callback acknowledgement and 403/real-network classification gaps still block closeout; manual Telegram QA remains required.
++- [0.3.16-closed-alpha-closeout.md](0.3.16-closed-alpha-closeout.md) — proposed final `0.3.x` lifecycle/repair/race/rollout/docs closeout after the corrected raid chat lands.
++- [0.4.0-party-vs-many-proof.md](0.4.0-party-vs-many-proof.md) — proposed default-off rewardless 2–3 player versus 2–3 enemy proof on a separate generic group-combat runtime.
++- [0.4.1-group-combat-hardening.md](0.4.1-group-combat-hardening.md) — proposed ability/target/item/AI/repair/settlement hardening before rewards.
++- [0.4.2-guild-foundation.md](0.4.2-guild-foundation.md) — proposed small guild identity, membership/roles/invites and ordinary party creation without bank, power or boss.
++- [0.4.3-party-expedition-mvp.md](0.4.3-party-expedition-mvp.md) — proposed first production 2–3×2–3 expedition with capped per-player settlement.
++- [0.4.4-guild-weekly-goal.md](0.4.4-guild-weekly-goal.md) — proposed optional weekly guild goal using ordinary party expeditions.
++- [0.4.5-guild-cosmetic-progression.md](0.4.5-guild-cosmetic-progression.md) — proposed data-gated cosmetic guild XP/history after observed weekly participation, with no combat power or shared custody.
+ - [archive/0.2.x-raid-in-game-chat.md](archive/0.2.x-raid-in-game-chat.md) — superseded raid-chat planning draft retained for history; do not implement.
+ - [0.3.x-varenyk-mancer-sated-support.md](0.3.x-varenyk-mancer-sated-support.md) — superseded planning draft retained for history; `0.3.12` is the active implementation record.
+-- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — private durable Rogue reputation and location-exposure consequences without public shame or item theft.
+-- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — draft `Хто поруч` social greeting that can give a tiny bounded target support bonus, starting from a 93-minute same actor-target repeat wait.
++- [0.3.x-rogue-reputation-location-risk.md](0.3.x-rogue-reputation-location-risk.md) — deferred private Rogue reputation/location-risk input; useful later, not a pre-0.4 blocker.
++- [0.2.x-nearby-greeting-buff.md](0.2.x-nearby-greeting-buff.md) — deferred social-support input; retarget before implementation.
+
+ - [0.1.20-authored-quest-resolutions.md](0.1.20-authored-quest-resolutions.md) — authored quest methods for Adventure Choice, starter shawarma and cellar mouse.
+ - [0.1.21-combat-action-foundation.md](0.1.21-combat-action-foundation.md) — shared combat ability foundation, defend, unavailable-skill no-op and short solo/training turn deadlines.
+@@ -121,15 +130,15 @@ Post-`0.3.0`, feature work continues on the `0.3.x` line. Any remaining draft `0
+ - [0.2.29-barrel-beer-tutorial.md](0.2.29-barrel-beer-tutorial.md) — level 2-7 Barrel/beer tutorial quest using existing quest, Barrel raid, Shynok beer and item systems.
+ - [0.2.x-combat-application-decomposition.md](0.2.x-combat-application-decomposition.md) — conditional follow-up if `FightService` needs narrower combat workflow ownership before threat escalation.
+ - [0.2.x-dice-poker-rework.md](0.2.x-dice-poker-rework.md) — archived draft activated as [0.2.27-dice-poker-rework.md](0.2.27-dice-poker-rework.md).
+-- [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — draft future prerequisite for party sessions; docs-only until explicitly activated.
+-- [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — draft future bridge from temporary party sessions to real raids; docs-only until explicitly activated.
+-- [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — draft future Big Barrel Brother group raid task after temporary party and one-boss proof; docs-only until explicitly activated.
++- [0.2.x-raid-party-session-foundation.md](0.2.x-raid-party-session-foundation.md) — superseded by shipped `0.2.15`; archive, do not implement.
++- [0.2.x-party-vs-one-boss.md](0.2.x-party-vs-one-boss.md) — superseded by shipped `0.2.16`; archive, do not implement.
++- [0.2.x-big-barrel-brother-group-raid.md](0.2.x-big-barrel-brother-group-raid.md) — post-MVP Big Barrel input only; generic party-vs-many follows the `0.4.x` architecture plan.
+ - [0.3.2-kharakternyk-ward-signs.md](0.3.2-kharakternyk-ward-signs.md) — activated from the former `0.2.x` Kharakternyk Big Barrel ward-sign draft.
+ - [0.2.x-old-altar-blessings-mvp.md](0.2.x-old-altar-blessings-mvp.md) — draft future `🪨 Старий жертовник` MVP from the Korchma Yard: gold offerings create `Благовоління`, level 3+ Priests spend mana/favor on one short selected-stat blessing, and direct Priest aid remains unchanged.
+ - [0.2.x-old-altar-manatka-offerings.md](0.2.x-old-altar-manatka-offerings.md) — draft follow-up for safe irreversible manatka offerings at the Old Altar; docs-only and explicitly separate from the gold-only MVP.
+ - [0.2.x-old-root-grove-location.md](0.2.x-old-root-grove-location.md) — optional future location split if the altar needs its own `Тихий Корінь` / root-grove presence after playtest.
+ - [0.2.x-lore-board.md](0.2.x-lore-board.md) — draft future `Дошка корчми` / news-corner `📖 Перекази` section backed by current Kvestarnia canon seed content; docs-only until explicitly activated.
+-- [future-durable-resource-recovery-notifications.md](future-durable-resource-recovery-notifications.md) — queued follow-up for server-initiated full-life recovery notifications that are not triggered by pressing `/hero`, `/fight` or other buttons.
++- [future-durable-resource-recovery-notifications.md](future-durable-resource-recovery-notifications.md) — implemented by PR #159, but production rollout/copy/Telegram QA remains unresolved; rename/archive after the ledger decision.
+ - [0.2.x-dense-bandage-field-kit.md](0.2.x-dense-bandage-field-kit.md) — archived draft activated as [0.2.22-dense-bandage-field-kit.md](0.2.22-dense-bandage-field-kit.md).
+ - [0.2.x-shynok-resale-and-korchmar-recycling.md](0.2.x-shynok-resale-and-korchmar-recycling.md) — draft future Shynok resale and Korchmar recycling loop for sold manatky.
+ - [0.2.x-daily-korchma-rounds.md](0.2.x-daily-korchma-rounds.md) — archived draft for the shipped [0.2.9-daily-korchma-rounds.md](0.2.9-daily-korchma-rounds.md) route.
+@@ -145,4 +154,6 @@ After a versioned task is done:
+ 2. Produce a compact handoff.
+ 3. Start the next versioned task in a new Codex thread.
+
+-After `0.1.25`, do not keep adding ordinary feature slices to `0.1.x`; use `0.2.0-safe-gifting-mvp.md` unless an emergency hotfix explicitly reopens the line.
++After `0.3.16`, do not keep adding ordinary thematic slices to `0.3.x`. Start
++`0.4.0-party-vs-many-proof.md` in a fresh thread unless an evidence-backed
++emergency hotfix explicitly reopens the line.

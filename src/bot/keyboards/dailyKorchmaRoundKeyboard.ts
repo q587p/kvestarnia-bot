@@ -107,10 +107,12 @@ export function buildDailyKorchmaRoundSceneKeyboard(
     }
   }
 
+  const returnTarget = returnTargetFromLocation(result.scene.locationId);
+
   return keyboard
     .text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken))
     .row()
-    .text("🍺 До зали", makePlaceCallbackData("hall"));
+    .text(returnTarget.label, makePlaceCallbackData(returnTarget.place));
 }
 
 export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStepResult): InlineKeyboard {
@@ -121,11 +123,9 @@ export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStep
 
     if (result.state === "wrong-location") {
       const keyboard = new InlineKeyboard();
-      const place = placeCallbackFromLocation(result.scene.locationId);
+      const returnTarget = returnTargetFromLocation(result.scene.locationId);
 
-      if (place) {
-        keyboard.text("📍 До місцини", makePlaceCallbackData(place)).row();
-      }
+      keyboard.text(returnTarget.label, makePlaceCallbackData(returnTarget.place)).row();
 
       return keyboard.text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken));
     }
@@ -151,36 +151,37 @@ export function buildDailyKorchmaRoundStepKeyboard(result: DailyKorchmaRoundStep
   const keyboard = new InlineKeyboard()
     .text("🧾 До обходу", makeDailyKorchmaRoundOverviewCallbackData(result.offer.dayToken))
     .row();
+  const returnTarget = returnTargetFromLocation(result.scene.locationId);
 
-  keyboard.text("🍺 До зали", makePlaceCallbackData("hall"));
+  keyboard.text(returnTarget.label, makePlaceCallbackData(returnTarget.place));
 
   return keyboard;
 }
 
-function placeCallbackFromLocation(locationId: string): PlaceCallback | null {
+function returnTargetFromLocation(locationId: string): { label: string; place: PlaceCallback } {
   switch (locationId) {
     case PRESENCE_LOCATION_KORCHMA_YARD:
-      return "yard";
+      return { label: "🚪 До задвірку", place: "yard" };
     case PRESENCE_LOCATION_KORCHMA_HALL:
-      return "hall";
+      return { label: "🍺 До зали", place: "hall" };
     case PRESENCE_LOCATION_KORCHMA_QUEST_TABLE:
-      return "quest-table";
+      return { label: "📋 До столу зі справами", place: "quest-table" };
     case PRESENCE_LOCATION_KORCHMA_BAR:
-      return "bar";
+      return { label: "🍻 До шинку", place: "bar" };
     case PRESENCE_LOCATION_KORCHMA_BARREL:
-      return "barrel";
+      return { label: "🛢️ До Бочки", place: "barrel" };
     case PRESENCE_LOCATION_KORCHMA_CELLAR:
-      return "cellar";
+      return { label: "🐭 До льоху", place: "cellar" };
     case PRESENCE_LOCATION_KORCHMA_NEWS_CORNER:
-      return "news-corner";
+      return { label: "📰 До Дошки корчми", place: "news-corner" };
     case PRESENCE_LOCATION_KORCHMA_RANGER_CORNER:
-      return "ranger-corner";
+      return { label: "🏹 До Єгерського кутка", place: "ranger-corner" };
     case PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER:
-      return "fighting-corner";
+      return { label: "🥊 До Бійцівського кутка", place: "fighting-corner" };
     case PRESENCE_LOCATION_KORCHMA_DEEP:
-      return "deep";
+      return { label: "🪜 До Низу", place: "deep" };
     default:
-      return null;
+      return { label: "📍 До місцини", place: "current" };
   }
 }
 

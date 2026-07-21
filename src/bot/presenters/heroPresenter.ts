@@ -18,6 +18,24 @@ import { presentActiveBardInspirationBuff } from "./bardInspirationPresenter";
 import { presentTimedStatusLine } from "./timedStatusPresenter";
 import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
+export function presentShortHero(summary: CharacterSummary): string {
+  return [
+    `👤 <b>${escapeHtml(summary.name)}</b>`,
+    `${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}`,
+    `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    `Рівень <b>${summary.level}</b> · ❤️ ${summary.hpCurrent}/${summary.hpMax} · 🔮 ${summary.manaCurrent}/${summary.manaMax}`,
+    `Сила ${summary.stats.strength} · Спритність ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
+    `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`
+  ].join("\n");
+}
+
+export function presentHeroRecoveryNotice(notice: ResourceRecoveryNotice): string {
+  return [
+    `❤️ <b>Здоров’я знову повне: ${notice.hpCurrent}/${notice.hpMax}</b>.`,
+    "Корчмар мовчки підсунув кухоль води й записав це як сервіс."
+  ].join("\n");
+}
+
 export function presentHero(
   summary: CharacterSummary,
   options: {
@@ -126,8 +144,7 @@ export function presentHero(
   return [
     ...(options.recoveryNotice
       ? [
-          `❤️ <b>Здоров’я знову повне: ${options.recoveryNotice.hpCurrent}/${options.recoveryNotice.hpMax}</b>.`,
-          "Корчмар мовчки підсунув кухоль води й записав це як сервіс.",
+          presentHeroRecoveryNotice(options.recoveryNotice),
           ""
         ]
       : []),

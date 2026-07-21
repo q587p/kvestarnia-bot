@@ -174,9 +174,10 @@ async function handleSubmitResult(
       : "Таке повідомлення вже є в чаті.";
     await replyThroughRaidChatGate(ctx, confirmation);
     if (result.state === "accepted") {
-      await notifyOtherRaidParticipants(ctx, result.notification);
+      scheduleAcceptedPostDelivery(ctx, promptMessageId, result.notification);
+    } else {
+      void editComposerPromptBestEffort(ctx, promptMessageId, "Цей бланк уже використано.");
     }
-    await editComposerPromptBestEffort(ctx, promptMessageId, "Цей бланк уже використано.");
     return;
   }
   if (result.state === "invalid") {
@@ -194,6 +195,27 @@ async function handleSubmitResult(
   }
   if (result.state !== "already-consumed") {
     await editComposerPromptBestEffort(ctx, promptMessageId, "Рейд-чат уже не приймає цей бланк.");
+  }
+}
+
+function scheduleAcceptedPostDelivery(
+  ctx: Context,
+  promptMessageId: number,
+  notification: Extract<PartyRaidChatSubmitResult, { state: "accepted" }>["notification"]
+): void {
+  const delivery = Promise.allSettled([
+    notifyOtherRaidParticipants(ctx, notification),
+    editComposerPromptBestEffort(ctx, promptMessageId, "Цей бланк уже використано.")
+  ]);
+  pendingAcceptedPostDeliveries.add(delivery);
+  void delivery.finally(() => pendingAcceptedPostDeliveries.delete(delivery));
+}
+
+const pendingAcceptedPostDeliveries = new Set<Promise<unknown>>();
+
+export async function waitForPartyRaidChatAcceptedPostDeliveries(): Promise<void> {
+  while (pendingAcceptedPostDeliveries.size > 0) {
+    await Promise.allSettled([...pendingAcceptedPostDeliveries]);
   }
 }
 

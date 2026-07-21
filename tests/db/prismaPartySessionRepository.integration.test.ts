@@ -288,6 +288,30 @@ describe("PrismaPartySessionRepository integration", () => {
     await expectNoMembership(prisma, token, 2052n);
   });
 
+  it("never exceeds capacity when two players race for the final slot", async () => {
+    const token = "party-token-final-slot-race";
+    await seedCharacter(prisma, "final-slot-leader-user", 2053n, "Ватажок останнього місця");
+    await seedCharacter(prisma, "final-slot-a-user", 2054n, "Перший претендент");
+    await seedCharacter(prisma, "final-slot-b-user", 2055n, "Друга претендентка");
+    await repository.createForTelegramUser(2053n, {
+      ...partyInput(token),
+      participantCap: 2
+    });
+
+    const results = await Promise.all([
+      repository.joinByTokenForTelegramUser(2054n, token, joinInput()),
+      repository.joinByTokenForTelegramUser(2055n, token, joinInput())
+    ]);
+
+    expect(results.filter((result) => result.state === "joined")).toHaveLength(1);
+    expect(results.every((result) => result.state === "joined" || result.state === "full" || result.state === "stale")).toBe(true);
+    const session = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: token },
+      include: { participants: true }
+    });
+    expect(session.participants.filter((participant) => participant.status === "joined")).toHaveLength(2);
+  });
+
   it("returns honest stale state when leave loses the recruiting version CAS", async () => {
     const token = "party-token-leave-cas-loss";
     await seedCharacter(prisma, "leave-cas-leader-user", 2061n, "Ватажок Виходу");

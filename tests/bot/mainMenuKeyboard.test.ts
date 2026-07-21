@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCosmeticTitlesKeyboard,
   buildHeroAchievementsKeyboard
@@ -99,6 +99,10 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 
 describe("main menu and scene keyboards", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds the universal menu as a persistent reply keyboard", () => {
     const keyboard = buildMainMenuKeyboard();
 
@@ -125,6 +129,23 @@ describe("main menu and scene keyboards", () => {
       [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
+  });
+
+  it("keeps the admin button beside Help in the bottom row throughout local development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+
+    expect(replyKeyboardTexts(buildMainMenuKeyboard().keyboard).at(-1)).toEqual([
+      mainMenuButtons.participants,
+      mainMenuButtons.help,
+      mainMenuButtons.admin
+    ]);
+  });
+
+  it("never shows the admin button in production even when requested", () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(replyKeyboardTexts(buildMainMenuKeyboard({ includeAdmin: true }).keyboard).flat())
+      .not.toContain(mainMenuButtons.admin);
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {
@@ -318,7 +339,7 @@ describe("main menu and scene keyboards", () => {
           rewardXp: 13
         }
       }
-    }))).toContainEqual(["✨ Чароковальня ⚠️"]);
+    }))).toContainEqual(["✨ Чароковальня"]);
     const readyCharkokovalniaQuestMarkers = {
       characterLevel: 5,
       itemUpgrades: {
@@ -2251,6 +2272,53 @@ describe("main menu and scene keyboards", () => {
           {
             state: "found",
             item: {
+              id: "character-item-hood",
+              itemId: "item.set.yeger-shadow.hood",
+              quantity: 1,
+              content: {
+                id: "item.set.yeger-shadow.hood",
+                name: "Каптур тихого сліду",
+                description: "Ховає намір пояснювати.",
+                rarity: "epic",
+                slot: "armor",
+                equipmentSlot: "head",
+                goldValue: 137
+              }
+            }
+          },
+          null,
+          0,
+          "head",
+          {
+            equipPreview: {
+              state: "attunement-confirm-required",
+              item: {
+                itemId: "item.set.yeger-shadow.hood",
+                content: {
+                  id: "item.set.yeger-shadow.hood",
+                  name: "Каптур тихого сліду",
+                  description: "Ховає намір пояснювати.",
+                  rarity: "epic",
+                  slot: "armor",
+                  equipmentSlot: "head",
+                  goldValue: 137
+                }
+              },
+              slot: "head",
+              currentItem: null,
+              strength: "strong",
+              durationMinutes: 42
+            }
+          }
+        )
+      )
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До списку слота", "🛡️ Спорядження"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
+          {
+            state: "found",
+            item: {
               id: "character-item-1",
               itemId: "item.pan-of-persuasion",
               quantity: 1,
@@ -2684,6 +2752,9 @@ describe("main menu and scene keyboards", () => {
     ).toBe("v1:fight:item:123e4567-e89b-42d3-a456-426614174321:2:item.responsible-panic-bandage");
     expect(flatInlineButtonTexts(buildEquipmentKeyboard({ state: "no-character" }))).toEqual([]);
     expect(
+      inlineButtonRows(buildEquipmentKeyboard({ state: "ready", slots: [] }))
+    ).toEqual([["🔄 Змінити спорядження"]]);
+    expect(
       inlineButtonRows(
         buildEquipmentKeyboard({
           state: "ready",
@@ -2721,7 +2792,7 @@ describe("main menu and scene keyboards", () => {
               }
             }
           ]
-        })
+        }, { expanded: true })
       )
     ).toEqual([
       ["🎩 Показати голову"],
@@ -2731,7 +2802,7 @@ describe("main menu and scene keyboards", () => {
       ["🧰 Показати інструменти"],
       ["🗡️ Показати основну руку", "Зняти з основної руки"],
       ["✋ Показати другу руку"],
-      ["⬅️ До манаток"]
+      ["⬅️ До спорядження"]
     ]);
     expect(
       flatInlineButtonCallbacks(
@@ -2771,7 +2842,7 @@ describe("main menu and scene keyboards", () => {
             },
             { slot: "tool", item: null }
           ]
-        })
+        }, { expanded: true })
       )
     ).toEqual([
       "v1:item:inventory:s:h",
@@ -2783,7 +2854,7 @@ describe("main menu and scene keyboards", () => {
       "v1:item:inventory:s:w",
       "v1:equip:clear:weapon",
       "v1:item:inventory:s:o",
-      "v1:item:inventory"
+      "v1:equip:view"
     ]);
   });
 
@@ -3236,6 +3307,64 @@ describe("main menu and scene keyboards", () => {
     }
   });
 
+  it("returns daily Korchma round cards to the exact scene location", () => {
+    const targets = [
+      ["location.korchma.yard", "🚪 До задвірку", "v1:place:yard"],
+      ["location.korchma.hall", "🍺 До зали", "v1:place:hall"],
+      ["location.korchma.quest_table", "📋 До столу зі справами", "v1:place:quest-table"],
+      ["location.korchma.bar", "🍻 До шинку", "v1:place:bar"],
+      ["location.korchma.barrel", "🛢️ До Бочки", "v1:place:barrel"],
+      ["location.korchma.cellar", "🐭 До льоху", "v1:place:cellar"],
+      ["location.korchma.news_corner", "📰 До Дошки корчми", "v1:place:news-corner"],
+      ["location.korchma.ranger_corner", "🏹 До Єгерського кутка", "v1:place:ranger-corner"],
+      ["location.korchma.fighting_corner", "🥊 До Бійцівського кутка", "v1:place:fighting-corner"],
+      ["location.korchma.deep", "🪜 До Низу", "v1:place:deep"]
+    ] as const;
+
+    for (const [locationId, returnLabel, returnCallback] of targets) {
+      const scene = {
+        id: `scene.${locationId}`,
+        icon: "🧾",
+        title: "Місцева дрібниця",
+        locationId,
+        hook: "Дрібниця чекає саме тут.",
+        actions: [{ id: "fix-it", label: "Полагодити", outcome: "Полагоджено." }]
+      };
+      const offer = {
+        dayKey: "2026-06-28",
+        dayToken: "20260628",
+        lifeToken: 7,
+        requiredSteps: 2,
+        completedSceneIds: [],
+        omittedSceneId: null,
+        scenes: [scene]
+      };
+
+      const sceneKeyboard = buildDailyKorchmaRoundSceneKeyboard({
+        state: "scene",
+        character,
+        offer,
+        scene,
+        sceneIndex: 0,
+        alreadyCompleted: false,
+        locked: false
+      });
+      const stepKeyboard = buildDailyKorchmaRoundStepKeyboard({
+        state: "step-completed",
+        character,
+        offer,
+        scene,
+        action: scene.actions[0],
+        completedCount: 1
+      });
+
+      expect(flatInlineButtonTexts(sceneKeyboard).at(-1)).toBe(returnLabel);
+      expect(flatInlineButtonCallbacks(sceneKeyboard).at(-1)).toBe(returnCallback);
+      expect(flatInlineButtonTexts(stepKeyboard)).toEqual(["🧾 До обходу", returnLabel]);
+      expect(flatInlineButtonCallbacks(stepKeyboard)).toEqual(["v1:dkr:o:20260628", returnCallback]);
+    }
+  });
+
   it("routes a daily Korchma round wrong-location step to the required scene place", () => {
     const keyboard = buildDailyKorchmaRoundStepKeyboard({
       state: "wrong-location",
@@ -3260,7 +3389,7 @@ describe("main menu and scene keyboards", () => {
       }
     });
 
-    expect(flatInlineButtonTexts(keyboard)).toEqual(["📍 До місцини", "🧾 До обходу"]);
+    expect(flatInlineButtonTexts(keyboard)).toEqual(["🚪 До задвірку", "🧾 До обходу"]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual(["v1:place:yard", "v1:dkr:o:20260628"]);
   });
 

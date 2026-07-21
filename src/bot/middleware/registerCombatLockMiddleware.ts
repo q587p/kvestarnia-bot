@@ -165,6 +165,8 @@ function isCombatLockSafeCallback(data: string): boolean {
   return (
     data === "v1:menu:hero" ||
     data === "v1:menu:help" ||
+    data.startsWith("v1:help:") ||
+    data.startsWith("v1:dh:") ||
     data === "v1:menu:inventory" ||
     data.startsWith("v1:item:") ||
     data.startsWith("v1:up:") ||

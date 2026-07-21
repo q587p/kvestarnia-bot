@@ -128,8 +128,11 @@ export class PartyRaidChatService {
     return this.repository.requestRecruitingRefresh(telegramUserId, inviteToken, this.clock());
   }
 
-  listDueDeliveries(limit = 23): Promise<PartyRaidChatDeliveryRecord[]> {
-    return this.repository.listDueDeliveries(this.clock(), limit);
+  listDueDeliveries(
+    limit = 23,
+    options: { parkCleanDue?: boolean } = {}
+  ): Promise<PartyRaidChatDeliveryRecord[]> {
+    return this.repository.listDueDeliveries(this.clock(), limit, options);
   }
 
   isDeliveryClaimCurrent(deliveryId: string, version: number): Promise<boolean> {

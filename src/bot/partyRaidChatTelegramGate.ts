@@ -1,5 +1,6 @@
 const GLOBAL_INTERVAL_MS = Math.ceil(1_000 / 13);
 const SAME_TARGET_INTERVAL_MS = 1_100;
+const MAX_IN_FLIGHT = 4;
 
 interface QueuedOperation<T> {
   target: string;
@@ -13,6 +14,7 @@ export class PartyRaidChatTelegramGate {
   private readonly targetAvailableAt = new Map<string, number>();
   private nextGlobalAt = 0;
   private draining = false;
+  private inFlight = 0;
 
   constructor(private readonly timing: {
     now?: () => number;
@@ -38,7 +40,7 @@ export class PartyRaidChatTelegramGate {
     }
     this.draining = true;
     try {
-      while (this.queue.length > 0) {
+      while (this.queue.length > 0 && this.inFlight < MAX_IN_FLIGHT) {
         const now = this.now();
         this.pruneTargets(now);
         let selectedIndex = -1;
@@ -57,20 +59,21 @@ export class PartyRaidChatTelegramGate {
 
         if (selectedAt > now) {
           await this.sleep(selectedAt - now);
+          continue;
         }
         const operation = this.queue.splice(selectedIndex, 1)[0]!;
         const startedAt = this.now();
         this.nextGlobalAt = startedAt + GLOBAL_INTERVAL_MS;
         this.targetAvailableAt.set(operation.target, startedAt + SAME_TARGET_INTERVAL_MS);
-        try {
-          operation.resolve(await operation.run());
-        } catch (error) {
-          operation.reject(error);
-        }
+        this.inFlight += 1;
+        void operation.run().then(operation.resolve, operation.reject).finally(() => {
+          this.inFlight -= 1;
+          void this.drain();
+        });
       }
     } finally {
       this.draining = false;
-      if (this.queue.length > 0) {
+      if (this.queue.length > 0 && this.inFlight < MAX_IN_FLIGHT) {
         void this.drain();
       }
     }

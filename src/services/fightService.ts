@@ -368,6 +368,7 @@ export type PersistentFightTurnResult =
   | {
       state: "not-enough-mana";
       reason?: "not-enough-mana" | "skill-on-cooldown";
+      action: "skill" | "race" | "gear";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -2535,6 +2536,7 @@ export class FightService {
       return {
         state: "not-enough-mana",
         reason: resolved.reason === "skill-on-cooldown" ? "skill-on-cooldown" : "not-enough-mana",
+        action: input.action === "gear" || input.action === "race" ? input.action : "skill",
         character: characterSummary,
         session: currentSession,
         monster,

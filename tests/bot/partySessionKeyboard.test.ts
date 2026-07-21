@@ -204,7 +204,7 @@ describe("party session keyboard", () => {
     expect(inlineButtonTexts(buildPartySessionKeyboard(base, {
       viewerCharacterId: "character-1",
       includeBossStart: true
-    }))).toContain("🧿 Поставити знак");
+    }))).toContain("✴️ Поставити знак");
     expect(keyboardText(buildPartySessionKeyboard(base, {
       viewerCharacterId: "character-1",
       includeBossStart: true
@@ -520,6 +520,21 @@ describe("party session keyboard", () => {
       "Кінець ⏭️",
       "↩️ До результатів"
     ]);
+  });
+
+  it("reaches every terminal party boss journal page beyond 13 entries", () => {
+    const session = makeBossSession({}, {
+      status: "won",
+      roundLogLength: 17
+    });
+
+    expect(inlineButtonTexts(buildPartyBossJournalKeyboard(session, 16))).toEqual([
+      "⏮️ Початок",
+      "◀️ Назад",
+      "17/17",
+      "↩️ До результатів"
+    ]);
+    expect(keyboardText(buildPartyBossJournalKeyboard(session, 16))).toContain("v1:party:bj:partyABC12:g");
   });
 
   it("shows nearby party invite rows without duel actions", () => {

@@ -1,6 +1,30 @@
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { escapeHtml } from "./telegramHtml";
 
+export type CombatActionNoticeSource = "skill" | "race" | "gear";
+
+export function presentCombatActionCooldownNotice(source: CombatActionNoticeSource): string {
+  switch (source) {
+    case "skill":
+      return "Класове вміння ще відсапується.";
+    case "race":
+      return "Расове вміння ще відсапується.";
+    case "gear":
+      return "Дія спорядження ще відсапується.";
+  }
+}
+
+export function presentCombatActionManaNotice(source: CombatActionNoticeSource): string {
+  switch (source) {
+    case "skill":
+      return "Не вистачає мани для класового вміння.";
+    case "race":
+      return "Не вистачає мани для расового вміння.";
+    case "gear":
+      return "Не вистачає мани для цієї дії спорядження.";
+  }
+}
+
 export interface CombatSupportEffectView {
   healing?: number;
   guard?: number;

@@ -1,10 +1,84 @@
 import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
-import { sendHero } from "../../src/bot/commands/heroCommand";
+import { sendHero, sendShortHero } from "../../src/bot/commands/heroCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { HeroService } from "../../src/services/heroService";
 
 describe("hero command", () => {
+  it("sends /me without progress copy or any keyboard", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findShortByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        satedRecovery: null
+      })
+    } as unknown as HeroService;
+
+    await sendShortHero(makeReplyContext(replies), heroService);
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("Рівень <b>3</b> · ❤️ 24/24 · 🔮 12/12");
+    expect(replies[0]?.text).not.toContain("до наступного");
+    expect(replies[0]?.text).not.toContain("Золото");
+    expect(replies[0]?.text).not.toContain("Зараз пригодник тут");
+    expect(replies[0]?.options).toEqual({ parse_mode: "HTML" });
+  });
+
+  it("delivers passive full-HP and expired Sated notices after the buttonless /me card", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findShortByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        recoveryNotice: { type: "hp-full" as const, hpCurrent: 24, hpMax: 24 },
+        satedRecovery: { hpRestored: 1, manaRestored: 1 }
+      })
+    } as unknown as HeroService;
+
+    await sendShortHero(makeReplyContext(replies), heroService);
+
+    expect(replies).toHaveLength(3);
+    expect(replies[0]?.text.split("\n")).toHaveLength(6);
+    expect(replies[0]?.options).toEqual({ parse_mode: "HTML" });
+    expect(replies[1]).toEqual({
+      text: "❤️ <b>Здоров’я знову повне: 24/24</b>.\nКорчмар мовчки підсунув кухоль води й записав це як сервіс.",
+      options: { parse_mode: "HTML" }
+    });
+    expect(replies[2]).toEqual({
+      text: "😋 Ситість відновила: <b>+1 HP</b> · <b>+1 мани</b>.",
+      options: { parse_mode: "HTML" }
+    });
+  });
+
+  it("does not repeat /me recovery notices on the following /hero lookup", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findShortByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        recoveryNotice: { type: "hp-full" as const, hpCurrent: 24, hpMax: 24 },
+        satedRecovery: { hpRestored: 1, manaRestored: 1 }
+      }),
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null,
+        satedRecovery: null
+      })
+    } as unknown as HeroService;
+
+    await sendShortHero(makeReplyContext(replies), heroService);
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(replies.filter((reply) => reply.text.includes("Здоров’я знову повне"))).toHaveLength(1);
+    expect(replies.filter((reply) => reply.text.includes("Ситість відновила"))).toHaveLength(1);
+    expect(replies).toHaveLength(4);
+  });
+
   it("renders the authoritative full-HP recovery notice once in a replied hero card", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {

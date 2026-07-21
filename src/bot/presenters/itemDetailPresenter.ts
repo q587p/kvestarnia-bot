@@ -225,6 +225,24 @@ function presentEquipmentLine(
     return `<i>Екіпірування</i>: можна екіпірувати у слот <i>«${presentEquipmentSlotLabel(equipPreview.slot)}»</i>, але спершу треба підтвердити звільнення руки: ${escapeHtml(equipPreview.clearedHandItem.content.name)} лишиться в торбі.`;
   }
 
+  if (equipPreview?.state === "attunement-confirm-required") {
+    const replacement = equipPreview.currentItem
+      ? `\nЗамінить: ${presentReplacementItemSummary(equipPreview.currentItem)}.`
+      : "";
+
+    return [
+      `<i>Екіпірування</i>: можна екіпірувати у слот <i>«${presentEquipmentSlotLabel(equipPreview.slot)}»</i>.`,
+      `Магічні бонуси почнуть діяти після налаштування, приблизно за <b>${equipPreview.durationMinutes} хв</b>.${replacement}`
+    ].join("\n");
+  }
+
+  if (equipPreview?.state === "attunement-interrupt-confirm-required") {
+    return [
+      `<i>Екіпірування</i>: перед заміною у слоті <i>«${presentEquipmentSlotLabel(equipPreview.slot)}»</i> потрібне підтвердження.`,
+      `Ще налаштовується <b>${escapeHtml(equipPreview.currentItem.content.name)}</b>; нова манатка зібʼє цей процес.`
+    ].join("\n");
+  }
+
   const slot = equipPreview?.state === "can-equip"
     ? equipPreview.slot
     : mapItemToEquipmentSlot(item);

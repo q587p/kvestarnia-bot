@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY,
   BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_MS,
+  BIG_BARREL_BROTHER_BOSS_KEY,
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
@@ -23,6 +24,12 @@ import {
   type PartyBossRewardSnapshot,
   type PartyBossState
 } from "../../domain/partyBoss/partyBoss";
+import {
+  parsePartyBossResultStrict,
+  parsePartyBossStateStrict,
+  parsePartyBossRoundSummaryStrict,
+  parsePartyBossStatusStrict
+} from "../../domain/partyBoss/partyBossStateValidation";
 import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
 import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
@@ -64,8 +71,11 @@ import {
 } from "./prismaBardSupport";
 import { PRESENCE_LOCATION_KORCHMA_BARREL } from "../../services/presenceService";
 import { buildBardLamentPlan } from "../../domain/noncombat/bardSupport";
+import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
+import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { SeededRandomSource } from "../../shared/random";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
+import { PartyBossStateValidationError } from "../../domain/partyBoss/partyBossStateValidation";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -142,6 +152,9 @@ const partyBossInclude = {
   partySession: {
     include: {
       participants: {
+        where: {
+          character: { is: {} }
+        },
         include: {
           character: {
             include: partyCharacterInclude
@@ -156,9 +169,10 @@ const partyBossInclude = {
   },
   actions: {
     orderBy: [
-      { turn: "asc" as const },
-      { submittedAt: "asc" as const }
-    ]
+      { submittedAt: "desc" as const },
+      { id: "asc" as const }
+    ],
+    take: 13
   }
 } satisfies Prisma.PartyBossSessionInclude;
 
@@ -396,6 +410,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             }
           }
           participant.resources = { ...participant.resources, ...frozen.resources };
+          participant.status = participant.resources.hp > 0 ? "active" : "knocked-out";
           if (frozen.sated) {
             participant.varenykSated = frozen.sated;
           }
@@ -994,8 +1009,50 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return session ? this.mapSession(session) : null;
   }
 
+  async findJournalPageByPartyInviteToken(
+    partyInviteToken: string,
+    requestedPage?: number | null
+  ): Promise<PartyBossSessionRecord | null> {
+    const session = await findByInviteToken(this.prisma, partyInviteToken);
+    if (!session) {
+      return null;
+    }
+
+    const mapped = this.mapSession(session);
+    const persistedCount = await this.prisma.partyBossRound.count({ where: { sessionId: session.id } });
+    if (persistedCount === 0) {
+      const fallbackTotal = mapped.state.roundLog.length;
+      const page = clampJournalPage(requestedPage ?? fallbackTotal - 1, fallbackTotal);
+      return {
+        ...mapped,
+        journal: {
+          round: fallbackTotal > 0 ? mapped.state.roundLog[page] ?? null : null,
+          page,
+          totalPages: fallbackTotal
+        }
+      };
+    }
+
+    const page = clampJournalPage(requestedPage ?? persistedCount - 1, persistedCount);
+    const row = await this.prisma.partyBossRound.findFirst({
+      where: { sessionId: session.id },
+      orderBy: [{ turn: "asc" }, { id: "asc" }],
+      skip: page
+    });
+    return {
+      ...mapped,
+      journal: {
+        round: row ? parsePartyBossRoundSummaryStrict(row.roundJson) : null,
+        page,
+        totalPages: persistedCount
+      }
+    };
+  }
+
   async listDueTimedOutSessions(now: Date, options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
-    const sessions = await this.prisma.partyBossSession.findMany({
+    const limit = options.limit ?? 25;
+    await this.repairOrphanedPartyBossLeases(now, limit);
+    const dueRows = await this.prisma.partyBossSession.findMany({
       where: {
         status: "active",
         turnExpiresAt: {
@@ -1006,11 +1063,37 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         { turnExpiresAt: "asc" },
         { id: "asc" }
       ],
-      take: options.limit ?? 25,
-      include: partyBossInclude
+      take: limit,
+      select: { id: true }
     });
+    const dueOrder = new Map(dueRows.map((row, index) => [row.id, index]));
+    const sessions = dueRows.length === 0
+      ? []
+      : (await this.prisma.partyBossSession.findMany({
+          where: { id: { in: dueRows.map((row) => row.id) } },
+          include: partyBossInclude
+        })).sort((left, right) => (dueOrder.get(left.id) ?? 0) - (dueOrder.get(right.id) ?? 0));
 
-    return sessions.map((session) => this.mapSession(session));
+    const healthy: PartyBossSessionRecord[] = [];
+    for (const session of sessions) {
+      try {
+        healthy.push(this.mapSession(session));
+      } catch (error) {
+        if (!(error instanceof PartyBossStateValidationError)) {
+          throw error;
+        }
+        try {
+          await this.repairMalformedSession(session.id, now);
+        } catch (repairError) {
+          console.error("Квестарня: пошкоджену сесію PartyBoss не вдалося полагодити.", {
+            sessionId: session.id,
+            error: repairError
+          });
+        }
+      }
+    }
+
+    return healthy;
   }
 
   async forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult> {
@@ -1147,6 +1230,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const nextVersion = session.version + 1;
       const status = resolved.state.status;
       const result = resolved.result;
+      const hotState: PartyBossState = {
+        ...resolved.state,
+        roundLog: resolved.state.roundLog.slice(-1)
+      };
       const updated = await tx.partyBossSession.updateMany({
         where: {
           id: session.id,
@@ -1158,7 +1245,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           status,
           turn: resolved.state.turn,
           version: nextVersion,
-          stateJson: resolved.state as unknown as Prisma.InputJsonValue,
+          stateJson: hotState as unknown as Prisma.InputJsonValue,
           resultJson: result as unknown as Prisma.InputJsonValue,
           turnExpiresAt: status === "active" ? input.nextTurnExpiresAt : input.now,
           ...(status === "active" ? {} : { completedAt: input.now })
@@ -1167,6 +1254,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (updated.count !== 1) {
         return null;
+      }
+
+      for (const round of resolved.state.roundLog) {
+        await tx.partyBossRound.upsert({
+          where: { sessionId_turn: { sessionId: session.id, turn: round.turn } },
+          create: {
+            sessionId: session.id,
+            turn: round.turn,
+            roundJson: round as unknown as Prisma.InputJsonValue
+          },
+          update: {}
+        });
       }
 
       await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
@@ -1251,9 +1350,205 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return mapSession(row);
   }
 
-  private parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
+  private parseState(row: PartyBossRow): PartyBossState {
     return parseState(row);
   }
+
+  private async repairMalformedSession(sessionId: string, now: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const session = await tx.partyBossSession.findUnique({
+        where: { id: sessionId },
+        include: partyBossInclude
+      });
+      if (!session || session.status !== "active") {
+        return false;
+      }
+      try {
+        parseState(session);
+        return false;
+      } catch (error) {
+        if (!(error instanceof PartyBossStateValidationError)) {
+          throw error;
+        }
+      }
+
+      const fallback = createPartyBossState({
+        partySessionId: session.partySessionId,
+        variant: session.rulesVersion === BIG_BARREL_BROTHER_RULES_VERSION || session.bossKey === BIG_BARREL_BROTHER_BOSS_KEY
+          ? "big-barrel"
+          : "proof",
+        leaderCharacterId: session.leaderCharacterId,
+        participants: session.partySession.participants
+          .filter((participant) => participant.status === "joined")
+          .map((participant) => {
+            const character = mapCharacterForCombat(participant.character);
+            return {
+              characterId: character.id,
+              name: character.name,
+              remortCount: character.remortCount,
+              combatStats: buildPartyBossCombatStats(character),
+              equipmentAbilityGrantIds: getCombatMantokAbilityGrantsForEquippedItems({
+                itemIds: participant.character.equipment.map((row) => row.itemId),
+                characterLevel: participant.character.level
+              }).map((grant) => grant.id)
+            };
+          }),
+        now: session.createdAt
+      });
+      fallback.turn = Math.max(1, session.turn);
+      fallback.status = "cancelled";
+      fallback.completedAt = now.toISOString();
+      const result = buildResult(fallback, now);
+      const repaired = await tx.partyBossSession.updateMany({
+        where: {
+          id: session.id,
+          status: "active",
+          version: session.version
+        },
+        data: {
+          status: "cancelled",
+          turn: fallback.turn,
+          version: session.version + 1,
+          stateJson: fallback as unknown as Prisma.InputJsonValue,
+          resultJson: result as unknown as Prisma.InputJsonValue,
+          turnExpiresAt: now,
+          completedAt: now
+        }
+      });
+      if (repaired.count !== 1) {
+        return false;
+      }
+
+      await releasePartyBossLeasesFromRawState(tx, session.partySessionId, session.stateJson, now);
+      await terminalizeRepairedParty(tx, session.partySessionId);
+      await this.raidChat.append(tx, {
+        partySessionId: session.partySessionId,
+        eventType: "raid.cancelled",
+        sourceKey: `party:${session.partySessionId}:boss:${session.id}:repair:${session.version}`,
+        occurredAt: now
+      });
+      await this.raidChat.terminalize(tx, session.partySessionId, now);
+      return true;
+    });
+  }
+
+  private async repairOrphanedPartyBossLeases(now: Date, limit: number): Promise<void> {
+    const scanLimit = Math.max(93, limit);
+    const orphanIds = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT acl.id
+      FROM active_combat_leases AS acl
+      LEFT JOIN party_boss_sessions AS pbs
+        ON pbs.party_session_id = acl.reference_id
+       AND pbs.status = ${ACTIVE_PARTY_STATUS}
+      WHERE acl.kind = ${PARTY_BOSS_LEASE_KIND}
+        AND pbs.id IS NULL
+      ORDER BY acl.updated_at ASC, acl.id ASC
+      LIMIT ${scanLimit}
+    `);
+    const leases = orphanIds.length === 0
+      ? []
+      : await this.prisma.activeCombatLease.findMany({
+          where: { id: { in: orphanIds.map(({ id }) => id) } },
+          orderBy: [{ updatedAt: "asc" }, { id: "asc" }]
+        });
+    for (const candidate of leases) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const lease = await tx.activeCombatLease.findUnique({ where: { id: candidate.id } });
+          if (!lease || lease.kind !== PARTY_BOSS_LEASE_KIND) {
+            return;
+          }
+          const session = await tx.partyBossSession.findUnique({
+            where: { partySessionId: lease.referenceId },
+            select: { status: true, stateJson: true }
+          });
+          if (session?.status === "active") {
+            return;
+          }
+          const statuses = findRecoverablePartyParticipantStatuses(session?.stateJson, lease.characterId);
+          await releaseCombatLeaseWithTimedStatuses({
+            tx,
+            lease,
+            releasedAt: now,
+            ...(statuses.sated ? { sated: statuses.sated } : {}),
+            ...(statuses.inspiration ? { inspiration: statuses.inspiration } : {})
+          });
+        });
+      } catch (error) {
+        console.error("Квестарня: осиротілий combat lease PartyBoss не вдалося відпустити.", {
+          leaseId: candidate.id,
+          error
+        });
+      }
+    }
+  }
+}
+
+async function releasePartyBossLeasesFromRawState(
+  tx: TxClient,
+  partySessionId: string,
+  rawState: Prisma.JsonValue,
+  now: Date
+): Promise<void> {
+  const leases = await tx.activeCombatLease.findMany({
+    where: {
+      kind: PARTY_BOSS_LEASE_KIND,
+      referenceId: partySessionId
+    }
+  });
+  for (const lease of leases) {
+    const statuses = findRecoverablePartyParticipantStatuses(rawState, lease.characterId);
+    await releaseCombatLeaseWithTimedStatuses({
+      tx,
+      lease,
+      releasedAt: now,
+      ...(statuses.sated ? { sated: statuses.sated } : {}),
+      ...(statuses.inspiration ? { inspiration: statuses.inspiration } : {})
+    });
+  }
+}
+
+function findRecoverablePartyParticipantStatuses(value: unknown, characterId: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const participants = (value as Record<string, unknown>).participants;
+  if (!Array.isArray(participants)) {
+    return {};
+  }
+  const participant = participants.find((entry) =>
+    entry !== null &&
+    typeof entry === "object" &&
+    !Array.isArray(entry) &&
+    (entry as Record<string, unknown>).characterId === characterId
+  ) as Record<string, unknown> | undefined;
+  if (!participant) {
+    return {};
+  }
+  const sated = parseVarenykSatedCombatState(participant.varenykSated);
+  const inspiration = parseBardInspirationCombatState(participant.bardInspiration);
+  return {
+    ...(sated ? { sated } : {}),
+    ...(inspiration ? { inspiration } : {})
+  };
+}
+
+async function terminalizeRepairedParty(tx: TxClient, partySessionId: string): Promise<void> {
+  await tx.partySession.updateMany({
+    where: { id: partySessionId, status: "active" },
+    data: {
+      status: "completed",
+      activeLeaderKey: null,
+      version: { increment: 1 }
+    }
+  });
+  await tx.partyParticipant.updateMany({
+    where: {
+      sessionId: partySessionId,
+      activeMembershipKey: { not: null }
+    },
+    data: { activeMembershipKey: null }
+  });
 }
 
 async function appendResolvedRaidChatEvents(
@@ -1790,7 +2085,10 @@ function buildBigBarrelReward(
   participant: PartyBossState["participants"][number]
 ): { meaningful: boolean; tier: "none" | "partial" | "full"; xp: number; gold: number } {
   const meaningful = isMeaningfulBigBarrelParticipant(participant);
-  const availableRounds = Math.max(1, state.roundLog.length);
+  const availableRounds = Math.max(
+    1,
+    participant.contribution.submittedActions + participant.contribution.timeoutActions
+  );
   const full =
     meaningful &&
     participant.contribution.submittedActions >= Math.ceil(availableRounds / 2) &&
@@ -1942,7 +2240,7 @@ function mapSession(row: PartyBossRow): PartyBossSessionRecord {
     id: row.id,
     partySessionId: row.partySessionId,
     partyInviteToken: row.partySession.inviteToken,
-    leaderCharacterId: row.leaderCharacterId,
+    leaderCharacterId: state.leaderCharacterId,
     status: parseStatus(row.status),
     turn: row.turn,
     version: row.version,
@@ -1952,7 +2250,7 @@ function mapSession(row: PartyBossRow): PartyBossSessionRecord {
     result: parseResult(row.resultJson, state),
     turnExpiresAt: row.turnExpiresAt,
     completedAt: row.completedAt,
-    queuedActions: row.actions.flatMap((action) => {
+    queuedActions: row.actions.filter((action) => action.turn === row.turn).flatMap((action) => {
       const item = parseActionItem(action.resultJson);
       const gearAbility = parseActionGearAbility(action.resultJson);
       const actionKey = parseActionKey(action.actionKey);
@@ -2006,18 +2304,41 @@ function mapCharacterForCombat(
   };
 }
 
-function parseState(row: Pick<PartyBossRow, "stateJson">): PartyBossState {
-  return clonePartyBossState(row.stateJson as unknown as PartyBossState);
+function parseState(row: PartyBossRow): PartyBossState {
+  const raw = row.stateJson && typeof row.stateJson === "object" && !Array.isArray(row.stateJson)
+    ? { ...row.stateJson, leaderCharacterId: row.stateJson.leaderCharacterId ?? row.leaderCharacterId }
+    : row.stateJson;
+  return parsePartyBossStateStrict(raw, {
+    rulesVersion: row.rulesVersion,
+    partySessionId: row.partySessionId,
+    status: parsePartyBossStatusStrict(row.status),
+    turn: row.turn,
+    bossKey: row.bossKey,
+    ...(row.status === "active"
+      ? {
+          participantCharacterIds: row.partySession.participants
+            .filter((participant) => participant.status === "joined")
+            .map((participant) => participant.characterId)
+        }
+      : {})
+  });
+}
+
+function clampJournalPage(page: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  return Math.min(Math.max(0, Math.floor(page)), total - 1);
 }
 
 function parseResult(value: Prisma.JsonValue, state: PartyBossState) {
   return value
-    ? value as unknown as ReturnType<typeof buildResult>
+    ? parsePartyBossResultStrict(value, state)
     : buildResult(state, new Date());
 }
 
 function parseStatus(value: string): PartyBossSessionStatus {
-  return value === "won" || value === "lost" || value === "cancelled" ? value : "active";
+  return parsePartyBossStatusStrict(value);
 }
 
 function parseActionKey(value: string): PartyBossActionKey {

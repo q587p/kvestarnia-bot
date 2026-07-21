@@ -9,63 +9,60 @@ import type { TavernGameService } from "../../src/services/tavernGameService";
 import type { HealthRecoveryNotificationService } from "../../src/services/healthRecoveryNotificationService";
 
 describe("help command", () => {
-  it("shows public commands through /help", async () => {
+  it("shows the compact section menu through /help", async () => {
     const replies: string[] = [];
+    const replyMarkups: unknown[] = [];
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
       partySessions: { areDevHelpersEnabled: () => true },
       partyRaidChat: { areDevHelpersEnabled: () => true },
       tavernGames: { isEnabled: () => true }
-    });
+    }, replyMarkups);
 
     await bot.handleUpdate(commandUpdate("/help"));
 
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("📖 Допомога Квестарні");
-    expect(replies[0]).toContain("/start");
-    expect(replies[0]).toContain("/lore");
-    expect(replies[0]).toContain("/help");
-    expect(replies[0]).toContain("/support");
-    expect(replies[0]).toContain("Останні події");
-    expect(replies[0]).toContain("Перекази");
-    expect(replies[0]).toContain("Пошта Квестарні");
-    expect(replies[0]).toContain("🎲 Ігри за столом");
-    expect(replies[0]).toContain("/games");
+    expect(replies[0]).toContain("👤 Персонаж");
+    expect(replies[0]).toContain("⚔️ Пригоди й бої");
+    expect(replies[0]).toContain("🎒 Манатки");
+    expect(replies[0]).toContain("🍺 Корчма й люди");
+    expect(replies[0]).toContain("📰 Довідки й вісті");
+    expect(replies[0]).not.toContain("/start");
+    expect(replies[0]).not.toContain("/games");
     expect(replies[0]).not.toContain("/dev_help");
     expect(replies[0]).not.toContain("/dev_party");
     expect(replies[0]).not.toContain("/dev_add_xp");
+    expect(JSON.stringify(replyMarkups[0])).toContain("v1:help:adventures");
   });
 
   it("shows local dev commands through /dev_help", async () => {
     const replies: string[] = [];
+    const replyMarkups: unknown[] = [];
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => true },
       devGrant: { isEnabled: () => true },
       partySessions: { areDevHelpersEnabled: () => true },
       partyRaidChat: { areDevHelpersEnabled: () => true },
       healthRecoveryNotifications: { areDevHelpersEnabled: () => true }
-    });
+    }, replyMarkups);
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
 
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain("🧰 Dev-довідка Квестарні");
-    expect(replies[0]).toContain("/dev_party");
-    expect(replies[0]).toContain("/dev_raid_chat");
-    expect(replies[0]).toContain("/dev_raid_stop");
-    expect(replies[0]).toContain("/dev_reset_korchma_round");
-    expect(replies[0]).toContain("/dev_add_xp");
-    expect(replies[0]).toContain("/dev_add_bandage");
-    expect(replies[0]).toContain("/dev_add_dense_bandage");
-    expect(replies[0]).toContain("/dev_add_field_kit");
-    expect(replies[0]).toContain("/dev_reset_yeger_bandage");
-    expect(replies[0]).toContain("/dev_yeger_first_done");
-    expect(replies[0]).toContain("/dev_yeger_second_done");
-    expect(replies[0]).toContain("/dev_hp_recovery_due");
+    expect(replies[0]).toContain("🧰 Загальне — персонаж і довідка.");
+    expect(replies[0]).toContain("⚔️ Бої й ватага — сутички, рейди й гурт.");
+    expect(replies[0]).toContain("🎒 Ресурси й манатки — рівні, HP, мана й речі.");
+    expect(replies[0]).toContain("🗺️ Справи й очікування — квести, кулдауни й повтори.");
+    expect(replies[0]).not.toContain("/dev_party");
+    expect(replies[0]).not.toContain("/dev_add_xp");
+    expect(JSON.stringify(replyMarkups[0])).toContain("v1:dh:combat");
+    expect(JSON.stringify(replyMarkups[0])).toContain("v1:dh:resources");
   });
 
-  it("hides party dev help when party runtime is enabled without dev helpers", async () => {
+  it("does not register dev help when all non-production gates are closed", async () => {
     const replies: string[] = [];
     const bot = createTestBot(replies, {
       devReset: { isEnabled: () => false },
@@ -74,10 +71,7 @@ describe("help command", () => {
 
     await bot.handleUpdate(commandUpdate("/dev_help"));
 
-    expect(replies).toHaveLength(1);
-    expect(replies[0]).not.toContain("/dev_party");
-    expect(replies[0]).not.toContain("/dev_raid_chat");
-    expect(replies[0]).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
+    expect(replies).toEqual([]);
   });
 });
 
@@ -90,7 +84,8 @@ function createTestBot(
     partyRaidChat?: Pick<PartyRaidChatService, "areDevHelpersEnabled">;
     tavernGames?: Pick<TavernGameService, "isEnabled">;
     healthRecoveryNotifications?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled">;
-  }
+  },
+  replyMarkups: unknown[] = []
 ): Bot {
   const bot = new Bot("test-token", {
     botInfo: {
@@ -103,6 +98,7 @@ function createTestBot(
   bot.api.config.use((_prev, method, payload) => {
     if (method === "sendMessage") {
       replies.push(String(payload.text));
+      replyMarkups.push(payload.reply_markup);
     }
 
     return Promise.resolve({

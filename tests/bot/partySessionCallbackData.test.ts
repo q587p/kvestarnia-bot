@@ -63,9 +63,9 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "boss-journal", token, page: null }
     });
-    expect(parsePartySessionCallbackData(makePartyBossJournalCallbackData(token, 12))).toEqual({
+    expect(parsePartySessionCallbackData(makePartyBossJournalCallbackData(token, 16))).toEqual({
       ok: true,
-      value: { type: "boss-journal", token, page: 12 }
+      value: { type: "boss-journal", token, page: 16 }
     });
     expect(parsePartySessionCallbackData(makePartyRaidChatOpenCallbackData(token))).toEqual({
       ok: true,

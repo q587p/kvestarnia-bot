@@ -6669,6 +6669,7 @@ describe("FightService", () => {
     expect(result.state).toBe("not-enough-mana");
     if (result.state === "not-enough-mana") {
       expect(result.reason).toBe("not-enough-mana");
+      expect(result.action).toBe("skill");
       expect(result.session.state?.turn).toBe(1);
       expect(result.session.state?.lastTurn).toBeUndefined();
     }

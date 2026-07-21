@@ -33,6 +33,37 @@ describe("PrismaDevGrantRepository", () => {
     });
   });
 
+  it("keeps a topped-up stack in place but resets its bag time after depletion and reacquisition", async () => {
+    const prisma = new FakeDevGrantPrisma({ level: 3, hpCurrent: 20, hpMax: 20 });
+    const repository = new PrismaDevGrantRepository(prisma.client);
+    const firstA = new Date("2026-07-19T10:00:00.000Z");
+    const firstB = new Date("2026-07-20T10:00:00.000Z");
+    const toppedUpA = new Date("2026-07-20T11:00:00.000Z");
+    const secondA = new Date("2026-07-21T10:00:00.000Z");
+
+    prisma.setGrantNow(firstA);
+    await repository.addItemsForTelegramUser(telegramUserId, [{ itemId: "item.a", quantity: 1 }]);
+    prisma.setGrantNow(firstB);
+    await repository.addItemsForTelegramUser(telegramUserId, [{ itemId: "item.b", quantity: 1 }]);
+    prisma.setGrantNow(toppedUpA);
+    await repository.addItemsForTelegramUser(telegramUserId, [{ itemId: "item.a", quantity: 1 }]);
+
+    expect(prisma.characterItems.find((row) => row.itemId === "item.a")).toMatchObject({
+      quantity: 2,
+      createdAt: firstA,
+      updatedAt: toppedUpA
+    });
+
+    prisma.depleteItem("item.a");
+    prisma.setGrantNow(secondA);
+    await repository.addItemsForTelegramUser(telegramUserId, [{ itemId: "item.a", quantity: 1 }]);
+
+    expect(prisma.characterItems).toEqual([
+      expect.objectContaining({ itemId: "item.b", quantity: 1, createdAt: firstB, updatedAt: firstB }),
+      expect.objectContaining({ itemId: "item.a", quantity: 1, createdAt: secondA, updatedAt: secondA })
+    ]);
+  });
+
   it("heals the active solo combat state for local battle QA", async () => {
     const prisma = new FakeDevGrantPrisma({
       level: 3,
@@ -284,6 +315,8 @@ class FakeDevGrantPrisma {
   readonly soloCombatSessions: FakeSoloCombatSession[] = [];
   readonly characterCooldowns: FakeCharacterCooldown[] = [];
   readonly rogueAttempts: FakeRogueAttempt[] = [];
+  readonly characterItems: FakeCharacterItem[] = [];
+  private grantNow = fixedNow;
   private readonly character: FakeCharacter;
   private readonly activeCombat: FakeActiveCombat | null;
 
@@ -302,6 +335,15 @@ class FakeDevGrantPrisma {
       callback(this.tx)
   } as unknown as ConstructorParameters<typeof PrismaDevGrantRepository>[0];
 
+  setGrantNow(now: Date): void {
+    this.grantNow = now;
+  }
+
+  depleteItem(itemId: string): void {
+    const index = this.characterItems.findIndex((row) => row.itemId === itemId);
+    if (index >= 0) this.characterItems.splice(index, 1);
+  }
+
   private readonly tx: FakeTransactionClient = {
     character: {
       findFirst: (input: FakeFindFirstInput): Promise<FakeCharacter | null> =>
@@ -317,6 +359,31 @@ class FakeDevGrantPrisma {
     },
     characterEquipment: {
       findMany: () => Promise.resolve([])
+    },
+    characterItem: {
+      upsert: ({ where, create, update }: FakeCharacterItemUpsertInput): Promise<FakeCharacterItem> => {
+        const existing = this.characterItems.find((row) =>
+          row.characterId === where.characterId_itemId.characterId &&
+          row.itemId === where.characterId_itemId.itemId
+        );
+        if (existing) {
+          existing.quantity += update.quantity.increment;
+          existing.updatedAt = this.grantNow;
+          if (update.createdAt) existing.createdAt = update.createdAt;
+          return Promise.resolve(existing);
+        }
+
+        const created = {
+          id: `character-item-${this.characterItems.length + 1}`,
+          characterId: create.characterId,
+          itemId: create.itemId,
+          quantity: create.quantity,
+          createdAt: create.createdAt ?? this.grantNow,
+          updatedAt: this.grantNow
+        };
+        this.characterItems.push(created);
+        return Promise.resolve(created);
+      }
     },
     dailyAction: {
       findFirst: ({ where }: FakeDailyActionFindFirstInput): Promise<FakeDailyAction | null> =>
@@ -482,6 +549,9 @@ interface FakeTransactionClient {
   characterEquipment: {
     findMany(): Promise<Array<{ itemId: string }>>;
   };
+  characterItem: {
+    upsert(input: FakeCharacterItemUpsertInput): Promise<FakeCharacterItem>;
+  };
   dailyAction: {
     findFirst(input: FakeDailyActionFindFirstInput): Promise<FakeDailyAction | null>;
     create(input: FakeDailyActionCreateInput): Promise<FakeDailyAction>;
@@ -511,6 +581,34 @@ interface FakeTransactionClient {
   duelCombatSession: {
     findUnique(input: { where: { id: string } }): Promise<FakeSession | null>;
     update(input: FakeSessionUpdateInput): Promise<FakeSession>;
+  };
+}
+
+interface FakeCharacterItem {
+  id: string;
+  characterId: string;
+  itemId: string;
+  quantity: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface FakeCharacterItemUpsertInput {
+  where: {
+    characterId_itemId: {
+      characterId: string;
+      itemId: string;
+    };
+  };
+  create: {
+    characterId: string;
+    itemId: string;
+    quantity: number;
+    createdAt?: Date;
+  };
+  update: {
+    quantity: { increment: number };
+    createdAt?: Date;
   };
 }
 
