@@ -6154,6 +6154,66 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
+  it("offers magical equipment actions from Charkokovalnia item details", async () => {
+    const itemId = "item.set.yeger-shadow.hood";
+    const content = {
+      id: itemId,
+      name: "Каптур тихого сліду",
+      description: "Ховає намір пояснювати.",
+      rarity: "epic" as const,
+      slot: "armor" as const,
+      equipmentSlot: "head" as const,
+      goldValue: 137
+    };
+    const previewItemEquipForTelegramUser = vi.fn(() =>
+      Promise.resolve({
+        state: "attunement-confirm-required" as const,
+        item: { itemId, content },
+        slot: "head" as const,
+        currentItem: null,
+        strength: "strong" as const,
+        durationMinutes: 42
+      })
+    );
+    const calls = await captureApiCalls(
+      makeItemDetailCallbackData(itemId, 0, null, "default", { source: "item-upgrade" }),
+      servicesWith({
+        inventory: {
+          getItemForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              item: {
+                id: "character-item-yeger-hood",
+                itemId,
+                quantity: 1,
+                enhancementLevel: 4,
+                content
+              }
+            })
+        },
+        equipment: {
+          getEquipmentForTelegramUser: () =>
+            Promise.resolve({
+              state: "ready" as const,
+              slots: []
+            }),
+          previewItemEquipForTelegramUser
+        },
+        itemUse: {
+          getAvailability: () => ({ state: "not-usable" as const })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+    const keyboard = JSON.stringify(edit?.payload.reply_markup);
+
+    expect(previewItemEquipForTelegramUser).toHaveBeenCalledWith(42n, itemId, null);
+    expect(String(edit?.payload.text)).toContain("Магічні бонуси почнуть діяти після налаштування");
+    expect(String(edit?.payload.text)).toContain("приблизно за <b>42 хв</b>");
+    expect(keyboard).toContain("🧥 Екіпірувати");
+    expect(keyboard).toContain("✨ До Чароковальні");
+  });
+
   it("skips equip preview and craft checks for non-equippable item detail callbacks", async () => {
     const previewItemEquipForTelegramUser = vi.fn(() => Promise.resolve({ state: "not-equippable" as const }));
     const getCraftOptionsForTelegramUser = vi.fn(() => Promise.resolve([]));

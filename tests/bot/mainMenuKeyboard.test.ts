@@ -2262,10 +2262,30 @@ describe("main menu and scene keyboards", () => {
           null,
           0,
           null,
-          { source: "item-upgrade" }
+          {
+            source: "item-upgrade",
+            equipPreview: {
+              state: "attunement-confirm-required",
+              item: {
+                itemId: "item.pan-of-persuasion",
+                content: {
+                  id: "item.pan-of-persuasion",
+                  name: "Пательня переконання",
+                  description: "Важкий аргумент.",
+                  rarity: "common",
+                  slot: "weapon",
+                  goldValue: 25
+                }
+              },
+              slot: "weapon",
+              currentItem: null,
+              strength: "weak",
+              durationMinutes: 13
+            }
+          }
         )
       )
-    ).toEqual(["✨ До Чароковальні"]);
+    ).toEqual(["🧥 Екіпірувати", "✨ До Чароковальні"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(

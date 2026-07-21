@@ -20,6 +20,7 @@ This project follows a simple pre-1.0 versioning policy:
 - In local development, the persistent `🧰 Адмінка` button is restored beside `📖 Допомога` in the bottom main-keyboard row. Production suppresses it even if requested, and the dev command reference is grouped into general, combat/party, resources/Manatky and quest/wait sections.
 
 ### Fixed
+- Item detail cards opened from Charkokovalnia now keep the existing equip or unequip action instead of returning before those controls are built. Upgraded magical equipment previews explain the attunement wait or interruption confirmation instead of falsely claiming that the slot is simply ready.
 - The short `/me` lookup now settles passive and Sated recovery without discarding either one-shot notice. It sends those notices separately after the buttonless six-line card and skips inventory, active-drink, action-gate, achievement and Bard reads that the short surface does not use.
 - Added strict versioned PartyBoss state validation for rules, turn, party identity, roster, duplicate identities, numeric bounds and stored journal shape. A malformed active row is CAS-cancelled without rewards, recoverable Sated/Inspiration state is released, party/chat state is terminalized, and one corrupt row cannot block healthy due work.
 - Added idempotent orphan `party-boss` lease recovery and real Prisma race coverage for final-slot joins, concurrent last actions, duplicate final actions, action/timeout/scheduler overlap and delete-versus-terminal-resolution safety.
@@ -45,7 +46,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a truthful release-state ledger with target deployment, migration, flag, backup/restore, Telegram QA and observation gaps left as deferred rather than inferred.
 - Reconciled the 0.3.x closeout and 0.4.x party/guild cutline into canonical product, design, architecture and task docs. Preserved the complete source audit package under `docs/history/0.3x-to-0.4x-roadmap-audit-12026-07-20/`.
 - Added one forward-only schema migration for the legacy terminal-leader backfill and append-only PartyBoss round history. Its unique session/turn constraint supplies the required lookup prefix without a redundant non-unique index. No production flag, dependency, quest, reward or new achievement definition was added. Lore needs no update because the change fixes existing combat support targeting and lifecycle safety rather than world canon.
-- Final repository verification passed 316 unit files / 3956 tests and 23 integration files / 552 tests, including cache-disabled unit and integration repeats, all 56 PartyBoss reducer tests, and the five targeted simulation corridors. Target deployment, migration application, flags, backup/restore, Telegram QA and observation remain unverified.
+- Final repository verification passed 316 unit files / 3959 tests and 23 integration files / 552 tests, including the focused Charkokovalnia item-detail regression, all 56 PartyBoss reducer tests, and the five targeted simulation corridors. Target deployment, migration application, flags, backup/restore, Telegram QA and observation remain unverified.
 
 ## [0.3.15] - 12026-07-20 - Big Barrel Raid Chat and Varenyk Presence Fix
 

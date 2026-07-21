@@ -548,6 +548,89 @@ describe("item detail presenter", () => {
     expect(text).toContain("Печатка дрібної переваги лишиться в торбі");
   });
 
+  it("explains magical attunement before equipping an upgraded item", () => {
+    const text = presentOwnedItemDetail(
+      itemSummary({
+        itemId: "item.set.yeger-shadow.hood",
+        enhancementLevel: 4,
+        content: {
+          id: "item.set.yeger-shadow.hood",
+          name: "Каптур тихого сліду",
+          description: "Ховає намір пояснювати.",
+          rarity: "epic",
+          slot: "armor",
+          equipmentSlot: "head",
+          goldValue: 137
+        }
+      }),
+      {
+        equipPreview: {
+          state: "attunement-confirm-required",
+          item: {
+            itemId: "item.set.yeger-shadow.hood",
+            content: {
+              id: "item.set.yeger-shadow.hood",
+              name: "Каптур тихого сліду",
+              description: "Ховає намір пояснювати.",
+              rarity: "epic",
+              slot: "armor",
+              equipmentSlot: "head",
+              goldValue: 137
+            }
+          },
+          slot: "head",
+          currentItem: null,
+          strength: "strong",
+          durationMinutes: 42
+        }
+      }
+    );
+
+    expect(text).toContain("можна екіпірувати у слот <i>«Голова»</i>");
+    expect(text).toContain("Магічні бонуси почнуть діяти після налаштування");
+    expect(text).toContain("приблизно за <b>42 хв</b>");
+    expect(text).not.toContain("Спорядження вже звільняє місце");
+  });
+
+  it("explains that replacing an attuning item interrupts its process", () => {
+    const content = {
+      id: "item.set.inventory-prophet.visor",
+      name: "Візор відсутньої етикетки",
+      description: "Показує те, що всі шукатимуть.",
+      rarity: "epic" as const,
+      slot: "armor" as const,
+      equipmentSlot: "head" as const,
+      goldValue: 131
+    };
+    const text = presentOwnedItemDetail(
+      itemSummary({ itemId: content.id, enhancementLevel: 1, content }),
+      {
+        equipPreview: {
+          state: "attunement-interrupt-confirm-required",
+          item: { itemId: content.id, content },
+          slot: "head",
+          currentItem: {
+            itemId: "item.old-magic-hat",
+            content: {
+              id: "item.old-magic-hat",
+              name: "Старий магічний капелюх",
+              description: "Ще думає.",
+              rarity: "rare",
+              slot: "armor",
+              equipmentSlot: "head",
+              goldValue: 93
+            }
+          }
+        }
+      }
+    );
+
+    expect(text).toContain("перед заміною у слоті <i>«Голова»</i> потрібне підтвердження");
+    expect(text).toContain("Ще налаштовується <b>Старий магічний капелюх</b>");
+    expect(text).toContain("нова манатка зібʼє цей процес");
+    expect(text).not.toContain("Спорядження вже звільняє місце");
+  });
+
   it("escapes unsafe item names and descriptions", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
