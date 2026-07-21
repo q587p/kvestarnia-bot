@@ -116,6 +116,8 @@ BOT_USERNAME=kvestarnia_bot
 
 `/dev_reset_me` лишається локальним reset-хелпером і працює, коли `NODE_ENV` не `production`.
 
+За `NODE_ENV=development` постійна клавіятура завжди тримає `🧰 Адмінка` в окремому нижньому рядку. Кнопка відкриває згруповану dev-довідку; у `production` вона не показується навіть за помилково переданого запиту на її додавання.
+
 Усі `/dev_*` команди мають лишатися non-production only: production feature flags можуть відкривати ігрові поверхні, але не мають реєструвати `/dev_*`, показувати їх у `/help` або `/dev_help`, чи дозволяти dev-only callback mutation. Будь-який новий player-facing timer/cooldown/retry/once-per-period gate, включно з класовими або соціяльними вміннями, має отримати вузьку локальну `/dev_*` команду до PR-ready стану або явний виняток у task doc і PR body. Зокрема `PARTY_SESSION_DEV_HELPERS_ENABLED` не повинен відкривати `/dev_party` у `NODE_ENV=production`.
 
 Value-granting helper commands вмикаються тільки явним локальним opt-in:

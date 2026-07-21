@@ -14,7 +14,7 @@ import { makeItemUseRestoreToFullCallbackData } from "../callbacks/itemUseCallba
 import { telegramUserIdFromContext } from "../context";
 import { buildHeroAchievementsKeyboard } from "../keyboards/achievementKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
-import { presentHero, presentHeroMissing } from "../presenters/heroPresenter";
+import { presentHero, presentHeroMissing, presentShortHero } from "../presenters/heroPresenter";
 import { presentVarenykSatedRecoveryNotice } from "../presenters/varenykSatedPresenter";
 import { safeEditMessageText } from "../safeEditMessageText";
 
@@ -31,13 +31,36 @@ export function registerHeroCommand(
   heroService: HeroService,
   options: HeroCommandOptions = {}
 ): void {
-  bot.command(["hero", "profile", "me"], async (ctx) => {
+  bot.command(["hero", "profile"], async (ctx) => {
     await sendHero(ctx, heroService, "reply", {
       ...(options.buildMainMenuKeyboard
         ? { mainMenuKeyboard: await options.buildMainMenuKeyboard(ctx) }
         : {})
     });
   });
+
+  bot.command("me", async (ctx) => {
+    await sendShortHero(ctx, heroService);
+  });
+}
+
+export async function sendShortHero(ctx: Context, heroService: HeroService): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (!telegramUserId) {
+    await sendText(ctx, "reply", "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
+    return;
+  }
+
+  const result = await heroService.findByTelegramUserId(telegramUserId);
+
+  await sendText(
+    ctx,
+    "reply",
+    result.state === "existing-character"
+      ? presentShortHero(result.character)
+      : presentHeroMissing()
+  );
 }
 
 export async function sendHero(

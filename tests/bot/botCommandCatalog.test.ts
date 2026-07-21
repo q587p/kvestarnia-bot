@@ -29,6 +29,9 @@ describe("bot command catalog", () => {
     expect(commands.find((entry) => entry.command === "hero")?.description).toBe(
       "👤 персонаж і прогрес"
     );
+    expect(commands.find((entry) => entry.command === "quest")?.description).toBe(
+      "🗺️ список квестів"
+    );
     expect(commands.find((entry) => entry.command === "help")?.description).toBe("📖 допомога");
     expect(commands.find((entry) => entry.command === "support")?.description).toBe(
       "🫙 добровільна підтримка без бонусів"
@@ -92,6 +95,14 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_tavern_games")).toBe(false);
+  });
+
+  it("describes command aliases by their distinct inventory views", () => {
+    const entries = getHelpCommandEntries(false);
+
+    expect(entries.find((entry) => entry.command === "items")?.description).toBe("манатки за абеткою");
+    expect(entries.find((entry) => entry.command === "bag")?.description).toBe("нові манатки спершу");
+    expect(entries.find((entry) => entry.command === "equip")?.description).toBe("приміряти манатки");
   });
 
   it("lists /lore and /chronicles in help without adding them to the side menu", () => {

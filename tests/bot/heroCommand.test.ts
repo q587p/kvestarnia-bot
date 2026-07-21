@@ -1,10 +1,33 @@
 import type { Context } from "grammy";
 import { describe, expect, it } from "vitest";
-import { sendHero } from "../../src/bot/commands/heroCommand";
+import { sendHero, sendShortHero } from "../../src/bot/commands/heroCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { HeroService } from "../../src/services/heroService";
 
 describe("hero command", () => {
+  it("sends /me without progress copy or any keyboard", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendShortHero(makeReplyContext(replies), heroService);
+
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain("Рівень <b>3</b> · ❤️ 24/24 · 🔮 12/12");
+    expect(replies[0]?.text).not.toContain("до наступного");
+    expect(replies[0]?.text).not.toContain("Золото");
+    expect(replies[0]?.text).not.toContain("Зараз пригодник тут");
+    expect(replies[0]?.options).toEqual({ parse_mode: "HTML" });
+  });
+
   it("renders the authoritative full-HP recovery notice once in a replied hero card", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {

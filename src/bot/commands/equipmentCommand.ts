@@ -9,8 +9,12 @@ import { safeEditMessageText } from "../safeEditMessageText";
 type SendMode = "reply" | "edit";
 
 export function registerEquipmentCommand(bot: Bot, equipmentService: EquipmentService): void {
-  bot.command(["equipment", "gear", "equip"], async (ctx) => {
+  bot.command(["equipment", "gear"], async (ctx) => {
     await sendEquipment(ctx, equipmentService, "reply");
+  });
+
+  bot.command("equip", async (ctx) => {
+    await sendEquipment(ctx, equipmentService, "reply", { expanded: true });
   });
 }
 

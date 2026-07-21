@@ -120,56 +120,66 @@ describe("help presenter", () => {
   });
 
   it("renders a compact dev-only help screen from available dev commands", () => {
-    const resetOnly = presentDevHelp({ includeDevReset: true, includeDevGrant: false });
-    const grantsEnabled = presentDevHelp({ includeDevReset: true, includeDevGrant: true });
+    const resetVisibility = { includeDevReset: true, includeDevGrant: false };
+    const grantVisibility = { includeDevReset: true, includeDevGrant: true };
+    const resetMenu = presentDevHelp(resetVisibility);
+    const resetGeneral = presentDevHelp(resetVisibility, "general");
+    const resetCombat = presentDevHelp(resetVisibility, "combat");
+    const resetQuests = presentDevHelp(resetVisibility, "quests");
+    const grantResources = presentDevHelp(grantVisibility, "resources");
+    const grantQuests = presentDevHelp(grantVisibility, "quests");
     const partyEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
       includePartySessions: true
-    });
+    }, "combat");
     const hpRecoveryEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
       includeHpRecovery: true
-    });
+    }, "combat");
     const raidChatEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
       includeRaidChat: true
-    });
+    }, "combat");
     const disabled = presentDevHelp({ includeDevReset: false, includeDevGrant: false });
 
-    expect(resetOnly).toContain("🧰 Dev-довідка Квестарні");
-    expect(resetOnly).toContain("🧰 /dev_help");
-    expect(resetOnly).not.toContain("/dev_party");
-    expect(resetOnly).toContain("🧪 /dev_reset_me");
-    expect(resetOnly).toContain("⏱️ /dev_adventure_reset");
-    expect(resetOnly).toContain("⏹️ /dev_raid_stop");
-    expect(resetOnly).toContain("🔁 /dev_raid_reset");
-    expect(resetOnly).toContain("🏁 /dev_raid_win");
-    expect(resetOnly).toContain("⌛ /dev_reset_monster_rest");
-    expect(resetOnly).not.toContain("/dev_add_xp");
+    expect(resetMenu).toContain("🧰 Dev-довідка Квестарні");
+    expect(resetMenu).toContain("🧰 Загальне — персонаж і довідка.");
+    expect(resetMenu).toContain("⚔️ Бої й ватага — сутички, рейди й гурт.");
+    expect(resetMenu).toContain("🗺️ Справи й очікування — квести, кулдауни й повтори.");
+    expect(resetMenu).not.toContain("/dev_help");
+    expect(resetGeneral).toContain("🧰 /dev_help");
+    expect(resetGeneral).toContain("🧪 /dev_reset_me");
+    expect(resetCombat).toContain("⏹️ /dev_raid_stop");
+    expect(resetCombat).toContain("🔁 /dev_raid_reset");
+    expect(resetCombat).toContain("🏁 /dev_raid_win");
+    expect(resetCombat).toContain("⌛ /dev_reset_monster_rest");
+    expect(resetCombat).not.toContain("/dev_party");
+    expect(resetQuests).toContain("⏱️ /dev_adventure_reset");
+    expect(resetQuests).not.toContain("/dev_add_xp");
 
-    expect(grantsEnabled).toContain("🔢 /dev_add_xp");
-    expect(grantsEnabled).toContain("🎲 /dev_add_random_item");
-    expect(grantsEnabled).toContain("🧾 /dev_add_item");
-    expect(grantsEnabled).toContain("🧻 /dev_add_bandage");
-    expect(grantsEnabled).toContain("🧵 /dev_add_dense_bandage");
-    expect(grantsEnabled).toContain("🩺 /dev_add_field_kit");
-    expect(grantsEnabled).toContain("✨ /dev_add_iskrokamin");
-    expect(grantsEnabled).toContain("📏 /dev_add_yeger_line");
-    expect(grantsEnabled).toContain("🧷 /dev_reset_yeger_bandage");
-    expect(grantsEnabled).toContain("/dev_reset_yeger_bandage_day");
-    expect(grantsEnabled).toContain("👣 /dev_reset_yeger_trail");
-    expect(grantsEnabled).toContain("🐭 /dev_reset_cellar_mouse");
-    expect(grantsEnabled).toContain("🙏 /dev_reset_priest_blessing");
-    expect(grantsEnabled).toContain("🗡️ /dev_reset_quiet_pocket");
-    expect(grantsEnabled).toContain("📄 /dev_reset_bureaucramancer_protocol");
-    expect(grantsEnabled).toContain("🧤 /dev_reset_rogue");
-    expect(grantsEnabled).toContain("5️⃣ /dev_yeger_first_done");
-    expect(grantsEnabled).toContain("7️⃣ /dev_yeger_second_done");
-    expect(grantsEnabled).toContain("🎶 /dev_reset_bard_performance");
-    expect(grantsEnabled).toContain("🎲 /dev_reset_tavern_games");
+    expect(grantResources).toContain("🔢 /dev_add_xp");
+    expect(grantResources).toContain("🎲 /dev_add_random_item");
+    expect(grantResources).toContain("🧾 /dev_add_item");
+    expect(grantResources).toContain("🧻 /dev_add_bandage");
+    expect(grantResources).toContain("🧵 /dev_add_dense_bandage");
+    expect(grantResources).toContain("🩺 /dev_add_field_kit");
+    expect(grantResources).toContain("✨ /dev_add_iskrokamin");
+    expect(grantResources).toContain("📏 /dev_add_yeger_line");
+    expect(grantQuests).toContain("🧷 /dev_reset_yeger_bandage");
+    expect(grantQuests).toContain("/dev_reset_yeger_bandage_day");
+    expect(grantQuests).toContain("👣 /dev_reset_yeger_trail");
+    expect(grantQuests).toContain("🐭 /dev_reset_cellar_mouse");
+    expect(grantQuests).toContain("🙏 /dev_reset_priest_blessing");
+    expect(grantQuests).toContain("🗡️ /dev_reset_quiet_pocket");
+    expect(grantQuests).toContain("📄 /dev_reset_bureaucramancer_protocol");
+    expect(grantQuests).toContain("🧤 /dev_reset_rogue");
+    expect(grantQuests).toContain("5️⃣ /dev_yeger_first_done");
+    expect(grantQuests).toContain("7️⃣ /dev_yeger_second_done");
+    expect(grantQuests).toContain("🎶 /dev_reset_bard_performance");
+    expect(grantQuests).toContain("🎲 /dev_reset_tavern_games");
     expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
     expect(partyEnabled).not.toContain("/dev_raid_chat");
     expect(raidChatEnabled).toContain("💬 /dev_raid_chat");

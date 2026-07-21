@@ -63,11 +63,12 @@ type MainMenuKeyboardOptions
 import {
 buildDailyKorchmaRoundSceneKeyboard
 } from "../keyboards/dailyKorchmaRoundKeyboard";
+import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
 import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
 import {
 presentDailyKorchmaRoundScene
 } from "../presenters/dailyKorchmaRoundPresenter";
-import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
+import { presentDevHelp, presentHelp, type HelpVisibility } from "../presenters/helpPresenter";
 
 import {
 showActivePassageSearchIfNeeded
@@ -90,6 +91,7 @@ export function registerMainMenuKeyboard(
   options: MainMenuRouteOptions = {}
 ): void {
   const includeAdmin = shouldIncludeAdminMainMenu(services);
+  const devHelpVisibility = buildDevHelpVisibility(services);
 
   bot.hears(mainMenuButtons.hero, async (ctx) => {
     const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -182,24 +184,30 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await ctx.reply(presentDevHelp({
-      includeDevReset: services.devReset.isEnabled(),
-      includeDevGrant: services.devGrant?.isEnabled() ?? false,
-      includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
-      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
-      includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
-      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
-    }), {
-      reply_markup: await buildCurrentMainMenuKeyboardWithQuestMarkers(ctx, services, { includeAdmin })
+    await ctx.reply(presentDevHelp(devHelpVisibility), {
+      reply_markup: buildDevHelpKeyboard(devHelpVisibility)
     });
   });
 }
 
+type DevHelpServices = Pick<
+  BotServices,
+  "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
+>;
+
+export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibility {
+  return {
+    includeDevReset: services.devReset.isEnabled(),
+    includeDevGrant: services.devGrant?.isEnabled() ?? false,
+    includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+    includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+    includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
+    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+  };
+}
+
 export function shouldIncludeAdminMainMenu(
-  services: Pick<
-    BotServices,
-    "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
-  >
+  services: DevHelpServices
 ): boolean {
   return services.devReset.isEnabled()
     || (services.devGrant?.isEnabled() ?? false)

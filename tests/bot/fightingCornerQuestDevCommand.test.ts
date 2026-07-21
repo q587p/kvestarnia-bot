@@ -14,7 +14,7 @@ describe("Fighting Corner quest dev helper", () => {
       includeDevReset: false,
       includeDevGrant: false,
       includeFightingCornerQuest: false
-    })).not.toContain("dev_reset_fighting_corner_quest");
+    }, "quests")).not.toContain("dev_reset_fighting_corner_quest");
   });
 
   it("registers and lists the helper only when its non-production gate is open", () => {
@@ -26,7 +26,7 @@ describe("Fighting Corner quest dev helper", () => {
       includeDevReset: false,
       includeDevGrant: false,
       includeFightingCornerQuest: true
-    })).toContain("📜 /dev_reset_fighting_corner_quest");
+    }, "quests")).toContain("📜 /dev_reset_fighting_corner_quest");
   });
 });
 

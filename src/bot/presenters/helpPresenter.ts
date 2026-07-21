@@ -1,5 +1,7 @@
 import { getHelpCommandEntries, type BotCommandCatalogEntry } from "../botCommandCatalog";
 import { HELP_CONTENT_PAGES, type HelpPage } from "../callbacks/helpCallbackData";
+import type { DevHelpPage } from "../callbacks/devHelpCallbackData";
+import { getDevHelpSections } from "../devHelpSections";
 
 export interface HelpVisibility {
   includeDevReset: boolean;
@@ -116,20 +118,38 @@ function pageContent(
   ];
 }
 
-export function presentDevHelp(visibility: boolean | HelpVisibility): string {
+export function presentDevHelp(
+  visibility: boolean | HelpVisibility,
+  page: DevHelpPage = "menu"
+): string {
   const normalized = normalizeHelpVisibility(visibility);
-  const devCommands = getHelpCommandEntries(normalized)
-    .filter((entry) => entry.devOnly)
-    .map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`);
+  const sections = getDevHelpSections(normalized);
 
-  if (devCommands.length === 0) {
+  if (sections.length === 0) {
     return "Dev-команди тут не ввімкнені. Корчмар сховав викрутку.";
   }
 
+  if (page === "menu") {
+    return [
+      "🧰 Dev-довідка Квестарні",
+      "",
+      "Що саме треба підкрутити?",
+      "",
+      ...sections.map((section) => `${section.title} — ${section.summary}.`),
+      "",
+      "Оберіть розділ кнопкою нижче. Команди працюють тільки у локальній майстерні."
+    ].join("\n");
+  }
+
+  const section = sections.find((candidate) => candidate.page === page);
+  if (!section) {
+    return presentDevHelp(normalized, "menu");
+  }
+
   return [
-    "🧰 Dev-довідка Квестарні",
+    `${section.title} · ${sections.indexOf(section) + 1}/${sections.length}`,
     "",
-    ...devCommands,
+    ...section.commands.map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`),
     "",
     "Команди працюють тільки у локальній майстерні."
   ].join("\n");

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCosmeticTitlesKeyboard,
   buildHeroAchievementsKeyboard
@@ -99,6 +99,10 @@ import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppe
 import { makeItemUpgradeListCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 
 describe("main menu and scene keyboards", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds the universal menu as a persistent reply keyboard", () => {
     const keyboard = buildMainMenuKeyboard();
 
@@ -122,9 +126,25 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
+      [mainMenuButtons.participants, mainMenuButtons.help],
+      [mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
+  });
+
+  it("keeps the admin button in the bottom row throughout local development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+
+    expect(replyKeyboardTexts(buildMainMenuKeyboard().keyboard).at(-1)).toEqual([
+      mainMenuButtons.admin
+    ]);
+  });
+
+  it("never shows the admin button in production even when requested", () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(replyKeyboardTexts(buildMainMenuKeyboard({ includeAdmin: true }).keyboard).flat())
+      .not.toContain(mainMenuButtons.admin);
   });
 
   it("builds hero inline actions with achievements and optional full restore", () => {

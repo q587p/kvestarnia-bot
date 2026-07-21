@@ -18,6 +18,17 @@ import { presentActiveBardInspirationBuff } from "./bardInspirationPresenter";
 import { presentTimedStatusLine } from "./timedStatusPresenter";
 import { presentActiveVarenykSatedBuff } from "./varenykSatedPresenter";
 
+export function presentShortHero(summary: CharacterSummary): string {
+  return [
+    `👤 <b>${escapeHtml(summary.name)}</b>`,
+    `${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}`,
+    `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    `Рівень <b>${summary.level}</b> · ❤️ ${summary.hpCurrent}/${summary.hpMax} · 🔮 ${summary.manaCurrent}/${summary.manaMax}`,
+    `Сила ${summary.stats.strength} · Спритність ${summary.stats.dexterity} · Розум ${summary.stats.intelligence}`,
+    `Харизма ${summary.stats.charisma} · Вдача ${summary.stats.luck}`
+  ].join("\n");
+}
+
 export function presentHero(
   summary: CharacterSummary,
   options: {

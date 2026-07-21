@@ -6,6 +6,10 @@ import {
   type HelpPage
 } from "../callbacks/helpCallbackData";
 import {
+  parseDevHelpCallbackData,
+  type DevHelpPage
+} from "../callbacks/devHelpCallbackData";
+import {
   parseLoreBoardCallbackData,
   type LoreBoardCallback
 } from "../callbacks/loreBoardCallbackData";
@@ -32,15 +36,18 @@ import { sendTavern } from "../commands/tavernCommand";
 import { registerVersionCommand } from "../commands/versionCommand";
 import { telegramUserIdFromContext } from "../context";
 import { buildShynokGameHubKeyboard } from "../keyboards/shynokKeyboard";
+import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
 import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
-import { presentHelp } from "../presenters/helpPresenter";
+import { presentDevHelp, presentHelp } from "../presenters/helpPresenter";
 import { presentTavernGameHub } from "../presenters/tavernGamePresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 
 import {
+  buildDevHelpVisibility,
   registerCallbackMainMenuLocationRefresh,
-  registerMainMenuKeyboard
+  registerMainMenuKeyboard,
+  shouldIncludeAdminMainMenu
 } from "./mainMenu";
 import type { BotModuleDependencies } from "./types";
 
@@ -90,6 +97,12 @@ export function registerCoreBotModule(
   registerParsedCallbackRoute(bot, /^v1:help:/, parseHelpCallbackData, async (ctx, page) => {
     await handleHelpCallback(ctx, page, services);
   });
+
+  if (shouldIncludeAdminMainMenu(services)) {
+    registerParsedCallbackRoute(bot, /^v1:dh:/, parseDevHelpCallbackData, async (ctx, page) => {
+      await handleDevHelpCallback(ctx, page, services);
+    });
+  }
 
   registerParsedCallbackRoute(bot, /^v1:news:/, parseNewsCallbackData, handleNewsCallback);
 
@@ -149,6 +162,19 @@ async function handleHelpCallback(
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
   }, page), {
     reply_markup: buildHelpKeyboard(page)
+  });
+}
+
+async function handleDevHelpCallback(
+  ctx: Context,
+  page: DevHelpPage,
+  services: BotServices
+): Promise<void> {
+  const visibility = buildDevHelpVisibility(services);
+
+  await safeAnswerCallbackQuery(ctx);
+  await safeEditMessageText(ctx, presentDevHelp(visibility, page), {
+    reply_markup: buildDevHelpKeyboard(visibility, page)
   });
 }
 

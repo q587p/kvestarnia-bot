@@ -36,6 +36,7 @@ import {
 } from "../../src/bot/callbacks/fightCallbackData";
 import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
+import { makeDevHelpCallbackData } from "../../src/bot/callbacks/devHelpCallbackData";
 import { makeHelpCallbackData } from "../../src/bot/callbacks/helpCallbackData";
 import { buildDuelResultKeyboard } from "../../src/bot/keyboards/duelKeyboard";
 import {
@@ -7302,9 +7303,26 @@ describe("scene callback HTML options", () => {
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).toContain("🧰 Dev-довідка Квестарні");
-    expect(String(reply?.payload.text)).toContain("/dev_help");
-    expect(String(reply?.payload.text)).toContain("/dev_add_xp");
-    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(mainMenuButtons.admin);
+    expect(String(reply?.payload.text)).not.toContain("/dev_help");
+    expect(String(reply?.payload.text)).not.toContain("/dev_add_xp");
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(makeDevHelpCallbackData("general"));
+    expect(JSON.stringify(reply?.payload.reply_markup)).toContain(makeDevHelpCallbackData("resources"));
+  });
+
+  it("opens one dev-help section at a time", async () => {
+    const calls = await captureApiCalls(
+      makeDevHelpCallbackData("resources"),
+      servicesWith({
+        devReset: { isEnabled: () => true },
+        devGrant: { isEnabled: () => true }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(String(edit?.payload.text)).toContain("🎒 Ресурси й манатки");
+    expect(String(edit?.payload.text)).toContain("/dev_add_xp");
+    expect(String(edit?.payload.text)).not.toContain("/dev_party");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain(makeDevHelpCallbackData("menu"));
   });
 
   it("primes deterministic natural Iskrokamin loot through the existing Passage Search reset command", async () => {
