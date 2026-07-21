@@ -539,7 +539,9 @@ export async function handlePartySessionCallback(
       return;
     }
 
-    const boss = await options.partyBoss.getByPartyInviteToken(callback.token);
+    const boss = typeof options.partyBoss.getJournalPageByPartyInviteToken === "function"
+      ? await options.partyBoss.getJournalPageByPartyInviteToken(callback.token, callback.page)
+      : await options.partyBoss.getByPartyInviteToken(callback.token);
     await safeAnswerCallbackQuery(ctx);
     if (!boss) {
       await sendBossText(ctx, "edit", "Бій не знайшовся.", false);
@@ -564,7 +566,7 @@ export async function handlePartySessionCallback(
 
     await sendBossJournalText(ctx, presentPartyBossJournal(boss, callback.page), {
       session: boss,
-      page: callback.page ?? boss.state.roundLog.length - 1
+      page: boss.journal?.page ?? callback.page ?? boss.state.roundLog.length - 1
     });
     return;
   }

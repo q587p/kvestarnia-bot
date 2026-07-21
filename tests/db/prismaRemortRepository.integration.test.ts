@@ -848,6 +848,70 @@ describe("PrismaRemortRepository integration", () => {
     expect(frozenPayload.cursorAt).toBe(frozenCursorAtStart);
   });
 
+  it("serializes real remort confirmation against PartyBoss start without SQLite timeout or mixed-life leases", async () => {
+    const now = new Date("2026-06-22T12:40:00.000Z");
+    const actorId = "character-remort-start-race";
+    const survivorId = "character-remort-start-race-survivor";
+    await seedCharacter(prisma, {
+      userId: "user-remort-start-race",
+      characterId: actorId,
+      telegramUserId: 99321n
+    });
+    await seedCharacter(prisma, {
+      userId: "user-remort-start-race-survivor",
+      characterId: survivorId,
+      telegramUserId: 99322n
+    });
+    await seedDraft(prisma, actorId, "token-remort-start-race", now);
+    await seedRecruitingBigBarrel(prisma, {
+      partyId: "party-remort-start-race",
+      inviteToken: "party-remort-start-race-token",
+      actorId,
+      survivorId,
+      joinedAt: now
+    });
+
+    const outcomes = await Promise.allSettled([
+      repository.completeDraftForTelegramUser(99321n, makeCompletionInput("token-remort-start-race", now)),
+      partyBosses.startFromRecruitingPartyForTelegramUser(99321n, {
+        partyInviteToken: "party-remort-start-race-token",
+        now,
+        turnExpiresAt: new Date(now.getTime() + 23_000)
+      })
+    ]);
+    expect(outcomes.every((outcome) => outcome.status === "fulfilled")).toBe(true);
+    const remort = outcomes[0].status === "fulfilled" ? outcomes[0].value : null;
+    const start = outcomes[1].status === "fulfilled" ? outcomes[1].value : null;
+    const remortWon = remort?.state === "completed";
+    const startWon = start?.state === "started" || start?.state === "already-active";
+    expect(Number(remortWon) + Number(startWon)).toBe(1);
+    if (startWon) {
+      expect(remort).toEqual({ state: "active-combat" });
+    } else {
+      expect(["terminal-ineligible", "not-recruiting", "ineligible", "not-leader"]).toContain(start?.state);
+    }
+
+    const activeBoss = await prisma.partyBossSession.findFirst({
+      where: { partySessionId: "party-remort-start-race", status: "active" }
+    });
+    const leases = await prisma.activeCombatLease.findMany({
+      where: { kind: "party-boss", referenceId: "party-remort-start-race" }
+    });
+    if (activeBoss) {
+      const state = activeBoss.stateJson as unknown as { participants: Array<{ characterId: string; remortCount: number }> };
+      const liveRemorts = await prisma.characterRemort.groupBy({
+        by: ["characterId"],
+        where: { characterId: { in: state.participants.map((participant) => participant.characterId) } },
+        _count: { _all: true }
+      });
+      const counts = new Map(liveRemorts.map((row) => [row.characterId, row._count._all]));
+      expect(state.participants.every((participant) => participant.remortCount === (counts.get(participant.characterId) ?? 0))).toBe(true);
+      expect(leases).toHaveLength(state.participants.length);
+    } else {
+      expect(leases).toEqual([]);
+    }
+  });
+
   it("returns only the new-life Hero snapshot when real remort deletes Sated between preliminary Character and absence guard", async () => {
     const now = new Date("2026-07-15T09:00:00.000Z");
     const telegramUserId = 9320n;
@@ -1509,7 +1573,8 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
 async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
   for (const migration of [
     "20260720013000_add_party_raid_chat",
-    "20260720171500_add_party_raid_chat_delivery_version"
+    "20260720171500_add_party_raid_chat_delivery_version",
+    "20260721113000_party_boss_round_history"
   ]) {
     const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {

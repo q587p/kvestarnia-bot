@@ -78,6 +78,7 @@ export interface PartyBossParticipantState {
 export interface PartyBossState {
   rulesVersion: typeof PARTY_BOSS_RULES_VERSION | typeof BIG_BARREL_BROTHER_RULES_VERSION;
   partySessionId: string;
+  leaderCharacterId: string;
   status: PartyBossStatus;
   turn: number;
   boss: MonsterCombatStats & { hp: number };
@@ -346,6 +347,7 @@ export function createPartyBossState(input: {
   return {
     rulesVersion: isBig ? BIG_BARREL_BROTHER_RULES_VERSION : PARTY_BOSS_RULES_VERSION,
     partySessionId: input.partySessionId,
+    leaderCharacterId: leader?.characterId ?? input.participants[0]!.characterId,
     status: "active",
     turn: 1,
     boss: {
@@ -443,6 +445,11 @@ export function resolvePartyBossRound(input: {
   const next = clonePartyBossState(input.state);
   const submitted = new Map(input.actions.map((action) => [action.characterId, action]));
   const actionSummaries: PartyBossParticipantActionSummary[] = [];
+  const pendingSupports: Array<{
+    participant: PartyBossParticipantState;
+    profile: CombatSkillProfile | undefined;
+    summary: PartyBossParticipantActionSummary;
+  }> = [];
   let bossDamage = 0;
   const counterDamageByCharacterId = new Map<string, number>();
   const expiredBeforeActions = expireUnableWarriorTaunt(next);
@@ -556,16 +563,6 @@ export function resolvePartyBossRound(input: {
     });
 
     participant.resources = result.actorState;
-    const support = (action === "skill" || action === "race" || action === "gear") &&
-        isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) &&
-        !result.summary.fumble
-      ? applyPartyBossAbilitySupport(
-          next,
-          participant,
-          getPartyBossAbilityProfile(participant, action, committed?.gearAbility?.profile),
-          counterDamageByCharacterId
-        )
-      : {};
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
     participant.contribution.damageDealt += result.summary.actorDamage;
@@ -576,16 +573,36 @@ export function resolvePartyBossRound(input: {
       participant.contribution.timeoutActions += 1;
     }
 
-    actionSummaries.push({
+    const summary: PartyBossParticipantActionSummary = {
       characterId: participant.characterId,
       action: combatAction,
       origin,
       outcome: result.summary.actorOutcome,
       damage: result.summary.actorDamage,
       manaSpent: result.summary.manaSpent,
-      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {}),
-      ...support
-    });
+      ...(result.summary.skillId ? { skillId: result.summary.skillId } : {})
+    };
+    actionSummaries.push(summary);
+    if (
+      (action === "skill" || action === "race" || action === "gear") &&
+      isCommittedPartyBossAbilityOutcome(result.summary.actorOutcome) &&
+      !result.summary.fumble
+    ) {
+      pendingSupports.push({
+        participant,
+        profile: getPartyBossAbilityProfile(participant, action, committed?.gearAbility?.profile),
+        summary
+      });
+    }
+  }
+
+  // Apply ally support after every participant has committed their own action. Otherwise a
+  // later actorState assignment can erase protection granted by an earlier roster member.
+  for (const pending of pendingSupports) {
+    Object.assign(
+      pending.summary,
+      applyPartyBossAbilitySupport(next, pending.participant, pending.profile, counterDamageByCharacterId)
+    );
   }
 
   if (next.boss.hp > 0) {
@@ -1122,10 +1139,12 @@ function applyBossRetaliation(
     }
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
-    const counterDamage = Math.min(
-      state.boss.hp,
-      Math.max(0, Math.floor(counterDamageByCharacterId.get(participant.characterId) ?? 0))
-    );
+    const counterDamage = damage > 0 && participant.resources.hp > 0
+      ? Math.min(
+          state.boss.hp,
+          Math.max(0, Math.floor(counterDamageByCharacterId.get(participant.characterId) ?? 0))
+        )
+      : 0;
     state.boss.hp = Math.max(0, state.boss.hp - counterDamage);
 
     if (participant.resources.hp <= 0) {

@@ -1,42 +1,86 @@
 import { describe, expect, it } from "vitest";
 import { buildClosedAlphaAggregateReport } from "../../src/domain/analytics/closedAlphaReport";
 
+const from = new Date("2026-07-01T00:00:00.000Z");
+const to = new Date("2026-07-20T00:00:00.000Z");
+const recordedAt = new Date("2026-07-19T23:00:00.000Z");
+
 describe("closed alpha aggregate report", () => {
-  it("emits aggregate funnel counts without individual or message content", () => {
+  it("emits only immutable recorded-event aggregates and explicit instrumentation gaps", () => {
     const report = buildClosedAlphaAggregateReport({
-      from: new Date("2026-07-01T00:00:00.000Z"),
-      to: new Date("2026-07-20T00:00:00.000Z"),
-      users: [
-        { createdAt: new Date("2026-07-01T10:00:00.000Z"), lastActionAt: new Date("2026-07-09T10:00:00.000Z"), characterId: "one" },
-        { createdAt: new Date("2026-07-19T10:00:00.000Z"), lastActionAt: null, characterId: "two" }
+      from,
+      to,
+      characterCreationEvents: [
+        eventAt("2026-07-01T10:00:00.000Z"),
+        eventAt("2026-07-19T10:00:00.000Z"),
+        eventAt(to)
       ],
-      fights: [
-        { characterId: "one", createdAt: new Date("2026-07-01T11:00:00.000Z") },
-        { characterId: "one", createdAt: new Date("2026-07-01T12:00:00.000Z") },
-        { characterId: "one", createdAt: new Date("2026-07-01T13:00:00.000Z") },
-        { characterId: "two", createdAt: new Date("2026-07-20T11:00:00.000Z") }
+      duelEvents: [
+        { ...eventAt("2026-07-02T00:01:00.000Z"), status: "resolved" },
+        { ...eventAt(to), status: "resolved" }
       ],
-      duels: [
-        { status: "resolved", createdAt: new Date("2026-07-02T00:00:00.000Z"), resolvedAt: new Date("2026-07-02T00:01:00.000Z") }
-      ],
-      parties: [
-        { createdAt: new Date("2026-07-03T00:00:00.000Z"), joinCount: 2, startCount: 1, finishCount: 1 }
-      ]
+      partyFinishEvents: [eventAt("2026-07-06T00:00:00.000Z"), eventAt(to)]
     });
 
     expect(report).toMatchObject({
-      acquisition: { created: 2 },
-      retention: { d1Eligible: 1, d1Retained: 1, d7Eligible: 1, d7Retained: 1 },
-      firstDay: { charactersWithThreePveActions: 1 },
-      duels: { acceptedOrResolved: 1, completed: 1, rematches: null },
-      parties: { created: 1, joined: 2, started: 1, finished: 1 }
+      acquisition: { characterCreationCompleted: null, recordedCharacterCreationEvents: 2 },
+      retention: {
+        d1EligibleRecordedCharacters: 1,
+        d1Retained: null,
+        d7EligibleRecordedCharacters: 1,
+        d7Retained: null
+      },
+      firstDay: { charactersWithThreeSoloCombatSessionsProxy: null },
+      duels: { accepted: null, completed: null, recordedCompletedEvents: 1, rematches: null },
+      parties: { created: null, joined: null, started: null, finished: null, recordedFinishedEvents: 1 }
     });
-    const output = JSON.stringify(report);
-    expect(output).not.toContain("one");
-    expect(output).not.toContain("two");
-    expect(output).not.toContain("actorCharacterId");
-    expect(output).not.toContain("telegramUserId");
-    expect(output).not.toContain("body");
-    expect(report.missingInstrumentation).toContain("Duel rematch origin is not stored as a stable aggregate dimension.");
+    expect(report.missingInstrumentation).toContain(
+      "Duel acceptance time, complete duel-resolution history, and rematch origin are not stored as certified historical events."
+    );
+  });
+
+  it("excludes a post-to ledger insert even when its occurrence claims to be inside the window", () => {
+    const lateBackfill = {
+      occurredAt: new Date("2026-07-02T00:00:00.000Z"),
+      recordedAt: new Date("2026-07-20T00:00:01.000Z")
+    };
+    const report = buildClosedAlphaAggregateReport({
+      from,
+      to,
+      characterCreationEvents: [lateBackfill],
+      duelEvents: [{ ...lateBackfill, status: "resolved" }],
+      partyFinishEvents: [lateBackfill]
+    });
+
+    expect(report.acquisition.recordedCharacterCreationEvents).toBe(0);
+    expect(report.duels.recordedCompletedEvents).toBe(0);
+    expect(report.parties.recordedFinishedEvents).toBe(0);
+  });
+
+  it.each([
+    ["pending", 0],
+    ["accepted", 0],
+    ["declined", 0],
+    ["expired", 0],
+    ["cancelled", 0],
+    ["resolved", 1]
+  ])("never promotes duel status %s to acceptance and records only resolved completion", (status, expected) => {
+    const report = buildClosedAlphaAggregateReport({
+      from,
+      to,
+      characterCreationEvents: [],
+      duelEvents: [{ ...eventAt("2026-07-02T00:00:00.000Z"), status }],
+      partyFinishEvents: []
+    });
+    expect(report.duels).toEqual({
+      accepted: null,
+      completed: null,
+      recordedCompletedEvents: expected,
+      rematches: null
+    });
   });
 });
+
+function eventAt(value: string | Date): { occurredAt: Date; recordedAt: Date } {
+  return { occurredAt: new Date(value), recordedAt };
+}

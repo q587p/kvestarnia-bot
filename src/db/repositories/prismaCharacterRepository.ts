@@ -93,6 +93,8 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         return "no-character";
       }
 
+      await reanchorTerminalPartyBossHistory(tx, character.id);
+
       const deleted = await tx.character.deleteMany({
         where: {
           id: character.id,
@@ -385,6 +387,50 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         state: "spent",
         character: toCharacterRecord(updated)
       };
+    });
+  }
+}
+
+async function reanchorTerminalPartyBossHistory(
+  tx: Prisma.TransactionClient,
+  characterId: string
+): Promise<void> {
+  const histories = await tx.partyBossSession.findMany({
+    where: {
+      leaderCharacterId: characterId,
+      status: { in: ["won", "lost", "cancelled"] }
+    },
+    select: {
+      id: true,
+      partySessionId: true,
+      partySession: {
+        select: {
+          participants: {
+            where: {
+              status: "joined",
+              characterId: { not: characterId }
+            },
+            orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+            take: 1,
+            select: { characterId: true }
+          }
+        }
+      }
+    }
+  });
+
+  for (const history of histories) {
+    const survivorId = history.partySession.participants[0]?.characterId;
+    if (!survivorId) {
+      continue;
+    }
+    await tx.partyBossSession.updateMany({
+      where: { id: history.id, leaderCharacterId: characterId, status: { not: "active" } },
+      data: { leaderCharacterId: survivorId }
+    });
+    await tx.partySession.updateMany({
+      where: { id: history.partySessionId, leaderCharacterId: characterId },
+      data: { leaderCharacterId: survivorId }
     });
   }
 }

@@ -65,7 +65,7 @@ FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
 
 Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before any production enablement:
 
-1. Stop or snapshot the source database through the normal production backup procedure. Copy that backup into an isolated workspace; never point these commands at the mounted live database. The following PowerShell sequence must show 44 completed migrations before deploy and 45 afterward:
+1. Stop or snapshot the source database through the normal production backup procedure. Copy that backup into an isolated workspace; never point these commands at the mounted live database. Record the source count instead of assuming its state; after deploying the current repository into the isolated copy, the sequence must show 48 completed migrations:
 
    ```powershell
    $source = Resolve-Path 'C:\backups\kvestarnia-before-hp-recovery.db'
@@ -79,7 +79,7 @@ Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before 
    sqlite3.exe $qa ".read scripts/explain-hp-recovery-candidates.sql"
    ```
 
-   The final read-only SQL script must report 45 completed migrations, the three queue indexes, four fixed index-backed candidate branches, and no `MULTI-INDEX OR`. It sets `PRAGMA query_only=ON` before the schema smoke and `EXPLAIN`. Repository integration tests use temporary handcrafted SQLite schemas and are separate automated evidence; they do not validate this restored production-shaped copy.
+   The final read-only SQL script must report 48 completed migrations, the three queue indexes, four fixed index-backed candidate branches, and no `MULTI-INDEX OR`. It sets `PRAGMA query_only=ON` before the schema smoke and `EXPLAIN`. Repository integration tests use temporary handcrafted SQLite schemas and are separate automated evidence; they do not validate this restored production-shaped copy.
 2. Run `npx.cmd prisma validate` in the checkout. Refresh the isolated local bot with the flag enabled, run `/dev_hp_recovery_due`, and verify the task-doc scenarios with a maintainer test account. This QA is a maintainer step; a passing automated suite is not a claim that Telegram QA happened.
 3. Enable one controlled production window. Watch only aggregate scheduler logs: tick duration and due/claimed/sent/retried/suppressed/error counts. Logs must not include Telegram ids or player data.
 4. Abort and turn the flag off on any duplicate notice, any three consecutive ticks with `errors > 0`, or any three consecutive ticks with `due = 13`. This conservative saturation signal needs no unbounded `COUNT(*)` or backlog scan. Flag-off stops both producers and the scheduler; it does not scan or mutate the queue.
@@ -250,12 +250,15 @@ npm run db:deploy
 ### Privacy-safe closed-alpha report
 
 `npm run report:closed-alpha` reads the database selected by `DATABASE_URL` and
-prints JSON only; it never writes rows. The report contains aggregate creation,
-D1/D7 eligibility and return, three first-day PvE actions, duel accept/resolve and party
-create/join/start/finish counts. It deliberately emits no Telegram user ids,
-character ids, names, usernames or message content. Exact rematches, sessions
-and quest completion stay in `missingInstrumentation` until a future explicit
-event contract exists; do not infer those values from unrelated rows.
+prints JSON only; it never writes rows. The report reads only immutable
+`ActivityEvent` rows whose occurrence is inside `[from, to)` and whose ledger row
+was recorded before `to`; a later backfill therefore cannot change a historical
+result. It deliberately emits no Telegram user ids, character ids, names,
+usernames or message content. Recorded character creation, duel completion and
+group-raid completion event counts are labeled as recorded evidence. Exact
+acquisition, D1/D7 retention, first-day PvE, duel acceptance/completion/rematches
+and party funnel KPIs remain `null` or listed in `missingInstrumentation` because
+the best-effort event ledger does not certify complete historical coverage.
 
 Without arguments the window ends at command time and starts 93 days earlier.
 Use ISO timestamps for a reproducible observation record:

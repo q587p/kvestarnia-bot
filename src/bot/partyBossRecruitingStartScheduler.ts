@@ -31,7 +31,7 @@ export function createPartyBossRecruitingStartScheduler(
   let running = false;
 
   const tick = async (): Promise<number> => {
-    if (running || !services.partyBoss.isEnabled()) {
+    if (running) {
       return 0;
     }
 
@@ -74,7 +74,7 @@ export function createPartyBossRecruitingStartScheduler(
       for (const session of dueTurns) {
         const result = await services.partyBoss.resolveDueTimedOutByToken(session.partyInviteToken);
 
-        if (result.state !== "resolved" && result.state !== "terminal") {
+        if (result.state !== "resolved") {
           continue;
         }
 

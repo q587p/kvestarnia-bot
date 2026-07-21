@@ -42,6 +42,42 @@ describe("PartyBoss strict state validation", () => {
       participantCharacterIds: ["leader", "missing"]
     });
   });
+
+  it.each([
+    ["missing boss dexterity", (state: ReturnType<typeof validState>) => { delete (state.boss as Partial<typeof state.boss>).dexterity; }],
+    ["string boss dexterity", (state: ReturnType<typeof validState>) => { (state.boss as unknown as { dexterity: unknown }).dexterity = "8"; }],
+    ["missing participant armor", (state: ReturnType<typeof validState>) => { delete state.participants[0]!.combatStats.armor; }],
+    ["string participant damage", (state: ReturnType<typeof validState>) => { (state.participants[0]!.combatStats as unknown as { weaponDamage: unknown }).weaponDamage = "3"; }],
+    ["resource maximum mismatch", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hpMax += 1; }],
+    ["active participant at zero hp", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hp = 0; }],
+    ["invalid cooldown", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.cooldowns = { skill: { id: "skill", remainingTurns: "2" as never } }; }],
+    ["invalid timed status", (state: ReturnType<typeof validState>) => { state.participants[0]!.bardMusicAvailableAt = "not-a-date"; }]
+  ])("rejects strict runtime field corruption: %s", (_label, mutate) => {
+    const state = validState();
+    mutate(state);
+    expectValidationCode(state, _label.includes("timed") ? "timestamp" : "numeric");
+  });
+
+  it.each([
+    ["action", (state: ReturnType<typeof stateWithRound>) => { delete (state.roundLog[0]!.actions[0] as Partial<typeof state.roundLog[0]["actions"][number]>).manaSpent; }],
+    ["retaliation", (state: ReturnType<typeof stateWithRound>) => { (state.roundLog[0]!.bossRetaliations[0] as unknown as { damage: unknown }).damage = "1"; }],
+    ["participantsAfter", (state: ReturnType<typeof stateWithRound>) => { delete (state.roundLog[0]!.participantsAfter![0] as { manaMax?: number }).manaMax; }]
+  ])("rejects malformed nested round %s", (_label, mutate) => {
+    const state = stateWithRound();
+    mutate(state);
+    expectValidationCode(state, "numeric");
+  });
+
+  it("accepts a terminal frozen roster without comparing mutable live participants", () => {
+    const state = validState();
+    state.status = "cancelled";
+    state.completedAt = new Date("2026-07-20T10:01:00.000Z").toISOString();
+    expect(() => parsePartyBossStateStrict(state, {
+      ...contract(),
+      status: "cancelled",
+      participantCharacterIds: undefined
+    })).not.toThrow();
+  });
 });
 
 function expectValidationCode(
@@ -102,4 +138,32 @@ function contract() {
     bossKey: BIG_BARREL_BROTHER_BOSS_KEY,
     participantCharacterIds: ["leader"]
   };
+}
+
+function stateWithRound() {
+  const state = validState();
+  state.roundLog = [{
+    turn: 1,
+    actions: [{
+      characterId: "leader",
+      action: "attack",
+      origin: "manual",
+      outcome: "hit",
+      damage: 1,
+      manaSpent: 0
+    }],
+    bossDamage: 1,
+    bossHpAfter: state.boss.hp - 1,
+    bossRetaliations: [{ characterId: "leader", damage: 1, hpAfter: 29 }],
+    participantsAfter: [{
+      characterId: "leader",
+      status: "active",
+      hp: 29,
+      hpMax: 30,
+      mana: 10,
+      manaMax: 10
+    }],
+    statusAfter: "active"
+  }];
+  return state;
 }

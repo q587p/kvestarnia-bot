@@ -310,8 +310,8 @@ export function buildPartyBossJournalKeyboard(
   page: number
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-  const total = Math.max(1, session.state.roundLog.length);
-  const current = clampPage(page, total);
+  const total = Math.max(1, session.journal?.totalPages ?? session.state.roundLog.length);
+  const current = session.journal?.page ?? clampPage(page, total);
 
   if (total > 1) {
     if (current > 0) {

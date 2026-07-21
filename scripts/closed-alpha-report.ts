@@ -5,57 +5,47 @@ import { buildClosedAlphaAggregateReport } from "../src/domain/analytics/closedA
 
 async function main(): Promise<void> {
   const { from, to } = parseWindow(process.argv.slice(2));
-  const [users, fights, duels, parties] = await Promise.all([
-    prisma.user.findMany({
-      where: { createdAt: { gte: from, lt: to } },
-      select: {
-        createdAt: true,
-        lastActionAt: true,
-        character: { select: { id: true } }
-      }
+  const [characterCreationEvents, duelCompletedEvents, partyFinishEvents] = await Promise.all([
+    prisma.activityEvent.findMany({
+      where: {
+        eventType: "character.created",
+        occurredAt: { gte: from, lt: to },
+        createdAt: { lt: to }
+      },
+      select: { occurredAt: true, createdAt: true }
     }),
-    prisma.soloCombatSession.findMany({
-      where: { createdAt: { gte: from, lt: to } },
-      select: { characterId: true, createdAt: true }
+    prisma.activityEvent.findMany({
+      where: {
+        eventType: "duel.completed",
+        occurredAt: { gte: from, lt: to },
+        createdAt: { lt: to }
+      },
+      select: { occurredAt: true, createdAt: true }
     }),
-    prisma.duelChallenge.findMany({
-      where: { createdAt: { gte: from, lt: to } },
-      select: { status: true, createdAt: true, resolvedAt: true }
-    }),
-    prisma.partySession.findMany({
-      where: { createdAt: { gte: from, lt: to } },
-      select: {
-        createdAt: true,
-        participants: {
-          where: { joinSource: { not: "leader" } },
-          select: { id: true }
-        },
-        bossSessions: {
-          select: { status: true }
-        }
-      }
+    prisma.activityEvent.findMany({
+      where: {
+        eventType: "raid.completed",
+        sourceType: "party-boss",
+        occurredAt: { gte: from, lt: to },
+        createdAt: { lt: to }
+      },
+      select: { occurredAt: true, createdAt: true }
     })
   ]);
 
   const report = buildClosedAlphaAggregateReport({
     from,
     to,
-    users: users.map((row) => ({
-      createdAt: row.createdAt,
-      lastActionAt: row.lastActionAt,
-      characterId: row.character?.id ?? null
-    })),
-    fights,
-    duels,
-    parties: parties.map((row) => ({
-      createdAt: row.createdAt,
-      joinCount: row.participants.length,
-      startCount: row.bossSessions.length,
-      finishCount: row.bossSessions.filter((session) => session.status !== "active").length
-    }))
+    characterCreationEvents: characterCreationEvents.map(toRecordedEvent),
+    duelEvents: duelCompletedEvents.map((row) => ({ ...toRecordedEvent(row), status: "resolved" })),
+    partyFinishEvents: partyFinishEvents.map(toRecordedEvent)
   });
 
   console.log(JSON.stringify(report, null, 2));
+}
+
+function toRecordedEvent(row: { occurredAt: Date; createdAt: Date }): { occurredAt: Date; recordedAt: Date } {
+  return { occurredAt: row.occurredAt, recordedAt: row.createdAt };
 }
 
 function parseWindow(args: readonly string[]): { from: Date; to: Date } {

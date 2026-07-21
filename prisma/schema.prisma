@@ -1138,6 +1138,7 @@ model PartyBossSession {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   actions           PartyBossAction[]
+  rounds            PartyBossRound[]
 
   @@index([leaderCharacterId, status])
   @@index([status, turnExpiresAt])
@@ -1160,6 +1161,19 @@ model PartyBossAction {
   @@index([sessionId, turn])
   @@index([actorCharacterId])
   @@map("party_boss_actions")
+}
+
+model PartyBossRound {
+  id        String    @id @default(uuid())
+  sessionId String    @map("session_id")
+  session   PartyBossSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  turn      Int
+  roundJson Json      @map("round_json")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([sessionId, turn])
+  @@index([sessionId, turn])
+  @@map("party_boss_rounds")
 }
 
 model TavernGameSession {

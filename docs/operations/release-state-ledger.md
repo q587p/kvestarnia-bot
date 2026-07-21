@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current 0.3.x baseline (repository evidence, 12026-07-20)
+## Current 0.3.x baseline (repository evidence, 12026-07-21)
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ not every feature must be enabled.
 | Varenyk-mancer Sated | yes (`0.3.12`) | no migration required | no separate flag; target deploy unknown | yes | manual QA pending | deploy rollback; release operator unassigned | deferred |
 | Bard Inspiration / Lament | yes (`0.3.14`) | no migration for Inspiration; target migration state unknown | Inspiration follows runtime; Lament follows Big Barrel | yes | manual QA pending | Big Barrel flag + deploy rollback; release operator unassigned | deferred |
 | Big Barrel Raid Chat | yes (PR `#179`, `0.3.15`) | target migration unknown | follows Big Barrel; target value unknown/default off | yes | post-fix full QA pending | `BIG_BARREL_BROTHER_RAID_ENABLED`; release operator unassigned | deferred |
-| 0.3.16 closeout safeguards/report/docs | pending merge | no schema change | no new production flag | lint/typechecks/isolated build + 3862 unit and 537 integration tests pass | target matrix pending | existing Big Barrel flag + deploy rollback; release operator unassigned | deferred |
+| 0.3.16 closeout safeguards/report/docs | pending merge | `20260721113000_party_boss_round_history`; target deploy unknown | no new production flag; Big Barrel target value unknown/default off | `db:validate`; static checks; 314 unit files / 3923 tests; 23 integration files / 543 tests, repeated without cache; 56 PartyBoss simulation tests | target matrix pending | existing Big Barrel flag + deploy rollback; release operator unassigned | deferred |
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

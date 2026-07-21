@@ -582,6 +582,64 @@ describe("party boss reducer", () => {
     expect(result.state.participants.find((entry) => entry.characterId === "ally")?.resources.hp).toBeGreaterThan(10);
   });
 
+  it.each([
+    ["priest-first", ["supporter", "ally"]],
+    ["priest-last", ["ally", "supporter"]]
+  ] as const)("keeps Priest ally healing and guard independent of roster order: %s", (_label, roster) => {
+    const entries = new Map([
+      ["supporter", participant("supporter", "Жриця", { classId: "class.priest", charisma: 15 })],
+      ["ally", participant("ally", "Союзник", { hp: 30, hpCurrent: 10 })]
+    ]);
+    const state = createPartyBossState({
+      partySessionId: `party-priest-order-${roster.join("-")}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: roster.map((id) => entries.get(id)!)
+    });
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-priest-order-${roster.join("-")}`,
+      actions: [
+        { characterId: "supporter", action: "skill", origin: "manual" },
+        { characterId: "ally", action: "attack", origin: "manual" }
+      ]
+    });
+    const ally = result.state.participants.find((entry) => entry.characterId === "ally")!;
+    expect(ally.resources.guard?.abilityDamageReduction).toBe(2);
+    expect(ally.resources.hp).toBeGreaterThan(10);
+  });
+
+  it.each([
+    ["gear-first", ["supporter", "ally"]],
+    ["gear-last", ["ally", "supporter"]]
+  ] as const)("keeps equipment ally guard independent of roster order: %s", (_label, roster) => {
+    const grant = findMantokAbilityGrantByKey("ascstf");
+    if (!grant?.combat) throw new Error("Expected Asclepius staff combat grant.");
+    const entries = new Map([
+      ["supporter", participant("supporter", "Цілитель", { level: 11, equipmentAbilityGrantIds: [grant.id] })],
+      ["ally", participant("ally", "Союзник", { hp: 30, hpCurrent: 10 })]
+    ]);
+    const state = createPartyBossState({
+      partySessionId: `party-gear-order-${roster.join("-")}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: roster.map((id) => entries.get(id)!)
+    });
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-gear-order-${roster.join("-")}`,
+      actions: [
+        { characterId: "supporter", action: "gear", origin: "manual", gearAbility: { profile: grant.combat.profile } },
+        { characterId: "ally", action: "attack", origin: "manual" }
+      ]
+    });
+    const ally = result.state.participants.find((entry) => entry.characterId === "ally")!;
+    expect(ally.resources.guard?.abilityDamageReduction).toBe(1);
+    expect(result.round.actions.find((entry) => entry.characterId === "supporter")?.supportTargets).toEqual(
+      expect.arrayContaining([expect.objectContaining({ characterId: "ally", healing: 4, guard: 1 })])
+    );
+  });
+
   it("applies the Molfar fog guard and counter to every living party member", () => {
     const state = createPartyBossState({
       partySessionId: "party-molfar-support",
@@ -608,6 +666,110 @@ describe("party boss reducer", () => {
       expect.objectContaining({ characterId: "ally", guard: 3, counterDamage: 3 })
     ]));
     expect(result.round.bossRetaliations.some((entry) => entry.counterDamage === 3)).toBe(true);
+  });
+
+  it.each([
+    ["supporter-first", "attack", ["molfar", "ally"]],
+    ["supporter-first", "defend", ["molfar", "ally"]],
+    ["supporter-last", "attack", ["ally", "molfar"]],
+    ["supporter-last", "defend", ["ally", "molfar"]]
+  ] as const)("keeps ally protection through the ally action: %s/%s", (_order, allyAction, roster) => {
+    const entries = new Map([
+      ["molfar", participant("molfar", "Мольфар", { raceId: "race.molfar-soul", intelligence: 15 })],
+      ["ally", participant("ally", "Союзник")]
+    ]);
+    const state = createPartyBossState({
+      partySessionId: `party-order-${roster.join("-")}-${allyAction}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: roster.map((id) => entries.get(id)!)
+    });
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-order-${roster.join("-")}-${allyAction}`,
+      actions: [
+        { characterId: "molfar", action: "race", origin: "manual" },
+        { characterId: "ally", action: allyAction, origin: "manual" }
+      ]
+    });
+
+    expect(result.state.participants.find((entry) => entry.characterId === "ally")?.resources.guard?.abilityDamageReduction).toBe(3);
+    expect(result.round.actions.find((entry) => entry.characterId === "molfar")?.supportTargets).toEqual(
+      expect.arrayContaining([expect.objectContaining({ characterId: "ally", guard: 3, counterDamage: 3 })])
+    );
+  });
+
+  it("does not apply Molfar counter through zero damage", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-molfar-zero",
+      variant: "big-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("molfar", "Мольфар", { raceId: "race.molfar-soul", intelligence: 15 }),
+        participant("ally", "Союзник")
+      ],
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-zero",
+        filerCharacterId: "molfar",
+        signerCharacterIds: ["molfar", "ally"]
+      }
+    });
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-molfar-zero",
+      actions: [
+        { characterId: "molfar", action: "race", origin: "manual" },
+        { characterId: "ally", action: "attack", origin: "manual" }
+      ]
+    });
+    expect(result.round.bossRetaliations).toHaveLength(1);
+    expect(result.round.bossRetaliations[0]).toMatchObject({ damage: 0 });
+    expect(result.round.bossRetaliations[0]?.counterDamage).toBeUndefined();
+  });
+
+  it("does not apply Molfar counter after lethal damage or a full wipe", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-molfar-lethal",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("molfar", "Мольфар", { hp: 1, hpCurrent: 1, raceId: "race.molfar-soul", intelligence: 15 }),
+        participant("ally", "Союзник", { hp: 1, hpCurrent: 1 })
+      ]
+    });
+    state.boss.attack = 587;
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-molfar-lethal",
+      actions: [
+        { characterId: "molfar", action: "race", origin: "manual" },
+        { characterId: "ally", action: "defend", origin: "manual" }
+      ]
+    });
+    expect(result.state.status).toBe("lost");
+    expect(result.round.bossRetaliations).toHaveLength(2);
+    expect(result.round.bossRetaliations.every((entry) => entry.hpAfter === 0 && entry.counterDamage === undefined)).toBe(true);
+  });
+
+  it("skips retaliation and Molfar counter when participant actions kill the boss", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-molfar-boss-kill",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("molfar", "Мольфар", {
+        raceId: "race.molfar-soul", intelligence: 30, dexterity: 30
+      })]
+    });
+    state.boss = { ...state.boss, hp: 1, hpMax: 1, armor: 0, resist: 0, dexterity: 0 };
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-molfar-boss-kill",
+      actions: [{ characterId: "molfar", action: "attack", origin: "manual" }]
+    });
+    expect(result.state.status).toBe("won");
+    expect(result.round.bossRetaliations).toEqual([]);
   });
 
   it("keeps already submitted same-round actions when an earlier actor drops the boss", () => {

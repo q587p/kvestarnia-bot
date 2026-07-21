@@ -181,7 +181,7 @@ export function createRuntime(input: {
           fight: services.fight
         }, bot);
       }
-      if (services.partySessions && services.partyBoss && services.partyBoss.isEnabled()) {
+      if (services.partySessions && services.partyBoss) {
         partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({
           partySessions: services.partySessions,
           partyBoss: services.partyBoss,

@@ -26,6 +26,7 @@ import {
 } from "../../domain/partyBoss/partyBoss";
 import {
   parsePartyBossStateStrict,
+  parsePartyBossRoundSummaryStrict,
   parsePartyBossStatusStrict
 } from "../../domain/partyBoss/partyBossStateValidation";
 import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
@@ -150,6 +151,9 @@ const partyBossInclude = {
   partySession: {
     include: {
       participants: {
+        where: {
+          character: { is: {} }
+        },
         include: {
           character: {
             include: partyCharacterInclude
@@ -1003,6 +1007,46 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return session ? this.mapSession(session) : null;
   }
 
+  async findJournalPageByPartyInviteToken(
+    partyInviteToken: string,
+    requestedPage?: number | null
+  ): Promise<PartyBossSessionRecord | null> {
+    const session = await findByInviteToken(this.prisma, partyInviteToken);
+    if (!session) {
+      return null;
+    }
+
+    const mapped = this.mapSession(session);
+    const persistedCount = await this.prisma.partyBossRound.count({ where: { sessionId: session.id } });
+    if (persistedCount === 0) {
+      const fallbackTotal = mapped.state.roundLog.length;
+      const page = clampJournalPage(requestedPage ?? fallbackTotal - 1, fallbackTotal);
+      return {
+        ...mapped,
+        journal: {
+          round: fallbackTotal > 0 ? mapped.state.roundLog[page] ?? null : null,
+          page,
+          totalPages: fallbackTotal
+        }
+      };
+    }
+
+    const page = clampJournalPage(requestedPage ?? persistedCount - 1, persistedCount);
+    const row = await this.prisma.partyBossRound.findFirst({
+      where: { sessionId: session.id },
+      orderBy: [{ turn: "asc" }, { id: "asc" }],
+      skip: page
+    });
+    return {
+      ...mapped,
+      journal: {
+        round: row ? parsePartyBossRoundSummaryStrict(row.roundJson) : null,
+        page,
+        totalPages: persistedCount
+      }
+    };
+  }
+
   async listDueTimedOutSessions(now: Date, options: { limit?: number } = {}): Promise<PartyBossSessionRecord[]> {
     const limit = options.limit ?? 25;
     await this.repairOrphanedPartyBossLeases(now, limit);
@@ -1184,6 +1228,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       const nextVersion = session.version + 1;
       const status = resolved.state.status;
       const result = resolved.result;
+      const hotState: PartyBossState = {
+        ...resolved.state,
+        roundLog: resolved.state.roundLog.slice(-1)
+      };
       const updated = await tx.partyBossSession.updateMany({
         where: {
           id: session.id,
@@ -1195,7 +1243,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           status,
           turn: resolved.state.turn,
           version: nextVersion,
-          stateJson: resolved.state as unknown as Prisma.InputJsonValue,
+          stateJson: hotState as unknown as Prisma.InputJsonValue,
           resultJson: result as unknown as Prisma.InputJsonValue,
           turnExpiresAt: status === "active" ? input.nextTurnExpiresAt : input.now,
           ...(status === "active" ? {} : { completedAt: input.now })
@@ -1204,6 +1252,18 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (updated.count !== 1) {
         return null;
+      }
+
+      for (const round of resolved.state.roundLog) {
+        await tx.partyBossRound.upsert({
+          where: { sessionId_turn: { sessionId: session.id, turn: round.turn } },
+          create: {
+            sessionId: session.id,
+            turn: round.turn,
+            roundJson: round as unknown as Prisma.InputJsonValue
+          },
+          update: {}
+        });
       }
 
       await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
@@ -2175,7 +2235,7 @@ function mapSession(row: PartyBossRow): PartyBossSessionRecord {
     id: row.id,
     partySessionId: row.partySessionId,
     partyInviteToken: row.partySession.inviteToken,
-    leaderCharacterId: row.leaderCharacterId,
+    leaderCharacterId: state.leaderCharacterId,
     status: parseStatus(row.status),
     turn: row.turn,
     version: row.version,
@@ -2240,16 +2300,30 @@ function mapCharacterForCombat(
 }
 
 function parseState(row: PartyBossRow): PartyBossState {
-  return parsePartyBossStateStrict(row.stateJson, {
+  const raw = row.stateJson && typeof row.stateJson === "object" && !Array.isArray(row.stateJson)
+    ? { ...row.stateJson, leaderCharacterId: row.stateJson.leaderCharacterId ?? row.leaderCharacterId }
+    : row.stateJson;
+  return parsePartyBossStateStrict(raw, {
     rulesVersion: row.rulesVersion,
     partySessionId: row.partySessionId,
     status: parsePartyBossStatusStrict(row.status),
     turn: row.turn,
     bossKey: row.bossKey,
-    participantCharacterIds: row.partySession.participants
-      .filter((participant) => participant.status === "joined")
-      .map((participant) => participant.characterId)
+    ...(row.status === "active"
+      ? {
+          participantCharacterIds: row.partySession.participants
+            .filter((participant) => participant.status === "joined")
+            .map((participant) => participant.characterId)
+        }
+      : {})
   });
+}
+
+function clampJournalPage(page: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  return Math.min(Math.max(0, Math.floor(page)), total - 1);
 }
 
 function parseResult(value: Prisma.JsonValue, state: PartyBossState) {

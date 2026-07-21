@@ -1,58 +1,40 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export interface ClosedAlphaUserRow {
-  createdAt: Date;
-  lastActionAt: Date | null;
-  characterId: string | null;
+export interface ClosedAlphaRecordedEventRow {
+  occurredAt: Date;
+  recordedAt: Date;
 }
 
-export interface ClosedAlphaFightRow {
-  characterId: string;
-  createdAt: Date;
-}
-
-export interface ClosedAlphaDuelRow {
+export interface ClosedAlphaRecordedDuelEventRow extends ClosedAlphaRecordedEventRow {
   status: string;
-  createdAt: Date;
-  resolvedAt: Date | null;
-}
-
-export interface ClosedAlphaPartyRow {
-  createdAt: Date;
-  joinCount: number;
-  startCount: number;
-  finishCount: number;
 }
 
 export interface ClosedAlphaAggregateReport {
-  privacy: {
-    aggregateOnly: true;
-    messageContentRead: false;
-    individualRowsEmitted: false;
-  };
+  privacy: { aggregateOnly: true; messageContentRead: false; individualRowsEmitted: false };
   window: { from: string; to: string };
   acquisition: {
-    created: number;
+    characterCreationCompleted: null;
+    recordedCharacterCreationEvents: number;
   };
   retention: {
-    d1Eligible: number;
-    d1Retained: number;
-    d7Eligible: number;
-    d7Retained: number;
+    d1EligibleRecordedCharacters: number;
+    d1Retained: null;
+    d7EligibleRecordedCharacters: number;
+    d7Retained: null;
   };
-  firstDay: {
-    charactersWithThreePveActions: number;
-  };
+  firstDay: { charactersWithThreeSoloCombatSessionsProxy: null };
   duels: {
-    acceptedOrResolved: number;
-    completed: number;
+    accepted: null;
+    completed: null;
+    recordedCompletedEvents: number;
     rematches: null;
   };
   parties: {
-    created: number;
-    joined: number;
-    started: number;
-    finished: number;
+    created: null;
+    joined: null;
+    started: null;
+    finished: null;
+    recordedFinishedEvents: number;
   };
   missingInstrumentation: string[];
 }
@@ -60,80 +42,62 @@ export interface ClosedAlphaAggregateReport {
 export function buildClosedAlphaAggregateReport(input: {
   from: Date;
   to: Date;
-  users: readonly ClosedAlphaUserRow[];
-  fights: readonly ClosedAlphaFightRow[];
-  duels: readonly ClosedAlphaDuelRow[];
-  parties: readonly ClosedAlphaPartyRow[];
+  characterCreationEvents: readonly ClosedAlphaRecordedEventRow[];
+  duelEvents: readonly ClosedAlphaRecordedDuelEventRow[];
+  partyFinishEvents: readonly ClosedAlphaRecordedEventRow[];
 }): ClosedAlphaAggregateReport {
-  const users = input.users.filter((row) => inWindow(row.createdAt, input.from, input.to));
-  const characterCreatedAt = new Map(
-    users.flatMap((row) => row.characterId ? [[row.characterId, row.createdAt] as const] : [])
+  const characterCreationEvents = input.characterCreationEvents.filter((row) =>
+    isStableWindowEvent(row, input.from, input.to)
   );
-  const firstDayPveCounts = new Map<string, number>();
-  for (const row of input.fights) {
-    const createdAt = characterCreatedAt.get(row.characterId);
-    if (
-      createdAt &&
-      inWindow(row.createdAt, input.from, input.to) &&
-      row.createdAt >= createdAt &&
-      row.createdAt < new Date(createdAt.getTime() + DAY_MS)
-    ) {
-      firstDayPveCounts.set(row.characterId, (firstDayPveCounts.get(row.characterId) ?? 0) + 1);
-    }
-  }
-  const d1Eligible = users.filter((row) => row.createdAt.getTime() + DAY_MS <= input.to.getTime());
-  const d7Eligible = users.filter((row) => row.createdAt.getTime() + 7 * DAY_MS <= input.to.getTime());
-  const duels = input.duels.filter((row) => inWindow(row.createdAt, input.from, input.to));
-  const parties = input.parties.filter((row) => inWindow(row.createdAt, input.from, input.to));
+  const recordedCompletedDuels = input.duelEvents.filter((row) =>
+    row.status === "resolved" && isStableWindowEvent(row, input.from, input.to)
+  );
+  const recordedFinishedParties = input.partyFinishEvents.filter((row) =>
+    isStableWindowEvent(row, input.from, input.to)
+  );
 
   return {
-    privacy: {
-      aggregateOnly: true,
-      messageContentRead: false,
-      individualRowsEmitted: false
-    },
-    window: {
-      from: input.from.toISOString(),
-      to: input.to.toISOString()
-    },
+    privacy: { aggregateOnly: true, messageContentRead: false, individualRowsEmitted: false },
+    window: { from: input.from.toISOString(), to: input.to.toISOString() },
     acquisition: {
-      created: users.length
+      characterCreationCompleted: null,
+      recordedCharacterCreationEvents: characterCreationEvents.length
     },
     retention: {
-      d1Eligible: d1Eligible.length,
-      d1Retained: retainedAfter(d1Eligible, DAY_MS),
-      d7Eligible: d7Eligible.length,
-      d7Retained: retainedAfter(d7Eligible, 7 * DAY_MS)
+      d1EligibleRecordedCharacters: characterCreationEvents.filter(
+        (row) => row.occurredAt.getTime() + DAY_MS <= input.to.getTime()
+      ).length,
+      d1Retained: null,
+      d7EligibleRecordedCharacters: characterCreationEvents.filter(
+        (row) => row.occurredAt.getTime() + 7 * DAY_MS <= input.to.getTime()
+      ).length,
+      d7Retained: null
     },
-    firstDay: {
-      charactersWithThreePveActions: [...firstDayPveCounts.values()].filter((count) => count >= 3).length
-    },
+    firstDay: { charactersWithThreeSoloCombatSessionsProxy: null },
     duels: {
-      acceptedOrResolved: duels.filter((row) => row.status !== "pending").length,
-      completed: duels.filter((row) => row.resolvedAt !== null).length,
+      accepted: null,
+      completed: null,
+      recordedCompletedEvents: recordedCompletedDuels.length,
       rematches: null
     },
     parties: {
-      created: parties.length,
-      joined: parties.reduce((sum, row) => sum + row.joinCount, 0),
-      started: parties.reduce((sum, row) => sum + row.startCount, 0),
-      finished: parties.reduce((sum, row) => sum + row.finishCount, 0)
+      created: null,
+      joined: null,
+      started: null,
+      finished: null,
+      recordedFinishedEvents: recordedFinishedParties.length
     },
     missingInstrumentation: [
-      "Exact D1/D7 return sessions are unavailable; retention uses the latest canonical user activity timestamp.",
-      "Duel rematch origin is not stored as a stable aggregate dimension.",
-      "Quest-specific first-day completion is not available as a complete historical event stream."
+      "ActivityEvent is best-effort and historical coverage is not certified, so recorded character-creation events are not promoted to an exact acquisition KPI.",
+      "Exact historical D1/D7 return sessions are unavailable; mutable latest-activity timestamps are not used as retention evidence.",
+      "Duel acceptance time, complete duel-resolution history, and rematch origin are not stored as certified historical events.",
+      "SoloCombatSession rows are mutable lifecycle data, so no precise first-day PvE action or combat-session KPI is emitted.",
+      "Party creation, join, start, and complete finish history are not stored as a certified immutable event stream.",
+      "Recorded event counts include only rows whose occurrence is inside [from, to) and whose ledger row existed before to; later backfills cannot change this report."
     ]
   };
 }
 
-function retainedAfter(rows: readonly ClosedAlphaUserRow[], offsetMs: number): number {
-  return rows.filter((row) =>
-    row.lastActionAt !== null &&
-    row.lastActionAt.getTime() >= row.createdAt.getTime() + offsetMs
-  ).length;
-}
-
-function inWindow(value: Date, from: Date, to: Date): boolean {
-  return value >= from && value < to;
+function isStableWindowEvent(row: ClosedAlphaRecordedEventRow, from: Date, to: Date): boolean {
+  return row.occurredAt >= from && row.occurredAt < to && row.recordedAt < to;
 }

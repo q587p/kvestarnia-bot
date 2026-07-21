@@ -656,6 +656,24 @@ describe("PartyBossService achievements", () => {
     expect(result).toEqual({ state: "lament-unavailable", reason: "specialized-only", session });
     expect(submitActionForTelegramUser).not.toHaveBeenCalled();
   });
+  it("keeps due timeout and orphan-repair scans available while new starts are disabled", async () => {
+    const due = [makeSession("active")];
+    const listDueTimedOutSessions = vi.fn().mockResolvedValue(due);
+    const resolveTimedOutByToken = vi.fn().mockResolvedValue({ state: "resolved", session: makeSession("won") });
+    const startFromRecruitingPartyForTelegramUser = vi.fn();
+    const service = new PartyBossService({
+      listDueTimedOutSessions,
+      resolveTimedOutByToken,
+      startFromRecruitingPartyForTelegramUser
+    } as unknown as PartyBossRepository, { enabled: false }, () => new Date("2026-07-01T19:00:00.000Z"));
+
+    await expect(service.startFromPartyForTelegramUser(123n, "token-1")).resolves.toEqual({ state: "disabled" });
+    await expect(service.listDueTimedOutSessions()).resolves.toEqual(due);
+    await expect(service.resolveDueTimedOutByToken("token-1")).resolves.toMatchObject({ state: "resolved" });
+    expect(startFromRecruitingPartyForTelegramUser).not.toHaveBeenCalled();
+    expect(listDueTimedOutSessions).toHaveBeenCalledOnce();
+    expect(resolveTimedOutByToken).toHaveBeenCalledOnce();
+  });
 });
 
 function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBossSessionRecord {
@@ -674,6 +692,7 @@ function makeSession(status: "active" | "won" | "lost" | "cancelled"): PartyBoss
     state: {
       rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
       partySessionId: "party-session-1",
+      leaderCharacterId: "character-leader",
       status,
       turn: 1,
       boss: {

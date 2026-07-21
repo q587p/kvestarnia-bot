@@ -29,6 +29,11 @@ export interface PartyBossSessionRecord {
   rulesVersion: string;
   bossKey: string;
   state: PartyBossState;
+  journal?: {
+    round: PartyBossState["roundLog"][number] | null;
+    page: number;
+    totalPages: number;
+  };
   result: PartyBossResult | null;
   turnExpiresAt: Date;
   completedAt: Date | null;
@@ -186,6 +191,10 @@ export interface PartyBossRepository {
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;
   findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null>;
+  findJournalPageByPartyInviteToken?(
+    partyInviteToken: string,
+    requestedPage?: number | null
+  ): Promise<PartyBossSessionRecord | null>;
   listDueTimedOutSessions(now: Date, options?: { limit?: number }): Promise<PartyBossSessionRecord[]>;
   forceBigBarrelWinForTelegramUser(telegramUserId: bigint, now: Date): Promise<PartyBossDevWinResult>;
 }

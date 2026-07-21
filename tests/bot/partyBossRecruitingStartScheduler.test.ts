@@ -240,6 +240,52 @@ describe("party boss recruiting start scheduler", () => {
     expect(sendMessage.mock.calls.some((call) => String(call[1]).includes("Голосніше за кришку"))).toBe(true);
   });
 
+  it("keeps due maintenance running after the player-facing flag is disabled", async () => {
+    const dueSession = makeBossSession();
+    const resolvedSession = makeBossSession({ turn: 2 });
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "resolved", session: resolvedSession });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const scheduler = createPartyBossRecruitingStartScheduler({
+      partySessions: {
+        isBigBarrelBrotherEnabled: () => false,
+        listDueRecruitingBigBarrelBrother: vi.fn()
+      } as unknown as PartySessionService,
+      partyBoss: {
+        isEnabled: () => false,
+        listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
+        resolveDueTimedOutByToken,
+        hasCombatItemsForTelegramUser: vi.fn().mockResolvedValue(false)
+      } as unknown as PartyBossService
+    }, { api: { sendMessage } } as unknown as Bot);
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(resolveDueTimedOutByToken).toHaveBeenCalledOnce();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("does no delivery work when a manual final action made a stale due row terminal", async () => {
+    const dueSession = makeBossSession();
+    const resolveDueTimedOutByToken = vi.fn().mockResolvedValue({ state: "terminal", session: makeBossSession({
+      status: "won",
+      completedAt: new Date("2026-06-30T10:14:00.000Z").toISOString()
+    }) });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const scheduler = createPartyBossRecruitingStartScheduler({
+      partySessions: {
+        isBigBarrelBrotherEnabled: () => false,
+        listDueRecruitingBigBarrelBrother: vi.fn()
+      } as unknown as PartySessionService,
+      partyBoss: {
+        isEnabled: () => true,
+        listDueTimedOutSessions: vi.fn().mockResolvedValue([dueSession]),
+        resolveDueTimedOutByToken
+      } as unknown as PartyBossService
+    }, { api: { sendMessage } } as unknown as Bot);
+
+    await expect(scheduler.tick()).resolves.toBe(0);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("serializes a three-participant preparation delivery against actual scheduled start without holding notification I/O", async () => {
     const party = makeThreeParticipantPartySession();
     const bossSession = makeBossSession();
@@ -402,6 +448,7 @@ function makeBossSession(
   const state: PartyBossSessionRecord["state"] = {
     rulesVersion: BIG_BARREL_BROTHER_RULES_VERSION,
     partySessionId: "party-1",
+    leaderCharacterId: "character-42",
     status: "active",
     turn: 1,
     boss: {

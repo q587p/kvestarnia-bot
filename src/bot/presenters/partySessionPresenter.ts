@@ -743,10 +743,13 @@ function presentPartyBossQueuedActionPlan(
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {
-  const rounds = session.state.roundLog;
+  const rounds = session.journal
+    ? session.journal.round ? [session.journal.round] : []
+    : session.state.roundLog;
   const names = new Map(session.state.participants.map((participant) => [participant.characterId, participant.name]));
   const participantsByCharacterId = new Map(session.state.participants.map((participant) => [participant.characterId, participant]));
-  const page = clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const page = session.journal?.page ?? clampPage(requestedPage ?? rounds.length - 1, Math.max(1, rounds.length));
+  const totalPages = session.journal?.totalPages ?? rounds.length;
   const satedLines = presentVarenykSatedCombatEffectLines(session.state.participants.map((participant) => ({
     sated: participant.varenykSated,
     subjectHtml: `Стан: <b>Ситий</b> у <b>${escapeHtml(participant.name)}</b>`
@@ -760,7 +763,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     });
   }
 
-  const round = rounds[page]!;
+  const round = session.journal ? rounds[0]! : rounds[page]!;
   const actionLines: string[] = [];
   const satedRecoveryLines: string[] = [];
   const lamentDamageReduction = round.bardMusic?.kind === "lament" && round.bardMusic.activated
@@ -815,7 +818,7 @@ export function presentPartyBossJournal(session: PartyBossSessionRecord, request
     headerLines: ["", getBossStatusLine(session)],
     turn: round.turn,
     page,
-    totalPages: rounds.length,
+    totalPages,
     opponentRows: [
       presentBattleCombatantResourceLine({
         icon: "👹",
