@@ -1,11 +1,14 @@
 import type { PrismaQuestMarkerReadRepository } from "../db/repositories/prismaQuestMarkerReadRepository";
 import { runWithQuestMarkerReadSnapshot } from "../db/repositories/questMarkerReadContext";
-import { EQUIPMENT_ATTUNEMENT_ACTION_KEY } from "../domain/equipment/equipmentAttunement";
 import { FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
-import { ITEM_UPGRADE_UNLOCK_KEY } from "../domain/itemUpgrades";
+import { ITEM_UPGRADE_UNLOCK_KEY, ITEM_UPGRADE_UNLOCK_LOCAL_DATE } from "../domain/itemUpgrades";
+import { getKyivDayKey } from "../shared/kyivDate";
+import { toIsoDate } from "../shared/time";
+import { buildAdventurePeriod, getAdventureRerollStoragePrefix } from "./adventureService";
 import {
   CELLAR_GROWNUP_BOTTLE_KEY,
   CELLAR_GROWNUP_COMPLETION_KEY,
+  CELLAR_GROWNUP_ONCE,
   CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY,
   CELLAR_GROWNUP_SEAL_PURCHASE_KEY
 } from "./cellarGrownupQuestService";
@@ -32,12 +35,14 @@ import {
   YEGER_UNQUIET_TRIAL_STARTED_KEY
 } from "./dailyActionKeys";
 import { FIGHTING_CORNER_QUEST_KEYS } from "./fightingCornerQuestService";
+import { PROBLEM_QUEST_BUCKET } from "./fight/problemQuest";
 import { CELLAR_CHEESE_SEAL_ITEM_ID, CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import {
   buildFridayBarrelRaidPendingKey,
   FRIDAY_BARREL_RAID_KEY,
   getBarrelRaidPeriod
 } from "./tavernRaidService";
+import { YEGER_UNQUIET_TRIAL_BUCKET } from "./yegerQuestService";
 
 const FIRST_KORCHMA_KEYS = [
   "quest.first-korchma.entered",
@@ -56,40 +61,62 @@ export class QuestMarkerReadService {
   constructor(private readonly repository: PrismaQuestMarkerReadRepository) {}
 
   async run<T>(telegramUserId: bigint, callback: () => Promise<T>): Promise<T> {
-    const observedPeriod = getBarrelRaidPeriod(new Date());
+    const now = new Date();
+    const observedPeriod = getBarrelRaidPeriod(now);
     const nextPeriod = getBarrelRaidPeriod(new Date(observedPeriod.endsAt.getTime()));
     const periods = [nextPeriod.id, ...recentFridayPeriods(observedPeriod, 24)];
+    const dayKey = getKyivDayKey(now);
+    const mimicLocalDate = toIsoDate(now);
+    const problemKeys = [
+      PROBLEM_QUEST_13_ISSUED_KEY,
+      PROBLEM_QUEST_13_REWARD_KEY,
+      PROBLEM_QUEST_23_ISSUED_KEY,
+      PROBLEM_QUEST_23_REWARD_KEY,
+      PROBLEM_QUEST_42_ISSUED_KEY,
+      PROBLEM_QUEST_42_REWARD_KEY,
+      PROBLEM_QUEST_93_ISSUED_KEY,
+      PROBLEM_QUEST_93_REWARD_KEY
+    ];
+    const yegerKeys = [
+      YEGER_UNQUIET_TRIAL_STARTED_KEY,
+      YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
+      YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
+      YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY
+    ];
+    const onceKeys = [
+      CELLAR_GROWNUP_SEAL_PURCHASE_KEY,
+      CELLAR_GROWNUP_BOTTLE_KEY,
+      CELLAR_GROWNUP_COMPLETION_KEY
+    ];
     const snapshot = await this.repository.load(telegramUserId, {
-      dailyActionKeys: [
-        ADVENTURE_CHOICE_KEY,
-        ADVENTURE_CHOICE_REROLL_KEY,
-        MIMIC_SHAWARMA_ADVENTURE_KEY,
-        MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
-        PROBLEM_QUEST_13_ISSUED_KEY,
-        PROBLEM_QUEST_13_REWARD_KEY,
-        PROBLEM_QUEST_23_ISSUED_KEY,
-        PROBLEM_QUEST_23_REWARD_KEY,
-        PROBLEM_QUEST_42_ISSUED_KEY,
-        PROBLEM_QUEST_42_REWARD_KEY,
-        PROBLEM_QUEST_93_ISSUED_KEY,
-        PROBLEM_QUEST_93_REWARD_KEY,
-        YEGER_UNQUIET_TRIAL_STARTED_KEY,
-        YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
-        YEGER_UNQUIET_TRIAL_SECOND_STARTED_KEY,
-        YEGER_UNQUIET_TRIAL_SECOND_COMPLETED_KEY,
-        DAILY_KORCHMA_ROUND_OFFER_KEY,
-        DAILY_KORCHMA_ROUND_STEP_KEY,
-        DAILY_KORCHMA_ROUND_REWARD_KEY,
-        EQUIPMENT_ATTUNEMENT_ACTION_KEY,
-        ITEM_UPGRADE_UNLOCK_KEY,
-        CELLAR_GROWNUP_SEAL_PURCHASE_KEY,
-        CELLAR_GROWNUP_BOTTLE_KEY,
-        CELLAR_GROWNUP_COMPLETION_KEY,
-        FRIDAY_BARREL_RAID_KEY,
-        ...Object.values(FIGHTING_CORNER_QUEST_KEYS),
-        ...FIRST_KORCHMA_KEYS,
-        ...BARREL_BEER_KEYS
-      ],
+      dailyActions: {
+        exactIdentities: [
+          ...problemKeys.map((key) => ({ key, localDate: PROBLEM_QUEST_BUCKET })),
+          ...yegerKeys.map((key) => ({ key, localDate: YEGER_UNQUIET_TRIAL_BUCKET })),
+          ...onceKeys.map((key) => ({ key, localDate: CELLAR_GROWNUP_ONCE })),
+          ...periods.map((localDate) => ({ key: FRIDAY_BARREL_RAID_KEY, localDate })),
+          { key: ITEM_UPGRADE_UNLOCK_KEY, localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE },
+          { key: MIMIC_SHAWARMA_ADVENTURE_KEY, localDate: mimicLocalDate },
+          { key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY, localDate: mimicLocalDate },
+          { key: DAILY_KORCHMA_ROUND_OFFER_KEY, localDate: dayKey },
+          { key: DAILY_KORCHMA_ROUND_REWARD_KEY, localDate: dayKey }
+        ],
+        latestKeys: [ADVENTURE_CHOICE_KEY, MIMIC_SHAWARMA_ADVENTURE_KEY],
+        prefixReads: [{
+          key: DAILY_KORCHMA_ROUND_STEP_KEY,
+          localDatePrefix: `${dayKey}:`,
+          take: 13
+        }],
+        prefixCounts: [{
+          key: ADVENTURE_CHOICE_REROLL_KEY,
+          localDatePrefix: getAdventureRerollStoragePrefix(buildAdventurePeriod(now))
+        }],
+        currentLifeKeys: [
+          ...Object.values(FIGHTING_CORNER_QUEST_KEYS),
+          ...FIRST_KORCHMA_KEYS,
+          ...BARREL_BEER_KEYS
+        ]
+      },
       cooldownKeys: [
         CELLAR_MOUSE_ERRAND_KEY,
         CELLAR_GROWNUP_ROLEPLAY_COOLDOWN_KEY,

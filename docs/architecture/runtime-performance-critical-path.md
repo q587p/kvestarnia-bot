@@ -23,7 +23,7 @@ Allowed request-local reuse examples:
 - a full Fight overview already loaded by combat-lock middleware and needed unchanged by a marker consumer;
 - a lazy quest-marker snapshot consumed by multiple presenters in the same route.
 
-Invalidation is mandatory after a mutation that can change the cached fact. Late race-safe authorization must perform the task-defined authoritative recheck.
+Invalidation is mandatory after a mutation that can change the cached fact. In the current callback paths, a newly started/completed Friday Barrel invalidates `pending-friday` before marker reconstruction, and a newly created next-problem issue invalidates `fight-overview`; replay/idempotent results retain the pre-route read. Late race-safe authorization must perform the task-defined authoritative recheck.
 
 ## Read budgets
 
@@ -38,6 +38,8 @@ Initial 0.3.17 budgets:
 - static routes that do not show markers: zero marker calls.
 
 Any history-dependent query must define a hard row/candidate cap or use a database aggregate. A threshold of 93 is not permission to load the full history and slice in JavaScript.
+
+Shared marker snapshots must also declare what an absent row means. Exact key/local-date identities, bounded candidate dates, current-life prefixes, latest-per-key rows, bounded prefix rows/counts and current equipment identities may be answered from the snapshot only when that semantic selector was loaded; an unrelated global row cap must never turn an omitted authoritative row into a false absence.
 
 ## Telegram response milestones
 

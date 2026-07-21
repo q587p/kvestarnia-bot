@@ -45,6 +45,7 @@ Fixtures:
 - new character/minimal sources;
 - full-source veteran state;
 - 10,000 irrelevant DailyAction/combat rows;
+- more than 93 newer allowlisted DailyAction rows ahead of older authoritative exact/current-life/latest/Friday/equipment facts;
 - invalid/non-eligible combat rows around valid threshold rows;
 - optional source failure/fallback.
 
@@ -54,6 +55,7 @@ Budgets:
 - complete representative marker snapshot: at most 12 statements;
 - history growth changes neither statement count nor hard candidate/result cap;
 - exact marker states and fail-soft behavior remain unchanged.
+- optimized output remains identical to legacy output when newer allowlisted rows crowd unrelated marker keys.
 
 ### Route-level reuse
 

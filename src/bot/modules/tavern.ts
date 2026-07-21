@@ -67,6 +67,7 @@ sendTavernBarrel
 import { playerFromContext } from "../context";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
+import { invalidateUpdateReads } from "../updatePerformanceTrace";
 import {
 buildCellarGrownupKeyboard,
 buildCellarMethodHelpKeyboard,
@@ -1713,6 +1714,10 @@ async function handleTavernCallback(
   }
 
   const result = await tavernRaidService.advanceFridayBarrelRaid(telegramUserId);
+
+  if (result.state === "pending-started" || result.state === "completed") {
+    invalidateUpdateReads(`pending-friday:${telegramUserId}`);
+  }
 
   if (result.state === "no-character") {
     await safeAnswerCallbackQuery(ctx);

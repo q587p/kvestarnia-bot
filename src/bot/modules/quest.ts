@@ -63,6 +63,7 @@ import { playerFromContext } from "../context";
 import type { QuestMarkerInput } from "../keyboards/questButtonMarkers";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../questMarkerSnapshot";
 import { getTavernGameButtonOptions } from "../tavernGameButtonOptions";
+import { invalidateUpdateReads } from "../updatePerformanceTrace";
 import {
 buildAdventureApproachKeyboard,
 buildAdventureApproachHelpKeyboard,
@@ -660,6 +661,10 @@ async function handleQuestCallback(
 
     if (action === "problem-next") {
       const result = await services.fight.issueNextProblemQuestForTelegramUser(telegramUserId);
+
+      if (result.state === "issued" && result.issued === "created") {
+        invalidateUpdateReads(`fight-overview:${telegramUserId}`);
+      }
 
       if (result.state === "no-character") {
         await safeEditMessageText(ctx, presentFightNoCharacter(), HTML_MESSAGE_OPTIONS);

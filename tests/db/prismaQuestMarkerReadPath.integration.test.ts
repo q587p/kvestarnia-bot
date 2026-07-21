@@ -7,6 +7,28 @@ import { createRepositories } from "../../src/app/createRepositories";
 import { createServices } from "../../src/app/createServices";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
 import type { AppConfig } from "../../src/config/env";
+import {
+  buildEquipmentAttunementPayload,
+  EQUIPMENT_ATTUNEMENT_ACTION_KEY
+} from "../../src/domain/equipment/equipmentAttunement";
+import { ITEM_UPGRADE_UNLOCK_KEY, ITEM_UPGRADE_UNLOCK_LOCAL_DATE } from "../../src/domain/itemUpgrades";
+import { buildAdventurePeriod, getAdventureRerollStoragePrefix } from "../../src/services/adventureService";
+import {
+  CELLAR_GROWNUP_COMPLETION_KEY,
+  CELLAR_GROWNUP_ONCE
+} from "../../src/services/cellarGrownupQuestService";
+import {
+  ADVENTURE_CHOICE_REROLL_KEY,
+  PROBLEM_QUEST_13_ISSUED_KEY,
+  PROBLEM_QUEST_13_REWARD_KEY,
+  PROBLEM_QUEST_23_ISSUED_KEY
+} from "../../src/services/dailyActionKeys";
+import { PROBLEM_QUEST_BUCKET } from "../../src/services/fight/problemQuest";
+import {
+  buildFridayBarrelRaidPendingKey,
+  FRIDAY_BARREL_RAID_KEY,
+  getBarrelRaidPeriod
+} from "../../src/services/tavernRaidService";
 
 describe("complete quest-marker snapshot SQL budget", () => {
   let dir: string;
@@ -90,9 +112,132 @@ describe("complete quest-marker snapshot SQL budget", () => {
       "dailyKorchmaRound",
       "itemUpgrades"
     ]));
-    expectReadBudget(statements, 10, 12);
+    expectReadBudget(statements, 11, 12);
+  });
+
+  it("keeps older authoritative allowlisted markers visible past ninety-three newer rows", async () => {
+    const now = new Date();
+    const authoritativeAt = new Date(now.getTime() - 42 * 24 * 60 * 60_000);
+    const equipmentUpdatedAt = new Date(now.getTime() - 23 * 60_000);
+    const currentFriday = getBarrelRaidPeriod(now);
+    const previousFriday = getBarrelRaidPeriod(new Date(currentFriday.startsAt.getTime() - 1));
+    const rerollPrefix = getAdventureRerollStoragePrefix(buildAdventurePeriod(now));
+
+    await prisma.user.create({
+      data: { id: "crowded-user", telegramUserId: 9317n, updatedAt: now }
+    });
+    await prisma.character.create({
+      data: {
+        id: "crowded-character",
+        userId: "crowded-user",
+        name: "authoritative",
+        raceId: "race.human",
+        classId: "class.warrior",
+        level: 13,
+        xp: 1300,
+        hpRegenAt: now,
+        manaRegenAt: now,
+        statsJson: { strength: 6, dexterity: 6, intelligence: 6, charisma: 6, luck: 6 },
+        updatedAt: now
+      }
+    });
+    await prisma.characterEquipment.create({
+      data: {
+        id: "crowded-weapon",
+        characterId: "crowded-character",
+        slot: "weapon",
+        itemId: "item.pan-of-persuasion.plus-1",
+        createdAt: authoritativeAt,
+        updatedAt: equipmentUpdatedAt
+      }
+    });
+    await prisma.characterCooldown.create({
+      data: {
+        id: "crowded-friday-pending",
+        characterId: "crowded-character",
+        key: buildFridayBarrelRaidPendingKey(previousFriday.id),
+        availableAt: new Date(now.getTime() + 60 * 60_000),
+        updatedAt: authoritativeAt
+      }
+    });
+    await prisma.dailyAction.createMany({
+      data: [
+        markerAction("problem-13-issued", PROBLEM_QUEST_13_ISSUED_KEY, PROBLEM_QUEST_BUCKET, authoritativeAt),
+        markerAction("problem-13-reward", PROBLEM_QUEST_13_REWARD_KEY, PROBLEM_QUEST_BUCKET, authoritativeAt),
+        markerAction("problem-23-issued", PROBLEM_QUEST_23_ISSUED_KEY, PROBLEM_QUEST_BUCKET, authoritativeAt),
+        markerAction("first-korchma-completed", "quest.first-korchma.completed", "life:0", authoritativeAt),
+        markerAction("barrel-tutorial-completed", "quest.barrel-beer-tutorial.completed", "life:0", authoritativeAt),
+        markerAction("item-upgrade-unlocked", ITEM_UPGRADE_UNLOCK_KEY, ITEM_UPGRADE_UNLOCK_LOCAL_DATE, authoritativeAt),
+        markerAction("cellar-grownup-completed", CELLAR_GROWNUP_COMPLETION_KEY, CELLAR_GROWNUP_ONCE, authoritativeAt),
+        markerAction("friday-current-completed", FRIDAY_BARREL_RAID_KEY, currentFriday.id, authoritativeAt),
+        {
+          ...markerAction(
+            "current-equipment-attunement",
+            EQUIPMENT_ATTUNEMENT_ACTION_KEY,
+            `weapon:crowded-weapon:${equipmentUpdatedAt.getTime()}`,
+            authoritativeAt
+          ),
+          resultJson: buildEquipmentAttunementPayload({
+            slot: "weapon",
+            itemId: "item.pan-of-persuasion.plus-1",
+            itemName: "Пательня переконання +1",
+            equipmentUpdatedAt,
+            strength: "weak",
+            startedAt: equipmentUpdatedAt,
+            readyAt: new Date(now.getTime() + 42 * 60_000)
+          })
+        },
+        ...Array.from({ length: 100 }, (_, index) => markerAction(
+          `newer-allowlisted-${index}`,
+          ADVENTURE_CHOICE_REROLL_KEY,
+          `${rerollPrefix}${index.toString(36)}`,
+          new Date(now.getTime() + index)
+        ))
+      ]
+    });
+
+    const services = createServices(createRepositories(prisma), testConfig());
+    const legacyServices = { ...services };
+    delete legacyServices.questMarkerReads;
+
+    statements.length = 0;
+    const legacySnapshot = await buildQuestMarkerSnapshotForTelegramUser(9317n, legacyServices);
+    expect(readStatements(statements)).toHaveLength(75);
+    expect(writeStatements(statements)).toHaveLength(0);
+
+    statements.length = 0;
+    const snapshot = await buildQuestMarkerSnapshotForTelegramUser(9317n, services);
+
+    expect(normalizeVolatileTimes(snapshot)).toEqual(normalizeVolatileTimes(legacySnapshot));
+    expect(snapshot).toMatchObject({
+      problemQuest: { stageId: "23", issued: true, rewardClaimed: false },
+      firstKorchmaQuest: { state: "completed" },
+      barrelBeerTutorial: { state: "completed" },
+      itemUpgrades: { state: "ready" },
+      cellarGrownup: { state: "completed" },
+      dailyKorchmaRound: { state: "pending-barrel" },
+      adventure: {
+        character: {
+          equipmentEffects: { weaponDamage: 0, contributions: [] }
+        }
+      }
+    });
+    expectReadBudget(statements, 11, 12);
   });
 });
+
+function markerAction(id: string, key: string, localDate: string, createdAt: Date) {
+  return {
+    id,
+    characterId: "crowded-character",
+    key,
+    localDate,
+    rewardXp: 0,
+    rewardGold: 0,
+    spentGold: 0,
+    createdAt
+  };
+}
 
 function testConfig(): AppConfig {
   return {

@@ -1197,7 +1197,7 @@ function buildAdventureOfferToken(periodToken: string, rerollIndex: number): str
   return `${periodToken.slice(0, maxBaseLength)}${suffix}`;
 }
 
-function getAdventureRerollStoragePrefix(period: AdventurePeriod): string {
+export function getAdventureRerollStoragePrefix(period: AdventurePeriod): string {
   return `${period.storageKey}:reroll:`;
 }
 

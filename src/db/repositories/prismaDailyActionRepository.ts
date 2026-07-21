@@ -18,7 +18,10 @@ import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { countCharacterRemorts } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { normalizePresenceLocationId } from "../../services/presenceService";
-import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
+import {
+  getQuestMarkerReadSnapshot,
+  type QuestMarkerReadSnapshot
+} from "./questMarkerReadContext";
 
 export class PrismaDailyActionRepository implements DailyActionRepository {
   constructor(
@@ -32,9 +35,14 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<DailyActionRecord | null> {
     const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
     if (markerSnapshot) {
-      return markerSnapshot.dailyActions.find(
-        (action) => action.key === input.key && action.localDate === input.localDate
-      ) ?? null;
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      if (coversExactIdentity(markerSnapshot, input)) {
+        return markerSnapshot.dailyActions.find(
+          (action) => action.key === input.key && action.localDate === input.localDate
+        ) ?? null;
+      }
     }
 
     const character = await this.prisma.character.findFirst({
@@ -69,9 +77,14 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<DailyActionRecord | null> {
     const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
     if (markerSnapshot) {
-      return markerSnapshot.dailyActions
-        .filter((action) => action.key === input.key)
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null;
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      if (markerSnapshot.dailyActionCoverage.latestKeys.includes(input.key)) {
+        return markerSnapshot.dailyActions
+          .filter((action) => action.key === input.key)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null;
+      }
     }
 
     const character = await this.prisma.character.findFirst({
@@ -107,9 +120,14 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     const markerSnapshot = getQuestMarkerReadSnapshot();
     if (markerSnapshot?.character?.id === characterId) {
       const localDates = new Set(input.localDates);
-      return markerSnapshot.dailyActions
-        .filter((action) => action.key === input.key && localDates.has(action.localDate))
-        .slice(0, Math.max(0, Math.min(93, Math.floor(input.take))));
+      if ([...localDates].every((localDate) => coversExactIdentity(markerSnapshot, {
+        key: input.key,
+        localDate
+      }))) {
+        return markerSnapshot.dailyActions
+          .filter((action) => action.key === input.key && localDates.has(action.localDate))
+          .slice(0, Math.max(0, Math.min(93, Math.floor(input.take))));
+      }
     }
 
     const localDates = [...new Set(input.localDates)];
@@ -134,10 +152,13 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<DailyActionRecord[]> {
     const markerSnapshot = getQuestMarkerReadSnapshot();
     if (markerSnapshot?.character?.id === characterId) {
-      return markerSnapshot.dailyActions
-        .filter((action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix))
-        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-        .slice(0, Math.max(1, Math.min(93, Math.floor(input.take))));
+      const take = Math.max(1, Math.min(93, Math.floor(input.take)));
+      if (coversPrefixRead(markerSnapshot, input.key, input.localDatePrefix, take)) {
+        return markerSnapshot.dailyActions
+          .filter((action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix))
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+          .slice(0, take);
+      }
     }
 
     return this.prisma.dailyAction.findMany({
@@ -675,11 +696,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<number | null> {
     const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
     if (markerSnapshot) {
-      return markerSnapshot.character
-        ? markerSnapshot.dailyActions.filter(
-            (action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix)
-          ).length
-        : null;
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      const covered = markerSnapshot.dailyActionCoverage.prefixCounts.find(
+        (entry) => entry.key === input.key && entry.localDatePrefix === input.localDatePrefix
+      );
+      if (covered) {
+        return covered.count;
+      }
     }
 
     const character = await this.prisma.character.findFirst({
@@ -714,11 +739,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<boolean | null> {
     const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
     if (markerSnapshot) {
-      return markerSnapshot.character
-        ? markerSnapshot.dailyActions.some(
-            (action) => action.key === input.key && action.localDate !== input.localDateNot
-          )
-        : null;
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      if (
+        input.localDateNot === undefined &&
+        markerSnapshot.dailyActionCoverage.latestKeys.includes(input.key)
+      ) {
+        return markerSnapshot.dailyActions.some((action) => action.key === input.key);
+      }
     }
 
     const character = await this.prisma.character.findFirst({
@@ -762,14 +791,18 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
   ): Promise<DailyActionRecord[] | null> {
     const markerSnapshot = getQuestMarkerReadSnapshot(telegramUserId);
     if (markerSnapshot) {
-      return markerSnapshot.character
-        ? markerSnapshot.dailyActions
-            .filter(
-              (action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix)
-            )
-            .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-            .slice(0, Math.max(1, Math.floor(input.take)))
-        : null;
+      if (!markerSnapshot.character) {
+        return null;
+      }
+      const take = Math.max(1, Math.floor(input.take));
+      if (coversPrefixRead(markerSnapshot, input.key, input.localDatePrefix, take)) {
+        return markerSnapshot.dailyActions
+          .filter(
+            (action) => action.key === input.key && action.localDate.startsWith(input.localDatePrefix)
+          )
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+          .slice(0, take);
+      }
     }
 
     const character = await this.prisma.character.findFirst({
@@ -809,10 +842,15 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     const markerSnapshot = getQuestMarkerReadSnapshot();
     if (markerSnapshot?.character?.id === characterId) {
       const keys = new Set(input.keys);
-      return markerSnapshot.dailyActions
-        .filter((action) => keys.has(action.key) && action.localDate === input.localDate)
-        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-        .slice(0, Math.max(1, Math.min(keys.size, Math.floor(input.take))));
+      if ([...keys].every((key) => coversExactIdentity(markerSnapshot, {
+        key,
+        localDate: input.localDate
+      }))) {
+        return markerSnapshot.dailyActions
+          .filter((action) => keys.has(action.key) && action.localDate === input.localDate)
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+          .slice(0, Math.max(1, Math.min(keys.size, Math.floor(input.take))));
+      }
     }
 
     const keys = [...new Set(input.keys)].filter((key) => key.length > 0);
@@ -1156,6 +1194,29 @@ function normalizeHpLoss(value: ClaimDailyActionInput["hpLoss"]): { requested: n
     requested: Math.max(0, Math.floor(value.requested)),
     effectiveHpMax: Math.max(1, Math.floor(value.effectiveHpMax))
   };
+}
+
+function coversExactIdentity(
+  snapshot: QuestMarkerReadSnapshot,
+  identity: { key: string; localDate: string }
+): boolean {
+  return snapshot.dailyActionCoverage.exactIdentities.some(
+    (entry) => entry.key === identity.key && entry.localDate === identity.localDate
+  );
+}
+
+function coversPrefixRead(
+  snapshot: QuestMarkerReadSnapshot,
+  key: string,
+  localDatePrefix: string,
+  take: number
+): boolean {
+  return snapshot.dailyActionCoverage.prefixReads.some(
+    (entry) =>
+      entry.key === key &&
+      entry.localDatePrefix === localDatePrefix &&
+      entry.take >= take
+  );
 }
 
 function buildHpLossAudit(
