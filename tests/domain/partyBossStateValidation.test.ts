@@ -51,6 +51,7 @@ describe("PartyBoss strict state validation", () => {
     ["string participant damage", (state: ReturnType<typeof validState>) => { (state.participants[0]!.combatStats as unknown as { weaponDamage: unknown }).weaponDamage = "3"; }],
     ["resource maximum mismatch", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hpMax += 1; }],
     ["active participant at zero hp", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.hp = 0; }],
+    ["active participant at string zero hp", (state: ReturnType<typeof validState>) => { (state.participants[0]!.resources as unknown as { hp: unknown }).hp = "0"; }],
     ["invalid cooldown", (state: ReturnType<typeof validState>) => { state.participants[0]!.resources.cooldowns = { skill: { id: "skill", remainingTurns: "2" as never } }; }],
     ["string accuracy bonus", (state: ReturnType<typeof validState>) => { (state.participants[0]!.combatStats as unknown as { accuracyBonusPp: unknown }).accuracyBonusPp = "3"; }],
     ["invalid timed status", (state: ReturnType<typeof validState>) => { state.participants[0]!.bardMusicAvailableAt = "not-a-date"; }]
@@ -63,7 +64,8 @@ describe("PartyBoss strict state validation", () => {
   it.each([
     ["action", (state: ReturnType<typeof stateWithRound>) => { delete (state.roundLog[0]!.actions[0] as Partial<typeof state.roundLog[0]["actions"][number]>).manaSpent; }],
     ["retaliation", (state: ReturnType<typeof stateWithRound>) => { (state.roundLog[0]!.bossRetaliations[0] as unknown as { damage: unknown }).damage = "1"; }],
-    ["participantsAfter", (state: ReturnType<typeof stateWithRound>) => { delete (state.roundLog[0]!.participantsAfter![0] as { manaMax?: number }).manaMax; }]
+    ["participantsAfter", (state: ReturnType<typeof stateWithRound>) => { delete (state.roundLog[0]!.participantsAfter![0] as { manaMax?: number }).manaMax; }],
+    ["active participantsAfter at zero hp", (state: ReturnType<typeof stateWithRound>) => { state.roundLog[0]!.participantsAfter![0]!.hp = 0; }]
   ])("rejects malformed nested round %s", (_label, mutate) => {
     const state = stateWithRound();
     mutate(state);

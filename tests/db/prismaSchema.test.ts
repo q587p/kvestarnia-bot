@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Prisma schema", () => {
-  it("stores PartyBoss history with one unique session-turn index and legacy leader backfill", () => {
+  it("stores PartyBoss history with one unique session-turn index and exact legacy normalization", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(
       join(
@@ -20,6 +20,9 @@ describe("Prisma schema", () => {
     expect(model).toContain("@@unique([sessionId, turn])");
     expect(model).not.toContain("@@index([sessionId, turn])");
     expect(migration).toContain("json_set(\"state_json\", '$.leaderCharacterId', \"leader_character_id\")");
+    expect(migration).toContain("json_type(participant.value, '$.resources.hp') IN ('integer', 'real')");
+    expect(migration).toContain("json_type(participant_after.value, '$.hp') IN ('integer', 'real')");
+    expect(migration).toContain("json_set(result_participant.value, '$.status', 'knocked-out')");
     expect(migration).toContain("CREATE UNIQUE INDEX \"party_boss_rounds_session_id_turn_key\"");
     expect(migration).not.toContain("party_boss_rounds_session_id_turn_idx");
   });
