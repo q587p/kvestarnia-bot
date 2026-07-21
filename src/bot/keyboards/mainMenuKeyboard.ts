@@ -113,7 +113,7 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.help);
 
   if (shouldIncludeAdminButton(options.includeAdmin)) {
-    keyboard.row().text(mainMenuButtons.admin);
+    keyboard.text(mainMenuButtons.admin);
   }
 
   return keyboard.resized().persistent().placeholder("Що робимо далі?");

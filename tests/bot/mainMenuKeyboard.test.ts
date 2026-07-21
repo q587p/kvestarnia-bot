@@ -126,16 +126,17 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help],
-      [mainMenuButtons.admin]
+      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
 
-  it("keeps the admin button in the bottom row throughout local development", () => {
+  it("keeps the admin button beside Help in the bottom row throughout local development", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     expect(replyKeyboardTexts(buildMainMenuKeyboard().keyboard).at(-1)).toEqual([
+      mainMenuButtons.participants,
+      mainMenuButtons.help,
       mainMenuButtons.admin
     ]);
   });
