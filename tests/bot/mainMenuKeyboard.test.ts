@@ -2262,30 +2262,57 @@ describe("main menu and scene keyboards", () => {
           null,
           0,
           null,
+          { source: "item-upgrade" }
+        )
+      )
+    ).toEqual(["✨ До Чароковальні"]);
+    expect(
+      flatInlineButtonTexts(
+        buildItemDetailKeyboard(
           {
-            source: "item-upgrade",
+            state: "found",
+            item: {
+              id: "character-item-hood",
+              itemId: "item.set.yeger-shadow.hood",
+              quantity: 1,
+              content: {
+                id: "item.set.yeger-shadow.hood",
+                name: "Каптур тихого сліду",
+                description: "Ховає намір пояснювати.",
+                rarity: "epic",
+                slot: "armor",
+                equipmentSlot: "head",
+                goldValue: 137
+              }
+            }
+          },
+          null,
+          0,
+          "head",
+          {
             equipPreview: {
               state: "attunement-confirm-required",
               item: {
-                itemId: "item.pan-of-persuasion",
+                itemId: "item.set.yeger-shadow.hood",
                 content: {
-                  id: "item.pan-of-persuasion",
-                  name: "Пательня переконання",
-                  description: "Важкий аргумент.",
-                  rarity: "common",
-                  slot: "weapon",
-                  goldValue: 25
+                  id: "item.set.yeger-shadow.hood",
+                  name: "Каптур тихого сліду",
+                  description: "Ховає намір пояснювати.",
+                  rarity: "epic",
+                  slot: "armor",
+                  equipmentSlot: "head",
+                  goldValue: 137
                 }
               },
-              slot: "weapon",
+              slot: "head",
               currentItem: null,
-              strength: "weak",
-              durationMinutes: 13
+              strength: "strong",
+              durationMinutes: 42
             }
           }
         )
       )
-    ).toEqual(["🧥 Екіпірувати", "✨ До Чароковальні"]);
+    ).toEqual(["🧥 Екіпірувати", "⬅️ До списку слота", "🛡️ Спорядження"]);
     expect(
       flatInlineButtonTexts(
         buildItemDetailKeyboard(

@@ -6154,7 +6154,7 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
   });
 
-  it("offers magical equipment actions from Charkokovalnia item details", async () => {
+  it("offers magical equipment actions from a slot-filtered Manatky detail", async () => {
     const itemId = "item.set.yeger-shadow.hood";
     const content = {
       id: itemId,
@@ -6176,7 +6176,7 @@ describe("scene callback HTML options", () => {
       })
     );
     const calls = await captureApiCalls(
-      makeItemDetailCallbackData(itemId, 0, null, "default", { source: "item-upgrade" }),
+      makeItemDetailCallbackData(itemId, 0, "head"),
       servicesWith({
         inventory: {
           getItemForTelegramUser: () =>
@@ -6207,11 +6207,13 @@ describe("scene callback HTML options", () => {
     const edit = calls.find((call) => call.method === "editMessageText");
     const keyboard = JSON.stringify(edit?.payload.reply_markup);
 
-    expect(previewItemEquipForTelegramUser).toHaveBeenCalledWith(42n, itemId, null);
+    expect(previewItemEquipForTelegramUser).toHaveBeenCalledWith(42n, itemId, "head");
     expect(String(edit?.payload.text)).toContain("Магічні бонуси почнуть діяти після налаштування");
     expect(String(edit?.payload.text)).toContain("приблизно за <b>42 хв</b>");
     expect(keyboard).toContain("🧥 Екіпірувати");
-    expect(keyboard).toContain("✨ До Чароковальні");
+    expect(keyboard).toContain("⬅️ До списку слота");
+    expect(keyboard).toContain("🛡️ Спорядження");
+    expect(keyboard).not.toContain("✨ До Чароковальні");
   });
 
   it("skips equip preview and craft checks for non-equippable item detail callbacks", async () => {

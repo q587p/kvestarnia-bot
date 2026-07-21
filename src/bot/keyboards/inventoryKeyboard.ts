@@ -167,6 +167,10 @@ export function buildItemDetailKeyboard(
     return keyboard;
   }
 
+  if (options.source === "item-upgrade") {
+    return keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
+  }
+
   if (result.state === "found" && isEquippableItem(result.item.content)) {
     const targetSlot = isInventoryEquipmentSlotFilter(filter) ? filter : null;
 
@@ -212,10 +216,6 @@ export function buildItemDetailKeyboard(
     } else {
       keyboard.text("🩹 Використати", makeItemUsePreviewCallbackData(result.item.itemId)).row();
     }
-  }
-
-  if (options.source === "item-upgrade") {
-    return keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
   }
 
   if (result.state === "found" && result.item.itemId === ISKROKAMIN_ITEM_ID) {
