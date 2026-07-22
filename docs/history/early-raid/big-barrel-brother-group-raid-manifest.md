@@ -1,35 +1,21 @@
-# Manifest
+# Early Big Barrel Group-Raid Manifest
 
-## Planning and decisions
+This historical package is co-located under `docs/history/early-raid/`.
 
-- `README.md`
+## Retained planning
 
-## Canonical proposed design
+- [`big-barrel-brother-group-raid-package.md`](big-barrel-brother-group-raid-package.md)
+- [`big-barrel-brother-group-raid.md`](big-barrel-brother-group-raid.md)
+- [`big-barrel-brother-balance.md`](big-barrel-brother-balance.md)
+- [`big-barrel-brother-ua-copy.md`](big-barrel-brother-ua-copy.md)
+- [`group-raid-session-model.md`](group-raid-session-model.md)
+- [`group-raid-session-notes.md`](group-raid-session-notes.md)
+- [`repository-change-map.md`](repository-change-map.md)
+- [`big-barrel-brother-group-raid-qa.md`](big-barrel-brother-group-raid-qa.md)
+- [`big-barrel-brother-targetable-adds.md`](big-barrel-brother-targetable-adds.md)
+- [`raid-inspiration-notes.md`](raid-inspiration-notes.md)
+- [`tasks/`](tasks/) and [`prompts/`](prompts/) — consumed historical inputs
 
-- `docs/design/BIG_BARREL_BROTHER_GROUP_RAID.md`
-- `docs/design/BIG_BARREL_BROTHER_BALANCE.md`
-- `docs/content/BIG_BARREL_BROTHER_UA_COPY.md`
-- `docs/architecture/GROUP_RAID_SESSION_MODEL.md`
-- `docs/implementation/REPOSITORY_CHANGE_MAP.md`
-
-## Version-task drafts
-
-- `docs/tasks/0.2.x-raid-party-session-foundation.md`
-- `docs/tasks/0.2.x-big-barrel-brother-group-raid.md`
-
-## Codex prompts
-
-- `docs/ai/prompts/raid-party-session-foundation-main-codex.md`
-- `docs/ai/prompts/big-barrel-brother-group-raid-main-codex.md`
-- `docs/ai/prompts/big-barrel-brother-balance-review.md`
-- `docs/ai/prompts/big-barrel-brother-group-raid-readonly-review.md`
-
-## QA and future work
-
-- `docs/qa/BIG_BARREL_BROTHER_GROUP_RAID_QA.md`
-- `docs/backlog/BIG_BARREL_BROTHER_TARGETABLE_ADDS.md`
-- `docs/references/RAID_INSPIRATION_NOTES.md`
-
-## Scope statement
-
-This package contains planning/documentation only. It does not modify runtime code, Prisma schema, migrations, package version, changelog or player news.
+These documents do not define the current generic group-combat runtime. Use
+[`party-combat-evolution-plan.md`](../../architecture/party-combat-evolution-plan.md)
+and the active version task.

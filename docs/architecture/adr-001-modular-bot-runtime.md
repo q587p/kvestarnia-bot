@@ -1,8 +1,12 @@
 # ADR-001: Modular Bot Runtime Registration
 
-Status: Proposed for `0.2.2`  
-Decision owners: project maintainer and implementation Codex  
+Status: Accepted and implemented in `0.2.2`
+Decision owners: project maintainer and implementation Codex
 Scope: Telegram adapter assembly only
+
+Implementation note: `createBot.ts` is the ordered shell and feature ownership
+lives in the shipped vertical modules under `src/bot/modules/`. This status
+update records the outcome without changing the historical decision below.
 
 ## Context
 

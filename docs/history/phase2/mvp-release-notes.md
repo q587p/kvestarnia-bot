@@ -23,7 +23,7 @@ No gameplay runtime, Prisma schema, migration, formula, balance, economy or new 
 - Phase 1 remains closed by `0.1.0`.
 - Phase 2 Social Combat MVP is considered shipped after `0.1.24` plus the accepted two-account regression/manual QA.
 - `0.1.x` is closed after this release unless an emergency hotfix is needed.
-- `docs/ai/prompts/safe-gifting-main-codex.md` remains the next implementation prompt.
+- `docs/ai/prompts/archive/safe-gifting-main-codex.md` remains the next implementation prompt.
 - The first `0.2.x` task is `docs/tasks/0.2.0-safe-gifting-mvp.md`.
 
 ## Deferred To `0.2.x`
@@ -37,7 +37,7 @@ No gameplay runtime, Prisma schema, migration, formula, balance, economy or new 
 
 ## Smoke Evidence
 
-The closeout references the completed post-`0.1.24` two-account regression audit/manual QA. The retained smoke checklist is `docs/history/phase2/closeout-smoke.md`; the compact audit task is `docs/tasks/phase2-regression-smoke.md`.
+The closeout references the completed post-`0.1.24` two-account regression audit/manual QA. The retained smoke checklist is `docs/history/phase2/closeout-smoke.md`; the compact audit task is `docs/history/evidence/manual-qa/phase2-regression-smoke.md`.
 
 Before merge, the release branch must still pass the automated gate from the task doc:
 
