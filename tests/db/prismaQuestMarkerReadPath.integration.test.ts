@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRepositories } from "../../src/app/createRepositories";
 import { createServices } from "../../src/app/createServices";
 import { buildQuestMarkerSnapshotForTelegramUser } from "../../src/bot/questMarkerSnapshot";
@@ -53,9 +53,15 @@ describe("complete quest-marker snapshot SQL budget", () => {
   });
 
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-21T23:00:00.000Z"));
     await prisma.character.deleteMany();
     await prisma.user.deleteMany();
     statements.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps a representative full-source main-menu snapshot within twelve reads", async () => {
