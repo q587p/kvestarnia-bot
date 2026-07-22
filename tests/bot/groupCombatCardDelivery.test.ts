@@ -133,18 +133,7 @@ describe("group-combat canonical participant delivery", () => {
       sendInertMessage,
       deleteMessage
     };
-    const service = {
-      findById: vi.fn(() => Promise.resolve(session)),
-      compareAndSetParticipantCard: vi.fn().mockImplementation(() => {
-        const participant = session.participants[0]!;
-        participant.chatId = 1001n;
-        participant.messageId = 93;
-        participant.referenceVersion += 1;
-        participant.deliveredRevision = 0;
-        return Promise.resolve(true);
-      }),
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
-    } as unknown as GroupCombatService;
+    const service = mutableCardService(session);
 
     const result = await deliverCanonicalGroupCombatParticipantCard({
       service,
@@ -160,10 +149,159 @@ describe("group-combat canonical participant delivery", () => {
       expect.any(String),
       expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
     );
-    expect(edits).toHaveLength(1);
-    expect(edits[0]?.messageId).toBe(93);
-    expect(edits[0]?.buttons.some((button) => button.includes("Шурхіт"))).toBe(true);
+    expect(edits).toHaveLength(2);
+    expect(edits[0]).toEqual({ messageId: 21, buttons: [] });
+    expect(edits[1]?.messageId).toBe(93);
+    expect(edits[1]?.buttons.some((button) => button.includes("Шурхіт"))).toBe(true);
     expect(deleteMessage).toHaveBeenCalledWith(oldReference);
+  });
+
+  it("leaves the previous card inert when deletion fails after successful activation", async () => {
+    const session = makeSession();
+    const actionable = new Set([21]);
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        if (hasButtons) {
+          actionable.add(reference.messageId);
+        } else {
+          actionable.delete(reference.messageId);
+        }
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage: () => Promise.reject(new Error("Telegram delete failed"))
+    };
+
+    const result = await deliverCanonicalGroupCombatParticipantCard({
+      service: mutableCardService(session),
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(result).toMatchObject({ state: "activated", reference: { messageId: 93 } });
+    expect(actionable).toEqual(new Set([93]));
+  });
+
+  it("restores the previous canonical card after retryable candidate activation and converges on retry", async () => {
+    const session = makeSession();
+    const actionable = new Set([21]);
+    let candidateAttempts = 0;
+    let previousActivationAttempts = 0;
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        if (reference.messageId === 93 && hasButtons) {
+          candidateAttempts += 1;
+          return Promise.reject(new Error("temporary Telegram failure"));
+        }
+        if (reference.messageId === 21 && hasButtons && previousActivationAttempts++ === 0) {
+          return Promise.reject(new Error("temporary Telegram failure"));
+        }
+        if (hasButtons) {
+          actionable.add(reference.messageId);
+        } else {
+          actionable.delete(reference.messageId);
+        }
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage: (reference) => {
+        actionable.delete(reference.messageId);
+        return Promise.resolve();
+      }
+    };
+    const service = mutableCardService(session);
+
+    const failed = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+    const retried = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true
+    });
+
+    expect(failed).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 21 } });
+    expect(retried).toMatchObject({ state: "edited", reference: { messageId: 21 } });
+    expect(candidateAttempts).toBe(1);
+    expect(actionable).toEqual(new Set([21]));
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
+  });
+
+  it("restores the previous canonical card when the promoted candidate is unavailable", async () => {
+    const session = makeSession();
+    const edits: Array<{ messageId: number; hasButtons: boolean }> = [];
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        edits.push({ messageId: reference.messageId, hasButtons });
+        return reference.messageId === 93 && hasButtons
+          ? Promise.reject(new Error("Bad Request: message to edit not found"))
+          : Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage: () => Promise.resolve()
+    };
+    const service = mutableCardService(session);
+
+    const result = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(result).toMatchObject({ state: "edited", reference: { messageId: 21 } });
+    expect(edits).toEqual([
+      { messageId: 21, hasButtons: false },
+      { messageId: 93, hasButtons: true },
+      { messageId: 21, hasButtons: true }
+    ]);
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
+  });
+
+  it("does not activate a replacement when the previous actionable card cannot be made inert", async () => {
+    const session = makeSession();
+    const candidateActivation = vi.fn();
+    const deleteMessage = vi.fn().mockResolvedValue(undefined);
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        if (reference.messageId === 21) {
+          return Promise.reject(new Error("Telegram edit failed"));
+        }
+        if (hasButtons) {
+          candidateActivation();
+        }
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage
+    };
+    const service = mutableCardService(session);
+
+    const result = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(result).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 21 } });
+    expect(candidateActivation).not.toHaveBeenCalled();
+    expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 93 });
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
   });
 
   it("cannot let an older edit hide the latest replaceable queued-action plan", async () => {
@@ -220,6 +358,45 @@ describe("group-combat canonical participant delivery", () => {
     expect(afterQueue.version).toBe(beforeQueue.version);
     expect(afterQueue.status).toBe(beforeQueue.status);
     expect(afterQueue.turn).toBe(beforeQueue.turn);
+  });
+
+  it("keeps the authoritative deadline when another participant queues and replaces an action", async () => {
+    const session = makeSession({
+      deliveryRevision: 3,
+      queuedActions: [{
+        actorCharacterId: "character-2",
+        turn: 1,
+        action: "attack",
+        targetKind: "enemy",
+        targetId: "enemy-2",
+        origin: "manual"
+      }]
+    });
+    const texts: string[] = [];
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (_reference, text) => {
+        texts.push(text);
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(null),
+      deleteMessage: () => Promise.resolve()
+    };
+    const service = {
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true,
+      now: () => new Date("2026-07-22T10:00:17.000Z")
+    });
+
+    expect(texts.at(-1)).toContain("⏳ До захисту мовчунів — 6 с.");
+    expect(texts.at(-1)).not.toContain("23 с.");
   });
 });
 
@@ -318,6 +495,31 @@ function actor(characterId: string, telegramUserId: string, name: string, roster
     support: 5,
     equipmentItemIds: []
   };
+}
+
+function mutableCardService(session: GroupCombatSessionRecord): GroupCombatService {
+  return {
+    findById: vi.fn(() => Promise.resolve(session)),
+    compareAndSetParticipantCard: vi.fn((input: {
+      expectedReferenceVersion: number;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants[0]!;
+      if (participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      participant.deliveredRevision = 0;
+      return Promise.resolve(true);
+    }),
+    markParticipantCardDelivered: vi.fn().mockImplementation(() => {
+      session.participants[0]!.deliveredRevision = session.deliveryRevision;
+      return Promise.resolve(true);
+    })
+  } as unknown as GroupCombatService;
 }
 
 function deferred<T>() {

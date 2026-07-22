@@ -159,34 +159,66 @@ describe("group combat bot flow", () => {
     expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
   });
 
-  it("opens the bounded terminal journal through the shared journal presenter", async () => {
+  it("opens, pages, and restores terminal results on the same canonical message", async () => {
     const session = makeSession();
     session.status = "won";
     session.state.status = "won";
-    session.state.recap = [{ turn: 1, lines: ["Лідерка стає в захист."] }];
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    session.state.recap = [
+      { turn: 1, lines: ["Лідерка стає в захист."] },
+      { turn: 2, lines: ["Друг б’є Шурхіт на 3."] }
+    ];
+    session.participants[0]!.deliveredRevision = session.deliveryRevision;
+    const edits: Array<{ text: string; options: string }> = [];
+    const editContextMessage = vi.fn((text: string, options?: unknown) => {
+      edits.push({ text, options: JSON.stringify(options) });
+      return Promise.resolve(true);
+    });
+    const editApiMessage = vi.fn((_chatId: number, _messageId: number, text: string, options?: unknown) => {
+      edits.push({ text, options: JSON.stringify(options) });
+      return Promise.resolve(true);
+    });
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       chat: { id: 1001, type: "private" },
-      callbackQuery: { id: "callback-journal", data: "unused" },
-      editMessageText,
+      callbackQuery: {
+        id: "callback-journal",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText: editApiMessage } as unknown as Api,
+      editMessageText: editContextMessage,
       answerCallbackQuery
     } as unknown as Context;
+    const service = {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
 
     await handleGroupCombatCallback(ctx, {
       type: "journal",
       token: session.partyInviteToken,
       page: 0
-    }, {
-      findByToken: vi.fn().mockResolvedValue(session)
-    } as unknown as GroupCombatService);
+    }, service);
+    await handleGroupCombatCallback(ctx, {
+      type: "journal",
+      token: session.partyInviteToken,
+      page: 1
+    }, service);
+    await handleGroupCombatCallback(ctx, {
+      type: "view",
+      token: session.partyInviteToken
+    }, service);
 
-    expect(editMessageText).toHaveBeenCalledWith(
-      expect.stringContaining("Журнал доказової сутички"),
-      expect.objectContaining({ parse_mode: "HTML" })
-    );
-    expect(answerCallbackQuery).toHaveBeenCalled();
+    expect(edits[0]?.text).toContain("Хід <b>1</b> · запис 1/2");
+    expect(edits[1]?.text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(edits[1]?.options).toContain("↩️ До результатів");
+    expect(edits[2]?.text).toContain("✅ Доказову сутичку виграно");
+    expect(edits[2]?.text).not.toContain("Журнал доказової сутички");
+    expect(edits[2]?.options).toContain("📜 Журнал");
+    expect(editApiMessage).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(answerCallbackQuery).toHaveBeenCalledTimes(3);
   });
 
   it("repairs an unavailable canonical message after combat already committed", async () => {

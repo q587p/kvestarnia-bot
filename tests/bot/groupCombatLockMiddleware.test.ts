@@ -19,7 +19,10 @@ describe("group-combat lock middleware", () => {
       chatId: 1001,
       replyMarkup: { inline_keyboard: [] }
     })]);
-    expect(calls.edits).toEqual([expect.objectContaining({ chatId: 1001, messageId: 93 })]);
+    expect(calls.edits).toEqual([
+      expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: { inline_keyboard: [] } }),
+      expect.objectContaining({ chatId: 1001, messageId: 93 })
+    ]);
     expect(calls.deletes).toEqual([{ chatId: 1001, messageId: 21 }]);
     expect(markParticipantCardDelivered).toHaveBeenCalledWith(expect.objectContaining({
       chatId: 1001n,
@@ -53,6 +56,7 @@ function services(
     groupCombat: {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
+      currentTime: () => new Date("2026-07-22T10:00:00.000Z"),
       compareAndSetParticipantCard: vi.fn().mockImplementation((input: {
         telegramUserId: bigint;
         chatId: bigint;

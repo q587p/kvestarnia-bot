@@ -1,7 +1,10 @@
 import type { Bot, Context } from "grammy";
 import type { GroupCombatCallback } from "../callbacks/groupCombatCallbackData";
 import type { GroupCombatService } from "../../services/groupCombatService";
-import { deliverGroupCombatCards } from "../groupCombatCardDelivery";
+import {
+  deliverGroupCombatCards,
+  deliverGroupCombatParticipantCard
+} from "../groupCombatCardDelivery";
 import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
 import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { telegramUserIdFromContext } from "../context";
@@ -76,7 +79,7 @@ export async function handleGroupCombatCallback(
   if (callback.type === "journal") {
     if (session.status === "active") {
       await safeAnswerCallbackQuery(ctx, { text: "Журнал відкриється після завершення сутички.", show_alert: true });
-      await deliverGroupCombatCards(ctx.api, service, session);
+      await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
       return;
     }
     await safeAnswerCallbackQuery(ctx);
@@ -84,6 +87,11 @@ export async function handleGroupCombatCallback(
       parse_mode: "HTML",
       reply_markup: buildGroupCombatJournalKeyboard(session, callback.page)
     });
+    return;
+  }
+  if (callback.type === "view") {
+    await safeAnswerCallbackQuery(ctx);
+    await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
     return;
   }
   if (callback.type === "action") {

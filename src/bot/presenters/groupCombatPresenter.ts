@@ -1,12 +1,12 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
-import { GROUP_COMBAT_TURN_MS } from "../../services/groupCombatService";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string
+  viewerCharacterId: string,
+  now: Date = new Date()
 ): string {
   const state = session.state;
   const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
@@ -44,25 +44,26 @@ export function presentGroupCombat(
   const recapText = recap
     ? `\n\n<b>Останні дії:</b>\n${recap.lines.map((line) => escapeHtml(line)).join("\n")}`
     : "";
+  const remaining = formatRemainingTurn(session.turnExpiresAt, now);
   const ending = state.status === "active"
     ? queued
       ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, вибір записано: ${presentQueuedAction(
           session,
           queuedAction
-        )}. Можна змінити до розіграшу ходу.`
+        )}. Можна змінити до розіграшу ходу.\n⏳ До захисту мовчунів — ${remaining}.`
       : [
           "",
           "",
           `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо? Оберіть точну ціль.`,
-          `⏳ На хід є ${formatSecondsLong(GROUP_COMBAT_TURN_MS)}. Потім Корчма поставить мовчунів у захист.`
+          `⏳ До захисту мовчунів — ${remaining}.`
         ].join("\n")
     : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
   return [status, "", ...enemies, ...party].join("\n") + recapText + ending;
 }
 
-function formatSecondsLong(milliseconds: number): string {
-  return `${Math.ceil(milliseconds / 1_000)} секунди`;
+function formatRemainingTurn(expiresAt: Date, now: Date): string {
+  return `${Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1_000))} с`;
 }
 
 export function presentGroupCombatJournal(

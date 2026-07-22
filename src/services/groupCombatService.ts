@@ -26,6 +26,10 @@ export class GroupCombatService {
     return this.options.enabled && this.options.devHelpersEnabled;
   }
 
+  currentTime(): Date {
+    return this.now();
+  }
+
   async startProof(telegramUserId: bigint, partyInviteToken: string): Promise<GroupCombatStartResult> {
     if (!this.areDevHelpersEnabled()) {
       return { state: "disabled" };

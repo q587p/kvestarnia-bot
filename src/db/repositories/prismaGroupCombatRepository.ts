@@ -35,6 +35,9 @@ import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 
 type TxClient = Prisma.TransactionClient;
+const MAX_MUTATION_ATTEMPTS = 4;
+
+class GroupCombatMutationConflict extends Error {}
 
 const partyCharacterInclude = {
   user: { select: { telegramUserId: true } },
@@ -295,7 +298,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     nextTurnExpiresAt: Date;
   }): Promise<GroupCombatActionResult> {
-    return this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < MAX_MUTATION_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
       const actor = await tx.character.findFirst({
         where: { user: { telegramUserId: input.telegramUserId } },
         select: { id: true }
@@ -351,36 +356,40 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
         }
       });
-      let writeState: "queued" | "replaced" | "duplicate" = existingAction
+      const writeState: "queued" | "replaced" | "duplicate" = existingAction
         ? existingAction.actionKey === input.action &&
           existingAction.targetKind === input.targetKind &&
           existingAction.targetId === input.targetId
           ? "duplicate"
           : "replaced"
         : "queued";
+      if (writeState === "duplicate") {
+        const session = await loadSession(tx, row.id);
+        return session ? { state: "duplicate", session } : { state: "not-found" };
+      }
+      const claimedRow = await claimActiveSessionMutation(tx, row);
       if (writeState === "queued") {
-        try {
-          await tx.groupCombatAction.create({
-            data: {
-              sessionId: row.id,
-              actorCharacterId: actor.id,
-              turn: input.turn,
-              actionKey: input.action,
-              targetKind: input.targetKind,
-              targetId: input.targetId,
-              origin: "manual",
-              submittedAt: input.now
-            }
-          });
-        } catch (error) {
-          if (!isUniqueConflict(error)) {
-            throw error;
+        await tx.groupCombatAction.create({
+          data: {
+            sessionId: row.id,
+            actorCharacterId: actor.id,
+            turn: input.turn,
+            actionKey: input.action,
+            targetKind: input.targetKind,
+            targetId: input.targetId,
+            origin: "manual",
+            submittedAt: input.now
           }
-          writeState = "duplicate";
-        }
+        });
       } else if (writeState === "replaced") {
-        await tx.groupCombatAction.update({
-          where: { id: existingAction!.id },
+        const replaced = await tx.groupCombatAction.updateMany({
+          where: {
+            id: existingAction!.id,
+            actionKey: existingAction!.actionKey,
+            targetKind: existingAction!.targetKind,
+            targetId: existingAction!.targetId,
+            submittedAt: existingAction!.submittedAt
+          },
           data: {
             actionKey: input.action,
             targetKind: input.targetKind,
@@ -389,30 +398,86 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             submittedAt: input.now
           }
         });
+        if (replaced.count !== 1) {
+          throw new GroupCombatMutationConflict();
+        }
       }
-      const result = await resolveIfReady(tx, row, state, input.now, input.nextTurnExpiresAt);
+      const result = await resolveIfReady(tx, claimedRow, state, input.now, input.nextTurnExpiresAt);
       if (result) {
         return result;
       }
-      if (writeState !== "duplicate") {
-        const delivery = await tx.groupCombatSession.updateMany({
-          where: { id: row.id, status: "active", turn: row.turn, version: row.version },
+      const delivery = await tx.groupCombatSession.updateMany({
+          where: { id: claimedRow.id, status: "active", turn: claimedRow.turn, version: claimedRow.version },
           data: {
             deliveryRevision: { increment: 1 },
             deliveryPending: true,
             deliveryAttemptedAt: null
           }
         });
-        if (delivery.count !== 1) {
-          const current = await loadSession(tx, row.id);
-          return current
-            ? { state: current.status === "active" ? "stale" : "terminal", session: current }
-            : { state: "not-found" };
-        }
+      if (delivery.count !== 1) {
+        throw new GroupCombatMutationConflict();
       }
       const session = await loadSession(tx, row.id);
       return session ? { state: writeState, session } : { state: "not-found" };
+        });
+      } catch (error) {
+        if (isUniqueConflict(error)) {
+          const conflict = await this.classifyConcurrentAction(input);
+          if (conflict) {
+            return conflict;
+          }
+          continue;
+        }
+        if (error instanceof GroupCombatMutationConflict || isTransactionWriteConflict(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    const current = await this.findByPartyInviteToken(input.partyInviteToken);
+    if (!current) {
+      return { state: "not-found" };
+    }
+    return current.status === "active" ? { state: "stale" } : { state: "terminal", session: current };
+  }
+
+  private async classifyConcurrentAction(input: {
+    telegramUserId: bigint;
+    partyInviteToken: string;
+    turn: number;
+    action: GroupCombatAction["action"];
+    targetKind: GroupCombatAction["targetKind"];
+    targetId: string;
+  }): Promise<GroupCombatActionResult | null> {
+    const session = await this.findByPartyInviteToken(input.partyInviteToken);
+    if (!session) {
+      return { state: "not-found" };
+    }
+    if (session.status !== "active") {
+      return { state: "terminal", session };
+    }
+    if (session.turn !== input.turn) {
+      return { state: "stale" };
+    }
+    const actor = session.participants.find((participant) => participant.telegramUserId === input.telegramUserId);
+    if (!actor) {
+      return { state: "not-participant" };
+    }
+    const winner = await this.prisma.groupCombatAction.findUnique({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: input.turn,
+          actorCharacterId: actor.characterId
+        }
+      }
     });
+    if (!winner) {
+      return null;
+    }
+    return winner.actionKey === input.action && winner.targetKind === input.targetKind && winner.targetId === input.targetId
+      ? { state: "duplicate", session }
+      : null;
   }
 
   async resolveTimedOutSession(input: {
@@ -420,8 +485,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     nextTurnExpiresAt: Date;
   }): Promise<GroupCombatActionResult> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < MAX_MUTATION_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
         const row = await tx.groupCombatSession.findUnique({ where: { id: input.sessionId }, include: sessionInclude });
         if (!row) {
           return { state: "not-found" } as const;
@@ -460,6 +526,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
           return actionResultAfterRepair(await repairMalformedSession(tx, row, input.now));
         }
+        const claimedRow = await claimActiveSessionMutation(tx, row);
         const missing = state.participants.filter((participant) => participant.hp > 0 && !submitted.has(participant.characterId));
         if (missing.length > 0) {
           await tx.groupCombatAction.createMany({
@@ -478,17 +545,23 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             })
           });
         }
-        return (await resolveIfReady(tx, row, state, input.now, input.nextTurnExpiresAt)) ?? { state: "stale" };
-      });
-    } catch (error) {
-      if (!isUniqueConflict(error)) {
+        const result = await resolveIfReady(tx, claimedRow, state, input.now, input.nextTurnExpiresAt);
+        if (!result) {
+          throw new GroupCombatMutationConflict();
+        }
+        return result;
+        });
+      } catch (error) {
+        if (error instanceof GroupCombatMutationConflict || isUniqueConflict(error) || isTransactionWriteConflict(error)) {
+          continue;
+        }
         throw error;
       }
-      const current = await loadSession(this.prisma, input.sessionId);
-      return current
-        ? { state: current.status === "active" ? "stale" : "terminal", session: current }
-        : { state: "not-found" };
     }
+    const current = await loadSession(this.prisma, input.sessionId);
+    return current
+      ? { state: current.status === "active" ? "stale" : "terminal", session: current }
+      : { state: "not-found" };
   }
 
   async findByPartyInviteToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null> {
@@ -814,8 +887,7 @@ async function resolveIfReady(
     }
   });
   if (updated.count !== 1) {
-    const current = await loadSession(tx, row.id);
-    return current ? { state: current.status === "active" ? "stale" : "terminal", session: current } : { state: "not-found" };
+    throw new GroupCombatMutationConflict();
   }
   await updateContributions(tx, row.id, resolution.state.contributions);
   if (terminal) {
@@ -824,6 +896,17 @@ async function resolveIfReady(
   }
   const session = await loadSession(tx, row.id);
   return session ? { state: terminal ? "terminal" : "resolved", session } : { state: "not-found" };
+}
+
+async function claimActiveSessionMutation(tx: TxClient, row: SessionRow): Promise<SessionRow> {
+  const claimed = await tx.groupCombatSession.updateMany({
+    where: { id: row.id, status: "active", turn: row.turn, version: row.version },
+    data: { version: { increment: 1 } }
+  });
+  if (claimed.count !== 1) {
+    throw new GroupCombatMutationConflict();
+  }
+  return { ...row, version: row.version + 1 };
 }
 
 type SessionRepairOutcome = "unchanged" | "validated" | "invalidated" | "terminal-repaired";
@@ -1191,4 +1274,8 @@ function stableSeed(value: string): number {
 
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function isTransactionWriteConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 }

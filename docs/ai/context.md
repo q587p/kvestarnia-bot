@@ -11,11 +11,13 @@
   actor-turn actions and version CAS keep resolution and repair rewardless.
   Enemy attack, self guard and living-ally aid are the complete proof actions;
   timeout uses resource-free guard. Aid targets only injured living allies and
-  the latest valid current-turn choice replaces an earlier one. Participant
-  cards reuse the fight/raid resource layout, 23-second prompt, two-column
-  exact-target actions and shared bounded terminal journal; private text redirects
-  CAS-promote a new latest card while callbacks edit the canonical reference.
-  Cards are private-DM, monotonic and repairable. Terminal output changes no Character resources,
+  the latest valid current-turn choice replaces an earlier one behind a session
+  mutation CAS, including final-action/timeout races. Participant cards reuse
+  the fight/raid resource layout, authoritative remaining-time prompt, two-column
+  exact-target actions and shared bounded terminal journal; results restore on
+  the same participant-only canonical message. Private text redirects CAS-promote
+  a new latest card, while failed activation restores the previous actionable
+  reference. Cards are private-DM, monotonic and repairable. Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
   availability, deployment and manual Telegram QA remain unproven. Local QA
   creates a fresh `/dev_party` and passes only the invite suffix after `party_`

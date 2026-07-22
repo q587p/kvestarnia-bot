@@ -67,10 +67,10 @@ describe("group combat presenter", () => {
       queuedActions: []
     };
 
-    const text = presentGroupCombat(session, participants[0]!.characterId);
+    const text = presentGroupCombat(session, participants[0]!.characterId, NOW);
 
     expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
-    expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить мовчунів у захист.");
+    expect(text).toContain("⏳ До захисту мовчунів — 23 с.");
     expect(text).toContain("\n\n<b>Пригодник із довгим ім’ям 1</b>, що робимо?");
     expect(text.length).toBeLessThan(4_096);
   });
@@ -121,17 +121,34 @@ describe("group combat presenter", () => {
       targetId: session.participants[0]!.characterId
     }];
 
-    const text = presentGroupCombat(session, session.participants[0]!.characterId);
+    const text = presentGroupCombat(
+      session,
+      session.participants[0]!.characterId,
+      new Date(NOW.getTime() + 8_000)
+    );
     const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
 
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
-    expect(text).not.toContain("На хід є 23 секунди");
+    expect(text).toContain("⏳ До захисту мовчунів — 15 с.");
     expect(rows.flat().map((button) => button.text)).toEqual([
       "⚔️ Комірний Шурхіт 1",
       "⚔️ Комірний Шурхіт 2",
       "🛡️ Захиститися",
       "🔎 Оновити"
     ]);
+  });
+
+  it("renders authoritative remaining time close to timeout instead of resetting the turn", () => {
+    const session = createSession(2);
+
+    const text = presentGroupCombat(
+      session,
+      session.participants[0]!.characterId,
+      new Date(session.turnExpiresAt.getTime() - 350)
+    );
+
+    expect(text).toContain("⏳ До захисту мовчунів — 1 с.");
+    expect(text).not.toContain("23 с.");
   });
 
   it("opens the shared bounded battle journal and returns to terminal results", () => {

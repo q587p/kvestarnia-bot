@@ -14,7 +14,7 @@ import { GroupCombatService } from "../../src/services/groupCombatService";
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_BUDGETS = {
   start: 30,
-  queue: 19,
+  queue: 20,
   resolve: 35,
   dueScan: 1
 } as const;
@@ -182,7 +182,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     actualQueryCounts.queue = queueQueries;
     expect(queued.state).toBe("queued");
     expect(queueQueries).toBeLessThanOrEqual(QUERY_BUDGETS.queue);
-    expect("session" in queued ? queued.session.version : null).toBe(initial.version);
+    expect("session" in queued ? queued.session.version : null).toBe(initial.version + 1);
     expect("session" in queued ? queued.session.deliveryRevision : null).toBe(initial.deliveryRevision + 1);
     expect("session" in queued ? queued.session.deliveryPending : null).toBe(true);
 
@@ -197,6 +197,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
     expect(replaced.state).toBe("replaced");
+    expect("session" in replaced ? replaced.session.version : null).toBe(initial.version + 2);
     expect("session" in replaced ? replaced.session.deliveryRevision : null).toBe(initial.deliveryRevision + 2);
     expect(await prisma.groupCombatAction.findFirst({
       where: { sessionId: initial.id, turn: initial.turn, actorCharacterId: leader.characterId },
@@ -330,6 +331,152 @@ describe("PrismaGroupCombatRepository integration", () => {
       where: { sessionId: session.id },
       select: { contributionJson: true }
     })).toHaveLength(2);
+  });
+
+  it("linearizes two concurrent different first choices into one queued row and one replacement", async () => {
+    const session = await startProof(prisma, repository, "group-first-choice-race", [1261n, 1262n]);
+    const actor = session.participants[0]!;
+    const results = await Promise.all([
+      repository.submitActionForTelegramUser({
+        telegramUserId: actor.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: 1,
+        action: "guard",
+        targetKind: "self",
+        targetId: actor.characterId,
+        now: NOW,
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      }),
+      repository.submitActionForTelegramUser({
+        telegramUserId: actor.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: 1,
+        action: "attack",
+        targetKind: "enemy",
+        targetId: session.state.enemies[0]!.id,
+        now: new Date(NOW.getTime() + 1),
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ]);
+    const actionRows = await prisma.groupCombatAction.findMany({
+      where: { sessionId: session.id, turn: 1, actorCharacterId: actor.characterId }
+    });
+
+    expect(results.map((result) => result.state).sort()).toEqual(["queued", "replaced"]);
+    expect(actionRows).toHaveLength(1);
+    expect(["attack", "guard"]).toContain(actionRows[0]!.actionKey);
+    expect((await repository.findById(session.id))?.turn).toBe(1);
+  });
+
+  it("keeps identical concurrent first callbacks as one queued action and one truthful duplicate", async () => {
+    const session = await startProof(prisma, repository, "group-identical-choice-race", [1263n, 1264n]);
+    const actor = session.participants[0]!;
+    const submit = () => repository.submitActionForTelegramUser({
+      telegramUserId: actor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard" as const,
+      targetKind: "self" as const,
+      targetId: actor.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    const results = await Promise.all([submit(), submit()]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["duplicate", "queued"]);
+    expect(await prisma.groupCombatAction.count({
+      where: { sessionId: session.id, turn: 1, actorCharacterId: actor.characterId }
+    })).toBe(1);
+  });
+
+  it("keeps replacement linearizable when it races the final participant action", async () => {
+    const session = await startProof(prisma, repository, "group-replace-final-race", [1265n, 1266n]);
+    const actor = session.participants[0]!;
+    const finalActor = session.participants[1]!;
+    await repository.submitActionForTelegramUser({
+      telegramUserId: actor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: actor.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    const [replacement, finalAction] = await Promise.all([
+      repository.submitActionForTelegramUser({
+        telegramUserId: actor.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: 1,
+        action: "attack",
+        targetKind: "enemy",
+        targetId: session.state.enemies[0]!.id,
+        now: new Date(NOW.getTime() + 1),
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      }),
+      repository.submitActionForTelegramUser({
+        telegramUserId: finalActor.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: 1,
+        action: "guard",
+        targetKind: "self",
+        targetId: finalActor.characterId,
+        now: new Date(NOW.getTime() + 2),
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ]);
+
+    expect([replacement.state, finalAction.state]).toContain("resolved");
+    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
+  });
+
+  it("keeps replacement linearizable when it races timeout resolution", async () => {
+    const session = await startProof(
+      prisma,
+      repository,
+      "group-replace-timeout-race",
+      [1267n, 1268n],
+      new Date(NOW.getTime() - 1)
+    );
+    const actor = session.participants[0]!;
+    await repository.submitActionForTelegramUser({
+      telegramUserId: actor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: actor.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { turnExpiresAt: new Date(NOW.getTime() - 1) }
+    });
+
+    const [replacement, timeout] = await Promise.all([
+      repository.submitActionForTelegramUser({
+        telegramUserId: actor.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: 1,
+        action: "attack",
+        targetKind: "enemy",
+        targetId: session.state.enemies[0]!.id,
+        now: new Date(NOW.getTime() + 1),
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      }),
+      repository.resolveTimedOutSession({
+        sessionId: session.id,
+        now: NOW,
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ]);
+
+    expect([replacement.state, timeout.state]).toContain("resolved");
+    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
   it("settles a normal victory with no economy writes and releases every lock", async () => {
@@ -914,6 +1061,35 @@ async function startProof(
 }
 
 type StartedProofSession = Awaited<ReturnType<typeof startProof>>;
+
+async function expectStoredTurnActionMatchesRecap(
+  prisma: PrismaClient,
+  repository: PrismaGroupCombatRepository,
+  session: StartedProofSession,
+  actorCharacterId: string
+): Promise<void> {
+  const action = await prisma.groupCombatAction.findUniqueOrThrow({
+    where: {
+      sessionId_turn_actorCharacterId: {
+        sessionId: session.id,
+        turn: 1,
+        actorCharacterId
+      }
+    }
+  });
+  const latest = await repository.findById(session.id);
+  const actor = session.state.participants.find((participant) => participant.characterId === actorCharacterId)!;
+  const recap = latest?.state.recap.find((entry) => entry.turn === 1);
+
+  expect(latest?.turn).toBe(2);
+  expect(await prisma.groupCombatAction.count({ where: { sessionId: session.id, turn: 1 } })).toBe(2);
+  expect(recap).toBeDefined();
+  if (action.actionKey === "guard") {
+    expect(recap?.lines).toContain(`${actor.name} стає в захист.`);
+  } else {
+    expect(recap?.lines.some((line) => line.startsWith(`${actor.name} б’є `))).toBe(true);
+  }
+}
 
 async function checkpointExistingTerminalHistory(prisma: PrismaClient): Promise<void> {
   await prisma.groupCombatSession.updateMany({
