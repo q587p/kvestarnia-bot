@@ -10,7 +10,7 @@ Move exactly one eligible item stack unit from one player to another through sen
 
 This is the smallest remaining social-interaction promise after duels, nearby targeting and Shynok sale reservations.
 
-Prompt: [ai/prompts/safe-gifting-main-codex.md](../../ai/prompts/safe-gifting-main-codex.md).
+Prompt: [ai/prompts/safe-gifting-main-codex.md](../../ai/prompts/archive/safe-gifting-main-codex.md).
 
 Status: shipped in `0.2.0`.
 
@@ -80,15 +80,15 @@ Pick a small subset of signature techniques only after race abilities and cosmet
 
 - paid postal/courier manatka delivery for known recipients who are not currently nearby;
 - item-for-item trade;
-- temporary party/session foundation, starting with [tasks/0.2.x-raid-party-session-foundation.md](../../tasks/0.2.x-raid-party-session-foundation.md) when explicitly activated;
-- party vs one boss, tracked as [tasks/0.2.x-party-vs-one-boss.md](../../tasks/0.2.x-party-vs-one-boss.md), before raid-scale rewards, adds or broad party-vs-many runtime;
-- fuller real-raid mechanics beyond the `0.2.17` Big Barrel Brother MVP, with the Big Barrel Brother planning package preserved in [BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](../early-raid/big-barrel-brother-group-raid-package.md) and [tasks/0.2.x-big-barrel-brother-group-raid.md](../../tasks/0.2.x-big-barrel-brother-group-raid.md);
+- temporary party/session foundation, starting with [tasks/0.2.x-raid-party-session-foundation.md](../early-raid/tasks/0.2.x-raid-party-session-foundation.md) when explicitly activated;
+- party vs one boss, tracked as [tasks/0.2.x-party-vs-one-boss.md](../../tasks/archive/0.2.x-party-vs-one-boss.md), before raid-scale rewards, adds or broad party-vs-many runtime;
+- fuller real-raid mechanics beyond the `0.2.17` Big Barrel Brother MVP, with the Big Barrel Brother planning package preserved in [BIG_BARREL_BROTHER_GROUP_RAID_PACKAGE.md](../early-raid/big-barrel-brother-group-raid-package.md) and [tasks/0.2.x-big-barrel-brother-group-raid.md](../early-raid/tasks/0.2.x-big-barrel-brother-group-raid.md);
 - tournament recognition;
 - remort/social achievement-board ideas;
 - richer remort-only social records;
 - achievements and collections;
 - selected signature techniques after race abilities and cosmetic titles have runtime evidence;
-- daily `Корчмарський обхід`, preserved in [DAILY_KORCHMA_ROUNDS.md](../../design/daily-korchma-rounds.md) and [tasks/0.2.x-daily-korchma-rounds.md](../../tasks/0.2.x-daily-korchma-rounds.md), when explicitly activated;
+- daily `Корчмарський обхід`, preserved in [DAILY_KORCHMA_ROUNDS.md](../../design/daily-korchma-rounds.md) and [tasks/0.2.x-daily-korchma-rounds.md](../../tasks/archive/0.2.x-daily-korchma-rounds.md), when explicitly activated;
 - monster gender/case metadata;
 - food, coffee and bard performance after economy telemetry.
 

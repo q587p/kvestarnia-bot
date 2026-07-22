@@ -8,12 +8,11 @@ Use these docs when running, testing, smoking, debugging or reviewing Kvestarnia
 - [`local-bot-runtime.md`](local-bot-runtime.md) — isolated local bot runtime and Windows/Prisma process-lock workflow.
 - [`local-bot-runtime-db-prep.md`](local-bot-runtime-db-prep.md) — local bot runtime database preparation notes.
 - [`playtesting.md`](playtesting.md) — manual smoke test for the current playable loop.
-- [`playtesting-daily-korchma-rounds-addendum.md`](playtesting-daily-korchma-rounds-addendum.md) — historical/future manual QA addendum for daily Korchma rounds if still present.
 
 ## QA entry points
 
 - [`../qa/README.md`](../qa/README.md) — feature-specific manual QA and smoke packages.
-- [`../tasks/phase2-regression-smoke.md`](../tasks/phase2-regression-smoke.md) — read-only/manual Phase 2 regression gate.
+- [`../history/evidence/manual-qa/`](../history/evidence/manual-qa/) — release-specific manual QA evidence and closed smoke packages.
 
 ## Support jar and production-facing support
 
@@ -25,6 +24,7 @@ Use these docs when running, testing, smoking, debugging or reviewing Kvestarnia
 - [`release-state-ledger.md`](release-state-ledger.md) — current code/deploy/flag/automated/manual QA/kill-switch evidence; merged code alone is not player availability.
 - [`../history/phase1/closeout-smoke.md`](../history/phase1/closeout-smoke.md) — Phase 1 final smoke gate.
 - [`../history/phase2/closeout-smoke.md`](../history/phase2/closeout-smoke.md) — Phase 2 MVP closeout smoke if present.
+- [`../history/evidence/manual-qa/release-smoke-evidence.md`](../history/evidence/manual-qa/release-smoke-evidence.md) — release-specific smoke sections removed from the active runbook.
 
 ## Guardrails
 

@@ -24,8 +24,8 @@
 | --- | --- | --- |
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
-| Closed Alpha Readiness / Season Zero Foundation | завершується | `0.3.x` |
-| Party Progression | наступна | `0.4.x` |
+| Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
+| Party Progression | активна | `0.4.0` repository proof; `0.4.1` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -33,42 +33,15 @@
 Telegram QA та kill switch у
 [`docs/operations/release-state-ledger.md`](../operations/release-state-ledger.md).
 
-## 0.3.x — завершити перед переходом
+## 0.3.x — змерджений репозиторний baseline
 
-Мета лінійки: залишити після себе перевірений і правдиво задокументований
-closed-alpha baseline, а не ще одну тематичну фічу.
+Package `0.3.17` закрив цю лінійку: raid chat (`0.3.15`),
+lifecycle/repair/race та release-evidence safeguards
+(`0.3.16`), а потім callback read-path collapse (`0.3.17`).
 
-### 0.3.15 — Raid Chat shipped
-
-PR `#179` змерджено в `main`: participant-only Big Barrel raid chat має
-restart-safe delivery/redaction, bounded newest-13 transcript, same-life access,
-adaptive scheduler wake-up, graceful stop і перевірену Telegram failure
-classification. Production migration, target flag і повна ручна Telegram QA не
-виводяться з факту merge; їхній стан живе лише в release-state ledger.
-
-### 0.3.16 — Closed Alpha closeout
-
-Це поточний вузький release/operations/doc slice без нової gameplay-економіки.
-
-Обовʼязково:
-
-- заблокувати `/restart` і, за рекомендованою політикою, `/remort` під час
-  активного багатокористувацького бою на транзакційній межі;
-- додати strict parser/repair для `PartyBossState`, orphan lease recovery і
-  гарантію, що один пошкоджений рядок не блокує scheduler;
-- закрити parity поточних class/race support abilities у PartyBoss або чесно
-  вимкнути непідтримані дії до окремого balance-verified patch;
-- додати race-тести для final-slot join, останніх concurrent actions,
-  action-vs-timeout і settlement exact-once;
-- заповнити release-state ledger для всіх default-off фіч;
-- пройти risk-based Telegram regression і записати unperformed cases;
-- зафіксувати privacy-safe product/social funnel та спосіб отримання feedback;
-- оновити README, roadmap, product/design/architecture/task/AI context docs;
-- провести коротке production observation window після rollout.
-
-`0.3.x` можна назвати закритим після merge 0.3.16, коли P0/P1 lifecycle і privacy ризики усунено, а кожна
-feature-flagged фіча має явний стан `enabled`, `deferred` або `retired` з доказом.
-Не обовʼязково вмикати всі прапорці.
+Цей стан репозиторію не доводить production deployment, hosted flag values,
+ручну Telegram QA чи observation window. Це окремі докази в
+[release-state ledger](../operations/release-state-ledger.md).
 
 ## 0.4.x — Party Progression
 
@@ -95,7 +68,13 @@ authored encounter 2–3×2–3, детерміновані раунди, leases
 state і canonical participant cards. Без XP, золота, манаток, квестового прогресу
 чи production rollout.
 
+Repository release `0.4.0` містить цей default-off proof і не відкриває
+production-маршрут або винагороди. Наявність у репозиторії не доводить deploy,
+production availability чи ручну Telegram QA; ці докази лишаються pending.
+
 ### 0.4.1 — Group combat hardening
+
+Наступна планована версія; її реалізацію ще не розпочато.
 
 Довести універсальний runtime до feature parity: ally targeting, heal/guard,
 multi-enemy AI/threat, gear/items/statuses, strict repair, restart/remort policy,

@@ -85,7 +85,7 @@ A restart is still required to test a new snapshot. Isolation makes that restart
 The manager copies the repository snapshot broadly enough to include future runtime assets, while excluding development-only or unsafe trees such as:
 
 - `.git/`, `.agents/`, `.codex/`, `.github/`;
-- `docs/`, `tests/`, `skills/`;
+- `docs/`, `tests/`;
 - `node_modules/`, `dist/`, `build/`, `coverage/`;
 - Prisma runtime databases and backups;
 - `.env*` files other than `.env.example`.

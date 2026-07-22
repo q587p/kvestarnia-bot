@@ -57,10 +57,9 @@ Use these docs when changing mechanics, content, authored copy, monsters, quests
 
 - [`guilds-and-party-progression.md`](guilds-and-party-progression.md) — canonical `0.4.x` product boundary for temporary parties, 2–3×2–3 expeditions, guild foundation and weekly goals.
 - [`bard-inspiration-and-raid-lament.md`](bard-inspiration-and-raid-lament.md) — `0.3.14` Bard Inspiration, shared local music availability and Big Barrel Lament contract.
-- [`BIG_BARREL_BROTHER_GROUP_RAID.md`](BIG_BARREL_BROTHER_GROUP_RAID.md) — historical/full Big Barrel input, not the generic party-vs-many contract.
-- [`BIG_BARREL_BROTHER_BALANCE.md`](BIG_BARREL_BROTHER_BALANCE.md) — Big Barrel balance model and future reward guardrails.
+- [`../history/early-raid/`](../history/early-raid/) — historical Big Barrel group-raid design, balance, copy and QA package.
 - [`raid-role-flavor-notes.md`](raid-role-flavor-notes.md) — raid role flavor notes if present.
-- [`../phase2/GROUP_COMBAT_AND_RAIDS.md`](../phase2/GROUP_COMBAT_AND_RAIDS.md) — how raids grow from duels, party sessions and multi-enemy combat.
+- [`../history/phases/phase2/planning/group-combat-and-raids.md`](../history/phases/phase2/planning/group-combat-and-raids.md) — closed Phase 2 raid-growth planning.
 
 ## Guardrails
 

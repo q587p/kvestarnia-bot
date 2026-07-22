@@ -169,6 +169,19 @@ Defaults:
 - When replacing an older gameplay flow, check starter/onboarding fallback paths explicitly so new level gates do not accidentally hide newbie content.
 - After opening/updating a PR, check base branch, mergeability, and conflicts; fix non-main bases unless the PR is intentionally stacked.
 
+### Retiring remote branches
+
+Keep `main`, every open-PR head, and work explicitly marked active. Delete a
+merged PR head after verifying live `mergedAt` and the PR head SHA against the
+current remote tip. Squash merges are not reliably classified by
+`git branch --merged`.
+
+Treat closed-unmerged branches, branches advanced after merge, and branches
+with no PR as manual review only. Any remote deletion must be SHA-guarded so a
+branch changed after the audit cannot be deleted accidentally. Never add a
+credentialed branch-deletion CI job; cleanup remains an explicit operator
+action.
+
 Suggested branch names:
 
 - `docs/codex-workflow-token-economy`
@@ -188,15 +201,18 @@ PR body should include:
 
 ## Current roadmap guard
 
-`0.3.x` is closing with raid-chat correction plus lifecycle/repair/race/rollout
-evidence. Do not hide another thematic feature inside that closeout.
+The current repository release is package `0.4.0`; the `0.3.x` line is closed.
+Its bounded 2–3×2–3 group-combat proof is default-off, hard-disabled in
+production and rewardless. Repository state does not prove deployment,
+production availability or manual Telegram QA.
 
-`0.4.x` deliberately starts with a separate bounded 2–3×2–3 group-combat
-runtime, then a small guild membership shell, the first production party
+`0.4.1` is the next planned version and owns group-combat parity/hardening; do
+not start it implicitly. Later accepted work adds a small guild membership
+shell, the first production party
 expedition and one weekly goal. After that proof, versioned bounded Old Altar,
 greeting, Shynok food, consumable, resale and recycling tasks may ship without
 implying a broad shop/market rewrite. Use the current version task; do not launch
-an old `0.2.x-*` draft verbatim.
+an archived `0.2.x-*` draft verbatim.
 
 Do not jump into guild bank/shared custody, player-set market/auction, guild wars,
 public matchmaking, >3×3 combat, Redis/jobs, broad PvP or Mini App UI unless a

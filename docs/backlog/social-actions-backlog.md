@@ -2,7 +2,7 @@
 
 Цей backlog описує group/social features, які добре йдуть після Phase 1 closeout and Phase 2 roadmap reset.
 
-Status after `0.1.0`: перший Phase 2 spine — не груповий рейд, а **Social Combat & Interactions**. Канонічний план живе в [phase2/SOCIAL_COMBAT_PLAN.md](../phase2/SOCIAL_COMBAT_PLAN.md). Старі group-raid ideas лишаються later input, але найближчий соціяльний runtime напрям — duel invites, result/rematch cards, trading/gifting, combat variety and later party combat.
+Status after `0.1.0`: перший Phase 2 spine — не груповий рейд, а **Social Combat & Interactions**. Канонічний план живе в [phase2/SOCIAL_COMBAT_PLAN.md](../history/phases/phase2/planning/social-combat-plan.md). Старі group-raid ideas лишаються later input, але найближчий соціяльний runtime напрям — duel invites, result/rematch cards, trading/gifting, combat variety and later party combat.
 
 ## 0. Duel invites and result cards
 

@@ -133,7 +133,7 @@ Same-turn combat exchange лишається одночасним для attack/
 
 Важливе правило для runtime-підключення: герой може не мати starter weapon, бо starter fight закривається після 2 рівня. Combat engine підтримує unarmed/basic fallback, а equipment effects із `0.0.22` лише додають малі бонуси через один helper.
 
-`0.1.9` додає перший presentation-only шар combat flavor intents. У цьому зрізі він працює тільки для `/spar`: `Сумлінний Допельґанґер` після відповіді може показати короткий class-aware рядок про те, як копія підгледіла воїнський тиск, закляття, бюрокромантську форму, куплет, єгерський слід чи інший прийом. Це не змінює шкоду, нагороди, кулдауни, рівневий поріг, problem-chain progress або PvP scope. Канонічна нотатка: `docs/phase2/COMBAT_TACTICS_AND_FLAVOR.md`.
+`0.1.9` додає перший presentation-only шар combat flavor intents. У цьому зрізі він працює тільки для `/spar`: `Сумлінний Допельґанґер` після відповіді може показати короткий class-aware рядок про те, як копія підгледіла воїнський тиск, закляття, бюрокромантську форму, куплет, єгерський слід чи інший прийом. Це не змінює шкоду, нагороди, кулдауни, рівневий поріг, problem-chain progress або PvP scope. Канонічна нотатка: `docs/history/phases/phase2/planning/combat-tactics-and-flavor.md`.
 
 Майбутній зріз бойових дій має замінити одну загальну кнопку `Вдарити` на набір дій, які відчувають персонажа:
 - Фізичні класи отримують силові, швидкі або позиційні удари, що спираються на силу, спритність, рівень і зброю.
@@ -492,7 +492,7 @@ Alpha scaling рахується як derived effective values від збере
 - Бос: Великий Жабокнязь Сирого Льоху.
 
 ## Phase 2 Social Combat MVP
-Phase 2 починається не з великого групового рейду, а з коротких opt-in соціяльних боїв і взаємодій. Канонічний planning layer живе в [phase2/SOCIAL_COMBAT_PLAN.md](../phase2/SOCIAL_COMBAT_PLAN.md).
+Phase 2 починається не з великого групового рейду, а з коротких opt-in соціяльних боїв і взаємодій. Канонічний planning layer живе в [phase2/SOCIAL_COMBAT_PLAN.md](../history/phases/phase2/planning/social-combat-plan.md).
 
 Перший runtime hook: `Бойовий куток`, але не велика `Арена`.
 
@@ -556,7 +556,7 @@ production flow, ширші набори дій і винагороди все �
 
 Old group hook docs лишаються історичним input:
 [GROUP_HOOK_DESIGN.md](../history/early-raid/group-hook-design.md) і
-[GROUP_RAID_SESSION_NOTES.md](../architecture/group-raid-session-notes.md).
+[GROUP_RAID_SESSION_NOTES.md](../history/early-raid/group-raid-session-notes.md).
 
 ## Ґільдії
 

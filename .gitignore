@@ -8,6 +8,7 @@ build/
 coverage/
 .eslintcache
 .cache/
+.codex/config.toml
 
 prisma/dev.db
 prisma/dev.db-journal

@@ -39,8 +39,10 @@ Kvestarnia docs use a lightweight Diátaxis-inspired shape:
 | `docs/tasks/archive/` | historical task material | the task is no longer active but still useful as record |
 | `docs/backlog/` | future ideas and deferred scope | the doc is not ready to implement as the next active slice |
 | `docs/history/` | completed phases and old planning | the doc describes a completed phase, old roadmap, imported historical package or superseded direction |
-| `docs/phase2/` | cohesive Phase 2 social-combat package | the doc belongs to the current Phase 2 package and moving it out would make the package harder to review |
-| `docs/phase2-roadmap-audit/`, `docs/refactoring-audit/` | imported audit packages | the package should remain intact until a dedicated cleanup task says otherwise |
+| `docs/history/audits/` | dated audit analysis | the audit is closed and unique analysis/evidence should remain searchable without copied repository payloads |
+| `docs/history/phases/` | completed phase planning | the planning package belongs to a closed phase |
+| `docs/history/evidence/` | historical QA/release evidence | evidence should be preserved without expanding the current runbook |
+| `docs/references/` | supporting references | the doc records stable sources or supporting notes without becoming active scope |
 
 ## Top-level `docs/` rule
 
@@ -55,6 +57,9 @@ Temporary legacy root docs are acceptable only during migration. If a branch sti
 
 - New files should use lower-kebab-case where practical, e.g. `docs/design/lore-board.md`.
 - Existing uppercase legacy files should become lower-kebab when they are moved.
+- `README.md` is the directory-index exception. Policy files
+  `DOCUMENTATION_STRUCTURE.md`, `CODEX_PROMPT_POLICY.md` and
+  `CODEX_TOKEN_ECONOMY_APPLIED.md` retain their established names.
 - Do not put PR numbers in reusable artifact, prompt or docs filenames.
 - Versioned implementation tasks stay in `docs/tasks/<version>-<short-slug>.md`.
 - Codex-facing prompts stay English and should point to `docs/ai/context.md`, `AGENTS.md`, task docs and skills instead of copying long rules.
@@ -68,7 +73,9 @@ When reorganizing existing docs:
 3. If the source file has uncommitted changes, move that exact file with `git mv` so the changes follow the file.
 4. If a target path already exists, stop and merge manually.
 5. Update all relative links in `README.md`, `AGENTS.md`, `.agents/skills/**`, `docs/**`, `news.md`, `CHANGELOG.md`, test fixtures and prompts that reference the moved path.
-6. Keep imported audit packages intact unless the task explicitly includes them.
+6. Keep unique imported audit analysis/evidence. Remove generated patches,
+   copied repository trees, copied canonical docs/tasks and consumed handoff
+   prompts when a cleanup task explicitly reconciles them.
 7. Run `git diff --check` and a Markdown link scan if available.
 8. Keep the PR docs-only unless the task explicitly asks for runtime changes.
 
@@ -85,7 +92,7 @@ Do this in waves. A link-safe move with updated indexes is better than one huge 
 
 ## Current migration target
 
-The intended post-cleanup shape is:
+The intended current shape is:
 
 ```text
 docs/
@@ -98,13 +105,21 @@ docs/
   content/
   design/
   history/
+    audits/
+    evidence/
+    phases/
   operations/
-  phase2/
-  phase2-roadmap-audit/
   qa/
-  refactoring-audit/
   references/
   tasks/
 ```
 
-Root files such as `docs/design/game-design.md`, `docs/product/roadmap.md`, `docs/operations/developer-setup.md`, `docs/balance/notes.md`, `docs/history/phase1/release-notes.md`, `docs/*BACKLOG.md` and old `docs/CODEX_*PROMPT*.md` are legacy placement. Move them to the category folders with `git mv` and update links.
+Only `docs/README.md` and `docs/DOCUMENTATION_STRUCTURE.md` belong directly
+under `docs/`.
+
+## Automated guard
+
+`npm run check:docs` verifies exact-case relative Markdown targets, the
+top-level allowlist, required category indexes, the compact-context line budget,
+generated snapshot bans, active-doc duplicate content and document naming.
+`npm run check:static` includes this guard.

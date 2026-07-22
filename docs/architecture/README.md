@@ -15,16 +15,14 @@ Use these docs when changing technical design, persistence, sessions, callbacks,
 - [`bestiary-collection-data-model-notes.md`](bestiary-collection-data-model-notes.md) — data model notes for future bestiary collection work.
 - [`combat-engine-design.md`](combat-engine-design.md) — combat engine design notes.
 - [`effective-stats-and-equipment-effects-plan.md`](effective-stats-and-equipment-effects-plan.md) — effective stats and equipment-effect planning notes.
-- [`GROUP_RAID_SESSION_MODEL.md`](GROUP_RAID_SESSION_MODEL.md) — earlier proposed party/raid model; compare its proposed reward rows with the implemented PartyBoss delta before reuse.
-- [`group-raid-session-notes.md`](group-raid-session-notes.md) — earlier session row, participant and idempotency notes if kept as active technical input.
-- [`../phase2/GROUP_COMBAT_AND_RAIDS.md`](../phase2/GROUP_COMBAT_AND_RAIDS.md) — how raids grow from duels, party sessions and multi-enemy combat.
-- [`../phase2/ITEM_TAGS_AND_CONSUMABLES.md`](../phase2/ITEM_TAGS_AND_CONSUMABLES.md) — item tags, one-use manatky and combat actions from items.
+- [`../history/early-raid/`](../history/early-raid/) — earlier proposed Big Barrel/group-raid models and idempotency notes.
+- [`../history/phases/phase2/planning/group-combat-and-raids.md`](../history/phases/phase2/planning/group-combat-and-raids.md) — closed Phase 2 raid-growth planning.
+- [`../history/phases/phase2/planning/item-tags-and-consumables.md`](../history/phases/phase2/planning/item-tags-and-consumables.md) — closed Phase 2 item-tag planning.
 
 ## Change maps and audit packages
 
-- [`../implementation/REPOSITORY_CHANGE_MAP.md`](../implementation/REPOSITORY_CHANGE_MAP.md) — future repository change map for the Big Barrel Brother package.
-- [`../refactoring-audit/README.md`](../refactoring-audit/README.md) — imported refactoring audit package.
-- [`../phase2-roadmap-audit/README.md`](../phase2-roadmap-audit/README.md) — imported roadmap audit package.
+- [`../history/audits/refactoring-12026-06-27/`](../history/audits/refactoring-12026-06-27/) — closed refactoring audit.
+- [`../history/audits/phase2-roadmap/`](../history/audits/phase2-roadmap/) — closed Phase 2 roadmap audit.
 
 ## Guardrails
 

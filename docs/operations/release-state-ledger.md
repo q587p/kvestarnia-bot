@@ -8,7 +8,10 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current 0.3.x baseline (repository evidence, 12026-07-21)
+## Current repository baseline (repository evidence, 12026-07-22)
+
+The repository release is package `0.4.0`. Repository merge state is recorded
+below; deployment and target availability remain separate evidence.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -20,7 +23,9 @@ not every feature must be enabled.
 | Varenyk-mancer Sated | yes (`0.3.12`) | no migration required | no separate flag; target deploy unknown | yes | manual QA pending | deploy rollback; release operator unassigned | deferred |
 | Bard Inspiration / Lament | yes (`0.3.14`) | no migration for Inspiration; target migration state unknown | Inspiration follows runtime; Lament follows Big Barrel | yes | manual QA pending | Big Barrel flag + deploy rollback; release operator unassigned | deferred |
 | Big Barrel Raid Chat | yes (PR `#179`, `0.3.15`) | target migration unknown | follows Big Barrel; target value unknown/default off | yes | post-fix full QA pending | `BIG_BARREL_BROTHER_RAID_ENABLED`; release operator unassigned | deferred |
-| 0.3.16 closeout safeguards/report/docs | pending merge | `20260721113000_party_boss_round_history`; target deploy unknown; legacy leader, exact active-zero-HP normalization and scalar-safe reconstruction covered locally | no new production flag; Big Barrel target value unknown/default off | `db:validate`; static checks; 316 unit files / 3959 tests; 23 integration files / 552 tests; 56 PartyBoss reducer tests + 5 targeted simulation corridors | target matrix pending | existing Big Barrel flag + deploy rollback; release operator unassigned | deferred |
+| 0.3.16 closeout safeguards/report/docs | yes (PR `#182`) | target deployment unknown; repository includes `20260721113000_party_boss_round_history` | no new production flag; Big Barrel target value unknown/default off | yes; merge checks passed | target matrix not recorded | existing Big Barrel flag + deploy rollback; release operator unassigned | deferred |
+| 0.3.17 callback read-path collapse | yes (PR `#183`) | no new migration | no new production flag | yes; merge checks passed | post-deploy observation not recorded | deploy rollback; release operator unassigned | deferred |
+| 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` | unavailable in production; default off and production-hard-disabled | yes; repository gates | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 
@@ -59,7 +64,7 @@ owner. “Implemented” alone is not a rollout result.
 - Repository evidence does not expose production deploy id, applied migration
   checksums, flag values, backup timestamp or observation counters. All target
   availability claims therefore remain deferred.
-- No backup/restore drill or post-0.3.16 Telegram matrix was run from this
+- No backup/restore drill or post-0.3.17 Telegram matrix is recorded in this
   checkout. The release operator is unassigned; assigning that owner is required
   before any deferred surface is enabled.
 - Closed-alpha product reporting is available through the read-only aggregate

@@ -35,7 +35,8 @@
     "maintenance:backfill-activity-events": "node -r ts-node/register/transpile-only scripts/backfill-activity-events.ts",
     "maintenance:poll-activity-events": "node -r ts-node/register/transpile-only scripts/poll-activity-events.ts",
     "maintenance:repair-character-resources": "ts-node scripts/repair-character-resources.ts",
-    "check:static": "npm run db:generate && npm run lint && npm run typecheck:scripts && npm run build:ts",
+    "check:docs": "node scripts/check-docs.cjs",
+    "check:static": "npm run check:docs && npm run db:generate && npm run lint && npm run typecheck:scripts && npm run build:ts",
     "check:unit": "npm run test:unit",
     "check:integration": "npm run test:integration",
     "check": "npm run check:static && npm run check:unit && npm run check:integration"

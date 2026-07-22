@@ -60,20 +60,11 @@ Production proof: тимчасова party входить у бій проти �
 
 ## Вміст архіву
 
-- `docs/design/` — повний gameplay flow і числовий баланс.
-- `docs/content/` — українські репліки та IP/style guard.
-- `docs/architecture/` — модель сесії, транзакції, callbacks, scheduler і recovery.
-- `docs/implementation/` — очікувана карта змін у репозиторії.
-- `docs/tasks/` — дві version-task заготовки.
-- `docs/ai/prompts/` — main Codex prompts, balance prompt і readonly review prompt.
-- `docs/qa/` — автоматична та ручна Telegram QA-матриця.
-- `docs/backlog/` — відкладені справжні adds.
-- `docs/references/` — нотатки про натхнення без копіювання чужого контенту.
+- gameplay/balance/copy/session/QA proposals лежать поруч у цій директорії;
+- `repository-change-map.md` зберігає очікувану карту змін;
+- `tasks/` і `prompts/` зберігають consumed історичні входи;
+- `big-barrel-brother-targetable-adds.md` зберігає відкладений adds-напрям;
+- `raid-inspiration-notes.md` зберігає IP-safe нотатки про натхнення.
 
-## Як використати
-
-1. Розпакувати в корінь актуального `kvestarnia-bot` або перенести потрібні файли вручну.
-2. Перед новою implementation перевірити актуальний `main`, merge status попередніх combat/architecture slices і вільний номер версії.
-3. Перейменувати рівно одну активну future task doc з `0.2.x-*` на фактичну версію.
-4. Запустити свіжий Codex thread через відповідний prompt.
-5. Не реалізовувати обидві task docs в одному потоці або одному PR.
+Не запускати ці task/prompt файли verbatim. Перед будь-яким новим slice
+перевірити current roadmap, generic group-combat architecture та активний task.
