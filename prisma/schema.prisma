@@ -1187,6 +1187,9 @@ model GroupCombatSession {
   status         String       @default("active")
   turn           Int          @default(1)
   version        Int          @default(1)
+  deliveryRevision Int        @default(1) @map("delivery_revision")
+  deliveryPending Boolean     @default(true) @map("delivery_pending")
+  deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   stateJson      Json         @map("state_json")
   resultJson     Json?        @map("result_json")
   turnExpiresAt  DateTime     @map("turn_expires_at")
@@ -1197,6 +1200,7 @@ model GroupCombatSession {
   actions        GroupCombatAction[]
 
   @@index([status, turnExpiresAt, id])
+  @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])
   @@map("group_combat_sessions")
 }
 
@@ -1213,6 +1217,7 @@ model GroupCombatParticipant {
   chatId           BigInt?            @map("chat_id")
   messageId        Int?               @map("message_id")
   referenceVersion Int                @default(0) @map("reference_version")
+  deliveredRevision Int               @default(0) @map("delivered_revision")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

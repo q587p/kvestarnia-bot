@@ -31,18 +31,7 @@ export async function deliverGroupCombatCards(
   service: GroupCombatService,
   session: GroupCombatSessionRecord
 ): Promise<number> {
-  const transport: GroupCombatDeliveryTransport = {
-    editMessage: async (reference, text, options) => {
-      await api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
-    },
-    sendInertMessage: async (chatId, text, options) => {
-      const sent = await api.sendMessage(Number(chatId), text, options);
-      return sent.message_id ?? null;
-    },
-    deleteMessage: async (reference) => {
-      await api.deleteMessage(Number(reference.chatId), reference.messageId);
-    }
-  };
+  const transport = apiTransport(api);
   const results = await Promise.allSettled(session.participants.map((participant) => (
     deliverCanonicalGroupCombatParticipantCard({
       service,
@@ -51,7 +40,27 @@ export async function deliverGroupCombatCards(
       transport
     })
   )));
+  const latest = await loadAuthoritativeSession(service, session.id);
+  if (latest) {
+    await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
+  }
   return results.filter((result) => result.status === "fulfilled" && isDelivered(result.value)).length;
+}
+
+export function deliverGroupCombatParticipantCard(
+  api: Api,
+  service: GroupCombatService,
+  sessionId: string,
+  participantCharacterId: string,
+  options: { forceRefresh?: boolean } = {}
+): Promise<GroupCombatParticipantDeliveryResult> {
+  return deliverCanonicalGroupCombatParticipantCard({
+    service,
+    sessionId,
+    participantCharacterId,
+    transport: apiTransport(api),
+    ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh })
+  });
 }
 
 export async function deliverCanonicalGroupCombatParticipantCard(input: {
@@ -59,6 +68,7 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   sessionId: string;
   participantCharacterId: string;
   transport: GroupCombatDeliveryTransport;
+  forceRefresh?: boolean;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   return withParticipantDeliveryLock(`${input.sessionId}:${input.participantCharacterId}`, () => (
     deliverCanonicalGroupCombatParticipantCardLocked(input)
@@ -70,6 +80,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   sessionId: string;
   participantCharacterId: string;
   transport: GroupCombatDeliveryTransport;
+  forceRefresh?: boolean;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
   let participant = findParticipant(current, input.participantCharacterId);
@@ -79,7 +90,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 
   let reference = privateReference(participant);
   if (reference) {
-    const edited = await editExistingReferenceUntilCurrent(input, reference, current);
+    const edited = await editExistingReferenceUntilCurrent(input, reference, current, input.forceRefresh === true);
     if (edited.state !== "missing") {
       return edited;
     }
@@ -90,7 +101,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     }
     reference = privateReference(participant);
     if (reference) {
-      const converged = await editExistingReferenceUntilCurrent(input, reference, current);
+      const converged = await editExistingReferenceUntilCurrent(input, reference, current, input.forceRefresh === true);
       if (converged.state !== "missing") {
         return converged;
       }
@@ -125,7 +136,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     const winnerParticipant = findParticipant(winner, input.participantCharacterId);
     const winnerReference = winnerParticipant ? privateReference(winnerParticipant) : null;
     if (winner && winnerReference) {
-      const converged = await editExistingReferenceUntilCurrent(input, winnerReference, winner);
+      const converged = await editExistingReferenceUntilCurrent(input, winnerReference, winner, true);
       if (converged.state !== "missing") {
         return converged;
       }
@@ -142,7 +153,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   if (!canonicalReference || !sameReference(canonicalReference, candidate)) {
     return { state: "candidate-lost", reference: canonicalReference };
   }
-  const activated = await editExistingReferenceUntilCurrent(input, candidate, fresh);
+  const activated = await editExistingReferenceUntilCurrent(input, candidate, fresh, true);
   if (activated.state !== "missing") {
     return activated.state === "edited"
       ? { state: "activated", reference: activated.reference }
@@ -171,17 +182,21 @@ async function editExistingReferenceUntilCurrent(
     transport: GroupCombatDeliveryTransport;
   },
   reference: GroupCombatMessageReference,
-  initial: GroupCombatSessionRecord
+  initial: GroupCombatSessionRecord,
+  forceRefresh: boolean
 ): Promise<ExistingEditResult> {
   let current = initial;
-  let lastState: "edited" | "unchanged" = "edited";
   for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
     const participant = findParticipant(current, input.participantCharacterId);
     const canonicalReference = participant ? privateReference(participant) : null;
     if (!participant || !canonicalReference || !sameReference(canonicalReference, reference)) {
       return { state: "missing", current };
     }
+    if (!forceRefresh && participant.deliveredRevision >= current.deliveryRevision) {
+      return { state: "unchanged", reference };
+    }
     const card = buildCard(current, participant.characterId);
+    let lastState: "edited" | "unchanged";
     try {
       await input.transport.editMessage(reference, card.text, card.options);
       lastState = "edited";
@@ -198,28 +213,38 @@ async function editExistingReferenceUntilCurrent(
     if (!latest) {
       return { state: "missing", current };
     }
-    if (deliveryRevision(latest) === deliveryRevision(current)) {
+    const latestParticipant = findParticipant(latest, input.participantCharacterId);
+    const latestReference = latestParticipant ? privateReference(latestParticipant) : null;
+    if (!latestParticipant || !latestReference || !sameReference(latestReference, reference)) {
+      return { state: "missing", current: latest };
+    }
+    if (latest.deliveryRevision !== current.deliveryRevision) {
+      current = latest;
+      forceRefresh = false;
+      continue;
+    }
+    if (latestParticipant.deliveredRevision >= latest.deliveryRevision) {
       return { state: lastState, reference };
     }
-    current = latest;
-  }
-  const participant = findParticipant(current, input.participantCharacterId);
-  if (!participant) {
-    return { state: "missing", current };
-  }
-  const card = buildCard(current, participant.characterId);
-  try {
-    await input.transport.editMessage(reference, card.text, card.options);
-    return { state: "edited", reference };
-  } catch (error) {
-    if (isMessageNotModifiedError(error)) {
-      return { state: "unchanged", reference };
+    const marked = await input.service.markParticipantCardDelivered({
+      sessionId: latest.id,
+      telegramUserId: latestParticipant.telegramUserId,
+      expectedDeliveryRevision: latest.deliveryRevision,
+      expectedReferenceVersion: latestParticipant.referenceVersion,
+      chatId: reference.chatId,
+      messageId: reference.messageId
+    });
+    if (marked) {
+      return { state: lastState, reference };
     }
-    if (isMessageUnavailableForEditError(error)) {
+    const reloaded = await loadAuthoritativeSession(input.service, input.sessionId);
+    if (!reloaded) {
       return { state: "missing", current };
     }
-    return { state: "retryable-edit-failure", reference };
+    current = reloaded;
+    forceRefresh = false;
   }
+  return { state: "retryable-edit-failure", reference };
 }
 
 async function loadAuthoritativeSession(
@@ -247,16 +272,27 @@ function sameReference(left: GroupCombatMessageReference, right: GroupCombatMess
   return left.chatId === right.chatId && left.messageId === right.messageId;
 }
 
-function deliveryRevision(session: GroupCombatSessionRecord): string {
-  return `${session.id}:${session.version}:${session.status}:${session.turn}`;
-}
-
 function buildCard(session: GroupCombatSessionRecord, participantCharacterId: string) {
   return {
     text: presentGroupCombat(session, participantCharacterId),
     options: {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildGroupCombatKeyboard(session, participantCharacterId)
+    }
+  };
+}
+
+function apiTransport(api: Api): GroupCombatDeliveryTransport {
+  return {
+    editMessage: async (reference, text, options) => {
+      await api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+    },
+    sendInertMessage: async (chatId, text, options) => {
+      const sent = await api.sendMessage(Number(chatId), text, options);
+      return sent.message_id ?? null;
+    },
+    deleteMessage: async (reference) => {
+      await api.deleteMessage(Number(reference.chatId), reference.messageId);
     }
   };
 }

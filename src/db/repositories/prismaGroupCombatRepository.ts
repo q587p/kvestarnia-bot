@@ -366,6 +366,22 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       if (result) {
         return result;
       }
+      if (!duplicate) {
+        const delivery = await tx.groupCombatSession.updateMany({
+          where: { id: row.id, status: "active", turn: row.turn, version: row.version },
+          data: {
+            deliveryRevision: { increment: 1 },
+            deliveryPending: true,
+            deliveryAttemptedAt: null
+          }
+        });
+        if (delivery.count !== 1) {
+          const current = await loadSession(tx, row.id);
+          return current
+            ? { state: current.status === "active" ? "stale" : "terminal", session: current }
+            : { state: "not-found" };
+        }
+      }
       const session = await loadSession(tx, row.id);
       return session ? { state: duplicate ? "duplicate" : "queued", session } : { state: "not-found" };
     });
@@ -481,6 +497,20 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return rows.map((row) => row.id);
   }
 
+  async listPendingDeliverySessionIds(limit: number): Promise<string[]> {
+    const rows = await this.prisma.groupCombatSession.findMany({
+      where: { deliveryPending: true },
+      orderBy: [
+        { deliveryAttemptedAt: "asc" },
+        { updatedAt: "asc" },
+        { id: "asc" }
+      ],
+      take: Math.min(93, Math.max(1, Math.floor(limit))),
+      select: { id: true }
+    });
+    return rows.map((row) => row.id);
+  }
+
   async repairInvalidOrOrphaned(now: Date, limit: number): Promise<number> {
     const boundedLimit = Math.min(93, Math.max(1, Math.floor(limit)));
     let repaired = 0;
@@ -505,7 +535,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       }),
       this.prisma.groupCombatSession.findMany({
         where: { status: { not: "active" } },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
         take: boundedLimit,
         select: { id: true }
       })
@@ -574,24 +604,70 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     if (input.chatId !== input.telegramUserId) {
       return false;
     }
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        referenceVersion: input.expectedReferenceVersion,
-        character: { user: { telegramUserId: input.telegramUserId } }
-      },
-      data: {
-        chatId: input.chatId,
-        messageId: input.messageId,
-        referenceVersion: { increment: 1 }
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          sessionId: input.sessionId,
+          referenceVersion: input.expectedReferenceVersion,
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        data: {
+          chatId: input.chatId,
+          messageId: input.messageId,
+          referenceVersion: { increment: 1 },
+          deliveredRevision: 0
+        }
+      });
+      if (updated.count === 1) {
+        await tx.groupCombatSession.updateMany({
+          where: { id: input.sessionId },
+          data: { deliveryPending: true, deliveryAttemptedAt: null }
+        });
       }
+      return updated.count === 1;
     });
-    return updated.count === 1;
   }
 
   async releaseParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint;
+    messageId: number;
+  }): Promise<boolean> {
+    if (input.chatId !== input.telegramUserId) {
+      return false;
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          sessionId: input.sessionId,
+          referenceVersion: input.expectedReferenceVersion,
+          chatId: input.chatId,
+          messageId: input.messageId,
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        data: {
+          chatId: null,
+          messageId: null,
+          referenceVersion: { increment: 1 },
+          deliveredRevision: 0
+        }
+      });
+      if (updated.count === 1) {
+        await tx.groupCombatSession.updateMany({
+          where: { id: input.sessionId },
+          data: { deliveryPending: true, deliveryAttemptedAt: null }
+        });
+      }
+      return updated.count === 1;
+    });
+  }
+
+  async markParticipantCardDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
@@ -605,15 +681,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         referenceVersion: input.expectedReferenceVersion,
         chatId: input.chatId,
         messageId: input.messageId,
+        deliveredRevision: { lt: input.expectedDeliveryRevision },
+        session: { deliveryRevision: input.expectedDeliveryRevision },
         character: { user: { telegramUserId: input.telegramUserId } }
       },
-      data: {
-        chatId: null,
-        messageId: null,
-        referenceVersion: { increment: 1 }
-      }
+      data: { deliveredRevision: input.expectedDeliveryRevision }
     });
     return updated.count === 1;
+  }
+
+  async finalizeDeliveryAttempt(input: {
+    sessionId: string;
+    expectedDeliveryRevision: number;
+    attemptedAt: Date;
+  }): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const session = await tx.groupCombatSession.findUnique({
+        where: { id: input.sessionId },
+        select: {
+          deliveryRevision: true,
+          participants: { select: { deliveredRevision: true } }
+        }
+      });
+      if (!session || session.deliveryRevision !== input.expectedDeliveryRevision) {
+        return false;
+      }
+      const complete = session.participants.every(
+        (participant) => participant.deliveredRevision >= input.expectedDeliveryRevision
+      );
+      const updated = await tx.groupCombatSession.updateMany({
+        where: {
+          id: input.sessionId,
+          deliveryRevision: input.expectedDeliveryRevision,
+          deliveryPending: true
+        },
+        data: complete
+          ? { deliveryPending: false }
+          : { deliveryAttemptedAt: input.attemptedAt }
+      });
+      return updated.count === 1;
+    });
   }
 }
 
@@ -656,6 +763,9 @@ async function resolveIfReady(
       status: resolution.state.status,
       turn: resolution.state.turn,
       version: { increment: 1 },
+      deliveryRevision: { increment: 1 },
+      deliveryPending: true,
+      deliveryAttemptedAt: null,
       stateJson: resolution.state as unknown as Prisma.InputJsonValue,
       ...(resolution.result ? { resultJson: resolution.result as unknown as Prisma.InputJsonValue } : {}),
       turnExpiresAt: terminal ? now : nextTurnExpiresAt,
@@ -687,7 +797,10 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
         data: {
           resultJson: result as unknown as Prisma.InputJsonValue,
           completedAt: row.completedAt ?? now,
-          version: { increment: 1 }
+          version: { increment: 1 },
+          deliveryRevision: { increment: 1 },
+          deliveryPending: true,
+          deliveryAttemptedAt: null
         }
       });
       if (updated.count !== 1) {
@@ -720,6 +833,9 @@ async function invalidateSessionRewardlessly(
       status: "invalid",
       turn: state.turn,
       version: { increment: 1 },
+      deliveryRevision: { increment: 1 },
+      deliveryPending: true,
+      deliveryAttemptedAt: null,
       stateJson: state as unknown as Prisma.InputJsonValue,
       resultJson: result as unknown as Prisma.InputJsonValue,
       turnExpiresAt: now,
@@ -914,6 +1030,9 @@ function mapSession(
     status: state.status,
     turn: row.turn,
     version: row.version,
+    deliveryRevision: row.deliveryRevision,
+    deliveryPending: row.deliveryPending,
+    deliveryAttemptedAt: row.deliveryAttemptedAt,
     state,
     result: row.resultJson === null ? null : parseGroupCombatResultStrict(row.resultJson),
     turnExpiresAt: row.turnExpiresAt,
@@ -926,7 +1045,8 @@ function mapSession(
       rosterOrder: participant.rosterOrder,
       chatId: participant.chatId,
       messageId: participant.messageId,
-      referenceVersion: participant.referenceVersion
+      referenceVersion: participant.referenceVersion,
+      deliveredRevision: participant.deliveredRevision
     })),
     queuedActions: actions
   };

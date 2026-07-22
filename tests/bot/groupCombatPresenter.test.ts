@@ -39,7 +39,8 @@ describe("group combat presenter", () => {
       rosterOrder: actor.rosterOrder,
       chatId: BigInt(actor.telegramUserId),
       messageId: 13 + actor.rosterOrder,
-      referenceVersion: 1
+      referenceVersion: 1,
+      deliveredRevision: 0
     }));
     const session: GroupCombatSessionRecord = {
       id: state.sessionId,
@@ -48,6 +49,9 @@ describe("group combat presenter", () => {
       status: "active",
       turn: state.turn,
       version: 1,
+      deliveryRevision: 1,
+      deliveryPending: true,
+      deliveryAttemptedAt: null,
       state,
       result: null,
       turnExpiresAt: new Date(NOW.getTime() + 23_000),

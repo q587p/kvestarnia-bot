@@ -42,7 +42,8 @@ describe("group-combat canonical participant delivery", () => {
       deleteMessage: () => Promise.resolve()
     };
     const service = {
-      findById: vi.fn(() => Promise.resolve(authoritative))
+      findById: vi.fn(() => Promise.resolve(authoritative)),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
 
     const oldDelivery = deliverCanonicalGroupCombatParticipantCard({
@@ -97,7 +98,8 @@ describe("group-combat canonical participant delivery", () => {
     };
     const service = {
       findById,
-      compareAndSetParticipantCard: vi.fn().mockResolvedValue(false)
+      compareAndSetParticipantCard: vi.fn().mockResolvedValue(false),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
 
     const result = await deliverCanonicalGroupCombatParticipantCard({
@@ -113,6 +115,59 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits).toEqual([77]);
     expect(edits).not.toContain(31);
   });
+
+  it("cannot let an older edit restore action buttons after a queued-action revision commits", async () => {
+    const beforeQueue = makeSession({ deliveryRevision: 1 });
+    const afterQueue = makeSession({
+      deliveryRevision: 2,
+      queuedActions: [{
+        actorCharacterId: "character-1",
+        turn: 1,
+        action: "guard",
+        targetKind: "self",
+        targetId: "character-1",
+        origin: "manual"
+      }]
+    });
+    let authoritative = beforeQueue;
+    const firstEditStarted = deferred<void>();
+    const releaseFirstEdit = deferred<void>();
+    const keyboards: string[][] = [];
+    let editCount = 0;
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: async (_reference, _text, options) => {
+        editCount += 1;
+        if (editCount === 1) {
+          firstEditStarted.resolve();
+          await releaseFirstEdit.promise;
+        }
+        keyboards.push(options.reply_markup.inline_keyboard.flat().map((button) => button.text));
+      },
+      sendInertMessage: () => Promise.resolve(null),
+      deleteMessage: () => Promise.resolve()
+    };
+    const service = {
+      findById: vi.fn(() => Promise.resolve(authoritative)),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    const delivery = deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: beforeQueue.id,
+      participantCharacterId: "character-1",
+      transport
+    });
+    await firstEditStarted.promise;
+    authoritative = afterQueue;
+    releaseFirstEdit.resolve();
+
+    await expect(delivery).resolves.toMatchObject({ state: "edited" });
+    expect(keyboards[0]).toEqual(expect.arrayContaining([expect.stringContaining("Шурхіт")]));
+    expect(keyboards.at(-1)).toEqual(["🔎 Оновити"]);
+    expect(afterQueue.version).toBe(beforeQueue.version);
+    expect(afterQueue.status).toBe(beforeQueue.status);
+    expect(afterQueue.turn).toBe(beforeQueue.turn);
+  });
 });
 
 function makeSession(overrides: {
@@ -121,6 +176,9 @@ function makeSession(overrides: {
   chatId?: bigint | null;
   messageId?: number | null;
   referenceVersion?: number;
+  deliveryRevision?: number;
+  deliveredRevision?: number;
+  queuedActions?: GroupCombatSessionRecord["queuedActions"];
 } = {}): GroupCombatSessionRecord {
   const turn = overrides.turn ?? 1;
   return {
@@ -130,6 +188,9 @@ function makeSession(overrides: {
     status: "active",
     turn,
     version: overrides.version ?? 1,
+    deliveryRevision: overrides.deliveryRevision ?? 1,
+    deliveryPending: true,
+    deliveryAttemptedAt: null,
     turnExpiresAt: new Date("2026-07-22T10:00:23.000Z"),
     completedAt: null,
     result: null,
@@ -137,7 +198,7 @@ function makeSession(overrides: {
       participantRecord("character-1", 1001n, "Лідерка", 0, overrides),
       participantRecord("character-2", 1002n, "Друг", 1)
     ],
-    queuedActions: [],
+    queuedActions: overrides.queuedActions ?? [],
     state: {
       rulesVersion: "group-combat.v1",
       sessionId: "group-session",
@@ -168,7 +229,12 @@ function participantRecord(
   telegramUserId: bigint,
   name: string,
   rosterOrder: number,
-  overrides: { chatId?: bigint | null; messageId?: number | null; referenceVersion?: number } = {}
+  overrides: {
+    chatId?: bigint | null;
+    messageId?: number | null;
+    referenceVersion?: number;
+    deliveredRevision?: number;
+  } = {}
 ) {
   return {
     characterId,
@@ -178,7 +244,8 @@ function participantRecord(
     rosterOrder,
     chatId: overrides.chatId === undefined ? telegramUserId : overrides.chatId,
     messageId: overrides.messageId === undefined ? 21 + rosterOrder : overrides.messageId,
-    referenceVersion: overrides.referenceVersion ?? 1
+    referenceVersion: overrides.referenceVersion ?? 1,
+    deliveredRevision: overrides.deliveredRevision ?? 0
   };
 }
 

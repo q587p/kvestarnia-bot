@@ -14,7 +14,7 @@ import { GroupCombatService } from "../../src/services/groupCombatService";
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_BUDGETS = {
   start: 30,
-  queue: 17,
+  queue: 18,
   resolve: 35,
   dueScan: 1
 } as const;
@@ -164,6 +164,9 @@ describe("PrismaGroupCombatRepository integration", () => {
     actualQueryCounts.queue = queueQueries;
     expect(queued.state).toBe("queued");
     expect(queueQueries).toBeLessThanOrEqual(QUERY_BUDGETS.queue);
+    expect("session" in queued ? queued.session.version : null).toBe(initial.version);
+    expect("session" in queued ? queued.session.deliveryRevision : null).toBe(initial.deliveryRevision + 1);
+    expect("session" in queued ? queued.session.deliveryPending : null).toBe(true);
 
     const submitLast = () => repository.submitActionForTelegramUser({
       telegramUserId: joiner.telegramUserId,
@@ -293,6 +296,38 @@ describe("PrismaGroupCombatRepository integration", () => {
       throw new Error(`Expected started group win, got ${started.state}`);
     }
     const session = started.session;
+    let canonical = session;
+    for (const [index, participant] of canonical.participants.entries()) {
+      await expect(repository.compareAndSetParticipantCard({
+        sessionId: canonical.id,
+        telegramUserId: participant.telegramUserId,
+        expectedReferenceVersion: participant.referenceVersion,
+        chatId: participant.telegramUserId,
+        messageId: 90 + index
+      })).resolves.toBe(true);
+      canonical = (await repository.findById(canonical.id))!;
+      const claimed = canonical.participants.find((row) => row.telegramUserId === participant.telegramUserId)!;
+      await expect(repository.markParticipantCardDelivered({
+        sessionId: canonical.id,
+        telegramUserId: claimed.telegramUserId,
+        expectedDeliveryRevision: canonical.deliveryRevision,
+        expectedReferenceVersion: claimed.referenceVersion,
+        chatId: claimed.chatId!,
+        messageId: claimed.messageId!
+      })).resolves.toBe(true);
+    }
+    canonical = (await repository.findById(canonical.id))!;
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: canonical.id,
+      expectedDeliveryRevision: canonical.deliveryRevision,
+      attemptedAt: NOW
+    })).resolves.toBe(true);
+    const canonicalReferences = canonical.participants.map((participant) => ({
+      telegramUserId: participant.telegramUserId,
+      chatId: participant.chatId,
+      messageId: participant.messageId,
+      referenceVersion: participant.referenceVersion
+    }));
     const state = {
       ...session.state,
       enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 1, hpMax: 1, defense: 0 }))
@@ -331,6 +366,32 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
     expect(await resourceSnapshot(prisma, [1271n, 1272n])).toEqual(before);
     expect(await prisma.characterItem.count({ where: { character: { user: { telegramUserId: { in: [1271n, 1272n] } } } } })).toBe(0);
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    expect(await restarted.listPendingDeliverySessionIds(93)).toContain(session.id);
+    const committed = (await restarted.findById(session.id))!;
+    expect(committed.participants.map((participant) => ({
+      telegramUserId: participant.telegramUserId,
+      chatId: participant.chatId,
+      messageId: participant.messageId,
+      referenceVersion: participant.referenceVersion
+    }))).toEqual(canonicalReferences);
+    for (const participant of committed.participants) {
+      await expect(restarted.markParticipantCardDelivered({
+        sessionId: committed.id,
+        telegramUserId: participant.telegramUserId,
+        expectedDeliveryRevision: committed.deliveryRevision,
+        expectedReferenceVersion: participant.referenceVersion,
+        chatId: participant.chatId!,
+        messageId: participant.messageId!
+      })).resolves.toBe(true);
+    }
+    await expect(restarted.finalizeDeliveryAttempt({
+      sessionId: committed.id,
+      expectedDeliveryRevision: committed.deliveryRevision,
+      attemptedAt: new Date(NOW.getTime() + 1)
+    })).resolves.toBe(true);
+    expect(await restarted.listPendingDeliverySessionIds(93)).not.toContain(session.id);
   });
 
   it("CAS-invalidates malformed state, releases all leases, and writes only rewardless proof", async () => {
@@ -359,6 +420,8 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
     expect(await prisma.activeCombatLease.count({ where: { referenceId: sessionId } })).toBe(0);
     expect(await prisma.partySession.findFirstOrThrow({ where: { inviteToken: "group-broken" }, select: { status: true } })).toEqual({ status: "completed" });
+    expect(row.deliveryPending).toBe(true);
+    expect(row.deliveryRevision).toBeGreaterThan(1);
   });
 
   it("invalidates a shape-valid state whose roster is foreign to the relational participants", async () => {
@@ -638,6 +701,83 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(releasedTwice).toEqual(releasedOnce);
     expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
     await expectInvalidatedRewardlessly(prisma, session.id);
+  });
+
+  it("reaches an older malformed terminal behind the repair limit of newer healthy terminals", async () => {
+    await prisma.groupCombatSession.updateMany({ data: { deliveryPending: false } });
+    const sessions = [];
+    for (let index = 0; index < 14; index += 1) {
+      sessions.push(await startProof(
+        prisma,
+        repository,
+        `group-terminal-repair-${index}`,
+        [1500n + BigInt(index * 2), 1501n + BigInt(index * 2)]
+      ));
+    }
+    const malformed = sessions[0]!;
+    const oldUpdatedAt = new Date("2026-07-20T00:00:00.000Z");
+    await prisma.groupCombatSession.update({
+      where: { id: malformed.id },
+      data: {
+        status: "won",
+        stateJson: {
+          ...malformed.state,
+          status: "won",
+          enemies: malformed.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+        },
+        resultJson: {
+          kind: "rewardless-proof",
+          outcome: "lost",
+          completedTurn: malformed.turn,
+          rewards: { xp: 0, gold: 0, items: [] }
+        },
+        completedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt
+      }
+    });
+    for (const [index, session] of sessions.slice(1).entries()) {
+      const completedAt = new Date(oldUpdatedAt.getTime() + index + 1);
+      await prisma.groupCombatSession.update({
+        where: { id: session.id },
+        data: {
+          status: "won",
+          stateJson: {
+            ...session.state,
+            status: "won",
+            enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+          },
+          resultJson: {
+            kind: "rewardless-proof",
+            outcome: "won",
+            completedTurn: session.turn,
+            rewards: { xp: 0, gold: 0, items: [] }
+          },
+          completedAt,
+          updatedAt: completedAt
+        }
+      });
+    }
+
+    await expect(repository.repairInvalidOrOrphaned(NOW, 13)).resolves.toBeGreaterThanOrEqual(1);
+    const repaired = await repository.findById(malformed.id);
+    expect(repaired).toMatchObject({
+      status: "won",
+      result: { kind: "rewardless-proof", outcome: "won", completedTurn: malformed.turn },
+      deliveryPending: true
+    });
+
+    const firstPending = await repository.listPendingDeliverySessionIds(13);
+    expect(firstPending).toHaveLength(13);
+    expect(firstPending).not.toContain(malformed.id);
+    const attempted = (await repository.findById(firstPending[0]!))!;
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: attempted.id,
+      expectedDeliveryRevision: attempted.deliveryRevision,
+      attemptedAt: NOW
+    })).resolves.toBe(true);
+    const nextPending = await repository.listPendingDeliverySessionIds(13);
+    expect(nextPending).toContain(malformed.id);
+    expect(nextPending).not.toContain(attempted.id);
   });
 
   it("reports actual query-event budgets", () => {

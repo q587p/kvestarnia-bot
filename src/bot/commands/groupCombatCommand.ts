@@ -74,15 +74,43 @@ export async function handleGroupCombatCallback(
     } else {
       session = await service.findByToken(callback.token) ?? session;
     }
-    await safeAnswerCallbackQuery(ctx, {
-      text: result.state === "invalid-target" || result.state === "stale"
-        ? "Хід уже змінився. Показую правду."
-        : "Вибір записано."
-    });
+    const response = presentActionResult(result.state);
+    await safeAnswerCallbackQuery(ctx, response);
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
   await deliverGroupCombatCards(ctx.api, service, session);
+}
+
+function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submitAction"]>>["state"]): {
+  text: string;
+  show_alert?: boolean;
+} {
+  switch (state) {
+    case "queued":
+      return { text: "Вибір записано." };
+    case "duplicate":
+      return { text: "Цей вибір уже записано." };
+    case "resolved":
+      return { text: "Хід розіграно." };
+    case "terminal":
+      return { text: "Сутичку завершено." };
+    case "stale":
+    case "invalid-target":
+      return { text: "Хід уже змінився. Показую правду." };
+    case "invalidated":
+      return { text: "Сутичку безпечно зупинено через пошкоджений запис.", show_alert: true };
+    case "not-participant":
+      return { text: "Вас більше немає в цій ватазі.", show_alert: true };
+    case "not-found":
+      return { text: "Ця сутичка вже загубила слід.", show_alert: true };
+    case "no-character":
+      return { text: "Квестарня не знайшла вашого пригодника.", show_alert: true };
+    case "actor-unavailable":
+      return { text: "Цей пригодник зараз не може діяти.", show_alert: true };
+    case "disabled":
+      return { text: "Доказову сутичку тут вимкнено.", show_alert: true };
+  }
 }
 
 function resolveTarget(

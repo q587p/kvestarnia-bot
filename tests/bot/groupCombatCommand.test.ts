@@ -68,7 +68,9 @@ describe("group combat bot flow", () => {
     }, {
       findByToken,
       findById: vi.fn().mockResolvedValue(session),
-      submitAction
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
     expect(submitAction).toHaveBeenCalledWith({
@@ -94,7 +96,9 @@ describe("group combat bot flow", () => {
 
     const delivered = await deliverGroupCombatCards(api, {
       findById: vi.fn().mockResolvedValue(session),
-      compareAndSetParticipantCard
+      compareAndSetParticipantCard,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session);
 
     expect(delivered).toBe(2);
@@ -148,7 +152,9 @@ describe("group combat bot flow", () => {
       startProof: vi.fn().mockResolvedValue({ state: "started", session }),
       findById,
       compareAndSetParticipantCard,
-      releaseParticipantCard: vi.fn()
+      releaseParticipantCard: vi.fn(),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
     await bot.handleUpdate(groupCommandUpdate("/dev_group_combat proof-token-13"));
@@ -185,6 +191,47 @@ describe("group combat bot flow", () => {
     expect(submitAction).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
   });
+
+  it.each([
+    ["invalidated", "безпечно зупинено"],
+    ["not-participant", "більше немає"],
+    ["not-found", "загубила слід"],
+    ["no-character", "не знайшла"],
+    ["actor-unavailable", "не може діяти"]
+  ] as const)("reports the truthful %s callback outcome", async (state, expectedText) => {
+    const session = makeSession();
+    let answer: { text?: string; show_alert?: boolean } | undefined;
+    const answerCallbackQuery = vi.fn((options: { text?: string; show_alert?: boolean }) => {
+      answer = options;
+      return Promise.resolve(true);
+    });
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: { id: `callback-${state}`, data: "unused" },
+      api: { editMessageText: vi.fn().mockResolvedValue(true) } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+    const service = {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction: vi.fn().mockResolvedValue({ state }),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "action",
+      token: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetIndex: 0
+    }, service);
+
+    expect(answer?.text).toContain(expectedText);
+    expect(answer?.text).not.toBe("Вибір записано.");
+    expect(answer?.show_alert).toBe(true);
+  });
 });
 
 function makeSession(): GroupCombatSessionRecord {
@@ -195,6 +242,9 @@ function makeSession(): GroupCombatSessionRecord {
     status: "active",
     turn: 1,
     version: 1,
+    deliveryRevision: 1,
+    deliveryPending: true,
+    deliveryAttemptedAt: null,
     turnExpiresAt: new Date("2026-07-22T10:00:23.000Z"),
     completedAt: null,
     result: null,
@@ -237,7 +287,8 @@ function participantRecord(characterId: string, telegramUserId: bigint, name: st
     rosterOrder,
     chatId: telegramUserId,
     messageId,
-    referenceVersion: 1
+    referenceVersion: 1,
+    deliveredRevision: 0
   };
 }
 

@@ -37,8 +37,7 @@ import {
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
-import { presentGroupCombat } from "../presenters/groupCombatPresenter";
-import { buildGroupCombatKeyboard } from "../keyboards/groupCombatKeyboard";
+import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -319,7 +318,7 @@ async function redirectCombatLockIfNeeded(
     return true;
   }
 
-  if (await redirectGroupCombatLockIfNeeded(ctx, telegramUserId, services, options)) {
+  if (await redirectGroupCombatLockIfNeeded(ctx, telegramUserId, services)) {
     return true;
   }
 
@@ -417,8 +416,7 @@ async function redirectCombatLockIfNeeded(
 async function redirectGroupCombatLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  services: BotServices,
-  options: { refreshPresence: boolean; preserveCallbackSource?: boolean }
+  services: BotServices
 ): Promise<boolean> {
   const active = await services.groupCombat?.findActiveForTelegramUser(telegramUserId);
   if (!active) {
@@ -428,11 +426,25 @@ async function redirectGroupCombatLockIfNeeded(
   if (!viewer) {
     return false;
   }
-  await answerCombatLockCallback(ctx);
-  await sendCombatLockText(ctx, presentCombatLockRedirect(presentGroupCombat(active, viewer.characterId)), {
-    reply_markup: buildGroupCombatKeyboard(active, viewer.characterId),
-    preserveCallbackSource: options.preserveCallbackSource
-  });
+  const isPrivate = ctx.chat?.type === "private";
+  if (isPrivate) {
+    await answerCombatLockCallback(ctx);
+  } else if (ctx.callbackQuery) {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Доказова сутичка триває в особистій розмові з Квестарнею.",
+      show_alert: true
+    });
+  }
+  await deliverGroupCombatParticipantCard(
+    ctx.api,
+    services.groupCombat!,
+    active.id,
+    viewer.characterId,
+    { forceRefresh: true }
+  );
+  if (!isPrivate && !ctx.callbackQuery) {
+    await ctx.reply("⚔️ Доказова сутичка триває в особистій розмові з Квестарнею.");
+  }
   return true;
 }
 

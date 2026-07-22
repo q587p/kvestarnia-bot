@@ -14,6 +14,7 @@ export interface GroupCombatParticipantRecord {
   chatId: bigint | null;
   messageId: number | null;
   referenceVersion: number;
+  deliveredRevision: number;
 }
 
 export interface GroupCombatQueuedActionRecord {
@@ -32,6 +33,9 @@ export interface GroupCombatSessionRecord {
   status: GroupCombatState["status"];
   turn: number;
   version: number;
+  deliveryRevision: number;
+  deliveryPending: boolean;
+  deliveryAttemptedAt: Date | null;
   state: GroupCombatState;
   result: GroupCombatResult | null;
   turnExpiresAt: Date;
@@ -77,6 +81,7 @@ export interface GroupCombatRepository {
   findById(sessionId: string): Promise<GroupCombatSessionRecord | null>;
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
+  listPendingDeliverySessionIds(limit: number): Promise<string[]>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
 
   compareAndSetParticipantCard(input: {
@@ -93,5 +98,20 @@ export interface GroupCombatRepository {
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
+  }): Promise<boolean>;
+
+  markParticipantCardDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    chatId: bigint;
+    messageId: number;
+  }): Promise<boolean>;
+
+  finalizeDeliveryAttempt(input: {
+    sessionId: string;
+    expectedDeliveryRevision: number;
+    attemptedAt: Date;
   }): Promise<boolean>;
 }

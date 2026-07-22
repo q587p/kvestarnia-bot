@@ -98,6 +98,25 @@ export class GroupCombatService {
     return this.options.enabled ? this.repository.repairInvalidOrOrphaned(this.now(), limit) : 0;
   }
 
+  async listPendingDelivery(limit = 13): Promise<GroupCombatSessionRecord[]> {
+    if (!this.options.enabled) {
+      return [];
+    }
+    const ids = await this.repository.listPendingDeliverySessionIds(limit);
+    const sessions: GroupCombatSessionRecord[] = [];
+    for (const id of ids) {
+      try {
+        const session = await this.repository.findById(id);
+        if (session) {
+          sessions.push(session);
+        }
+      } catch {
+        continue;
+      }
+    }
+    return sessions;
+  }
+
   compareAndSetParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;
@@ -116,5 +135,24 @@ export class GroupCombatService {
     messageId: number;
   }): Promise<boolean> {
     return this.repository.releaseParticipantCard(input);
+  }
+
+  markParticipantCardDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    chatId: bigint;
+    messageId: number;
+  }): Promise<boolean> {
+    return this.repository.markParticipantCardDelivered(input);
+  }
+
+  finalizeDeliveryAttempt(sessionId: string, expectedDeliveryRevision: number): Promise<boolean> {
+    return this.repository.finalizeDeliveryAttempt({
+      sessionId,
+      expectedDeliveryRevision,
+      attemptedAt: this.now()
+    });
   }
 }

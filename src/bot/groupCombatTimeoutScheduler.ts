@@ -18,7 +18,11 @@ export function createGroupCombatTimeoutScheduler(
     }
     const operation = (async () => {
       const repaired = await service.repair(13);
-      const sessions = await service.resolveDue(13);
+      const resolved = await service.resolveDue(13);
+      const pending = await service.listPendingDelivery(13);
+      const sessions = [...new Map(
+        [...resolved, ...pending].map((session) => [session.id, session])
+      ).values()];
       for (const session of sessions) {
         await deliverGroupCombatCards(bot.api, service, session);
       }
