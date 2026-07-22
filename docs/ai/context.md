@@ -16,8 +16,10 @@
   the fight/raid resource layout, authoritative remaining-time prompt, two-column
   exact-target actions and shared bounded terminal journal; results restore on
   the same participant-only canonical message. Private text redirects CAS-promote
-  a new latest card, while failed activation restores the previous actionable
-  reference. Cards are private-DM, monotonic and repairable. Terminal output changes no Character resources,
+  a new latest card. An ambiguous activation error keeps that candidate
+  canonical and pending while the previous card remains inert; confirmed
+  unavailability may safely restore the previous reference. Cards are
+  private-DM, monotonic and repairable. Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
   availability, deployment and manual Telegram QA remain unproven. Local QA
   creates a fresh `/dev_party` and passes only the invite suffix after `party_`

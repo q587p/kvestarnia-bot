@@ -177,9 +177,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
       : activated;
   }
   if (activated.state === "retryable-edit-failure") {
-    return replacedReference && previousState === "inert"
-      ? restorePreviousReference(input, freshParticipant, candidate, replacedReference)
-      : activated;
+    return activated;
   }
   if (replacedReference && previousState === "inert") {
     return restorePreviousReference(input, freshParticipant, candidate, replacedReference);

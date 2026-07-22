@@ -988,8 +988,13 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toEqual(checkpointBeforeRepeat);
   });
 
-  it("reports actual query-event budgets", () => {
-    console.info("Group combat query-event counts", actualQueryCounts, "budgets", QUERY_BUDGETS);
+  it("reports observed query-event counts against stable budgets", () => {
+    console.info(
+      "Group combat observed query-event counts (concurrent resolve depends on the winning interleaving)",
+      actualQueryCounts,
+      "budgets",
+      QUERY_BUDGETS
+    );
   });
 });
 

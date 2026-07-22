@@ -159,6 +159,7 @@ describe("group-combat canonical participant delivery", () => {
   it("leaves the previous card inert when deletion fails after successful activation", async () => {
     const session = makeSession();
     const actionable = new Set([21]);
+    const deleteMessage = vi.fn(() => Promise.reject(new Error("Telegram delete failed")));
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
@@ -170,7 +171,7 @@ describe("group-combat canonical participant delivery", () => {
         return Promise.resolve();
       },
       sendInertMessage: () => Promise.resolve(93),
-      deleteMessage: () => Promise.reject(new Error("Telegram delete failed"))
+      deleteMessage
     };
 
     const result = await deliverCanonicalGroupCombatParticipantCard({
@@ -183,22 +184,124 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(result).toMatchObject({ state: "activated", reference: { messageId: 93 } });
     expect(actionable).toEqual(new Set([93]));
+    expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 21 });
   });
 
-  it("restores the previous canonical card after retryable candidate activation and converges on retry", async () => {
+  it("keeps an ambiguously activated candidate canonical and converges without rearming the previous card", async () => {
     const session = makeSession();
     const actionable = new Set([21]);
     let candidateAttempts = 0;
-    let previousActivationAttempts = 0;
+    const deleteMessage = vi.fn(() => Promise.reject(new Error("Telegram delete failed")));
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
         if (reference.messageId === 93 && hasButtons) {
           candidateAttempts += 1;
-          return Promise.reject(new Error("temporary Telegram failure"));
+          actionable.add(93);
+          if (candidateAttempts === 1) {
+            return Promise.reject(new Error("response lost after Telegram applied edit"));
+          }
+          return Promise.resolve();
         }
-        if (reference.messageId === 21 && hasButtons && previousActivationAttempts++ === 0) {
-          return Promise.reject(new Error("temporary Telegram failure"));
+        if (hasButtons) {
+          actionable.add(reference.messageId);
+        } else {
+          actionable.delete(reference.messageId);
+        }
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage
+    };
+    const service = mutableCardService(session);
+
+    const failed = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(failed).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 93 } });
+    expect(actionable).toEqual(new Set([93]));
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 93, deliveredRevision: 0 });
+    expect(deleteMessage).not.toHaveBeenCalled();
+
+    const retried = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport
+    });
+
+    expect(actionable).toEqual(new Set([93]));
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 93, deliveredRevision: 1 });
+    expect(retried).toMatchObject({ state: "edited", reference: { messageId: 93 } });
+    expect(candidateAttempts).toBe(2);
+    expect(deleteMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps both cards inert when candidate activation fails before applying and activates the candidate on retry", async () => {
+    const session = makeSession();
+    const actionable = new Set([21]);
+    let candidateAttempts = 0;
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        if (reference.messageId === 93 && hasButtons) {
+          candidateAttempts += 1;
+          if (candidateAttempts === 1) {
+            return Promise.reject(new Error("Telegram failed before applying edit"));
+          }
+        }
+        if (hasButtons) {
+          actionable.add(reference.messageId);
+        } else {
+          actionable.delete(reference.messageId);
+        }
+        return Promise.resolve();
+      },
+      sendInertMessage: () => Promise.resolve(93),
+      deleteMessage: () => Promise.reject(new Error("candidate deletion would fail"))
+    };
+    const service = mutableCardService(session);
+
+    const failed = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(failed).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 93 } });
+    expect(actionable).toEqual(new Set());
+    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 93, deliveredRevision: 0 });
+
+    const retried = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport
+    });
+
+    expect(retried).toMatchObject({ state: "edited", reference: { messageId: 93 } });
+    expect(actionable).toEqual(new Set([93]));
+    expect(candidateAttempts).toBe(2);
+  });
+
+  it("restores the previous canonical card when the promoted candidate is unavailable", async () => {
+    const session = makeSession();
+    const actionable = new Set([21]);
+    const edits: Array<{ messageId: number; hasButtons: boolean }> = [];
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
+        edits.push({ messageId: reference.messageId, hasButtons });
+        if (reference.messageId === 93 && hasButtons) {
+          actionable.delete(93);
+          return Promise.reject(new Error("Bad Request: message to edit not found"));
         }
         if (hasButtons) {
           actionable.add(reference.messageId);
@@ -212,44 +315,6 @@ describe("group-combat canonical participant delivery", () => {
         actionable.delete(reference.messageId);
         return Promise.resolve();
       }
-    };
-    const service = mutableCardService(session);
-
-    const failed = await deliverCanonicalGroupCombatParticipantCard({
-      service,
-      sessionId: session.id,
-      participantCharacterId: "character-1",
-      transport,
-      forceReplacement: true
-    });
-    const retried = await deliverCanonicalGroupCombatParticipantCard({
-      service,
-      sessionId: session.id,
-      participantCharacterId: "character-1",
-      transport,
-      forceRefresh: true
-    });
-
-    expect(failed).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 21 } });
-    expect(retried).toMatchObject({ state: "edited", reference: { messageId: 21 } });
-    expect(candidateAttempts).toBe(1);
-    expect(actionable).toEqual(new Set([21]));
-    expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
-  });
-
-  it("restores the previous canonical card when the promoted candidate is unavailable", async () => {
-    const session = makeSession();
-    const edits: Array<{ messageId: number; hasButtons: boolean }> = [];
-    const transport: GroupCombatDeliveryTransport = {
-      editMessage: (reference, _text, options) => {
-        const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
-        edits.push({ messageId: reference.messageId, hasButtons });
-        return reference.messageId === 93 && hasButtons
-          ? Promise.reject(new Error("Bad Request: message to edit not found"))
-          : Promise.resolve();
-      },
-      sendInertMessage: () => Promise.resolve(93),
-      deleteMessage: () => Promise.resolve()
     };
     const service = mutableCardService(session);
 
@@ -267,13 +332,18 @@ describe("group-combat canonical participant delivery", () => {
       { messageId: 93, hasButtons: true },
       { messageId: 21, hasButtons: true }
     ]);
+    expect(actionable).toEqual(new Set([21]));
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
   });
 
   it("does not activate a replacement when the previous actionable card cannot be made inert", async () => {
     const session = makeSession();
+    const actionable = new Set([21]);
     const candidateActivation = vi.fn();
-    const deleteMessage = vi.fn().mockResolvedValue(undefined);
+    const deleteMessage = vi.fn((reference: { messageId: number }) => {
+      actionable.delete(reference.messageId);
+      return Promise.resolve();
+    });
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
@@ -282,6 +352,9 @@ describe("group-combat canonical participant delivery", () => {
         }
         if (hasButtons) {
           candidateActivation();
+          actionable.add(reference.messageId);
+        } else {
+          actionable.delete(reference.messageId);
         }
         return Promise.resolve();
       },
@@ -301,6 +374,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(result).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 21 } });
     expect(candidateActivation).not.toHaveBeenCalled();
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 93 });
+    expect(actionable).toEqual(new Set([21]));
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
   });
 
