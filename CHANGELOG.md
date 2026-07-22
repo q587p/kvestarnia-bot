@@ -23,6 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Routed combat-lock redirects through the recorded private canonical card, with only an inert non-disclosing notice in group chats. Durable content revisions now include queued actions, survive queued/terminal/repair commits across restart, acknowledge each participant reference by CAS and rotate failed pending sessions without re-editing settled terminal history forever.
 - Made callback acknowledgements truthful for invalidated, missing, non-participant, missing-character and unavailable-actor outcomes. Bounded terminal integrity validation now persists a per-session checkpoint, reaches malformed rows on either side of healthy history across restart, and does not reread validated immutable terminal rows on every scheduler tick; missing terminal metadata remains immediately repairable.
 - Made the non-production group-combat launch hint explain that `/dev_party` creates the code, only the invite suffix after `party_` is passed to `/dev_group_combat`, and the party leader must issue the start command.
+- Group-proof cards now match the established fight/raid shape with shared HP/mana rows, the standard 23-second turn prompt, compact queued state and two-column exact-target controls.
 
 ### Verification and compatibility
 - Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.

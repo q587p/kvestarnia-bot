@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
+import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 import { presentGroupCombat } from "../../src/bot/presenters/groupCombatPresenter";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 
 describe("group combat presenter", () => {
-  it("keeps the maximum proof card bounded and shows the canonical remaining turn wait", () => {
+  it("keeps the maximum proof card bounded and matches the established 23-second combat prompt", () => {
     const state = createGroupCombatProofState({
       sessionId: "group-card",
       partySessionId: "party-card",
@@ -60,9 +61,100 @@ describe("group combat presenter", () => {
       queuedActions: []
     };
 
-    const text = presentGroupCombat(session, participants[0]!.characterId, { now: NOW });
+    const text = presentGroupCombat(session, participants[0]!.characterId);
 
-    expect(text).toContain("До захисту мовчунів — 23 секунди.");
+    expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
+    expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить мовчунів у захист.");
     expect(text.length).toBeLessThan(4_096);
   });
+
+  it("groups exact-target actions into compact two-button rows", () => {
+    const session = createSession(3);
+
+    const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
+
+    expect(rows.map((row) => row.length)).toEqual([2, 2, 2, 1]);
+    expect(rows.flat().map((button) => button.text)).toEqual([
+      "⚔️ Комірний Шурхіт 1",
+      "⚔️ Комірний Шурхіт 2",
+      "⚔️ Комірний Шурхіт 3",
+      "🛡️ Захиститися",
+      "🫶 Пригодник 2",
+      "🫶 Пригодник 3",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("keeps a queued participant card compact and inert", () => {
+    const session = createSession(2);
+    session.queuedActions = [{
+      turn: session.turn,
+      actorCharacterId: session.participants[0]!.characterId,
+      action: "guard",
+      targetKind: "self",
+      targetId: session.participants[0]!.characterId
+    }];
+
+    const text = presentGroupCombat(session, session.participants[0]!.characterId);
+    const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
+
+    expect(text).toContain("ваш вибір записано. Чекаємо на решту ватаги.");
+    expect(text).not.toContain("На хід є 23 секунди");
+    expect(rows.map((row) => row.map((button) => button.text))).toEqual([["🔎 Оновити"]]);
+  });
 });
+
+function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
+  const state = createGroupCombatProofState({
+    sessionId: `group-card-${participantCount}`,
+    partySessionId: `party-card-${participantCount}`,
+    deterministicSeed: 42,
+    participants: Array.from({ length: participantCount }, (_, index) => ({
+      characterId: `character-${index + 1}`,
+      telegramUserId: `${1001 + index}`,
+      name: `Пригодник ${index + 1}`,
+      remortCount: 0,
+      rosterOrder: index,
+      hp: 20,
+      hpMax: 20,
+      mana: 10,
+      manaMax: 10,
+      attack: 8,
+      defense: 2,
+      support: 6,
+      equipmentItemIds: []
+    }))
+  });
+  state.enemies.forEach((enemy, index) => {
+    enemy.name = `Комірний Шурхіт ${index + 1}`;
+  });
+  const participants = state.participants.map((actor) => ({
+    characterId: actor.characterId,
+    telegramUserId: BigInt(actor.telegramUserId),
+    name: actor.name,
+    remortCount: actor.remortCount,
+    rosterOrder: actor.rosterOrder,
+    chatId: BigInt(actor.telegramUserId),
+    messageId: 13 + actor.rosterOrder,
+    referenceVersion: 1,
+    deliveredRevision: 0
+  }));
+
+  return {
+    id: state.sessionId,
+    partySessionId: state.partySessionId,
+    partyInviteToken: `proof-token-${participantCount}`,
+    status: "active",
+    turn: state.turn,
+    version: 1,
+    deliveryRevision: 1,
+    deliveryPending: true,
+    deliveryAttemptedAt: null,
+    state,
+    result: null,
+    turnExpiresAt: new Date(NOW.getTime() + 23_000),
+    completedAt: null,
+    participants,
+    queuedActions: []
+  };
+}

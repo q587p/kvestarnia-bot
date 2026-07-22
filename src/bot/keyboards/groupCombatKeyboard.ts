@@ -19,33 +19,46 @@ export function buildGroupCombatKeyboard(
     return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
   }
 
+  let buttonsInRow = 0;
+  const addActionButton = (label: string, callbackData: string): void => {
+    keyboard.text(label, callbackData);
+    buttonsInRow += 1;
+    if (buttonsInRow === 2) {
+      keyboard.row();
+      buttonsInRow = 0;
+    }
+  };
+
   session.state.enemies.forEach((enemy, targetIndex) => {
     if (enemy.hp <= 0) {
       return;
     }
-    keyboard.text(`⚔️ ${enemy.name}`, makeGroupCombatActionCallbackData({
+    addActionButton(`⚔️ ${enemy.name}`, makeGroupCombatActionCallbackData({
       token: session.partyInviteToken,
       turn: session.turn,
       action: "attack",
       targetIndex
-    })).row();
+    }));
   });
-  keyboard.text("🛡️ Захистити себе", makeGroupCombatActionCallbackData({
+  addActionButton("🛡️ Захиститися", makeGroupCombatActionCallbackData({
     token: session.partyInviteToken,
     turn: session.turn,
     action: "guard",
     targetIndex: viewer.rosterOrder
-  })).row();
+  }));
   session.state.participants.forEach((ally, targetIndex) => {
     if (ally.characterId === viewerCharacterId || ally.hp <= 0) {
       return;
     }
-    keyboard.text(`🫶 Підтримати ${ally.name}`, makeGroupCombatActionCallbackData({
+    addActionButton(`🫶 ${ally.name}`, makeGroupCombatActionCallbackData({
       token: session.partyInviteToken,
       turn: session.turn,
       action: "aid",
       targetIndex
-    })).row();
+    }));
   });
+  if (buttonsInRow > 0) {
+    keyboard.row();
+  }
   return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
 }

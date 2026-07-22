@@ -10,8 +10,9 @@
   `Натхнення`; exact relational/state/life/session/lease agreement, canonical
   actor-turn actions and version CAS keep resolution and repair rewardless.
   Enemy attack, self guard and living-ally aid are the complete proof actions;
-  timeout uses resource-free guard. Participant cards are private-DM,
-  monotonic and repairable. Terminal output changes no Character resources,
+  timeout uses resource-free guard. Participant cards reuse the fight/raid
+  resource layout, 23-second prompt and compact two-column exact-target actions;
+  they are private-DM, monotonic and repairable. Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
   availability, deployment and manual Telegram QA remain unproven. Local QA
   creates a fresh `/dev_party` and passes only the invite suffix after `party_`

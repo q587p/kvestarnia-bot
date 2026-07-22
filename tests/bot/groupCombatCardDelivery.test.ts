@@ -63,10 +63,10 @@ describe("group-combat canonical participant delivery", () => {
     releaseFirstEdit.resolve();
 
     await expect(Promise.all([oldDelivery, newDelivery])).resolves.toHaveLength(2);
-    expect(edits[0]).toContain("хід 1");
-    expect(edits.at(-1)).toContain("хід 2");
-    expect(edits.slice(edits.findIndex((text) => text.includes("хід 2")))).not.toEqual(
-      expect.arrayContaining([expect.stringContaining("хід 1")])
+    expect(edits[0]).toContain("Бій: 1 хід");
+    expect(edits.at(-1)).toContain("Бій: 2 хід");
+    expect(edits.slice(edits.findIndex((text) => text.includes("Бій: 2 хід")))).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("Бій: 1 хід")])
     );
     expect(sendInertMessage).not.toHaveBeenCalled();
   });

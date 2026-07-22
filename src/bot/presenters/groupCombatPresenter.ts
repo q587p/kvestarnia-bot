@@ -1,59 +1,58 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
+import { GROUP_COMBAT_TURN_MS } from "../../services/groupCombatService";
+import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string,
-  options: { now?: Date } = {}
+  viewerCharacterId: string
 ): string {
   const state = session.state;
   const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
   const status = state.status === "active"
-    ? `⚔️ Доказова сутичка · хід ${state.turn}`
+    ? `🧪 <b>Бій: ${state.turn} хід</b>`
     : state.status === "won"
       ? "✅ Доказову сутичку виграно"
       : state.status === "lost"
         ? "🪦 Доказову сутичку програно"
         : "🧯 Доказову сутичку безпечно зупинено";
-  const enemies = state.enemies.map((enemy) =>
-    `${enemy.hp > 0 ? "👹" : "☠️"} ${escapeHtml(enemy.name)}: HP ${enemy.hp}/${enemy.hpMax}`
+  const enemies = state.enemies.map((enemy) => presentBattleCombatantResourceLine({
+    icon: enemy.hp > 0 ? "👹" : "☠️",
+    name: enemy.name,
+    hp: enemy.hp,
+    hpMax: enemy.hpMax,
+    showHpLabel: true
+  }));
+  const party = state.participants.map((participant) => presentBattleCombatantResourceLine({
+    icon: participant.hp > 0
+      ? participant.characterId === viewerCharacterId ? "❤️" : "🫶"
+      : "☠️",
+    name: participant.name,
+    hp: participant.hp,
+    hpMax: participant.hpMax,
+    mana: participant.mana,
+    manaMax: participant.manaMax
+  }));
+  const queued = Boolean(
+    viewer && session.queuedActions.some((action) => action.actorCharacterId === viewer.characterId)
   );
-  const party = state.participants.map((participant) =>
-    `${participant.hp > 0 ? (participant.characterId === viewerCharacterId ? "❤️" : "🫶") : "☠️"} ${escapeHtml(participant.name)}: HP ${participant.hp}/${participant.hpMax} · мана ${participant.mana}/${participant.manaMax}`
-  );
-  const queued = viewer && session.queuedActions.some((action) => action.actorCharacterId === viewer.characterId)
-    ? "\n\n✅ Ваш вибір записано. Чекаємо на решту ватаги."
-    : "";
   const recap = state.recap[state.recap.length - 1];
   const recapText = recap
-    ? `\n\nОстанній хід:\n${recap.lines.map((line) => escapeHtml(line)).join("\n")}`
+    ? `\n\n<b>Останні дії:</b>\n${recap.lines.map((line) => escapeHtml(line)).join("\n")}`
     : "";
   const ending = state.status === "active"
-    ? `\n\nОберіть дію й точну ціль. До захисту мовчунів — ${formatRemainingSeconds(
-      session.turnExpiresAt,
-      options.now ?? new Date()
-    )}.`
+    ? queued
+      ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, ваш вибір записано. Чекаємо на решту ватаги.`
+      : [
+          "",
+          `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо? Оберіть точну ціль.`,
+          `⏳ На хід є ${formatSecondsLong(GROUP_COMBAT_TURN_MS)}. Потім Корчма поставить мовчунів у захист.`
+        ].join("\n")
     : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
-  return [status, "", ...enemies, "", ...party].join("\n") + recapText + queued + ending;
+  return [status, "", ...enemies, ...party].join("\n") + recapText + ending;
 }
 
-function formatRemainingSeconds(expiresAt: Date, now: Date): string {
-  const seconds = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1_000));
-  return `${seconds} ${pluralizeUk(seconds, "секунда", "секунди", "секунд")}`;
-}
-
-function pluralizeUk(count: number, one: string, few: string, many: string): string {
-  const lastTwo = count % 100;
-  const last = count % 10;
-  if (lastTwo >= 11 && lastTwo <= 14) {
-    return many;
-  }
-  if (last === 1) {
-    return one;
-  }
-  if (last >= 2 && last <= 4) {
-    return few;
-  }
-  return many;
+function formatSecondsLong(milliseconds: number): string {
+  return `${Math.ceil(milliseconds / 1_000)} секунди`;
 }
