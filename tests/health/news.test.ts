@@ -113,11 +113,10 @@ describe("public news rendering", () => {
     expect(changelogHeading).toEqual(
       expect.objectContaining({ version: packageJson.version })
     );
-    if (newsHeading?.version === packageJson.version) {
-      expect(newsHeading.date).toBe(changelogHeading?.date);
-    } else {
-      expect(allowsPlayerNewsGap(changelog, packageJson.version)).toBe(true);
-    }
+    expect(newsHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version })
+    );
+    expect(newsHeading?.date).toBe(changelogHeading?.date);
   });
 
   it("does not date the latest release after the current Kyiv day of the commit", () => {
@@ -140,26 +139,11 @@ describe("public news rendering", () => {
     const expectedDate = toKyivHoloceneDate(new Date(headCommitDate));
 
     expect(changelogHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
-    if (newsHeading?.version !== packageJson.version) {
-      expect(allowsPlayerNewsGap(changelog, packageJson.version)).toBe(true);
-    }
+    expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
     expect(changelogHeading?.date <= expectedDate).toBe(true);
     expect(newsHeading?.date <= expectedDate).toBe(true);
   });
 });
-
-function allowsPlayerNewsGap(changelog: string, version: string): boolean {
-  const heading = `## [${version}]`;
-  const start = changelog.indexOf(heading);
-  if (start < 0) {
-    return false;
-  }
-  const end = changelog.indexOf("\n## [", start + heading.length);
-  const release = changelog.slice(start, end < 0 ? undefined : end);
-  return release.includes(
-    "Player news: intentionally unchanged because this default-off non-production proof has no player-facing surface."
-  );
-}
 
 function toKyivHoloceneDate(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

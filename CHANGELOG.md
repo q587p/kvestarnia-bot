@@ -20,8 +20,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.
 - Added Prisma integration coverage for atomic start/failure, same-life leases, wrong-side/stale targets, duplicate last-action and action/timeout races, resource-free timeout, normal rewardless victory, malformed-state invalidation, orphan repair, restart/remort blocking and unchanged Character economy/resources.
 - Query-event fixtures record `30` statements for start, `16` for a queued action, `27` total for two concurrent duplicate last-action attempts, and `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
-- No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior, lore or player-news promise was added. Full class/race/item parity remains `0.4.1` scope.
-- Player news: intentionally unchanged because this default-off non-production proof has no player-facing surface.
+- No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior or lore change was added. Full class/race/item parity remains `0.4.1` scope.
+- Added a spoiler-light player-news entry about the group-combat foundation without claiming that its non-production proof is a playable production route.
 
 ## [0.3.17] - 12026-07-22 - Callback Read-Path Collapse
 
