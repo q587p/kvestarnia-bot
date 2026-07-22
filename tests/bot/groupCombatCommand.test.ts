@@ -23,6 +23,41 @@ describe("group combat bot flow", () => {
     expect(startProof).not.toHaveBeenCalled();
   });
 
+  it("explains where the party code comes from and excludes the party_ prefix", async () => {
+    const bot = testBot();
+    const replies: string[] = [];
+    const startProof = vi.fn().mockResolvedValue({ state: "not-found" });
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        replies.push(String(payload.text));
+      }
+      return Promise.resolve({ ok: true, result: { message_id: replies.length } });
+    });
+    registerGroupCombatDevCommand(bot, {
+      areDevHelpersEnabled: () => true,
+      startProof
+    } as unknown as GroupCombatService);
+
+    await bot.handleUpdate(commandUpdate("/dev_group_combat"));
+    await bot.handleUpdate(commandUpdate("/dev_group_combat party_l3vyrZuhFdk"));
+
+    expect(startProof).toHaveBeenCalledWith(1001n, "party_l3vyrZuhFdk");
+    expect(replies).toEqual([
+      [
+        "🧭 Код ватаги створює команда /dev_party.",
+        "У картці збору скопіюйте з посилання лише частину після «party_».",
+        "Запуск надсилає ватажок: /dev_group_combat КОД"
+      ].join("\n"),
+      [
+        "Живої ватаги з таким кодом не знайдено.",
+        "",
+        "🧭 Код ватаги створює команда /dev_party.",
+        "У картці збору скопіюйте з посилання лише частину після «party_».",
+        "Запуск надсилає ватажок: /dev_group_combat КОД"
+      ].join("\n")
+    ]);
+  });
+
   it("does not register the command or callback route when production disables the service", async () => {
     const bot = testBot();
     const startProof = vi.fn();

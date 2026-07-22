@@ -6,6 +6,11 @@ import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
+const PARTY_CODE_HELP = [
+  "🧭 Код ватаги створює команда /dev_party.",
+  "У картці збору скопіюйте з посилання лише частину після «party_».",
+  "Запуск надсилає ватажок: /dev_group_combat КОД"
+].join("\n");
 
 export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {
   bot.command("dev_group_combat", async (ctx) => {
@@ -15,7 +20,7 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
     const telegramUserId = telegramUserIdFromContext(ctx.from);
     const token = readCommandToken(ctx.message?.text);
     if (!telegramUserId || !token) {
-      await ctx.reply("Вкажіть код живої ватаги: /dev_group_combat КОД");
+      await ctx.reply(PARTY_CODE_HELP);
       return;
     }
     const result = await service.startProof(telegramUserId, token);
@@ -150,6 +155,12 @@ function presentStartFailure(state: string): string {
       return "Ватага вже не збирається.";
     case "disabled":
       return "Доказовий гуртовий бій тут вимкнений.";
+    case "not-found":
+      return [
+        "Живої ватаги з таким кодом не знайдено.",
+        "",
+        PARTY_CODE_HELP
+      ].join("\n");
     default:
       return "Не вдалося запустити доказову сутичку з цієї ватаги.";
   }

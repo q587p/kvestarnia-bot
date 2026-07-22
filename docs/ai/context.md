@@ -13,7 +13,9 @@
   timeout uses resource-free guard. Participant cards are private-DM,
   monotonic and repairable. Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
-  availability, deployment and manual Telegram QA remain unproven.
+  availability, deployment and manual Telegram QA remain unproven. Local QA
+  creates a fresh `/dev_party` and passes only the invite suffix after `party_`
+  to `/dev_group_combat`; the party leader must issue the start command.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
