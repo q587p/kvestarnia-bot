@@ -534,7 +534,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         select: { id: true }
       }),
       this.prisma.groupCombatSession.findMany({
-        where: { status: { not: "active" } },
+        where: {
+          status: { not: "active" },
+          terminalIntegrityCheckedAt: null
+        },
         orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
         take: boundedLimit,
         select: { id: true }
@@ -556,8 +559,18 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
             });
             validatePersistedActions(state, actions);
+            return "unchanged" as const;
           }
-          return "unchanged" as const;
+          const validated = await tx.groupCombatSession.updateMany({
+            where: {
+              id: session.id,
+              status: session.status,
+              version: session.version,
+              terminalIntegrityCheckedAt: null
+            },
+            data: { terminalIntegrityCheckedAt: now }
+          });
+          return validated.count === 1 ? "validated" as const : "unchanged" as const;
         } catch (error) {
           if (!(error instanceof GroupCombatStateValidationError)) {
             throw error;
@@ -565,7 +578,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return repairMalformedSession(tx, session, now);
         }
       });
-      repaired += outcome === "unchanged" ? 0 : 1;
+      repaired += outcome === "invalidated" || outcome === "terminal-repaired" ? 1 : 0;
     }
 
     const leases = await this.prisma.activeCombatLease.findMany({
@@ -785,7 +798,7 @@ async function resolveIfReady(
   return session ? { state: terminal ? "terminal" : "resolved", session } : { state: "not-found" };
 }
 
-type SessionRepairOutcome = "unchanged" | "invalidated" | "terminal-repaired";
+type SessionRepairOutcome = "unchanged" | "validated" | "invalidated" | "terminal-repaired";
 
 async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date): Promise<SessionRepairOutcome> {
   try {
@@ -800,7 +813,8 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
           version: { increment: 1 },
           deliveryRevision: { increment: 1 },
           deliveryPending: true,
-          deliveryAttemptedAt: null
+          deliveryAttemptedAt: null,
+          terminalIntegrityCheckedAt: now
         }
       });
       if (updated.count !== 1) {
@@ -836,6 +850,7 @@ async function invalidateSessionRewardlessly(
       deliveryRevision: { increment: 1 },
       deliveryPending: true,
       deliveryAttemptedAt: null,
+      terminalIntegrityCheckedAt: now,
       stateJson: state as unknown as Prisma.InputJsonValue,
       resultJson: result as unknown as Prisma.InputJsonValue,
       turnExpiresAt: now,

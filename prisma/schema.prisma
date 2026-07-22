@@ -1190,6 +1190,7 @@ model GroupCombatSession {
   deliveryRevision Int        @default(1) @map("delivery_revision")
   deliveryPending Boolean     @default(true) @map("delivery_pending")
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
+  terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
   stateJson      Json         @map("state_json")
   resultJson     Json?        @map("result_json")
   turnExpiresAt  DateTime     @map("turn_expires_at")
@@ -1201,6 +1202,7 @@ model GroupCombatSession {
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])
+  @@index([status, terminalIntegrityCheckedAt, updatedAt, id])
   @@map("group_combat_sessions")
 }
 

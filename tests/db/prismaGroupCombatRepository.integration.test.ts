@@ -703,60 +703,15 @@ describe("PrismaGroupCombatRepository integration", () => {
     await expectInvalidatedRewardlessly(prisma, session.id);
   });
 
-  it("reaches an older malformed terminal behind the repair limit of newer healthy terminals", async () => {
-    await prisma.groupCombatSession.updateMany({ data: { deliveryPending: false } });
-    const sessions = [];
-    for (let index = 0; index < 14; index += 1) {
-      sessions.push(await startProof(
-        prisma,
-        repository,
-        `group-terminal-repair-${index}`,
-        [1500n + BigInt(index * 2), 1501n + BigInt(index * 2)]
-      ));
-    }
-    const malformed = sessions[0]!;
-    const oldUpdatedAt = new Date("2026-07-20T00:00:00.000Z");
-    await prisma.groupCombatSession.update({
-      where: { id: malformed.id },
-      data: {
-        status: "won",
-        stateJson: {
-          ...malformed.state,
-          status: "won",
-          enemies: malformed.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
-        },
-        resultJson: {
-          kind: "rewardless-proof",
-          outcome: "lost",
-          completedTurn: malformed.turn,
-          rewards: { xp: 0, gold: 0, items: [] }
-        },
-        completedAt: oldUpdatedAt,
-        updatedAt: oldUpdatedAt
-      }
-    });
-    for (const [index, session] of sessions.slice(1).entries()) {
-      const completedAt = new Date(oldUpdatedAt.getTime() + index + 1);
-      await prisma.groupCombatSession.update({
-        where: { id: session.id },
-        data: {
-          status: "won",
-          stateJson: {
-            ...session.state,
-            status: "won",
-            enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
-          },
-          resultJson: {
-            kind: "rewardless-proof",
-            outcome: "won",
-            completedTurn: session.turn,
-            rewards: { xp: 0, gold: 0, items: [] }
-          },
-          completedAt,
-          updatedAt: completedAt
-        }
-      });
-    }
+  it("repairs an older malformed terminal despite a full newer healthy window", async () => {
+    await checkpointExistingTerminalHistory(prisma);
+    const { sessions, malformed } = await seedTerminalIntegrityHistory(
+      prisma,
+      repository,
+      "group-terminal-older",
+      50_000n,
+      0
+    );
 
     await expect(repository.repairInvalidOrOrphaned(NOW, 13)).resolves.toBeGreaterThanOrEqual(1);
     const repaired = await repository.findById(malformed.id);
@@ -765,19 +720,76 @@ describe("PrismaGroupCombatRepository integration", () => {
       result: { kind: "rewardless-proof", outcome: "won", completedTurn: malformed.turn },
       deliveryPending: true
     });
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
+      .toEqual(NOW);
 
-    const firstPending = await repository.listPendingDeliverySessionIds(13);
-    expect(firstPending).toHaveLength(13);
-    expect(firstPending).not.toContain(malformed.id);
-    const attempted = (await repository.findById(firstPending[0]!))!;
-    await expect(repository.finalizeDeliveryAttempt({
-      sessionId: attempted.id,
-      expectedDeliveryRevision: attempted.deliveryRevision,
-      attemptedAt: NOW
-    })).resolves.toBe(true);
-    const nextPending = await repository.listPendingDeliverySessionIds(13);
-    expect(nextPending).toContain(malformed.id);
-    expect(nextPending).not.toContain(attempted.id);
+    const newestHealthy = sessions.at(-1)!;
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: newestHealthy.id } })).terminalIntegrityCheckedAt)
+      .toBeNull();
+    await repository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 1), 13);
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: newestHealthy.id } })).terminalIntegrityCheckedAt)
+      .toEqual(new Date(NOW.getTime() + 1));
+  });
+
+  it("durably rotates past older healthy terminals to repair a newer pending-delivery terminal", async () => {
+    await checkpointExistingTerminalHistory(prisma);
+    const { sessions, malformed } = await seedTerminalIntegrityHistory(
+      prisma,
+      repository,
+      "group-terminal-newer",
+      60_000n,
+      13
+    );
+    const firstPassAt = new Date(NOW.getTime() + 2);
+    const secondPassAt = new Date(NOW.getTime() + 3);
+
+    queries.length = 0;
+    await repository.repairInvalidOrOrphaned(firstPassAt, 13);
+    const firstPassQueries = queries.length;
+    const afterFirstPass = await prisma.groupCombatSession.findMany({
+      where: { id: { in: sessions.map((session) => session.id) } },
+      orderBy: { updatedAt: "asc" },
+      select: { id: true, terminalIntegrityCheckedAt: true }
+    });
+    expect(afterFirstPass.filter((row) => row.terminalIntegrityCheckedAt?.getTime() === firstPassAt.getTime()))
+      .toHaveLength(13);
+    expect(afterFirstPass.find((row) => row.id === malformed.id)?.terminalIntegrityCheckedAt).toBeNull();
+    expect(await repository.listPendingDeliverySessionIds(93)).toContain(malformed.id);
+
+    const restartedRepository = new PrismaGroupCombatRepository(prisma);
+    const restartedService = new GroupCombatService(
+      restartedRepository,
+      { enabled: true, devHelpersEnabled: true },
+      () => secondPassAt
+    );
+    expect((await restartedService.listPendingDelivery(93)).map((session) => session.id)).not.toContain(malformed.id);
+
+    await expect(restartedRepository.repairInvalidOrOrphaned(secondPassAt, 13))
+      .resolves.toBeGreaterThanOrEqual(1);
+    const repaired = await restartedRepository.findById(malformed.id);
+    expect(repaired).toMatchObject({
+      status: "won",
+      result: { kind: "rewardless-proof", outcome: "won", completedTurn: malformed.turn },
+      deliveryPending: true
+    });
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
+      .toEqual(secondPassAt);
+    expect((await restartedService.listPendingDelivery(93)).map((session) => session.id)).toContain(malformed.id);
+
+    const checkpointBeforeRepeat = await prisma.groupCombatSession.findMany({
+      where: { id: { in: sessions.map((session) => session.id) } },
+      orderBy: { id: "asc" },
+      select: { id: true, terminalIntegrityCheckedAt: true }
+    });
+    queries.length = 0;
+    await restartedRepository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 4), 13);
+    const repeatedPassQueries = queries.length;
+    expect(repeatedPassQueries).toBeLessThan(firstPassQueries);
+    expect(await prisma.groupCombatSession.findMany({
+      where: { id: { in: sessions.map((session) => session.id) } },
+      orderBy: { id: "asc" },
+      select: { id: true, terminalIntegrityCheckedAt: true }
+    })).toEqual(checkpointBeforeRepeat);
   });
 
   it("reports actual query-event budgets", () => {
@@ -850,6 +862,72 @@ async function startProof(
 ) {
   await seedParty(prisma, token, telegramIds);
   return startExistingPartyProof(repository, token, telegramIds[0]!, turnExpiresAt);
+}
+
+type StartedProofSession = Awaited<ReturnType<typeof startProof>>;
+
+async function checkpointExistingTerminalHistory(prisma: PrismaClient): Promise<void> {
+  await prisma.groupCombatSession.updateMany({
+    where: { status: { not: "active" } },
+    data: { deliveryPending: false, terminalIntegrityCheckedAt: NOW }
+  });
+}
+
+async function seedTerminalIntegrityHistory(
+  prisma: PrismaClient,
+  repository: PrismaGroupCombatRepository,
+  tokenPrefix: string,
+  firstTelegramId: bigint,
+  malformedIndex: number
+): Promise<{ sessions: StartedProofSession[]; malformed: StartedProofSession }> {
+  const sessions: StartedProofSession[] = [];
+  for (let index = 0; index < 14; index += 1) {
+    sessions.push(await startProof(
+      prisma,
+      repository,
+      `${tokenPrefix}-${index}`,
+      [firstTelegramId + BigInt(index * 2), firstTelegramId + BigInt(index * 2 + 1)]
+    ));
+  }
+
+  const completedBase = new Date("2026-07-20T00:00:00.000Z");
+  for (const [index, session] of sessions.entries()) {
+    const completedAt = new Date(completedBase.getTime() + index);
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: {
+        status: "won",
+        stateJson: {
+          ...session.state,
+          status: "won",
+          enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+        },
+        resultJson: {
+          kind: "rewardless-proof",
+          outcome: index === malformedIndex ? "lost" : "won",
+          completedTurn: session.turn,
+          rewards: { xp: 0, gold: 0, items: [] }
+        },
+        completedAt,
+        terminalIntegrityCheckedAt: null,
+        updatedAt: completedAt
+      }
+    });
+  }
+  const sessionIds = sessions.map((session) => session.id);
+  await prisma.activeCombatLease.deleteMany({
+    where: { kind: "group-combat", referenceId: { in: sessionIds } }
+  });
+  await prisma.partySession.updateMany({
+    where: { id: { in: sessions.map((session) => session.partySessionId) } },
+    data: { status: "completed", activeLeaderKey: null }
+  });
+  await prisma.partyParticipant.updateMany({
+    where: { sessionId: { in: sessions.map((session) => session.partySessionId) } },
+    data: { activeMembershipKey: null }
+  });
+
+  return { sessions, malformed: sessions[malformedIndex]! };
 }
 
 async function startExistingPartyProof(

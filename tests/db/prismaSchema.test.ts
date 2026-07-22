@@ -47,10 +47,14 @@ describe("Prisma schema", () => {
     expect(schema).toContain("deliveryRevision Int");
     expect(schema).toContain("deliveredRevision Int");
     expect(schema).toContain("@@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])");
+    expect(schema).toContain("terminalIntegrityCheckedAt DateTime?");
+    expect(schema).toContain("@@index([status, terminalIntegrityCheckedAt, updatedAt, id])");
     expect(migration).toContain("group_combat_actions_session_id_turn_actor_character_id_key");
     expect(migration).toContain("group_combat_sessions_status_turn_expires_at_id_idx");
     expect(migration).toContain("delivery_revision");
     expect(migration).toContain("delivered_revision");
+    expect(migration).toContain("terminal_integrity_checked_at");
+    expect(migration).toContain("group_combat_sessions_status_terminal_integrity_checked_at_updated_at_id_idx");
   });
 
   it("represents DailyAction uniqueness for once-per-day rewards", () => {
