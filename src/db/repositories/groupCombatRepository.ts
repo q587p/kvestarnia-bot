@@ -74,11 +74,20 @@ export interface GroupCombatRepository {
   }): Promise<GroupCombatActionResult>;
 
   findByPartyInviteToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null>;
+  findById(sessionId: string): Promise<GroupCombatSessionRecord | null>;
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
 
   compareAndSetParticipantCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint;
+    messageId: number;
+  }): Promise<boolean>;
+
+  releaseParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;
     expectedReferenceVersion: number;

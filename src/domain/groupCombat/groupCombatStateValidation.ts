@@ -9,13 +9,14 @@ import {
 
 const nonNegativeInteger = z.number().int().min(0);
 const positiveInteger = z.number().int().positive();
+const integer = z.number().int();
 
 const actorSchema = z.object({
   characterId: z.string().min(1),
   telegramUserId: z.string().regex(/^\d+$/),
   name: z.string().min(1).max(93),
-  remortCount: nonNegativeInteger,
-  rosterOrder: nonNegativeInteger,
+  remortCount: integer,
+  rosterOrder: integer,
   hp: nonNegativeInteger,
   hpMax: positiveInteger,
   mana: nonNegativeInteger,
@@ -56,11 +57,17 @@ const stateSchema = z.object({
   deterministicSeed: nonNegativeInteger,
   status: z.enum(["active", "won", "lost", "invalid"]),
   turn: positiveInteger,
-  participants: z.array(actorSchema).min(2).max(3),
+  participants: z.array(actorSchema),
   enemies: z.array(enemySchema).min(2).max(3),
-  contributions: z.array(contributionSchema).min(2).max(3),
+  contributions: z.array(contributionSchema),
   recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT)
 }).strict().superRefine((state, context) => {
+  if (state.status !== "invalid" && (state.participants.length < 2 || state.participants.length > 3)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Live or resolved proof roster must contain two or three participants." });
+  }
+  if (state.status !== "invalid" && state.participants.some((row) => row.remortCount < 0 || row.rosterOrder < 0)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Live or resolved proof roster identity is invalid." });
+  }
   requireUnique(state.participants.map((row) => row.characterId), context, "participant character ids");
   requireUnique(state.participants.map((row) => row.telegramUserId), context, "participant Telegram ids");
   requireUnique(state.participants.map((row) => row.rosterOrder), context, "participant roster order");

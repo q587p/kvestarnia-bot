@@ -53,6 +53,7 @@ describe("group combat bot flow", () => {
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
       callbackQuery: { id: "callback-1", data: "unused" },
       api: { editMessageText } as unknown as Api,
       answerCallbackQuery
@@ -66,6 +67,7 @@ describe("group combat bot flow", () => {
       targetIndex: 1
     }, {
       findByToken,
+      findById: vi.fn().mockResolvedValue(session),
       submitAction
     } as unknown as GroupCombatService);
 
@@ -91,6 +93,7 @@ describe("group combat bot flow", () => {
     const api = { editMessageText, sendMessage } as unknown as Api;
 
     const delivered = await deliverGroupCombatCards(api, {
+      findById: vi.fn().mockResolvedValue(session),
       compareAndSetParticipantCard
     } as unknown as GroupCombatService, session);
 
@@ -101,6 +104,86 @@ describe("group combat bot flow", () => {
       expectedReferenceVersion: 1,
       messageId: 31
     }));
+  });
+
+  it("starts from a supergroup but publishes participant cards only to private DMs", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    session.participants = session.participants.map((participant, index) => ({
+      ...participant,
+      chatId: -100587n,
+      messageId: 70 + index
+    }));
+    const apiCalls: Array<{ method: string; chatId: number; replyMarkup: unknown }> = [];
+    let nextMessageId = 90;
+    const findById = vi.fn(() => Promise.resolve(session));
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find((row) => row.telegramUserId === input.telegramUserId)!;
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage" || method === "editMessageText") {
+        apiCalls.push({
+          method,
+          chatId: Number(payload.chat_id),
+          replyMarkup: payload.reply_markup
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: nextMessageId++, date: 0, chat: { id: Number(payload.chat_id), type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatDevCommand(bot, {
+      areDevHelpersEnabled: () => true,
+      startProof: vi.fn().mockResolvedValue({ state: "started", session }),
+      findById,
+      compareAndSetParticipantCard,
+      releaseParticipantCard: vi.fn()
+    } as unknown as GroupCombatService);
+
+    await bot.handleUpdate(groupCommandUpdate("/dev_group_combat proof-token-13"));
+
+    expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
+    expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId)).toEqual([1001, 1002]);
+    expect(apiCalls.filter((call) => call.method === "sendMessage")).toEqual([
+      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } }),
+      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } })
+    ]);
+    expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
+  });
+
+  it("rejects mutating group-combat callbacks from a supergroup", async () => {
+    const submitAction = vi.fn();
+    const findByToken = vi.fn();
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: -100587, type: "supergroup" },
+      callbackQuery: { id: "callback-public", data: "unused" },
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "action",
+      token: "proof-token-13",
+      turn: 1,
+      action: "guard",
+      targetIndex: 0
+    }, { findByToken, submitAction } as unknown as GroupCombatService);
+
+    expect(findByToken).not.toHaveBeenCalled();
+    expect(submitAction).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
   });
 });
 
@@ -192,6 +275,16 @@ function commandUpdate(text: string) {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       text,
       entities: [{ type: "bot_command" as const, offset: 0, length: text.split(" ")[0]!.length }]
+    }
+  };
+}
+
+function groupCommandUpdate(text: string) {
+  return {
+    ...commandUpdate(text),
+    message: {
+      ...commandUpdate(text).message,
+      chat: { id: -100587, type: "supergroup" as const, title: "Тестова ватага" }
     }
   };
 }

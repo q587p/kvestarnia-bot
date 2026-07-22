@@ -62,6 +62,10 @@ export class GroupCombatService {
     return this.options.enabled ? this.repository.findByPartyInviteToken(partyInviteToken) : Promise.resolve(null);
   }
 
+  findById(sessionId: string): Promise<GroupCombatSessionRecord | null> {
+    return this.options.enabled ? this.repository.findById(sessionId) : Promise.resolve(null);
+  }
+
   findActiveForTelegramUser(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null> {
     return this.options.enabled ? this.repository.findActiveByTelegramUserId(telegramUserId) : Promise.resolve(null);
   }
@@ -74,13 +78,17 @@ export class GroupCombatService {
     const ids = await this.repository.listDueSessionIds(now, limit);
     const resolved: GroupCombatSessionRecord[] = [];
     for (const sessionId of ids) {
-      const result = await this.repository.resolveTimedOutSession({
-        sessionId,
-        now,
-        nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
-      });
-      if ("session" in result) {
-        resolved.push(result.session);
+      try {
+        const result = await this.repository.resolveTimedOutSession({
+          sessionId,
+          now,
+          nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+        });
+        if ("session" in result) {
+          resolved.push(result.session);
+        }
+      } catch {
+        continue;
       }
     }
     return resolved;
@@ -98,5 +106,15 @@ export class GroupCombatService {
     messageId: number;
   }): Promise<boolean> {
     return this.repository.compareAndSetParticipantCard(input);
+  }
+
+  releaseParticipantCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint;
+    messageId: number;
+  }): Promise<boolean> {
+    return this.repository.releaseParticipantCard(input);
   }
 }

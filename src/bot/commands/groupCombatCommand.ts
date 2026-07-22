@@ -37,6 +37,13 @@ export async function handleGroupCombatCallback(
     await safeAnswerCallbackQuery(ctx, { text: "Квестарня не впізнала пригодника.", show_alert: true });
     return;
   }
+  if (ctx.chat?.type !== "private") {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Бойові кнопки ватаги працюють лише в особистій розмові з Квестарнею.",
+      show_alert: true
+    });
+    return;
+  }
   let session = await service.findByToken(callback.token);
   if (!session) {
     await safeAnswerCallbackQuery(ctx, { text: "Ця сутичка вже загубила слід.", show_alert: true });

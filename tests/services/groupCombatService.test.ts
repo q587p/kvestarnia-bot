@@ -59,10 +59,12 @@ function repositoryFixture() {
     submitActionForTelegramUser: submitAction,
     resolveTimedOutSession: vi.fn(),
     findByPartyInviteToken: vi.fn(),
+    findById: vi.fn(),
     findActiveByTelegramUserId: vi.fn(),
     listDueSessionIds: vi.fn(),
     repairInvalidOrOrphaned: vi.fn(),
-    compareAndSetParticipantCard: vi.fn()
+    compareAndSetParticipantCard: vi.fn(),
+    releaseParticipantCard: vi.fn()
   };
   return { repository, startProof, submitAction };
 }

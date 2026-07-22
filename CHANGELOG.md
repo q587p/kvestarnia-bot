@@ -16,10 +16,15 @@ This project follows a simple pre-1.0 versioning policy:
 - Added one canonical private card per participant with reference CAS, edit/replacement convergence, stale callback repair and post-commit Telegram delivery. The bounded timeout scheduler scans lean due ids and cannot run when the proof gate is closed.
 - Added the non-production `/dev_group_combat <party-token>` entry behind `GROUP_COMBAT_PROOF_ENABLED=false`. Production cannot enable, register, list or mutate through the command/callback surface even when the flag is set.
 
+### Fixed
+- Hardened the proof boundary so state participants, relational participants, current character lives, DB status/turn/rules/encounter, terminal results and participant-owned combat leases must agree exactly before manual or timeout resolution. Foreign/missing rows, malformed actions and wrong-participant leases now CAS-invalidate rewardlessly.
+- Made bounded repair cover malformed active cardinality and missing/malformed terminal results, isolate a corrupt due session from later healthy work, and release leases plus frozen timed statuses only after the successful terminal CAS.
+- Made participant-card delivery reload authoritative revisions under participant-scoped serialization. Private-DM references are the only reusable references; replacements are sent inert, CAS losers remain inert even if deletion fails, and group/supergroup callbacks cannot mutate the proof.
+
 ### Verification and compatibility
 - Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.
 - Added Prisma integration coverage for atomic start/failure, same-life leases, wrong-side/stale targets, duplicate last-action and action/timeout races, resource-free timeout, normal rewardless victory, malformed-state invalidation, orphan repair, restart/remort blocking and unchanged Character economy/resources.
-- Query-event fixtures record `30` statements for start, `16` for a queued action, `27` total for two concurrent duplicate last-action attempts, and `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
+- Query-event fixtures record `30` statements for start, `17` for a queued action, `29` total for two concurrent duplicate last-action attempts, and `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
 - No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior or lore change was added. Full class/race/item parity remains `0.4.1` scope.
 - Added a spoiler-light player-news entry about the group-combat foundation without claiming that its non-production proof is a playable production route.
 
