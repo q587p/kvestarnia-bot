@@ -183,6 +183,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       where: { partySession: { inviteToken: "group-start" } },
       data: { turnExpiresAt: new Date(NOW.getTime() - 1) }
     });
+    await new Promise<void>((resolve) => setImmediate(resolve));
     queries.length = 0;
     const ids = await repository.listDueSessionIds(NOW, 13);
     const dueQueries = queries.length;
