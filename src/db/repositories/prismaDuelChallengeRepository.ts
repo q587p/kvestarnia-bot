@@ -1,4 +1,5 @@
 import { Prisma, type Character, type CharacterEquipment, type PrismaClient } from "@prisma/client";
+import { TURN_BASED_DUEL_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import type {
   DuelChallengeRecord,
   DuelChallengeRepository,
@@ -698,7 +699,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       await tx.activeCombatLease.createMany({
         data: participantIds.map((characterId) => ({
           characterId,
-          kind: "turn-based-duel",
+          kind: TURN_BASED_DUEL_LEASE_KIND,
           referenceId: sessionId,
           createdAt: now,
           updatedAt: now
@@ -1078,7 +1079,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
               characterId: {
                 in: [current.challengerCharacterId, current.targetCharacterId]
               },
-              kind: "turn-based-duel",
+              kind: TURN_BASED_DUEL_LEASE_KIND,
               referenceId: sessionId
             }
           });
@@ -1259,7 +1260,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
         const repairLeases = await tx.activeCombatLease.findMany({
           where: {
-            kind: "turn-based-duel",
+            kind: TURN_BASED_DUEL_LEASE_KIND,
             referenceId: session.id
           }
         });
@@ -1288,7 +1289,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
     const leases = await this.prisma.activeCombatLease.findMany({
       where: {
-        kind: "turn-based-duel"
+        kind: TURN_BASED_DUEL_LEASE_KIND
       }
     });
     let removedOrphanLeases = 0;

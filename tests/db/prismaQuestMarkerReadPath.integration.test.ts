@@ -70,8 +70,8 @@ describe("complete quest-marker snapshot SQL budget", () => {
         raceId: "race.human",
         classId: "class.warrior",
         level: 13,
-        hpRegenAt: new Date("2026-07-22T00:00:00.000Z"),
-        manaRegenAt: new Date("2026-07-22T00:00:00.000Z"),
+        hpRegenAt: new Date("2100-01-01T00:00:00.000Z"),
+        manaRegenAt: new Date("2100-01-01T00:00:00.000Z"),
         statsJson: { strength: 6, dexterity: 6, intelligence: 6, charisma: 6, luck: 6 },
         updatedAt: new Date("2026-07-21T00:00:00.000Z")
       }

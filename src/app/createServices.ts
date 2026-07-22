@@ -22,6 +22,7 @@ import { FightService } from "../services/fightService";
 import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import { HeroService } from "../services/heroService";
+import { GroupCombatService } from "../services/groupCombatService";
 import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
@@ -215,6 +216,10 @@ export function createServices(
       repositories.dailyActions,
       repositories.huntContracts
     ),
+    groupCombat: new GroupCombatService(repositories.groupCombatSessions, {
+      enabled: nonProduction && config.groupCombatProofEnabled,
+      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled
+    }),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(

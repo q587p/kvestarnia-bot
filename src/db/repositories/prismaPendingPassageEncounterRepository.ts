@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { SOLO_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import type {
   ConsumedPendingPassageEncounterRecord,
   ConsumePendingPassageEncounterInput,
@@ -371,7 +372,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
       await tx.activeCombatLease.create({
         data: {
           characterId: encounter.characterId,
-          kind: "solo-combat",
+          kind: SOLO_COMBAT_LEASE_KIND,
           referenceId: session.id,
           createdAt: input.now,
           updatedAt: input.now

@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.0] - 12026-07-22 - Rewardless Party-vs-Many Proof
+
+### Added
+- Added a separate restart-safe `GroupCombatSession` runtime for one default-off, non-production 2–3 player versus 2–3 enemy proof encounter. It reuses an eligible current-life `PartySession` roster without widening `PartyBossSession` or changing existing combat balance.
+- Added strict versioned state/result validation, relational participant/action identities, one unique actor/turn action, explicit self/ally/enemy targets, deterministic resolution, resource-free timeout guard, bounded recap/contributions and an explicit `rewardless-proof` terminal result.
+- Added a central typed combat-lease owner registry. Group-combat start atomically freezes current-life resources, equipment and recoverable timed statuses with participant leases; restart/remort stay blocked, while terminal/invalid/orphan repair releases every recoverable lock and status.
+- Added one canonical private card per participant with reference CAS, edit/replacement convergence, stale callback repair and post-commit Telegram delivery. The bounded timeout scheduler scans lean due ids and cannot run when the proof gate is closed.
+- Added the non-production `/dev_group_combat <party-token>` entry behind `GROUP_COMBAT_PROOF_ENABLED=false`. Production cannot enable, register, list or mutate through the command/callback surface even when the flag is set.
+
+### Verification and compatibility
+- Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.
+- Added Prisma integration coverage for atomic start/failure, same-life leases, wrong-side/stale targets, duplicate last-action and action/timeout races, resource-free timeout, normal rewardless victory, malformed-state invalidation, orphan repair, restart/remort blocking and unchanged Character economy/resources.
+- Query-event fixtures record `30` statements for start, `16` for a queued action, `27` total for two concurrent duplicate last-action attempts, and `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
+- No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior, lore or player-news promise was added. Full class/race/item parity remains `0.4.1` scope.
+- Player news: intentionally unchanged because this default-off non-production proof has no player-facing surface.
+
 ## [0.3.17] - 12026-07-22 - Callback Read-Path Collapse
 
 ### Changed

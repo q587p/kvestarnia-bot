@@ -163,6 +163,7 @@ export function registerMainMenuKeyboard(
       includeDevReset: services.devReset.isEnabled(),
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+      includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
       includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
@@ -190,7 +191,7 @@ export function registerMainMenuKeyboard(
 
 type DevHelpServices = Pick<
   BotServices,
-  "devReset" | "devGrant" | "partySessions" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
 >;
 
 export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibility {
@@ -198,6 +199,7 @@ export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibilit
     includeDevReset: services.devReset.isEnabled(),
     includeDevGrant: services.devGrant?.isEnabled() ?? false,
     includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
+    includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
     includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
@@ -210,6 +212,7 @@ export function shouldIncludeAdminMainMenu(
   return services.devReset.isEnabled()
     || (services.devGrant?.isEnabled() ?? false)
     || (services.partySessions?.areDevHelpersEnabled() ?? false)
+    || (services.groupCombat?.areDevHelpersEnabled() ?? false)
     || (services.partyRaidChat?.areDevHelpersEnabled() ?? false)
     || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
     || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);

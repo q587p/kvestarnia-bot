@@ -14,6 +14,7 @@ import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChal
 import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTournamentRepository";
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
+import { PrismaGroupCombatRepository } from "../db/repositories/prismaGroupCombatRepository";
 import { HpRecoveryNotificationProducer } from "../db/repositories/hpRecoveryNotificationProducer";
 import { PrismaHpRecoveryNotificationRepository } from "../db/repositories/prismaHpRecoveryNotificationRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
@@ -69,6 +70,7 @@ export function createRepositories(
     duelTournaments: new PrismaDuelTournamentRepository(prisma),
     equipment: new PrismaEquipmentRepository(prisma, hpRecoveryProducer),
     huntContracts: new PrismaHuntContractRepository(prisma),
+    groupCombatSessions: new PrismaGroupCombatRepository(prisma),
     hpRecoveryNotifications: new PrismaHpRecoveryNotificationRepository(prisma, hpRecoveryProducer),
     inventory: new PrismaInventoryRepository(prisma),
     itemCraft: new PrismaItemCraftRepository(prisma),

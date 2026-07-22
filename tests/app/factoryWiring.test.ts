@@ -17,6 +17,7 @@ import { PrismaDevGrantRepository } from "../../src/db/repositories/prismaDevGra
 import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaDuelChallengeRepository";
 import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../../src/db/repositories/prismaHuntContractRepository";
+import { PrismaGroupCombatRepository } from "../../src/db/repositories/prismaGroupCombatRepository";
 import { PrismaInventoryRepository } from "../../src/db/repositories/prismaInventoryRepository";
 import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../../src/db/repositories/prismaKorchmaRoundPurchaseRepository";
@@ -44,6 +45,7 @@ import { DuelChallengeService } from "../../src/services/duelChallengeService";
 import { EquipmentService } from "../../src/services/equipmentService";
 import { FightService } from "../../src/services/fightService";
 import { HeroService } from "../../src/services/heroService";
+import { GroupCombatService } from "../../src/services/groupCombatService";
 import { HuntService } from "../../src/services/huntService";
 import { InventoryService } from "../../src/services/inventoryService";
 import { ItemTransferService } from "../../src/services/itemTransferService";
@@ -81,6 +83,7 @@ describe("application factory wiring", () => {
     expect(repositories.duelChallenges).toBeInstanceOf(PrismaDuelChallengeRepository);
     expect(repositories.equipment).toBeInstanceOf(PrismaEquipmentRepository);
     expect(repositories.huntContracts).toBeInstanceOf(PrismaHuntContractRepository);
+    expect(repositories.groupCombatSessions).toBeInstanceOf(PrismaGroupCombatRepository);
     expect(repositories.inventory).toBeInstanceOf(PrismaInventoryRepository);
     expect(repositories.itemTransfers).toBeInstanceOf(PrismaItemTransferRepository);
     expect(repositories.levelBarter).toBeInstanceOf(PrismaLevelBarterRepository);
@@ -117,6 +120,7 @@ describe("application factory wiring", () => {
     expect(services.fight).toBeInstanceOf(FightService);
     expect(services.hero).toBeInstanceOf(HeroService);
     expect(services.hunt).toBeInstanceOf(HuntService);
+    expect(services.groupCombat).toBeInstanceOf(GroupCombatService);
     expect(services.inventory).toBeInstanceOf(InventoryService);
     expect(services.itemTransfers).toBeInstanceOf(ItemTransferService);
     expect(services.levelBarter).toBeInstanceOf(LevelBarterService);
@@ -266,6 +270,17 @@ describe("application factory wiring", () => {
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
   });
 
+  it("keeps group combat disabled in production even when its proof flag is set", async () => {
+    const services = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      groupCombatProofEnabled: true
+    }));
+
+    expect(services.groupCombat.isEnabled()).toBe(false);
+    expect(services.groupCombat.areDevHelpersEnabled()).toBe(false);
+    await expect(services.groupCombat.startProof(42n, "proof-token-13")).resolves.toEqual({ state: "disabled" });
+  });
+
   it("keeps raid chat on the existing Big Barrel rollout and isolates the helper in production", async () => {
     const repositories = createRepositories({} as PrismaClient);
     expect(createServices(repositories, makeConfig({
@@ -316,6 +331,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     partySessionFoundationEnabled: false,
     partySessionDevHelpersEnabled: false,
     bigBarrelBrotherRaidEnabled: false,
+    groupCombatProofEnabled: false,
     ...overrides
   };
 }

@@ -119,6 +119,11 @@ describe("loadConfig", () => {
     expect(config.bigBarrelBrotherRaidEnabled).toBe(false);
   });
 
+  it("keeps the group-combat proof disabled unless explicitly flagged", () => {
+    expect(loadConfig(validEnv).groupCombatProofEnabled).toBe(false);
+    expect(loadConfig({ ...validEnv, GROUP_COMBAT_PROOF_ENABLED: "true" }).groupCombatProofEnabled).toBe(true);
+  });
+
   it("keeps tavern social games disabled by default", () => {
     const config = loadConfig(validEnv);
 

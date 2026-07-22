@@ -4,7 +4,7 @@ export interface BotCommandCatalogEntry {
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party" | "raid-chat" | "fighting-corner" | "hp-recovery";
+  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -220,6 +220,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "зібрати тимчасову ватагу локально",
     includeInMenu: false,
     devOnly: "party"
+  },
+  {
+    command: "dev_group_combat",
+    icon: "⚔️",
+    description: "запустити доказову сутичку 2–3 на 2–3",
+    includeInMenu: false,
+    devOnly: "group-combat"
   },
   {
     command: "dev_raid_chat",
@@ -500,6 +507,7 @@ export interface DevCommandVisibility {
   includeDevReset: boolean;
   includeDevGrant?: boolean;
   includePartySessions?: boolean;
+  includeGroupCombat?: boolean;
   includeRaidChat?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
@@ -530,6 +538,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
       return normalized.includeRaidChat;
     }
 
+    if (entry.devOnly === "group-combat") {
+      return normalized.includeGroupCombat;
+    }
+
     return entry.devOnly === "grant"
       ? normalized.includeDevGrant
       : normalized.includePartySessions;
@@ -556,6 +568,7 @@ function normalizeDevCommandVisibility(
       includeDevReset: visibility,
       includeDevGrant: visibility,
       includePartySessions: visibility,
+      includeGroupCombat: visibility,
       includeRaidChat: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
@@ -567,6 +580,7 @@ function normalizeDevCommandVisibility(
     includeDevReset: visibility.includeDevReset,
     includeDevGrant: visibility.includeDevGrant ?? false,
     includePartySessions: visibility.includePartySessions ?? false,
+    includeGroupCombat: visibility.includeGroupCombat ?? false,
     includeRaidChat: visibility.includeRaidChat ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,

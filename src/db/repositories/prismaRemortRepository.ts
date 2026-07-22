@@ -28,11 +28,13 @@ import {
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
+import {
+  getCombatLeaseOwnerDescriptor,
+  SOLO_COMBAT_LEASE_KIND
+} from "../../domain/combat/combatLeaseRegistry";
 
 type TxClient = Prisma.TransactionClient;
 type CharacterWithLocation = Character & { user: { lastSeenLocationId: string | null } };
-const SUPPORTED_REMORT_COMBAT_LEASE_KIND = "solo-combat";
-const PARTY_BOSS_COMBAT_LEASE_KIND = "party-boss";
 const TRAINING_DOPPELGANGER_COOLDOWN_KEY = "training.doppelganger.spar";
 const OUTGOING_POSTAL_CUSTODY_REMORT_REASON =
   "Спершу скасуйте відправлений пакунок або дочекайтеся відповіді чи завершення строку. Пошта не пускає манатки між життями.";
@@ -477,11 +479,8 @@ async function prepareActiveCombatForRemort(
     return { state: "ready" };
   }
 
-  if (lease.kind === PARTY_BOSS_COMBAT_LEASE_KIND) {
-    return { state: "locked" };
-  }
-
-  if (lease.kind !== SUPPORTED_REMORT_COMBAT_LEASE_KIND) {
+  const owner = getCombatLeaseOwnerDescriptor(lease.kind);
+  if (!owner || owner.remortPolicy === "block" || owner.kind !== SOLO_COMBAT_LEASE_KIND) {
     return { state: "locked" };
   }
 

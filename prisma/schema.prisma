@@ -81,6 +81,8 @@ model Character {
   tavernGameParticipants TavernGameParticipant[]
   partyBossActions PartyBossAction[]
   partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
+  groupCombatParticipants GroupCombatParticipant[]
+  groupCombatActions GroupCombatAction[]
   activeCombatLease ActiveCombatLease?
   hpRecoveryNotification HpRecoveryNotification?
   name      String
@@ -977,6 +979,7 @@ model PartySession {
   updatedAt           DateTime  @updatedAt @map("updated_at")
   participants        PartyParticipant[]
   bossSessions        PartyBossSession[]
+  groupCombatSession  GroupCombatSession?
   raidChatEntries        PartyRaidChatEntry[]
   raidChatComposeIntents PartyRaidChatComposeIntent[]
   raidChatAuthorStates   PartyRaidChatAuthorState[]
@@ -1173,6 +1176,70 @@ model PartyBossRound {
 
   @@unique([sessionId, turn])
   @@map("party_boss_rounds")
+}
+
+model GroupCombatSession {
+  id             String       @id @default(uuid())
+  partySessionId String       @unique @map("party_session_id")
+  partySession   PartySession @relation(fields: [partySessionId], references: [id], onDelete: Cascade)
+  encounterKey   String       @map("encounter_key")
+  rulesVersion   String       @map("rules_version")
+  status         String       @default("active")
+  turn           Int          @default(1)
+  version        Int          @default(1)
+  stateJson      Json         @map("state_json")
+  resultJson     Json?        @map("result_json")
+  turnExpiresAt  DateTime     @map("turn_expires_at")
+  completedAt    DateTime?    @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  participants   GroupCombatParticipant[]
+  actions        GroupCombatAction[]
+
+  @@index([status, turnExpiresAt, id])
+  @@map("group_combat_sessions")
+}
+
+model GroupCombatParticipant {
+  id               String             @id @default(uuid())
+  sessionId        String             @map("session_id")
+  session          GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  characterId      String             @map("character_id")
+  character        Character          @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  remortCount      Int                @map("remort_count")
+  rosterOrder      Int                @map("roster_order")
+  snapshotJson     Json               @map("snapshot_json")
+  contributionJson Json               @map("contribution_json")
+  chatId           BigInt?            @map("chat_id")
+  messageId        Int?               @map("message_id")
+  referenceVersion Int                @default(0) @map("reference_version")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@unique([sessionId, characterId])
+  @@unique([sessionId, rosterOrder])
+  @@index([characterId, sessionId])
+  @@map("group_combat_participants")
+}
+
+model GroupCombatAction {
+  id               String             @id @default(uuid())
+  sessionId        String             @map("session_id")
+  session          GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actorCharacterId String             @map("actor_character_id")
+  actor            Character          @relation(fields: [actorCharacterId], references: [id], onDelete: Cascade)
+  turn             Int
+  actionKey        String             @map("action_key")
+  targetKind       String             @map("target_kind")
+  targetId         String             @map("target_id")
+  origin           String
+  submittedAt      DateTime           @map("submitted_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  @@unique([sessionId, turn, actorCharacterId])
+  @@index([sessionId, turn])
+  @@index([actorCharacterId])
+  @@map("group_combat_actions")
 }
 
 model TavernGameSession {

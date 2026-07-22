@@ -170,6 +170,11 @@ describe("bot command catalog", () => {
       includeDevGrant: false,
       includePartySessions: true
     });
+    const groupCombatOnly = getHelpCommandEntries({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includeGroupCombat: true
+    });
     const hpRecoveryOnly = getHelpCommandEntries({
       includeDevReset: false,
       includeDevGrant: false,
@@ -204,6 +209,11 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_add_level")).toBe(true);
     expect(partyOnly.some((entry) => entry.command === "dev_party")).toBe(true);
     expect(partyOnly.some((entry) => entry.command === "dev_raid_chat")).toBe(false);
+    expect(groupCombatOnly.find((entry) => entry.command === "dev_group_combat")).toMatchObject({
+      icon: "⚔️",
+      includeInMenu: false
+    });
+    expect(groupCombatOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(raidChatOnly.find((entry) => entry.command === "dev_raid_chat")).toMatchObject({
       icon: "💬",
       includeInMenu: false
@@ -221,8 +231,13 @@ describe("bot command catalog", () => {
     expect(getTelegramMenuCommands({
       includeDevReset: true,
       includeDevGrant: true,
-      includePartySessions: true
+      includePartySessions: true,
+      includeGroupCombat: true
     }).some((entry) => entry.command === "dev_party")).toBe(false);
+    expect(getTelegramMenuCommands({
+      includeDevReset: true,
+      includeGroupCombat: true
+    }).some((entry) => entry.command === "dev_group_combat")).toBe(false);
 
     for (const command of [
       "dev_add_level",

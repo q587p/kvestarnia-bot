@@ -5,6 +5,11 @@ import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CombatState } from "../../domain/combat";
 import type { PartyBossState } from "../../domain/partyBoss/partyBoss";
 import type { TurnBasedDuelState } from "../../domain/duels/turnBasedDuel";
+import {
+  PARTY_BOSS_LEASE_KIND,
+  SOLO_COMBAT_LEASE_KIND,
+  TURN_BASED_DUEL_LEASE_KIND
+} from "../../domain/combat/combatLeaseRegistry";
 import { getLevelForXp } from "../../domain/progression/level";
 import type { CharacterRecord } from "./characterRepository";
 import type {
@@ -700,15 +705,15 @@ async function healActiveCombatForCharacter(
     return null;
   }
 
-  if (lease.kind === "solo-combat") {
+  if (lease.kind === SOLO_COMBAT_LEASE_KIND) {
     return healActiveSoloCombat(tx, lease.referenceId, amount);
   }
 
-  if (lease.kind === "party-boss") {
+  if (lease.kind === PARTY_BOSS_LEASE_KIND) {
     return healActivePartyBossCombat(tx, lease.referenceId, characterId, amount);
   }
 
-  if (lease.kind === "turn-based-duel") {
+  if (lease.kind === TURN_BASED_DUEL_LEASE_KIND) {
     return healActiveTurnBasedDuelCombat(tx, lease.referenceId, characterId, amount);
   }
 

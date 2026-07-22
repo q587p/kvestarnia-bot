@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { SOLO_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import type {
   CombatActionType,
   CombatCopiedEquipment,
@@ -704,7 +705,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       await tx.activeCombatLease.create({
         data: {
           characterId: character.id,
-          kind: "solo-combat",
+          kind: SOLO_COMBAT_LEASE_KIND,
           referenceId: session.id,
           createdAt: combatStartedAt ?? session.createdAt,
           updatedAt: combatStartedAt ?? session.createdAt
@@ -941,7 +942,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         where: { characterId: input.characterId },
         select: { kind: true, referenceId: true }
       });
-      if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== sessionId) {
+      if (!lease || lease.kind !== SOLO_COMBAT_LEASE_KIND || lease.referenceId !== sessionId) {
         return { outcome: "stale-turn", session: null };
       }
 
@@ -1124,7 +1125,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       return { state: "none" };
     }
 
-    if (lease.kind !== "solo-combat") {
+    if (lease.kind !== SOLO_COMBAT_LEASE_KIND) {
       return {
         state: "unsupported",
         kind: lease.kind,
@@ -1176,7 +1177,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     if (!characterId || !lease) {
       return { state: "none" };
     }
-    if (lease.kind !== "solo-combat") {
+    if (lease.kind !== SOLO_COMBAT_LEASE_KIND) {
       return { state: "unsupported", kind: lease.kind, referenceId: lease.referenceId };
     }
     const session = this.mapSoloCombatSessionRecord(markerSnapshot.activeCombatSession);
@@ -1534,7 +1535,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
         }
       });
 
-      if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== current.id) {
+      if (!lease || lease.kind !== SOLO_COMBAT_LEASE_KIND || lease.referenceId !== current.id) {
         return {
           outcome: "missing-mismatched-lease",
           session: this.mapSoloCombatSessionRecord(current)
@@ -2401,7 +2402,7 @@ async function validatePendingSettlementSubstep(
     }
   });
 
-  if (!lease || lease.kind !== "solo-combat" || lease.referenceId !== record.id) {
+  if (!lease || lease.kind !== SOLO_COMBAT_LEASE_KIND || lease.referenceId !== record.id) {
     return "version-changed";
   }
 
@@ -2424,7 +2425,7 @@ async function hasExactSoloCombatLease(
     }
   });
 
-  return lease?.kind === "solo-combat" && lease.referenceId === record.id;
+  return lease?.kind === SOLO_COMBAT_LEASE_KIND && lease.referenceId === record.id;
 }
 
 async function currentLifeMatchesExpected(
@@ -2883,7 +2884,7 @@ async function releaseSoloCombatLease(
 ): Promise<boolean> {
   const lease = await tx.activeCombatLease.findFirst({
     where: {
-      kind: "solo-combat",
+      kind: SOLO_COMBAT_LEASE_KIND,
       referenceId: input.sessionId
     },
     select: {

@@ -15,6 +15,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 - [`BIG_BARREL_BROTHER_GROUP_RAID_QA.md`](BIG_BARREL_BROTHER_GROUP_RAID_QA.md) — future Big Barrel Brother QA matrix if present.
 - [`varenyk-mancer-sated-support-qa.md`](varenyk-mancer-sated-support-qa.md) — compact manual Telegram checklist for `0.3.12` feeding, lazy sustain and durable combat pulses; results remain pending until actually run.
 - [`0.3.14-bard-inspiration-and-raid-lament-qa.md`](0.3.14-bard-inspiration-and-raid-lament-qa.md) — focused automated and pending manual Telegram checklist for Inspiration and Big Barrel Lament.
+- [`0.4.0-party-vs-many-proof-qa.md`](0.4.0-party-vs-many-proof-qa.md) — compact manual checklist for the default-off rewardless 2–3×2–3 group-combat proof; evidence remains pending until run with local accounts.
 
 ## Historical smoke records
 

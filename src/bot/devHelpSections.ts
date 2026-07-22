@@ -29,6 +29,7 @@ export function getDevHelpSections(
       summary: "сутички, рейди й гурт",
       commands: commands.filter((entry) =>
         entry.devOnly === "party"
+        || entry.devOnly === "group-combat"
         || entry.devOnly === "raid-chat"
         || entry.devOnly === "hp-recovery"
         || [
