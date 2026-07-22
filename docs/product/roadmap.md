@@ -70,9 +70,9 @@ state і canonical participant cards. Без XP, золота, манаток, �
 
 Live-стан перевірено `12026-07-22`: PR
 [`#184`](https://github.com/q587p/kvestarnia-bot/pull/184) відкрито до
-`main` із `codex/0.4.0-party-vs-many-proof` на `6f93d405`. Гілка
-запушена й локально активна, але `0.4.0` не змерджено, не випущено й не
-підтверджено як deployed.
+`main` із гілки `codex/0.4.0-party-vs-many-proof`. PR лишається
+open/unmerged; `0.4.0` не змерджено, не випущено й не підтверджено як
+deployed.
 
 ### 0.4.1 — Group combat hardening
 

@@ -360,11 +360,31 @@ Release-specific historical checklists and evidence live under
 - `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 
-## Що це ще не перевіряє
+## Межі поточного smoke
 
-- Persistent HP loss і смерть персонажа.
-- Магазини, продаж, обмін, crafting, consumable item actions і item-to-level exchange.
-- Групові raid rows.
-- Ґільдії, PvP, market і seasons.
+### Shipped і перевіряється безпосередньо тут
 
-Ці речі мають з’являтися окремими маленькими PR з власними tests і оновленням релевантних docs.
+- напої Шинку, включно з одноразовим споживанням eligible PvE-боєм;
+- продаж манаток у Шинку;
+- Дружня Скриня;
+- Munchkin-обмін манатки на рівень.
+
+### Shipped, але має окремі focused QA
+
+- Big Barrel group raid перевіряється за
+  [focused group-raid QA](../history/early-raid/big-barrel-brother-group-raid-qa.md);
+- raid chat перевіряється за
+  [`0.3.15` raid-chat QA](../qa/0.3.15-raid-chat-qa.md).
+
+Індекс поточних feature-specific пакетів:
+[`docs/qa/README.md`](../qa/README.md). Цей компактний smoke не дублює їхні
+повні concurrency, restart, replay і delivery matrices.
+
+### Поза поточним перевіреним покриттям або ще не shipped
+
+- persistent HP loss і смерть персонажа;
+- решта crafting та consumable-item покриття поза вже описаним Munchkin-обміном;
+- ґільдії, PvP, player markets і seasons.
+
+Наявність у цьому списку не змінює repository, deployment або rollout state;
+їх фіксують roadmap, version tasks, focused QA й release-state ledger.

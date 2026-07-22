@@ -15,6 +15,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 - [`../history/early-raid/big-barrel-brother-group-raid-qa.md`](../history/early-raid/big-barrel-brother-group-raid-qa.md) — historical Big Barrel group-raid QA matrix.
 - [`varenyk-mancer-sated-support-qa.md`](varenyk-mancer-sated-support-qa.md) — compact manual Telegram checklist for `0.3.12` feeding, lazy sustain and durable combat pulses; results remain pending until actually run.
 - [`0.3.14-bard-inspiration-and-raid-lament-qa.md`](0.3.14-bard-inspiration-and-raid-lament-qa.md) — focused automated and pending manual Telegram checklist for Inspiration and Big Barrel Lament.
+- [`0.3.15-raid-chat-qa.md`](0.3.15-raid-chat-qa.md) — focused raid-chat concurrency, restart, replay, delivery and terminal-retention QA package.
 
 ## Historical smoke records
 

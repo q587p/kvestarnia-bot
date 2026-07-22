@@ -34,10 +34,8 @@ The latest `origin/main` baseline verified on `12026-07-22` is
 
 Live GitHub state at that verification point:
 
-- PR [#184](https://github.com/q587p/kvestarnia-bot/pull/184) is open against
-  `main`, ready for review, and points to
-  `codex/0.4.0-party-vs-many-proof` at `6f93d405`.
-- The branch exists both locally and on `origin`.
+- PR [#184](https://github.com/q587p/kvestarnia-bot/pull/184) uses
+  `codex/0.4.0-party-vs-many-proof`, targets `main`, and remains open/unmerged.
 - This is active work, not a merged release or proof of production deployment.
 
 Do not edit the `0.4.0` task substance from repository-hygiene work.
