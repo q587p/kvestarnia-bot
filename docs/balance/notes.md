@@ -1,4 +1,4 @@
-﻿# Balance Notes
+# Balance Notes
 
 ## Балансова мета MVP
 MVP має бути веселим, не ідеально збалансованим. Але він не має ламатися від першого power user.
@@ -12,7 +12,7 @@ MVP має бути веселим, не ідеально збалансован
 
 `0.1.0` закриває Phase 1 як playable first loop, не як фінальний баланс. Поточна крива 1-13, persistent HP/мана, loot replay, Mantok Chest, Манчкін-скупник і перший `/remort` достатні для playtest-у, але числові пороги, win-rate, reward pacing, item pressure і prestige pacing мають лишатися предметом окремих `0.1.x` balance PR після реального smoke/playtest fallout.
 
-Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../phase2/UNSTABLE_BALANCE_PRINCIPLES.md).
+Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../history/phases/phase2/planning/unstable-balance-principles.md).
 
 `0.3.16` closes the PartyBoss class/race support parity gap. Existing support
 actions now apply their authored ally scope in group combat: Priest healing can

@@ -1,7 +1,11 @@
 # ADR-002: Explicit Composition Root and Runtime Lifecycle
 
-Status: Proposed for `0.2.2`  
+Status: Accepted and implemented in `0.2.2`
 Scope: application startup, dependency construction and shutdown
+
+Implementation note: `src/app/` owns repository/service construction and
+runtime lifecycle in the shipped `0.2.2` result. This status update records the
+outcome without changing the historical decision below.
 
 ## Context
 

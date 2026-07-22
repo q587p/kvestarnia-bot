@@ -13,13 +13,17 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 - [`hunt-journal-progress-plan.md`](hunt-journal-progress-plan.md) — hunt journal progress plan.
 - [`quest-contracts-backlog.md`](quest-contracts-backlog.md) — deferred quest contract planning.
 - [`tavern-social-games-backlog.md`](tavern-social-games-backlog.md) — legacy tavern social games backlog preserved separately from the shipped design doc.
-- [`next-implementation-backlog.md`](next-implementation-backlog.md) — old next-order backlog if kept for reference.
-- [`QUEST_OVERVIEW_ROUTE.md`](QUEST_OVERVIEW_ROUTE.md) — deferred `Квести` reply-button redesign if present.
-- [`ROGUE_REPUTATION_LOCATION_RISK.md`](ROGUE_REPUTATION_LOCATION_RISK.md) — deferred Rogue reputation consequences if present.
+- [`rogue-reputation-location-risk.md`](rogue-reputation-location-risk.md) — unresolved private Rogue reputation/location-risk direction.
+- [`old-altar-manatka-offerings.md`](old-altar-manatka-offerings.md) — unresolved irreversible offering follow-up.
+- [`old-root-grove-location.md`](old-root-grove-location.md) — optional future Old Altar location split.
+
+Consumed sequencing notes and shipped replacements live in
+[`../history/backlog/`](../history/backlog/).
 
 ## Task drafts
 
-Future task drafts belong in [`../tasks/`](../tasks/) with version-like names, not here. Keep this folder for idea banks and deferred scope, then promote a single focused task into `docs/tasks/` when it becomes active.
+Keep unresolved ideas here. Promote one accepted, bounded contract into
+`docs/tasks/` only when it becomes active.
 
 ## Rule
 

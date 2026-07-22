@@ -100,4 +100,4 @@ Detailed route: [PHASE1_CLOSEOUT_SMOKE.md](./closeout-smoke.md).
 
 - `0.1.0` should be merged as a release/docs/smoke closeout PR.
 - Do not hide gameplay changes inside closeout docs. If a blocker bug appears, make the smallest targeted fix and call it out separately.
-- After merge, new runtime feature work should start from the explicit `0.1.x` order in [NEXT_IMPLEMENTATION_BACKLOG.md](../../backlog/next-implementation-backlog.md), not from leftover `0.0.x` momentum.
+- After merge, new runtime feature work should start from the explicit `0.1.x` order in [NEXT_IMPLEMENTATION_BACKLOG.md](../backlog/next-implementation-backlog.md), not from leftover `0.0.x` momentum.

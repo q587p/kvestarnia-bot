@@ -6,7 +6,7 @@
 
 Робоча ідея: **малий корчемний рейд із вікном приєднання, списком учасників, 1-3 легкими діями та підсумком**. Це має стати однією з причин, чому бот корисний не лише в приватному чаті, а й у Telegram-групі.
 
-Status after `0.1.0`: це більше не перший Phase 2 runtime slice. Новий Phase 2 spine — [phase2/SOCIAL_COMBAT_PLAN.md](../../phase2/SOCIAL_COMBAT_PLAN.md): duel invites, result/rematch cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, and only then party combat / real raids. Цей документ лишається input-дизайном для later party/raid work.
+Status after `0.1.0`: це більше не перший Phase 2 runtime slice. Новий Phase 2 spine — [phase2/SOCIAL_COMBAT_PLAN.md](../phases/phase2/planning/social-combat-plan.md): duel invites, result/rematch cards, trading/gifting, combat variety, `/remort`, multi-enemy combat, and only then party combat / real raids. Цей документ лишається input-дизайном для later party/raid work.
 
 ## Чому це пасує Квестарні
 
@@ -277,7 +277,7 @@ XP: +12
 Goal: implement the first real group barrel hook for Квестарня without changing equipment behavior.
 
 Context:
-- Read `AGENTS.md`, `docs/history/early-raid/group-hook-design.md`, `docs/architecture/group-raid-session-notes.md`, `docs/backlog/social-actions-backlog.md`, `docs/design/game-design.md`, `docs/architecture/technical-plan.md`, `docs/architecture/security-and-fair-play.md`, `docs/design/content-style-guide.md`, and the current inventory/presence/tavern services.
+- Read `AGENTS.md`, `docs/history/early-raid/group-hook-design.md`, `docs/history/early-raid/group-raid-session-notes.md`, `docs/backlog/social-actions-backlog.md`, `docs/design/game-design.md`, `docs/architecture/technical-plan.md`, `docs/architecture/security-and-fair-play.md`, `docs/design/content-style-guide.md`, and the current inventory/presence/tavern services.
 
 Constraints:
 - Keep it small.

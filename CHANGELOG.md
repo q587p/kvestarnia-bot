@@ -58,7 +58,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Operations and documentation
 - Added the read-only `report:closed-alpha` command. It reads immutable `ActivityEvent` ledger rows only when both the occurrence is inside `[from, to)` and the row was recorded before `to`, so later backfills and character restart cannot rewrite a historical report. Exact acquisition, retention, first-day PvE, duel and party-funnel KPIs remain `null` where historical coverage is uncertified; separately named recorded-event counters remain available without pretending they are complete KPIs.
 - Added a truthful release-state ledger with target deployment, migration, flag, backup/restore, Telegram QA and observation gaps left as deferred rather than inferred.
-- Reconciled the 0.3.x closeout and 0.4.x party/guild cutline into canonical product, design, architecture and task docs. Preserved the complete source audit package under `docs/history/0.3x-to-0.4x-roadmap-audit-12026-07-20/`.
+- Reconciled the 0.3.x closeout and 0.4.x party/guild cutline into canonical product, design, architecture and task docs. Preserved the complete source audit package under `docs/history/audits/0.3x-to-0.4x-roadmap-12026-07-20/`.
 - Added one forward-only schema migration for the legacy terminal-leader backfill and append-only PartyBoss round history. Its unique session/turn constraint supplies the required lookup prefix without a redundant non-unique index. No production flag, dependency, quest, reward or new achievement definition was added. Lore needs no update because the change fixes existing combat support targeting and lifecycle safety rather than world canon.
 - Final repository verification passed 316 unit files / 3959 tests and 23 integration files / 552 tests, including the focused slot-filtered magical item-detail regression, all 56 PartyBoss reducer tests, and the five targeted simulation corridors. Target deployment, migration application, flags, backup/restore, Telegram QA and observation remain unverified.
 
@@ -725,7 +725,7 @@ Release status: active candidate in PR #158. An earlier-runtime partial Telegram
 - Hid Priest/Rogue class noncombat action buttons while the actor is already busy in combat or raid, stopped treating scene/adventure presence as a blocker, and replaced the old generic protocol blocker copy with clearer stale-callback explanations.
 - Added a `⚕️ Полікувати себе` shortcut to the hero card for eligible wounded Priests with mana, using the same guarded direct-heal callback.
 - Added a `✨ Благословити себе` shortcut to the hero card for eligible Priests when mana is enough and no active self-blessing or same-target repeat wait blocks the action.
-- Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/backlog/QUEST_OVERVIEW_ROUTE.md`.
+- Rendered the persistent main-menu quest button as `🗺️ Квести` without quest-marker suffixes; a future quest-overview route is tracked in `docs/history/backlog/quest-overview-route.md`.
 - Refreshed `📖 Перекази` class entries so every class names its combat ability, while Warrior, Bard, Rogue, Priest and Ranger also mention their shipped side class surfaces in separate paragraphs; race entries now also include their race combat ability as a second paragraph, and the manatky section now covers one-use combat/out-of-combat use plus narrow medical crafting.
 - Kept underdog combat wins with `+5..+7` level advantage in general/combat `📜 Хроніки Квестарні` rows but removed them from `⭐ Важливе`; only `+8` and higher underdog wins stay important for now, including historical rows already stored with high severity.
 
@@ -879,7 +879,7 @@ Release status: active candidate in PR #158. An earlier-runtime partial Telegram
 - Added rewardless table-game achievements for first completed game, first draw, win milestones and loss milestones, with live unlock notifications and durable recalculation from completed table rows.
 - Added config defaults for a 93-gold max stake and create cooldown; richer daily net-win enforcement remains follow-up, while the shipped hard runtime controls enforce max stake, one active stake session and create cooldown.
 - Added focused domain, service, config and Shynok callback coverage for resolver invariants, feature flags and compact Telegram callback data.
-- Added source task, design, balance, QA and Ukrainian copy docs under `docs/ai/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
+- Added source task, design, balance, QA and Ukrainian copy docs under `docs/tasks/`, `docs/design/`, `docs/balance/`, `docs/qa/` and `docs/content/`.
 
 ### Changed
 - The Korchma bar text and keyboard can show the table-games corner only when the new feature flags are enabled; default production behavior remains unchanged.
@@ -1501,7 +1501,7 @@ Release status: active candidate in PR #158. An earlier-runtime partial Telegram
 ### Changed
 - Marked the `0.1.x` Phase 2 Social Combat MVP line closed after this release unless an emergency hotfix is needed.
 - Moved safe gifting, later trading, multi-enemy combat, item tags/equipment, party/raids, tournament work, food, coffee and achievements into `0.2.x` or later planning.
-- Kept `docs/ai/prompts/safe-gifting-main-codex.md` as the next implementation prompt and `docs/tasks/0.2.0-safe-gifting-mvp.md` as the next versioned task.
+- Kept `docs/ai/prompts/archive/safe-gifting-main-codex.md` as the next implementation prompt and `docs/tasks/0.2.0-safe-gifting-mvp.md` as the next versioned task.
 - Bumped the package and lockfile version to `0.1.25` so `/version`, changelog and news agree.
 
 ### Unchanged

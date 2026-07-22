@@ -16,7 +16,7 @@ Use these docs when preparing Codex prompts, review prompts, integration prompts
 - [`prompts/second-codex-pr-review.md`](prompts/second-codex-pr-review.md) — read-only second Codex PR review prompt.
 - [`prompts/qa-only.md`](prompts/qa-only.md) — QA-only prompt.
 - [`prompts/local-runtime-troubleshooting.md`](prompts/local-runtime-troubleshooting.md) — local runtime troubleshooting prompt.
-- [`prompts/`](prompts/) — feature-specific implementation/review/release prompts.
+- [`prompts/`](prompts/) — reusable current implementation/review/release prompts.
 - [`prompts/archive/`](prompts/archive/) — old prompt packs kept for history, not default current-work prompts.
 
 ## Guardrails

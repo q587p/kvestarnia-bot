@@ -1,8 +1,17 @@
 ## Summary
 
 ## Version task
+- [ ] Versioned gameplay/runtime task — link:
+- [ ] N/A — unnumbered docs/repository-hygiene change
+
+## Change type
+- [ ] Gameplay/runtime
+- [ ] Docs/presentation
+- [ ] Unnumbered repository hygiene
 
 ## Gameplay impact
+- [ ] Player-visible gameplay changed — explain below
+- [ ] N/A — no gameplay/runtime behavior change
 
 ## Changed files
 
@@ -15,6 +24,9 @@
 - [ ] Not run — explain why
 
 ## Manual Telegram QA
+- [ ] Completed — record accounts/flows/results below
+- [ ] Pending or blocked — explain below
+- [ ] N/A — docs/repository hygiene only
 
 ## User-facing text checklist
 - [ ] Player-facing text is Ukrainian

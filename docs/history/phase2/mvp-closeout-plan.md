@@ -104,7 +104,7 @@ These do not block closeout:
 
 1. Accepted: Shynok release kept scope frozen, received review/follow-up hardening and merged as `0.1.24`.
 2. Accepted: `0.1.24` was deployed and the manual two-account regression audit/QA was accepted before closeout.
-3. Accepted: Phase 2 regression smoke is recorded in [PHASE2_CLOSEOUT_SMOKE.md](./closeout-smoke.md) and [tasks/phase2-regression-smoke.md](../../tasks/phase2-regression-smoke.md).
+3. Accepted: Phase 2 regression smoke is recorded in [PHASE2_CLOSEOUT_SMOKE.md](./closeout-smoke.md) and [tasks/phase2-regression-smoke.md](../evidence/manual-qa/phase2-regression-smoke.md).
 4. Current: implement `0.1.25 - Phase 2 MVP Closeout` as a release/docs/smoke task with no new gameplay.
 5. Next: merge/deploy the closeout, then start one fresh `0.2.0` thread.
 

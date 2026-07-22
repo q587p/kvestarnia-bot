@@ -33,8 +33,7 @@ The docs are organized by reader need and document role. Avoid adding one-off Ma
 - [`tasks/`](tasks/) — versioned task docs, active slice, shipped records and future task drafts.
 - [`backlog/`](backlog/) — deferred mechanics and idea banks that are not active implementation permission.
 - [`history/`](history/) — completed phase records, old planning packages and imported audits.
-- [`phase2/`](phase2/) — cohesive Phase 2 social-combat planning docs that are still useful as a package.
-- [`phase2-roadmap-audit/`](phase2-roadmap-audit/) and [`refactoring-audit/`](refactoring-audit/) — imported audit packages; keep package-local structure intact.
+- [`references/`](references/) — stable supporting references and source notes.
 
 ## Canonical source map
 
@@ -58,4 +57,6 @@ These docs should be updated when their topic changes. Paths below assume the ro
 
 ## Migration note
 
-During the root cleanup, old links such as `docs/design/game-design.md` or `../design/game-design.md` may exist in branches or historical prompts. Move files with `git mv`, then update every reference with `rg` before calling the docs PR complete. Historical/audit packages may keep old references when they intentionally describe old repository state, but active docs, `AGENTS.md`, root `README.md`, skills and prompts should point to the new paths.
+Move files with `git mv`, update references with `rg`, then run
+`npm run check:docs`. Historical prose may describe an old location, but every
+relative Markdown target must resolve with exact path case.

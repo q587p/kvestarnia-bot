@@ -111,6 +111,10 @@ After closing a versioned task:
 
 1. Plan briefly before editing code.
 2. Make small, reviewable diffs.
+2a. Do not wait more than 60 seconds for a small single-file edit. If an edit
+tool times out, stop it, verify the file state, and switch immediately to a safe
+alternative patch mechanism. Do not repeat multi-minute waits on the same
+small edit.
 3. Do not rewrite architecture unless the task requires it.
 4. Do not add production dependencies without a clear reason.
 5. Do not run global formatters on the whole repo unless explicitly requested.
