@@ -52,14 +52,15 @@ export function deliverGroupCombatParticipantCard(
   service: GroupCombatService,
   sessionId: string,
   participantCharacterId: string,
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean; forceReplacement?: boolean } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
   return deliverCanonicalGroupCombatParticipantCard({
     service,
     sessionId,
     participantCharacterId,
     transport: apiTransport(api),
-    ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh })
+    ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
+    ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement })
   });
 }
 
@@ -69,6 +70,7 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   participantCharacterId: string;
   transport: GroupCombatDeliveryTransport;
   forceRefresh?: boolean;
+  forceReplacement?: boolean;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   return withParticipantDeliveryLock(`${input.sessionId}:${input.participantCharacterId}`, () => (
     deliverCanonicalGroupCombatParticipantCardLocked(input)
@@ -81,6 +83,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   participantCharacterId: string;
   transport: GroupCombatDeliveryTransport;
   forceRefresh?: boolean;
+  forceReplacement?: boolean;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
   let participant = findParticipant(current, input.participantCharacterId);
@@ -89,7 +92,8 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   }
 
   let reference = privateReference(participant);
-  if (reference) {
+  const replacedReference = input.forceReplacement === true ? reference : null;
+  if (reference && input.forceReplacement !== true) {
     const edited = await editExistingReferenceUntilCurrent(input, reference, current, input.forceRefresh === true);
     if (edited.state !== "missing") {
       return edited;
@@ -155,6 +159,9 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   }
   const activated = await editExistingReferenceUntilCurrent(input, candidate, fresh, true);
   if (activated.state !== "missing") {
+    if (replacedReference && !sameReference(replacedReference, candidate)) {
+      await retirePreviousReference(input.transport, replacedReference, candidateCard).catch(() => undefined);
+    }
     return activated.state === "edited"
       ? { state: "activated", reference: activated.reference }
       : activated;
@@ -167,6 +174,21 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     messageId: candidate.messageId
   });
   return { state: "activation-failed", reference: null };
+}
+
+async function retirePreviousReference(
+  transport: GroupCombatDeliveryTransport,
+  reference: GroupCombatMessageReference,
+  card: ReturnType<typeof buildCard>
+): Promise<void> {
+  try {
+    await transport.deleteMessage(reference);
+  } catch {
+    await transport.editMessage(reference, card.text, {
+      ...card.options,
+      reply_markup: { inline_keyboard: [] }
+    });
+  }
 }
 
 type ExistingEditResult =

@@ -120,6 +120,75 @@ describe("group combat bot flow", () => {
     expect(editMessageText).toHaveBeenCalledTimes(2);
   });
 
+  it("rejects mutating buttons from a superseded card and refreshes the canonical reference", async () => {
+    const session = makeSession();
+    const submitAction = vi.fn();
+    const answerCallbackQuery = vi.fn((options?: { text?: string; show_alert?: boolean }) => {
+      void options;
+      return Promise.resolve(true);
+    });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-old-card",
+        data: "unused",
+        message: { message_id: 9, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "action",
+      token: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetIndex: 0
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService);
+
+    expect(submitAction).not.toHaveBeenCalled();
+    expect(answerCallbackQuery.mock.calls[0]?.[0]?.text).toContain("стара картка");
+    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+  });
+
+  it("opens the bounded terminal journal through the shared journal presenter", async () => {
+    const session = makeSession();
+    session.status = "won";
+    session.state.status = "won";
+    session.state.recap = [{ turn: 1, lines: ["Лідерка стає в захист."] }];
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: { id: "callback-journal", data: "unused" },
+      editMessageText,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "journal",
+      token: session.partyInviteToken,
+      page: 0
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session)
+    } as unknown as GroupCombatService);
+
+    expect(editMessageText).toHaveBeenCalledWith(
+      expect.stringContaining("Журнал доказової сутички"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(answerCallbackQuery).toHaveBeenCalled();
+  });
+
   it("repairs an unavailable canonical message after combat already committed", async () => {
     const session = makeSession();
     const sendMessage = vi.fn()

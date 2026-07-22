@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeGroupCombatActionCallbackData,
+  makeGroupCombatJournalCallbackData,
   parseGroupCombatCallbackData
 } from "../../src/bot/callbacks/groupCombatCallbackData";
 
@@ -16,6 +17,15 @@ describe("group combat callback data", () => {
     expect(parseGroupCombatCallbackData(data)).toEqual({
       ok: true,
       value: { type: "action", token: "proof-token-13", turn: 23, action: "aid", targetIndex: 2 }
+    });
+  });
+
+  it("round-trips a bounded journal page", () => {
+    const data = makeGroupCombatJournalCallbackData("proof-token-13", 4);
+
+    expect(parseGroupCombatCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "journal", token: "proof-token-13", page: 4 }
     });
   });
 

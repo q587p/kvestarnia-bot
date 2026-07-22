@@ -6,7 +6,7 @@ import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCo
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 
 describe("group-combat lock middleware", () => {
-  it("refreshes the recorded canonical private card without sending a duplicate active card", async () => {
+  it("resends a private command redirect as the sole latest canonical card", async () => {
     const session = activeSession();
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
@@ -15,11 +15,15 @@ describe("group-combat lock middleware", () => {
 
     await bot.handleUpdate(commandUpdate("private"));
 
-    expect(calls.edits).toEqual([expect.objectContaining({ chatId: 1001, messageId: 21 })]);
-    expect(calls.sends).toEqual([]);
+    expect(calls.sends).toEqual([expect.objectContaining({
+      chatId: 1001,
+      replyMarkup: { inline_keyboard: [] }
+    })]);
+    expect(calls.edits).toEqual([expect.objectContaining({ chatId: 1001, messageId: 93 })]);
+    expect(calls.deletes).toEqual([{ chatId: 1001, messageId: 21 }]);
     expect(markParticipantCardDelivered).toHaveBeenCalledWith(expect.objectContaining({
       chatId: 1001n,
-      messageId: 21,
+      messageId: 93,
       expectedDeliveryRevision: session.deliveryRevision
     }));
   });
@@ -49,6 +53,19 @@ function services(
     groupCombat: {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
+      compareAndSetParticipantCard: vi.fn().mockImplementation((input: {
+        telegramUserId: bigint;
+        chatId: bigint;
+        messageId: number;
+      }) => {
+        const participant = session.participants.find((row) => row.telegramUserId === input.telegramUserId)!;
+        participant.chatId = input.chatId;
+        participant.messageId = input.messageId;
+        participant.referenceVersion += 1;
+        participant.deliveredRevision = 0;
+        return Promise.resolve(true);
+      }),
+      releaseParticipantCard: vi.fn().mockResolvedValue(true),
       markParticipantCardDelivered
     } as unknown as GroupCombatService
   } as unknown as BotServices;
@@ -65,9 +82,11 @@ function testBot(middleware: Parameters<Bot["api"]["config"]["use"]>[0]): Bot {
 function apiCalls() {
   const edits: Array<{ chatId: number; messageId: number; text: string; replyMarkup: unknown }> = [];
   const sends: Array<{ chatId: number; text: string; replyMarkup: unknown }> = [];
+  const deletes: Array<{ chatId: number; messageId: number }> = [];
   return {
     edits,
     sends,
+    deletes,
     middleware: ((_prev, method, payload) => {
       if (method === "editMessageText") {
         edits.push({
@@ -88,6 +107,10 @@ function apiCalls() {
           ok: true,
           result: { message_id: 93, date: 0, chat: { id: Number(payload.chat_id), type: "private" } }
         });
+      }
+      if (method === "deleteMessage") {
+        deletes.push({ chatId: Number(payload.chat_id), messageId: Number(payload.message_id) });
+        return Promise.resolve({ ok: true, result: true });
       }
       return Promise.resolve({ ok: true, result: true });
     }) as Parameters<Bot["api"]["config"]["use"]>[0]

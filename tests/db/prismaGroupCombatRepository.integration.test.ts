@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaGroupCombatRepository } from "../../src/db/repositories/prismaGroupCombatRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
@@ -14,7 +14,7 @@ import { GroupCombatService } from "../../src/services/groupCombatService";
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_BUDGETS = {
   start: 30,
-  queue: 18,
+  queue: 19,
   resolve: 35,
   dueScan: 1
 } as const;
@@ -128,7 +128,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toBe(1);
   });
 
-  it("rejects wrong-side and stale targets without writes, then resolves a duplicate last-action race once", async () => {
+  it("rejects invalid and full-health aid targets, replaces a queued choice, then resolves a duplicate last-action race once", async () => {
     const session = await repository.findByPartyInviteToken("group-start");
     expect(session).not.toBeNull();
     const initial = session!;
@@ -149,6 +149,24 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(invalid.state).toBe("invalid-target");
     expect(await prisma.groupCombatAction.count()).toBe(beforeActions);
 
+    initial.state.participants[1]!.hp = initial.state.participants[1]!.hpMax;
+    await prisma.groupCombatSession.update({
+      where: { id: initial.id },
+      data: { stateJson: initial.state as unknown as Prisma.InputJsonValue }
+    });
+    const fullHealthAid = await repository.submitActionForTelegramUser({
+      telegramUserId: leader.telegramUserId,
+      partyInviteToken: initial.partyInviteToken,
+      turn: initial.turn,
+      action: "aid",
+      targetKind: "ally",
+      targetId: joiner.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(fullHealthAid.state).toBe("invalid-target");
+    expect(await prisma.groupCombatAction.count()).toBe(beforeActions);
+
     queries.length = 0;
     const queued = await repository.submitActionForTelegramUser({
       telegramUserId: leader.telegramUserId,
@@ -167,6 +185,37 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect("session" in queued ? queued.session.version : null).toBe(initial.version);
     expect("session" in queued ? queued.session.deliveryRevision : null).toBe(initial.deliveryRevision + 1);
     expect("session" in queued ? queued.session.deliveryPending : null).toBe(true);
+
+    const replaced = await repository.submitActionForTelegramUser({
+      telegramUserId: leader.telegramUserId,
+      partyInviteToken: initial.partyInviteToken,
+      turn: initial.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: leader.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(replaced.state).toBe("replaced");
+    expect("session" in replaced ? replaced.session.deliveryRevision : null).toBe(initial.deliveryRevision + 2);
+    expect(await prisma.groupCombatAction.findFirst({
+      where: { sessionId: initial.id, turn: initial.turn, actorCharacterId: leader.characterId },
+      select: { actionKey: true, targetKind: true, targetId: true }
+    })).toEqual({ actionKey: "guard", targetKind: "self", targetId: leader.characterId });
+
+    const duplicateReplacement = await repository.submitActionForTelegramUser({
+      telegramUserId: leader.telegramUserId,
+      partyInviteToken: initial.partyInviteToken,
+      turn: initial.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: leader.characterId,
+      now: new Date(NOW.getTime() + 2),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(duplicateReplacement.state).toBe("duplicate");
+    expect("session" in duplicateReplacement ? duplicateReplacement.session.deliveryRevision : null)
+      .toBe(initial.deliveryRevision + 2);
 
     const submitLast = () => repository.submitActionForTelegramUser({
       telegramUserId: joiner.telegramUserId,

@@ -161,7 +161,11 @@ export function validateGroupCombatAction(
     return action.targetKind === "self" && action.targetId === actor.characterId ? "ok" : "invalid-target";
   }
   return action.targetKind === "ally" && state.participants.some(
-    (target) => target.characterId === action.targetId && target.characterId !== actor.characterId && target.hp > 0
+    (target) =>
+      target.characterId === action.targetId &&
+      target.characterId !== actor.characterId &&
+      target.hp > 0 &&
+      target.hp < target.hpMax
   )
     ? "ok"
     : "invalid-target";
@@ -224,7 +228,9 @@ export function resolveGroupCombatTurn(
       const healed = Math.min(target.hpMax - target.hp, Math.max(1, Math.floor(actor.support / 2)));
       target.hp += healed;
       contribution.healing += healed;
-      lines.push(`${actor.name} підтримує ${target.name}: +${healed} HP.`);
+      lines.push(healed > 0
+        ? `${actor.name} підтримує ${target.name}: +${healed} HP.`
+        : `${actor.name} підстраховує ${target.name}, але лікувати вже нічого.`);
     }
   }
 

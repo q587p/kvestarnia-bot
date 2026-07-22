@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
-import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
-import { presentGroupCombat } from "../../src/bot/presenters/groupCombatPresenter";
+import {
+  buildGroupCombatJournalKeyboard,
+  buildGroupCombatKeyboard
+} from "../../src/bot/keyboards/groupCombatKeyboard";
+import {
+  presentGroupCombat,
+  presentGroupCombatJournal
+} from "../../src/bot/presenters/groupCombatPresenter";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 
@@ -65,11 +71,14 @@ describe("group combat presenter", () => {
 
     expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
     expect(text).toContain("⏳ На хід є 23 секунди. Потім Корчма поставить мовчунів у захист.");
+    expect(text).toContain("\n\n<b>Пригодник із довгим ім’ям 1</b>, що робимо?");
     expect(text.length).toBeLessThan(4_096);
   });
 
   it("groups exact-target actions into compact two-button rows", () => {
     const session = createSession(3);
+    session.state.participants[1]!.hp -= 1;
+    session.state.participants[2]!.hp -= 1;
 
     const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
 
@@ -85,7 +94,24 @@ describe("group combat presenter", () => {
     ]);
   });
 
-  it("keeps a queued participant card compact and inert", () => {
+  it("hides aid for full-health allies and exposes it after damage", () => {
+    const session = createSession(2);
+
+    const fullHealthLabels = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard.flat().map((button) => button.text);
+    session.state.participants[1]!.hp -= 1;
+    const injuredLabels = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard.flat().map((button) => button.text);
+
+    expect(fullHealthLabels).not.toContain("🫶 Пригодник 2");
+    expect(injuredLabels).toContain("🫶 Пригодник 2");
+  });
+
+  it("keeps action controls available so a queued choice can be changed", () => {
     const session = createSession(2);
     session.queuedActions = [{
       turn: session.turn,
@@ -98,9 +124,36 @@ describe("group combat presenter", () => {
     const text = presentGroupCombat(session, session.participants[0]!.characterId);
     const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
 
-    expect(text).toContain("ваш вибір записано. Чекаємо на решту ватаги.");
+    expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
     expect(text).not.toContain("На хід є 23 секунди");
-    expect(rows.map((row) => row.map((button) => button.text))).toEqual([["🔎 Оновити"]]);
+    expect(rows.flat().map((button) => button.text)).toEqual([
+      "⚔️ Комірний Шурхіт 1",
+      "⚔️ Комірний Шурхіт 2",
+      "🛡️ Захиститися",
+      "🔎 Оновити"
+    ]);
+  });
+
+  it("opens the shared bounded battle journal and returns to terminal results", () => {
+    const session = createSession(2);
+    session.status = "won";
+    session.state.status = "won";
+    session.state.recap = [
+      { turn: 1, lines: ["Пригодник 1 стає в захист."] },
+      { turn: 2, lines: ["Пригодник 2 б’є Комірний Шурхіт 1 на 3."] }
+    ];
+
+    const text = presentGroupCombatJournal(session, 1);
+    const resultLabels = buildGroupCombatKeyboard(session, session.participants[0]!.characterId)
+      .inline_keyboard.flat().map((button) => button.text);
+    const journalLabels = buildGroupCombatJournalKeyboard(session, 1)
+      .inline_keyboard.flat().map((button) => button.text);
+
+    expect(text).toContain("📜 <b>Журнал доказової сутички</b>");
+    expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("Пригодник 2 б’є Комірний Шурхіт 1 на 3.");
+    expect(resultLabels).toContain("📜 Журнал");
+    expect(journalLabels).toContain("↩️ До результатів");
   });
 });
 

@@ -50,7 +50,7 @@ export type GroupCombatStartResult =
 
 export type GroupCombatActionResult =
   | { state: "disabled" | "no-character" | "not-found" | "not-participant" | "stale" | "actor-unavailable" | "invalid-target" | "invalidated" }
-  | { state: "queued" | "duplicate" | "resolved" | "terminal"; session: GroupCombatSessionRecord };
+  | { state: "queued" | "replaced" | "duplicate" | "resolved" | "terminal"; session: GroupCombatSessionRecord };
 
 export interface GroupCombatRepository {
   startProofForTelegramUser(input: {

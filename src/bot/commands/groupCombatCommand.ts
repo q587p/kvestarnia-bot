@@ -2,8 +2,11 @@ import type { Bot, Context } from "grammy";
 import type { GroupCombatCallback } from "../callbacks/groupCombatCallbackData";
 import type { GroupCombatService } from "../../services/groupCombatService";
 import { deliverGroupCombatCards } from "../groupCombatCardDelivery";
+import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
+import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
+import { safeEditMessageText } from "../safeEditMessageText";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PARTY_CODE_HELP = [
@@ -54,12 +57,36 @@ export async function handleGroupCombatCallback(
     await safeAnswerCallbackQuery(ctx, { text: "Ця сутичка вже загубила слід.", show_alert: true });
     return;
   }
-  if (callback.type === "action") {
-    const viewer = session.participants.find((participant) => participant.telegramUserId === telegramUserId);
-    if (!viewer) {
-      await safeAnswerCallbackQuery(ctx, { text: "Вас немає в цій ватазі.", show_alert: true });
+  const viewer = session.participants.find((participant) => participant.telegramUserId === telegramUserId);
+  if (!viewer) {
+    await safeAnswerCallbackQuery(ctx, { text: "Вас немає в цій ватазі.", show_alert: true });
+    return;
+  }
+  const callbackMessageId = ctx.callbackQuery?.message?.message_id;
+  if (
+    callback.type === "action" &&
+    callbackMessageId !== undefined &&
+    viewer.messageId !== null &&
+    callbackMessageId !== viewer.messageId
+  ) {
+    await safeAnswerCallbackQuery(ctx, { text: "Це стара картка. Показую актуальну.", show_alert: true });
+    await deliverGroupCombatCards(ctx.api, service, session);
+    return;
+  }
+  if (callback.type === "journal") {
+    if (session.status === "active") {
+      await safeAnswerCallbackQuery(ctx, { text: "Журнал відкриється після завершення сутички.", show_alert: true });
+      await deliverGroupCombatCards(ctx.api, service, session);
       return;
     }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGroupCombatJournal(session, callback.page), {
+      parse_mode: "HTML",
+      reply_markup: buildGroupCombatJournalKeyboard(session, callback.page)
+    });
+    return;
+  }
+  if (callback.type === "action") {
     const target = resolveTarget(session, viewer.characterId, callback.action, callback.targetIndex);
     if (!target) {
       await safeAnswerCallbackQuery(ctx, { text: "Ціль уже не годиться. Оновлюю картку.", show_alert: true });
@@ -94,6 +121,8 @@ function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submi
   switch (state) {
     case "queued":
       return { text: "Вибір записано." };
+    case "replaced":
+      return { text: "Вибір змінено." };
     case "duplicate":
       return { text: "Цей вибір уже записано." };
     case "resolved":
@@ -133,7 +162,9 @@ function resolveTarget(
     return viewer?.hp ? { kind: "self", id: viewer.characterId } : null;
   }
   const target = session.state.participants[targetIndex];
-  return target?.hp && target.characterId !== viewerCharacterId ? { kind: "ally", id: target.characterId } : null;
+  return target?.hp && target.hp < target.hpMax && target.characterId !== viewerCharacterId
+    ? { kind: "ally", id: target.characterId }
+    : null;
 }
 
 function readCommandToken(text: string | undefined): string | null {

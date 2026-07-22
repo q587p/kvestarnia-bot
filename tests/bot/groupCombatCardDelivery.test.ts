@@ -116,7 +116,57 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits).not.toContain(31);
   });
 
-  it("cannot let an older edit restore action buttons after a queued-action revision commits", async () => {
+  it("promotes a replacement card to the latest message and retires the previous canonical reference", async () => {
+    const session = makeSession();
+    const oldReference = { chatId: 1001n, messageId: 21 };
+    const edits: Array<{ messageId: number; buttons: string[] }> = [];
+    const deleteMessage = vi.fn().mockResolvedValue(undefined);
+    const sendInertMessage = vi.fn().mockResolvedValue(93);
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: (reference, _text, options) => {
+        edits.push({
+          messageId: reference.messageId,
+          buttons: options.reply_markup.inline_keyboard.flat().map((button) => button.text)
+        });
+        return Promise.resolve();
+      },
+      sendInertMessage,
+      deleteMessage
+    };
+    const service = {
+      findById: vi.fn(() => Promise.resolve(session)),
+      compareAndSetParticipantCard: vi.fn().mockImplementation(() => {
+        const participant = session.participants[0]!;
+        participant.chatId = 1001n;
+        participant.messageId = 93;
+        participant.referenceVersion += 1;
+        participant.deliveredRevision = 0;
+        return Promise.resolve(true);
+      }),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    const result = await deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    });
+
+    expect(result).toMatchObject({ state: "activated", reference: { chatId: 1001n, messageId: 93 } });
+    expect(sendInertMessage).toHaveBeenCalledWith(
+      1001n,
+      expect.any(String),
+      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+    );
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.messageId).toBe(93);
+    expect(edits[0]?.buttons.some((button) => button.includes("Шурхіт"))).toBe(true);
+    expect(deleteMessage).toHaveBeenCalledWith(oldReference);
+  });
+
+  it("cannot let an older edit hide the latest replaceable queued-action plan", async () => {
     const beforeQueue = makeSession({ deliveryRevision: 1 });
     const afterQueue = makeSession({
       deliveryRevision: 2,
@@ -133,14 +183,16 @@ describe("group-combat canonical participant delivery", () => {
     const firstEditStarted = deferred<void>();
     const releaseFirstEdit = deferred<void>();
     const keyboards: string[][] = [];
+    const texts: string[] = [];
     let editCount = 0;
     const transport: GroupCombatDeliveryTransport = {
-      editMessage: async (_reference, _text, options) => {
+      editMessage: async (_reference, text, options) => {
         editCount += 1;
         if (editCount === 1) {
           firstEditStarted.resolve();
           await releaseFirstEdit.promise;
         }
+        texts.push(text);
         keyboards.push(options.reply_markup.inline_keyboard.flat().map((button) => button.text));
       },
       sendInertMessage: () => Promise.resolve(null),
@@ -163,7 +215,8 @@ describe("group-combat canonical participant delivery", () => {
 
     await expect(delivery).resolves.toMatchObject({ state: "edited" });
     expect(keyboards[0]).toEqual(expect.arrayContaining([expect.stringContaining("Шурхіт")]));
-    expect(keyboards.at(-1)).toEqual(["🔎 Оновити"]);
+    expect(keyboards.at(-1)).toEqual(expect.arrayContaining([expect.stringContaining("Шурхіт")]));
+    expect(texts.at(-1)).toContain("вибір записано: захиститися");
     expect(afterQueue.version).toBe(beforeQueue.version);
     expect(afterQueue.status).toBe(beforeQueue.status);
     expect(afterQueue.turn).toBe(beforeQueue.turn);

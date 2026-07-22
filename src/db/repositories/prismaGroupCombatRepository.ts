@@ -342,13 +342,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return { state: validation };
       }
 
-      let duplicate = false;
-      try {
-        await tx.groupCombatAction.create({
-          data: {
+      const existingAction = await tx.groupCombatAction.findUnique({
+        where: {
+          sessionId_turn_actorCharacterId: {
             sessionId: row.id,
-            actorCharacterId: actor.id,
             turn: input.turn,
+            actorCharacterId: actor.id
+          }
+        }
+      });
+      let writeState: "queued" | "replaced" | "duplicate" = existingAction
+        ? existingAction.actionKey === input.action &&
+          existingAction.targetKind === input.targetKind &&
+          existingAction.targetId === input.targetId
+          ? "duplicate"
+          : "replaced"
+        : "queued";
+      if (writeState === "queued") {
+        try {
+          await tx.groupCombatAction.create({
+            data: {
+              sessionId: row.id,
+              actorCharacterId: actor.id,
+              turn: input.turn,
+              actionKey: input.action,
+              targetKind: input.targetKind,
+              targetId: input.targetId,
+              origin: "manual",
+              submittedAt: input.now
+            }
+          });
+        } catch (error) {
+          if (!isUniqueConflict(error)) {
+            throw error;
+          }
+          writeState = "duplicate";
+        }
+      } else if (writeState === "replaced") {
+        await tx.groupCombatAction.update({
+          where: { id: existingAction!.id },
+          data: {
             actionKey: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
@@ -356,17 +389,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             submittedAt: input.now
           }
         });
-      } catch (error) {
-        if (!isUniqueConflict(error)) {
-          throw error;
-        }
-        duplicate = true;
       }
       const result = await resolveIfReady(tx, row, state, input.now, input.nextTurnExpiresAt);
       if (result) {
         return result;
       }
-      if (!duplicate) {
+      if (writeState !== "duplicate") {
         const delivery = await tx.groupCombatSession.updateMany({
           where: { id: row.id, status: "active", turn: row.turn, version: row.version },
           data: {
@@ -383,7 +411,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         }
       }
       const session = await loadSession(tx, row.id);
-      return session ? { state: duplicate ? "duplicate" : "queued", session } : { state: "not-found" };
+      return session ? { state: writeState, session } : { state: "not-found" };
     });
   }
 

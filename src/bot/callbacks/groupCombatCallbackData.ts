@@ -4,6 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GroupCombatCallback =
   | { type: "view"; token: string }
+  | { type: "journal"; token: string; page: number }
   | { type: "action"; token: string; turn: number; action: GroupCombatActionKey; targetIndex: number };
 
 type GroupCombatCallbackError = "invalid" | "too-long";
@@ -11,6 +12,10 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 
 export function makeGroupCombatViewCallbackData(token: string): string {
   return `v1:gc:v:${token}`;
+}
+
+export function makeGroupCombatJournalCallbackData(token: string, page: number): string {
+  return `v1:gc:j:${token}:${Math.max(0, Math.floor(page)).toString(36)}`;
 }
 
 export function makeGroupCombatActionCallbackData(input: {
@@ -35,6 +40,10 @@ export function parseGroupCombatCallbackData(
   const token = parts[3]!;
   if (parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });
+  }
+  if (parts[2] === "j" && parts.length === 5) {
+    const page = parseBase36(parts[4], true);
+    return page === null ? err("invalid") : ok({ type: "journal", token, page });
   }
   if (parts[2] !== "a" || parts.length !== 7) {
     return err("invalid");

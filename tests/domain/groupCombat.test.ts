@@ -34,6 +34,9 @@ describe("group combat proof reducer", () => {
     expect(validateGroupCombatAction(state, action(state, 0, "attack", "enemy", state.enemies[0]!.id))).toBe("ok");
     expect(validateGroupCombatAction(state, action(state, 0, "attack", "ally", state.participants[1]!.characterId))).toBe("invalid-target");
     expect(validateGroupCombatAction(state, action(state, 0, "aid", "ally", state.participants[0]!.characterId))).toBe("invalid-target");
+    expect(validateGroupCombatAction(state, action(state, 0, "aid", "ally", state.participants[1]!.characterId))).toBe("invalid-target");
+    state.participants[1]!.hp -= 1;
+    expect(validateGroupCombatAction(state, action(state, 0, "aid", "ally", state.participants[1]!.characterId))).toBe("ok");
     expect(validateGroupCombatAction(state, action(state, 0, "guard", "self", state.participants[1]!.characterId))).toBe("invalid-target");
     state.enemies[0]!.hp = 0;
     expect(validateGroupCombatAction(state, action(state, 0, "attack", "enemy", state.enemies[0]!.id))).toBe("invalid-target");
@@ -42,6 +45,7 @@ describe("group combat proof reducer", () => {
 
   it("fills a missing actor with resource-free self guard and resolves deterministically", () => {
     const first = proofState(3);
+    first.participants[2]!.hp -= 4;
     const second = structuredClone(first);
     const actions = [
       action(first, 0, "attack", "enemy", first.enemies[0]!.id),
@@ -54,6 +58,21 @@ describe("group combat proof reducer", () => {
     expect(resolved.state.contributions[2]?.guardedTurns).toBe(1);
     expect(resolved.state.participants[2]?.mana).toBe(first.participants[2]?.mana);
     expect(resolved.state.recap[0]?.lines).toContain(`${first.participants[2]!.name} мовчить і стає в захист.`);
+  });
+
+  it("never reports zero healing when concurrent aid already filled the target", () => {
+    const state = proofState(3);
+    state.participants[2]!.hp -= 1;
+    const resolution = resolveGroupCombatTurn(state, [
+      action(state, 0, "aid", "ally", state.participants[2]!.characterId),
+      action(state, 1, "aid", "ally", state.participants[2]!.characterId),
+      action(state, 2, "guard", "self", state.participants[2]!.characterId)
+    ]);
+
+    expect(resolution.state.recap[0]?.lines.join("\n")).not.toContain("+0 HP");
+    expect(resolution.state.recap[0]?.lines).toContain(
+      `${state.participants[1]!.name} підстраховує ${state.participants[2]!.name}, але лікувати вже нічого.`
+    );
   });
 
   it("keeps a 3x3 twenty-five-turn simulation and terminal payload bounded and rewardless", () => {
