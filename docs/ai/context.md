@@ -19,7 +19,10 @@
   a new latest card. An ambiguous activation error keeps that candidate
   canonical and pending while the previous card remains inert; confirmed
   unavailability may safely restore the previous reference. Cards are
-  private-DM, monotonic and repairable. Terminal output changes no Character resources,
+  private-DM, monotonic and repairable. Marker-bracketed query evidence keeps
+  start/queue/single-resolve/due budgets deterministic at `30/20/22/1`; the
+  concurrent duplicate-final pair is a separate `31`-statement observation.
+  Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
   availability, deployment and manual Telegram QA remain unproven. Local QA
   creates a fresh `/dev_party` and passes only the invite suffix after `party_`

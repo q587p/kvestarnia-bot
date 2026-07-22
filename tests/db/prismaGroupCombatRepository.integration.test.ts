@@ -12,13 +12,16 @@ import {
 import { GroupCombatService } from "../../src/services/groupCombatService";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
+const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
   start: 30,
   queue: 20,
-  resolve: 35,
+  singleResolve: 35,
   dueScan: 1
 } as const;
-const actualQueryCounts: Partial<Record<keyof typeof QUERY_BUDGETS, number>> = {};
+type QueryObservation = keyof typeof QUERY_BUDGETS | "concurrentPair";
+const actualQueryCounts: Partial<Record<QueryObservation, number>> = {};
+let queryEventBarrierSequence = 0;
 
 describe("PrismaGroupCombatRepository integration", () => {
   let dir: string;
@@ -47,14 +50,14 @@ describe("PrismaGroupCombatRepository integration", () => {
   it("atomically starts 2x2, freezes the same-life roster, and blocks partial invalid starts", async () => {
     await seedParty(prisma, "group-start", [1101n, 1102n]);
     const before = await resourceSnapshot(prisma, [1101n, 1102n]);
-    queries.length = 0;
-    const started = await repository.startProofForTelegramUser({
-      telegramUserId: 1101n,
-      partyInviteToken: "group-start",
-      now: NOW,
-      turnExpiresAt: new Date(NOW.getTime() + 23_000)
-    });
-    const startQueries = queries.length;
+    const { value: started, count: startQueries } = await measureQueryEvents(prisma, queries, () => (
+      repository.startProofForTelegramUser({
+        telegramUserId: 1101n,
+        partyInviteToken: "group-start",
+        now: NOW,
+        turnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ));
     actualQueryCounts.start = startQueries;
 
     expect(started.state).toBe("started");
@@ -167,18 +170,18 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(fullHealthAid.state).toBe("invalid-target");
     expect(await prisma.groupCombatAction.count()).toBe(beforeActions);
 
-    queries.length = 0;
-    const queued = await repository.submitActionForTelegramUser({
-      telegramUserId: leader.telegramUserId,
-      partyInviteToken: initial.partyInviteToken,
-      turn: initial.turn,
-      action: "attack",
-      targetKind: "enemy",
-      targetId: initial.state.enemies[0]!.id,
-      now: NOW,
-      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
-    });
-    const queueQueries = queries.length;
+    const { value: queued, count: queueQueries } = await measureQueryEvents(prisma, queries, () => (
+      repository.submitActionForTelegramUser({
+        telegramUserId: leader.telegramUserId,
+        partyInviteToken: initial.partyInviteToken,
+        turn: initial.turn,
+        action: "attack",
+        targetKind: "enemy",
+        targetId: initial.state.enemies[0]!.id,
+        now: NOW,
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ));
     actualQueryCounts.queue = queueQueries;
     expect(queued.state).toBe("queued");
     expect(queueQueries).toBeLessThanOrEqual(QUERY_BUDGETS.queue);
@@ -228,16 +231,18 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
-    queries.length = 0;
-    const results = await Promise.all([submitLast(), submitLast()]);
-    const resolveQueries = queries.length;
-    actualQueryCounts.resolve = resolveQueries;
+    const { value: results, count: concurrentPairQueries } = await measureQueryEvents(
+      prisma,
+      queries,
+      () => Promise.all([submitLast(), submitLast()])
+    );
+    actualQueryCounts.concurrentPair = concurrentPairQueries;
     const latest = await repository.findByPartyInviteToken("group-start");
 
     expect(results.some((result) => result.state === "resolved")).toBe(true);
     expect(latest?.turn).toBe(2);
     expect(await prisma.groupCombatAction.count({ where: { sessionId: initial.id, turn: 1 } })).toBe(2);
-    expect(resolveQueries).toBeLessThanOrEqual(QUERY_BUDGETS.resolve * 2);
+    expect(concurrentPairQueries).toBeLessThanOrEqual(QUERY_BUDGETS.singleResolve * 2);
 
     const stale = await repository.submitActionForTelegramUser({
       telegramUserId: leader.telegramUserId,
@@ -252,16 +257,53 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(stale.state).toBe("stale");
   });
 
+  it("keeps one final resolving submission within its direct query budget", async () => {
+    await seedParty(prisma, "group-single-resolve", [1231n, 1232n]);
+    const session = await startExistingPartyProof(repository, "group-single-resolve", 1231n);
+    const first = session.participants[0]!;
+    const second = session.participants[1]!;
+    await repository.submitActionForTelegramUser({
+      telegramUserId: first.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: session.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: first.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    const { value: resolved, count: singleResolveQueries } = await measureQueryEvents(prisma, queries, () => (
+      repository.submitActionForTelegramUser({
+        telegramUserId: second.telegramUserId,
+        partyInviteToken: session.partyInviteToken,
+        turn: session.turn,
+        action: "guard",
+        targetKind: "self",
+        targetId: second.characterId,
+        now: NOW,
+        nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    ));
+    actualQueryCounts.singleResolve = singleResolveQueries;
+
+    expect(resolved.state).toBe("resolved");
+    expect(singleResolveQueries).toBeLessThanOrEqual(QUERY_BUDGETS.singleResolve);
+    expect("session" in resolved ? resolved.session.turn : null).toBe(2);
+    expect(await prisma.groupCombatAction.count({ where: { sessionId: session.id, turn: 1 } })).toBe(2);
+  });
+
   it("uses a lean due scan and a resource-free timeout fallback", async () => {
     const before = await resourceSnapshot(prisma, [1101n, 1102n]);
     await prisma.groupCombatSession.updateMany({
       where: { partySession: { inviteToken: "group-start" } },
       data: { turnExpiresAt: new Date(NOW.getTime() - 1) }
     });
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    queries.length = 0;
-    const ids = await repository.listDueSessionIds(NOW, 13);
-    const dueQueries = queries.length;
+    const { value: ids, count: dueQueries } = await measureQueryEvents(
+      prisma,
+      queries,
+      () => repository.listDueSessionIds(NOW, 13)
+    );
     actualQueryCounts.dueScan = dueQueries;
     expect(ids).toHaveLength(1);
     expect(dueQueries).toBe(QUERY_BUDGETS.dueScan);
@@ -1220,6 +1262,35 @@ function makeSatedPayload(characterId: string, cursorAt: Date): VarenykSatedPayl
       targetManaAfter: 13
     }
   };
+}
+
+async function measureQueryEvents<T>(
+  prisma: PrismaClient,
+  queries: string[],
+  operation: () => Promise<T>
+): Promise<{ value: T; count: number }> {
+  await reachQueryEventBarrier(prisma, queries);
+  queries.length = 0;
+  const value = await operation();
+  await reachQueryEventBarrier(prisma, queries);
+  return {
+    value,
+    count: queries.filter((query) => !query.includes(QUERY_EVENT_BARRIER_PREFIX)).length
+  };
+}
+
+async function reachQueryEventBarrier(prisma: PrismaClient, queries: string[]): Promise<void> {
+  queryEventBarrierSequence += 1;
+  const marker = `${QUERY_EVENT_BARRIER_PREFIX}_${queryEventBarrierSequence}`;
+  const firstNewEvent = queries.length;
+  await prisma.$queryRawUnsafe(`SELECT 1 AS "${marker}"`);
+  for (let turn = 0; turn < 100; turn += 1) {
+    if (queries.slice(firstNewEvent).some((query) => query.includes(marker))) {
+      return;
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`Prisma query event barrier was not observed: ${marker}`);
 }
 
 async function resourceSnapshot(prisma: PrismaClient, telegramIds: bigint[]) {

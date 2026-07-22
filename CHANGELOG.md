@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.0] - 12026-07-22 - Rewardless Party-vs-Many Proof
+## [0.4.0] - 12026-07-23 - Rewardless Party-vs-Many Proof
 
 ### Added
 - Added a separate restart-safe `GroupCombatSession` runtime for one default-off, non-production 2–3 player versus 2–3 enemy proof encounter. It reuses an eligible current-life `PartySession` roster without widening `PartyBossSession` or changing existing combat balance.
@@ -31,7 +31,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Verification and compatibility
 - Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.
 - Added Prisma integration coverage for atomic start/failure, same-life leases, wrong-side/stale targets, duplicate last-action and action/timeout races, resource-free timeout, normal rewardless victory, malformed-state invalidation, orphan repair, restart/remort blocking and unchanged Character economy/resources.
-- Query-event fixtures record `30` statements for start, `20` for a queued action including the mutation claim and durable delivery revision, an observed `31–32` total for two concurrent duplicate last-action attempts within the unchanged `≤35` per submitted resolve-call budget, and `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
+- Query-event fixtures now await marker-query events before resetting or counting each scope, eliminating delayed setup/assertion attribution without sleeps. Ten fresh processes consistently record `30` statements for start, `20` for a queued action, `22` for one directly measured final resolving submission within its unchanged `≤35` budget, `31` total as a separate concurrent duplicate-final aggregate observation, and exactly `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
 - No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior or lore change was added. Full class/race/item parity remains `0.4.1` scope.
 - Added a spoiler-light player-news entry about the group-combat foundation without claiming that its non-production proof is a playable production route.
 
