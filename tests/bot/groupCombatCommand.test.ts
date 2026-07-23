@@ -226,7 +226,10 @@ describe("group combat bot flow", () => {
     expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
   });
 
-  it("resends refresh as the sole latest canonical card when newer chat messages exist", async () => {
+  it.each([
+    ["a newer chat message is known", 30],
+    ["freshness tracking is empty after restart", null]
+  ] as const)("resends refresh as the sole latest canonical card when %s", async (_case, latestMessageId) => {
     const session = makeSession();
     const actionable = new Set([21]);
     const sent: Array<{ messageId: number; buttons: unknown }> = [];
@@ -283,7 +286,9 @@ describe("group combat bot flow", () => {
       api: { editMessageText, sendMessage, deleteMessage } as unknown as Api,
       answerCallbackQuery
     } as unknown as Context;
-    rememberLatestMessageForChat(1001, 30);
+    if (latestMessageId !== null) {
+      rememberLatestMessageForChat(1001, latestMessageId);
+    }
 
     await handleGroupCombatCallback(ctx, {
       type: "view",
