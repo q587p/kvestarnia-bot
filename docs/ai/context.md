@@ -16,7 +16,9 @@
   the fight/raid resource layout, authoritative remaining-time prompt, two-column
   exact-target actions and shared bounded terminal journal; results restore on
   the same participant-only canonical message. Private text redirects CAS-promote
-  a new latest card. An ambiguous activation error keeps that candidate
+  a new latest card, and explicit refresh resurfaces a buried or
+  unknown-freshness card through the same inert-candidate CAS while a still-latest
+  card edits in place. An ambiguous activation error keeps that candidate
   canonical and pending while the previous card remains inert; confirmed
   unavailability may safely restore the previous reference. Cards are
   private-DM, monotonic and repairable. Marker-bracketed query evidence keeps

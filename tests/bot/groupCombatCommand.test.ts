@@ -1,16 +1,24 @@
 import { Bot, type Api, type Context } from "grammy";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handleGroupCombatCallback,
   registerGroupCombatDevCommand
 } from "../../src/bot/commands/groupCombatCommand";
 import { deliverGroupCombatCards } from "../../src/bot/groupCombatCardDelivery";
+import {
+  clearMessageFreshnessTracking,
+  rememberLatestMessageForChat
+} from "../../src/bot/messageFreshness";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotServices } from "../../src/bot/botServices";
 
 describe("group combat bot flow", () => {
+  afterEach(() => {
+    clearMessageFreshnessTracking();
+  });
+
   it("cannot mutate through a dev command when the production gate is closed", async () => {
     const bot = testBot();
     const startProof = vi.fn();
@@ -218,6 +226,103 @@ describe("group combat bot flow", () => {
     expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
   });
 
+  it("resends refresh as the sole latest canonical card when newer chat messages exist", async () => {
+    const session = makeSession();
+    const actionable = new Set([21]);
+    const sent: Array<{ messageId: number; buttons: unknown }> = [];
+    const editMessageText = vi.fn((
+      _chatId: number,
+      messageId: number,
+      _text: string,
+      options?: { reply_markup?: { inline_keyboard?: unknown[] } }
+    ) => {
+      const buttons = options?.reply_markup?.inline_keyboard ?? [];
+      if (buttons.length > 0) {
+        actionable.add(messageId);
+      } else {
+        actionable.delete(messageId);
+      }
+      return Promise.resolve(true);
+    });
+    const sendMessage = vi.fn((
+      _chatId: number,
+      _text: string,
+      options?: { reply_markup?: { inline_keyboard?: unknown[] } }
+    ) => {
+      sent.push({ messageId: 31, buttons: options?.reply_markup?.inline_keyboard });
+      return Promise.resolve({ message_id: 31 });
+    });
+    const deleteMessage = vi.fn((_chatId: number, messageId: number) => {
+      actionable.delete(messageId);
+      return Promise.resolve(true);
+    });
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find((row) => row.telegramUserId === input.telegramUserId)!;
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const markParticipantCardDelivered = vi.fn(() => {
+      session.participants[0]!.deliveredRevision = session.deliveryRevision;
+      return Promise.resolve(true);
+    });
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-buried-refresh",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText, sendMessage, deleteMessage } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+    rememberLatestMessageForChat(1001, 30);
+
+    await handleGroupCombatCallback(ctx, {
+      type: "view",
+      token: session.partyInviteToken
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockImplementation(() => Promise.resolve(session)),
+      compareAndSetParticipantCard,
+      markParticipantCardDelivered,
+      releaseParticipantCard: vi.fn().mockResolvedValue(false)
+    } as unknown as GroupCombatService);
+
+    expect(sent).toEqual([{ messageId: 31, buttons: [] }]);
+    expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
+      expectedReferenceVersion: 1,
+      chatId: 1001n,
+      messageId: 31
+    }));
+    expect(editMessageText).toHaveBeenNthCalledWith(
+      1,
+      1001,
+      21,
+      expect.any(String),
+      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+    );
+    expect(editMessageText).toHaveBeenNthCalledWith(2, 1001, 31, expect.any(String), expect.any(Object));
+    const activatedOptions = editMessageText.mock.calls[1]?.[3] as {
+      reply_markup?: { inline_keyboard?: unknown[] };
+    } | undefined;
+    expect(activatedOptions?.reply_markup?.inline_keyboard?.length).toBeGreaterThan(0);
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
+    expect(actionable).toEqual(new Set([31]));
+  });
+
   it("opens, pages, and restores terminal results on the same canonical message", async () => {
     const session = makeSession();
     session.status = "won";
@@ -254,6 +359,7 @@ describe("group combat bot flow", () => {
       findById: vi.fn().mockResolvedValue(session),
       markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
+    rememberLatestMessageForChat(1001, 21);
 
     await handleGroupCombatCallback(ctx, {
       type: "journal",

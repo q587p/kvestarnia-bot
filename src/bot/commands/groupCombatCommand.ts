@@ -6,6 +6,7 @@ import {
   deliverGroupCombatParticipantCard
 } from "../groupCombatCardDelivery";
 import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
+import { getCallbackMessageFreshness } from "../messageFreshness";
 import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
@@ -104,7 +105,20 @@ export async function handleGroupCombatCallback(
   }
   if (callback.type === "view") {
     await safeAnswerCallbackQuery(ctx);
-    await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
+    const sourceIsNotCanonical = callbackMessageId !== undefined &&
+      viewer.messageId !== null &&
+      callbackMessageId !== viewer.messageId;
+    const sourceFreshness = getCallbackMessageFreshness(ctx);
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewer.characterId,
+      {
+        forceRefresh: true,
+        forceReplacement: sourceIsNotCanonical || sourceFreshness !== "fresh"
+      }
+    );
     return;
   }
   if (callback.type === "action") {
