@@ -37,6 +37,7 @@ import {
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
+import { makeGroupCombatStartCallbackData } from "../callbacks/groupCombatCallbackData";
 import { appendGearActionButtons } from "./gearActionKeyboard";
 import { addPaginationControls } from "./pagination";
 
@@ -48,6 +49,8 @@ export function buildPartySessionKeyboard(
     viewerCharacterId?: string | null | undefined;
     inviteUrl?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
+    includeGroupCombatStart?: boolean | undefined;
+    isPrivateDestination?: boolean | undefined;
     includeBossStart?: boolean | undefined;
     includeRaidChat?: boolean | undefined;
   } = {}
@@ -96,6 +99,15 @@ export function buildPartySessionKeyboard(
 
     if (!options.includeBossStart && options.includeDevExpire && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🧪 Dev: бос-проба", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (
+      !isBigBarrel &&
+      options.includeGroupCombatStart &&
+      options.isPrivateDestination &&
+      options.viewerCharacterId === session.leaderCharacterId
+    ) {
+      keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();
     }
 
     if (viewer && options.includeRaidChat) {

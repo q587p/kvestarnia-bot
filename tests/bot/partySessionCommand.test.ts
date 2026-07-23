@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handlePartySessionCallback,
   registerPartySessionDevCommand,
+  sendPartyCreate,
   sendPartyJoinFromStartPayload,
   waitForPartyBossParticipantNotifications
 } from "../../src/bot/commands/partySessionCommand";
@@ -53,6 +54,38 @@ describe("handlePartySessionCallback", () => {
     expect(createForTelegramUser).not.toHaveBeenCalled();
     expect(replies).toEqual(["Dev-команди тут не ввімкнені. Корчмар сховав мотузку."]);
   });
+
+  it.each([
+    ["reply", "private", true],
+    ["reply", "supergroup", false],
+    ["edit", "private", true],
+    ["edit", "supergroup", false]
+  ] as const)(
+    "renders the initial %s leader card in a %s chat with a usable private-only group-combat start",
+    async (mode, chatType, expectStartButton) => {
+      const session = makeSession("recruiting");
+      const chatId = chatType === "private" ? 42 : -100587;
+      const { ctx, reply, editMessageText } = createCallbackContext(42, { id: chatId, type: chatType });
+
+      await sendPartyCreate(
+        ctx,
+        serviceWith({
+          areDevHelpersEnabled: () => true,
+          createForTelegramUser: vi.fn().mockResolvedValue({ state: "created", session })
+        }),
+        {
+          botUsername: "kvestarnia_test_bot",
+          presence: {} as PresenceService,
+          groupCombat: { areDevHelpersEnabled: () => true }
+        },
+        mode
+      );
+
+      const delivery = mode === "reply" ? reply : editMessageText;
+      const serializedOptions = JSON.stringify(delivery.mock.calls[0]?.[1]);
+      expect(serializedOptions.includes("v1:gc:s:partyABC12")).toBe(expectStartButton);
+    }
+  );
 
   it("opens a standalone nearby party invite picker", async () => {
     const session = makeSession("recruiting");
@@ -218,6 +251,86 @@ describe("handlePartySessionCallback", () => {
       expect.objectContaining({ parse_mode: "HTML" })
     );
   });
+
+  it.each([
+    ["private", 42n, true],
+    ["public", -100587n, false]
+  ] as const)(
+    "renders a refreshed %s leader recruiting card with the private-only group-combat start",
+    async (_destination, leaderChatId, expectStartButton) => {
+      const session = makeSessionWithMember();
+      const updated = {
+        ...withParticipantReadiness(session, "character-93", "ready", 2),
+        participants: withParticipantReadiness(session, "character-93", "ready", 2).participants.map(
+          (participant) => participant.characterId === session.leaderCharacterId
+            ? { ...participant, chatId: leaderChatId }
+            : participant
+        )
+      };
+      const { ctx, apiEditMessageText } = createCallbackContext(93);
+
+      await handlePartySessionCallback(
+        ctx,
+        { type: "readiness", token: session.inviteToken, readiness: "ready" },
+        serviceWithCanonicalSession(updated, {
+          setReadinessForTelegramUser: vi.fn().mockResolvedValue({ state: "updated", session: updated })
+        }),
+        {
+          botUsername: "kvestarnia_test_bot",
+          presence: {} as PresenceService,
+          partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) }),
+          groupCombat: { areDevHelpersEnabled: () => true }
+        }
+      );
+
+      const leaderEdit = apiEditMessageText.mock.calls.find((call) => call[0] === Number(leaderChatId));
+      expect(leaderEdit).toBeDefined();
+      expect(JSON.stringify(leaderEdit?.[3]).includes("v1:gc:s:partyABC12")).toBe(expectStartButton);
+    }
+  );
+
+  it.each([
+    ["private fallback", null, 42n, true],
+    ["public replacement", -100587n, -100587n, false]
+  ] as const)(
+    "renders a %s leader recruiting-card replacement with the private-only group-combat start",
+    async (_destination, storedChatId, expectedChatId, expectStartButton) => {
+      const session = makeSessionWithMember();
+      const updated = {
+        ...withParticipantReadiness(session, "character-93", "ready", 2),
+        participants: withParticipantReadiness(session, "character-93", "ready", 2).participants.map(
+          (participant) => participant.characterId === session.leaderCharacterId
+            ? { ...participant, chatId: storedChatId, messageId: storedChatId === null ? null : participant.messageId }
+            : participant
+        )
+      };
+      const recordParticipantMessageReference = vi.fn().mockResolvedValue(updated);
+      const { ctx, apiEditMessageText, sendMessage } = createCallbackContext(93);
+      if (storedChatId !== null) {
+        apiEditMessageText.mockRejectedValue(new Error("Bad Request: message can't be edited"));
+      }
+      sendMessage.mockResolvedValue({ message_id: 77 });
+
+      await handlePartySessionCallback(
+        ctx,
+        { type: "readiness", token: session.inviteToken, readiness: "ready" },
+        serviceWithCanonicalSession(updated, {
+          setReadinessForTelegramUser: vi.fn().mockResolvedValue({ state: "updated", session: updated }),
+          recordParticipantMessageReference
+        }),
+        {
+          botUsername: "kvestarnia_test_bot",
+          presence: {} as PresenceService,
+          partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) }),
+          groupCombat: { areDevHelpersEnabled: () => true }
+        }
+      );
+
+      const leaderSend = sendMessage.mock.calls.find((call) => call[0] === Number(expectedChatId));
+      expect(leaderSend).toBeDefined();
+      expect(JSON.stringify(leaderSend?.[2]).includes("v1:gc:s:partyABC12")).toBe(expectStartButton);
+    }
+  );
 
   it("sends and stores a fresh leader card when readiness cannot use a saved reference", async () => {
     const session = makeBigBarrelSessionWithMember();
@@ -2485,7 +2598,13 @@ function commandUpdate(text: string) {
     }
   };
 }
-function createCallbackContext(telegramUserId = 42): {
+function createCallbackContext(
+  telegramUserId = 42,
+  chat: { id: number; type: "private" | "group" | "supergroup" } = {
+    id: telegramUserId,
+    type: "private"
+  }
+): {
   ctx: Context;
   answerCallbackQuery: ReturnType<typeof vi.fn>;
   editMessageText: ReturnType<typeof vi.fn>;
@@ -2504,18 +2623,12 @@ function createCallbackContext(telegramUserId = 42): {
       is_bot: false,
       first_name: "Тест"
     },
-    chat: {
-      id: telegramUserId,
-      type: "private"
-    },
+    chat,
     callbackQuery: {
       id: "callback-1",
       message: {
         message_id: 13,
-        chat: {
-          id: telegramUserId,
-          type: "private"
-        }
+        chat
       }
     },
     answerCallbackQuery,

@@ -618,6 +618,31 @@ describe("PrismaRemortRepository integration", () => {
     await expect(prisma.activeCombatLease.count({ where: { characterId: "character-remort-duel" } })).resolves.toBe(1);
   });
 
+  it("blocks remort while a group-combat lease owns the current life", async () => {
+    const now = new Date("2026-06-22T11:30:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-remort-group-combat",
+      characterId: "character-remort-group-combat",
+      telegramUserId: 9308n
+    });
+    await seedDraft(prisma, "character-remort-group-combat", "token-remort-group-combat", now);
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-remort-group-combat",
+        characterId: "character-remort-group-combat",
+        kind: "group-combat",
+        referenceId: "group-combat-session"
+      }
+    });
+
+    await expect(repository.completeDraftForTelegramUser(
+      9308n,
+      makeCompletionInput("token-remort-group-combat", now)
+    )).resolves.toEqual({ state: "active-combat" });
+    await expect(prisma.characterRemort.count({ where: { characterId: "character-remort-group-combat" } })).resolves.toBe(0);
+    await expect(prisma.activeCombatLease.count({ where: { characterId: "character-remort-group-combat" } })).resolves.toBe(1);
+  });
+
   it("clears a stale supported solo lease and completes remort", async () => {
     const now = new Date("2026-06-22T12:00:00.000Z");
     await seedCharacter(prisma, {

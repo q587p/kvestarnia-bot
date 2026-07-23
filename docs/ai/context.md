@@ -3,19 +3,34 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current merged version: `0.3.17` — semantics-preserving callback read-path collapse. Friday pending detection resolves Character once and batches
-  the exact 24 candidate keys into at most three SQL statements; one update-local single-flight seam reuses pending-Friday and already-started Fight
-  reads without cross-update cache state, then invalidates only after Friday start/completion or a newly created next-problem issue before rebuilding
-  markers. Grouped Fight/problem markers share one Character/ledger snapshot and a combat aggregate capped at 93; the complete marker read uses
-  semantic exact/current-life/latest/bounded-prefix selectors rather than a global row cap. Fresh nonterminal persistent-fight turns reuse pre-turn
-  problem progress, reducing their query-event budget from `48` reads / `51` statements to `27/30`; terminal settlement still reloads after writes.
-  Marker-free Shynok rules, Hero, Quest Table, News Corner, Fighting Corner, Deep and passage routes branch before marker construction; location
-  clicks use a bounded exact-location Daily Korchma probe before authoritative scene opening. Privacy-safe callback telemetry now starts before global
-  combat/pending/presence middleware and observes first acknowledgement/presentation. Query-event tests lock Friday at `1/3` statements, grouped Fight
-  at `1/≤5` and the full-source veteran marker at `11`, invariant under 10,000 irrelevant rows and semantically identical to legacy output with 100
-  newer allowlisted rows ahead of older authoritative marker facts. No gameplay, reward, balance, achievement, lore, dependency, migration or
-  production-flag contract changed. The 0.3.16 lifecycle/PartyBoss/help/inventory closeout remains the runtime base; repository state alone does not
-  prove 0.3.17 deployment or improvement.
+- Current repository version: `0.4.0` — a separate restart-safe 2–3 player
+  versus 2–3 enemy group-combat proof behind default-off
+  `GROUP_COMBAT_PROOF_ENABLED`, hard-disabled in production. Start atomically
+  freezes the current-life party roster, resources, equipment, `Ситий` and
+  `Натхнення`; exact relational/state/life/session/lease agreement, canonical
+  actor-turn actions and version CAS keep resolution and repair rewardless.
+  Enemy attack, self guard and living-ally aid are the complete proof actions;
+  timeout uses resource-free guard. Aid targets only injured living allies and
+  the latest valid current-turn choice replaces an earlier one behind a session
+  mutation CAS, including final-action/timeout races. Participant cards reuse
+  the fight/raid resource layout, authoritative remaining-time prompt, two-column
+  exact-target actions and shared bounded terminal journal; results restore on
+  the same participant-only canonical message. Private text redirects CAS-promote
+  a new latest card, and explicit refresh resurfaces a buried or
+  unknown-freshness card through the same inert-candidate CAS while a still-latest
+  card edits in place. An ambiguous activation error keeps that candidate
+  canonical and pending while the previous card remains inert; confirmed
+  unavailability may safely restore the previous reference. Cards are
+  private-DM, monotonic and repairable. Marker-bracketed query evidence keeps
+  start/queue/single-resolve/due budgets deterministic at `30/20/22/1`; the
+  concurrent duplicate-final pair is a separate `31`-statement observation.
+  Terminal output changes no Character resources,
+  XP, gold, items, quests, achievements or activity rewards. Production
+  availability, deployment and manual Telegram QA remain unproven. Local QA
+  creates a fresh `/dev_party`; the leader starts from its private-DM-only
+  recruiting-card button or passes only the invite suffix after `party_` to
+  `/dev_group_combat`, including from a group chat. Public proof callbacks stay
+  non-mutating; both start routes share the same service.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -49,18 +64,20 @@
 
 - Core loop: create character, choose race/class/path flavor, take short quests, fight, gain XP/gold/manatky, equip and grow.
 - Ordinary persistent PvE supports single/multi-enemy state, class/race/gear actions, items, flee, stored journals and replay-safe settlement.
-- Stored combat surfaces that shared changes must consider: persistent PvE, Training Doppelganger, turn-based duels and party boss/Big Barrel rounds.
-  Quick duels have no durable turn identity.
+- Stored combat surfaces that shared changes must consider: persistent PvE,
+  Training Doppelganger, turn-based duels, party boss/Big Barrel rounds and the
+  gated rewardless group-combat proof. Quick duels have no durable turn identity.
 - Under-Korchma combat terminology: `Спуск`, `Спуск до Низу`, `Ярус I: Сутерени Корчми`, later `Зіґурат`.
 - Group/party systems remain narrow opt-in slices. No generic market, profession, crafting, guild-war or Mini App direction is shipped by implication.
 - Big Barrel raid chat adds no config key and follows `BIG_BARREL_BROTHER_RAID_ENABLED=true`. It authorizes only canonical same-life participants,
   keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards,
   achievements or ordinary combat-journal duplication. Kharakternyk ward surfaces use `✴️`, distinct from the Molfar `🧿 Туманний оберіг`.
   `/dev_raid_chat` is non-production only.
-- The active next line is `0.4.x`. PR `#184` carries `0.4.0` on pushed branch `codex/0.4.0-party-vs-many-proof`, but it is not merged or deployed. The
-  accepted sequence starts with a separate generic 2–3 player versus 2–3 enemy runtime, followed by small guild identity, an expedition and a weekly
-  goal. `0.4.5`–`0.4.11` then restore bounded Old Altar, greeting, Shynok food, consumable, resale and recycling promises; `0.4.12` keeps cosmetic
-  guild progression data-gated. Do not turn `PartyBossSession` into N×M state or imply guild bank/trade/war scope.
+- `0.4.0` is only a hidden rewardless proof. `0.4.1` is the next planned
+  version and owns parity/production hardening; later accepted tasks add small
+  guild identity, an expedition, a weekly goal and bounded social/economy
+  slices. Do not turn `PartyBossSession` into N×M state or imply guild
+  bank/trade/war scope.
 
 ## Shipped class support
 
@@ -195,8 +212,11 @@
 
 ## Key docs
 
-- `docs/tasks/0.4.0-party-vs-many-proof.md` — current open-PR implementation contract; active work is not a merged release.
-- `docs/tasks/0.3.17-callback-read-path-collapse.md` — latest merged release contract, SQL budgets and post-deploy observation boundary.
+- `docs/tasks/0.4.0-party-vs-many-proof.md` — current repository release
+  contract; deployment, production availability and manual QA remain unproven.
+- `docs/tasks/0.4.1-group-combat-hardening.md` — next planned version contract.
+- `docs/tasks/0.3.17-callback-read-path-collapse.md` — previous release contract
+  and callback SQL-budget evidence.
 - `docs/tasks/0.3.16-closed-alpha-closeout.md` — shipped lifecycle closeout and base-runtime evidence.
 - `docs/operations/release-state-ledger.md` — repository/target availability truth; unknown production evidence stays deferred.
 - `docs/architecture/party-combat-evolution-plan.md` and `docs/design/guilds-and-party-progression.md` — canonical 0.4.x cutline.

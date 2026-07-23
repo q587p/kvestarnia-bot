@@ -331,10 +331,10 @@ Implemented baseline:
 - Big Barrel state is intentionally specific: one `boss`, taunt, ward, protocol,
   music and Barrel settlement semantics. It is not the generic N×M engine.
 
-Before starting `0.4.x`, current multi-actor lifecycle must have transactional
-restart/remort guards, strict state parsing/repair, orphan-lease recovery and
-race coverage. Middleware redirects are UX only and cannot be the deletion or
-settlement authority.
+The `0.4.0` proof builds on the transactional restart/remort guards, strict state
+parsing/repair, orphan-lease recovery and race coverage completed in `0.3.16`.
+Middleware redirects remain UX only and are not deletion or settlement
+authority.
 
 Generic group combat should add separate persistence:
 
@@ -363,6 +363,25 @@ Rules:
   independently; participant count alone never multiplies loot;
 - the first supported bound is 2–3 players versus 2–3 enemies;
 - Big Barrel stays on `PartyBossSession` until a later parity-tested migration.
+
+Implemented in `0.4.0` behind the default-off, production-hard-disabled
+`GROUP_COMBAT_PROOF_ENABLED` gate:
+
+- one rewardless 2–3×2–3 encounter on the separate models above;
+- an atomic same-life roster/resource/equipment/status freeze plus a central
+  typed combat-lease owner registry;
+- explicit enemy/self/ally targeting, unique actor/turn actions, deterministic
+  timeout guard and optimistic session CAS;
+- strict invalid-state repair, current-turn-only action reads, newest-five recap
+  storage and canonical participant-card CAS convergence;
+- measured query-event budgets of `30` statements for start, `16` for a queued
+  action, `27` total for two concurrent duplicate resolving calls and `1` for a
+  lean due-id scan. Active state is capped below `13,000` serialized characters
+  in the 3×3/25-turn fixture and cards below Telegram's `4,096` limit.
+
+This proof intentionally grants no XP, gold, items, quest/achievement/activity
+progress or ordinary resource settlement. Production parity and rewards remain
+future work; Big Barrel behavior is unchanged.
 
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).

@@ -1,5 +1,11 @@
 import { Prisma, type Character, type PrismaClient } from "@prisma/client";
 import {
+  GROUP_COMBAT_LEASE_KIND,
+  PARTY_BOSS_LEASE_KIND,
+  SOLO_COMBAT_LEASE_KIND,
+  TURN_BASED_DUEL_LEASE_KIND
+} from "../../domain/combat/combatLeaseRegistry";
+import {
   applyBardPerformanceDailyHouseCap,
   type BardPerformanceGrade
 } from "../../domain/noncombat/bardPerformance";
@@ -653,7 +659,7 @@ async function findFrozenBardInspiration(
   characterId: string,
   remortCount: number
 ) {
-  if (lease.kind === "solo-combat") {
+  if (lease.kind === SOLO_COMBAT_LEASE_KIND) {
     const stateJson = (await tx.soloCombatSession.findFirst({
       where: { id: lease.referenceId, status: "active" },
       select: { stateJson: true }
@@ -665,7 +671,7 @@ async function findFrozenBardInspiration(
     );
   }
 
-  if (lease.kind === "turn-based-duel") {
+  if (lease.kind === TURN_BASED_DUEL_LEASE_KIND) {
     const stateJson = (await tx.duelCombatSession.findFirst({
       where: { id: lease.referenceId, status: "active" },
       select: { stateJson: true }
@@ -680,7 +686,7 @@ async function findFrozenBardInspiration(
     );
   }
 
-  if (lease.kind === "party-boss") {
+  if (lease.kind === PARTY_BOSS_LEASE_KIND) {
     const stateJson = (await tx.partyBossSession.findFirst({
       where: { partySessionId: lease.referenceId, status: "active" },
       select: { stateJson: true }
@@ -690,6 +696,22 @@ async function findFrozenBardInspiration(
       Array.isArray(participants)
         ? participants.map((participant) => toUnknownRecord(participant)?.bardInspiration)
         : null,
+      characterId,
+      remortCount
+    );
+  }
+
+  if (lease.kind === GROUP_COMBAT_LEASE_KIND) {
+    const snapshotJson = (await tx.groupCombatParticipant.findFirst({
+      where: {
+        sessionId: lease.referenceId,
+        characterId,
+        session: { status: "active" }
+      },
+      select: { snapshotJson: true }
+    }))?.snapshotJson;
+    return findMatchingFrozenBardInspiration(
+      toUnknownRecord(snapshotJson)?.inspiration,
       characterId,
       remortCount
     );

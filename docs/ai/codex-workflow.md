@@ -201,14 +201,14 @@ PR body should include:
 
 ## Current roadmap guard
 
-`origin/main` at `3aa80b54` is package `0.3.17`; the `0.3.x` repository
-line is closed. Target deployment, flags and manual QA remain separate ledger
-evidence.
+The current repository release is package `0.4.0`; the `0.3.x` line is closed.
+Its bounded 2–3×2–3 group-combat proof is default-off, hard-disabled in
+production and rewardless. Repository state does not prove deployment,
+production availability or manual Telegram QA.
 
-`0.4.0` is active on open PR `#184`, branch
-`codex/0.4.0-party-vs-many-proof`; it is pushed but not merged or deployed.
-`0.4.x` deliberately starts with that separate bounded 2–3×2–3 group-combat
-runtime, then a small guild membership shell, the first production party
+`0.4.1` is the next planned version and owns group-combat parity/hardening; do
+not start it implicitly. Later accepted work adds a small guild membership
+shell, the first production party
 expedition and one weekly goal. After that proof, versioned bounded Old Altar,
 greeting, Shynok food, consumable, resale and recycling tasks may ship without
 implying a broad shop/market rewrite. Use the current version task; do not launch

@@ -10,8 +10,8 @@ not every feature must be enabled.
 
 ## Current repository baseline (repository evidence, 12026-07-22)
 
-`origin/main` is `3aa80b54`, package `0.3.17`. Repository merge state is
-recorded below; deployment and target availability remain separate evidence.
+The repository release is package `0.4.0`. Repository merge state is recorded
+below; deployment and target availability remain separate evidence.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ recorded below; deployment and target availability remain separate evidence.
 | Big Barrel Raid Chat | yes (PR `#179`, `0.3.15`) | target migration unknown | follows Big Barrel; target value unknown/default off | yes | post-fix full QA pending | `BIG_BARREL_BROTHER_RAID_ENABLED`; release operator unassigned | deferred |
 | 0.3.16 closeout safeguards/report/docs | yes (PR `#182`) | target deployment unknown; repository includes `20260721113000_party_boss_round_history` | no new production flag; Big Barrel target value unknown/default off | yes; merge checks passed | target matrix not recorded | existing Big Barrel flag + deploy rollback; release operator unassigned | deferred |
 | 0.3.17 callback read-path collapse | yes (PR `#183`) | no new migration | no new production flag | yes; merge checks passed | post-deploy observation not recorded | deploy rollback; release operator unassigned | deferred |
-| 0.4.0 party-vs-many proof | no; PR `#184` from `codex/0.4.0-party-vs-many-proof` is open/unmerged against `main` | not applicable to merged baseline | default-off contract in active branch; target state not applicable | branch checks are not merge evidence | not recorded | branch remains active; do not retire | deferred |
+| 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` with durable card-delivery revisions | unavailable in production; default off and production-hard-disabled | yes; repository gates plus restart/convergence/privacy regressions | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

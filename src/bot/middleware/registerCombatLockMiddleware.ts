@@ -37,6 +37,7 @@ import {
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
+import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -160,6 +161,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:party:rc:") &&
       !data.startsWith("v1:party:rw:") &&
+      !data.startsWith("v1:gc:") &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -233,6 +235,7 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_yeger_first_done" ||
     command === "dev_yeger_second_done" ||
     command === "dev_raid_win" ||
+    command === "dev_group_combat" ||
     command === "online" ||
     command === "look" ||
     command === "restart" ||
@@ -312,6 +315,10 @@ async function redirectCombatLockIfNeeded(
   }
 
   if (await redirectPartyBossLockIfNeeded(ctx, telegramUserId, services, options)) {
+    return true;
+  }
+
+  if (await redirectGroupCombatLockIfNeeded(ctx, telegramUserId, services)) {
     return true;
   }
 
@@ -404,6 +411,44 @@ async function redirectCombatLockIfNeeded(
   }
 
   return false;
+}
+
+async function redirectGroupCombatLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<boolean> {
+  const active = await services.groupCombat?.findActiveForTelegramUser(telegramUserId);
+  if (!active) {
+    return false;
+  }
+  const viewer = active.participants.find((participant) => participant.telegramUserId === telegramUserId);
+  if (!viewer) {
+    return false;
+  }
+  const isPrivate = ctx.chat?.type === "private";
+  if (isPrivate) {
+    await answerCombatLockCallback(ctx);
+  } else if (ctx.callbackQuery) {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Доказова сутичка триває в особистій розмові з Квестарнею.",
+      show_alert: true
+    });
+  }
+  await deliverGroupCombatParticipantCard(
+    ctx.api,
+    services.groupCombat!,
+    active.id,
+    viewer.characterId,
+    {
+      forceRefresh: true,
+      forceReplacement: isPrivate && Boolean(ctx.message)
+    }
+  );
+  if (!isPrivate && !ctx.callbackQuery) {
+    await ctx.reply("⚔️ Доказова сутичка триває в особистій розмові з Квестарнею.");
+  }
+  return true;
 }
 
 async function redirectPartyBossLockIfNeeded(

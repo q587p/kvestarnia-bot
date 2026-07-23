@@ -533,6 +533,11 @@ Rewards and anti-grind:
 Наступний продуктовий доказ — не «ще складніша Бочка», а коротка експедиція
 2–3 пригодників проти 2–3 ворогів на окремому generic group-combat runtime.
 
+`0.4.0` реалізує цей generic runtime лише як приховану non-production
+rewardless-перевірку: attack/self guard/ally aid, явні цілі, короткий таймер і
+bounded private cards. Це технічний доказ, а не доступна гравцям експедиція;
+production flow, ширші набори дій і винагороди все ще потребують окремої задачі.
+
 Перший production flow:
 
 - private invite або запрошення від малої ґільдії у звичайний тимчасовий гурт;

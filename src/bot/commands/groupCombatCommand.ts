@@ -1,0 +1,233 @@
+import type { Bot, Context } from "grammy";
+import type { GroupCombatCallback } from "../callbacks/groupCombatCallbackData";
+import type { GroupCombatService } from "../../services/groupCombatService";
+import {
+  deliverGroupCombatCards,
+  deliverGroupCombatParticipantCard
+} from "../groupCombatCardDelivery";
+import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
+import { getCallbackMessageFreshness } from "../messageFreshness";
+import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
+import { telegramUserIdFromContext } from "../context";
+import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
+import { safeEditMessageText } from "../safeEditMessageText";
+
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
+const PARTY_CODE_HELP = [
+  "🧭 Код ватаги створює команда /dev_party.",
+  "У картці збору скопіюйте з посилання лише частину після «party_».",
+  "Запуск надсилає ватажок: /dev_group_combat КОД"
+].join("\n");
+
+export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {
+  bot.command("dev_group_combat", async (ctx) => {
+    if (!service.areDevHelpersEnabled()) {
+      return;
+    }
+    const telegramUserId = telegramUserIdFromContext(ctx.from);
+    const token = readCommandToken(ctx.message?.text);
+    if (!telegramUserId || !token) {
+      await ctx.reply(PARTY_CODE_HELP);
+      return;
+    }
+    const result = await service.startProof(telegramUserId, token);
+    if ("session" in result) {
+      await deliverGroupCombatCards(ctx.api, service, result.session);
+      return;
+    }
+    await ctx.reply(presentGroupCombatStartFailure(result.state));
+  });
+}
+
+export async function handleGroupCombatCallback(
+  ctx: Context,
+  callback: GroupCombatCallback,
+  service: GroupCombatService
+): Promise<void> {
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: "Квестарня не впізнала пригодника.", show_alert: true });
+    return;
+  }
+  if (ctx.chat?.type !== "private") {
+    await safeAnswerCallbackQuery(ctx, {
+      text: "Бойові кнопки ватаги працюють лише в особистій розмові з Квестарнею.",
+      show_alert: true
+    });
+    return;
+  }
+  if (callback.type === "start") {
+    const result = await service.startProof(telegramUserId, callback.token);
+    if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentGroupCombatStartFailure(result.state),
+        show_alert: true
+      });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: "Доказову сутичку запущено." });
+    await deliverGroupCombatCards(ctx.api, service, result.session);
+    return;
+  }
+  let session = await service.findByToken(callback.token);
+  if (!session) {
+    await safeAnswerCallbackQuery(ctx, { text: "Ця сутичка вже загубила слід.", show_alert: true });
+    return;
+  }
+  const viewer = session.participants.find((participant) => participant.telegramUserId === telegramUserId);
+  if (!viewer) {
+    await safeAnswerCallbackQuery(ctx, { text: "Вас немає в цій ватазі.", show_alert: true });
+    return;
+  }
+  const callbackMessageId = ctx.callbackQuery?.message?.message_id;
+  if (
+    callback.type === "action" &&
+    callbackMessageId !== undefined &&
+    viewer.messageId !== null &&
+    callbackMessageId !== viewer.messageId
+  ) {
+    await safeAnswerCallbackQuery(ctx, { text: "Це стара картка. Показую актуальну.", show_alert: true });
+    await deliverGroupCombatCards(ctx.api, service, session);
+    return;
+  }
+  if (callback.type === "journal") {
+    if (session.status === "active") {
+      await safeAnswerCallbackQuery(ctx, { text: "Журнал відкриється після завершення сутички.", show_alert: true });
+      await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGroupCombatJournal(session, callback.page), {
+      parse_mode: "HTML",
+      reply_markup: buildGroupCombatJournalKeyboard(session, callback.page)
+    });
+    return;
+  }
+  if (callback.type === "view") {
+    await safeAnswerCallbackQuery(ctx);
+    const sourceIsNotCanonical = callbackMessageId !== undefined &&
+      viewer.messageId !== null &&
+      callbackMessageId !== viewer.messageId;
+    const sourceFreshness = getCallbackMessageFreshness(ctx);
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewer.characterId,
+      {
+        forceRefresh: true,
+        forceReplacement: sourceIsNotCanonical || sourceFreshness !== "fresh"
+      }
+    );
+    return;
+  }
+  if (callback.type === "action") {
+    const target = resolveTarget(session, viewer.characterId, callback.action, callback.targetIndex);
+    if (!target) {
+      await safeAnswerCallbackQuery(ctx, { text: "Ціль уже не годиться. Оновлюю картку.", show_alert: true });
+      await deliverGroupCombatCards(ctx.api, service, session);
+      return;
+    }
+    const result = await service.submitAction({
+      telegramUserId,
+      partyInviteToken: callback.token,
+      turn: callback.turn,
+      action: callback.action,
+      targetKind: target.kind,
+      targetId: target.id
+    });
+    if ("session" in result) {
+      session = result.session;
+    } else {
+      session = await service.findByToken(callback.token) ?? session;
+    }
+    const response = presentActionResult(result.state);
+    await safeAnswerCallbackQuery(ctx, response);
+  } else {
+    await safeAnswerCallbackQuery(ctx);
+  }
+  await deliverGroupCombatCards(ctx.api, service, session);
+}
+
+function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submitAction"]>>["state"]): {
+  text: string;
+  show_alert?: boolean;
+} {
+  switch (state) {
+    case "queued":
+      return { text: "Вибір записано." };
+    case "replaced":
+      return { text: "Вибір змінено." };
+    case "duplicate":
+      return { text: "Цей вибір уже записано." };
+    case "resolved":
+      return { text: "Хід розіграно." };
+    case "terminal":
+      return { text: "Сутичку завершено." };
+    case "stale":
+    case "invalid-target":
+      return { text: "Хід уже змінився. Показую правду." };
+    case "invalidated":
+      return { text: "Сутичку безпечно зупинено через пошкоджений запис.", show_alert: true };
+    case "not-participant":
+      return { text: "Вас більше немає в цій ватазі.", show_alert: true };
+    case "not-found":
+      return { text: "Ця сутичка вже загубила слід.", show_alert: true };
+    case "no-character":
+      return { text: "Квестарня не знайшла вашого пригодника.", show_alert: true };
+    case "actor-unavailable":
+      return { text: "Цей пригодник зараз не може діяти.", show_alert: true };
+    case "disabled":
+      return { text: "Доказову сутичку тут вимкнено.", show_alert: true };
+  }
+}
+
+function resolveTarget(
+  session: NonNullable<Awaited<ReturnType<GroupCombatService["findByToken"]>>>,
+  viewerCharacterId: string,
+  action: "attack" | "guard" | "aid",
+  targetIndex: number
+): { kind: "enemy" | "self" | "ally"; id: string } | null {
+  if (action === "attack") {
+    const target = session.state.enemies[targetIndex];
+    return target?.hp ? { kind: "enemy", id: target.id } : null;
+  }
+  if (action === "guard") {
+    const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
+    return viewer?.hp ? { kind: "self", id: viewer.characterId } : null;
+  }
+  const target = session.state.participants[targetIndex];
+  return target?.hp && target.hp < target.hpMax && target.characterId !== viewerCharacterId
+    ? { kind: "ally", id: target.characterId }
+    : null;
+}
+
+function readCommandToken(text: string | undefined): string | null {
+  const token = text?.trim().split(/\s+/)[1] ?? "";
+  return TOKEN_PATTERN.test(token) ? token : null;
+}
+
+export function presentGroupCombatStartFailure(state: string): string {
+  switch (state) {
+    case "invalid-size":
+      return "Для доказової сутички треба рівно 2–3 пригодники у ватазі.";
+    case "not-leader":
+      return "Запустити доказову сутичку може лише ватажок.";
+    case "invalid-life":
+      return "Склад ватаги належить іншому життю. Зберіть її заново.";
+    case "blocked":
+      return "Хтось із ватаги вже тримає інший бій за рукав.";
+    case "not-recruiting":
+      return "Ватага вже не збирається.";
+    case "disabled":
+      return "Доказовий гуртовий бій тут вимкнений.";
+    case "not-found":
+      return [
+        "Живої ватаги з таким кодом не знайдено.",
+        "",
+        PARTY_CODE_HELP
+      ].join("\n");
+    default:
+      return "Не вдалося запустити доказову сутичку з цієї ватаги.";
+  }
+}

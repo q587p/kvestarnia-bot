@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна наступна лінійка | `0.4.x`; `0.4.0` має окремий open PR |
+| Party Progression | активна | `0.4.0` repository proof; `0.4.1` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -35,8 +35,8 @@ Telegram QA та kill switch у
 
 ## 0.3.x — змерджений репозиторний baseline
 
-`origin/main` на `3aa80b54` містить package `0.3.17`. Лінійку закрили raid
-chat (`0.3.15`), lifecycle/repair/race та release-evidence safeguards
+Package `0.3.17` закрив цю лінійку: raid chat (`0.3.15`),
+lifecycle/repair/race та release-evidence safeguards
 (`0.3.16`), а потім callback read-path collapse (`0.3.17`).
 
 Цей стан репозиторію не доводить production deployment, hosted flag values,
@@ -68,13 +68,13 @@ authored encounter 2–3×2–3, детерміновані раунди, leases
 state і canonical participant cards. Без XP, золота, манаток, квестового прогресу
 чи production rollout.
 
-Live-стан перевірено `12026-07-22`: PR
-[`#184`](https://github.com/q587p/kvestarnia-bot/pull/184) відкрито до
-`main` із гілки `codex/0.4.0-party-vs-many-proof`. PR лишається
-open/unmerged; `0.4.0` не змерджено, не випущено й не підтверджено як
-deployed.
+Repository release `0.4.0` містить цей default-off proof і не відкриває
+production-маршрут або винагороди. Наявність у репозиторії не доводить deploy,
+production availability чи ручну Telegram QA; ці докази лишаються pending.
 
 ### 0.4.1 — Group combat hardening
+
+Наступна планована версія; її реалізацію ще не розпочато.
 
 Довести універсальний runtime до feature parity: ally targeting, heal/guard,
 multi-enemy AI/threat, gear/items/statuses, strict repair, restart/remort policy,

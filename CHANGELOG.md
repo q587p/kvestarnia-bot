@@ -7,6 +7,34 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.0] - 12026-07-23 - Rewardless Party-vs-Many Proof
+
+### Added
+- Added a separate restart-safe `GroupCombatSession` runtime for one default-off, non-production 2–3 player versus 2–3 enemy proof encounter. It reuses an eligible current-life `PartySession` roster without widening `PartyBossSession` or changing existing combat balance.
+- Added strict versioned state/result validation, relational participant/action identities, one unique actor/turn action, explicit self/ally/enemy targets, deterministic resolution, resource-free timeout guard, bounded recap/contributions and an explicit `rewardless-proof` terminal result.
+- Added a central typed combat-lease owner registry. Group-combat start atomically freezes current-life resources, equipment and recoverable timed statuses with participant leases; restart/remort stay blocked, while terminal/invalid/orphan repair releases every recoverable lock and status.
+- Added one canonical private card per participant with reference CAS, edit/replacement convergence, stale callback repair and post-commit Telegram delivery. The bounded timeout scheduler scans lean due ids and cannot run when the proof gate is closed.
+- Added the non-production `/dev_group_combat <party-token>` entry and an equivalent private-DM leader-only recruiting-card button behind `GROUP_COMBAT_PROOF_ENABLED=false`. The command remains usable from a group while public proof callbacks stay non-mutating. Both start routes use the same service; production cannot enable, register, list, show or mutate through either surface even when the flag is set.
+
+### Fixed
+- Hardened the proof boundary so state participants, relational participants, current character lives, DB status/turn/rules/encounter, terminal results and participant-owned combat leases must agree exactly before manual or timeout resolution. Foreign/missing rows, malformed actions and wrong-participant leases now CAS-invalidate rewardlessly.
+- Made bounded repair cover malformed active cardinality and missing/malformed terminal results, isolate a corrupt due session from later healthy work, and release leases plus frozen timed statuses only after the successful terminal CAS.
+- Made participant-card delivery reload authoritative revisions under participant-scoped serialization. Private-DM references are the only reusable references; replacements are sent inert, CAS losers remain inert even if deletion fails, and group/supergroup callbacks cannot mutate the proof.
+- Routed combat-lock redirects through the recorded private canonical card, with only an inert non-disclosing notice in group chats. Durable content revisions now include queued actions, survive queued/terminal/repair commits across restart, acknowledge each participant reference by CAS and rotate failed pending sessions without re-editing settled terminal history forever.
+- Made callback acknowledgements truthful for invalidated, missing, non-participant, missing-character and unavailable-actor outcomes. Bounded terminal integrity validation now persists a per-session checkpoint, reaches malformed rows on either side of healthy history across restart, and does not reread validated immutable terminal rows on every scheduler tick; missing terminal metadata remains immediately repairable.
+- Made the non-production group-combat launch hint explain that `/dev_party` creates the code, only the invite suffix after `party_` is passed to `/dev_group_combat`, and the party leader must issue the start command.
+- Group-proof cards now match the established fight/raid shape with shared HP/mana rows, the standard 23-second turn prompt, a separated viewer prompt, two-column exact-target controls and a shared bounded terminal journal. Aid is hidden for full-health allies and never reports `+0 HP`; the latest valid current-turn choice replaces an earlier one before resolution.
+- Private text-command redirects now CAS-promote a fresh inert candidate as the sole latest canonical combat card and retire the older reference. Explicit `🔎 Оновити` callbacks use the same safe replacement when their card is buried, has unknown freshness after restart or is not the recorded canonical source; a still-latest card edits in place, and superseded buttons cannot mutate the proof.
+- Active proof cards now render the actual remaining turn time from the stored deadline for both queued and unqueued participants. Terminal journal paging returns to the result on the same participant-only canonical message even after its delivery revision was acknowledged.
+- Actor/turn replacement now claims the session version before mutating the row and retries unique/CAS conflicts against the winning choice, so final-action and timeout races cannot rewrite the action behind an already resolved recap. Replacement-card delivery makes the previous card inert before candidate activation; an ambiguous activation error keeps the promoted candidate canonical and pending for retry, while only confirmed unavailability or a still-inert candidate permits restoring the previous reference. Failed post-success deletion leaves the previous card inert.
+
+### Verification and compatibility
+- Added deterministic 2×2/3×3 reducer, target, death, rewardless terminal, 25-turn bound, callback-budget, production-isolation, canonical-card failure, scheduler and service coverage.
+- Added Prisma integration coverage for atomic start/failure, same-life leases, wrong-side/stale targets, duplicate last-action and action/timeout races, resource-free timeout, normal rewardless victory, malformed-state invalidation, orphan repair, restart/remort blocking and unchanged Character economy/resources.
+- Query-event fixtures now await marker-query events before resetting or counting each scope, eliminating delayed setup/assertion attribution without sleeps. Ten fresh processes consistently record `30` statements for start, `20` for a queued action, `22` for one directly measured final resolving submission within its unchanged `≤35` budget, `31` total as a separate concurrent duplicate-final aggregate observation, and exactly `1` for the lean due-id scan. Active state stays below `13,000` serialized characters with at most five recap rounds; Telegram cards stay under the platform limit.
+- No production route, XP, gold, item, quest, achievement, activity reward, guild schema, Big Barrel behavior or lore change was added. Full class/race/item parity remains `0.4.1` scope.
+- Added a spoiler-light player-news entry about the group-combat foundation without claiming that its non-production proof is a playable production route.
+
 ## [0.3.17] - 12026-07-22 - Callback Read-Path Collapse
 
 ### Changed

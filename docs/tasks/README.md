@@ -26,19 +26,15 @@ read-only review.
 
 Keep each task compact and link to canonical docs instead of copying them.
 
-## Verified current task
+## Current release and next task
 
-The latest `origin/main` baseline verified on `12026-07-22` is
-`3aa80b54`, package `0.3.17`. The next implementation is
-[`0.4.0-party-vs-many-proof.md`](0.4.0-party-vs-many-proof.md).
+The current repository release is `0.4.0`:
+[`0.4.0-party-vs-many-proof.md`](0.4.0-party-vs-many-proof.md). Its hidden,
+rewardless proof remains default-off and hard-disabled in production;
+deployment, production availability and manual Telegram QA are unproven.
 
-Live GitHub state at that verification point:
-
-- PR [#184](https://github.com/q587p/kvestarnia-bot/pull/184) uses
-  `codex/0.4.0-party-vs-many-proof`, targets `main`, and remains open/unmerged.
-- This is active work, not a merged release or proof of production deployment.
-
-Do not edit the `0.4.0` task substance from repository-hygiene work.
+[`0.4.1-group-combat-hardening.md`](0.4.1-group-combat-hardening.md) is the next
+planned version. This repository-state reconciliation does not start it.
 
 ## Accepted 0.4.x planning
 
@@ -62,8 +58,8 @@ These are planned contracts, not merged or deployed features.
 
 ## Shipped records and historical drafts
 
-- `0.3.17` is the current merged repository release record:
-  [`0.3.17-callback-read-path-collapse.md`](0.3.17-callback-read-path-collapse.md).
+- `0.4.0` is the current repository release record; `0.3.17` is the previous
+  release record.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.
 - Superseded or consumed drafts live in [`archive/`](archive/).

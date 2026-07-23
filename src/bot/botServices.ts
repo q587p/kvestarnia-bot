@@ -19,6 +19,7 @@ import type { FightingCornerQuestService } from "../services/fightingCornerQuest
 import type { HeroService } from "../services/heroService";
 import type { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import type { HuntService } from "../services/huntService";
+import type { GroupCombatService } from "../services/groupCombatService";
 import type { InventoryService } from "../services/inventoryService";
 import type { ItemCraftService } from "../services/itemCraftService";
 import type { ItemUpgradeService } from "../services/itemUpgradeService";
@@ -58,6 +59,7 @@ export interface BotServices {
   firstKorchmaQuest: FirstKorchmaQuestService;
   fightingCornerQuest: FightingCornerQuestService;
   hunt: HuntService;
+  groupCombat?: GroupCombatService;
   yeger: YegerQuestService;
   onboarding: OnboardingService;
   passageSearch?: PassageSearchService;

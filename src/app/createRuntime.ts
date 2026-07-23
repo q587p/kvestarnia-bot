@@ -6,6 +6,7 @@ import { createBot } from "../bot/createBot";
 import { createDuelTurnTimeoutScheduler } from "../bot/duelTurnTimeoutScheduler";
 import { createEquipmentAttunementScheduler } from "../bot/equipmentAttunementScheduler";
 import { createHealthRecoveryNotificationScheduler } from "../bot/healthRecoveryNotificationScheduler";
+import { createGroupCombatTimeoutScheduler } from "../bot/groupCombatTimeoutScheduler";
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
 import { createPartyRaidChatDeliveryScheduler } from "../bot/partyRaidChatDeliveryScheduler";
@@ -28,6 +29,7 @@ interface RuntimeDependencies {
   createDuelTurnTimeoutScheduler: typeof createDuelTurnTimeoutScheduler;
   createEquipmentAttunementScheduler: typeof createEquipmentAttunementScheduler;
   createHealthRecoveryNotificationScheduler: typeof createHealthRecoveryNotificationScheduler;
+  createGroupCombatTimeoutScheduler: typeof createGroupCombatTimeoutScheduler;
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
   createPartyRaidChatDeliveryScheduler: typeof createPartyRaidChatDeliveryScheduler;
@@ -48,6 +50,7 @@ export function createRuntime(input: {
     createDuelTurnTimeoutScheduler,
     createEquipmentAttunementScheduler,
     createHealthRecoveryNotificationScheduler,
+    createGroupCombatTimeoutScheduler,
     createPassageSearchCompletionScheduler,
     createPartyBossRecruitingStartScheduler,
     createPartyRaidChatDeliveryScheduler,
@@ -69,6 +72,7 @@ export function createRuntime(input: {
   let duelTurnTimeoutScheduler: ReturnType<typeof createDuelTurnTimeoutScheduler> | null = null;
   let equipmentAttunementScheduler: ReturnType<typeof createEquipmentAttunementScheduler> | null = null;
   let healthRecoveryNotificationScheduler: ReturnType<typeof createHealthRecoveryNotificationScheduler> | null = null;
+  let groupCombatTimeoutScheduler: ReturnType<typeof createGroupCombatTimeoutScheduler> | null = null;
   let combatTurnTimeoutScheduler: ReturnType<typeof createCombatTurnTimeoutScheduler> | null = null;
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
@@ -88,6 +92,7 @@ export function createRuntime(input: {
     combatTurnTimeoutScheduler?.start();
     equipmentAttunementScheduler?.start();
     healthRecoveryNotificationScheduler?.start();
+    groupCombatTimeoutScheduler?.start();
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
     partyRaidChatDeliveryScheduler?.start();
@@ -107,6 +112,7 @@ export function createRuntime(input: {
       combatTurnTimeoutScheduler?.stop();
       duelTurnTimeoutScheduler?.stop();
       equipmentAttunementScheduler?.stop();
+      await groupCombatTimeoutScheduler?.stop();
       passageSearchCompletionScheduler?.stop();
       partyBossRecruitingStartScheduler?.stop();
       partyRaidChatDeliveryScheduler?.stop();
@@ -175,6 +181,9 @@ export function createRuntime(input: {
           bot
         );
       }
+      if (services.groupCombat?.isEnabled()) {
+        groupCombatTimeoutScheduler = dependencies.createGroupCombatTimeoutScheduler(services.groupCombat, bot);
+      }
       if (services.passageSearch) {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
           passageSearch: services.passageSearch,
@@ -204,6 +213,7 @@ export function createRuntime(input: {
         includeDevReset: services.devReset.isEnabled(),
         includeDevGrant: services.devGrant?.isEnabled() === true,
         includePartySessions: services.partySessions?.isEnabled() === true,
+        includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() === true,
         includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() === true,
         includeTavernGames: services.tavernGames?.isEnabled() === true
       })).catch((error) => {

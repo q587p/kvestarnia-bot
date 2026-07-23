@@ -52,6 +52,7 @@ BOT_USERNAME=
 DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 HP_RECOVERY_NOTIFICATIONS_ENABLED=false
+GROUP_COMBAT_PROOF_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
@@ -93,6 +94,14 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 
 `FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED` окремо відкриває production-поверхню справи `Перше правило Бійцівського кутка`; до цільової runtime-перевірки лишай його `false`. `FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED` стосується лише локального helper-а й ніколи не обходить production-gate.
 
+`GROUP_COMBAT_PROOF_ENABLED=true` відкриває лише non-production proof 2–3×2–3.
+У `NODE_ENV=production` прапорець примусово не діє: команда, callback-и, dev-help
+і scheduler не реєструються. Для локальної перевірки спершу створіть ватагу
+через `/dev_party`, зберіть 2–3 пригодників і натисніть на приватній картці
+ватажка `⚔️ Dev: гуртова сутичка`. У груповій картці ця кнопка не з'являється.
+Рівнозначний командний шлях: `/dev_group_combat TOKEN`, де `TOKEN` — частина
+invite-посилання після `party_`; саму команду можна надіслати і з групи.
+
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
 Приватний рейд-чат 0.3.15 не має окремого конфігураційного ключа: він працює всередині наявної поверхні `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Вимкнення батьківського прапорця ховає нові читання, записи й кнопки та запускає фонове очищення старих карток. Для локальної перевірки достатньо ввімкнути Big Barrel; `/dev_raid_chat` усе одно не реєструється у production.
@@ -132,6 +141,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_party` — збирає тимчасову локальну ватагу для перевірки party/session і Big Barrel Brother flows; у production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
+- `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` запускає для ватажка приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан. У production команда, кнопка й callback не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
 - `/dev_raid_chat fill [14..131] | clear | expire composer|retention` — наповнює або очищає поточний Big Barrel чат і прискорює строки для перевірки newest-13, ліміту, composer та retention; доступна лише поза production, коли ввімкнений наявний Big Barrel прапорець.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.

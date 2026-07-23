@@ -74,6 +74,7 @@ import { buildBardLamentPlan } from "../../domain/noncombat/bardSupport";
 import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import { SeededRandomSource } from "../../shared/random";
+import { PARTY_BOSS_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 import { PartyBossStateValidationError } from "../../domain/partyBoss/partyBossStateValidation";
 
@@ -82,7 +83,6 @@ type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBos
 type PartyRow = Prisma.PartySessionGetPayload<{ include: typeof partyInclude }>;
 type CharacterRow = PartyRow["participants"][number]["character"];
 
-const PARTY_BOSS_LEASE_KIND = "party-boss";
 const ACTIVE_PARTY_STATUS = "active";
 const RECRUITING_PARTY_STATUS = "recruiting";
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";

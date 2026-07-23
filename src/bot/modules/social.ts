@@ -6,12 +6,14 @@ import { parseItemPostalCallbackData } from "../callbacks/itemPostalCallbackData
 import { parseClassNoncombatCallbackData } from "../callbacks/classNoncombatCallbackData";
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import { parsePartySessionCallbackData } from "../callbacks/partySessionCallbackData";
+import { parseGroupCombatCallbackData } from "../callbacks/groupCombatCallbackData";
 import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleItemPostalCallback } from "../commands/itemPostalCommand";
 import { handleClassNoncombatCallback } from "../commands/classNoncombatCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { handlePartySessionCallback, registerPartySessionDevCommand } from "../commands/partySessionCommand";
+import { handleGroupCombatCallback, registerGroupCombatDevCommand } from "../commands/groupCombatCommand";
 import { playerFromContext } from "../context";
 
 import {
@@ -41,8 +43,24 @@ export function registerSocialBotModule(
       presence: services.presence,
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
-      partyRaidChat: services.partyRaidChat
+      partyRaidChat: services.partyRaidChat,
+      groupCombat: services.groupCombat
     });
+  }
+
+  if (services.groupCombat?.areDevHelpersEnabled()) {
+    registerGroupCombatDevCommand(bot, services.groupCombat);
+  }
+
+  if (services.groupCombat?.isEnabled()) {
+    registerParsedCallbackRoute(
+      bot,
+      /^v1:gc:/,
+      (data) => parseWhenAvailable(data, parseGroupCombatCallbackData, services.groupCombat),
+      async (ctx, { callback, service }) => {
+        await handleGroupCombatCallback(ctx, callback, service);
+      }
+    );
   }
 
   registerParsedCallbackRoute(
@@ -137,7 +155,8 @@ export function registerSocialBotModule(
         presence: services.presence,
         botUsername: options.botUsername,
         partyBoss: services.partyBoss,
-        partyRaidChat: services.partyRaidChat
+        partyRaidChat: services.partyRaidChat,
+        groupCombat: services.groupCombat
       });
     }
   );

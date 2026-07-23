@@ -148,6 +148,11 @@ describe("help presenter", () => {
       includeDevGrant: false,
       includePartySessions: true
     }, "combat");
+    const groupCombatEnabled = presentDevHelp({
+      includeDevReset: false,
+      includeDevGrant: false,
+      includeGroupCombat: true
+    }, "combat");
     const hpRecoveryEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
@@ -197,6 +202,8 @@ describe("help presenter", () => {
     expect(grantQuests).toContain("🎲 /dev_reset_tavern_games");
     expect(partyEnabled).toContain("🪢 /dev_party — зібрати тимчасову ватагу локально");
     expect(partyEnabled).not.toContain("/dev_raid_chat");
+    expect(groupCombatEnabled).toContain("⚔️ /dev_group_combat — запустити доказову сутичку 2–3 на 2–3");
+    expect(groupCombatEnabled).not.toContain("/dev_party");
     expect(raidChatEnabled).toContain("💬 /dev_raid_chat");
     expect(partyEnabled).not.toContain("/dev_help");
     expect(hpRecoveryEnabled).toContain(

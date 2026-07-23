@@ -6,6 +6,7 @@ import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { TavernGameService } from "../../services/tavernGameService";
 import type { FightingCornerQuestService } from "../../services/fightingCornerQuestService";
 import type { HealthRecoveryNotificationService } from "../../services/healthRecoveryNotificationService";
+import type { GroupCombatService } from "../../services/groupCombatService";
 import { getDevHelpSections } from "../devHelpSections";
 import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
 import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
@@ -17,6 +18,7 @@ export function registerHelpCommand(
   devGrantService?: Pick<DevGrantService, "isEnabled">,
   options: {
     partySessionService?: Pick<PartySessionService, "areDevHelpersEnabled"> | undefined;
+    groupCombatService?: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined;
     partyRaidChatService?: Pick<PartyRaidChatService, "areDevHelpersEnabled"> | undefined;
     tavernGameService?: Pick<TavernGameService, "isEnabled"> | undefined;
     fightingCornerQuestService?: Pick<FightingCornerQuestService, "isDevHelperEnabled"> | undefined;
@@ -27,6 +29,7 @@ export function registerHelpCommand(
     includeDevReset: devResetService.isEnabled(),
     includeDevGrant: devGrantService?.isEnabled() ?? false,
     includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false,
+    includeGroupCombat: options.groupCombatService?.areDevHelpersEnabled() ?? false,
     includeRaidChat: options.partyRaidChatService?.areDevHelpersEnabled() ?? false,
     includeTavernGames: typeof options.tavernGameService?.isEnabled === "function"
       ? options.tavernGameService.isEnabled()

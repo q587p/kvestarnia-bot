@@ -1,5 +1,6 @@
 import type { CharacterRecord } from "./characterRepository";
 import type { ItemGrant, RewardLevelChange } from "./dailyActionRepository";
+import type { CombatLeaseKind } from "../../domain/combat/combatLeaseRegistry";
 
 export type DevGrantProgressResult = {
   character: CharacterRecord;
@@ -9,7 +10,7 @@ export type DevGrantProgressResult = {
 export type DevGrantCharacterResult = {
   character: CharacterRecord;
   combat?: {
-    kind: "solo-combat" | "party-boss" | "turn-based-duel";
+    kind: Exclude<CombatLeaseKind, "group-combat">;
     hpCurrent: number;
     hpMax: number;
   };

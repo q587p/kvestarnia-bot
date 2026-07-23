@@ -113,7 +113,9 @@ describe("public news rendering", () => {
     expect(changelogHeading).toEqual(
       expect.objectContaining({ version: packageJson.version })
     );
-    expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
+    expect(newsHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version })
+    );
     expect(newsHeading?.date).toBe(changelogHeading?.date);
   });
 

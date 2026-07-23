@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
+import type { GroupCombatService } from "../../services/groupCombatService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
@@ -67,6 +68,7 @@ export interface PartySessionCommandOptions {
   presence: PresenceService;
   partyBoss?: PartyBossService | undefined;
   partyRaidChat?: PartyRaidChatService | undefined;
+  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined;
 }
 
 export function registerPartySessionDevCommand(
@@ -115,6 +117,7 @@ export async function sendPartyCreate(
         inviteUrl,
         viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
+        includeGroupCombatStart: options.groupCombat?.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(session),
         includeRaidChat: raidChat?.writable === true,
         serializeRaidChat: raidChat !== null
@@ -581,6 +584,7 @@ export async function handlePartySessionCallback(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -628,6 +632,7 @@ export async function handlePartySessionCallback(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -685,6 +690,7 @@ export async function handlePartySessionCallback(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -745,6 +751,7 @@ export async function handlePartySessionCallback(
         service,
         options.partyBoss,
         options.partyRaidChat,
+        options.groupCombat,
         (session, inviteUrl, viewerCharacterId) => presentPartyView(
           { state: "ready", session },
           { inviteUrl, viewerCharacterId }
@@ -788,6 +795,7 @@ export async function handlePartySessionCallback(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -820,6 +828,7 @@ export async function handlePartySessionCallback(
         service,
         options.partyBoss,
         options.partyRaidChat,
+        options.groupCombat,
         (session, canonicalInviteUrl, viewerCharacterId) => presentPartyJoin(
           { ...result, session },
           { inviteUrl: canonicalInviteUrl, viewerCharacterId }
@@ -839,6 +848,7 @@ export async function handlePartySessionCallback(
           service,
           options.partyBoss,
           options.partyRaidChat,
+          options.groupCombat,
           (session, cancelledInviteUrl, viewerCharacterId) => presentPartyView({ state: "ready", session }, {
             inviteUrl: cancelledInviteUrl,
             viewerCharacterId
@@ -865,6 +875,7 @@ export async function handlePartySessionCallback(
         service,
         options.partyBoss,
         options.partyRaidChat,
+        options.groupCombat,
         (session, canonicalInviteUrl, viewerCharacterId) => presentPartyLeave(
           { ...result, session },
           { inviteUrl: canonicalInviteUrl, viewerCharacterId }
@@ -892,6 +903,7 @@ export async function handlePartySessionCallback(
         service,
         options.partyBoss,
         options.partyRaidChat,
+        options.groupCombat,
         (session, inviteUrl, viewerCharacterId) => presentPartyCancel(
           { ...result, session },
           { inviteUrl, viewerCharacterId }
@@ -910,7 +922,16 @@ export async function handlePartySessionCallback(
 
   const result = await service.forceExpireByToken(callback.token);
   await safeAnswerCallbackQuery(ctx, { text: "Строк збору завершено." });
-  await sendPartyView(ctx, "edit", result, service, telegramUserId, options.partyRaidChat, options.botUsername);
+  await sendPartyView(
+    ctx,
+    "edit",
+    result,
+    service,
+    telegramUserId,
+    options.partyRaidChat,
+    options.groupCombat?.areDevHelpersEnabled(),
+    options.botUsername
+  );
 }
 
 export async function sendPartyJoinFromStartPayload(
@@ -921,6 +942,7 @@ export async function sendPartyJoinFromStartPayload(
     botUsername?: string | undefined;
     partyBoss?: PartyBossService | undefined;
     partyRaidChat?: PartyRaidChatService | undefined;
+    groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined;
   } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -938,6 +960,7 @@ export async function sendPartyJoinFromStartPayload(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyView(
         { state: "ready", session },
         { inviteUrl, viewerCharacterId }
@@ -961,6 +984,7 @@ export async function sendPartyJoinFromStartPayload(
       service,
       options.partyBoss,
       options.partyRaidChat,
+      options.groupCombat,
       (session, inviteUrl, viewerCharacterId) => presentPartyJoin(
         { ...result, session },
         { inviteUrl, viewerCharacterId }
@@ -1036,6 +1060,7 @@ async function handleNearbyInvite(
       inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
       viewerCharacterId: getViewerCharacterId(session, telegramUserId),
       includeDevExpire: service.areDevHelpersEnabled(),
+      includeGroupCombatStart: options.groupCombat?.areDevHelpersEnabled(),
       includeBossStart: isBigBarrelParty(session)
     });
     return;
@@ -1073,6 +1098,7 @@ async function handleNearbyInvite(
         inviteUrl: buildPartyInviteUrl(options.botUsername, view.session.inviteToken),
         viewerCharacterId: getViewerCharacterId(view.session, telegramUserId),
         includeDevExpire: service.areDevHelpersEnabled(),
+        includeGroupCombatStart: options.groupCombat?.areDevHelpersEnabled(),
         includeBossStart: isBigBarrelParty(view.session)
       }
     );
@@ -1086,6 +1112,7 @@ async function sendPartyView(
   service: PartySessionService,
   telegramUserId: bigint,
   partyRaidChat?: PartyRaidChatService,
+  includeGroupCombatStart?: boolean,
   botUsername?: string
 ): Promise<void> {
   const inviteUrl = result.state === "ready"
@@ -1105,6 +1132,7 @@ async function sendPartyView(
         inviteUrl,
         viewerCharacterId,
         includeDevExpire: service.areDevHelpersEnabled(),
+        includeGroupCombatStart,
         includeBossStart: isBigBarrelParty(result.session),
         includeRaidChat: raidChat?.writable === true,
         serializeRaidChat: raidChat !== null
@@ -1123,6 +1151,7 @@ async function sendText(
         inviteUrl?: string | null | undefined;
         viewerCharacterId?: string | null | undefined;
         includeDevExpire?: boolean | undefined;
+        includeGroupCombatStart?: boolean | undefined;
         includeBossStart?: boolean | undefined;
         includeRaidChat?: boolean | undefined;
         serializeRaidChat?: boolean | undefined;
@@ -1136,6 +1165,8 @@ async function sendText(
             viewerCharacterId: keyboard.viewerCharacterId,
             inviteUrl: keyboard.inviteUrl,
             includeDevExpire: keyboard.includeDevExpire,
+            includeGroupCombatStart: keyboard.includeGroupCombatStart,
+            isPrivateDestination: ctx.chat?.type === "private",
             includeBossStart: keyboard.includeBossStart,
             includeRaidChat: keyboard.includeRaidChat
           })
@@ -1281,6 +1312,7 @@ async function sendCanonicalPartyPreparationCard(
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
   partyRaidChat: PartyRaidChatService | undefined,
+  groupCombat: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
     inviteUrl: string | null,
@@ -1333,6 +1365,8 @@ async function sendCanonicalPartyPreparationCard(
           viewerCharacterId: actorViewerCharacterId,
           inviteUrl,
           includeDevExpire: service.areDevHelpersEnabled(),
+          includeGroupCombatStart: groupCombat?.areDevHelpersEnabled(),
+          isPrivateDestination: ctx.chat?.type === "private",
           includeBossStart: isBigBarrelParty(session),
           includeRaidChat: actorChat?.writable === true
         })
@@ -1381,7 +1415,8 @@ async function sendCanonicalPartyPreparationCard(
           replyReference,
           service,
           partyBoss,
-          partyRaidChat
+          partyRaidChat,
+          groupCombat?.areDevHelpersEnabled()
         );
         if (retry) {
           continue;
@@ -1407,7 +1442,8 @@ async function refreshCanonicalPartyParticipantCards(
   replyReference: { chatId: bigint; messageId: number } | null,
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
-  partyRaidChat: PartyRaidChatService | undefined
+  partyRaidChat: PartyRaidChatService | undefined,
+  includeGroupCombatStart: boolean | undefined
 ): Promise<boolean> {
   const callbackReference = ctx.chat?.id && ctx.callbackQuery?.message?.message_id
     ? { chatId: BigInt(ctx.chat.id), messageId: ctx.callbackQuery.message.message_id }
@@ -1437,16 +1473,21 @@ async function refreshCanonicalPartyParticipantCards(
       session.inviteToken
     ) ?? null;
     const text = chat ? appendPartyRaidChatWithinBudget(baseText, chat) : baseText;
-    const messageOptions = {
+    const buildMessageOptions = (isPrivateDestination: boolean) => ({
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartySessionKeyboard(session, {
         viewerCharacterId: participant.characterId,
         inviteUrl,
         includeDevExpire: service.areDevHelpersEnabled(),
+        includeGroupCombatStart,
+        isPrivateDestination,
         includeBossStart: isBigBarrelParty(session),
         includeRaidChat: chat?.writable === true
       })
-    };
+    });
+    const messageOptions = buildMessageOptions(
+      participant.chatId === participant.character.telegramUserId
+    );
     let needsReplacement = !participant.chatId || !participant.messageId;
 
     if (!needsReplacement) {
@@ -1490,8 +1531,11 @@ async function refreshCanonicalPartyParticipantCards(
 
     try {
       const chatId = confirmedParticipant.chatId ?? confirmedParticipant.character.telegramUserId;
+      const replacementOptions = buildMessageOptions(
+        chatId === confirmedParticipant.character.telegramUserId
+      );
       const message = await runPartyRaidChatTelegramOperation(ctx, chat !== null, () =>
-        ctx.api.sendMessage(Number(chatId), text, messageOptions)
+        ctx.api.sendMessage(Number(chatId), text, replacementOptions)
       );
       if (message.message_id) {
         await service.recordParticipantMessageReference(

@@ -15,7 +15,7 @@ describe("Prisma schema", () => {
       ),
       "utf8"
     );
-    const model = schema.slice(schema.indexOf("model PartyBossRound"), schema.indexOf("model TavernGameSession"));
+    const model = schema.slice(schema.indexOf("model PartyBossRound"), schema.indexOf("model GroupCombatSession"));
 
     expect(model).toContain("@@unique([sessionId, turn])");
     expect(model).not.toContain("@@index([sessionId, turn])");
@@ -30,6 +30,31 @@ describe("Prisma schema", () => {
     expect(migration).toContain("CASE state_participant.type");
     expect(migration).toContain("CREATE UNIQUE INDEX \"party_boss_rounds_session_id_turn_key\"");
     expect(migration).not.toContain("party_boss_rounds_session_id_turn_idx");
+  });
+
+  it("stores separate bounded group-combat session, participant, and action identities", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(
+      join(process.cwd(), "prisma", "migrations", "20260722090000_group_combat_proof", "migration.sql"),
+      "utf8"
+    );
+
+    expect(schema).toContain("model GroupCombatSession");
+    expect(schema).toContain("model GroupCombatParticipant");
+    expect(schema).toContain("model GroupCombatAction");
+    expect(schema).toContain("@@unique([sessionId, turn, actorCharacterId])");
+    expect(schema).toContain("@@index([status, turnExpiresAt, id])");
+    expect(schema).toContain("deliveryRevision Int");
+    expect(schema).toContain("deliveredRevision Int");
+    expect(schema).toContain("@@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])");
+    expect(schema).toContain("terminalIntegrityCheckedAt DateTime?");
+    expect(schema).toContain("@@index([status, terminalIntegrityCheckedAt, updatedAt, id])");
+    expect(migration).toContain("group_combat_actions_session_id_turn_actor_character_id_key");
+    expect(migration).toContain("group_combat_sessions_status_turn_expires_at_id_idx");
+    expect(migration).toContain("delivery_revision");
+    expect(migration).toContain("delivered_revision");
+    expect(migration).toContain("terminal_integrity_checked_at");
+    expect(migration).toContain("group_combat_sessions_status_terminal_integrity_checked_at_updated_at_id_idx");
   });
 
   it("represents DailyAction uniqueness for once-per-day rewards", () => {

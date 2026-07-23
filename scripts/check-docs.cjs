@@ -12,7 +12,7 @@ const errors = [];
 function gitFiles() {
   const output = execFileSync(
     "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    ["ls-files", "--cached", "-z"],
     { cwd: root, encoding: "utf8" },
   );
 
