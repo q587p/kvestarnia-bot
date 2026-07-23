@@ -7,9 +7,11 @@ import {
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
+  GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_RULES_VERSION,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  GROUP_COMBAT_TURN_LIMIT,
   resolveGroupCombatTurn,
   validateGroupCombatAction,
   type GroupCombatAction,
@@ -1073,7 +1075,8 @@ async function invalidateSessionRewardlessly(
   row: SessionRow,
   now: Date
 ): Promise<SessionRepairOutcome> {
-  const state = buildInvalidFallbackState(row);
+  const repairRoster = selectInvalidRepairRoster(row);
+  const state = buildInvalidFallbackState(row, repairRoster.preserved);
   const result = buildRewardlessResult("invalid", state.turn);
   const plan = buildGroupCombatSettlementPlan(state)!;
   const updated = await tx.groupCombatSession.updateMany({
@@ -1098,7 +1101,13 @@ async function invalidateSessionRewardlessly(
   if (updated.count !== 1) {
     return "unchanged";
   }
-  await canonicalizeInvalidatedParticipantArtifacts(tx, row, state);
+  if (repairRoster.discarded.length > 0) {
+    await releaseAllGroupCombatLeases(tx, row.id, now);
+    await tx.groupCombatParticipant.deleteMany({
+      where: { id: { in: repairRoster.discarded.map((participant) => participant.id) } }
+    });
+  }
+  await canonicalizeInvalidatedParticipantArtifacts(tx, repairRoster.preserved, state);
   const canonical = await tx.groupCombatSession.findUnique({
     where: { id: row.id },
     include: sessionInclude
@@ -1119,13 +1128,46 @@ async function invalidateSessionRewardlessly(
   if (integrityChecked.count !== 1) {
     throw new GroupCombatMutationConflict();
   }
-  await releaseAllGroupCombatLeases(tx, row.id, now);
+  if (repairRoster.discarded.length === 0) {
+    await releaseAllGroupCombatLeases(tx, row.id, now);
+  }
   await completeParty(tx, row.partySessionId);
   return "invalidated";
 }
 
-function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
-  const participants = row.participants.map((participant): GroupCombatActorSnapshot => ({
+function selectInvalidRepairRoster(row: SessionRow): {
+  preserved: SessionRow["participants"];
+  discarded: SessionRow["participants"];
+} {
+  const preserved: SessionRow["participants"] = [];
+  const discarded: SessionRow["participants"] = [];
+  for (const participant of row.participants) {
+    if (preserved.length >= GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT) {
+      discarded.push(participant);
+      continue;
+    }
+    const candidate = [...preserved, participant];
+    try {
+      parseGroupCombatStateStrict(buildInvalidFallbackState(row, candidate), {
+        sessionId: row.id,
+        partySessionId: row.partySessionId
+      });
+      preserved.push(participant);
+    } catch (error) {
+      if (!(error instanceof GroupCombatStateValidationError)) {
+        throw error;
+      }
+      discarded.push(participant);
+    }
+  }
+  return { preserved, discarded };
+}
+
+function buildInvalidFallbackState(
+  row: SessionRow,
+  repairParticipants: SessionRow["participants"]
+): GroupCombatState {
+  const participants = repairParticipants.map((participant): GroupCombatActorSnapshot => ({
     characterId: participant.characterId,
     telegramUserId: participant.character.user.telegramUserId.toString(),
     name: participant.character.name.slice(0, 93) || "Невідомий пригодник",
@@ -1154,7 +1196,7 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
     encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
     deterministicSeed: 0,
     status: "invalid",
-    turn: Math.max(1, row.turn),
+    turn: Math.min(GROUP_COMBAT_TURN_LIMIT, Math.max(1, row.turn)),
     participants,
     enemies: [
       { id: "invalid-enemy-1", name: "Загублений запис", order: 0, hp: 0, hpMax: 1, attack: 1, defense: 0 },
@@ -1288,11 +1330,11 @@ async function updateContributions(tx: TxClient, sessionId: string, contribution
 
 async function canonicalizeInvalidatedParticipantArtifacts(
   tx: TxClient,
-  row: SessionRow,
+  participants: SessionRow["participants"],
   state: GroupCombatState
 ): Promise<void> {
   const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
-  for (const participant of row.participants) {
+  for (const participant of participants) {
     const contribution = contributions.get(participant.characterId);
     if (!contribution) {
       throw new GroupCombatStateValidationError("Invalidated participant is missing its contribution.");

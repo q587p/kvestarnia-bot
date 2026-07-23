@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
+  GROUP_COMBAT_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
+  GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RULES_VERSION,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
@@ -143,13 +145,16 @@ const stateSchema = z.object({
   deterministicSeed: nonNegativeInteger,
   status: z.enum(["active", "won", "lost", "invalid"]),
   turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
-  participants: z.array(actorSchema),
+  participants: z.array(actorSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
   enemies: z.array(enemySchema).min(2).max(3),
-  contributions: z.array(contributionSchema),
+  contributions: z.array(contributionSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
   statuses: z.array(statusSchema).max(93),
   recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT)
 }).strict().superRefine((state, context) => {
-  if (state.status !== "invalid" && (state.participants.length < 2 || state.participants.length > 3)) {
+  if (
+    state.status !== "invalid"
+    && (state.participants.length < 2 || state.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT)
+  ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Live or resolved proof roster must contain two or three participants." });
   }
   requireUnique(state.participants.map((row) => row.characterId), context, "participant character ids");
@@ -206,8 +211,11 @@ const settlementPlanSchema = z.object({
   sessionId: z.string().min(1),
   outcome: z.enum(["won", "lost", "invalid"]),
   completedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
-  participants: z.array(settlementParticipantSchema).max(3)
+  participants: z.array(settlementParticipantSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT)
 }).strict().superRefine((plan, context) => {
+  if (plan.outcome !== "invalid" && plan.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Resolved proof plan cannot exceed three participants." });
+  }
   requireUnique(plan.participants.map((row) => row.characterId), context, "settlement character ids");
   requireUnique(plan.participants.map((row) => row.rosterOrder), context, "settlement roster orders");
   if (plan.participants.some((row) => row.contribution.characterId !== row.characterId)) {

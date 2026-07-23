@@ -14,8 +14,10 @@
   the winning action/turn transaction; Dense Bandage keeps five-own-action
   cooldown and Field Kit stays once per fight. Missing frozen inventory
   rewardlessly invalidates instead of retrying forever: every relational
-  contribution/settlement row is rewritten to the exact fallback, the full
-  terminal graph is validated, then leases/statuses release exactly once.
+  contribution/settlement row is rewritten to the exact fallback. Invalid
+  repair artifacts preserve up to 13 relational participants within the state
+  cap; larger/unrepresentable corruption releases all owned leases/statuses
+  before deterministic row cleanup and strict terminal-graph validation.
   Terminal CAS writes one immutable zero-reward plan whose full participant rows
   and receipts must match state/relational identity and contribution before
   independent replay, without

@@ -23,6 +23,8 @@ export const GROUP_COMBAT_RECAP_LIMIT = 5;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
 export const GROUP_COMBAT_STATE_BYTE_LIMIT = 32_768;
 export const GROUP_COMBAT_CARD_BYTE_LIMIT = 4_096;
+export const GROUP_COMBAT_PARTICIPANT_LIMIT = 3;
+export const GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT = 13;
 const GROUP_COMBAT_BASIC_GUARD_SENTINEL = 32_767;
 export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
   "item.responsible-panic-bandage",
@@ -183,7 +185,7 @@ export function createGroupCombatProofState(input: {
   deterministicSeed: number;
   participants: GroupCombatActorSnapshot[];
 }): GroupCombatState {
-  if (input.participants.length < 2 || input.participants.length > 3) {
+  if (input.participants.length < 2 || input.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT) {
     throw new Error("Group combat proof requires two or three participants.");
   }
 

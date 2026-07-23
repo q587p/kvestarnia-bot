@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGroupCombatTimeoutAction,
+  buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
+  GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
@@ -13,6 +15,7 @@ import {
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
+  parseGroupCombatSettlementPlanStrict,
   parseGroupCombatStateStrict
 } from "../../src/domain/groupCombat/groupCombatStateValidation";
 import {
@@ -143,6 +146,76 @@ describe("group combat proof reducer", () => {
       completedTurn: 2,
       rewards: { xp: 1, gold: 0, items: [] }
     })).toThrow(GroupCombatStateValidationError);
+  });
+
+  it("admits only bounded invalid repair rosters while keeping active and resolved proofs capped at three", () => {
+    const base = proofState(2);
+    const participants = Array.from(
+      { length: GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT },
+      (_, index) => participant(index, {})
+    );
+    const contributions = participants.map((actor) => ({
+      characterId: actor.characterId,
+      damage: 0,
+      healing: 0,
+      guardPrevented: 0,
+      control: 0,
+      damageTaken: 0,
+      committedActions: 0,
+      guardedTurns: 0
+    }));
+    const invalid = {
+      ...base,
+      status: "invalid" as const,
+      participants,
+      contributions
+    };
+
+    expect(parseGroupCombatStateStrict(invalid)).toEqual(invalid);
+    expect(parseGroupCombatStateStrict({
+      ...invalid,
+      participants: invalid.participants.slice(0, 4),
+      contributions: invalid.contributions.slice(0, 4)
+    }).participants).toHaveLength(4);
+    expect(() => parseGroupCombatStateStrict({
+      ...invalid,
+      participants: [...invalid.participants, participant(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT, {})],
+      contributions: [
+        ...invalid.contributions,
+        { ...invalid.contributions[0]!, characterId: `character-${GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT}` }
+      ]
+    })).toThrow(GroupCombatStateValidationError);
+
+    for (const status of ["active", "won", "lost"] as const) {
+      expect(() => parseGroupCombatStateStrict({
+        ...invalid,
+        status,
+        participants: invalid.participants.slice(0, 4),
+        contributions: invalid.contributions.slice(0, 4),
+        enemies: status === "won"
+          ? invalid.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+          : invalid.enemies,
+        turn: status === "lost" ? 25 : invalid.turn
+      })).toThrow(GroupCombatStateValidationError);
+    }
+    expect(() => createGroupCombatProofState({
+      sessionId: "four-player-start",
+      partySessionId: "four-player-party",
+      deterministicSeed: 42,
+      participants: participants.slice(0, 4)
+    })).toThrow("Group combat proof requires two or three participants.");
+
+    const fourParticipantInvalid = {
+      ...invalid,
+      participants: invalid.participants.slice(0, 4),
+      contributions: invalid.contributions.slice(0, 4)
+    };
+    const invalidPlan = buildGroupCombatSettlementPlan(fourParticipantInvalid)!;
+    expect(parseGroupCombatSettlementPlanStrict(invalidPlan)).toEqual(invalidPlan);
+    expect(() => parseGroupCombatSettlementPlanStrict({ ...invalidPlan, outcome: "won" }))
+      .toThrow(GroupCombatStateValidationError);
+    expect(() => parseGroupCombatSettlementPlanStrict({ ...invalidPlan, outcome: "lost" }))
+      .toThrow(GroupCombatStateValidationError);
   });
 
   it.each([
