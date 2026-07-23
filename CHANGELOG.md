@@ -26,6 +26,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Committed single-enemy class/race/gear actions now retarget after an earlier same-round death; guard, aid and item actions tick ability cooldowns; Priest effect scopes and counter victories at the turn cap follow their authored recipes.
 - Dense Bandage keeps its five-own-action cooldown and Field Kit remains once per fight in bounded combat state. Missing live inventory now rolls back resolution and invalidates the proof rewardlessly instead of leaving an active session that throws forever.
 - Terminal plans, relational contributions, settlement statuses and participant receipts must match canonical terminal state exactly. Shape-valid foreign or altered artifacts rebuild canonically before a later clean integrity checkpoint.
+- Every formerly-active invalidation now atomically rewrites participant contributions and settlement metadata to the canonical fallback before integrity-checking. Inventory drift, malformed active rows, wrong leases and v1 upgrade repair therefore remain loadable, deliverable and replayable after restart.
+- The callback parser now accepts only the generated eight-segment v2 action form with an explicit option-index segment; the ungenerated seven-segment form fails closed.
 - The 24-case simulator now fails unless all 13/25-turn scenarios complete the requested count, every support profile is reused after its authored cooldown and rewardlessness comes from a real terminal plan.
 
 ### Verification and compatibility

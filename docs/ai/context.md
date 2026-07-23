@@ -13,7 +13,9 @@
   multiple deaths. Timeout remains resource-free guard. Item consumption shares
   the winning action/turn transaction; Dense Bandage keeps five-own-action
   cooldown and Field Kit stays once per fight. Missing frozen inventory
-  rewardlessly invalidates and releases leases instead of retrying forever.
+  rewardlessly invalidates instead of retrying forever: every relational
+  contribution/settlement row is rewritten to the exact fallback, the full
+  terminal graph is validated, then leases/statuses release exactly once.
   Terminal CAS writes one immutable zero-reward plan whose full participant rows
   and receipts must match state/relational identity and contribution before
   independent replay, without
@@ -29,8 +31,9 @@
   maxima are `5,066` state, `1,637` card fixture and `46` callback. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
-  Generated v2 action callbacks route through combat-lock/social once; retained
-  v1 start/view/journal/back remain compatible. Production availability,
+  Generated eight-segment v2 action callbacks route through combat-lock/social
+  once; seven-segment actions fail closed and retained v1
+  start/view/journal/back remain compatible. Production availability,
   deployment and manual Telegram QA remain unproven. Local QA uses `/dev_party`
   then the private leader button or `/dev_group_combat <invite-suffix>`;
   public callbacks remain non-mutating.

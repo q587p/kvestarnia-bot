@@ -64,20 +64,20 @@ export function parseGroupCombatCallbackData(
     const page = parseBase36(parts[4], true);
     return page === null ? err("invalid") : ok({ type: "journal", token, page });
   }
-  if (parts[0] !== "v2" || parts[2] !== "a" || (parts.length !== 7 && parts.length !== 8)) {
+  if (parts[0] !== "v2" || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");
   }
   const turn = parseBase36(parts[4]);
   const action = parseAction(parts[5]);
-  const optionIndex = parts.length === 8 ? parseBase36(parts[6], true) : 0;
-  const targetIndex = parseBase36(parts[parts.length - 1], true);
+  const optionIndex = parseBase36(parts[6], true);
+  const targetIndex = parseBase36(parts[7], true);
   return turn !== null && action && optionIndex !== null && targetIndex !== null
     ? ok({
         type: "action",
         token,
         turn,
         action,
-        ...(parts.length === 8 && optionIndex > 0 ? { optionIndex } : {}),
+        ...(optionIndex > 0 ? { optionIndex } : {}),
         targetIndex
       })
     : err("invalid");

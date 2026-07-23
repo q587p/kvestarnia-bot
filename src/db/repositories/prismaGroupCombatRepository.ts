@@ -1075,6 +1075,7 @@ async function invalidateSessionRewardlessly(
 ): Promise<SessionRepairOutcome> {
   const state = buildInvalidFallbackState(row);
   const result = buildRewardlessResult("invalid", state.turn);
+  const plan = buildGroupCombatSettlementPlan(state)!;
   const updated = await tx.groupCombatSession.updateMany({
     where: { id: row.id, status: row.status, version: row.version },
     data: {
@@ -1086,16 +1087,37 @@ async function invalidateSessionRewardlessly(
       deliveryRevision: { increment: 1 },
       deliveryPending: true,
       deliveryAttemptedAt: null,
-      terminalIntegrityCheckedAt: now,
+      terminalIntegrityCheckedAt: null,
       stateJson: state as unknown as Prisma.InputJsonValue,
       resultJson: result as unknown as Prisma.InputJsonValue,
-      settlementPlanJson: buildGroupCombatSettlementPlan(state)! as unknown as Prisma.InputJsonValue,
+      settlementPlanJson: plan as unknown as Prisma.InputJsonValue,
       turnExpiresAt: now,
       completedAt: now
     }
   });
   if (updated.count !== 1) {
     return "unchanged";
+  }
+  await canonicalizeInvalidatedParticipantArtifacts(tx, row, state);
+  const canonical = await tx.groupCombatSession.findUnique({
+    where: { id: row.id },
+    include: sessionInclude
+  });
+  if (!canonical) {
+    throw new GroupCombatStateValidationError("Invalidated group combat disappeared before validation.");
+  }
+  parseRowState(canonical);
+  const integrityChecked = await tx.groupCombatSession.updateMany({
+    where: {
+      id: row.id,
+      status: "invalid",
+      version: row.version + 1,
+      terminalIntegrityCheckedAt: null
+    },
+    data: { terminalIntegrityCheckedAt: now }
+  });
+  if (integrityChecked.count !== 1) {
+    throw new GroupCombatMutationConflict();
   }
   await releaseAllGroupCombatLeases(tx, row.id, now);
   await completeParty(tx, row.partySessionId);
@@ -1260,6 +1282,30 @@ async function updateContributions(tx: TxClient, sessionId: string, contribution
     await tx.groupCombatParticipant.updateMany({
       where: { sessionId, characterId: contribution.characterId },
       data: { contributionJson: contribution as unknown as Prisma.InputJsonValue }
+    });
+  }
+}
+
+async function canonicalizeInvalidatedParticipantArtifacts(
+  tx: TxClient,
+  row: SessionRow,
+  state: GroupCombatState
+): Promise<void> {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of row.participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution) {
+      throw new GroupCombatStateValidationError("Invalidated participant is missing its contribution.");
+    }
+    await tx.groupCombatParticipant.update({
+      where: { id: participant.id },
+      data: {
+        contributionJson: contribution as unknown as Prisma.InputJsonValue,
+        settlementStatus: "pending",
+        settlementAttempts: 0,
+        settlementReceiptJson: Prisma.DbNull,
+        settledAt: null
+      }
     });
   }
 }
