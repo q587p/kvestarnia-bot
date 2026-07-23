@@ -3,21 +3,28 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { GROUP_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import {
   buildGroupCombatTimeoutAction,
+  buildGroupCombatSettlementPlan,
+  buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_RULES_VERSION,
+  GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   resolveGroupCombatTurn,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot,
+  type GroupCombatCommittedConsumable,
   type GroupCombatContribution,
   type GroupCombatResult,
+  type GroupCombatSettlementPlan,
   type GroupCombatState,
   type GroupCombatStatus
 } from "../../domain/groupCombat/groupCombat";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
+  parseGroupCombatSettlementPlanStrict,
+  parseGroupCombatSettlementReceiptStrict,
   parseGroupCombatStateStrict
 } from "../../domain/groupCombat/groupCombatStateValidation";
 import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
@@ -31,6 +38,7 @@ import type {
   GroupCombatStartResult
 } from "./groupCombatRepository";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
+import { getCombatMantokAbilityGrantsForEquippedItems } from "../../content/mantokAbilityGrants";
 import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 
@@ -42,6 +50,11 @@ class GroupCombatMutationConflict extends Error {}
 const partyCharacterInclude = {
   user: { select: { telegramUserId: true } },
   equipment: { orderBy: { slot: "asc" as const } },
+  items: {
+    where: { itemId: { in: [...GROUP_COMBAT_SUPPORTED_ITEM_IDS] } },
+    select: { itemId: true, quantity: true },
+    orderBy: { itemId: "asc" as const }
+  },
   _count: { select: { remorts: true } }
 } satisfies Prisma.CharacterInclude;
 
@@ -74,6 +87,7 @@ type PersistedActionRow = {
   actionKey: string;
   targetKind: string;
   targetId: string;
+  payloadKey: string | null;
   origin: string;
 };
 
@@ -220,7 +234,23 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             attack: Math.max(2, combatStats.weaponDamage ?? 1, Math.floor(combatStats.strength / 2)),
             defense: Math.max(0, combatStats.armor ?? 0),
             support: Math.max(2, Math.floor((combatStats.intelligence + combatStats.charisma) / 3)),
-            equipmentItemIds: character.equipment.map((row) => row.itemId)
+            classId: character.classId,
+            raceId: character.raceId,
+            level: character.level,
+            stats: {
+              strength: combatStats.strength,
+              dexterity: combatStats.dexterity,
+              intelligence: combatStats.intelligence,
+              charisma: combatStats.charisma,
+              luck: combatStats.luck
+            },
+            equipmentItemIds: character.equipment.map((row) => row.itemId),
+            gearAbilityIds: getCombatMantokAbilityGrantsForEquippedItems({
+              itemIds: character.equipment.map((row) => row.itemId),
+              characterLevel: character.level
+            }).map((grant) => grant.combat!.profile.id),
+            combatItemQuantities: Object.fromEntries(character.items.map((row) => [row.itemId, row.quantity])),
+            threat: 0
           };
           frozen.push({ actor, ...(sated.sated ? { sated: sated.sated } : {}), ...(inspiration ? { inspiration } : {}) });
         }
@@ -295,6 +325,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     action: GroupCombatAction["action"];
     targetKind: GroupCombatAction["targetKind"];
     targetId: string;
+    payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
   }): Promise<GroupCombatActionResult> {
@@ -340,6 +371,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         action: input.action,
         targetKind: input.targetKind,
         targetId: input.targetId,
+        ...(input.payloadKey ? { payloadKey: input.payloadKey } : {}),
         origin: "manual"
       };
       const validation = validateGroupCombatAction(state, action);
@@ -360,6 +392,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         ? existingAction.actionKey === input.action &&
           existingAction.targetKind === input.targetKind &&
           existingAction.targetId === input.targetId
+          && existingAction.payloadKey === (input.payloadKey ?? null)
           ? "duplicate"
           : "replaced"
         : "queued";
@@ -377,6 +410,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             actionKey: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
+            payloadKey: input.payloadKey ?? null,
             origin: "manual",
             submittedAt: input.now
           }
@@ -388,12 +422,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             actionKey: existingAction!.actionKey,
             targetKind: existingAction!.targetKind,
             targetId: existingAction!.targetId,
+            payloadKey: existingAction!.payloadKey,
             submittedAt: existingAction!.submittedAt
           },
           data: {
             actionKey: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
+            payloadKey: input.payloadKey ?? null,
             origin: "manual",
             submittedAt: input.now
           }
@@ -448,6 +484,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     action: GroupCombatAction["action"];
     targetKind: GroupCombatAction["targetKind"];
     targetId: string;
+    payloadKey?: string;
   }): Promise<GroupCombatActionResult | null> {
     const session = await this.findByPartyInviteToken(input.partyInviteToken);
     if (!session) {
@@ -475,7 +512,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     if (!winner) {
       return null;
     }
-    return winner.actionKey === input.action && winner.targetKind === input.targetKind && winner.targetId === input.targetId
+    return winner.actionKey === input.action &&
+      winner.targetKind === input.targetKind &&
+      winner.targetId === input.targetId &&
+      winner.payloadKey === (input.payloadKey ?? null)
       ? { state: "duplicate", session }
       : null;
   }
@@ -708,6 +748,76 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return repaired;
   }
 
+  async settleParticipant(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    now: Date;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.groupCombatSession.findUnique({
+        where: { id: input.sessionId },
+        include: sessionInclude
+      });
+      if (!row) {
+        return { state: "not-found" } as const;
+      }
+      const participant = row.participants.find(
+        (candidate) => candidate.character.user.telegramUserId === input.telegramUserId
+      );
+      if (!participant) {
+        return { state: "not-participant" } as const;
+      }
+      if (row.status === "active" || row.settlementPlanJson === null) {
+        return { state: "not-terminal" } as const;
+      }
+      let plan: GroupCombatSettlementPlan;
+      try {
+        plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
+      } catch {
+        return { state: "invalid-plan" } as const;
+      }
+      if (plan.sessionId !== row.id) {
+        return { state: "invalid-plan" } as const;
+      }
+      if (participant.settlementReceiptJson !== null) {
+        return {
+          state: "replayed",
+          receipt: parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson)
+        } as const;
+      }
+      const receipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
+      if (!receipt) {
+        return { state: "invalid-plan" } as const;
+      }
+      const settled = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          settlementStatus: "pending",
+          settlementReceiptJson: { equals: Prisma.DbNull }
+        },
+        data: {
+          settlementStatus: "completed",
+          settlementAttempts: { increment: 1 },
+          settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
+          settledAt: input.now
+        }
+      });
+      if (settled.count !== 1) {
+        const winner = await tx.groupCombatParticipant.findUnique({
+          where: { id: participant.id },
+          select: { settlementReceiptJson: true }
+        });
+        return winner?.settlementReceiptJson
+          ? {
+              state: "replayed",
+              receipt: parseGroupCombatSettlementReceiptStrict(winner.settlementReceiptJson)
+            } as const
+          : { state: "invalid-plan" } as const;
+      }
+      return { state: "settled", receipt } as const;
+    });
+  }
+
   async compareAndSetParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;
@@ -871,6 +981,7 @@ async function resolveIfReady(
   }
   const resolution = resolveGroupCombatTurn(state, actions);
   const terminal = resolution.result !== null;
+  await consumeCommittedItems(tx, resolution.committedConsumables);
   const updated = await tx.groupCombatSession.updateMany({
     where: { id: row.id, status: "active", turn: row.turn, version: row.version },
     data: {
@@ -882,6 +993,9 @@ async function resolveIfReady(
       deliveryAttemptedAt: null,
       stateJson: resolution.state as unknown as Prisma.InputJsonValue,
       ...(resolution.result ? { resultJson: resolution.result as unknown as Prisma.InputJsonValue } : {}),
+      ...(resolution.settlementPlan
+        ? { settlementPlanJson: resolution.settlementPlan as unknown as Prisma.InputJsonValue }
+        : {}),
       turnExpiresAt: terminal ? now : nextTurnExpiresAt,
       completedAt: terminal ? now : null
     }
@@ -920,6 +1034,7 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
         where: { id: row.id, status: row.status, version: row.version },
         data: {
           resultJson: result as unknown as Prisma.InputJsonValue,
+          settlementPlanJson: buildGroupCombatSettlementPlan(state)! as unknown as Prisma.InputJsonValue,
           completedAt: row.completedAt ?? now,
           version: { increment: 1 },
           deliveryRevision: { increment: 1 },
@@ -964,6 +1079,7 @@ async function invalidateSessionRewardlessly(
       terminalIntegrityCheckedAt: now,
       stateJson: state as unknown as Prisma.InputJsonValue,
       resultJson: result as unknown as Prisma.InputJsonValue,
+      settlementPlanJson: buildGroupCombatSettlementPlan(state)! as unknown as Prisma.InputJsonValue,
       turnExpiresAt: now,
       completedAt: now
     }
@@ -990,7 +1106,14 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
     attack: 1,
     defense: 0,
     support: 1,
-    equipmentItemIds: []
+    classId: "class.unknown",
+    raceId: "race.unknown",
+    level: 1,
+    stats: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 },
+    equipmentItemIds: [],
+    gearAbilityIds: [],
+    combatItemQuantities: {},
+    threat: 0
   }));
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
@@ -1009,8 +1132,13 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
       characterId: participant.characterId,
       damage: 0,
       healing: 0,
+      guardPrevented: 0,
+      control: 0,
+      damageTaken: 0,
+      committedActions: 0,
       guardedTurns: 0
     })),
+    statuses: [],
     recap: []
   };
 }
@@ -1126,6 +1254,32 @@ async function updateContributions(tx: TxClient, sessionId: string, contribution
   }
 }
 
+async function consumeCommittedItems(
+  tx: TxClient,
+  items: readonly GroupCombatCommittedConsumable[]
+): Promise<void> {
+  for (const item of items) {
+    const consumed = await tx.characterItem.updateMany({
+      where: {
+        characterId: item.characterId,
+        itemId: item.itemId,
+        quantity: { gte: 1 }
+      },
+      data: { quantity: { decrement: 1 } }
+    });
+    if (consumed.count !== 1) {
+      throw new GroupCombatStateValidationError("Committed group-combat item is no longer owned.");
+    }
+    await tx.characterItem.deleteMany({
+      where: {
+        characterId: item.characterId,
+        itemId: item.itemId,
+        quantity: { lte: 0 }
+      }
+    });
+  }
+}
+
 async function loadSession(
   client: TxClient | PrismaClient,
   sessionId: string
@@ -1161,6 +1315,9 @@ function mapSession(
     deliveryAttemptedAt: row.deliveryAttemptedAt,
     state,
     result: row.resultJson === null ? null : parseGroupCombatResultStrict(row.resultJson),
+    settlementPlan: row.settlementPlanJson === null
+      ? null
+      : parseGroupCombatSettlementPlanStrict(row.settlementPlanJson),
     turnExpiresAt: row.turnExpiresAt,
     completedAt: row.completedAt,
     participants: row.participants.map((participant): GroupCombatParticipantRecord => ({
@@ -1173,6 +1330,13 @@ function mapSession(
       messageId: participant.messageId,
       referenceVersion: participant.referenceVersion,
       deliveredRevision: participant.deliveredRevision
+      ,
+      settlementStatus: participant.settlementStatus === "completed" ? "completed" : "pending",
+      settlementAttempts: participant.settlementAttempts,
+      settlementReceipt: participant.settlementReceiptJson === null
+        ? null
+        : parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson),
+      settledAt: participant.settledAt
     })),
     queuedActions: actions
   };
@@ -1182,17 +1346,26 @@ function parseRowState(row: SessionRow): GroupCombatState {
   const state = parseRowStateCore(row);
   const terminal = state.status !== "active";
   if (!terminal) {
-    if (row.resultJson !== null || row.completedAt !== null) {
+    if (row.resultJson !== null || row.settlementPlanJson !== null || row.completedAt !== null) {
       throw new GroupCombatStateValidationError("Active group combat has terminal result metadata.");
     }
     return state;
   }
-  if (row.resultJson === null || row.completedAt === null) {
+  if (row.resultJson === null || row.settlementPlanJson === null || row.completedAt === null) {
     throw new GroupCombatStateValidationError("Terminal group combat is missing result metadata.");
   }
   const result = parseGroupCombatResultStrict(row.resultJson);
   if (result.outcome !== state.status || result.completedTurn !== state.turn) {
     throw new GroupCombatStateValidationError("Terminal group-combat result does not match state.");
+  }
+  const plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
+  if (
+    plan.sessionId !== row.id ||
+    plan.outcome !== state.status ||
+    plan.completedTurn !== state.turn ||
+    plan.participants.length !== state.participants.length
+  ) {
+    throw new GroupCombatStateValidationError("Terminal group-combat settlement plan does not match state.");
   }
   return state;
 }
@@ -1235,11 +1408,23 @@ function isGroupCombatStatus(value: string): value is GroupCombatStatus {
   return value === "active" || value === "won" || value === "lost" || value === "invalid";
 }
 
+function isGroupCombatActionKey(value: string): value is GroupCombatAction["action"] {
+  return value === "attack" ||
+    value === "guard" ||
+    value === "aid" ||
+    value === "class" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "item";
+}
+
 function mapAction(row: PersistedActionRow): GroupCombatQueuedActionRecord {
   if (
-    (row.actionKey !== "attack" && row.actionKey !== "guard" && row.actionKey !== "aid") ||
+    !isGroupCombatActionKey(row.actionKey) ||
     (row.targetKind !== "self" && row.targetKind !== "ally" && row.targetKind !== "enemy") ||
-    (row.origin !== "manual" && row.origin !== "timeout")
+    (row.origin !== "manual" && row.origin !== "timeout") ||
+    ((row.actionKey === "gear" || row.actionKey === "item") && !row.payloadKey) ||
+    (row.actionKey !== "gear" && row.actionKey !== "item" && row.payloadKey !== null)
   ) {
     throw new GroupCombatStateValidationError("Malformed persisted group-combat action.");
   }
@@ -1249,6 +1434,7 @@ function mapAction(row: PersistedActionRow): GroupCombatQueuedActionRecord {
     action: row.actionKey,
     targetKind: row.targetKind,
     targetId: row.targetId,
+    ...(row.payloadKey ? { payloadKey: row.payloadKey } : {}),
     origin: row.origin
   };
 }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGroupCombatTimeoutAction,
+  buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
   GROUP_COMBAT_RECAP_LIMIT,
   resolveGroupCombatTurn,
+  resolveGroupCombatTargets,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot
@@ -142,6 +144,166 @@ describe("group combat proof reducer", () => {
       rewards: { xp: 1, gold: 0, items: [] }
     })).toThrow(GroupCombatStateValidationError);
   });
+
+  it.each([
+    ["Priest", "class", "class.priest", "race.human-ish"],
+    ["Bard", "class", "class.bard", "race.human-ish"],
+    ["Varenyk-mancer", "class", "class.varenyk-mancer", "race.human-ish"],
+    ["Dwarf", "race", "class.warrior", "race.dwarf"],
+    ["Domovyk", "race", "class.warrior", "race.domovyk"],
+    ["Molfar", "race", "class.warrior", "race.molfar-soul"]
+  ] as const)("commits current %s support recipes with an authored effect", (_, actionKey, classId, raceId) => {
+    const state = proofState(3);
+    state.participants[0]!.classId = classId;
+    state.participants[0]!.raceId = raceId;
+    state.participants[1]!.hp = 10;
+    state.participants[2]!.hp = 10;
+    const beforeEnemies = state.enemies.map((enemy) => enemy.hp);
+    const supportTarget = classId === "class.varenyk-mancer"
+      ? state.participants[1]!.characterId
+      : state.participants[0]!.characterId;
+    const result = resolveGroupCombatTurn(state, [
+      {
+        ...action(state, 0, actionKey, supportTarget === state.participants[0]!.characterId ? "self" : "ally", supportTarget)
+      },
+      action(state, 1, "guard", "self", state.participants[1]!.characterId),
+      action(state, 2, "guard", "self", state.participants[2]!.characterId)
+    ]);
+    const contribution = result.state.contributions[0]!;
+    const enemiesChanged = result.state.enemies.some((enemy, index) => enemy.hp < beforeEnemies[index]!);
+    const alliesChanged = contribution.healing > 0 || contribution.guardPrevented > 0 || contribution.control > 0;
+    expect(enemiesChanged || alliesChanged || contribution.damage > 0).toBe(true);
+    expect(contribution.committedActions).toBe(1);
+    expect(result.state.participants[0]!.mana).toBeLessThanOrEqual(state.participants[0]!.mana);
+  });
+
+  it("resolves lowest-HP ties by roster order and excludes dead allies", () => {
+    const state = proofState(3);
+    state.participants[0]!.hp = 0;
+    state.participants[1]!.hp = 10;
+    state.participants[2]!.hp = 10;
+    expect(resolveGroupCombatTargets(
+      state,
+      state.participants[2]!.characterId,
+      "lowest-hp-ally"
+    )).toEqual([state.participants[1]!.characterId]);
+  });
+
+  it("creates immutable zero-reward participant receipts from the terminal plan", () => {
+    const state = proofState(2);
+    state.enemies.forEach((enemy) => { enemy.hp = 1; });
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id),
+      action(state, 1, "attack", "enemy", state.enemies[1]!.id)
+    ]);
+    expect(resolved.settlementPlan).not.toBeNull();
+    const plan = structuredClone(resolved.settlementPlan!);
+    const receipt = buildGroupCombatSettlementReceipt(plan, state.participants[1]!.characterId);
+    expect(receipt?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
+    expect(resolved.settlementPlan).toEqual(plan);
+  });
+
+  it("commits supported gear and item payloads exactly once in deterministic state", () => {
+    const gearState = proofState(2);
+    gearState.participants[0]!.gearAbilityIds = ["gear.barrel-counter-shield"];
+    const gearAction: GroupCombatAction = {
+      ...action(gearState, 0, "gear", "self", gearState.participants[0]!.characterId),
+      payloadKey: "gear.barrel-counter-shield"
+    };
+    expect(validateGroupCombatAction(gearState, gearAction)).toBe("ok");
+    const geared = resolveGroupCombatTurn(gearState, [
+      gearAction,
+      action(gearState, 1, "guard", "self", gearState.participants[1]!.characterId)
+    ]);
+    expect(geared.state.participants[0]!.cooldowns?.abilities?.["gear.barrel-counter-shield"]).toBeDefined();
+
+    const itemState = proofState(2);
+    itemState.participants[0]!.hp = 10;
+    itemState.participants[0]!.combatItemQuantities = { "item.responsible-panic-bandage": 1 };
+    const itemAction: GroupCombatAction = {
+      ...action(itemState, 0, "item", "self", itemState.participants[0]!.characterId),
+      payloadKey: "item.responsible-panic-bandage"
+    };
+    const used = resolveGroupCombatTurn(itemState, [
+      itemAction,
+      action(itemState, 1, "guard", "self", itemState.participants[1]!.characterId)
+    ]);
+    expect(used.committedConsumables).toEqual([{
+      characterId: itemState.participants[0]!.characterId,
+      itemId: "item.responsible-panic-bandage"
+    }]);
+    expect(used.state.participants[0]!.combatItemQuantities).toEqual({});
+    expect(used.state.contributions[0]!.healing).toBe(7);
+  });
+
+  it("retargets after multiple enemy deaths and never lets AI target a dead participant", () => {
+    const victory = proofState(2);
+    victory.enemies.forEach((enemy) => { enemy.hp = 1; });
+    const won = resolveGroupCombatTurn(victory, [
+      action(victory, 0, "attack", "enemy", victory.enemies[0]!.id),
+      action(victory, 1, "attack", "enemy", victory.enemies[0]!.id)
+    ]);
+    expect(won.state.status).toBe("won");
+    expect(won.state.enemies.every((enemy) => enemy.hp === 0)).toBe(true);
+
+    const loss = proofState(3);
+    loss.participants[0]!.hp = 1;
+    loss.participants[0]!.threat = 100;
+    loss.enemies.forEach((enemy) => { enemy.attack = 13; });
+    const defended = resolveGroupCombatTurn(loss, loss.participants.map((actor) =>
+      action(loss, actor.rosterOrder, "guard", "self", actor.characterId)
+    ));
+    expect(defended.state.participants[0]!.hp).toBe(0);
+    expect(defended.state.contributions[0]!.damageTaken).toBe(1);
+    expect(defended.state.contributions.slice(1).some((row) => row.damageTaken > 0)).toBe(true);
+  });
+
+  it("rejects unavailable abilities and commits a deterministic support fumble without support effects", () => {
+    const unavailable = proofState(2);
+    unavailable.participants[0]!.classId = "class.priest";
+    unavailable.participants[0]!.mana = 0;
+    const unavailableAction = action(
+      unavailable,
+      0,
+      "class",
+      "self",
+      unavailable.participants[0]!.characterId
+    );
+    expect(validateGroupCombatAction(unavailable, unavailableAction)).toBe("action-unavailable");
+
+    const fumble = proofState(2);
+    fumble.participants[0]!.classId = "class.priest";
+    fumble.participants[1]!.hp = 5;
+    fumble.participants[0]!.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.strict-blessing": { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 1 }
+      }
+    };
+    const resolved = resolveGroupCombatTurn(fumble, [
+      action(fumble, 0, "class", "self", fumble.participants[0]!.characterId),
+      action(fumble, 1, "guard", "self", fumble.participants[1]!.characterId)
+    ]);
+    expect(resolved.state.contributions[0]!.healing).toBe(0);
+    expect(resolved.state.contributions[0]!.committedActions).toBe(1);
+    expect(resolved.state.recap[0]!.lines.join("\n")).toContain("Благословення перечитало адресата");
+  });
+
+  it("strictly rejects malformed and foreign status targets", () => {
+    const state = proofState(2);
+    expect(() => parseGroupCombatStateStrict({
+      ...state,
+      statuses: [{
+        id: "foreign",
+        kind: "bleed",
+        sourceCharacterId: state.participants[0]!.characterId,
+        targetKind: "participant",
+        targetId: "missing",
+        value: 1,
+        remainingTurns: 1
+      }]
+    })).toThrow(GroupCombatStateValidationError);
+  });
 });
 
 function proofState(
@@ -170,7 +332,14 @@ function participant(index: number, overrides: Partial<GroupCombatActorSnapshot>
     attack: 8,
     defense: 2,
     support: 6,
+    classId: "class.warrior",
+    raceId: "race.human-ish",
+    level: 13,
+    stats: { strength: 13, dexterity: 8, intelligence: 8, charisma: 8, luck: 8 },
     equipmentItemIds: [`item-${index}`],
+    gearAbilityIds: [],
+    combatItemQuantities: {},
+    threat: 0,
     ...overrides
   };
 }

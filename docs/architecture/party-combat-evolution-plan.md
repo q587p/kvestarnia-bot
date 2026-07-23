@@ -1,6 +1,7 @@
 # Party Combat Evolution Plan
 
-Status: proposed canonical boundary for `0.4.x`.
+Status: canonical `0.4.x` boundary; rewardless runtime and hardening are
+implemented through repository version `0.4.1`.
 
 ## Decision
 
@@ -46,6 +47,7 @@ Do not reuse an entire solo, duel or PartyBoss aggregate.
 - `id`, `partySessionId`, `encounterKey`, `rulesVersion`;
 - `status`, `turn`, `version`, `turnExpiresAt`;
 - strict versioned `stateJson` and terminal `resultJson`;
+- one immutable terminal `settlementPlanJson`;
 - timestamps and an active-party uniqueness fence.
 
 ### GroupCombatParticipant
@@ -151,12 +153,21 @@ The target runtime is the small hosted baseline (0.5 CPU / 512 MB):
 - idle scheduler work is zero or a documented low-frequency recovery sweep;
 - first load proof covers concurrent 3×3 sessions over 13–25 turns.
 
+The `0.4.1` measured contract is start `32/32`, queued action `20/20`,
+direct single resolving action `22/35`, concurrent duplicate-final pair `31`
+aggregate and due-id scan `1/1`. Start performs two additional bounded reads
+over the allowlisted supported combat items for the frozen 2–3-person roster.
+Versioned state is capped at `32,768` UTF-8 bytes and the 24-case 2×2/3×3,
+13/25-turn support simulator observed `4,964`; participant cards are capped at
+Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
+
 ## Delivery sequence
 
 - `0.3.16`: lifecycle, parser/repair and concurrency prerequisites.
 - `0.4.0`: flagged rewardless 2–3×2–3 proof with one authored encounter.
-- `0.4.1`: ability parity, AI/items/status hardening, settlement skeleton and
-  load/simulator coverage.
+- `0.4.1`: implemented ability parity, AI/items/status hardening, immutable
+  settlement skeleton and load/simulator coverage; production exposure and
+  manual Telegram QA remain separate gates.
 - `0.4.2`: independent guild membership shell.
 - `0.4.3`: first reward-bearing party expedition.
 - `0.4.4`: guild weekly objective using the same party/group-combat runtime.

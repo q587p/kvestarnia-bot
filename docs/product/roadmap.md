@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.0` repository proof; `0.4.1` наступна |
+| Party Progression | активна | `0.4.1` repository hardening; `0.4.2` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -74,11 +74,15 @@ production availability чи ручну Telegram QA; ці докази лиша�
 
 ### 0.4.1 — Group combat hardening
 
-Наступна планована версія; її реалізацію ще не розпочато.
+Repository release `0.4.1` hardens the same hidden, rewardless 3×3-bounded
+runtime: deterministic targeting, current class/race and supported gear/item
+actions, multi-enemy threat/status handling, strict lifecycle repair,
+immutable zero-reward settlement plans with independently replayable receipts,
+and 2×2/3×3 simulator coverage through 13- and 25-turn scenarios.
 
-Довести універсальний runtime до feature parity: ally targeting, heal/guard,
-multi-enemy AI/threat, gear/items/statuses, strict repair, restart/remort policy,
-settlement skeleton, concurrency/load tests і simulator coverage.
+The proof remains default-off and production-hard-disabled. Deployment,
+production availability and manual Telegram QA on the final exact head remain
+separate pending evidence.
 
 ### 0.4.2 — Guild foundation
 

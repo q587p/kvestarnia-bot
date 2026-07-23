@@ -7,6 +7,26 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.1] - 12026-07-23 - Group Combat Hardening
+
+### Added
+- Hardened the separate default-off, production-disabled `GroupCombat` proof with deterministic self, exact ally, lowest-HP, all-allies, single-enemy and all-enemies target resolution. Current Priest, Bard, Varenyk-mancer, Dwarf, Domovyk and Molfar recipes now share the established mana, cooldown and deterministic fumble primitives without changing ordinary PvE, Training, turn duels or Big Barrel.
+- Added deterministic threat-aware multi-enemy responses, legal living-target reselection after deaths, bounded guard/response/counter/bleed statuses and multiple-death turn handling. Contribution now records actual damage, healing, guard prevention, control prevention, damage taken and committed actions.
+- Added frozen supported Mantok gear actions and the three existing combat bandages/field kit with server-owned payloads. Item consumption is in the same transaction as the winning action/turn CAS and is covered across duplicate, final-action and timeout overlap.
+- Added one immutable terminal settlement plan and independently replayable per-participant zero-reward receipts. The proof still grants no XP, gold, items, quests, achievements, activity rewards or other economy mutations.
+- Added a `group-combat.v2` strict parser for actor recipes, cooldown/fumble state, targets, statuses, contributions and settlement artifacts. Malformed or orphaned sessions still fail closed, release group leases plus frozen `Ситий`/`Натхнення`, and cannot block later healthy due work.
+- Added deterministic GroupCombat simulation coverage for all six support profiles across 2×2/3×3 and 13/25-turn scenarios with explicit replay, legal-target, exact-action-accounting, rewardless and size invariants.
+
+### Changed
+- The participant keyboard now exposes current class/race actions, frozen supported gear actions and owned supported combat items only when their server-owned target and availability contract is valid. Terminal cards show the six truthful contribution dimensions and remain bounded to Telegram's 4,096-byte limit.
+- Added migration `20260723194500_group_combat_hardening` for the immutable terminal plan, participant settlement status/attempt/receipt fields and server-owned action payload key. Existing `group-combat.v1` proof rows are non-production data and fail closed through the existing rewardless repair path after the rules upgrade.
+
+### Verification and compatibility
+- Stable query-event observations are start `32/32`, queued action `20/20`, direct single resolving submission `22/35`, concurrent duplicate-final pair `31` aggregate and lean due scan `1/1`. The two added start reads freeze only the bounded supported-item rows for the 2–3 participants.
+- The 24-case hardening simulator observed a maximum serialized state of `4,964/32,768` bytes; active/result cards enforce `≤4,096` UTF-8 bytes and retain at most five recap turns.
+- The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. There is no player-news entry because this release does not expose the proof to testers or production players.
+- No new class, race, ability, item, reward, achievement, lore promise, guild, matchmaking, >3×3 encounter, production rollout, FightService orchestration or Big Barrel migration is included.
+
 ## [0.4.0] - 12026-07-23 - Rewardless Party-vs-Many Proof
 
 ### Added

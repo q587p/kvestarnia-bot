@@ -3,34 +3,29 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current repository version: `0.4.0` — a separate restart-safe 2–3 player
+- Current repository version: `0.4.1` — the separate restart-safe 2–3 player
   versus 2–3 enemy group-combat proof behind default-off
   `GROUP_COMBAT_PROOF_ENABLED`, hard-disabled in production. Start atomically
-  freezes the current-life party roster, resources, equipment, `Ситий` and
-  `Натхнення`; exact relational/state/life/session/lease agreement, canonical
-  actor-turn actions and version CAS keep resolution and repair rewardless.
-  Enemy attack, self guard and living-ally aid are the complete proof actions;
-  timeout uses resource-free guard. Aid targets only injured living allies and
-  the latest valid current-turn choice replaces an earlier one behind a session
-  mutation CAS, including final-action/timeout races. Participant cards reuse
-  the fight/raid resource layout, authoritative remaining-time prompt, two-column
-  exact-target actions and shared bounded terminal journal; results restore on
-  the same participant-only canonical message. Private text redirects CAS-promote
-  a new latest card, and explicit refresh resurfaces a buried or
-  unknown-freshness card through the same inert-candidate CAS while a still-latest
-  card edits in place. An ambiguous activation error keeps that candidate
-  canonical and pending while the previous card remains inert; confirmed
-  unavailability may safely restore the previous reference. Cards are
-  private-DM, monotonic and repairable. Marker-bracketed query evidence keeps
-  start/queue/single-resolve/due budgets deterministic at `30/20/22/1`; the
-  concurrent duplicate-final pair is a separate `31`-statement observation.
-  Terminal output changes no Character resources,
-  XP, gold, items, quests, achievements or activity rewards. Production
-  availability, deployment and manual Telegram QA remain unproven. Local QA
-  creates a fresh `/dev_party`; the leader starts from its private-DM-only
-  recruiting-card button or passes only the invite suffix after `party_` to
-  `/dev_group_combat`, including from a group chat. Public proof callbacks stay
-  non-mutating; both start routes share the same service.
+  freezes current-life identity/resources/stats, supported class/race recipes,
+  supported gear/items, `Ситий` and `Натхнення`. `group-combat.v2` resolves
+  deterministic self/exact/lowest/all target scopes, mana/cooldown/fumble,
+  threat-based legal multi-enemy responses, guard/mitigation/counter/bleed and
+  multiple deaths. Timeout remains resource-free guard. Item consumption shares
+  the winning action/turn transaction; terminal CAS writes one immutable
+  zero-reward plan and participant receipts replay independently without
+  changing Character resources, XP, gold, items, quests, achievements or
+  activity rewards. Contributions record actual damage, healing, guard
+  prevention, control, damage taken and committed actions. Strict
+  parser/relational/life/session/lease repair releases frozen statuses only after
+  terminal CAS. Canonical participant cards remain private-DM, monotonic and
+  repairable with truthful remaining time, contribution output and bounded
+  journal. Stable query observations/budgets are `32/32` start, `20/20` queue,
+  `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
+  state/card caps are `32,768`/`4,096` UTF-8 bytes. The 24-case simulator covers
+  six support profiles across 2×2/3×3 and 13/25 turns. Production availability,
+  deployment and manual Telegram QA remain unproven. Local QA uses `/dev_party`
+  then the private leader button or `/dev_group_combat <invite-suffix>`;
+  public callbacks remain non-mutating.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
@@ -73,8 +68,8 @@
   keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards,
   achievements or ordinary combat-journal duplication. Kharakternyk ward surfaces use `✴️`, distinct from the Molfar `🧿 Туманний оберіг`.
   `/dev_raid_chat` is non-production only.
-- `0.4.0` is only a hidden rewardless proof. `0.4.1` is the next planned
-  version and owns parity/production hardening; later accepted tasks add small
+- `0.4.1` is still only a hidden rewardless proof. `0.4.2` is the next planned
+  version and owns independent guild identity; later accepted tasks add a small
   guild identity, an expedition, a weekly goal and bounded social/economy
   slices. Do not turn `PartyBossSession` into N×M state or imply guild
   bank/trade/war scope.
@@ -212,9 +207,9 @@
 
 ## Key docs
 
-- `docs/tasks/0.4.0-party-vs-many-proof.md` — current repository release
+- `docs/tasks/0.4.1-group-combat-hardening.md` — current repository release
   contract; deployment, production availability and manual QA remain unproven.
-- `docs/tasks/0.4.1-group-combat-hardening.md` — next planned version contract.
+- `docs/tasks/0.4.2-guild-foundation.md` — next planned version contract.
 - `docs/tasks/0.3.17-callback-read-path-collapse.md` — previous release contract
   and callback SQL-budget evidence.
 - `docs/tasks/0.3.16-closed-alpha-closeout.md` — shipped lifecycle closeout and base-runtime evidence.

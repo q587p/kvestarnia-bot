@@ -1,6 +1,8 @@
 import type {
   GroupCombatActionKey,
   GroupCombatResult,
+  GroupCombatSettlementPlan,
+  GroupCombatSettlementReceipt,
   GroupCombatState,
   GroupCombatTargetKind
 } from "../../domain/groupCombat/groupCombat";
@@ -15,6 +17,10 @@ export interface GroupCombatParticipantRecord {
   messageId: number | null;
   referenceVersion: number;
   deliveredRevision: number;
+  settlementStatus: "pending" | "completed";
+  settlementAttempts: number;
+  settlementReceipt: GroupCombatSettlementReceipt | null;
+  settledAt: Date | null;
 }
 
 export interface GroupCombatQueuedActionRecord {
@@ -23,6 +29,7 @@ export interface GroupCombatQueuedActionRecord {
   action: GroupCombatActionKey;
   targetKind: GroupCombatTargetKind;
   targetId: string;
+  payloadKey?: string;
   origin: "manual" | "timeout";
 }
 
@@ -38,6 +45,7 @@ export interface GroupCombatSessionRecord {
   deliveryAttemptedAt: Date | null;
   state: GroupCombatState;
   result: GroupCombatResult | null;
+  settlementPlan: GroupCombatSettlementPlan | null;
   turnExpiresAt: Date;
   completedAt: Date | null;
   participants: GroupCombatParticipantRecord[];
@@ -49,7 +57,7 @@ export type GroupCombatStartResult =
   | { state: "started" | "already-active" | "terminal"; session: GroupCombatSessionRecord };
 
 export type GroupCombatActionResult =
-  | { state: "disabled" | "no-character" | "not-found" | "not-participant" | "stale" | "actor-unavailable" | "invalid-target" | "invalidated" }
+  | { state: "disabled" | "no-character" | "not-found" | "not-participant" | "stale" | "actor-unavailable" | "invalid-target" | "action-unavailable" | "invalidated" }
   | { state: "queued" | "replaced" | "duplicate" | "resolved" | "terminal"; session: GroupCombatSessionRecord };
 
 export interface GroupCombatRepository {
@@ -67,6 +75,7 @@ export interface GroupCombatRepository {
     action: GroupCombatActionKey;
     targetKind: GroupCombatTargetKind;
     targetId: string;
+    payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
   }): Promise<GroupCombatActionResult>;
@@ -83,6 +92,15 @@ export interface GroupCombatRepository {
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
   listPendingDeliverySessionIds(limit: number): Promise<string[]>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
+
+  settleParticipant(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    now: Date;
+  }): Promise<
+    | { state: "not-found" | "not-participant" | "not-terminal" | "invalid-plan" }
+    | { state: "settled" | "replayed"; receipt: GroupCombatSettlementReceipt }
+  >;
 
   compareAndSetParticipantCard(input: {
     sessionId: string;

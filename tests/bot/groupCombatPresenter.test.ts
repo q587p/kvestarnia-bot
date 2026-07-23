@@ -72,7 +72,7 @@ describe("group combat presenter", () => {
     expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
     expect(text).toContain("⏳ До захисту мовчунів — 23 с.");
     expect(text).toContain("\n\n<b>Пригодник із довгим ім’ям 1</b>, що робимо?");
-    expect(text.length).toBeLessThan(4_096);
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
   it("groups exact-target actions into compact two-button rows", () => {
@@ -171,6 +171,27 @@ describe("group combat presenter", () => {
     expect(text).toContain("Пригодник 2 б’є Комірний Шурхіт 1 на 3.");
     expect(resultLabels).toContain("📜 Журнал");
     expect(journalLabels).toContain("↩️ До результатів");
+  });
+
+  it("renders truthful terminal contribution dimensions inside the card budget", () => {
+    const session = createSession(3);
+    session.status = "won";
+    session.state.status = "won";
+    session.state.enemies.forEach((enemy) => { enemy.hp = 0; });
+    session.state.contributions[0] = {
+      characterId: session.state.participants[0]!.characterId,
+      damage: 13,
+      healing: 7,
+      guardPrevented: 5,
+      control: 3,
+      damageTaken: 11,
+      committedActions: 4,
+      guardedTurns: 1
+    };
+    const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+    expect(text).toContain("<b>Внесок:</b>");
+    expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4");
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
   });
 });
 

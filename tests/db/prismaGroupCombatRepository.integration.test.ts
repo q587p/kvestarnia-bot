@@ -14,7 +14,7 @@ import { GroupCombatService } from "../../src/services/groupCombatService";
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
-  start: 30,
+  start: 32,
   queue: 20,
   singleResolve: 35,
   dueScan: 1
@@ -630,6 +630,126 @@ describe("PrismaGroupCombatRepository integration", () => {
       attemptedAt: new Date(NOW.getTime() + 1)
     })).resolves.toBe(true);
     expect(await restarted.listPendingDeliverySessionIds(93)).not.toContain(session.id);
+  });
+
+  it("consumes a supported item once across final-action and timeout races", async () => {
+    await seedParty(prisma, "group-item-race", [1191n, 1192n]);
+    const actor = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: 1191n } }
+    });
+    await prisma.character.update({ where: { id: actor.id }, data: { hpCurrent: 10, hpMax: 30 } });
+    await prisma.characterItem.create({
+      data: { characterId: actor.id, itemId: "item.responsible-panic-bandage", quantity: 1 }
+    });
+    const started = await repository.startProofForTelegramUser({
+      telegramUserId: 1191n,
+      partyInviteToken: "group-item-race",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(started.state).toBe("started");
+    const session = "session" in started ? started.session : null;
+    expect(session).not.toBeNull();
+    const second = session!.participants[1]!;
+    const queued = await repository.submitActionForTelegramUser({
+      telegramUserId: 1191n,
+      partyInviteToken: "group-item-race",
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: actor.id,
+      payloadKey: "item.responsible-panic-bandage",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+    });
+    expect(queued.state).toBe("queued");
+    await Promise.all([
+      repository.submitActionForTelegramUser({
+        telegramUserId: second.telegramUserId,
+        partyInviteToken: "group-item-race",
+        turn: 1,
+        action: "guard",
+        targetKind: "self",
+        targetId: second.characterId,
+        now: NOW,
+        nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+      }),
+      repository.resolveTimedOutSession({
+        sessionId: session!.id,
+        now: new Date(NOW.getTime() + 23_000),
+        nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+      })
+    ]);
+    expect(await prisma.characterItem.count({
+      where: { characterId: actor.id, itemId: "item.responsible-panic-bandage" }
+    })).toBe(0);
+    const reloaded = await repository.findById(session!.id);
+    expect(reloaded?.state.contributions[0]?.healing).toBe(7);
+  });
+
+  it("keeps one terminal settlement plan and replays participant receipts independently", async () => {
+    await seedParty(prisma, "group-settlement", [1193n, 1194n]);
+    const started = await repository.startProofForTelegramUser({
+      telegramUserId: 1193n,
+      partyInviteToken: "group-settlement",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    const active = "session" in started ? started.session : null;
+    expect(active).not.toBeNull();
+    const terminalState = structuredClone(active!.state);
+    terminalState.enemies.forEach((enemy) => { enemy.hp = 1; });
+    await prisma.groupCombatSession.update({
+      where: { id: active!.id },
+      data: { stateJson: terminalState as unknown as Prisma.InputJsonValue }
+    });
+    await repository.submitActionForTelegramUser({
+      telegramUserId: active!.participants[0]!.telegramUserId,
+      partyInviteToken: "group-settlement",
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: terminalState.enemies[0]!.id,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+    });
+    const terminal = await repository.submitActionForTelegramUser({
+      telegramUserId: active!.participants[1]!.telegramUserId,
+      partyInviteToken: "group-settlement",
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: terminalState.enemies[1]!.id,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+    });
+    expect(terminal.state).toBe("terminal");
+    const storedPlan = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: active!.id },
+      select: { settlementPlanJson: true }
+    });
+    const first = await repository.settleParticipant({
+      sessionId: active!.id,
+      telegramUserId: active!.participants[0]!.telegramUserId,
+      now: NOW
+    });
+    const replay = await repository.settleParticipant({
+      sessionId: active!.id,
+      telegramUserId: active!.participants[0]!.telegramUserId,
+      now: new Date(NOW.getTime() + 1_000)
+    });
+    const second = await repository.settleParticipant({
+      sessionId: active!.id,
+      telegramUserId: active!.participants[1]!.telegramUserId,
+      now: new Date(NOW.getTime() + 2_000)
+    });
+    expect(first.state).toBe("settled");
+    expect(replay).toEqual({ state: "replayed", receipt: "receipt" in first ? first.receipt : null });
+    expect(second.state).toBe("settled");
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: active!.id },
+      select: { settlementPlanJson: true }
+    })).settlementPlanJson).toEqual(storedPlan.settlementPlanJson);
   });
 
   it("CAS-invalidates malformed state, releases all leases, and writes only rewardless proof", async () => {
@@ -1302,9 +1422,14 @@ async function resourceSnapshot(prisma: PrismaClient, telegramIds: bigint[]) {
 }
 
 async function applyGroupCombatMigration(prisma: PrismaClient): Promise<void> {
-  const sql = await readFile(resolve("prisma/migrations/20260722090000_group_combat_proof/migration.sql"), "utf8");
-  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
-    await prisma.$executeRawUnsafe(statement);
+  for (const migration of [
+    "prisma/migrations/20260722090000_group_combat_proof/migration.sql",
+    "prisma/migrations/20260723194500_group_combat_hardening/migration.sql"
+  ]) {
+    const sql = await readFile(resolve(migration), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 
