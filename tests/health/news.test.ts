@@ -96,6 +96,17 @@ describe("public news rendering", () => {
     );
   });
 
+  it("keeps the latest release free of sentences repeated verbatim from historical news", () => {
+    const entries = parseNewsEntries(readFileSync(join(process.cwd(), "news.md"), "utf8"));
+    const latestSentences = extractCompleteNewsSentences(entries[0]?.body ?? "");
+    const historicalSentences = new Set(
+      entries.slice(1).flatMap((entry) => extractCompleteNewsSentences(entry.body))
+    );
+
+    expect(new Set(latestSentences).size).toBe(latestSentences.length);
+    expect(latestSentences.filter((sentence) => historicalSentences.has(sentence))).toEqual([]);
+  });
+
   it("requires every numbered package release to have matching changelog and player news", () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), "package.json"), "utf8")
@@ -157,4 +168,13 @@ function toKyivHoloceneDate(date: Date): string {
   const day = parts.find((part) => part.type === "day")?.value;
 
   return `${year + 10000}-${month}-${day}`;
+}
+
+function extractCompleteNewsSentences(body: string): string[] {
+  return body
+    .replace(/^-\s+/gmu, "")
+    .replace(/^Ще не відчинено:\s*/gmu, "")
+    .split(/(?<=[.!?])(?:\s+|\r?\n+)/u)
+    .map((sentence) => sentence.replace(/\s+/gu, " ").trim())
+    .filter((sentence) => /[.!?]$/u.test(sentence));
 }

@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.1] - 12026-07-23 - Group Combat Hardening
+## [0.4.1] - 12026-07-24 - Group Combat Hardening
 
 ### Added
 - Hardened the separate default-off, production-disabled `GroupCombat` proof with deterministic self, exact ally, lowest-HP, all-allies, single-enemy and all-enemies target resolution. Current Priest, Bard, Varenyk-mancer, Dwarf, Domovyk and Molfar recipes now share the established mana, cooldown and deterministic fumble primitives without changing ordinary PvE, Training, turn duels or Big Barrel.
@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Terminal plans, relational contributions, settlement statuses and participant receipts must match canonical terminal state exactly. Shape-valid foreign or altered artifacts rebuild canonically before a later clean integrity checkpoint.
 - Every formerly-active invalidation now atomically rewrites participant contributions and settlement metadata to the canonical fallback before integrity-checking. Inventory drift, malformed active rows, wrong leases and v1 upgrade repair therefore remain loadable, deliverable and replayable after restart.
 - The callback parser now accepts only the generated eight-segment v2 action form with an explicit option-index segment; the ungenerated seven-segment form fails closed.
+- Player-news validation now rejects a complete sentence in the newest entry when it duplicates historical release wording; the current unavailable-gameplay boundary uses unique spoiler-light copy.
 - The 24-case simulator now fails unless all 13/25-turn scenarios complete the requested count, every support profile is reused after its authored cooldown and rewardlessness comes from a real terminal plan.
 
 ### Verification and compatibility
