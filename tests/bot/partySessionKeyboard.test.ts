@@ -26,13 +26,21 @@ describe("party session keyboard", () => {
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: true,
-      includeGroupCombatStart: true
+      includeGroupCombatStart: true,
+      isPrivateDestination: true
     }))).toContain("⚔️ Dev: гуртова сутичка");
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: true,
-      includeGroupCombatStart: true
+      includeGroupCombatStart: true,
+      isPrivateDestination: true
     }))).toContain("v1:gc:s:partyABC12");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      includeDevExpire: true,
+      includeGroupCombatStart: true,
+      isPrivateDestination: false
+    }))).not.toContain("⚔️ Dev: гуртова сутичка");
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: false
@@ -40,7 +48,8 @@ describe("party session keyboard", () => {
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: "character-2",
       includeDevExpire: true,
-      includeGroupCombatStart: true
+      includeGroupCombatStart: true,
+      isPrivateDestination: true
     }))).not.toContain("⚔️ Dev: гуртова сутичка");
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,

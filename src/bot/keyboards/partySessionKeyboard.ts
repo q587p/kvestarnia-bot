@@ -50,6 +50,7 @@ export function buildPartySessionKeyboard(
     inviteUrl?: string | null | undefined;
     includeDevExpire?: boolean | undefined;
     includeGroupCombatStart?: boolean | undefined;
+    isPrivateDestination?: boolean | undefined;
     includeBossStart?: boolean | undefined;
     includeRaidChat?: boolean | undefined;
   } = {}
@@ -103,6 +104,7 @@ export function buildPartySessionKeyboard(
     if (
       !isBigBarrel &&
       options.includeGroupCombatStart &&
+      options.isPrivateDestination &&
       options.viewerCharacterId === session.leaderCharacterId
     ) {
       keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();

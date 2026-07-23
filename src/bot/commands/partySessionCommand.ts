@@ -1166,6 +1166,7 @@ async function sendText(
             inviteUrl: keyboard.inviteUrl,
             includeDevExpire: keyboard.includeDevExpire,
             includeGroupCombatStart: keyboard.includeGroupCombatStart,
+            isPrivateDestination: ctx.chat?.type === "private",
             includeBossStart: keyboard.includeBossStart,
             includeRaidChat: keyboard.includeRaidChat
           })
@@ -1365,6 +1366,7 @@ async function sendCanonicalPartyPreparationCard(
           inviteUrl,
           includeDevExpire: service.areDevHelpersEnabled(),
           includeGroupCombatStart: groupCombat?.areDevHelpersEnabled(),
+          isPrivateDestination: ctx.chat?.type === "private",
           includeBossStart: isBigBarrelParty(session),
           includeRaidChat: actorChat?.writable === true
         })
@@ -1471,17 +1473,21 @@ async function refreshCanonicalPartyParticipantCards(
       session.inviteToken
     ) ?? null;
     const text = chat ? appendPartyRaidChatWithinBudget(baseText, chat) : baseText;
-    const messageOptions = {
+    const buildMessageOptions = (isPrivateDestination: boolean) => ({
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartySessionKeyboard(session, {
         viewerCharacterId: participant.characterId,
         inviteUrl,
         includeDevExpire: service.areDevHelpersEnabled(),
         includeGroupCombatStart,
+        isPrivateDestination,
         includeBossStart: isBigBarrelParty(session),
         includeRaidChat: chat?.writable === true
       })
-    };
+    });
+    const messageOptions = buildMessageOptions(
+      participant.chatId === participant.character.telegramUserId
+    );
     let needsReplacement = !participant.chatId || !participant.messageId;
 
     if (!needsReplacement) {
@@ -1525,8 +1531,11 @@ async function refreshCanonicalPartyParticipantCards(
 
     try {
       const chatId = confirmedParticipant.chatId ?? confirmedParticipant.character.telegramUserId;
+      const replacementOptions = buildMessageOptions(
+        chatId === confirmedParticipant.character.telegramUserId
+      );
       const message = await runPartyRaidChatTelegramOperation(ctx, chat !== null, () =>
-        ctx.api.sendMessage(Number(chatId), text, messageOptions)
+        ctx.api.sendMessage(Number(chatId), text, replacementOptions)
       );
       if (message.message_id) {
         await service.recordParticipantMessageReference(

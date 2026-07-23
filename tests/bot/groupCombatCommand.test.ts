@@ -427,6 +427,7 @@ describe("group combat bot flow", () => {
     const apiCalls: Array<{ method: string; chatId: number; replyMarkup: unknown }> = [];
     let nextMessageId = 90;
     const findById = vi.fn(() => Promise.resolve(session));
+    const startProof = vi.fn().mockResolvedValue({ state: "started", session });
     const compareAndSetParticipantCard = vi.fn((input: {
       telegramUserId: bigint;
       chatId: bigint;
@@ -455,7 +456,7 @@ describe("group combat bot flow", () => {
     });
     registerGroupCombatDevCommand(bot, {
       areDevHelpersEnabled: () => true,
-      startProof: vi.fn().mockResolvedValue({ state: "started", session }),
+      startProof,
       findById,
       compareAndSetParticipantCard,
       releaseParticipantCard: vi.fn(),
@@ -465,6 +466,7 @@ describe("group combat bot flow", () => {
 
     await bot.handleUpdate(groupCommandUpdate("/dev_group_combat proof-token-13"));
 
+    expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
     expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId)).toEqual([1001, 1002]);
     expect(apiCalls.filter((call) => call.method === "sendMessage")).toEqual([
@@ -472,6 +474,26 @@ describe("group combat bot flow", () => {
       expect.objectContaining({ replyMarkup: { inline_keyboard: [] } })
     ]);
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
+  });
+
+  it("rejects a public group-combat start callback before calling startProof", async () => {
+    const startProof = vi.fn();
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: -100587, type: "supergroup" },
+      callbackQuery: { id: "callback-public-start", data: "unused" },
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start", token: "proof-token-13" },
+      { startProof } as unknown as GroupCombatService
+    );
+
+    expect(startProof).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
   });
 
   it("rejects mutating group-combat callbacks from a supergroup", async () => {

@@ -27,9 +27,10 @@
   Terminal output changes no Character resources,
   XP, gold, items, quests, achievements or activity rewards. Production
   availability, deployment and manual Telegram QA remain unproven. Local QA
-  creates a fresh `/dev_party`; the leader starts from its gated recruiting-card
-  button or passes only the invite suffix after `party_` to
-  `/dev_group_combat`. Both routes share the same start service.
+  creates a fresh `/dev_party`; the leader starts from its private-DM-only
+  recruiting-card button or passes only the invite suffix after `party_` to
+  `/dev_group_combat`, including from a group chat. Public proof callbacks stay
+  non-mutating; both start routes share the same service.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
