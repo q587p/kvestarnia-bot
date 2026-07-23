@@ -102,10 +102,10 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Ватага проти кількох халеп");
+    expect(text).toContain("Ватага тримає стрій");
     expect(text).toContain("У грі вже:");
-    expect(text).toContain("Корчмар розклав на столі кілька фігурок пригодників");
-    expect(text).toContain("не дати їм утекти зі столу раніше за чудовиськ");
+    expect(text).toContain("Корчмар перестав малювати стрілочки навмання");
+    expect(text).toContain("Дві навіть ведуть туди, куди задумано");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

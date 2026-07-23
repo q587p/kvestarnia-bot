@@ -27,7 +27,8 @@ Do:
 11. Give named final phases at least a 600-second command budget, or run them in one yielded session and poll that same session until its real exit code is known. Never start a duplicate full gate because output was compacted while the original process is still alive.
 12. Treat a confirmed exit code `0` as valid until a relevant source, test, schema, config, package or lockfile changes. An output-channel `EPIPE`, killed process, timeout, missing final status or malformed result is unproven, never a pass; do not globally raise test-level timeouts to work around command transport.
 13. Before final handoff, re-check the current Kyiv day against the latest release/news/changelog Holocene headings; same-PR follow-ups and review fixes must refresh those headings if the branch now has a newer Kyiv-day commit.
-14. End with a compact PR-ready summary.
+14. Every numbered package release must add a matching current `news.md` entry. Hidden, rewardless, feature-flagged, dev-only, production-disabled or not-yet-rolled-out runtime is not an exception; keep the entry spoiler-light and express only a genuine unavailable gameplay boundary through `Ще не відчинено:`. A change that should not receive player news must stay non-numbered and must not bump the package version.
+15. End with a compact PR-ready summary.
 
 Do not:
 1. Start another feature unless the user explicitly changes the active version task.

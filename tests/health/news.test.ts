@@ -96,7 +96,7 @@ describe("public news rendering", () => {
     );
   });
 
-  it("keeps the changelog aligned with the package without forcing news for hidden releases", () => {
+  it("requires every numbered package release to have matching changelog and player news", () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), "package.json"), "utf8")
     ) as { version: string };
@@ -113,9 +113,10 @@ describe("public news rendering", () => {
     expect(changelogHeading).toEqual(
       expect.objectContaining({ version: packageJson.version })
     );
-    expect(newsHeading).toBeDefined();
-    expect(compareSemver(newsHeading?.version ?? "0.0.0", packageJson.version)).toBeLessThanOrEqual(0);
-    expect((newsHeading?.date ?? "") <= (changelogHeading?.date ?? "")).toBe(true);
+    expect(newsHeading).toEqual(
+      expect.objectContaining({ version: packageJson.version })
+    );
+    expect(newsHeading?.date).toBe(changelogHeading?.date);
   });
 
   it("does not date the latest release after the current Kyiv day of the commit", () => {
@@ -138,24 +139,11 @@ describe("public news rendering", () => {
     const expectedDate = toKyivHoloceneDate(new Date(headCommitDate));
 
     expect(changelogHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
-    expect(newsHeading).toBeDefined();
-    expect(compareSemver(newsHeading?.version ?? "0.0.0", packageJson.version)).toBeLessThanOrEqual(0);
+    expect(newsHeading).toEqual(expect.objectContaining({ version: packageJson.version }));
     expect(changelogHeading?.date <= expectedDate).toBe(true);
     expect(newsHeading?.date <= expectedDate).toBe(true);
   });
 });
-
-function compareSemver(left: string, right: string): number {
-  const leftParts = left.split(".").map(Number);
-  const rightParts = right.split(".").map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-    if (difference !== 0) {
-      return difference;
-    }
-  }
-  return 0;
-}
 
 function toKyivHoloceneDate(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

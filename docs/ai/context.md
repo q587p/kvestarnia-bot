@@ -202,6 +202,8 @@
 - Long keyboard candidate lists need pagination/filter/search; never silently make eligible rows unreachable.
 - Every visible timer/wait blocker should show remaining time derived from canonical timestamps.
 - Distinct concepts shown together should use distinct icons.
+- Every numbered package release has a matching current `news.md` entry. Hidden,
+  rewardless or feature-flagged runtime changes the wording, not this requirement.
 - Current release news ends with a short standalone in-world paragraph. `Ще не відчинено:` is only for a genuine unavailable gameplay boundary, never
   manual QA, CI, deploy, rollout, or production-enablement status.
 

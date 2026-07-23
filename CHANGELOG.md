@@ -24,7 +24,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Verification and compatibility
 - Stable query-event observations are start `32/32`, queued action `20/20`, direct single resolving submission `22/35`, concurrent duplicate-final pair `31` aggregate and lean due scan `1/1`. The two added start reads freeze only the bounded supported-item rows for the 2–3 participants.
 - The 24-case hardening simulator observed a maximum serialized state of `4,964/32,768` bytes; active/result cards enforce `≤4,096` UTF-8 bytes and retain at most five recap turns.
-- The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. There is no player-news entry because this release does not expose the proof to testers or production players.
+- The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. A matching spoiler-light player-news entry is still required because every numbered package release now keeps `package.json`, `CHANGELOG.md` and `news.md` in enforced lockstep; the unavailable gameplay boundary is stated without operational rollout claims.
 - No new class, race, ability, item, reward, achievement, lore promise, guild, matchmaking, >3×3 encounter, production rollout, FightService orchestration or Big Barrel migration is included.
 
 ## [0.4.0] - 12026-07-23 - Rewardless Party-vs-Many Proof
