@@ -2,10 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   makeGroupCombatActionCallbackData,
   makeGroupCombatJournalCallbackData,
+  makeGroupCombatStartCallbackData,
   parseGroupCombatCallbackData
 } from "../../src/bot/callbacks/groupCombatCallbackData";
 
 describe("group combat callback data", () => {
+  it("round-trips the dev start token within Telegram's budget", () => {
+    const data = makeGroupCombatStartCallbackData("proof-token-13");
+
+    expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "start", token: "proof-token-13" }
+    });
+  });
+
   it("round-trips an explicit target index within Telegram's budget", () => {
     const data = makeGroupCombatActionCallbackData({
       token: "proof-token-13",

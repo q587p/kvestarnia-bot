@@ -25,8 +25,28 @@ describe("party session keyboard", () => {
     }))).toContain("🧪 Dev: бос-проба");
     expect(keyboardText(buildPartySessionKeyboard(session, {
       viewerCharacterId: session.leaderCharacterId,
+      includeDevExpire: true,
+      includeGroupCombatStart: true
+    }))).toContain("⚔️ Dev: гуртова сутичка");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      includeDevExpire: true,
+      includeGroupCombatStart: true
+    }))).toContain("v1:gc:s:partyABC12");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
       includeDevExpire: false
     }))).not.toContain("⏱️ Dev: завершити строк");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: "character-2",
+      includeDevExpire: true,
+      includeGroupCombatStart: true
+    }))).not.toContain("⚔️ Dev: гуртова сутичка");
+    expect(keyboardText(buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      includeDevExpire: true,
+      includeGroupCombatStart: false
+    }))).not.toContain("⚔️ Dev: гуртова сутичка");
   });
 
   it("shows raid-chat controls only when explicitly enabled for a participant", () => {

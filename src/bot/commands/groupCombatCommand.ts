@@ -34,7 +34,7 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
     }
-    await ctx.reply(presentStartFailure(result.state));
+    await ctx.reply(presentGroupCombatStartFailure(result.state));
   });
 }
 
@@ -53,6 +53,19 @@ export async function handleGroupCombatCallback(
       text: "Бойові кнопки ватаги працюють лише в особистій розмові з Квестарнею.",
       show_alert: true
     });
+    return;
+  }
+  if (callback.type === "start") {
+    const result = await service.startProof(telegramUserId, callback.token);
+    if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentGroupCombatStartFailure(result.state),
+        show_alert: true
+      });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: "Доказову сутичку запущено." });
+    await deliverGroupCombatCards(ctx.api, service, result.session);
     return;
   }
   let session = await service.findByToken(callback.token);
@@ -180,7 +193,7 @@ function readCommandToken(text: string | undefined): string | null {
   return TOKEN_PATTERN.test(token) ? token : null;
 }
 
-function presentStartFailure(state: string): string {
+export function presentGroupCombatStartFailure(state: string): string {
   switch (state) {
     case "invalid-size":
       return "Для доказової сутички треба рівно 2–3 пригодники у ватазі.";

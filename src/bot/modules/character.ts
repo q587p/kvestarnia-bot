@@ -99,6 +99,7 @@ export function registerCharacterBotModule(
       ...(services.partyBoss ? { partyBoss: services.partyBoss } : {}),
       ...(services.partyRaidChat ? { partyRaidChat: services.partyRaidChat } : {}),
       ...(services.partySessions ? { partySessions: services.partySessions } : {}),
+      ...(services.groupCombat ? { groupCombat: services.groupCombat } : {}),
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
       presence: services.presence,
       botUsername: options.botUsername,

@@ -43,7 +43,8 @@ export function registerSocialBotModule(
       presence: services.presence,
       botUsername: options.botUsername,
       partyBoss: services.partyBoss,
-      partyRaidChat: services.partyRaidChat
+      partyRaidChat: services.partyRaidChat,
+      groupCombat: services.groupCombat
     });
   }
 
@@ -154,7 +155,8 @@ export function registerSocialBotModule(
         presence: services.presence,
         botUsername: options.botUsername,
         partyBoss: services.partyBoss,
-        partyRaidChat: services.partyRaidChat
+        partyRaidChat: services.partyRaidChat,
+        groupCombat: services.groupCombat
       });
     }
   );

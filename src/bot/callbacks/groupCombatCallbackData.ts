@@ -3,6 +3,7 @@ import type { GroupCombatActionKey } from "../../domain/groupCombat/groupCombat"
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GroupCombatCallback =
+  | { type: "start"; token: string }
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
   | { type: "action"; token: string; turn: number; action: GroupCombatActionKey; targetIndex: number };
@@ -12,6 +13,10 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 
 export function makeGroupCombatViewCallbackData(token: string): string {
   return `v1:gc:v:${token}`;
+}
+
+export function makeGroupCombatStartCallbackData(token: string): string {
+  return `v1:gc:s:${token}`;
 }
 
 export function makeGroupCombatJournalCallbackData(token: string, page: number): string {
@@ -38,6 +43,9 @@ export function parseGroupCombatCallbackData(
     return err("invalid");
   }
   const token = parts[3]!;
+  if (parts[2] === "s" && parts.length === 4) {
+    return ok({ type: "start", token });
+  }
   if (parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });
   }

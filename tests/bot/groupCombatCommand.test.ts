@@ -80,6 +80,65 @@ describe("group combat bot flow", () => {
     expect(submitAction).not.toHaveBeenCalled();
   });
 
+  it("starts the proof from the leader party card and delivers canonical private cards", async () => {
+    const session = makeSession();
+    const startProof = vi.fn().mockResolvedValue({ state: "started", session });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-party-group-start",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start", token: session.partyInviteToken },
+      {
+        startProof,
+        findById: vi.fn().mockResolvedValue(session),
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService
+    );
+
+    expect(startProof).toHaveBeenCalledWith(1001n, session.partyInviteToken);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Доказову сутичку запущено." });
+    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(editMessageText).toHaveBeenCalledWith(1002, 22, expect.any(String), expect.any(Object));
+  });
+
+  it("reports a disabled party-card start callback without delivering combat cards", async () => {
+    const startProof = vi.fn().mockResolvedValue({ state: "disabled" });
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const editMessageText = vi.fn();
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: { id: "callback-disabled-group-start", data: "unused" },
+      api: { editMessageText } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start", token: "proof-token-13" },
+      {
+        startProof
+      } as unknown as GroupCombatService
+    );
+
+    expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
+    expect(answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
+    expect(editMessageText).not.toHaveBeenCalled();
+  });
+
   it("maps a callback target against canonical state and refreshes stale cards", async () => {
     const session = makeSession();
     const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
