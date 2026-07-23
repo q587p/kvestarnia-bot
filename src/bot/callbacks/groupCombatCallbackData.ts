@@ -54,17 +54,17 @@ export function parseGroupCombatCallbackData(
     return err("invalid");
   }
   const token = parts[3]!;
-  if (parts[2] === "s" && parts.length === 4) {
+  if (parts[0] === "v1" && parts[2] === "s" && parts.length === 4) {
     return ok({ type: "start", token });
   }
-  if (parts[2] === "v" && parts.length === 4) {
+  if (parts[0] === "v1" && parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });
   }
-  if (parts[2] === "j" && parts.length === 5) {
+  if (parts[0] === "v1" && parts[2] === "j" && parts.length === 5) {
     const page = parseBase36(parts[4], true);
     return page === null ? err("invalid") : ok({ type: "journal", token, page });
   }
-  if (parts[2] !== "a" || (parts.length !== 7 && parts.length !== 8)) {
+  if (parts[0] !== "v2" || parts[2] !== "a" || (parts.length !== 7 && parts.length !== 8)) {
     return err("invalid");
   }
   const turn = parseBase36(parts[4]);

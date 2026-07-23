@@ -12,8 +12,13 @@ describe("groupCombatSimulation", () => {
       new Set(["2x2:13", "2x2:25", "3x3:13", "3x3:25"])
     );
     expect(report.rows.every((row) =>
-      row.deterministicReplay && row.legalTargetsOnly && row.contributionBalanced
+      row.completedTurns === row.requestedTurns &&
+      row.deterministicReplay &&
+      row.legalTargetsOnly &&
+      row.contributionBalanced &&
+      row.supportReusableAfterCooldown &&
+      row.rewardlessTerminalPlan
     )).toBe(true);
-    expect(formatGroupCombatSimulationReport(report)).toContain("six support profiles");
+    expect(formatGroupCombatSimulationReport(report)).toContain("every 25-turn case=25");
   });
 });

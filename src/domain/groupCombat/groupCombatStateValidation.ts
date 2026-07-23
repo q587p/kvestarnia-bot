@@ -51,6 +51,23 @@ const combatItemQuantitiesSchema = z.record(z.string().min(1), positiveInteger).
     }
   }
 });
+const combatItemsSchema = z.object({
+  cooldowns: z.record(z.string().min(1), z.object({
+    itemId: z.literal("item.dense-bandage"),
+    remainingTurns: positiveInteger.max(5)
+  }).strict()).optional(),
+  uses: z.record(z.string().min(1), z.object({
+    itemId: z.literal("item.field-kit"),
+    count: z.literal(1)
+  }).strict()).optional()
+}).strict().superRefine((value, context) => {
+  if (value.cooldowns && Object.keys(value.cooldowns).some((itemId) => itemId !== "item.dense-bandage")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Unsupported group-combat item cooldown." });
+  }
+  if (value.uses && Object.keys(value.uses).some((itemId) => itemId !== "item.field-kit")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Unsupported group-combat item use marker." });
+  }
+});
 
 const actorSchema = z.object({
   characterId: z.string().min(1),
@@ -72,6 +89,7 @@ const actorSchema = z.object({
   equipmentItemIds: z.array(z.string().min(1)).max(13),
   gearAbilityIds: z.array(z.string().min(1)).max(13),
   combatItemQuantities: combatItemQuantitiesSchema,
+  combatItems: combatItemsSchema.optional(),
   threat: nonNegativeInteger,
   cooldowns: cooldownsSchema.optional(),
   playerAbilityFumbles: fumblesSchema.optional()

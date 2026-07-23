@@ -21,10 +21,17 @@ This project follows a simple pre-1.0 versioning policy:
 - The participant keyboard now exposes current class/race actions, frozen supported gear actions and owned supported combat items only when their server-owned target and availability contract is valid. Terminal cards show the six truthful contribution dimensions and remain bounded to Telegram's 4,096-byte limit.
 - Added migration `20260723194500_group_combat_hardening` for the immutable terminal plan, participant settlement status/attempt/receipt fields and server-owned action payload key. Existing `group-combat.v1` proof rows are non-production data and fail closed through the existing rewardless repair path after the rules upgrade.
 
+### Fixed
+- Restored real `v2:gc:a:*` action routing through combat-lock middleware and the social module while retaining only the intended v1 start/view/journal/back compatibility.
+- Committed single-enemy class/race/gear actions now retarget after an earlier same-round death; guard, aid and item actions tick ability cooldowns; Priest effect scopes and counter victories at the turn cap follow their authored recipes.
+- Dense Bandage keeps its five-own-action cooldown and Field Kit remains once per fight in bounded combat state. Missing live inventory now rolls back resolution and invalidates the proof rewardlessly instead of leaving an active session that throws forever.
+- Terminal plans, relational contributions, settlement statuses and participant receipts must match canonical terminal state exactly. Shape-valid foreign or altered artifacts rebuild canonically before a later clean integrity checkpoint.
+- The 24-case simulator now fails unless all 13/25-turn scenarios complete the requested count, every support profile is reused after its authored cooldown and rewardlessness comes from a real terminal plan.
+
 ### Verification and compatibility
 - Stable query-event observations are start `32/32`, queued action `20/20`, direct single resolving submission `22/35`, concurrent duplicate-final pair `31` aggregate and lean due scan `1/1`. The two added start reads freeze only the bounded supported-item rows for the 2–3 participants.
-- The 24-case hardening simulator observed a maximum serialized state of `4,964/32,768` bytes; active/result cards enforce `≤4,096` UTF-8 bytes and retain at most five recap turns.
-- The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. A matching spoiler-light player-news entry is still required because every numbered package release now keeps `package.json`, `CHANGELOG.md` and `news.md` in enforced lockstep; the unavailable gameplay boundary is stated without operational rollout claims.
+- The 24-case hardening simulator observed a maximum serialized state of `5,066/32,768` bytes; every requested 13/25-turn case completed exactly, the maximal-card regression fixture measured `1,637/4,096` bytes and the maximum accepted action callback fixture measured `46/64`.
+- The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. The matching spoiler-light player-news entry remains in version lockstep and states the unavailable gameplay boundary without operational rollout claims.
 - No new class, race, ability, item, reward, achievement, lore promise, guild, matchmaking, >3×3 encounter, production rollout, FightService orchestration or Big Barrel migration is included.
 
 ## [0.4.0] - 12026-07-23 - Rewardless Party-vs-Many Proof

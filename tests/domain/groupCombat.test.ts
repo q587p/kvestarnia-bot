@@ -177,6 +177,102 @@ describe("group combat proof reducer", () => {
     expect(result.state.participants[0]!.mana).toBeLessThanOrEqual(state.participants[0]!.mana);
   });
 
+  it.each([
+    ["class", "class.warrior", "race.human-ish", undefined, "skill.forceful-strike"],
+    ["race", "class.warrior", "race.human-ish", undefined, "ability.race.practical-improvisation"],
+    ["gear", "class.warrior", "race.human-ish", "gear.red-line-dagger", "gear.red-line-dagger"]
+  ] as const)("retargets a committed single-enemy %s action when its authored target dies earlier", (
+    actionKey,
+    classId,
+    raceId,
+    payloadKey,
+    abilityId
+  ) => {
+    const state = proofState(2);
+    state.enemies[0]!.hp = 1;
+    state.enemies[1]!.hp = 30;
+    state.enemies[1]!.hpMax = 30;
+    state.participants[1]!.classId = classId;
+    state.participants[1]!.raceId = raceId;
+    state.participants[1]!.gearAbilityIds = payloadKey ? [payloadKey] : [];
+    state.participants[1]!.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        [abilityId]: { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 93 }
+      }
+    };
+    const committed: GroupCombatAction = {
+      ...action(state, 1, actionKey, "enemy", state.enemies[0]!.id),
+      ...(payloadKey ? { payloadKey } : {})
+    };
+
+    const result = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id),
+      committed
+    ]);
+
+    expect(result.state.enemies[0]!.hp).toBe(0);
+    expect(result.state.enemies[1]!.hp).toBeLessThan(30);
+    expect(result.state.contributions[1]!.damage).toBeGreaterThan(0);
+    expect(result.state.participants[1]!.cooldowns?.abilities?.[abilityId]).toBeDefined();
+  });
+
+  it("applies strict blessing healing to only the lowest-HP ally and mitigation to every intended ally", () => {
+    const state = proofState(3);
+    state.participants[0]!.classId = "class.priest";
+    state.participants[0]!.threat = 10;
+    state.participants[1]!.hp = 1;
+    state.participants[1]!.threat = 100;
+    state.participants[2]!.hp = 2;
+    state.participants[2]!.threat = 50;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+      enemy.attack = 20;
+    });
+    const result = resolveGroupCombatTurn(state, [
+      action(state, 0, "class", "self", state.participants[0]!.characterId),
+      action(state, 1, "attack", "enemy", state.enemies[0]!.id),
+      action(state, 2, "attack", "enemy", state.enemies[0]!.id)
+    ]);
+
+    expect(result.state.contributions[0]!.healing).toBe(7);
+    expect(result.state.contributions[0]!.guardPrevented).toBe(3);
+    expect(result.state.contributions[0]!.control).toBe(6);
+    expect(result.state.participants[1]!.hp).toBe(0);
+    expect(result.state.participants[2]!.hp).toBe(0);
+    expect(result.state.participants[0]!.hp).toBe(15);
+  });
+
+  it.each(["guard", "aid", "item"] as const)("ticks ability cooldowns after a committed %s action", (actionKey) => {
+    const state = proofState(2);
+    const actor = state.participants[0]!;
+    actor.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": { id: "skill.forceful-strike", remainingTurns: 3 }
+      }
+    };
+    state.participants[1]!.hp -= 1;
+    if (actionKey === "item") {
+      actor.hp -= 7;
+      actor.combatItemQuantities = { "item.responsible-panic-bandage": 1 };
+    }
+    const committed: GroupCombatAction = actionKey === "guard"
+      ? action(state, 0, "guard", "self", actor.characterId)
+      : actionKey === "aid"
+        ? action(state, 0, "aid", "ally", state.participants[1]!.characterId)
+        : {
+            ...action(state, 0, "item", "self", actor.characterId),
+            payloadKey: "item.responsible-panic-bandage"
+          };
+    const result = resolveGroupCombatTurn(state, [
+      committed,
+      action(state, 1, "guard", "self", state.participants[1]!.characterId)
+    ]);
+
+    expect(result.state.participants[0]!.cooldowns?.abilities?.["skill.forceful-strike"]?.remainingTurns).toBe(2);
+  });
+
   it("resolves lowest-HP ties by roster order and excludes dead allies", () => {
     const state = proofState(3);
     state.participants[0]!.hp = 0;
@@ -236,6 +332,65 @@ describe("group combat proof reducer", () => {
     expect(used.state.contributions[0]!.healing).toBe(7);
   });
 
+  it("preserves dense-bandage five-own-action cooldown and field-kit once-per-fight state", () => {
+    let dense = proofState(2, { hp: 93, hpMax: 93, attack: 1, defense: 20 });
+    dense.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+      enemy.attack = 1;
+    });
+    dense.participants[0]!.hp = 30;
+    dense.participants[0]!.combatItemQuantities = { "item.dense-bandage": 2 };
+    let denseResolution = resolveGroupCombatTurn(dense, [
+      { ...action(dense, 0, "item", "self", dense.participants[0]!.characterId), payloadKey: "item.dense-bandage" },
+      action(dense, 1, "guard", "self", dense.participants[1]!.characterId)
+    ]);
+    dense = denseResolution.state;
+    expect(dense.participants[0]!.combatItems?.cooldowns?.["item.dense-bandage"]?.remainingTurns).toBe(5);
+    for (let ownAction = 1; ownAction <= 5; ownAction += 1) {
+      denseResolution = resolveGroupCombatTurn(dense, dense.participants.map((actor) =>
+        action(dense, actor.rosterOrder, "guard", "self", actor.characterId)
+      ));
+      dense = denseResolution.state;
+      expect(dense.participants[0]!.combatItems?.cooldowns?.["item.dense-bandage"]?.remainingTurns)
+        .toBe(ownAction < 5 ? 5 - ownAction : undefined);
+    }
+    dense.participants[0]!.hp -= 1;
+    expect(validateGroupCombatAction(dense, {
+      ...action(dense, 0, "item", "self", dense.participants[0]!.characterId),
+      payloadKey: "item.dense-bandage"
+    })).toBe("ok");
+
+    const fieldKit = proofState(2, { hp: 93, hpMax: 93, defense: 20 });
+    fieldKit.participants[0]!.hp = 30;
+    fieldKit.participants[0]!.combatItemQuantities = { "item.field-kit": 2 };
+    const fieldKitResolution = resolveGroupCombatTurn(fieldKit, [
+      { ...action(fieldKit, 0, "item", "self", fieldKit.participants[0]!.characterId), payloadKey: "item.field-kit" },
+      action(fieldKit, 1, "guard", "self", fieldKit.participants[1]!.characterId)
+    ]);
+    expect(fieldKitResolution.state.participants[0]!.combatItems?.uses?.["item.field-kit"]).toEqual({
+      itemId: "item.field-kit",
+      count: 1
+    });
+    expect(validateGroupCombatAction(fieldKitResolution.state, {
+      ...action(
+        fieldKitResolution.state,
+        0,
+        "item",
+        "self",
+        fieldKitResolution.state.participants[0]!.characterId
+      ),
+      payloadKey: "item.field-kit"
+    })).toBe("action-unavailable");
+    const healthyFieldKit = proofState(2, { hp: 93, hpMax: 93 });
+    healthyFieldKit.participants[0]!.hp = 87;
+    healthyFieldKit.participants[0]!.combatItemQuantities = { "item.field-kit": 1 };
+    expect(validateGroupCombatAction(healthyFieldKit, {
+      ...action(healthyFieldKit, 0, "item", "self", healthyFieldKit.participants[0]!.characterId),
+      payloadKey: "item.field-kit"
+    })).toBe("action-unavailable");
+  });
+
   it("retargets after multiple enemy deaths and never lets AI target a dead participant", () => {
     const victory = proofState(2);
     victory.enemies.forEach((enemy) => { enemy.hp = 1; });
@@ -256,6 +411,25 @@ describe("group combat proof reducer", () => {
     expect(defended.state.participants[0]!.hp).toBe(0);
     expect(defended.state.contributions[0]!.damageTaken).toBe(1);
     expect(defended.state.contributions.slice(1).some((row) => row.damageTaken > 0)).toBe(true);
+  });
+
+  it("wins at the turn cap when a counter kills the final enemy", () => {
+    const state = proofState(2);
+    state.turn = 25;
+    state.participants[0]!.raceId = "race.molfar-soul";
+    state.participants[0]!.threat = 100;
+    state.enemies[0]!.hp = 1;
+    state.enemies[0]!.attack = 20;
+    state.enemies[1]!.hp = 0;
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "race", "self", state.participants[0]!.characterId),
+      action(state, 1, "guard", "self", state.participants[1]!.characterId)
+    ]);
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.result?.outcome).toBe("won");
+    expect(resolved.result?.completedTurn).toBe(25);
+    expect(resolved.state.enemies[0]!.hp).toBe(0);
   });
 
   it("rejects unavailable abilities and commits a deterministic support fumble without support effects", () => {
@@ -302,6 +476,29 @@ describe("group combat proof reducer", () => {
         value: 1,
         remainingTurns: 1
       }]
+    })).toThrow(GroupCombatStateValidationError);
+    const itemState = proofState(2);
+    itemState.participants[0]!.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": { itemId: "item.dense-bandage", remainingTurns: 5 }
+      },
+      uses: {
+        "item.field-kit": { itemId: "item.field-kit", count: 1 }
+      }
+    };
+    expect(parseGroupCombatStateStrict(itemState)).toEqual(itemState);
+    expect(() => parseGroupCombatStateStrict({
+      ...itemState,
+      participants: itemState.participants.map((participant, index) => index === 0
+        ? {
+            ...participant,
+            combatItems: {
+              uses: {
+                "item.field-kit": { itemId: "item.field-kit", count: 2 }
+              }
+            }
+          }
+        : participant)
     })).toThrow(GroupCombatStateValidationError);
   });
 });

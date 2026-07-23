@@ -10,6 +10,7 @@ import {
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
 import { GroupCombatService } from "../../src/services/groupCombatService";
+import { buildGroupCombatSettlementPlan } from "../../src/domain/groupCombat/groupCombat";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
@@ -752,6 +753,191 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).settlementPlanJson).toEqual(storedPlan.settlementPlanJson);
   });
 
+  it("fails closed and replays safely after a frozen field kit disappears during a Charokovalnia-style inventory mutation", async () => {
+    await seedParty(prisma, "group-field-kit-drift", [1195n, 1196n]);
+    const actor = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: 1195n } }
+    });
+    await prisma.character.update({ where: { id: actor.id }, data: { hpCurrent: 10, hpMax: 30 } });
+    await prisma.characterItem.create({
+      data: { characterId: actor.id, itemId: "item.field-kit", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, "group-field-kit-drift", 1195n);
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: 1195n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: actor.id,
+      payloadKey: "item.field-kit",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    await prisma.characterItem.delete({
+      where: { characterId_itemId: { characterId: actor.id, itemId: "item.field-kit" } }
+    });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    const finalActor = session.participants[1]!;
+    const invalidated = await restarted.submitActionForTelegramUser({
+      telegramUserId: finalActor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: finalActor.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    const replay = await restarted.submitActionForTelegramUser({
+      telegramUserId: finalActor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: finalActor.characterId,
+      now: new Date(NOW.getTime() + 2),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(invalidated.state).toBe("invalidated");
+    expect(replay.state).toBe("terminal");
+    await expectInvalidatedRewardlessly(prisma, session.id);
+    expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
+    expect((await restarted.findById(session.id))?.settlementPlan).toMatchObject({
+      policy: "rewardless-proof",
+      outcome: "invalid"
+    });
+  });
+
+  it.each([
+    ["foreign-plan-participant", 20_010n],
+    ["changed-plan-contribution", 20_020n],
+    ["changed-plan-resources", 20_030n],
+    ["wrong-receipt-identity", 20_040n],
+    ["completed-without-receipt", 20_050n],
+    ["pending-with-receipt", 20_060n]
+  ] as const)("rebuilds shape-valid terminal settlement corruption without prematurely marking integrity for %s", async (kind, telegramId) => {
+    const suffix = kind.replace(/[^a-z]/g, "").slice(0, 20);
+    const terminal = await forceTerminalProof(
+      prisma,
+      repository,
+      `group-settlement-${suffix}`,
+      [telegramId, telegramId + 1n]
+    );
+    const row = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      include: { participants: { orderBy: { rosterOrder: "asc" } } }
+    });
+    const plan = structuredClone(row.settlementPlanJson) as NonNullable<typeof row.settlementPlanJson> & {
+      participants: Array<{
+        characterId: string;
+        resources: { hp: number; mana: number };
+        contribution: { characterId: string; damage: number };
+      }>;
+    };
+    const first = row.participants[0]!;
+    const second = row.participants[1]!;
+    const canonicalReceipt = {
+      version: 1,
+      policy: "rewardless-proof",
+      sessionId: terminal.id,
+      characterId: first.characterId,
+      remortCount: first.remortCount,
+      rewards: { xp: 0, gold: 0, items: [] }
+    };
+    if (kind === "foreign-plan-participant") {
+      plan.participants[0]!.characterId = "foreign-character";
+      plan.participants[0]!.contribution.characterId = "foreign-character";
+      await prisma.groupCombatSession.update({
+        where: { id: terminal.id },
+        data: { settlementPlanJson: plan, terminalIntegrityCheckedAt: null }
+      });
+    } else if (kind === "changed-plan-contribution") {
+      plan.participants[0]!.contribution.damage += 1;
+      await prisma.groupCombatSession.update({
+        where: { id: terminal.id },
+        data: { settlementPlanJson: plan, terminalIntegrityCheckedAt: null }
+      });
+    } else if (kind === "changed-plan-resources") {
+      plan.participants[0]!.resources.hp += 1;
+      await prisma.groupCombatSession.update({
+        where: { id: terminal.id },
+        data: { settlementPlanJson: plan, terminalIntegrityCheckedAt: null }
+      });
+    } else if (kind === "wrong-receipt-identity") {
+      await prisma.groupCombatParticipant.update({
+        where: { id: first.id },
+        data: {
+          settlementStatus: "completed",
+          settlementAttempts: 1,
+          settlementReceiptJson: {
+            ...canonicalReceipt,
+            characterId: second.characterId
+          },
+          settledAt: NOW
+        }
+      });
+      await expect(repository.settleParticipant({
+        sessionId: terminal.id,
+        telegramUserId: terminal.participants[0]!.telegramUserId,
+        now: NOW
+      })).resolves.toEqual({ state: "invalid-plan" });
+    } else if (kind === "completed-without-receipt") {
+      await prisma.groupCombatParticipant.update({
+        where: { id: first.id },
+        data: {
+          settlementStatus: "completed",
+          settlementAttempts: 1,
+          settlementReceiptJson: Prisma.DbNull,
+          settledAt: NOW
+        }
+      });
+    } else {
+      await prisma.groupCombatParticipant.update({
+        where: { id: first.id },
+        data: {
+          settlementStatus: "pending",
+          settlementReceiptJson: canonicalReceipt,
+          settledAt: null
+        }
+      });
+    }
+
+    if (kind !== "wrong-receipt-identity") {
+      await repository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 13), 93);
+    }
+    const repaired = await repository.findById(terminal.id);
+    const repairedRow = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      include: { participants: { orderBy: { rosterOrder: "asc" } } }
+    });
+    expect(repaired?.settlementPlan).toEqual(buildGroupCombatSettlementPlan(repaired!.state));
+    expect(repairedRow.terminalIntegrityCheckedAt).toBeNull();
+    const repairedFirst = repairedRow.participants[0]!;
+    if (kind === "pending-with-receipt") {
+      expect(repairedFirst).toMatchObject({ settlementStatus: "pending", settledAt: null });
+      expect(repairedFirst.settlementReceiptJson).toBeNull();
+    } else if (kind === "wrong-receipt-identity" || kind === "completed-without-receipt") {
+      expect(repairedFirst.settlementStatus).toBe("completed");
+      expect(repairedFirst.settlementReceiptJson).toEqual(canonicalReceipt);
+      await expect(repository.settleParticipant({
+        sessionId: terminal.id,
+        telegramUserId: terminal.participants[0]!.telegramUserId,
+        now: new Date(NOW.getTime() + 14)
+      })).resolves.toMatchObject({
+        state: "replayed",
+        receipt: {
+          sessionId: terminal.id,
+          characterId: first.characterId,
+          remortCount: first.remortCount,
+          rewards: { xp: 0, gold: 0, items: [] }
+        }
+      });
+    }
+  });
+
   it("CAS-invalidates malformed state, releases all leases, and writes only rewardless proof", async () => {
     await seedParty(prisma, "group-broken", [1301n, 1302n, 1303n]);
     const started = await repository.startProofForTelegramUser({
@@ -1079,12 +1265,12 @@ describe("PrismaGroupCombatRepository integration", () => {
       deliveryPending: true
     });
     expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
-      .toEqual(NOW);
-
-    const newestHealthy = sessions.at(-1)!;
-    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: newestHealthy.id } })).terminalIntegrityCheckedAt)
       .toBeNull();
     await repository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 1), 13);
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
+      .toEqual(new Date(NOW.getTime() + 1));
+
+    const newestHealthy = sessions.at(-1)!;
     expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: newestHealthy.id } })).terminalIntegrityCheckedAt)
       .toEqual(new Date(NOW.getTime() + 1));
   });
@@ -1131,16 +1317,19 @@ describe("PrismaGroupCombatRepository integration", () => {
       deliveryPending: true
     });
     expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
-      .toEqual(secondPassAt);
+      .toBeNull();
     expect((await restartedService.listPendingDelivery(93)).map((session) => session.id)).toContain(malformed.id);
 
+    await restartedRepository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 4), 13);
+    expect((await prisma.groupCombatSession.findUniqueOrThrow({ where: { id: malformed.id } })).terminalIntegrityCheckedAt)
+      .toEqual(new Date(NOW.getTime() + 4));
     const checkpointBeforeRepeat = await prisma.groupCombatSession.findMany({
       where: { id: { in: sessions.map((session) => session.id) } },
       orderBy: { id: "asc" },
       select: { id: true, terminalIntegrityCheckedAt: true }
     });
     queries.length = 0;
-    await restartedRepository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 4), 13);
+    await restartedRepository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 5), 13);
     const repeatedPassQueries = queries.length;
     expect(repeatedPassQueries).toBeLessThan(firstPassQueries);
     expect(await prisma.groupCombatSession.findMany({
@@ -1258,6 +1447,46 @@ async function expectStoredTurnActionMatchesRecap(
   }
 }
 
+async function forceTerminalProof(
+  prisma: PrismaClient,
+  repository: PrismaGroupCombatRepository,
+  token: string,
+  telegramIds: [bigint, bigint]
+): Promise<StartedProofSession> {
+  const session = await startProof(prisma, repository, token, telegramIds);
+  const state = {
+    ...structuredClone(session.state),
+    status: "won" as const,
+    enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+  };
+  await prisma.groupCombatSession.update({
+    where: { id: session.id },
+    data: {
+      status: "won",
+      stateJson: state,
+      resultJson: {
+        kind: "rewardless-proof",
+        outcome: "won",
+        completedTurn: state.turn,
+        rewards: { xp: 0, gold: 0, items: [] }
+      },
+      settlementPlanJson: buildGroupCombatSettlementPlan(state)! as unknown as Prisma.InputJsonValue,
+      completedAt: NOW,
+      terminalIntegrityCheckedAt: null
+    }
+  });
+  await prisma.activeCombatLease.deleteMany({ where: { referenceId: session.id } });
+  await prisma.partySession.update({
+    where: { id: session.partySessionId },
+    data: { status: "completed", activeLeaderKey: null }
+  });
+  await prisma.partyParticipant.updateMany({
+    where: { sessionId: session.partySessionId },
+    data: { activeMembershipKey: null }
+  });
+  return session;
+}
+
 async function checkpointExistingTerminalHistory(prisma: PrismaClient): Promise<void> {
   await prisma.groupCombatSession.updateMany({
     where: { status: { not: "active" } },
@@ -1285,21 +1514,23 @@ async function seedTerminalIntegrityHistory(
   const completedBase = new Date("2026-07-20T00:00:00.000Z");
   for (const [index, session] of sessions.entries()) {
     const completedAt = new Date(completedBase.getTime() + index);
+    const terminalState = {
+      ...session.state,
+      status: "won" as const,
+      enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
+    };
     await prisma.groupCombatSession.update({
       where: { id: session.id },
       data: {
         status: "won",
-        stateJson: {
-          ...session.state,
-          status: "won",
-          enemies: session.state.enemies.map((enemy) => ({ ...enemy, hp: 0 }))
-        },
+        stateJson: terminalState,
         resultJson: {
           kind: "rewardless-proof",
           outcome: index === malformedIndex ? "lost" : "won",
           completedTurn: session.turn,
           rewards: { xp: 0, gold: 0, items: [] }
         },
+        settlementPlanJson: buildGroupCombatSettlementPlan(terminalState)! as unknown as Prisma.InputJsonValue,
         completedAt,
         terminalIntegrityCheckedAt: null,
         updatedAt: completedAt

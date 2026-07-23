@@ -74,7 +74,16 @@ export function buildGroupCombatKeyboard(
   addAbilityButtons("race");
   (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) => addAbilityButtons("gear", abilityId, optionIndex));
   GROUP_COMBAT_SUPPORTED_ITEM_IDS.forEach((itemId, optionIndex) => {
-    if (((viewer.combatItemQuantities ?? {})[itemId] ?? 0) <= 0 || viewer.hp >= viewer.hpMax) {
+    const candidate: GroupCombatAction = {
+      actorCharacterId: viewer.characterId,
+      turn: session.turn,
+      action: "item",
+      targetKind: "self",
+      targetId: viewer.characterId,
+      payloadKey: itemId,
+      origin: "manual"
+    };
+    if (validateGroupCombatAction(session.state, candidate) !== "ok") {
       return;
     }
     addActionButton(GROUP_COMBAT_ITEM_BUTTONS[itemId], makeGroupCombatActionCallbackData({

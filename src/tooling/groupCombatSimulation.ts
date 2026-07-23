@@ -2,10 +2,12 @@ import {
   createGroupCombatProofState,
   getGroupCombatActionProfile,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
+  invalidateGroupCombatState,
   resolveGroupCombatTurn,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot,
+  type GroupCombatSettlementPlan,
   type GroupCombatState
 } from "../domain/groupCombat/groupCombat";
 import { parseGroupCombatStateStrict } from "../domain/groupCombat/groupCombatStateValidation";
@@ -22,6 +24,8 @@ export interface GroupCombatSimulationRow {
   deterministicReplay: boolean;
   legalTargetsOnly: boolean;
   contributionBalanced: boolean;
+  supportReusableAfterCooldown: boolean;
+  rewardlessTerminalPlan: boolean;
 }
 
 export interface GroupCombatSimulationReport {
@@ -31,6 +35,7 @@ export interface GroupCombatSimulationReport {
     legalTargetsOnly: true;
     boundedState: true;
     exactCommittedActions: true;
+    supportReusableAfterCooldown: true;
     rewardless: true;
   };
 }
@@ -57,6 +62,9 @@ export function runGroupCombatHardeningSimulation(): GroupCombatSimulationReport
     !row.deterministicReplay ||
     !row.legalTargetsOnly ||
     !row.contributionBalanced ||
+    row.completedTurns !== row.requestedTurns ||
+    !row.supportReusableAfterCooldown ||
+    !row.rewardlessTerminalPlan ||
     row.stateBytes > GROUP_COMBAT_STATE_BYTE_LIMIT
   )) {
     throw new Error("Group-combat hardening simulation invariant failed.");
@@ -68,6 +76,7 @@ export function runGroupCombatHardeningSimulation(): GroupCombatSimulationReport
       legalTargetsOnly: true,
       boundedState: true,
       exactCommittedActions: true,
+      supportReusableAfterCooldown: true,
       rewardless: true
     }
   };
@@ -80,8 +89,9 @@ export function formatGroupCombatSimulationReport(report: GroupCombatSimulationR
     "",
     "GroupCombat hardening:",
     `  cases: ${cases} (2x2/3x3, 13/25 turns, six support profiles)`,
+    "  completed turns: every 13-turn case=13; every 25-turn case=25",
     `  maximum state bytes: ${maximumStateBytes}/${GROUP_COMBAT_STATE_BYTE_LIMIT}`,
-    "  invariants: deterministic replay, legal living targets, exact committed-action accounting, rewardless terminal plans"
+    "  invariants: deterministic replay, legal living targets, exact committed-action accounting, authored cooldown reuse, rewardless terminal plans"
   ].join("\n");
 }
 
@@ -106,21 +116,46 @@ function runScenario(
   let legalTargetsOnly = true;
   let expectedCommittedActions = 0;
   let completedTurns = 0;
+  const supportUseTurns: number[] = [];
+  let terminalPlan: GroupCombatSettlementPlan | null = null;
   while (completedTurns < requestedTurns && state.status === "active") {
     const actions = state.participants
       .filter((participant) => participant.hp > 0)
       .map((participant, index) =>
         index === 0 ? buildSupportAction(state, participant, profile.action) : buildGuardAction(state, participant)
       );
+    if (actions[0]?.action === profile.action) {
+      supportUseTurns.push(completedTurns + 1);
+    }
     legalTargetsOnly &&= actions.every((action) => validateGroupCombatAction(state, action) === "ok");
     expectedCommittedActions += actions.length;
     const clone = structuredClone(state);
     const resolved = resolveGroupCombatTurn(state, actions);
     deterministicReplay &&= JSON.stringify(resolved) === JSON.stringify(resolveGroupCombatTurn(clone, actions));
     state = resolved.state;
+    terminalPlan = resolved.settlementPlan;
     parseGroupCombatStateStrict(state);
     completedTurns += 1;
   }
+  if (!terminalPlan) {
+    const terminal = invalidateGroupCombatState(state);
+    state = terminal.state;
+    terminalPlan = terminal.settlementPlan;
+  }
+  const authoredCooldown = getGroupCombatActionProfile(state.participants[0]!, profile.action)?.ability.cooldownOwnActions;
+  const supportReusableAfterCooldown = authoredCooldown !== undefined && supportUseTurns.some(
+    (turn, index) => index > 0 && turn - supportUseTurns[index - 1]! === authoredCooldown + 1
+  );
+  const rewardlessTerminalPlan = Boolean(
+    terminalPlan &&
+    terminalPlan.policy === "rewardless-proof" &&
+    terminalPlan.participants.length === partySize &&
+    terminalPlan.participants.every((participant) =>
+      participant.rewards.xp === 0 &&
+      participant.rewards.gold === 0 &&
+      participant.rewards.items.length === 0
+    )
+  );
   const committedActions = state.contributions.reduce((sum, row) => sum + row.committedActions, 0);
   return {
     partySize,
@@ -133,7 +168,9 @@ function runScenario(
     stateBytes: Buffer.byteLength(JSON.stringify(state), "utf8"),
     deterministicReplay,
     legalTargetsOnly,
-    contributionBalanced: committedActions === expectedCommittedActions
+    contributionBalanced: committedActions === expectedCommittedActions,
+    supportReusableAfterCooldown,
+    rewardlessTerminalPlan
   };
 }
 

@@ -111,6 +111,32 @@ describe("group combat presenter", () => {
     expect(injuredLabels).toContain("🫶 Пригодник 2");
   });
 
+  it("hides combat items while their canonical cooldown or once-per-fight limit is active", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.hp = 5;
+    viewer.combatItemQuantities = {
+      "item.responsible-panic-bandage": 1,
+      "item.dense-bandage": 1,
+      "item.field-kit": 1
+    };
+    viewer.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": { itemId: "item.dense-bandage", remainingTurns: 5 }
+      },
+      uses: {
+        "item.field-kit": { itemId: "item.field-kit", count: 1 }
+      }
+    };
+
+    const labels = buildGroupCombatKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat().map((button) => button.text);
+
+    expect(labels).toContain("🩹 Бинт");
+    expect(labels).not.toContain("🧻 Щільний бинт");
+    expect(labels).not.toContain("🧰 Аптечка");
+  });
+
   it("keeps action controls available so a queued choice can be changed", () => {
     const session = createSession(2);
     session.queuedActions = [{

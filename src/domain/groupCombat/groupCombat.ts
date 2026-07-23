@@ -55,6 +55,7 @@ export interface GroupCombatActorSnapshot {
   equipmentItemIds: string[];
   gearAbilityIds: string[];
   combatItemQuantities: Record<string, number>;
+  combatItems?: CombatState["combatItems"];
   threat: number;
   cooldowns?: CombatState["cooldowns"];
   playerAbilityFumbles?: PlayerAbilityFumblesState;
@@ -216,6 +217,7 @@ export function createGroupCombatProofState(input: {
           quantities[itemId] = positiveInteger(quantity);
           return quantities;
         }, {}),
+      ...(participant.combatItems ? { combatItems: structuredClone(participant.combatItems) } : {}),
       threat: nonNegativeInteger(participant.threat ?? 0),
       ...(participant.cooldowns ? { cooldowns: structuredClone(participant.cooldowns) } : {}),
       ...(participant.playerAbilityFumbles
@@ -328,6 +330,26 @@ export function resolveGroupCombatTargets(
   return target ? [target.id] : [];
 }
 
+function resolveCommittedAbilityTargets(
+  state: GroupCombatState,
+  actorCharacterId: string,
+  scope: CombatTargetScope,
+  explicitTargetId?: string
+): string[] {
+  if (scope !== "single-enemy") {
+    return resolveGroupCombatTargets(state, actorCharacterId, scope, explicitTargetId);
+  }
+  const target = getCanonicalEnemyTarget(state, explicitTargetId);
+  return target ? [target.id] : [];
+}
+
+function isSupportScope(scope: CombatTargetScope): boolean {
+  return scope === "self" ||
+    scope === "single-ally-or-self" ||
+    scope === "all-allies-including-self" ||
+    scope === "lowest-hp-ally";
+}
+
 export function validateGroupCombatAction(
   state: GroupCombatState,
   action: GroupCombatAction
@@ -367,8 +389,9 @@ export function validateGroupCombatAction(
     return action.targetKind !== "self" || action.targetId !== actor.characterId
       ? "invalid-target"
       : isSupportedGroupCombatItem(action.payloadKey) &&
-          (actor.combatItemQuantities[action.payloadKey] ?? 0) > 0 &&
-          actor.hp < actor.hpMax
+          (actor.combatItemQuantities?.[action.payloadKey] ?? 0) > 0 &&
+          isGroupCombatItemAvailable(actor, action.payloadKey) &&
+          canHealWithGroupCombatItem(actor, action.payloadKey)
         ? "ok"
         : "action-unavailable";
   }
@@ -448,6 +471,9 @@ export function resolveGroupCombatTurn(
 
   const committedConsumables: GroupCombatCommittedConsumable[] = [];
   for (const actorAtStart of livingActors) {
+    if (state.enemies.every((enemy) => enemy.hp <= 0)) {
+      break;
+    }
     const actor = state.participants.find((candidate) => candidate.characterId === actorAtStart.characterId)!;
     if (actor.hp <= 0) {
       continue;
@@ -458,6 +484,10 @@ export function resolveGroupCombatTurn(
     if (action.action === "attack") {
       applyBasicAttack(state, actor, action, contribution, lines);
     } else if (action.action === "guard") {
+      if (action.origin === "manual") {
+        tickActorAfterCommittedAction(actor);
+        tickGroupCombatItemCooldowns(actor);
+      }
       addProtectionStatus(
         state,
         actor.characterId,
@@ -469,6 +499,8 @@ export function resolveGroupCombatTurn(
       actor.threat += 2;
       lines.push(action.origin === "timeout" ? `${actor.name} мовчить і стає в захист.` : `${actor.name} стає в захист.`);
     } else if (action.action === "aid") {
+      tickActorAfterCommittedAction(actor);
+      tickGroupCombatItemCooldowns(actor);
       const target = state.participants.find((candidate) => candidate.characterId === action.targetId)!;
       const healed = healParticipant(target, Math.max(1, Math.floor(actor.support / 2)));
       contribution.healing += healed;
@@ -478,7 +510,10 @@ export function resolveGroupCombatTurn(
         : `${actor.name} підстраховує ${target.name}, але лікувати вже нічого.`);
     } else if (action.action === "item") {
       const itemId = action.payloadKey as GroupCombatCommittedConsumable["itemId"];
+      tickActorAfterCommittedAction(actor);
+      tickGroupCombatItemCooldowns(actor);
       const healed = applyCombatItem(actor, itemId);
+      recordGroupCombatItemUse(actor, itemId);
       actor.combatItemQuantities[itemId] = (actor.combatItemQuantities[itemId] ?? 0) - 1;
       if ((actor.combatItemQuantities[itemId] ?? 0) <= 0) {
         delete actor.combatItemQuantities[itemId];
@@ -489,6 +524,7 @@ export function resolveGroupCombatTurn(
       lines.push(`${actor.name} використовує ${GROUP_COMBAT_ITEM_NAMES[itemId]}: +${healed} HP.`);
     } else {
       applyAbilityAction(state, actor, action, contribution, lines);
+      tickGroupCombatItemCooldowns(actor);
     }
   }
 
@@ -497,6 +533,9 @@ export function resolveGroupCombatTurn(
   }
 
   applyEnemyPhase(state, lines);
+  if (state.enemies.every((enemy) => enemy.hp <= 0)) {
+    return terminalize(state, "won", lines, committedConsumables);
+  }
   state.statuses = state.statuses
     .map((status) => status.kind === "bleed" ? status : { ...status, remainingTurns: status.remainingTurns - 1 })
     .filter((status) => status.remainingTurns > 0);
@@ -595,6 +634,7 @@ function applyBasicAttack(
   contribution.damage += damage;
   actor.threat += damage;
   tickActorAfterCommittedAction(actor);
+  tickGroupCombatItemCooldowns(actor);
   lines.push(`${actor.name} б’є «${target.name}» на ${damage}.`);
 }
 
@@ -611,12 +651,17 @@ function applyAbilityAction(
   }
   const ability = profile.ability;
   const primaryTargetScope = ability.primaryTargetScope ?? "single-enemy";
-  const enemyTargets = unique([
-    ...resolveGroupCombatTargets(state, actor.characterId, primaryTargetScope, action.targetId),
-    ...(ability.secondaryTargetScope
-      ? resolveGroupCombatTargets(state, actor.characterId, ability.secondaryTargetScope, action.targetId)
-      : [])
-  ]).filter((targetId) => state.enemies.some((enemy) => enemy.id === targetId));
+  const primaryTargets = resolveCommittedAbilityTargets(
+    state,
+    actor.characterId,
+    primaryTargetScope,
+    action.targetId
+  );
+  const secondaryTargets = ability.secondaryTargetScope
+    ? resolveCommittedAbilityTargets(state, actor.characterId, ability.secondaryTargetScope, action.targetId)
+    : [];
+  const enemyTargets = unique([...primaryTargets, ...secondaryTargets])
+    .filter((targetId) => state.enemies.some((enemy) => enemy.id === targetId));
   const primaryEnemy = getCanonicalEnemyTarget(state, enemyTargets[0]);
   const defenderState: CombatActorResourceState = primaryEnemy
     ? { hp: primaryEnemy.hp, hpMax: primaryEnemy.hpMax, mana: 0, manaMax: 0 }
@@ -674,15 +719,15 @@ function applyAbilityAction(
   contribution.damage += dealt;
   actor.threat += dealt;
 
-  const supportScopes = [ability.primaryTargetScope, ability.secondaryTargetScope]
-    .filter((scope): scope is CombatTargetScope => Boolean(scope))
-    .filter((scope) => scope === "self" || scope === "single-ally-or-self" ||
-      scope === "all-allies-including-self" || scope === "lowest-hp-ally");
-  const supportTargets = unique(
-    supportScopes.flatMap((scope) => resolveGroupCombatTargets(state, actor.characterId, scope, action.targetId))
-  );
-  if (ability.healAmount && supportTargets.length > 0) {
-    for (const targetId of supportTargets) {
+  const primarySupportTargets = isSupportScope(primaryTargetScope) ? primaryTargets : [];
+  const secondarySupportTargets = ability.secondaryTargetScope && isSupportScope(ability.secondaryTargetScope)
+    ? secondaryTargets
+    : [];
+  const healingTargets = ability.recipe?.includes("self-heal")
+    ? secondarySupportTargets.length > 0 ? secondarySupportTargets : [actor.characterId]
+    : primarySupportTargets.length > 0 ? primarySupportTargets : secondarySupportTargets;
+  if (ability.healAmount && healingTargets.length > 0) {
+    for (const targetId of unique(healingTargets)) {
       const target = state.participants.find((candidate) => candidate.characterId === targetId);
       if (!target || target.hp <= 0) {
         continue;
@@ -692,12 +737,16 @@ function applyAbilityAction(
       actor.threat += healed * 2;
     }
   }
-  const protectionTargets = supportTargets.length > 0 ? supportTargets : [actor.characterId];
-  for (const targetId of protectionTargets) {
-    if (ability.guardReduction) {
+  const protectionTargets = secondarySupportTargets.length > 0
+    ? secondarySupportTargets
+    : primarySupportTargets.length > 0
+      ? primarySupportTargets
+      : [actor.characterId];
+  for (const targetId of unique(protectionTargets)) {
+    if (ability.guardReduction && ability.recipe?.includes("ally-guard")) {
       addProtectionStatus(state, actor.characterId, targetId, "guard", ability.guardReduction);
     }
-    if (ability.monsterDamageReduction) {
+    if (ability.monsterDamageReduction && ability.recipe?.includes("response-mitigation")) {
       addProtectionStatus(
         state,
         actor.characterId,
@@ -706,7 +755,7 @@ function applyAbilityAction(
         ability.monsterDamageReduction
       );
     }
-    if (ability.counterDamage) {
+    if (ability.counterDamage && ability.recipe?.includes("counter")) {
       addProtectionStatus(state, actor.characterId, targetId, "counter", ability.counterDamage);
     }
   }
@@ -909,6 +958,80 @@ function isAbilityAvailable(actor: GroupCombatActorSnapshot, ability: CombatSkil
   }
   const cooldown = actor.cooldowns?.abilities?.[ability.id];
   return !cooldown || cooldown.remainingTurns <= 0;
+}
+
+function isGroupCombatItemAvailable(
+  actor: GroupCombatActorSnapshot,
+  itemId: GroupCombatCommittedConsumable["itemId"]
+): boolean {
+  if (itemId === "item.dense-bandage") {
+    return (actor.combatItems?.cooldowns?.[itemId]?.remainingTurns ?? 0) <= 0;
+  }
+  if (itemId === "item.field-kit") {
+    return (actor.combatItems?.uses?.[itemId]?.count ?? 0) === 0;
+  }
+  return true;
+}
+
+function canHealWithGroupCombatItem(
+  actor: GroupCombatActorSnapshot,
+  itemId: GroupCombatCommittedConsumable["itemId"]
+): boolean {
+  return itemId === "item.field-kit"
+    ? actor.hp < Math.ceil(actor.hpMax * 0.93)
+    : actor.hp < actor.hpMax;
+}
+
+function recordGroupCombatItemUse(
+  actor: GroupCombatActorSnapshot,
+  itemId: GroupCombatCommittedConsumable["itemId"]
+): void {
+  if (itemId === "item.dense-bandage") {
+    actor.combatItems = {
+      ...(actor.combatItems ?? {}),
+      cooldowns: {
+        ...(actor.combatItems?.cooldowns ?? {}),
+        [itemId]: { itemId, remainingTurns: 5 }
+      }
+    };
+    return;
+  }
+  if (itemId === "item.field-kit") {
+    actor.combatItems = {
+      ...(actor.combatItems ?? {}),
+      uses: {
+        ...(actor.combatItems?.uses ?? {}),
+        [itemId]: {
+          itemId,
+          count: (actor.combatItems?.uses?.[itemId]?.count ?? 0) + 1
+        }
+      }
+    };
+  }
+}
+
+function tickGroupCombatItemCooldowns(actor: GroupCombatActorSnapshot): void {
+  const current = actor.combatItems?.cooldowns;
+  if (!current) {
+    return;
+  }
+  const cooldowns = Object.fromEntries(
+    Object.entries(current)
+      .map(([itemId, cooldown]) => [
+        itemId,
+        { itemId: cooldown.itemId, remainingTurns: Math.max(0, cooldown.remainingTurns - 1) }
+      ] as const)
+      .filter(([, cooldown]) => cooldown.remainingTurns > 0)
+  );
+  const uses = actor.combatItems?.uses;
+  if (Object.keys(cooldowns).length > 0 || uses) {
+    actor.combatItems = {
+      ...(Object.keys(cooldowns).length > 0 ? { cooldowns } : {}),
+      ...(uses ? { uses: structuredClone(uses) } : {})
+    };
+  } else {
+    delete actor.combatItems;
+  }
 }
 
 function applyCombatItem(

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { GROUP_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import {
@@ -46,6 +47,11 @@ type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 4;
 
 class GroupCombatMutationConflict extends Error {}
+class GroupCombatInventoryDrift extends Error {
+  constructor(readonly sessionId: string) {
+    super("Committed group-combat item is no longer owned.");
+  }
+}
 
 const partyCharacterInclude = {
   user: { select: { telegramUserId: true } },
@@ -457,6 +463,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       return session ? { state: writeState, session } : { state: "not-found" };
         });
       } catch (error) {
+        if (error instanceof GroupCombatInventoryDrift) {
+          return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+        }
         if (isUniqueConflict(error)) {
           const conflict = await this.classifyConcurrentAction(input);
           if (conflict) {
@@ -592,6 +601,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return result;
         });
       } catch (error) {
+        if (error instanceof GroupCombatInventoryDrift) {
+          return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+        }
         if (error instanceof GroupCombatMutationConflict || isUniqueConflict(error) || isTransactionWriteConflict(error)) {
           continue;
         }
@@ -772,11 +784,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       }
       let plan: GroupCombatSettlementPlan;
       try {
+        parseRowState(row);
         plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
       } catch {
-        return { state: "invalid-plan" } as const;
-      }
-      if (plan.sessionId !== row.id) {
+        await repairMalformedSession(tx, row, input.now);
         return { state: "invalid-plan" } as const;
       }
       if (participant.settlementReceiptJson !== null) {
@@ -808,10 +819,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           select: { settlementReceiptJson: true }
         });
         return winner?.settlementReceiptJson
-          ? {
-              state: "replayed",
-              receipt: parseGroupCombatSettlementReceiptStrict(winner.settlementReceiptJson)
-            } as const
+          ? replayValidatedReceipt(plan, participant.characterId, winner.settlementReceiptJson)
           : { state: "invalid-plan" } as const;
       }
       return { state: "settled", receipt } as const;
@@ -981,7 +989,7 @@ async function resolveIfReady(
   }
   const resolution = resolveGroupCombatTurn(state, actions);
   const terminal = resolution.result !== null;
-  await consumeCommittedItems(tx, resolution.committedConsumables);
+  await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
   const updated = await tx.groupCombatSession.updateMany({
     where: { id: row.id, status: "active", turn: row.turn, version: row.version },
     data: {
@@ -1030,22 +1038,24 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
     const state = parseRowStateCore(row);
     if (state.status !== "active") {
       const result = buildRewardlessResult(state.status, state.turn);
+      const plan = buildGroupCombatSettlementPlan(state)!;
       const updated = await tx.groupCombatSession.updateMany({
         where: { id: row.id, status: row.status, version: row.version },
         data: {
           resultJson: result as unknown as Prisma.InputJsonValue,
-          settlementPlanJson: buildGroupCombatSettlementPlan(state)! as unknown as Prisma.InputJsonValue,
+          settlementPlanJson: plan as unknown as Prisma.InputJsonValue,
           completedAt: row.completedAt ?? now,
           version: { increment: 1 },
           deliveryRevision: { increment: 1 },
           deliveryPending: true,
           deliveryAttemptedAt: null,
-          terminalIntegrityCheckedAt: now
+          terminalIntegrityCheckedAt: null
         }
       });
       if (updated.count !== 1) {
         return "unchanged";
       }
+      await rebuildTerminalParticipantArtifacts(tx, row, state, plan, now);
       await releaseAllGroupCombatLeases(tx, row.id, now);
       await completeParty(tx, row.partySessionId);
       return "terminal-repaired";
@@ -1254,21 +1264,98 @@ async function updateContributions(tx: TxClient, sessionId: string, contribution
   }
 }
 
+async function rebuildTerminalParticipantArtifacts(
+  tx: TxClient,
+  row: SessionRow,
+  state: GroupCombatState,
+  plan: GroupCombatSettlementPlan,
+  now: Date
+): Promise<void> {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of row.participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution) {
+      throw new GroupCombatStateValidationError("Terminal participant is missing its contribution.");
+    }
+    const completed = participant.settlementStatus === "completed";
+    const receipt = completed
+      ? buildGroupCombatSettlementReceipt(plan, participant.characterId)
+      : null;
+    if (completed && !receipt) {
+      throw new GroupCombatStateValidationError("Terminal participant is missing its plan entry.");
+    }
+    await tx.groupCombatParticipant.update({
+      where: { id: participant.id },
+      data: {
+        contributionJson: contribution as unknown as Prisma.InputJsonValue,
+        settlementStatus: completed ? "completed" : "pending",
+        settlementAttempts: completed ? Math.max(1, participant.settlementAttempts) : participant.settlementAttempts,
+        settlementReceiptJson: receipt
+          ? receipt as unknown as Prisma.InputJsonValue
+          : Prisma.DbNull,
+        settledAt: completed ? participant.settledAt ?? now : null
+      }
+    });
+  }
+}
+
+function replayValidatedReceipt(
+  plan: GroupCombatSettlementPlan,
+  characterId: string,
+  value: unknown
+): { state: "replayed"; receipt: ReturnType<typeof parseGroupCombatSettlementReceiptStrict> } |
+  { state: "invalid-plan" } {
+  try {
+    const receipt = parseGroupCombatSettlementReceiptStrict(value);
+    const expected = buildGroupCombatSettlementReceipt(plan, characterId);
+    return expected && isDeepStrictEqual(receipt, expected)
+      ? { state: "replayed", receipt }
+      : { state: "invalid-plan" };
+  } catch {
+    return { state: "invalid-plan" };
+  }
+}
+
 async function consumeCommittedItems(
   tx: TxClient,
+  sessionId: string,
   items: readonly GroupCombatCommittedConsumable[]
 ): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  const required = new Map<string, GroupCombatCommittedConsumable & { quantity: number }>();
   for (const item of items) {
+    const key = `${item.characterId}\0${item.itemId}`;
+    const current = required.get(key);
+    required.set(key, { ...item, quantity: (current?.quantity ?? 0) + 1 });
+  }
+  const rows = await tx.characterItem.findMany({
+    where: {
+      OR: [...required.values()].map((item) => ({
+        characterId: item.characterId,
+        itemId: item.itemId
+      }))
+    },
+    select: { characterId: true, itemId: true, quantity: true }
+  });
+  if ([...required.values()].some((item) =>
+    (rows.find((row) => row.characterId === item.characterId && row.itemId === item.itemId)?.quantity ?? 0) <
+      item.quantity
+  )) {
+    throw new GroupCombatInventoryDrift(sessionId);
+  }
+  for (const item of required.values()) {
     const consumed = await tx.characterItem.updateMany({
       where: {
         characterId: item.characterId,
         itemId: item.itemId,
-        quantity: { gte: 1 }
+        quantity: { gte: item.quantity }
       },
-      data: { quantity: { decrement: 1 } }
+      data: { quantity: { decrement: item.quantity } }
     });
     if (consumed.count !== 1) {
-      throw new GroupCombatStateValidationError("Committed group-combat item is no longer owned.");
+      throw new GroupCombatInventoryDrift(sessionId);
     }
     await tx.characterItem.deleteMany({
       where: {
@@ -1278,6 +1365,31 @@ async function consumeCommittedItems(
       }
     });
   }
+}
+
+async function invalidateInventoryDrift(
+  prisma: PrismaClient,
+  sessionId: string,
+  now: Date
+): Promise<GroupCombatActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.groupCombatSession.findUnique({
+      where: { id: sessionId },
+      include: sessionInclude
+    });
+    if (!row) {
+      return { state: "not-found" } as const;
+    }
+    if (row.status === "active") {
+      const outcome = await invalidateSessionRewardlessly(tx, row, now);
+      if (outcome === "invalidated") {
+        const session = await loadSession(tx, row.id);
+        return session ? { state: "invalidated", session } as const : { state: "not-found" } as const;
+      }
+    }
+    const session = await loadSession(tx, row.id);
+    return session ? { state: "terminal", session } as const : { state: "not-found" } as const;
+  });
 }
 
 async function loadSession(
@@ -1349,6 +1461,7 @@ function parseRowState(row: SessionRow): GroupCombatState {
     if (row.resultJson !== null || row.settlementPlanJson !== null || row.completedAt !== null) {
       throw new GroupCombatStateValidationError("Active group combat has terminal result metadata.");
     }
+    validateSettlementRows(row, state, null);
     return state;
   }
   if (row.resultJson === null || row.settlementPlanJson === null || row.completedAt === null) {
@@ -1359,14 +1472,11 @@ function parseRowState(row: SessionRow): GroupCombatState {
     throw new GroupCombatStateValidationError("Terminal group-combat result does not match state.");
   }
   const plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
-  if (
-    plan.sessionId !== row.id ||
-    plan.outcome !== state.status ||
-    plan.completedTurn !== state.turn ||
-    plan.participants.length !== state.participants.length
-  ) {
+  const expectedPlan = buildGroupCombatSettlementPlan(state);
+  if (!expectedPlan || !isDeepStrictEqual(plan, expectedPlan)) {
     throw new GroupCombatStateValidationError("Terminal group-combat settlement plan does not match state.");
   }
+  validateSettlementRows(row, state, plan);
   return state;
 }
 
@@ -1400,6 +1510,41 @@ function validateRelationalRoster(row: SessionRow, state: GroupCombatState): voi
       actor.rosterOrder !== participant.rosterOrder
     ) {
       throw new GroupCombatStateValidationError("Relational participant identity does not match state.");
+    }
+  }
+}
+
+function validateSettlementRows(
+  row: SessionRow,
+  state: GroupCombatState,
+  plan: GroupCombatSettlementPlan | null
+): void {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of row.participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution || !isDeepStrictEqual(participant.contributionJson, contribution)) {
+      throw new GroupCombatStateValidationError("Relational contribution does not match terminal state.");
+    }
+    if (participant.settlementStatus === "pending") {
+      if (participant.settlementReceiptJson !== null || participant.settledAt !== null) {
+        throw new GroupCombatStateValidationError("Pending settlement row has completed receipt metadata.");
+      }
+      continue;
+    }
+    if (participant.settlementStatus !== "completed" || !plan) {
+      throw new GroupCombatStateValidationError("Settlement status is invalid for group-combat state.");
+    }
+    if (
+      participant.settlementAttempts < 1 ||
+      participant.settlementReceiptJson === null ||
+      participant.settledAt === null
+    ) {
+      throw new GroupCombatStateValidationError("Completed settlement row is missing receipt metadata.");
+    }
+    const expectedReceipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
+    const receipt = parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson);
+    if (!expectedReceipt || !isDeepStrictEqual(receipt, expectedReceipt)) {
+      throw new GroupCombatStateValidationError("Settlement receipt does not match its immutable plan entry.");
     }
   }
 }

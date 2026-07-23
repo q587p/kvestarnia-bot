@@ -55,7 +55,7 @@ export function registerSocialBotModule(
   if (services.groupCombat?.isEnabled()) {
     registerParsedCallbackRoute(
       bot,
-      /^v1:gc:/,
+      /^v[12]:gc:/,
       (data) => parseWhenAvailable(data, parseGroupCombatCallbackData, services.groupCombat),
       async (ctx, { callback, service }) => {
         await handleGroupCombatCallback(ctx, callback, service);

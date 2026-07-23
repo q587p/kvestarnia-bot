@@ -42,6 +42,8 @@ describe("group combat callback data", () => {
 
   it("rejects malformed and oversized callbacks", () => {
     expect(parseGroupCombatCallbackData("v1:gc:a:bad:1:a:0").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v1:gc:a:proof-token-13:1:a:0").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v2:gc:v:proof-token-13").ok).toBe(false);
     expect(parseGroupCombatCallbackData(`v1:gc:v:${"x".repeat(93)}`).ok).toBe(false);
   });
 });

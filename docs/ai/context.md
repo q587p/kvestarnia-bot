@@ -11,8 +11,12 @@
   deterministic self/exact/lowest/all target scopes, mana/cooldown/fumble,
   threat-based legal multi-enemy responses, guard/mitigation/counter/bleed and
   multiple deaths. Timeout remains resource-free guard. Item consumption shares
-  the winning action/turn transaction; terminal CAS writes one immutable
-  zero-reward plan and participant receipts replay independently without
+  the winning action/turn transaction; Dense Bandage keeps five-own-action
+  cooldown and Field Kit stays once per fight. Missing frozen inventory
+  rewardlessly invalidates and releases leases instead of retrying forever.
+  Terminal CAS writes one immutable zero-reward plan whose full participant rows
+  and receipts must match state/relational identity and contribution before
+  independent replay, without
   changing Character resources, XP, gold, items, quests, achievements or
   activity rewards. Contributions record actual damage, healing, guard
   prevention, control, damage taken and committed actions. Strict
@@ -21,8 +25,12 @@
   repairable with truthful remaining time, contribution output and bounded
   journal. Stable query observations/budgets are `32/32` start, `20/20` queue,
   `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
-  state/card caps are `32,768`/`4,096` UTF-8 bytes. The 24-case simulator covers
-  six support profiles across 2×2/3×3 and 13/25 turns. Production availability,
+  state/card/callback caps are `32,768`/`4,096`/`64` UTF-8 bytes; measured
+  maxima are `5,066` state, `1,637` card fixture and `46` callback. The 24-case
+  simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
+  rewards from terminal plans and proves each support cooldown becomes reusable.
+  Generated v2 action callbacks route through combat-lock/social once; retained
+  v1 start/view/journal/back remain compatible. Production availability,
   deployment and manual Telegram QA remain unproven. Local QA uses `/dev_party`
   then the private leader button or `/dev_group_combat <invite-suffix>`;
   public callbacks remain non-mutating.
