@@ -29,6 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
   rewardless result and journal instead of a generic archive notice, while
   public and foreign callbacks remain non-disclosing.
 - Restored real `v2:gc:a:*` action routing through combat-lock middleware and the social module while retaining only the intended v1 start/view/journal/back compatibility.
+- Performance timing now classifies retained `v1:gc:*` and current `v2:gc:*` callbacks as `callback.group-combat` instead of misreporting current actions as `callback.unknown`; raw callback data remains excluded.
 - Committed single-enemy class/race/gear actions now retarget after an earlier same-round death; guard and item actions tick ability cooldowns; Priest effect scopes and counter victories at the turn cap follow their authored recipes.
 - Dense Bandage keeps its five-own-action cooldown and Field Kit remains once per fight in bounded combat state. Missing live inventory now rolls back resolution and invalidates the proof rewardlessly instead of leaving an active session that throws forever.
 - Terminal plans, relational contributions, settlement statuses and participant receipts must match canonical terminal state exactly. Shape-valid foreign or altered artifacts rebuild canonically before a later clean integrity checkpoint.

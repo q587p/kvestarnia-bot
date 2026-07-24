@@ -104,6 +104,36 @@ describe("update performance tracing", () => {
     expect(serialized).not.toContain("raw-private-callback");
   });
 
+  it.each([
+    "v1:gc:v:proof-token-13",
+    "v2:gc:a:proof-token-13:1:a:0:0"
+  ])("classifies retained and current GroupCombat callbacks without exposing data: %s", async (data) => {
+    vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const bot = new Bot("123456:test-token");
+    installApiStub(bot);
+    installUpdatePerformanceTracing(bot);
+    registerUpdateRouteBoundary(bot);
+    bot.callbackQuery(/^v[12]:gc:/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      await ctx.editMessageText("ватага");
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate(data));
+
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledWith(
+      "Kvestarnia sampled perf timing",
+      expect.objectContaining({
+        route: "callback.group-combat",
+        outcome: "success",
+        resultState: "handled"
+      })
+    );
+    expect(JSON.stringify(info.mock.calls[0]?.[1])).not.toContain(data);
+  });
+
   it("keeps memoized reads update-local and supports explicit post-mutation invalidation", async () => {
     const loader = vi.fn(() => Promise.resolve(loader.mock.calls.length));
     const results: number[] = [];

@@ -34,7 +34,7 @@
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
   Generated eight-segment v2 action callbacks route through combat-lock/social
-  once; seven-segment actions fail closed and retained v1
+  once and performance timing labels v1/v2 GroupCombat as `callback.group-combat`; seven-segment actions fail closed and retained v1
   start/view/journal/back remain compatible. Production availability,
   deployment and manual Telegram QA remain unproven. Proof `/dev_party` is a capped
   2–3 participant, three-minute auto-start; leader button and command start early.
