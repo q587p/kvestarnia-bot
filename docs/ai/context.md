@@ -27,8 +27,8 @@
   Generic Aid is absent: ally support uses authored class/race profiles. Strict parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
   Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
-  journal. Stable query observations/budgets are `32/32` start, `20/20` queue,
-  `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
+  journal. Stable query observations/budgets are `32/32` manual start, `31/32`
+  due start, `20/20` queue, `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
   state/card/callback caps are `32,768`/`4,096`/`64` UTF-8 bytes; measured
   maxima are `5,066` state, `2,155` terminal-card fixture and `46` callback. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
@@ -37,7 +37,7 @@
   once and performance timing labels v1/v2 GroupCombat as `callback.group-combat`; seven-segment actions fail closed and retained v1
   start/view/journal/back remain compatible. Production availability,
   deployment and manual Telegram QA remain unproven. Proof `/dev_party` is a capped
-  2–3 participant, three-minute auto-start; leader button and command start early.
+  2–3 participant, three-minute auto-start whose system-owned transaction reloads the current leader/roster; invalid closure is version-guarded, and only the current leader may start early.
   Stale private cards replay results; public callbacks do not mutate or disclose.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.

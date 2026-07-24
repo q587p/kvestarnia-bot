@@ -28,6 +28,11 @@ This project follows a simple pre-1.0 versioning policy:
   Completed private recruiting cards now render the participant's actual
   rewardless result and journal instead of a generic archive notice, while
   public and foreign callbacks remain non-disclosing.
+- Scheduled proof start now resolves the current leader and joined roster inside
+  its own transactional start boundary instead of trusting the earlier due-list
+  snapshot. A leader transfer, join, leave or concurrent manual start therefore
+  cannot expire an otherwise valid gathering or create a second combat;
+  invalid-roster closure is guarded by the exact observed party version.
 - Restored real `v2:gc:a:*` action routing through combat-lock middleware and the social module while retaining only the intended v1 start/view/journal/back compatibility.
 - Performance timing now classifies retained `v1:gc:*` and current `v2:gc:*` callbacks as `callback.group-combat` instead of misreporting current actions as `callback.unknown`; raw callback data remains excluded.
 - Committed single-enemy class/race/gear actions now retarget after an earlier same-round death; guard and item actions tick ability cooldowns; Priest effect scopes and counter victories at the turn cap follow their authored recipes.
@@ -41,7 +46,7 @@ This project follows a simple pre-1.0 versioning policy:
 - The 24-case simulator now fails unless all 13/25-turn scenarios complete the requested count, every support profile is reused after its authored cooldown and rewardlessness comes from a real terminal plan.
 
 ### Verification and compatibility
-- Stable query-event observations are start `32/32`, queued action `20/20`, direct single resolving submission `22/35`, concurrent duplicate-final pair `31` aggregate and lean due scan `1/1`. The two added start reads freeze only the bounded supported-item rows for the 2–3 participants.
+- Stable query-event observations are manual start `32/32`, authoritative due start `31/32`, queued action `20/20`, direct single resolving submission `22/35`, concurrent duplicate-final pair `31` aggregate and lean due scan `1/1`. The start reads freeze only the bounded supported-item rows for the 2–3 participants.
 - The 24-case hardening simulator observed a maximum serialized state of `5,066/32,768` bytes; every requested 13/25-turn case completed exactly, the terminal maximal-card regression fixture measured `2,155/4,096` bytes and the maximum accepted action callback fixture measured `46/64`.
 - The feature remains behind `GROUP_COMBAT_PROOF_ENABLED=false`, hard-disabled in production and rewardless. The matching spoiler-light player-news entry remains in version lockstep and states the unavailable gameplay boundary without operational rollout claims.
 - No new class, race, ability, item, reward, achievement, lore promise, guild, matchmaking, >3×3 encounter, production rollout, FightService orchestration or Big Barrel migration is included.

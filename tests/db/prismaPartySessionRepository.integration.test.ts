@@ -1654,7 +1654,12 @@ describe("PrismaPartySessionRepository integration", () => {
     const created = await repository.createForTelegramUser(5001n, partyInput("party-token-g"));
     await repository.joinByTokenForTelegramUser(5002n, "party-token-g", joinInput());
 
-    const expired = await repository.forceExpireByToken("party-token-g", now());
+    const beforeExpiry = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "party-token-g" },
+      select: { version: true }
+    });
+    const stale = await repository.forceExpireByToken("party-token-g", now(), beforeExpiry.version - 1);
+    const expired = await repository.forceExpireByToken("party-token-g", now(), beforeExpiry.version);
     const duplicate = await repository.forceExpireByToken("party-token-g", now());
     const row = await prisma.partySession.findUnique({
       where: { inviteToken: "party-token-g" },
@@ -1672,6 +1677,7 @@ describe("PrismaPartySessionRepository integration", () => {
     });
 
     expect(created.state).toBe("created");
+    expect(stale?.status).toBe("recruiting");
     expect(expired?.status).toBe("expired");
     expect(duplicate?.status).toBe("expired");
     expect(row).toEqual({ status: "expired", activeLeaderKey: null, version: 3 });

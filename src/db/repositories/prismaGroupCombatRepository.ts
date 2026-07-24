@@ -114,13 +114,34 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
   }): Promise<GroupCombatStartResult> {
+    return this.startProof(input, input.telegramUserId);
+  }
+
+  async startDueProof(input: {
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult> {
+    return this.startProof(input, null);
+  }
+
+  private async startProof(
+    input: {
+      partyInviteToken: string;
+      now: Date;
+      turnExpiresAt: Date;
+    },
+    manualLeaderTelegramUserId: bigint | null
+  ): Promise<GroupCombatStartResult> {
     try {
       return await this.prisma.$transaction(async (tx): Promise<GroupCombatStartResult> => {
-        const leader = await tx.character.findFirst({
-          where: { user: { telegramUserId: input.telegramUserId } },
-          select: { id: true }
-        });
-        if (!leader) {
+        const manualLeader = manualLeaderTelegramUserId === null
+          ? null
+          : await tx.character.findFirst({
+              where: { user: { telegramUserId: manualLeaderTelegramUserId } },
+              select: { id: true }
+            });
+        if (manualLeaderTelegramUserId !== null && !manualLeader) {
           return { state: "no-character" };
         }
 
@@ -142,32 +163,41 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
           return { state: existing.status === "active" ? "already-active" : "terminal", session };
         }
-        if (party.leaderCharacterId !== leader.id) {
+        if (manualLeader && party.leaderCharacterId !== manualLeader.id) {
           return { state: "not-leader" };
         }
         if (party.status !== "recruiting") {
           return { state: "not-recruiting" };
         }
+        if (manualLeaderTelegramUserId === null && party.expiresAt.getTime() > input.now.getTime()) {
+          return { state: "not-recruiting" };
+        }
 
         const joined = party.participants.filter((participant) => participant.status === "joined");
         if (joined.length < 2 || joined.length > 3) {
-          return { state: "invalid-size" };
+          return { state: "invalid-size", partyVersion: party.version };
+        }
+        const currentLeaderCharacterId = party.leaderCharacterId;
+        if (!joined.some((participant) => participant.characterId === currentLeaderCharacterId)) {
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         if (new Set(joined.map((participant) => participant.characterId)).size !== joined.length) {
-          return { state: "invalid-roster" };
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         if (joined.some((participant) => participant.remortCount !== participant.character._count.remorts)) {
-          return { state: "invalid-life" };
+          return { state: "invalid-life", partyVersion: party.version };
         }
         if (joined.some((participant) => participant.character.hpCurrent <= 0)) {
-          return { state: "invalid-roster" };
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         const blocker = await tx.activeCombatLease.findFirst({
           where: { characterId: { in: joined.map((participant) => participant.characterId) } },
           select: { id: true }
         });
         if (blocker) {
-          return { state: "blocked" };
+          return manualLeaderTelegramUserId === null
+            ? { state: "blocked", partyVersion: party.version }
+            : { state: "blocked" };
         }
 
         const claimed = await tx.partySession.updateMany({

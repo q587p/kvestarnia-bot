@@ -53,7 +53,10 @@ export interface GroupCombatSessionRecord {
 }
 
 export type GroupCombatStartResult =
-  | { state: "disabled" | "no-character" | "not-found" | "not-leader" | "not-recruiting" | "invalid-size" | "invalid-life" | "blocked" | "invalid-roster" }
+  | {
+      state: "disabled" | "no-character" | "not-found" | "not-leader" | "not-recruiting" | "invalid-size" | "invalid-life" | "blocked" | "invalid-roster";
+      partyVersion?: number;
+    }
   | { state: "started" | "already-active" | "terminal"; session: GroupCombatSessionRecord };
 
 export type GroupCombatActionResult =
@@ -63,6 +66,12 @@ export type GroupCombatActionResult =
 export interface GroupCombatRepository {
   startProofForTelegramUser(input: {
     telegramUserId: bigint;
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult>;
+
+  startDueProof(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;

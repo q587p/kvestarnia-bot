@@ -318,12 +318,12 @@ export class PartySessionService {
     return session ? { state: "ready", session } : { state: "not-found" };
   }
 
-  async forceExpireByToken(inviteToken: string): Promise<PartyViewResult> {
+  async forceExpireByToken(inviteToken: string, expectedVersion?: number): Promise<PartyViewResult> {
     if (!this.areDevHelpersEnabled()) {
       return { state: "not-found" };
     }
 
-    const session = await this.sessions.forceExpireByToken(inviteToken, this.clock());
+    const session = await this.sessions.forceExpireByToken(inviteToken, this.clock(), expectedVersion);
     return session ? { state: "ready", session } : { state: "not-found" };
   }
 

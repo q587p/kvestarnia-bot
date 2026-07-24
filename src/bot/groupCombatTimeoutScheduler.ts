@@ -27,12 +27,20 @@ export function createGroupCombatTimeoutScheduler(
       for (const party of dueParties) {
         try {
           const result = await serializePartySessionDelivery(party.inviteToken, () =>
-            service.startProof(party.leader.telegramUserId, party.inviteToken)
+            service.startDueProof(party.inviteToken)
           );
           if ("session" in result) {
             started.push(result.session);
-          } else {
-            await options.partySessions?.forceExpireByToken(party.inviteToken);
+          } else if (
+            result.partyVersion !== undefined &&
+            (
+              result.state === "invalid-size" ||
+              result.state === "invalid-life" ||
+              result.state === "invalid-roster" ||
+              result.state === "blocked"
+            )
+          ) {
+            await options.partySessions?.forceExpireByToken(party.inviteToken, result.partyVersion);
           }
         } catch (error) {
           console.error(`Kvestarnia: skipped failed scheduled GroupCombat start for ${party.inviteToken}.`, error);

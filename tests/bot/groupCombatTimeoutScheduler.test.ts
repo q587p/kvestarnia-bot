@@ -107,7 +107,7 @@ describe("group combat timeout scheduler", () => {
     expect(finalizeDeliveryAttempt).toHaveBeenCalledWith(session.id, session.deliveryRevision);
   });
 
-  it("automatically starts a due three-minute proof party with its current participants", async () => {
+  it("starts a due proof without trusting the leader from the due-list snapshot", async () => {
     const session = pendingSession();
     session.status = "active";
     session.state.status = "active";
@@ -118,14 +118,30 @@ describe("group combat timeout scheduler", () => {
     session.completedAt = null;
     const party = {
       inviteToken: session.partyInviteToken,
-      leader: { telegramUserId: 1001n }
+      leader: { telegramUserId: 1001n },
+      participants: [
+        { character: { telegramUserId: 1001n } },
+        { character: { telegramUserId: 1002n } },
+        { character: { telegramUserId: 1003n } }
+      ]
     };
-    const startProof = vi.fn().mockResolvedValue({ state: "started", session });
+    let releaseStart: (() => void) | undefined;
+    let observeStart: (() => void) | undefined;
+    const startObserved = new Promise<void>((resolve) => {
+      observeStart = resolve;
+    });
+    const startDueProof = vi.fn(async () => {
+      observeStart?.();
+      await new Promise<void>((resolve) => {
+        releaseStart = resolve;
+      });
+      return { state: "started" as const, session };
+    });
     const editMessageText = vi.fn().mockResolvedValue(true);
     const service = {
       isEnabled: () => true,
       areDevHelpersEnabled: () => true,
-      startProof,
+      startDueProof,
       repair: vi.fn().mockResolvedValue(0),
       resolveDue: vi.fn().mockResolvedValue([]),
       listPendingDelivery: vi.fn().mockResolvedValue([]),
@@ -148,10 +164,22 @@ describe("group combat timeout scheduler", () => {
       { partySessions }
     );
 
-    await expect(scheduler.tick()).resolves.toBe(1);
+    const tick = scheduler.tick();
+    await startObserved;
+    for (const [index, participant] of session.participants.entries()) {
+      participant.telegramUserId = 1002n + BigInt(index);
+      participant.chatId = participant.telegramUserId;
+    }
+    for (const [index, participant] of session.state.participants.entries()) {
+      participant.telegramUserId = String(1002 + index);
+    }
+    releaseStart?.();
+    await expect(tick).resolves.toBe(1);
 
-    expect(startProof).toHaveBeenCalledWith(1001n, session.partyInviteToken);
+    expect(startDueProof).toHaveBeenCalledWith(session.partyInviteToken);
     expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(editMessageText).toHaveBeenCalledWith(1002, 21, expect.any(String), expect.any(Object));
+    expect(editMessageText).toHaveBeenCalledWith(1003, 22, expect.any(String), expect.any(Object));
   });
 
   it("expires a due proof announcement when its current roster cannot start", async () => {
@@ -163,7 +191,7 @@ describe("group combat timeout scheduler", () => {
     const service = {
       isEnabled: () => true,
       areDevHelpersEnabled: () => true,
-      startProof: vi.fn().mockResolvedValue({ state: "invalid-size" }),
+      startDueProof: vi.fn().mockResolvedValue({ state: "invalid-size", partyVersion: 13 }),
       repair: vi.fn().mockResolvedValue(0),
       resolveDue: vi.fn().mockResolvedValue([]),
       listPendingDelivery: vi.fn().mockResolvedValue([])
@@ -180,7 +208,109 @@ describe("group combat timeout scheduler", () => {
     );
 
     await expect(scheduler.tick()).resolves.toBe(0);
-    expect(forceExpireByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(forceExpireByToken).toHaveBeenCalledWith(party.inviteToken, 13);
+  });
+
+  it("does not expire a recruiting party when a non-authoritative start result cannot prove invalidity", async () => {
+    const party = {
+      inviteToken: "proof-leader-moved",
+      leader: { telegramUserId: 1001n }
+    };
+    const forceExpireByToken = vi.fn();
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => true,
+        startDueProof: vi.fn().mockResolvedValue({ state: "not-recruiting" }),
+        repair: vi.fn().mockResolvedValue(0),
+        resolveDue: vi.fn().mockResolvedValue([]),
+        listPendingDelivery: vi.fn().mockResolvedValue([])
+      } as unknown as GroupCombatService,
+      { api: {} } as Bot,
+      {
+        partySessions: {
+          listDueRecruitingGroupCombatProof: vi.fn().mockResolvedValue([party]),
+          forceExpireByToken
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(0);
+    expect(forceExpireByToken).not.toHaveBeenCalled();
+  });
+
+  it("does not expire or duplicate delivery for an already-active stale due snapshot", async () => {
+    const session = pendingSession();
+    session.status = "active";
+    session.state.status = "active";
+    session.result = null;
+    session.completedAt = null;
+    const forceExpireByToken = vi.fn();
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => true,
+        startDueProof: vi.fn().mockResolvedValue({ state: "already-active", session }),
+        repair: vi.fn().mockResolvedValue(0),
+        resolveDue: vi.fn().mockResolvedValue([]),
+        listPendingDelivery: vi.fn().mockResolvedValue([session]),
+        findById: vi.fn().mockResolvedValue(session),
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService,
+      {
+        api: { editMessageText, sendMessage: vi.fn(), deleteMessage: vi.fn() }
+      } as unknown as Bot,
+      {
+        partySessions: {
+          listDueRecruitingGroupCombatProof: vi.fn().mockResolvedValue([{
+            inviteToken: session.partyInviteToken,
+            leader: { telegramUserId: 1001n }
+          }]),
+          forceExpireByToken
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(forceExpireByToken).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not expire a terminal combat discovered from a stale due snapshot", async () => {
+    const session = pendingSession();
+    const forceExpireByToken = vi.fn();
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => true,
+        startDueProof: vi.fn().mockResolvedValue({ state: "terminal", session }),
+        repair: vi.fn().mockResolvedValue(0),
+        resolveDue: vi.fn().mockResolvedValue([]),
+        listPendingDelivery: vi.fn().mockResolvedValue([]),
+        findById: vi.fn().mockResolvedValue(session),
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService,
+      {
+        api: { editMessageText, sendMessage: vi.fn(), deleteMessage: vi.fn() }
+      } as unknown as Bot,
+      {
+        partySessions: {
+          listDueRecruitingGroupCombatProof: vi.fn().mockResolvedValue([{
+            inviteToken: session.partyInviteToken,
+            leader: { telegramUserId: 1001n }
+          }]),
+          forceExpireByToken
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(forceExpireByToken).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(2);
   });
 });
 

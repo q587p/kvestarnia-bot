@@ -19,6 +19,7 @@ const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
   start: 32,
+  dueStart: 32,
   queue: 20,
   singleResolve: 35,
   dueScan: 1
@@ -132,6 +133,153 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.groupCombatSession.count({ where: { partySession: { inviteToken: "group-busy" } } })).toBe(0);
     expect(await prisma.activeCombatLease.count({
       where: { characterId: { in: ["group-busy-user-0-character", "group-busy-user-1-character"] } }
+    })).toBe(1);
+  });
+
+  it("starts due parties from the authoritative post-scan roster and preserves current-leader manual authorization", async () => {
+    await seedDueParty(prisma, "group-due-transfer", [1701n, 1702n, 1703n]);
+    const staleTransferSnapshot = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "group-due-transfer" },
+      include: { participants: { where: { status: "joined" } } }
+    });
+    expect(staleTransferSnapshot.leaderCharacterId).toBe("group-due-transfer-user-0-character");
+    expect(staleTransferSnapshot.participants).toHaveLength(3);
+
+    await prisma.$transaction([
+      prisma.partyParticipant.update({
+        where: { id: "group-due-transfer-participant-0" },
+        data: { status: "left", leftAt: NOW, activeMembershipKey: null }
+      }),
+      prisma.partySession.update({
+        where: { inviteToken: "group-due-transfer" },
+        data: {
+          leaderCharacterId: "group-due-transfer-user-1-character",
+          activeLeaderKey: "party-leader:group-due-transfer-user-1-character",
+          version: { increment: 1 }
+        }
+      })
+    ]);
+
+    const staleLeaderManualStart = await repository.startProofForTelegramUser({
+      telegramUserId: 1701n,
+      partyInviteToken: "group-due-transfer",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(staleLeaderManualStart.state).toBe("not-leader");
+
+    const { value: transferred, count: dueStartQueries } = await measureQueryEvents(
+      prisma,
+      queries,
+      () => repository.startDueProof({
+        partyInviteToken: "group-due-transfer",
+        now: NOW,
+        turnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    );
+    actualQueryCounts.dueStart = dueStartQueries;
+    expect(transferred.state).toBe("started");
+    expect(dueStartQueries).toBeLessThanOrEqual(QUERY_BUDGETS.dueStart);
+    expect("session" in transferred
+      ? transferred.session.participants.map((participant) => participant.telegramUserId)
+      : []
+    ).toEqual([1702n, 1703n]);
+
+    await seedDueParty(prisma, "group-due-join", [1711n, 1712n, 1713n]);
+    await prisma.partyParticipant.update({
+      where: { id: "group-due-join-participant-2" },
+      data: { status: "left", leftAt: NOW, activeMembershipKey: null }
+    });
+    const staleJoinSnapshot = await prisma.partySession.findUniqueOrThrow({
+      where: { inviteToken: "group-due-join" },
+      include: { participants: { where: { status: "joined" } } }
+    });
+    expect(staleJoinSnapshot.participants).toHaveLength(2);
+    await prisma.partyParticipant.update({
+      where: { id: "group-due-join-participant-2" },
+      data: {
+        status: "joined",
+        leftAt: null,
+        joinedAt: new Date(NOW.getTime() + 42),
+        activeMembershipKey: "party-member:group-due-join-user-2-character"
+      }
+    });
+    await prisma.partySession.update({
+      where: { inviteToken: "group-due-join" },
+      data: { version: { increment: 1 } }
+    });
+
+    const joined = await repository.startDueProof({
+      partyInviteToken: "group-due-join",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(joined.state).toBe("started");
+    expect("session" in joined ? joined.session.participants : []).toHaveLength(3);
+
+    await seedDueParty(prisma, "group-due-undersized", [1721n, 1722n]);
+    await prisma.partyParticipant.update({
+      where: { id: "group-due-undersized-participant-1" },
+      data: { status: "left", leftAt: NOW, activeMembershipKey: null }
+    });
+    await prisma.partySession.update({
+      where: { inviteToken: "group-due-undersized" },
+      data: { version: { increment: 1 } }
+    });
+    await expect(repository.startDueProof({
+      partyInviteToken: "group-due-undersized",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toEqual({ state: "invalid-size", partyVersion: 2 });
+    expect(await prisma.groupCombatSession.count({
+      where: { partySession: { inviteToken: "group-due-undersized" } }
+    })).toBe(0);
+
+    await seedDueParty(prisma, "group-manual-current-leader", [1741n, 1742n, 1743n]);
+    await prisma.$transaction([
+      prisma.partyParticipant.update({
+        where: { id: "group-manual-current-leader-participant-0" },
+        data: { status: "left", leftAt: NOW, activeMembershipKey: null }
+      }),
+      prisma.partySession.update({
+        where: { inviteToken: "group-manual-current-leader" },
+        data: {
+          leaderCharacterId: "group-manual-current-leader-user-1-character",
+          activeLeaderKey: "party-leader:group-manual-current-leader-user-1-character",
+          version: { increment: 1 }
+        }
+      })
+    ]);
+    const currentLeaderManualStart = await repository.startProofForTelegramUser({
+      telegramUserId: 1742n,
+      partyInviteToken: "group-manual-current-leader",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(currentLeaderManualStart.state).toBe("started");
+  });
+
+  it("creates exactly one combat when due and current-leader starts race", async () => {
+    await seedDueParty(prisma, "group-due-race", [1731n, 1732n]);
+    const turnExpiresAt = new Date(NOW.getTime() + 23_000);
+    const results = await Promise.all([
+      repository.startDueProof({
+        partyInviteToken: "group-due-race",
+        now: NOW,
+        turnExpiresAt
+      }),
+      repository.startProofForTelegramUser({
+        telegramUserId: 1731n,
+        partyInviteToken: "group-due-race",
+        now: NOW,
+        turnExpiresAt
+      })
+    ]);
+
+    expect(results.filter((result) => result.state === "started")).toHaveLength(1);
+    expect(results.every((result) => "session" in result || result.state === "blocked")).toBe(true);
+    expect(await prisma.groupCombatSession.count({
+      where: { partySession: { inviteToken: "group-due-race" } }
     })).toBe(1);
   });
 
@@ -1936,6 +2084,19 @@ async function seedParty(prisma: PrismaClient, token: string, telegramIds: bigin
           activeMembershipKey: `party-member:${token}-user-${index}-character`
         }))
       }
+    }
+  });
+}
+
+async function seedDueParty(prisma: PrismaClient, token: string, telegramIds: bigint[]): Promise<void> {
+  await seedParty(prisma, token, telegramIds);
+  await prisma.partySession.update({
+    where: { inviteToken: token },
+    data: {
+      originLocationId: "group-combat.proof",
+      participantCap: 3,
+      joinUntilAt: NOW,
+      expiresAt: NOW
     }
   });
 }

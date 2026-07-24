@@ -97,8 +97,11 @@ resource and must have an explicit inactivity/forfeit policy.
 
 The non-production GroupCombat proof uses a distinct recruitment contract:
 2–3 participants, a three-minute deadline and automatic scheduled start from
-the current eligible roster. Manual leader start remains an early-start
-shortcut. Terminal private participant callbacks from the superseded
+the current eligible roster. The scheduled start is system-owned and resolves
+the current leader and joined roster transactionally instead of authorizing
+against a due-list snapshot; manual early start still requires the current
+leader. Invalid closure is conditional on the exact PartySession version
+observed by that failed start. Terminal private participant callbacks from the superseded
 recruiting card render the immutable combat result; public or foreign callbacks
 stay non-disclosing.
 
@@ -165,10 +168,11 @@ The target runtime is the small hosted baseline (0.5 CPU / 512 MB):
 - idle scheduler work is zero or a documented low-frequency recovery sweep;
 - first load proof covers concurrent 3×3 sessions over 13–25 turns.
 
-The `0.4.1` measured contract is start `32/32`, queued action `20/20`,
-direct single resolving action `22/35`, concurrent duplicate-final pair `31`
-aggregate and due-id scan `1/1`. Start performs two additional bounded reads
-over the allowlisted supported combat items for the frozen 2–3-person roster.
+The `0.4.1` measured contract is manual start `32/32`, authoritative due start
+`31/32`, queued action `20/20`, direct single resolving action `22/35`,
+concurrent duplicate-final pair `31` aggregate and due-id scan `1/1`. Start
+performs bounded reads over the allowlisted supported combat items for the
+frozen 2–3-person roster.
 Versioned state is capped at `32,768` UTF-8 bytes and the 24-case 2×2/3×3,
 13/25-turn support simulator observed `5,066`; participant cards are capped at
 Telegram's `4,096` UTF-8 bytes and reuse the canonical message.

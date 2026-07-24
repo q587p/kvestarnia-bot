@@ -16,6 +16,7 @@ import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { serializePartySessionDelivery } from "../partySessionDeliveryCoordinator";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PARTY_CODE_HELP = [
@@ -35,7 +36,9 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await ctx.reply(PARTY_CODE_HELP);
       return;
     }
-    const result = await service.startProof(telegramUserId, token);
+    const result = await serializePartySessionDelivery(token, () =>
+      service.startProof(telegramUserId, token)
+    );
     if ("session" in result) {
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
@@ -62,7 +65,9 @@ export async function handleGroupCombatCallback(
     return;
   }
   if (callback.type === "start") {
-    const result = await service.startProof(telegramUserId, callback.token);
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.startProof(telegramUserId, callback.token)
+    );
     if (!("session" in result)) {
       await safeAnswerCallbackQuery(ctx, {
         text: presentGroupCombatStartFailure(result.state),

@@ -1405,7 +1405,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     });
   }
 
-  async forceExpireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
+  async forceExpireByToken(
+    inviteToken: string,
+    now: Date,
+    expectedVersion?: number
+  ): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const session = await findSessionByToken(tx, inviteToken);
 
@@ -1413,8 +1417,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return null;
       }
 
-      if (session.status === LIVE_STATUS) {
-        await terminalizeSessionTx(tx, session.id, "expired", now, this.raidChat);
+      if (
+        session.status === LIVE_STATUS &&
+        (expectedVersion === undefined || session.version === expectedVersion)
+      ) {
+        await terminalizeSessionTx(tx, session.id, "expired", now, this.raidChat, expectedVersion);
         const updated = await findSessionById(tx, session.id);
         return updated ? mapSession(updated) : null;
       }
@@ -1687,12 +1694,14 @@ async function terminalizeSessionTx(
   sessionId: string,
   status: "cancelled" | "expired",
   now: Date,
-  raidChat: PrismaPartyRaidChatTransactionWriter
+  raidChat: PrismaPartyRaidChatTransactionWriter,
+  expectedVersion?: number
 ): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
       id: sessionId,
-      status: LIVE_STATUS
+      status: LIVE_STATUS,
+      ...(expectedVersion === undefined ? {} : { version: expectedVersion })
     },
     data: {
       status,

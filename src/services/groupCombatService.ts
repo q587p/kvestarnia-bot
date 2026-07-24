@@ -43,6 +43,18 @@ export class GroupCombatService {
     });
   }
 
+  async startDueProof(partyInviteToken: string): Promise<GroupCombatStartResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.now();
+    return this.repository.startDueProof({
+      partyInviteToken,
+      now,
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
+  }
+
   async submitAction(input: {
     telegramUserId: bigint;
     partyInviteToken: string;
