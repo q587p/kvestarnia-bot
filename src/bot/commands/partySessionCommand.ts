@@ -19,6 +19,7 @@ import {
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
+import { buildGroupCombatKeyboard } from "../keyboards/groupCombatKeyboard";
 import {
   presentPartyCancel,
   presentPartyBoss,
@@ -39,6 +40,7 @@ import {
   getNextBigBarrelInviteTemplateIndex,
   presentPartyView
 } from "../presenters/partySessionPresenter";
+import { presentGroupCombat } from "../presenters/groupCombatPresenter";
 import {
   appendPartyRaidChatWithinBudget
 } from "../presenters/partyRaidChatPresenter";
@@ -68,7 +70,7 @@ export interface PartySessionCommandOptions {
   presence: PresenceService;
   partyBoss?: PartyBossService | undefined;
   partyRaidChat?: PartyRaidChatService | undefined;
-  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined;
+  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
 }
 
 export function registerPartySessionDevCommand(
@@ -99,10 +101,13 @@ export async function sendPartyCreate(
     return;
   }
 
-  const result = await service.createForTelegramUser(telegramUserId, {
+  const createInput = {
     chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
     messageId: ctx.callbackQuery?.message?.message_id ?? null
-  });
+  };
+  const result = await (options.groupCombat?.areDevHelpersEnabled()
+    ? service.createGroupCombatProofForTelegramUser(telegramUserId, createInput)
+    : service.createForTelegramUser(telegramUserId, createInput));
   const session = "session" in result ? result.session : null;
   const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
   const viewerCharacterId = session ? getViewerCharacterId(session, telegramUserId) : null;
@@ -942,7 +947,7 @@ export async function sendPartyJoinFromStartPayload(
     botUsername?: string | undefined;
     partyBoss?: PartyBossService | undefined;
     partyRaidChat?: PartyRaidChatService | undefined;
-    groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined;
+    groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
   } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -1312,7 +1317,7 @@ async function sendCanonicalPartyPreparationCard(
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
   partyRaidChat: PartyRaidChatService | undefined,
-  groupCombat: Pick<GroupCombatService, "areDevHelpersEnabled"> | undefined,
+  groupCombat: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
     inviteUrl: string | null,
@@ -1341,6 +1346,17 @@ async function sendCanonicalPartyPreparationCard(
           partyRaidChat,
           telegramUserId,
           includeDevTimeout: partyBoss?.areDevHelpersEnabled()
+        });
+        return;
+      }
+      const groupSession = await groupCombat?.findByToken(inviteToken) ?? null;
+      const groupViewer = ctx.chat?.type === "private"
+        ? groupSession?.participants.find((participant) => participant.telegramUserId === telegramUserId)
+        : null;
+      if (groupSession && groupSession.status !== "active" && groupViewer) {
+        await safeEditMessageText(ctx, presentGroupCombat(groupSession, groupViewer.characterId), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildGroupCombatKeyboard(groupSession, groupViewer.characterId)
         });
         return;
       }

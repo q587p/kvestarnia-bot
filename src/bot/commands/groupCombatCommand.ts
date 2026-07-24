@@ -21,7 +21,7 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PARTY_CODE_HELP = [
   "🧭 Код ватаги створює команда /dev_party.",
   "У картці збору скопіюйте з посилання лише частину після «party_».",
-  "Запуск надсилає ватажок: /dev_group_combat КОД"
+  "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
 ].join("\n");
 
 export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {

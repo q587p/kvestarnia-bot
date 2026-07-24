@@ -22,6 +22,12 @@ This project follows a simple pre-1.0 versioning policy:
 - Added migration `20260723194500_group_combat_hardening` for the immutable terminal plan, participant settlement status/attempt/receipt fields and server-owned action payload key. Existing `group-combat.v1` proof rows are non-production data and fail closed through the existing rewardless repair path after the rules upgrade.
 
 ### Fixed
+- GroupCombat proof gatherings created through `/dev_party` now use their own
+  2–3 participant, three-minute contract and start automatically with the
+  current eligible roster when due; manual leader start remains optional.
+  Completed private recruiting cards now render the participant's actual
+  rewardless result and journal instead of a generic archive notice, while
+  public and foreign callbacks remain non-disclosing.
 - Restored real `v2:gc:a:*` action routing through combat-lock middleware and the social module while retaining only the intended v1 start/view/journal/back compatibility.
 - Committed single-enemy class/race/gear actions now retarget after an earlier same-round death; guard, aid and item actions tick ability cooldowns; Priest effect scopes and counter victories at the turn cap follow their authored recipes.
 - Dense Bandage keeps its five-own-action cooldown and Field Kit remains once per fight in bounded combat state. Missing live inventory now rolls back resolution and invalidates the proof rewardlessly instead of leaving an active session that throws forever.

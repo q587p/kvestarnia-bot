@@ -1597,6 +1597,40 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toEqual({ activeMembershipKey: null });
   });
 
+  it("preserves only allowlisted due auto-start parties for their schedulers", async () => {
+    await seedCharacter(prisma, "ordinary-due-user", 4011n, "Звичайна");
+    await seedCharacter(prisma, "barrel-due-user", 4012n, "Бочкова");
+    await seedCharacter(prisma, "group-due-user", 4013n, "Гуртова");
+    const dueAt = new Date("2026-06-29T14:59:00.000Z");
+
+    await repository.createForTelegramUser(4011n, partyInput("party-due-ordinary"));
+    await repository.createForTelegramUser(4012n, bigBarrelInput("party-due-barrel"));
+    await repository.createForTelegramUser(4013n, groupCombatInput("party-due-group"));
+    await prisma.partySession.updateMany({
+      where: {
+        inviteToken: {
+          in: ["party-due-ordinary", "party-due-barrel", "party-due-group"]
+        }
+      },
+      data: {
+        joinUntilAt: dueAt,
+        expiresAt: dueAt
+      }
+    });
+
+    await expect(repository.expireRecruiting(now())).resolves.toBe(1);
+
+    expect((await repository.findByToken("party-due-ordinary", now()))?.status).toBe("expired");
+    expect((await repository.findByToken("party-due-barrel", now()))?.status).toBe("recruiting");
+    expect((await repository.findByToken("party-due-group", now()))?.status).toBe("recruiting");
+    await expect(repository.listDueRecruitingByOrigin(
+      "group-combat.proof",
+      now()
+    )).resolves.toEqual([
+      expect.objectContaining({ inviteToken: "party-due-group", status: "recruiting" })
+    ]);
+  });
+
   it("replays expired state for stale leave and cancel buttons", async () => {
     await seedCharacter(prisma, "leader-nine-user", 9001n, "Протермінована");
     await repository.createForTelegramUser(9001n, {
@@ -1751,6 +1785,15 @@ function bigBarrelInput(inviteToken: string) {
   return {
     ...partyInput(inviteToken),
     originLocationId: "barrel.big-brother"
+  };
+}
+
+function groupCombatInput(inviteToken: string) {
+  return {
+    ...partyInput(inviteToken),
+    participantCap: 3,
+    minimumParticipants: 2,
+    originLocationId: "group-combat.proof"
   };
 }
 

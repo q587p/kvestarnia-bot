@@ -95,6 +95,13 @@ roster equality, finite numbers and terminal invariants.
 Timeout is a server-owned safe action. It must not spend an item or scarce
 resource and must have an explicit inactivity/forfeit policy.
 
+The non-production GroupCombat proof uses a distinct recruitment contract:
+2–3 participants, a three-minute deadline and automatic scheduled start from
+the current eligible roster. Manual leader start remains an early-start
+shortcut. Terminal private participant callbacks from the superseded
+recruiting card render the immutable combat result; public or foreign callbacks
+stay non-disclosing.
+
 ## Targeting and ability parity
 
 `CombatTargetScope` already includes ally scopes. The group resolver must cover

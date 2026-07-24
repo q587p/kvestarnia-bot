@@ -182,7 +182,9 @@ export function createRuntime(input: {
         );
       }
       if (services.groupCombat?.isEnabled()) {
-        groupCombatTimeoutScheduler = dependencies.createGroupCombatTimeoutScheduler(services.groupCombat, bot);
+        groupCombatTimeoutScheduler = dependencies.createGroupCombatTimeoutScheduler(services.groupCombat, bot, {
+          ...(services.partySessions ? { partySessions: services.partySessions } : {})
+        });
       }
       if (services.passageSearch) {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({

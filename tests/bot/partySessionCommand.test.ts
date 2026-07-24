@@ -8,7 +8,9 @@ import {
   waitForPartyBossParticipantNotifications
 } from "../../src/bot/commands/partySessionCommand";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
+import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
+import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { PartySessionService } from "../../src/services/partySessionService";
 import type { PartyBossService } from "../../src/services/partyBossService";
 import type { PresenceService } from "../../src/services/presenceService";
@@ -71,12 +73,15 @@ describe("handlePartySessionCallback", () => {
         ctx,
         serviceWith({
           areDevHelpersEnabled: () => true,
-          createForTelegramUser: vi.fn().mockResolvedValue({ state: "created", session })
+          createGroupCombatProofForTelegramUser: vi.fn().mockResolvedValue({ state: "created", session })
         }),
         {
           botUsername: "kvestarnia_test_bot",
           presence: {} as PresenceService,
-          groupCombat: { areDevHelpersEnabled: () => true }
+          groupCombat: {
+            areDevHelpersEnabled: () => true,
+            findByToken: vi.fn().mockResolvedValue(null)
+          }
         },
         mode
       );
@@ -279,7 +284,10 @@ describe("handlePartySessionCallback", () => {
           botUsername: "kvestarnia_test_bot",
           presence: {} as PresenceService,
           partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) }),
-          groupCombat: { areDevHelpersEnabled: () => true }
+          groupCombat: {
+            areDevHelpersEnabled: () => true,
+            findByToken: vi.fn().mockResolvedValue(null)
+          }
         }
       );
 
@@ -322,7 +330,10 @@ describe("handlePartySessionCallback", () => {
           botUsername: "kvestarnia_test_bot",
           presence: {} as PresenceService,
           partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) }),
-          groupCombat: { areDevHelpersEnabled: () => true }
+          groupCombat: {
+            areDevHelpersEnabled: () => true,
+            findByToken: vi.fn().mockResolvedValue(null)
+          }
         }
       );
 
@@ -1704,6 +1715,71 @@ describe("handlePartySessionCallback", () => {
     }
   );
 
+  it("renders a terminal GroupCombat result from the stale recruiting card for a private participant", async () => {
+    const party = {
+      ...makeSession("completed"),
+      version: 2,
+      activeLeaderKey: null
+    };
+    const groupSession = makeTerminalGroupCombatSession();
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "stale", session: party });
+    const findByToken = vi.fn().mockResolvedValue(groupSession);
+    const { ctx, editMessageText } = createCallbackContext(42);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: party.inviteToken },
+      serviceWithCanonicalSession(party, { joinByTokenForTelegramUser }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot",
+        groupCombat: {
+          areDevHelpersEnabled: () => true,
+          findByToken
+        }
+      }
+    );
+
+    expect(findByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(messageText(editMessageText)).toContain("✅ Доказову сутичку виграно");
+    expect(messageText(editMessageText)).toContain("<b>Внесок:</b>");
+    expect(messageText(editMessageText)).not.toContain("Стан: архівний запис");
+    expect(messageText(editMessageText)).not.toContain("Стан ватаги змінився");
+    expect(keyboardJson(editMessageText)).toContain("v1:gc:j:partyABC12:");
+    expect(keyboardJson(editMessageText)).toContain("v1:gc:v:partyABC12");
+  });
+
+  it("does not expose a terminal GroupCombat result through a public stale party card", async () => {
+    const party = {
+      ...makeSession("completed"),
+      version: 2,
+      activeLeaderKey: null
+    };
+    const { ctx, editMessageText } = createCallbackContext(42, {
+      id: -100587,
+      type: "supergroup"
+    });
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: party.inviteToken },
+      serviceWithCanonicalSession(party, {
+        joinByTokenForTelegramUser: vi.fn().mockResolvedValue({ state: "stale", session: party })
+      }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot",
+        groupCombat: {
+          areDevHelpersEnabled: () => true,
+          findByToken: vi.fn().mockResolvedValue(makeTerminalGroupCombatSession())
+        }
+      }
+    );
+
+    expect(messageText(editMessageText)).toContain("Стан: архівний запис");
+    expect(messageText(editMessageText)).not.toContain("Доказову сутичку виграно");
+  });
+
   it("keeps terminal-ineligible reason on stale join, leave, cancel, readiness, Ward, and Protocol buttons", async () => {
     const session: PartySessionRecord = {
       ...makeBigBarrelSessionWithMember(),
@@ -2846,6 +2922,94 @@ function makeBossSession(overrides: Partial<PartyBossSessionRecord["state"]> = {
     turnExpiresAt: new Date("2026-06-30T10:00:23.000Z"),
     completedAt: null,
     participants: [leader, member]
+  };
+}
+
+function makeTerminalGroupCombatSession(): GroupCombatSessionRecord {
+  const state = createGroupCombatProofState({
+    sessionId: "group-terminal",
+    partySessionId: "party-1",
+    deterministicSeed: 42,
+    participants: [
+      {
+        characterId: "character-42",
+        telegramUserId: "42",
+        name: "Тестова Лідерка",
+        remortCount: 0,
+        rosterOrder: 0,
+        hp: 30,
+        hpMax: 30,
+        mana: 13,
+        manaMax: 13,
+        attack: 8,
+        defense: 2,
+        support: 5,
+        equipmentItemIds: []
+      },
+      {
+        characterId: "character-93",
+        telegramUserId: "93",
+        name: "Друга Учасниця",
+        remortCount: 0,
+        rosterOrder: 1,
+        hp: 30,
+        hpMax: 30,
+        mana: 13,
+        manaMax: 13,
+        attack: 8,
+        defense: 2,
+        support: 5,
+        equipmentItemIds: []
+      }
+    ]
+  });
+  state.status = "won";
+  state.enemies.forEach((enemy) => {
+    enemy.hp = 0;
+  });
+  state.contributions[0]!.damage = 13;
+  state.contributions[0]!.committedActions = 2;
+  state.recap.push({
+    turn: 1,
+    lines: ["Тестова Лідерка завершує доказову сутичку."]
+  });
+
+  return {
+    id: state.sessionId,
+    partySessionId: state.partySessionId,
+    partyInviteToken: "partyABC12",
+    status: "won",
+    turn: state.turn,
+    version: 2,
+    deliveryRevision: 2,
+    deliveryPending: false,
+    deliveryAttemptedAt: null,
+    state,
+    result: {
+      kind: "rewardless-proof",
+      outcome: "won",
+      completedTurn: state.turn,
+      rewards: { xp: 0, gold: 0, items: [] }
+    },
+    settlementPlan: null,
+    turnExpiresAt: new Date("2026-07-24T10:03:23.000Z"),
+    completedAt: new Date("2026-07-24T10:03:00.000Z"),
+    participants: state.participants.map((participant) => ({
+      characterId: participant.characterId,
+      telegramUserId: BigInt(participant.telegramUserId),
+      name: participant.name,
+      remortCount: participant.remortCount,
+      rosterOrder: participant.rosterOrder,
+      chatId: BigInt(participant.telegramUserId),
+      messageId: 23 + participant.rosterOrder,
+      referenceVersion: 1,
+      deliveredRevision: 2,
+      settlementStatus: "pending",
+      settlementAttempts: 0,
+      settlementReceipt: null,
+      settledAt: null
+    })),
+    queuedActions: []
   };
 }
 

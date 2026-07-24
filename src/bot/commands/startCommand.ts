@@ -47,7 +47,7 @@ export interface StartCommandOptions {
   partyBoss?: PartyBossService;
   partyRaidChat?: PartyRaidChatService;
   partySessions?: PartySessionService;
-  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled">;
+  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken">;
   tavernGames?: TavernGameService;
   presence?: PresenceService;
   botUsername?: string | undefined;

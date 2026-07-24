@@ -36,9 +36,9 @@
   Generated eight-segment v2 action callbacks route through combat-lock/social
   once; seven-segment actions fail closed and retained v1
   start/view/journal/back remain compatible. Production availability,
-  deployment and manual Telegram QA remain unproven. Local QA uses `/dev_party`
-  then the private leader button or `/dev_group_combat <invite-suffix>`;
-  public callbacks remain non-mutating.
+  deployment and manual Telegram QA remain unproven. Proof `/dev_party` is a capped
+  2–3 participant, three-minute auto-start; leader button and command start early.
+  Stale private cards replay results; public callbacks do not mutate or disclose.
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.

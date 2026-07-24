@@ -24,6 +24,7 @@ import type { PartySessionRecord } from "../../src/db/repositories/partySessionR
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
 import { findRaceAbility } from "../../src/content/playerAbilities";
 import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
+import { GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -1419,6 +1420,29 @@ describe("party session presenter", () => {
     expect(text).not.toContain("https://t.me/kvestarnia_test_bot?start=party_partyBIG12");
     expect(text).not.toContain("Бочку довго ображали словом «меблі»");
     expect(createdText).not.toContain("Бочку довго ображали словом «меблі»");
+  });
+
+  it("shows the bounded GroupCombat proof roster and automatic start point", () => {
+    const session: PartySessionRecord = {
+      ...makePartySession(),
+      originLocationId: GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+      participantCap: 3,
+      minimumParticipants: 2,
+      joinUntilAt: new Date("2026-06-30T10:03:00.000Z"),
+      expiresAt: new Date("2026-06-30T10:03:00.000Z")
+    };
+
+    const text = presentPartySession(session, {
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyBIG12"
+    });
+
+    expect(text).toContain("🧭 <b>Рейдова ватага</b>");
+    expect(text).toContain("Стан: сутичка почнеться автоматично о 13:03.");
+    expect(text).toContain("Лідер ватаги може почати бій раніше.");
+    expect(text).toContain("Учасники: 2/3");
+    expect(text).toContain("доказова сутичка без нагород для 2–3 пригодників");
+    expect(text).toContain("бій почнеться автоматично з поточним складом");
+    expect(text).not.toContain("тільки безпечний збір ватаги");
   });
 
   it("tells a solo Bard that Lament becomes available after the Big Barrel raid starts", () => {

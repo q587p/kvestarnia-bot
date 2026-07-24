@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createGroupCombatTimeoutScheduler } from "../../src/bot/groupCombatTimeoutScheduler";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 
 describe("group combat timeout scheduler", () => {
   it("does no scans or delivery while the proof gate is disabled", async () => {
@@ -38,6 +39,7 @@ describe("group combat timeout scheduler", () => {
     });
     const scheduler = createGroupCombatTimeoutScheduler({
       isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
       repair,
       resolveDue,
       listPendingDelivery
@@ -59,6 +61,7 @@ describe("group combat timeout scheduler", () => {
     const listPendingDelivery = vi.fn().mockResolvedValue([]);
     const scheduler = createGroupCombatTimeoutScheduler({
       isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
       repair,
       resolveDue,
       listPendingDelivery
@@ -86,6 +89,7 @@ describe("group combat timeout scheduler", () => {
     const finalizeDeliveryAttempt = vi.fn().mockResolvedValue(true);
     const service = {
       isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
       repair: vi.fn().mockResolvedValue(0),
       resolveDue: vi.fn().mockResolvedValue([]),
       listPendingDelivery: vi.fn().mockResolvedValue([session]),
@@ -101,6 +105,82 @@ describe("group combat timeout scheduler", () => {
     expect(editMessageText).toHaveBeenCalledTimes(2);
     expect(sendMessage).not.toHaveBeenCalled();
     expect(finalizeDeliveryAttempt).toHaveBeenCalledWith(session.id, session.deliveryRevision);
+  });
+
+  it("automatically starts a due three-minute proof party with its current participants", async () => {
+    const session = pendingSession();
+    session.status = "active";
+    session.state.status = "active";
+    session.state.enemies.forEach((enemy) => {
+      enemy.hp = enemy.hpMax;
+    });
+    session.result = null;
+    session.completedAt = null;
+    const party = {
+      inviteToken: session.partyInviteToken,
+      leader: { telegramUserId: 1001n }
+    };
+    const startProof = vi.fn().mockResolvedValue({ state: "started", session });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => true,
+      startProof,
+      repair: vi.fn().mockResolvedValue(0),
+      resolveDue: vi.fn().mockResolvedValue([]),
+      listPendingDelivery: vi.fn().mockResolvedValue([]),
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    const partySessions = {
+      listDueRecruitingGroupCombatProof: vi.fn().mockResolvedValue([party])
+    } as unknown as PartySessionService;
+    const scheduler = createGroupCombatTimeoutScheduler(
+      service,
+      {
+        api: {
+          editMessageText,
+          sendMessage: vi.fn(),
+          deleteMessage: vi.fn()
+        }
+      } as unknown as Bot,
+      { partySessions }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+
+    expect(startProof).toHaveBeenCalledWith(1001n, session.partyInviteToken);
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+  });
+
+  it("expires a due proof announcement when its current roster cannot start", async () => {
+    const party = {
+      inviteToken: "proof-too-small",
+      leader: { telegramUserId: 1001n }
+    };
+    const forceExpireByToken = vi.fn().mockResolvedValue({ state: "ready" });
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => true,
+      startProof: vi.fn().mockResolvedValue({ state: "invalid-size" }),
+      repair: vi.fn().mockResolvedValue(0),
+      resolveDue: vi.fn().mockResolvedValue([]),
+      listPendingDelivery: vi.fn().mockResolvedValue([])
+    } as unknown as GroupCombatService;
+    const scheduler = createGroupCombatTimeoutScheduler(
+      service,
+      { api: {} } as Bot,
+      {
+        partySessions: {
+          listDueRecruitingGroupCombatProof: vi.fn().mockResolvedValue([party]),
+          forceExpireByToken
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(0);
+    expect(forceExpireByToken).toHaveBeenCalledWith(party.inviteToken);
   });
 });
 

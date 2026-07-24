@@ -20,6 +20,10 @@ export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
 export const PARTY_SESSION_TTL_MS = 13 * 60 * 1000;
 export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+export const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
+export const GROUP_COMBAT_PARTY_PARTICIPANT_CAP = 3;
+export const GROUP_COMBAT_PARTY_MINIMUM_PARTICIPANTS = 2;
+export const GROUP_COMBAT_PARTY_TTL_MS = 3 * 60 * 1000;
 
 export type PartyCreateResult =
   | { state: "disabled" }
@@ -86,6 +90,34 @@ export class PartySessionService {
       now,
       periodId: input.periodId ?? null,
       originLocationId: input.originLocationId ?? null,
+      chatId: input.chatId ?? null,
+      messageId: input.messageId ?? null
+    });
+  }
+
+  async createGroupCombatProofForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      chatId?: bigint | null;
+      messageId?: number | null;
+    } = {}
+  ): Promise<PartyCreateResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+
+    const now = this.clock();
+    const expiresAt = new Date(now.getTime() + GROUP_COMBAT_PARTY_TTL_MS);
+
+    return this.sessions.createForTelegramUser(telegramUserId, {
+      inviteToken: createInviteToken(),
+      participantCap: GROUP_COMBAT_PARTY_PARTICIPANT_CAP,
+      minimumParticipants: GROUP_COMBAT_PARTY_MINIMUM_PARTICIPANTS,
+      joinUntilAt: expiresAt,
+      expiresAt,
+      now,
+      periodId: null,
+      originLocationId: GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
       chatId: input.chatId ?? null,
       messageId: input.messageId ?? null
     });
@@ -267,6 +299,14 @@ export class PartySessionService {
     }
 
     return this.sessions.listDueRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
+  async listDueRecruitingGroupCombatProof(): Promise<PartySessionRecord[]> {
+    if (!this.areDevHelpersEnabled()) {
+      return [];
+    }
+
+    return this.sessions.listDueRecruitingByOrigin(GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID, this.clock());
   }
 
   async expireByToken(inviteToken: string): Promise<PartyViewResult> {

@@ -1,0 +1,61 @@
+import { describe, expect, it, vi } from "vitest";
+import type { PartySessionRepository } from "../../src/db/repositories/partySessionRepository";
+import {
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  GROUP_COMBAT_PARTY_PARTICIPANT_CAP,
+  GROUP_COMBAT_PARTY_TTL_MS,
+  PartySessionService
+} from "../../src/services/partySessionService";
+
+describe("PartySessionService GroupCombat proof recruiting", () => {
+  it("creates a three-minute 2–3 participant proof announcement", async () => {
+    const now = new Date("2026-07-24T10:00:00.000Z");
+    const createForTelegramUser = vi.fn().mockResolvedValue({ state: "not-found" });
+    const listDueRecruitingByOrigin = vi.fn().mockResolvedValue([]);
+    const service = new PartySessionService(
+      {
+        createForTelegramUser,
+        listDueRecruitingByOrigin
+      } as unknown as PartySessionRepository,
+      { enabled: true, devHelpersEnabled: true },
+      () => now
+    );
+
+    await service.createGroupCombatProofForTelegramUser(42n, {
+      chatId: 42n,
+      messageId: 13
+    });
+
+    expect(createForTelegramUser).toHaveBeenCalledWith(42n, expect.objectContaining({
+      participantCap: GROUP_COMBAT_PARTY_PARTICIPANT_CAP,
+      minimumParticipants: 2,
+      joinUntilAt: new Date(now.getTime() + GROUP_COMBAT_PARTY_TTL_MS),
+      expiresAt: new Date(now.getTime() + GROUP_COMBAT_PARTY_TTL_MS),
+      originLocationId: GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+      chatId: 42n,
+      messageId: 13
+    }));
+    await expect(service.listDueRecruitingGroupCombatProof()).resolves.toEqual([]);
+    expect(listDueRecruitingByOrigin).toHaveBeenCalledWith(
+      GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+      now
+    );
+  });
+
+  it("does not create or scan proof announcements without dev helpers", async () => {
+    const createForTelegramUser = vi.fn();
+    const listDueRecruitingByOrigin = vi.fn();
+    const service = new PartySessionService(
+      {
+        createForTelegramUser,
+        listDueRecruitingByOrigin
+      } as unknown as PartySessionRepository,
+      { enabled: true, devHelpersEnabled: false }
+    );
+
+    await expect(service.createGroupCombatProofForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.listDueRecruitingGroupCombatProof()).resolves.toEqual([]);
+    expect(createForTelegramUser).not.toHaveBeenCalled();
+    expect(listDueRecruitingByOrigin).not.toHaveBeenCalled();
+  });
+});
