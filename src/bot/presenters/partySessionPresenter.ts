@@ -3,12 +3,13 @@ import {
   BARD_BIG_BARREL_SUPPORT_TIP,
   selectCharacterFlavorLine
 } from "../../content/characterFlavor";
-import type {
-  PartyCancelResult,
-  PartyCreateResult,
-  PartyJoinResult,
-  PartyLeaveResult,
-  PartyViewResult
+import {
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  type PartyCancelResult,
+  type PartyCreateResult,
+  type PartyJoinResult,
+  type PartyLeaveResult,
+  type PartyViewResult
 } from "../../services/partySessionService";
 import type { NearbyDuelCandidatesSnapshot, PresencePerson } from "../../services/presenceService";
 import type { PartyParticipantRecord, PartySessionRecord } from "../../db/repositories/partySessionRepository";
@@ -1196,6 +1197,7 @@ export function presentPartySession(
     ? joined.find((participant) => participant.characterId === options.viewerCharacterId)
     : null;
   const big = session.originLocationId === "barrel.big-brother";
+  const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
   const lines = [
     big ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
     "",
@@ -1237,7 +1239,9 @@ export function presentPartySession(
   if (session.status === "recruiting") {
     lines.push("", big
       ? "Це справжній ризиковий маршрут: один спільний бос, видимий стан ватаги й жодного точного прогнозу винагород. Коли час добіжить, рейд почнеться автоматично."
-      : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
+      : groupCombat
+        ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
+        : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
   return lines.join("\n");
@@ -1442,6 +1446,13 @@ function getStatusLine(session: PartySessionRecord): string {
     return [
       `Стан: рейд почнеться автоматично о ${formatTime(session.expiresAt)}.`,
       "Лідер ватаги може почати бій раніше. До того зайдіть у збір і полікуйтеся."
+    ].join("\n");
+  }
+
+  if (session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID) {
+    return [
+      `Стан: сутичка почнеться автоматично о ${formatTime(session.expiresAt)}.`,
+      "Лідер ватаги може почати бій раніше."
     ].join("\n");
   }
 

@@ -5,6 +5,10 @@ import {
   type CombatSimulationEncounterMode,
   type CombatSimulationPolicy
 } from "../src/tooling/combatSimulation";
+import {
+  formatGroupCombatSimulationReport,
+  runGroupCombatHardeningSimulation
+} from "../src/tooling/groupCombatSimulation";
 
 function main(): void {
   try {
@@ -12,6 +16,7 @@ function main(): void {
     const report = runCombatSimulation(options);
 
     console.log(formatCombatSimulationReport(report));
+    console.log(formatGroupCombatSimulationReport(runGroupCombatHardeningSimulation()));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Combat simulation failed: ${message}`);

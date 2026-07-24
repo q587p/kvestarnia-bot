@@ -16,6 +16,9 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 - [`rogue-reputation-location-risk.md`](rogue-reputation-location-risk.md) — unresolved private Rogue reputation/location-risk direction.
 - [`old-altar-manatka-offerings.md`](old-altar-manatka-offerings.md) — unresolved irreversible offering follow-up.
 - [`old-root-grove-location.md`](old-root-grove-location.md) — optional future Old Altar location split.
+- [`post-combat-contribution-cards.md`](post-combat-contribution-cards.md) —
+  explained contribution statistics after raids and, where canonical evidence
+  exists, other completed fights.
 
 Consumed sequencing notes and shipped replacements live in
 [`../history/backlog/`](../history/backlog/).

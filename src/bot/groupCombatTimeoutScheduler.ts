@@ -1,13 +1,16 @@
 import type { Bot } from "grammy";
+import type { GroupCombatSessionRecord } from "../db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../services/groupCombatService";
+import type { PartySessionService } from "../services/partySessionService";
 import { deliverGroupCombatCards } from "./groupCombatCardDelivery";
+import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
 const DEFAULT_INTERVAL_MS = 5_000;
 
 export function createGroupCombatTimeoutScheduler(
   service: GroupCombatService,
   bot: Bot,
-  options: { intervalMs?: number } = {}
+  options: { intervalMs?: number; partySessions?: PartySessionService } = {}
 ): { start(): void; stop(): Promise<void>; tick(): Promise<number> } {
   let timer: ReturnType<typeof setInterval> | null = null;
   let activeTick: Promise<number> | null = null;
@@ -17,11 +20,37 @@ export function createGroupCombatTimeoutScheduler(
       return 0;
     }
     const operation = (async () => {
+      const started: GroupCombatSessionRecord[] = [];
+      const dueParties = service.areDevHelpersEnabled()
+        ? await options.partySessions?.listDueRecruitingGroupCombatProof() ?? []
+        : [];
+      for (const party of dueParties) {
+        try {
+          const result = await serializePartySessionDelivery(party.inviteToken, () =>
+            service.startDueProof(party.inviteToken)
+          );
+          if ("session" in result) {
+            started.push(result.session);
+          } else if (
+            result.partyVersion !== undefined &&
+            (
+              result.state === "invalid-size" ||
+              result.state === "invalid-life" ||
+              result.state === "invalid-roster" ||
+              result.state === "blocked"
+            )
+          ) {
+            await options.partySessions?.forceExpireByToken(party.inviteToken, result.partyVersion);
+          }
+        } catch (error) {
+          console.error(`Kvestarnia: skipped failed scheduled GroupCombat start for ${party.inviteToken}.`, error);
+        }
+      }
       const repaired = await service.repair(13);
       const resolved = await service.resolveDue(13);
       const pending = await service.listPendingDelivery(13);
       const sessions = [...new Map(
-        [...resolved, ...pending].map((session) => [session.id, session])
+        [...started, ...resolved, ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
         await deliverGroupCombatCards(bot.api, service, session);

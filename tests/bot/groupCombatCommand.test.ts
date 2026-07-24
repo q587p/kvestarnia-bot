@@ -13,6 +13,8 @@ import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCo
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotServices } from "../../src/bot/botServices";
+import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
+import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group combat bot flow", () => {
   afterEach(() => {
@@ -54,14 +56,14 @@ describe("group combat bot flow", () => {
       [
         "🧭 Код ватаги створює команда /dev_party.",
         "У картці збору скопіюйте з посилання лише частину після «party_».",
-        "Запуск надсилає ватажок: /dev_group_combat КОД"
+        "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
       ].join("\n"),
       [
         "Живої ватаги з таким кодом не знайдено.",
         "",
         "🧭 Код ватаги створює команда /dev_party.",
         "У картці збору скопіюйте з посилання лише частину після «party_».",
-        "Запуск надсилає ватажок: /dev_group_combat КОД"
+        "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
       ].join("\n")
     ]);
   });
@@ -86,6 +88,51 @@ describe("group combat bot flow", () => {
     await bot.handleUpdate(callbackUpdate("v1:gc:v:proof-token-13"));
     expect(startProof).not.toHaveBeenCalled();
     expect(submitAction).not.toHaveBeenCalled();
+  });
+
+  it("routes a real v2 action button through combat-lock middleware and the social module exactly once", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    const services = { groupCombat: service } as unknown as BotServices;
+    const callbackData = buildGroupCombatKeyboard(session, "character-1").inline_keyboard
+      .flat()
+      .find((button) => "callback_data" in button && button.callback_data.startsWith("v2:gc:a:"));
+
+    expect(callbackData).toBeDefined();
+    bot.api.config.use((_prev, method) => Promise.resolve({
+      ok: true,
+      result: method === "sendMessage"
+        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+        : true
+    }));
+    registerCombatLockMiddleware(bot, services);
+    registerSocialBotModule(bot, { services, options: {} });
+
+    const update = callbackUpdate(callbackData && "callback_data" in callbackData
+      ? callbackData.callback_data
+      : "");
+    update.callback_query.message.message_id = 21;
+    await bot.handleUpdate(update);
+
+    expect(submitAction).toHaveBeenCalledTimes(1);
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
   });
 
   it("starts the proof from the leader party card and delivers canonical private cards", async () => {

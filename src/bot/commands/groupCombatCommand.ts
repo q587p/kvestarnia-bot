@@ -2,6 +2,11 @@ import type { Bot, Context } from "grammy";
 import type { GroupCombatCallback } from "../callbacks/groupCombatCallbackData";
 import type { GroupCombatService } from "../../services/groupCombatService";
 import {
+  getGroupCombatActionProfile,
+  GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  type GroupCombatActionKey
+} from "../../domain/groupCombat/groupCombat";
+import {
   deliverGroupCombatCards,
   deliverGroupCombatParticipantCard
 } from "../groupCombatCardDelivery";
@@ -11,12 +16,13 @@ import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { serializePartySessionDelivery } from "../partySessionDeliveryCoordinator";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
 const PARTY_CODE_HELP = [
   "🧭 Код ватаги створює команда /dev_party.",
   "У картці збору скопіюйте з посилання лише частину після «party_».",
-  "Запуск надсилає ватажок: /dev_group_combat КОД"
+  "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
 ].join("\n");
 
 export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {
@@ -30,7 +36,9 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await ctx.reply(PARTY_CODE_HELP);
       return;
     }
-    const result = await service.startProof(telegramUserId, token);
+    const result = await serializePartySessionDelivery(token, () =>
+      service.startProof(telegramUserId, token)
+    );
     if ("session" in result) {
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
@@ -57,7 +65,9 @@ export async function handleGroupCombatCallback(
     return;
   }
   if (callback.type === "start") {
-    const result = await service.startProof(telegramUserId, callback.token);
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.startProof(telegramUserId, callback.token)
+    );
     if (!("session" in result)) {
       await safeAnswerCallbackQuery(ctx, {
         text: presentGroupCombatStartFailure(result.state),
@@ -122,7 +132,13 @@ export async function handleGroupCombatCallback(
     return;
   }
   if (callback.type === "action") {
-    const target = resolveTarget(session, viewer.characterId, callback.action, callback.targetIndex);
+    const target = resolveTarget(
+      session,
+      viewer.characterId,
+      callback.action,
+      callback.optionIndex ?? 0,
+      callback.targetIndex
+    );
     if (!target) {
       await safeAnswerCallbackQuery(ctx, { text: "Ціль уже не годиться. Оновлюю картку.", show_alert: true });
       await deliverGroupCombatCards(ctx.api, service, session);
@@ -134,7 +150,8 @@ export async function handleGroupCombatCallback(
       turn: callback.turn,
       action: callback.action,
       targetKind: target.kind,
-      targetId: target.id
+      targetId: target.id,
+      ...(target.payloadKey ? { payloadKey: target.payloadKey } : {})
     });
     if ("session" in result) {
       session = result.session;
@@ -177,6 +194,8 @@ function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submi
       return { text: "Квестарня не знайшла вашого пригодника.", show_alert: true };
     case "actor-unavailable":
       return { text: "Цей пригодник зараз не може діяти.", show_alert: true };
+    case "action-unavailable":
+      return { text: "Ця дія зараз недоступна. Оновлюю картку.", show_alert: true };
     case "disabled":
       return { text: "Доказову сутичку тут вимкнено.", show_alert: true };
   }
@@ -185,9 +204,10 @@ function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submi
 function resolveTarget(
   session: NonNullable<Awaited<ReturnType<GroupCombatService["findByToken"]>>>,
   viewerCharacterId: string,
-  action: "attack" | "guard" | "aid",
+  action: GroupCombatActionKey,
+  optionIndex: number,
   targetIndex: number
-): { kind: "enemy" | "self" | "ally"; id: string } | null {
+): { kind: "enemy" | "self" | "ally"; id: string; payloadKey?: string } | null {
   if (action === "attack") {
     const target = session.state.enemies[targetIndex];
     return target?.hp ? { kind: "enemy", id: target.id } : null;
@@ -196,10 +216,43 @@ function resolveTarget(
     const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
     return viewer?.hp ? { kind: "self", id: viewer.characterId } : null;
   }
-  const target = session.state.participants[targetIndex];
-  return target?.hp && target.hp < target.hpMax && target.characterId !== viewerCharacterId
-    ? { kind: "ally", id: target.characterId }
-    : null;
+  if (action === "item") {
+    const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
+    const itemId = GROUP_COMBAT_SUPPORTED_ITEM_IDS[optionIndex];
+    return viewer?.hp && itemId
+      ? { kind: "self", id: viewer.characterId, payloadKey: itemId }
+      : null;
+  }
+  if (action === "class" || action === "race" || action === "gear") {
+    const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
+    if (!viewer?.hp) {
+      return null;
+    }
+    const payloadKey = action === "gear" ? viewer.gearAbilityIds[optionIndex] : undefined;
+    const profile = getGroupCombatActionProfile(viewer, action, payloadKey);
+    if (!profile) {
+      return null;
+    }
+    const scopes = [profile.ability.primaryTargetScope, profile.ability.secondaryTargetScope].filter(Boolean);
+    if (scopes.includes("single-enemy")) {
+      const target = session.state.enemies[targetIndex];
+      return target?.hp
+        ? { kind: "enemy", id: target.id, ...(payloadKey ? { payloadKey } : {}) }
+        : null;
+    }
+    if (scopes.includes("single-ally-or-self")) {
+      const target = session.state.participants[targetIndex];
+      return target?.hp
+        ? {
+            kind: target.characterId === viewer.characterId ? "self" : "ally",
+            id: target.characterId,
+            ...(payloadKey ? { payloadKey } : {})
+          }
+        : null;
+    }
+    return { kind: "self", id: viewer.characterId, ...(payloadKey ? { payloadKey } : {}) };
+  }
+  return null;
 }
 
 function readCommandToken(text: string | undefined): string | null {

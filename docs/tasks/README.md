@@ -28,20 +28,20 @@ Keep each task compact and link to canonical docs instead of copying them.
 
 ## Current release and next task
 
-The current repository release is `0.4.0`:
-[`0.4.0-party-vs-many-proof.md`](0.4.0-party-vs-many-proof.md). Its hidden,
-rewardless proof remains default-off and hard-disabled in production;
-deployment, production availability and manual Telegram QA are unproven.
+The current repository release is `0.4.1`:
+[`0.4.1-group-combat-hardening.md`](0.4.1-group-combat-hardening.md). Its
+bounded, rewardless proof remains default-off and hard-disabled in production;
+deployment, production availability and manual Telegram QA on the final exact
+head are unproven.
 
-[`0.4.1-group-combat-hardening.md`](0.4.1-group-combat-hardening.md) is the next
-planned version. This repository-state reconciliation does not start it.
+[`0.4.2-guild-foundation.md`](0.4.2-guild-foundation.md) is the next planned
+version.
 
 ## Accepted 0.4.x planning
 
-After `0.4.0`, use these accepted task contracts in order unless a later
+After `0.4.1`, use these accepted task contracts in order unless a later
 product decision changes the sequence:
 
-- [`0.4.1-group-combat-hardening.md`](0.4.1-group-combat-hardening.md)
 - [`0.4.2-guild-foundation.md`](0.4.2-guild-foundation.md)
 - [`0.4.3-party-expedition-mvp.md`](0.4.3-party-expedition-mvp.md)
 - [`0.4.4-guild-weekly-goal.md`](0.4.4-guild-weekly-goal.md)
@@ -58,7 +58,7 @@ These are planned contracts, not merged or deployed features.
 
 ## Shipped records and historical drafts
 
-- `0.4.0` is the current repository release record; `0.3.17` is the previous
+- `0.4.1` is the current repository release record; `0.4.0` is the previous
   release record.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.
@@ -68,7 +68,7 @@ These are planned contracts, not merged or deployed features.
   [`../history/`](../history/).
 
 Mass archival of shipped numeric task records is a separate mechanical PR after
-`0.4.0`.
+`0.4.1`.
 
 ## Closeout
 

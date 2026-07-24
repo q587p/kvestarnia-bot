@@ -161,7 +161,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:party:rc:") &&
       !data.startsWith("v1:party:rw:") &&
-      !data.startsWith("v1:gc:") &&
+      !/^v[12]:gc:/.test(data) &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );

@@ -1,23 +1,33 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { GROUP_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import {
   buildGroupCombatTimeoutAction,
+  buildGroupCombatSettlementPlan,
+  buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
+  GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_RULES_VERSION,
+  GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  GROUP_COMBAT_TURN_LIMIT,
   resolveGroupCombatTurn,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot,
+  type GroupCombatCommittedConsumable,
   type GroupCombatContribution,
   type GroupCombatResult,
+  type GroupCombatSettlementPlan,
   type GroupCombatState,
   type GroupCombatStatus
 } from "../../domain/groupCombat/groupCombat";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
+  parseGroupCombatSettlementPlanStrict,
+  parseGroupCombatSettlementReceiptStrict,
   parseGroupCombatStateStrict
 } from "../../domain/groupCombat/groupCombatStateValidation";
 import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
@@ -31,6 +41,7 @@ import type {
   GroupCombatStartResult
 } from "./groupCombatRepository";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
+import { getCombatMantokAbilityGrantsForEquippedItems } from "../../content/mantokAbilityGrants";
 import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 
@@ -38,10 +49,20 @@ type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 4;
 
 class GroupCombatMutationConflict extends Error {}
+class GroupCombatInventoryDrift extends Error {
+  constructor(readonly sessionId: string) {
+    super("Committed group-combat item is no longer owned.");
+  }
+}
 
 const partyCharacterInclude = {
   user: { select: { telegramUserId: true } },
   equipment: { orderBy: { slot: "asc" as const } },
+  items: {
+    where: { itemId: { in: [...GROUP_COMBAT_SUPPORTED_ITEM_IDS] } },
+    select: { itemId: true, quantity: true },
+    orderBy: { itemId: "asc" as const }
+  },
   _count: { select: { remorts: true } }
 } satisfies Prisma.CharacterInclude;
 
@@ -74,6 +95,7 @@ type PersistedActionRow = {
   actionKey: string;
   targetKind: string;
   targetId: string;
+  payloadKey: string | null;
   origin: string;
 };
 
@@ -92,13 +114,34 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
   }): Promise<GroupCombatStartResult> {
+    return this.startProof(input, input.telegramUserId);
+  }
+
+  async startDueProof(input: {
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult> {
+    return this.startProof(input, null);
+  }
+
+  private async startProof(
+    input: {
+      partyInviteToken: string;
+      now: Date;
+      turnExpiresAt: Date;
+    },
+    manualLeaderTelegramUserId: bigint | null
+  ): Promise<GroupCombatStartResult> {
     try {
       return await this.prisma.$transaction(async (tx): Promise<GroupCombatStartResult> => {
-        const leader = await tx.character.findFirst({
-          where: { user: { telegramUserId: input.telegramUserId } },
-          select: { id: true }
-        });
-        if (!leader) {
+        const manualLeader = manualLeaderTelegramUserId === null
+          ? null
+          : await tx.character.findFirst({
+              where: { user: { telegramUserId: manualLeaderTelegramUserId } },
+              select: { id: true }
+            });
+        if (manualLeaderTelegramUserId !== null && !manualLeader) {
           return { state: "no-character" };
         }
 
@@ -120,32 +163,41 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
           return { state: existing.status === "active" ? "already-active" : "terminal", session };
         }
-        if (party.leaderCharacterId !== leader.id) {
+        if (manualLeader && party.leaderCharacterId !== manualLeader.id) {
           return { state: "not-leader" };
         }
         if (party.status !== "recruiting") {
           return { state: "not-recruiting" };
         }
+        if (manualLeaderTelegramUserId === null && party.expiresAt.getTime() > input.now.getTime()) {
+          return { state: "not-recruiting" };
+        }
 
         const joined = party.participants.filter((participant) => participant.status === "joined");
         if (joined.length < 2 || joined.length > 3) {
-          return { state: "invalid-size" };
+          return { state: "invalid-size", partyVersion: party.version };
+        }
+        const currentLeaderCharacterId = party.leaderCharacterId;
+        if (!joined.some((participant) => participant.characterId === currentLeaderCharacterId)) {
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         if (new Set(joined.map((participant) => participant.characterId)).size !== joined.length) {
-          return { state: "invalid-roster" };
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         if (joined.some((participant) => participant.remortCount !== participant.character._count.remorts)) {
-          return { state: "invalid-life" };
+          return { state: "invalid-life", partyVersion: party.version };
         }
         if (joined.some((participant) => participant.character.hpCurrent <= 0)) {
-          return { state: "invalid-roster" };
+          return { state: "invalid-roster", partyVersion: party.version };
         }
         const blocker = await tx.activeCombatLease.findFirst({
           where: { characterId: { in: joined.map((participant) => participant.characterId) } },
           select: { id: true }
         });
         if (blocker) {
-          return { state: "blocked" };
+          return manualLeaderTelegramUserId === null
+            ? { state: "blocked", partyVersion: party.version }
+            : { state: "blocked" };
         }
 
         const claimed = await tx.partySession.updateMany({
@@ -220,7 +272,23 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             attack: Math.max(2, combatStats.weaponDamage ?? 1, Math.floor(combatStats.strength / 2)),
             defense: Math.max(0, combatStats.armor ?? 0),
             support: Math.max(2, Math.floor((combatStats.intelligence + combatStats.charisma) / 3)),
-            equipmentItemIds: character.equipment.map((row) => row.itemId)
+            classId: character.classId,
+            raceId: character.raceId,
+            level: character.level,
+            stats: {
+              strength: combatStats.strength,
+              dexterity: combatStats.dexterity,
+              intelligence: combatStats.intelligence,
+              charisma: combatStats.charisma,
+              luck: combatStats.luck
+            },
+            equipmentItemIds: character.equipment.map((row) => row.itemId),
+            gearAbilityIds: getCombatMantokAbilityGrantsForEquippedItems({
+              itemIds: character.equipment.map((row) => row.itemId),
+              characterLevel: character.level
+            }).map((grant) => grant.combat!.profile.id),
+            combatItemQuantities: Object.fromEntries(character.items.map((row) => [row.itemId, row.quantity])),
+            threat: 0
           };
           frozen.push({ actor, ...(sated.sated ? { sated: sated.sated } : {}), ...(inspiration ? { inspiration } : {}) });
         }
@@ -295,6 +363,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     action: GroupCombatAction["action"];
     targetKind: GroupCombatAction["targetKind"];
     targetId: string;
+    payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
   }): Promise<GroupCombatActionResult> {
@@ -340,6 +409,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         action: input.action,
         targetKind: input.targetKind,
         targetId: input.targetId,
+        ...(input.payloadKey ? { payloadKey: input.payloadKey } : {}),
         origin: "manual"
       };
       const validation = validateGroupCombatAction(state, action);
@@ -360,6 +430,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         ? existingAction.actionKey === input.action &&
           existingAction.targetKind === input.targetKind &&
           existingAction.targetId === input.targetId
+          && existingAction.payloadKey === (input.payloadKey ?? null)
           ? "duplicate"
           : "replaced"
         : "queued";
@@ -377,6 +448,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             actionKey: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
+            payloadKey: input.payloadKey ?? null,
             origin: "manual",
             submittedAt: input.now
           }
@@ -388,12 +460,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             actionKey: existingAction!.actionKey,
             targetKind: existingAction!.targetKind,
             targetId: existingAction!.targetId,
+            payloadKey: existingAction!.payloadKey,
             submittedAt: existingAction!.submittedAt
           },
           data: {
             actionKey: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
+            payloadKey: input.payloadKey ?? null,
             origin: "manual",
             submittedAt: input.now
           }
@@ -421,6 +495,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       return session ? { state: writeState, session } : { state: "not-found" };
         });
       } catch (error) {
+        if (error instanceof GroupCombatInventoryDrift) {
+          return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+        }
         if (isUniqueConflict(error)) {
           const conflict = await this.classifyConcurrentAction(input);
           if (conflict) {
@@ -448,6 +525,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     action: GroupCombatAction["action"];
     targetKind: GroupCombatAction["targetKind"];
     targetId: string;
+    payloadKey?: string;
   }): Promise<GroupCombatActionResult | null> {
     const session = await this.findByPartyInviteToken(input.partyInviteToken);
     if (!session) {
@@ -475,7 +553,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     if (!winner) {
       return null;
     }
-    return winner.actionKey === input.action && winner.targetKind === input.targetKind && winner.targetId === input.targetId
+    return winner.actionKey === input.action &&
+      winner.targetKind === input.targetKind &&
+      winner.targetId === input.targetId &&
+      winner.payloadKey === (input.payloadKey ?? null)
       ? { state: "duplicate", session }
       : null;
   }
@@ -552,6 +633,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return result;
         });
       } catch (error) {
+        if (error instanceof GroupCombatInventoryDrift) {
+          return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+        }
         if (error instanceof GroupCombatMutationConflict || isUniqueConflict(error) || isTransactionWriteConflict(error)) {
           continue;
         }
@@ -706,6 +790,72 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       repaired += didRepair ? 1 : 0;
     }
     return repaired;
+  }
+
+  async settleParticipant(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    now: Date;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.groupCombatSession.findUnique({
+        where: { id: input.sessionId },
+        include: sessionInclude
+      });
+      if (!row) {
+        return { state: "not-found" } as const;
+      }
+      const participant = row.participants.find(
+        (candidate) => candidate.character.user.telegramUserId === input.telegramUserId
+      );
+      if (!participant) {
+        return { state: "not-participant" } as const;
+      }
+      if (row.status === "active" || row.settlementPlanJson === null) {
+        return { state: "not-terminal" } as const;
+      }
+      let plan: GroupCombatSettlementPlan;
+      try {
+        parseRowState(row);
+        plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
+      } catch {
+        await repairMalformedSession(tx, row, input.now);
+        return { state: "invalid-plan" } as const;
+      }
+      if (participant.settlementReceiptJson !== null) {
+        return {
+          state: "replayed",
+          receipt: parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson)
+        } as const;
+      }
+      const receipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
+      if (!receipt) {
+        return { state: "invalid-plan" } as const;
+      }
+      const settled = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          settlementStatus: "pending",
+          settlementReceiptJson: { equals: Prisma.DbNull }
+        },
+        data: {
+          settlementStatus: "completed",
+          settlementAttempts: { increment: 1 },
+          settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
+          settledAt: input.now
+        }
+      });
+      if (settled.count !== 1) {
+        const winner = await tx.groupCombatParticipant.findUnique({
+          where: { id: participant.id },
+          select: { settlementReceiptJson: true }
+        });
+        return winner?.settlementReceiptJson
+          ? replayValidatedReceipt(plan, participant.characterId, winner.settlementReceiptJson)
+          : { state: "invalid-plan" } as const;
+      }
+      return { state: "settled", receipt } as const;
+    });
   }
 
   async compareAndSetParticipantCard(input: {
@@ -871,6 +1021,7 @@ async function resolveIfReady(
   }
   const resolution = resolveGroupCombatTurn(state, actions);
   const terminal = resolution.result !== null;
+  await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
   const updated = await tx.groupCombatSession.updateMany({
     where: { id: row.id, status: "active", turn: row.turn, version: row.version },
     data: {
@@ -882,6 +1033,9 @@ async function resolveIfReady(
       deliveryAttemptedAt: null,
       stateJson: resolution.state as unknown as Prisma.InputJsonValue,
       ...(resolution.result ? { resultJson: resolution.result as unknown as Prisma.InputJsonValue } : {}),
+      ...(resolution.settlementPlan
+        ? { settlementPlanJson: resolution.settlementPlan as unknown as Prisma.InputJsonValue }
+        : {}),
       turnExpiresAt: terminal ? now : nextTurnExpiresAt,
       completedAt: terminal ? now : null
     }
@@ -916,21 +1070,24 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
     const state = parseRowStateCore(row);
     if (state.status !== "active") {
       const result = buildRewardlessResult(state.status, state.turn);
+      const plan = buildGroupCombatSettlementPlan(state)!;
       const updated = await tx.groupCombatSession.updateMany({
         where: { id: row.id, status: row.status, version: row.version },
         data: {
           resultJson: result as unknown as Prisma.InputJsonValue,
+          settlementPlanJson: plan as unknown as Prisma.InputJsonValue,
           completedAt: row.completedAt ?? now,
           version: { increment: 1 },
           deliveryRevision: { increment: 1 },
           deliveryPending: true,
           deliveryAttemptedAt: null,
-          terminalIntegrityCheckedAt: now
+          terminalIntegrityCheckedAt: null
         }
       });
       if (updated.count !== 1) {
         return "unchanged";
       }
+      await rebuildTerminalParticipantArtifacts(tx, row, state, plan, now);
       await releaseAllGroupCombatLeases(tx, row.id, now);
       await completeParty(tx, row.partySessionId);
       return "terminal-repaired";
@@ -948,8 +1105,10 @@ async function invalidateSessionRewardlessly(
   row: SessionRow,
   now: Date
 ): Promise<SessionRepairOutcome> {
-  const state = buildInvalidFallbackState(row);
+  const repairRoster = selectInvalidRepairRoster(row);
+  const state = buildInvalidFallbackState(row, repairRoster.preserved);
   const result = buildRewardlessResult("invalid", state.turn);
+  const plan = buildGroupCombatSettlementPlan(state)!;
   const updated = await tx.groupCombatSession.updateMany({
     where: { id: row.id, status: row.status, version: row.version },
     data: {
@@ -961,9 +1120,10 @@ async function invalidateSessionRewardlessly(
       deliveryRevision: { increment: 1 },
       deliveryPending: true,
       deliveryAttemptedAt: null,
-      terminalIntegrityCheckedAt: now,
+      terminalIntegrityCheckedAt: null,
       stateJson: state as unknown as Prisma.InputJsonValue,
       resultJson: result as unknown as Prisma.InputJsonValue,
+      settlementPlanJson: plan as unknown as Prisma.InputJsonValue,
       turnExpiresAt: now,
       completedAt: now
     }
@@ -971,13 +1131,73 @@ async function invalidateSessionRewardlessly(
   if (updated.count !== 1) {
     return "unchanged";
   }
-  await releaseAllGroupCombatLeases(tx, row.id, now);
+  if (repairRoster.discarded.length > 0) {
+    await releaseAllGroupCombatLeases(tx, row.id, now);
+    await tx.groupCombatParticipant.deleteMany({
+      where: { id: { in: repairRoster.discarded.map((participant) => participant.id) } }
+    });
+  }
+  await canonicalizeInvalidatedParticipantArtifacts(tx, repairRoster.preserved, state);
+  const canonical = await tx.groupCombatSession.findUnique({
+    where: { id: row.id },
+    include: sessionInclude
+  });
+  if (!canonical) {
+    throw new GroupCombatStateValidationError("Invalidated group combat disappeared before validation.");
+  }
+  parseRowState(canonical);
+  const integrityChecked = await tx.groupCombatSession.updateMany({
+    where: {
+      id: row.id,
+      status: "invalid",
+      version: row.version + 1,
+      terminalIntegrityCheckedAt: null
+    },
+    data: { terminalIntegrityCheckedAt: now }
+  });
+  if (integrityChecked.count !== 1) {
+    throw new GroupCombatMutationConflict();
+  }
+  if (repairRoster.discarded.length === 0) {
+    await releaseAllGroupCombatLeases(tx, row.id, now);
+  }
   await completeParty(tx, row.partySessionId);
   return "invalidated";
 }
 
-function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
-  const participants = row.participants.map((participant): GroupCombatActorSnapshot => ({
+function selectInvalidRepairRoster(row: SessionRow): {
+  preserved: SessionRow["participants"];
+  discarded: SessionRow["participants"];
+} {
+  const preserved: SessionRow["participants"] = [];
+  const discarded: SessionRow["participants"] = [];
+  for (const participant of row.participants) {
+    if (preserved.length >= GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT) {
+      discarded.push(participant);
+      continue;
+    }
+    const candidate = [...preserved, participant];
+    try {
+      parseGroupCombatStateStrict(buildInvalidFallbackState(row, candidate), {
+        sessionId: row.id,
+        partySessionId: row.partySessionId
+      });
+      preserved.push(participant);
+    } catch (error) {
+      if (!(error instanceof GroupCombatStateValidationError)) {
+        throw error;
+      }
+      discarded.push(participant);
+    }
+  }
+  return { preserved, discarded };
+}
+
+function buildInvalidFallbackState(
+  row: SessionRow,
+  repairParticipants: SessionRow["participants"]
+): GroupCombatState {
+  const participants = repairParticipants.map((participant): GroupCombatActorSnapshot => ({
     characterId: participant.characterId,
     telegramUserId: participant.character.user.telegramUserId.toString(),
     name: participant.character.name.slice(0, 93) || "Невідомий пригодник",
@@ -990,7 +1210,14 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
     attack: 1,
     defense: 0,
     support: 1,
-    equipmentItemIds: []
+    classId: "class.unknown",
+    raceId: "race.unknown",
+    level: 1,
+    stats: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 },
+    equipmentItemIds: [],
+    gearAbilityIds: [],
+    combatItemQuantities: {},
+    threat: 0
   }));
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
@@ -999,7 +1226,7 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
     encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
     deterministicSeed: 0,
     status: "invalid",
-    turn: Math.max(1, row.turn),
+    turn: Math.min(GROUP_COMBAT_TURN_LIMIT, Math.max(1, row.turn)),
     participants,
     enemies: [
       { id: "invalid-enemy-1", name: "Загублений запис", order: 0, hp: 0, hpMax: 1, attack: 1, defense: 0 },
@@ -1009,8 +1236,13 @@ function buildInvalidFallbackState(row: SessionRow): GroupCombatState {
       characterId: participant.characterId,
       damage: 0,
       healing: 0,
+      guardPrevented: 0,
+      control: 0,
+      damageTaken: 0,
+      committedActions: 0,
       guardedTurns: 0
     })),
+    statuses: [],
     recap: []
   };
 }
@@ -1126,6 +1358,158 @@ async function updateContributions(tx: TxClient, sessionId: string, contribution
   }
 }
 
+async function canonicalizeInvalidatedParticipantArtifacts(
+  tx: TxClient,
+  participants: SessionRow["participants"],
+  state: GroupCombatState
+): Promise<void> {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution) {
+      throw new GroupCombatStateValidationError("Invalidated participant is missing its contribution.");
+    }
+    await tx.groupCombatParticipant.update({
+      where: { id: participant.id },
+      data: {
+        contributionJson: contribution as unknown as Prisma.InputJsonValue,
+        settlementStatus: "pending",
+        settlementAttempts: 0,
+        settlementReceiptJson: Prisma.DbNull,
+        settledAt: null
+      }
+    });
+  }
+}
+
+async function rebuildTerminalParticipantArtifacts(
+  tx: TxClient,
+  row: SessionRow,
+  state: GroupCombatState,
+  plan: GroupCombatSettlementPlan,
+  now: Date
+): Promise<void> {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of row.participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution) {
+      throw new GroupCombatStateValidationError("Terminal participant is missing its contribution.");
+    }
+    const completed = participant.settlementStatus === "completed";
+    const receipt = completed
+      ? buildGroupCombatSettlementReceipt(plan, participant.characterId)
+      : null;
+    if (completed && !receipt) {
+      throw new GroupCombatStateValidationError("Terminal participant is missing its plan entry.");
+    }
+    await tx.groupCombatParticipant.update({
+      where: { id: participant.id },
+      data: {
+        contributionJson: contribution as unknown as Prisma.InputJsonValue,
+        settlementStatus: completed ? "completed" : "pending",
+        settlementAttempts: completed ? Math.max(1, participant.settlementAttempts) : 0,
+        settlementReceiptJson: receipt
+          ? receipt as unknown as Prisma.InputJsonValue
+          : Prisma.DbNull,
+        settledAt: completed ? participant.settledAt ?? now : null
+      }
+    });
+  }
+}
+
+function replayValidatedReceipt(
+  plan: GroupCombatSettlementPlan,
+  characterId: string,
+  value: unknown
+): { state: "replayed"; receipt: ReturnType<typeof parseGroupCombatSettlementReceiptStrict> } |
+  { state: "invalid-plan" } {
+  try {
+    const receipt = parseGroupCombatSettlementReceiptStrict(value);
+    const expected = buildGroupCombatSettlementReceipt(plan, characterId);
+    return expected && isDeepStrictEqual(receipt, expected)
+      ? { state: "replayed", receipt }
+      : { state: "invalid-plan" };
+  } catch {
+    return { state: "invalid-plan" };
+  }
+}
+
+async function consumeCommittedItems(
+  tx: TxClient,
+  sessionId: string,
+  items: readonly GroupCombatCommittedConsumable[]
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  const required = new Map<string, GroupCombatCommittedConsumable & { quantity: number }>();
+  for (const item of items) {
+    const key = `${item.characterId}\0${item.itemId}`;
+    const current = required.get(key);
+    required.set(key, { ...item, quantity: (current?.quantity ?? 0) + 1 });
+  }
+  const rows = await tx.characterItem.findMany({
+    where: {
+      OR: [...required.values()].map((item) => ({
+        characterId: item.characterId,
+        itemId: item.itemId
+      }))
+    },
+    select: { characterId: true, itemId: true, quantity: true }
+  });
+  if ([...required.values()].some((item) =>
+    (rows.find((row) => row.characterId === item.characterId && row.itemId === item.itemId)?.quantity ?? 0) <
+      item.quantity
+  )) {
+    throw new GroupCombatInventoryDrift(sessionId);
+  }
+  for (const item of required.values()) {
+    const consumed = await tx.characterItem.updateMany({
+      where: {
+        characterId: item.characterId,
+        itemId: item.itemId,
+        quantity: { gte: item.quantity }
+      },
+      data: { quantity: { decrement: item.quantity } }
+    });
+    if (consumed.count !== 1) {
+      throw new GroupCombatInventoryDrift(sessionId);
+    }
+    await tx.characterItem.deleteMany({
+      where: {
+        characterId: item.characterId,
+        itemId: item.itemId,
+        quantity: { lte: 0 }
+      }
+    });
+  }
+}
+
+async function invalidateInventoryDrift(
+  prisma: PrismaClient,
+  sessionId: string,
+  now: Date
+): Promise<GroupCombatActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.groupCombatSession.findUnique({
+      where: { id: sessionId },
+      include: sessionInclude
+    });
+    if (!row) {
+      return { state: "not-found" } as const;
+    }
+    if (row.status === "active") {
+      const outcome = await invalidateSessionRewardlessly(tx, row, now);
+      if (outcome === "invalidated") {
+        const session = await loadSession(tx, row.id);
+        return session ? { state: "invalidated", session } as const : { state: "not-found" } as const;
+      }
+    }
+    const session = await loadSession(tx, row.id);
+    return session ? { state: "terminal", session } as const : { state: "not-found" } as const;
+  });
+}
+
 async function loadSession(
   client: TxClient | PrismaClient,
   sessionId: string
@@ -1161,6 +1545,9 @@ function mapSession(
     deliveryAttemptedAt: row.deliveryAttemptedAt,
     state,
     result: row.resultJson === null ? null : parseGroupCombatResultStrict(row.resultJson),
+    settlementPlan: row.settlementPlanJson === null
+      ? null
+      : parseGroupCombatSettlementPlanStrict(row.settlementPlanJson),
     turnExpiresAt: row.turnExpiresAt,
     completedAt: row.completedAt,
     participants: row.participants.map((participant): GroupCombatParticipantRecord => ({
@@ -1173,6 +1560,13 @@ function mapSession(
       messageId: participant.messageId,
       referenceVersion: participant.referenceVersion,
       deliveredRevision: participant.deliveredRevision
+      ,
+      settlementStatus: participant.settlementStatus === "completed" ? "completed" : "pending",
+      settlementAttempts: participant.settlementAttempts,
+      settlementReceipt: participant.settlementReceiptJson === null
+        ? null
+        : parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson),
+      settledAt: participant.settledAt
     })),
     queuedActions: actions
   };
@@ -1182,18 +1576,25 @@ function parseRowState(row: SessionRow): GroupCombatState {
   const state = parseRowStateCore(row);
   const terminal = state.status !== "active";
   if (!terminal) {
-    if (row.resultJson !== null || row.completedAt !== null) {
+    if (row.resultJson !== null || row.settlementPlanJson !== null || row.completedAt !== null) {
       throw new GroupCombatStateValidationError("Active group combat has terminal result metadata.");
     }
+    validateSettlementRows(row, state, null);
     return state;
   }
-  if (row.resultJson === null || row.completedAt === null) {
+  if (row.resultJson === null || row.settlementPlanJson === null || row.completedAt === null) {
     throw new GroupCombatStateValidationError("Terminal group combat is missing result metadata.");
   }
   const result = parseGroupCombatResultStrict(row.resultJson);
   if (result.outcome !== state.status || result.completedTurn !== state.turn) {
     throw new GroupCombatStateValidationError("Terminal group-combat result does not match state.");
   }
+  const plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
+  const expectedPlan = buildGroupCombatSettlementPlan(state);
+  if (!expectedPlan || !isDeepStrictEqual(plan, expectedPlan)) {
+    throw new GroupCombatStateValidationError("Terminal group-combat settlement plan does not match state.");
+  }
+  validateSettlementRows(row, state, plan);
   return state;
 }
 
@@ -1231,15 +1632,65 @@ function validateRelationalRoster(row: SessionRow, state: GroupCombatState): voi
   }
 }
 
+function validateSettlementRows(
+  row: SessionRow,
+  state: GroupCombatState,
+  plan: GroupCombatSettlementPlan | null
+): void {
+  const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
+  for (const participant of row.participants) {
+    const contribution = contributions.get(participant.characterId);
+    if (!contribution || !isDeepStrictEqual(participant.contributionJson, contribution)) {
+      throw new GroupCombatStateValidationError("Relational contribution does not match terminal state.");
+    }
+    if (participant.settlementStatus === "pending") {
+      if (
+        participant.settlementAttempts !== 0
+        || participant.settlementReceiptJson !== null
+        || participant.settledAt !== null
+      ) {
+        throw new GroupCombatStateValidationError("Pending settlement row is not canonical.");
+      }
+      continue;
+    }
+    if (participant.settlementStatus !== "completed" || !plan) {
+      throw new GroupCombatStateValidationError("Settlement status is invalid for group-combat state.");
+    }
+    if (
+      participant.settlementAttempts < 1 ||
+      participant.settlementReceiptJson === null ||
+      participant.settledAt === null
+    ) {
+      throw new GroupCombatStateValidationError("Completed settlement row is missing receipt metadata.");
+    }
+    const expectedReceipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
+    const receipt = parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson);
+    if (!expectedReceipt || !isDeepStrictEqual(receipt, expectedReceipt)) {
+      throw new GroupCombatStateValidationError("Settlement receipt does not match its immutable plan entry.");
+    }
+  }
+}
+
 function isGroupCombatStatus(value: string): value is GroupCombatStatus {
   return value === "active" || value === "won" || value === "lost" || value === "invalid";
 }
 
+function isGroupCombatActionKey(value: string): value is GroupCombatAction["action"] {
+  return value === "attack" ||
+    value === "guard" ||
+    value === "class" ||
+    value === "race" ||
+    value === "gear" ||
+    value === "item";
+}
+
 function mapAction(row: PersistedActionRow): GroupCombatQueuedActionRecord {
   if (
-    (row.actionKey !== "attack" && row.actionKey !== "guard" && row.actionKey !== "aid") ||
+    !isGroupCombatActionKey(row.actionKey) ||
     (row.targetKind !== "self" && row.targetKind !== "ally" && row.targetKind !== "enemy") ||
-    (row.origin !== "manual" && row.origin !== "timeout")
+    (row.origin !== "manual" && row.origin !== "timeout") ||
+    ((row.actionKey === "gear" || row.actionKey === "item") && !row.payloadKey) ||
+    (row.actionKey !== "gear" && row.actionKey !== "item" && row.payloadKey !== null)
   ) {
     throw new GroupCombatStateValidationError("Malformed persisted group-combat action.");
   }
@@ -1249,6 +1700,7 @@ function mapAction(row: PersistedActionRow): GroupCombatQueuedActionRecord {
     action: row.actionKey,
     targetKind: row.targetKind,
     targetId: row.targetId,
+    ...(row.payloadKey ? { payloadKey: row.payloadKey } : {}),
     origin: row.origin
   };
 }

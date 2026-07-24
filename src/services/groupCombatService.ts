@@ -43,6 +43,18 @@ export class GroupCombatService {
     });
   }
 
+  async startDueProof(partyInviteToken: string): Promise<GroupCombatStartResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.now();
+    return this.repository.startDueProof({
+      partyInviteToken,
+      now,
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
+  }
+
   async submitAction(input: {
     telegramUserId: bigint;
     partyInviteToken: string;
@@ -50,6 +62,7 @@ export class GroupCombatService {
     action: GroupCombatActionKey;
     targetKind: GroupCombatTargetKind;
     targetId: string;
+    payloadKey?: string;
   }): Promise<GroupCombatActionResult> {
     if (!this.options.enabled) {
       return { state: "disabled" };
@@ -100,6 +113,10 @@ export class GroupCombatService {
 
   async repair(limit = 13): Promise<number> {
     return this.options.enabled ? this.repository.repairInvalidOrOrphaned(this.now(), limit) : 0;
+  }
+
+  settleParticipant(sessionId: string, telegramUserId: bigint) {
+    return this.repository.settleParticipant({ sessionId, telegramUserId, now: this.now() });
   }
 
   async listPendingDelivery(limit = 13): Promise<GroupCombatSessionRecord[]> {

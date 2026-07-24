@@ -82,6 +82,7 @@ class PersonalProtocolFilingManaSpendLostError extends Error {
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
 const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
 const KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST = 13;
 const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
@@ -291,7 +292,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (
         session.status !== LIVE_STATUS ||
-        (session.expiresAt <= input.now && session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID)
+        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId))
       ) {
         const expired = await expireSessionTx(tx, session.id, input.now, this.raidChat);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
@@ -1404,7 +1405,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     });
   }
 
-  async forceExpireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
+  async forceExpireByToken(
+    inviteToken: string,
+    now: Date,
+    expectedVersion?: number
+  ): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const session = await findSessionByToken(tx, inviteToken);
 
@@ -1412,8 +1417,11 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return null;
       }
 
-      if (session.status === LIVE_STATUS) {
-        await terminalizeSessionTx(tx, session.id, "expired", now, this.raidChat);
+      if (
+        session.status === LIVE_STATUS &&
+        (expectedVersion === undefined || session.version === expectedVersion)
+      ) {
+        await terminalizeSessionTx(tx, session.id, "expired", now, this.raidChat, expectedVersion);
         const updated = await findSessionById(tx, session.id);
         return updated ? mapSession(updated) : null;
       }
@@ -1625,7 +1633,7 @@ async function expireTokenIfNeededTx(
   if (
     session?.status === LIVE_STATUS &&
     session.expiresAt <= now &&
-    session.originLocationId !== BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+    !isAutomaticStartOrigin(session.originLocationId)
   ) {
     await terminalizeSessionTx(tx, session.id, "expired", now, raidChat);
   }
@@ -1651,7 +1659,10 @@ async function expireRecruitingTx(
     where: {
       status: LIVE_STATUS,
       originLocationId: {
-        not: BIG_BARREL_PARTY_ORIGIN_LOCATION_ID
+        notIn: [
+          BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+          GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID
+        ]
       },
       expiresAt: {
         lte: now
@@ -1673,17 +1684,24 @@ async function expireRecruitingTx(
   return sessions.length;
 }
 
+function isAutomaticStartOrigin(originLocationId: string | null): boolean {
+  return originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
+    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
+}
+
 async function terminalizeSessionTx(
   tx: TxClient,
   sessionId: string,
   status: "cancelled" | "expired",
   now: Date,
-  raidChat: PrismaPartyRaidChatTransactionWriter
+  raidChat: PrismaPartyRaidChatTransactionWriter,
+  expectedVersion?: number
 ): Promise<void> {
   const transitioned = await tx.partySession.updateMany({
     where: {
       id: sessionId,
-      status: LIVE_STATUS
+      status: LIVE_STATUS,
+      ...(expectedVersion === undefined ? {} : { version: expectedVersion })
     },
     data: {
       status,

@@ -126,6 +126,7 @@ Do:
 - Match the established `0.3.4`-and-earlier release shape: one short lead paragraph, then `У грі вже:` with a Markdown bullet list of visible changes, followed by one required short standalone closing paragraph.
 - Do not publish a paragraph-only release entry without `У грі вже:` and its bullet list.
 - After the closing paragraph, use at most one short `Ще не відчинено:` line for a genuine player-visible gameplay boundary. Never use it for manual QA, CI, deploy, rollout, feature-flag, production-enablement, or other operational status.
+- Do not repeat a complete sentence verbatim within the current entry or from an older release. Compare the lead, bullets, closing paragraph and optional boundary line before publishing; rewrite only the current duplicate and leave historical entries unchanged.
 - Never turn any part of a news entry into a QA, target-environment, build, merge-readiness, deploy, or rollout disclaimer. Put operational truth in the task, changelog, release ledger, or PR body.
 - Keep exact mechanics, rewards, hidden conditions, final punchlines, technical debt, scheduler/restart/deploy details, Redis/BullMQ, migrations, scaling, and platform backlog out of news.
 - Do not present Mini App as planned; it is not a current Kvestarnia product direction unless a future explicit product decision reverses that.

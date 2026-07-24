@@ -1,4 +1,8 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
+import {
+  getGroupCombatActionProfile,
+  GROUP_COMBAT_CARD_BYTE_LIMIT
+} from "../../domain/groupCombat/groupCombat";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -44,6 +48,15 @@ export function presentGroupCombat(
   const recapText = recap
     ? `\n\n<b>Останні дії:</b>\n${recap.lines.map((line) => escapeHtml(line)).join("\n")}`
     : "";
+  const contributionText = state.status === "active"
+    ? ""
+    : `\n\n<b>Внесок:</b>\n⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода\n` +
+      `🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії\n${state.participants.map((participant) => {
+        const contribution = state.contributions.find((row) => row.characterId === participant.characterId);
+        return contribution
+          ? `${escapeHtml(participant.name)}: ⚔️ ${contribution.damage}, ❤️ ${contribution.healing}, 🛡️ ${contribution.guardPrevented}, 🌀 ${contribution.control}, 💥 ${contribution.damageTaken}, ✅ ${contribution.committedActions}`
+          : `${escapeHtml(participant.name)}: запис не знайдено`;
+      }).join("\n")}`;
   const remaining = formatRemainingTurn(session.turnExpiresAt, now);
   const ending = state.status === "active"
     ? queued
@@ -59,7 +72,11 @@ export function presentGroupCombat(
         ].join("\n")
     : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
-  return [status, "", ...enemies, ...party].join("\n") + recapText + ending;
+  const base = [status, "", ...enemies, ...party].join("\n");
+  const text = base + recapText + contributionText + ending;
+  return Buffer.byteLength(text, "utf8") <= GROUP_COMBAT_CARD_BYTE_LIMIT
+    ? text
+    : base + contributionText + ending;
 }
 
 function formatRemainingTurn(expiresAt: Date, now: Date): string {
@@ -103,6 +120,13 @@ function presentQueuedAction(
     const enemy = session.state.enemies.find((candidate) => candidate.id === action.targetId);
     return enemy ? `вдарити ${escapeHtml(enemy.name)}` : "вдарити ворога";
   }
-  const ally = session.state.participants.find((candidate) => candidate.characterId === action.targetId);
-  return ally ? `підтримати ${escapeHtml(ally.name)}` : "підтримати союзника";
+  if (action.action === "item") {
+    return "скористатися бойовим запасом";
+  }
+  if (action.action === "class" || action.action === "race" || action.action === "gear") {
+    const actor = session.state.participants.find((candidate) => candidate.characterId === action.actorCharacterId);
+    const profile = actor ? getGroupCombatActionProfile(actor, action.action, action.payloadKey) : null;
+    return profile ? `застосувати ${escapeHtml(profile.ability.label ?? "здібність")}` : "застосувати здібність";
+  }
+  return "дію";
 }

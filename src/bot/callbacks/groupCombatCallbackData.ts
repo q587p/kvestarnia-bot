@@ -6,7 +6,14 @@ export type GroupCombatCallback =
   | { type: "start"; token: string }
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
-  | { type: "action"; token: string; turn: number; action: GroupCombatActionKey; targetIndex: number };
+  | {
+      type: "action";
+      token: string;
+      turn: number;
+      action: GroupCombatActionKey;
+      optionIndex?: number;
+      targetIndex: number;
+    };
 
 type GroupCombatCallbackError = "invalid" | "too-long";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
@@ -27,9 +34,13 @@ export function makeGroupCombatActionCallbackData(input: {
   token: string;
   turn: number;
   action: GroupCombatActionKey;
+  optionIndex?: number;
   targetIndex: number;
 }): string {
-  return `v1:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${input.targetIndex.toString(36)}`;
+  return `v2:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
+    0,
+    Math.floor(input.optionIndex ?? 0)
+  ).toString(36)}:${input.targetIndex.toString(36)}`;
 }
 
 export function parseGroupCombatCallbackData(
@@ -39,37 +50,67 @@ export function parseGroupCombatCallbackData(
     return err(data ? "too-long" : "invalid");
   }
   const parts = data.split(":");
-  if (parts[0] !== "v1" || parts[1] !== "gc" || !TOKEN_PATTERN.test(parts[3] ?? "")) {
+  if ((parts[0] !== "v1" && parts[0] !== "v2") || parts[1] !== "gc" || !TOKEN_PATTERN.test(parts[3] ?? "")) {
     return err("invalid");
   }
   const token = parts[3]!;
-  if (parts[2] === "s" && parts.length === 4) {
+  if (parts[0] === "v1" && parts[2] === "s" && parts.length === 4) {
     return ok({ type: "start", token });
   }
-  if (parts[2] === "v" && parts.length === 4) {
+  if (parts[0] === "v1" && parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });
   }
-  if (parts[2] === "j" && parts.length === 5) {
+  if (parts[0] === "v1" && parts[2] === "j" && parts.length === 5) {
     const page = parseBase36(parts[4], true);
     return page === null ? err("invalid") : ok({ type: "journal", token, page });
   }
-  if (parts[2] !== "a" || parts.length !== 7) {
+  if (parts[0] !== "v2" || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");
   }
   const turn = parseBase36(parts[4]);
   const action = parseAction(parts[5]);
-  const targetIndex = parseBase36(parts[6], true);
-  return turn !== null && action && targetIndex !== null
-    ? ok({ type: "action", token, turn, action, targetIndex })
+  const optionIndex = parseBase36(parts[6], true);
+  const targetIndex = parseBase36(parts[7], true);
+  return turn !== null && action && optionIndex !== null && targetIndex !== null
+    ? ok({
+        type: "action",
+        token,
+        turn,
+        action,
+        ...(optionIndex > 0 ? { optionIndex } : {}),
+        targetIndex
+      })
     : err("invalid");
 }
 
 function actionKey(action: GroupCombatActionKey): string {
-  return action === "attack" ? "a" : action === "guard" ? "g" : "h";
+  return action === "attack"
+    ? "a"
+    : action === "guard"
+      ? "g"
+      : action === "class"
+        ? "c"
+        : action === "race"
+          ? "r"
+          : action === "gear"
+            ? "e"
+            : "i";
 }
 
 function parseAction(value: string | undefined): GroupCombatActionKey | null {
-  return value === "a" ? "attack" : value === "g" ? "guard" : value === "h" ? "aid" : null;
+  return value === "a"
+    ? "attack"
+    : value === "g"
+      ? "guard"
+      : value === "c"
+        ? "class"
+        : value === "r"
+          ? "race"
+          : value === "e"
+            ? "gear"
+            : value === "i"
+              ? "item"
+              : null;
 }
 
 function parseBase36(value: string | undefined, allowZero = false): number | null {
