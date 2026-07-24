@@ -3,7 +3,7 @@ import type { CombatDrinkStateCommit } from "./soloCombatSessionRepository";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
 import type { SoloCombatSessionRecord } from "./soloCombatSessionRepository";
 
-export type PendingPassageEncounterStatus = "pending" | "consumed" | "expired" | "cancelled";
+export type PendingPassageEncounterStatus = "pending" | "reserved" | "consumed" | "expired" | "cancelled";
 
 export interface PendingPassageEncounterRecord {
   id: string;
@@ -20,6 +20,12 @@ export interface PendingPassageEncounterRecord {
   status: PendingPassageEncounterStatus;
   version: number;
   combatSessionId: string | null;
+  reservationOrigin: string | null;
+  reservationRemortCount: number | null;
+  reservedPartySessionId: string | null;
+  reservedPartyInviteToken: string | null;
+  groupCombatSessionId: string | null;
+  reservedAt: Date | null;
   expiresAt: Date;
   consumedAt: Date | null;
   cancelledAt: Date | null;

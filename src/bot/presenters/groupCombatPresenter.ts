@@ -6,6 +6,7 @@ import {
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml } from "./telegramHtml";
+import { items } from "../../content";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
@@ -14,13 +15,14 @@ export function presentGroupCombat(
 ): string {
   const state = session.state;
   const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
+  const production = state.rulesVersion === "group-combat.v3";
   const status = state.status === "active"
     ? `🧪 <b>Бій: ${state.turn} хід</b>`
     : state.status === "won"
-      ? "✅ Доказову сутичку виграно"
+      ? production ? "✅ Ватага втримала лівий прохід" : "✅ Доказову сутичку виграно"
       : state.status === "lost"
-        ? "🪦 Доказову сутичку програно"
-        : "🧯 Доказову сутичку безпечно зупинено";
+        ? production ? "🪦 Лівий прохід відбив атаку" : "🪦 Доказову сутичку програно"
+        : production ? "🧯 Сутичку безпечно зупинено" : "🧯 Доказову сутичку безпечно зупинено";
   const enemies = state.enemies.map((enemy) => presentBattleCombatantResourceLine({
     icon: enemy.hp > 0 ? "👹" : "☠️",
     name: enemy.name,
@@ -58,6 +60,9 @@ export function presentGroupCombat(
           : `${escapeHtml(participant.name)}: запис не знайдено`;
       }).join("\n")}`;
   const remaining = formatRemainingTurn(session.turnExpiresAt, now);
+  const settlement = session.settlementPlan?.participants.find(
+    (participant) => participant.characterId === viewerCharacterId
+  );
   const ending = state.status === "active"
     ? queued
       ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, вибір записано: ${presentQueuedAction(
@@ -70,13 +75,33 @@ export function presentGroupCombat(
           `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо? Оберіть точну ціль.`,
           `⏳ До захисту мовчунів — ${remaining}.`
         ].join("\n")
-    : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
+    : production && settlement
+      ? `\n\n${presentProductionSettlement(settlement.rewards)}`
+      : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
   const base = [status, "", ...enemies, ...party].join("\n");
   const text = base + recapText + contributionText + ending;
   return Buffer.byteLength(text, "utf8") <= GROUP_COMBAT_CARD_BYTE_LIMIT
     ? text
     : base + contributionText + ending;
+}
+
+function presentProductionSettlement(
+  rewards: NonNullable<GroupCombatSessionRecord["settlementPlan"]>["participants"][number]["rewards"]
+): string {
+  const lines = [
+    "<b>Ваш підсумок:</b>",
+    `✨ Досвід: +${rewards.xp}`,
+    `🪙 Золото: +${rewards.gold}`
+  ];
+  for (const reward of rewards.items) {
+    const item = items.find((candidate) => candidate.id === reward.itemId);
+    lines.push(`🎒 ${escapeHtml(item?.name ?? reward.itemId)}: +${reward.quantity}`);
+  }
+  if (rewards.xp === 0 && rewards.gold === 0 && rewards.items.length === 0) {
+    lines.push("⏳ Цього разу зараховано лише присутність: змістовної дії не було.");
+  }
+  return lines.join("\n");
 }
 
 function formatRemainingTurn(expiresAt: Date, now: Date): string {
@@ -90,15 +115,19 @@ export function presentGroupCombatJournal(
   const total = session.state.recap.length;
   if (total === 0) {
     return presentBattleJournalPage({
-      title: "📜 <b>Журнал доказової сутички</b>",
+      title: session.state.rulesVersion === "group-combat.v3"
+        ? "📜 <b>Журнал атаки в лівому проході</b>"
+        : "📜 <b>Журнал доказової сутички</b>",
       emptyText: "Записів ходів ще немає."
     });
   }
   const page = Math.min(Math.max(0, Math.floor(requestedPage)), total - 1);
   const recap = session.state.recap[page]!;
   return presentBattleJournalPage({
-    title: "📜 <b>Журнал доказової сутички</b>",
-    headerLines: ["", `Збережено останні ${total} ходів цієї доказової сутички.`],
+    title: session.state.rulesVersion === "group-combat.v3"
+      ? "📜 <b>Журнал атаки в лівому проході</b>"
+      : "📜 <b>Журнал доказової сутички</b>",
+    headerLines: ["", `Збережено останні ${total} ходів цієї сутички.`],
     turn: recap.turn,
     page,
     totalPages: total,

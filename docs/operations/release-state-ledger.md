@@ -8,10 +8,10 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-07-23)
+## Current repository baseline (repository evidence, 12026-07-24)
 
-The repository release is package `0.4.1`. Repository merge state is recorded
-below; deployment and target availability remain separate evidence.
+The current branch prepares package `0.4.2`. Merge, deployment and target
+availability remain separate evidence.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -27,6 +27,7 @@ below; deployment and target availability remain separate evidence.
 | 0.3.17 callback read-path collapse | yes (PR `#183`) | no new migration | no new production flag | yes; merge checks passed | post-deploy observation not recorded | deploy rollback; release operator unassigned | deferred |
 | 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` with durable card-delivery revisions | unavailable in production; default off and production-hard-disabled | yes; repository gates plus restart/convergence/privacy regressions | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
+| 0.4.2 left-passage party attack | no; draft branch only | no; branch includes additive `20260724233000_left_passage_party_attack` | no target evidence; repository default off | yes; `npm run check` passed with 4,084 unit and 610 integration tests, docs 416/249, Prisma generation and bounded simulator matrix | pending | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

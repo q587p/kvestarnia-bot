@@ -1744,6 +1744,7 @@ async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
       await prisma.$executeRawUnsafe(statement);
     }
   }
+  await prisma.$executeRawUnsafe("ALTER TABLE party_sessions ADD COLUMN origin_kind TEXT");
 }
 
 async function withSimulatedStartWinningTerminalTransition<T>(

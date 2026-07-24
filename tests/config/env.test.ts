@@ -124,6 +124,14 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...validEnv, GROUP_COMBAT_PROOF_ENABLED: "true" }).groupCombatProofEnabled).toBe(true);
   });
 
+  it("keeps fresh left-passage party entry disabled unless explicitly flagged", () => {
+    expect(loadConfig(validEnv).leftPassagePartyAttackEnabled).toBe(false);
+    expect(loadConfig({
+      ...validEnv,
+      LEFT_PASSAGE_PARTY_ATTACK_ENABLED: "true"
+    }).leftPassagePartyAttackEnabled).toBe(true);
+  });
+
   it("keeps tavern social games disabled by default", () => {
     const config = loadConfig(validEnv);
 

@@ -2,6 +2,8 @@ import { Bot, type Api, type Context } from "grammy";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handleGroupCombatCallback,
+  presentGroupCombatStartFailure,
+  presentLeftPassageInviteFailure,
   registerGroupCombatDevCommand
 } from "../../src/bot/commands/groupCombatCommand";
 import { deliverGroupCombatCards } from "../../src/bot/groupCombatCardDelivery";
@@ -19,6 +21,22 @@ import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKey
 describe("group combat bot flow", () => {
   afterEach(() => {
     clearMessageFreshnessTracking();
+  });
+
+  it("shows canonical remaining search time on left-passage create and start blockers", () => {
+    const availableAt = new Date("2026-07-24T10:03:00.000Z");
+    const now = new Date("2026-07-24T10:00:00.000Z");
+
+    expect(presentLeftPassageInviteFailure({
+      state: "active-search",
+      availableAt,
+      now
+    })).toContain("3 хвилини");
+    expect(presentGroupCombatStartFailure({
+      state: "active-search",
+      availableAt,
+      now
+    })).toContain("3 хвилини");
   });
 
   it("cannot mutate through a dev command when the production gate is closed", async () => {

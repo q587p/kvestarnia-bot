@@ -4,6 +4,8 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GroupCombatCallback =
   | { type: "start"; token: string }
+  | { type: "start-left"; token: string }
+  | { type: "invite-left"; token: string }
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
   | {
@@ -24,6 +26,14 @@ export function makeGroupCombatViewCallbackData(token: string): string {
 
 export function makeGroupCombatStartCallbackData(token: string): string {
   return `v1:gc:s:${token}`;
+}
+
+export function makeLeftPassagePartyInviteCallbackData(encounterToken: string): string {
+  return `v3:gc:i:${encounterToken}`;
+}
+
+export function makeLeftPassageGroupCombatStartCallbackData(token: string): string {
+  return `v3:gc:s:${token}`;
 }
 
 export function makeGroupCombatJournalCallbackData(token: string, page: number): string {
@@ -50,12 +60,22 @@ export function parseGroupCombatCallbackData(
     return err(data ? "too-long" : "invalid");
   }
   const parts = data.split(":");
-  if ((parts[0] !== "v1" && parts[0] !== "v2") || parts[1] !== "gc" || !TOKEN_PATTERN.test(parts[3] ?? "")) {
+  if (
+    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3") ||
+    parts[1] !== "gc" ||
+    !TOKEN_PATTERN.test(parts[3] ?? "")
+  ) {
     return err("invalid");
   }
   const token = parts[3]!;
   if (parts[0] === "v1" && parts[2] === "s" && parts.length === 4) {
     return ok({ type: "start", token });
+  }
+  if (parts[0] === "v3" && parts[2] === "s" && parts.length === 4) {
+    return ok({ type: "start-left", token });
+  }
+  if (parts[0] === "v3" && parts[2] === "i" && parts.length === 4) {
+    return ok({ type: "invite-left", token });
   }
   if (parts[0] === "v1" && parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });

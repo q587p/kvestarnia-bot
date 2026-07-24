@@ -164,6 +164,10 @@ export async function sendPersistentFightPassagePreview(
     reply_markup: buildPersistentFightPassagePreviewKeyboard({
       passage: passageFight.passage,
       encounterToken: preview.encounterToken,
+      ...(preview.reservedPartyInviteToken
+        ? { reservedPartyInviteToken: preview.reservedPartyInviteToken }
+        : {}),
+      leftPassagePartyAttackEnabled: services.groupCombat?.isLeftPassageEntryEnabled() === true,
       searchAvailable: await isPassageSearchAvailable(
         services.passageSearch,
         telegramUserId,

@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.1` repository hardening; `0.4.2` наступна |
+| Party Progression | активна | `0.4.2` left-passage party attack; `0.4.3` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -84,18 +84,24 @@ The proof remains default-off and production-hard-disabled. Deployment,
 production availability and manual Telegram QA on the final exact head remain
 separate pending evidence.
 
-### 0.4.2 — Guild foundation
+### 0.4.2 — Left-passage party attack
+
+Перший production-capable `GroupCombat`: точну hard-оказію лівого проходу
+можна зарезервувати за `PartySession`, зібрати 2–3 current-life пригодників і
+провести детерміновану 2×2 або 3×3 сутичку. Незмінний склад, ресурси й припаси,
+per-player settlement, одна спільна знахідка, журнал і підсумок внеску
+переживають restart/retry. Сольна кнопка лишається.
+
+Вхід `LEFT_PASSAGE_PARTY_ATTACK_ENABLED` default-off. Код у repository release
+не доводить production enablement, deployment чи ручну Telegram QA; ці докази
+лишаються pending.
+
+### 0.4.3 — Guild foundation
 
 Малий соціяльний shell, який не чекає готового guild boss: унікальна
 нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
 leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
 `PartySession`; вона не володіє combat state.
-
-### 0.4.3 — First party expedition
-
-Перший production encounter 2–3×2–3 із location/quest/lore входом,
-idempotent per-player rewards/resource settlement, contribution summary,
-journal, achievements/activity events, metrics і kill switch.
 
 ### 0.4.4 — Guild weekly goal
 

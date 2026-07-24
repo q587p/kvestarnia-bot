@@ -5,6 +5,7 @@ import {
 } from "../../content/characterFlavor";
 import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
   type PartyCancelResult,
   type PartyCreateResult,
   type PartyJoinResult,
@@ -173,6 +174,34 @@ function presentPartyJoinIneligible(
   result: Extract<PartyJoinResult, { state: "ineligible" }>
 ): string {
   const reason = result.reason;
+
+  if (result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    if (reason === "wrong-location") {
+      return "Щоби відгукнутися на поклик, стійте біля того самого сліду в лівому проході Низу.";
+    }
+    if (reason === "stale-life") {
+      return "Цей поклик пам’ятає попереднє життя пригодника. Попросіть ватажка зібрати ватагу знову.";
+    }
+    if (reason === "dead") {
+      return "Спершу поверніть пригодника до тями. Лівий прохід не приймає героїчних привидів до складу.";
+    }
+    if (reason === "invalid-resources") {
+      return "Запас сил або мани має нечинний стан. Оновіть картку пригодника, перш ніж відповідати на поклик.";
+    }
+    if (reason === "active-combat") {
+      return "Ви вже в активному бою. Завершіть його, тоді відповідайте на поклик із лівого проходу.";
+    }
+    if (reason === "active-search") {
+      return [
+        "У лівому проході ще триває ваш пошук.",
+        `На поклик можна відповісти за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+      ].join("\n");
+    }
+    if (reason === "expired-invitation") {
+      return "Поклик із лівого проходу вже згас. Попросіть ватажка перевірити слід знову.";
+    }
+    return "Поклик із лівого проходу вже не може прийняти цього пригодника.";
+  }
 
   if (reason === "level-gate") {
     return "Рейдова канцелярія відсіяла запис: Старший Брат Бочки пускає в цю бійку пригодників від 8 рівня, або ремортованих від 3 рівня.";
@@ -1198,8 +1227,13 @@ export function presentPartySession(
     : null;
   const big = session.originLocationId === "barrel.big-brother";
   const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
+  const leftPassage = session.originKind === "nyz-left-passage-party.v1";
   const lines = [
-    big ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
+    big
+      ? "🛢️ <b>Збір до Старшого Брата Бочки</b>"
+      : leftPassage
+        ? "🤝 <b>Ватага до лівого проходу</b>"
+        : "🧭 <b>Рейдова ватага</b>",
     "",
     getStatusLine(session),
     `Учасники: ${joined.length}/${session.participantCap}`,
@@ -1241,6 +1275,8 @@ export function presentPartySession(
       ? "Це справжній ризиковий маршрут: один спільний бос, видимий стан ватаги й жодного точного прогнозу винагород. Коли час добіжить, рейд почнеться автоматично."
       : groupCombat
         ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
+        : leftPassage
+          ? "Це справжня атака 2–3 пригодників на вже помічений гурт. Коли час добіжить, бій почнеться автоматично з поточним складом; лідер може рушити раніше."
         : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 

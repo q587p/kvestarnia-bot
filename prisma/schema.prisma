@@ -175,6 +175,13 @@ model PendingPassageEncounter {
   activeKey             String?   @unique @map("active_key")
   version               Int       @default(1)
   combatSessionId       String?   @map("combat_session_id")
+  reservationOrigin     String?   @map("reservation_origin")
+  reservationRemortCount Int?     @map("reservation_remort_count")
+  reservedPartySessionId String?  @unique @map("reserved_party_session_id")
+  reservedPartySession  PartySession? @relation(fields: [reservedPartySessionId], references: [id], onDelete: SetNull)
+  groupCombatSessionId  String?   @unique @map("group_combat_session_id")
+  groupCombatSession    GroupCombatSession? @relation(fields: [groupCombatSessionId], references: [id], onDelete: SetNull)
+  reservedAt            DateTime? @map("reserved_at")
   expiresAt             DateTime  @map("expires_at")
   consumedAt            DateTime? @map("consumed_at")
   cancelledAt           DateTime? @map("cancelled_at")
@@ -185,6 +192,7 @@ model PendingPassageEncounter {
   @@index([originLocationId])
   @@index([monsterId])
   @@index([combatSessionId])
+  @@index([reservationOrigin, status, expiresAt])
   @@map("pending_passage_encounters")
 }
 
@@ -967,6 +975,7 @@ model PartySession {
   leader              Character @relation("PartySessionLeader", fields: [leaderCharacterId], references: [id], onDelete: Cascade)
   periodId            String?   @map("period_id")
   originLocationId    String?   @map("origin_location_id")
+  originKind          String?   @map("origin_kind")
   participantCap      Int       @default(8) @map("participant_cap")
   minimumParticipants Int       @default(1) @map("minimum_participants")
   joinUntilAt         DateTime  @map("join_until_at")
@@ -980,6 +989,7 @@ model PartySession {
   participants        PartyParticipant[]
   bossSessions        PartyBossSession[]
   groupCombatSession  GroupCombatSession?
+  reservedPendingPassageEncounter PendingPassageEncounter?
   raidChatEntries        PartyRaidChatEntry[]
   raidChatComposeIntents PartyRaidChatComposeIntent[]
   raidChatAuthorStates   PartyRaidChatAuthorState[]
@@ -1200,6 +1210,7 @@ model GroupCombatSession {
   updatedAt      DateTime     @updatedAt @map("updated_at")
   participants   GroupCombatParticipant[]
   actions        GroupCombatAction[]
+  passageEncounter PendingPassageEncounter?
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])

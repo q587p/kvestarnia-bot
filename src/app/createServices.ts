@@ -217,9 +217,10 @@ export function createServices(
       repositories.huntContracts
     ),
     groupCombat: new GroupCombatService(repositories.groupCombatSessions, {
-      enabled: nonProduction && config.groupCombatProofEnabled,
-      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled
-    }),
+      enabled: true,
+      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+    }, undefined, achievements),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(
@@ -254,9 +255,12 @@ export function createServices(
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||
-        config.bigBarrelBrotherRaidEnabled,
+        config.bigBarrelBrotherRaidEnabled ||
+        config.leftPassagePartyAttackEnabled,
+      runtimeServicingEnabled: true,
       devHelpersEnabled: nonProduction,
-      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
+      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
     }, undefined, achievements),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,

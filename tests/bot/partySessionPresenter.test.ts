@@ -24,7 +24,10 @@ import type { PartySessionRecord } from "../../src/db/repositories/partySessionR
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
 import { findRaceAbility } from "../../src/content/playerAbilities";
 import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
-import { GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
+import {
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+} from "../../src/services/partySessionService";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -1531,6 +1534,30 @@ describe("party session presenter", () => {
     expect(cooldownText).toContain("короткий перепочинок");
     expect(cooldownText).toContain("2 хвилини");
     expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
+  });
+
+  it("explains left-passage join blockers without Big Barrel copy", () => {
+    const session = {
+      ...makePartySession(),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "presence.location.korchma.deep.level1.left"
+    };
+    const searchText = presentPartyJoin({
+      state: "ineligible",
+      reason: "active-search",
+      availableAt: new Date("2026-06-30T10:03:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+
+    expect(searchText).toContain("ще триває ваш пошук");
+    expect(searchText).toContain("3 хвилини");
+    expect(searchText).not.toContain("Бочки");
+    expect(presentPartyJoin({
+      state: "ineligible",
+      reason: "invalid-resources",
+      session
+    })).toContain("сил або мани");
   });
 
   it("keeps terminal-ineligible copy distinct from deadline expiry across stale views", () => {

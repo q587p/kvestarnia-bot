@@ -3,6 +3,8 @@ import {
   makeGroupCombatActionCallbackData,
   makeGroupCombatJournalCallbackData,
   makeGroupCombatStartCallbackData,
+  makeLeftPassageGroupCombatStartCallbackData,
+  makeLeftPassagePartyInviteCallbackData,
   parseGroupCombatCallbackData
 } from "../../src/bot/callbacks/groupCombatCallbackData";
 
@@ -28,6 +30,21 @@ describe("group combat callback data", () => {
     expect(parseGroupCombatCallbackData(data)).toEqual({
       ok: true,
       value: { type: "action", token: "proof-token-13", turn: 23, action: "class", targetIndex: 2 }
+    });
+  });
+
+  it("keeps left-passage invite and production start distinct and within Telegram's budget", () => {
+    const invite = makeLeftPassagePartyInviteCallbackData("preview-token-13");
+    const start = makeLeftPassageGroupCombatStartCallbackData("party-token-23");
+    expect(Buffer.byteLength(invite)).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(start)).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(invite)).toEqual({
+      ok: true,
+      value: { type: "invite-left", token: "preview-token-13" }
+    });
+    expect(parseGroupCombatCallbackData(start)).toEqual({
+      ok: true,
+      value: { type: "start-left", token: "party-token-23" }
     });
   });
 

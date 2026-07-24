@@ -58,24 +58,52 @@ describe("GroupCombatService", () => {
       nextTurnExpiresAt: new Date(now.getTime() + 23_000)
     }));
   });
+
+  it("keeps servicing active combats while the default-off left-passage entry gate blocks new invitations and starts", async () => {
+    const { repository, createLeftPassage, startLeftPassage } = repositoryFixture();
+    const service = new GroupCombatService(repository, {
+      enabled: true,
+      devHelpersEnabled: false,
+      leftPassagePartyAttackEnabled: false
+    });
+    expect(service.isEnabled()).toBe(true);
+    expect(service.isLeftPassageEntryEnabled()).toBe(false);
+    await expect(service.createLeftPassageParty({
+      telegramUserId: 42n,
+      encounterToken: "preview-token-13"
+    })).resolves.toEqual({ state: "disabled" });
+    await expect(service.startLeftPassage(42n, "party-token-23")).resolves.toEqual({ state: "disabled" });
+    expect(createLeftPassage).not.toHaveBeenCalled();
+    expect(startLeftPassage).not.toHaveBeenCalled();
+  });
 });
 
 function repositoryFixture() {
   const startProof = vi.fn<GroupCombatRepository["startProofForTelegramUser"]>();
   const startDueProof = vi.fn<GroupCombatRepository["startDueProof"]>();
   const submitAction = vi.fn<GroupCombatRepository["submitActionForTelegramUser"]>();
+  const createLeftPassage = vi.fn<GroupCombatRepository["createLeftPassagePartyForTelegramUser"]>();
+  const startLeftPassage = vi.fn<GroupCombatRepository["startLeftPassageForTelegramUser"]>();
   const repository: GroupCombatRepository = {
+    createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
     startDueProof,
+    startLeftPassageForTelegramUser: startLeftPassage,
+    startDueLeftPassage: vi.fn(),
     submitActionForTelegramUser: submitAction,
     resolveTimedOutSession: vi.fn(),
     findByPartyInviteToken: vi.fn(),
     findById: vi.fn(),
     findActiveByTelegramUserId: vi.fn(),
     listDueSessionIds: vi.fn(),
+    listPendingDeliverySessionIds: vi.fn(),
+    listPendingSettlementParticipants: vi.fn(),
     repairInvalidOrOrphaned: vi.fn(),
+    settleParticipant: vi.fn(),
     compareAndSetParticipantCard: vi.fn(),
-    releaseParticipantCard: vi.fn()
+    releaseParticipantCard: vi.fn(),
+    markParticipantCardDelivered: vi.fn(),
+    finalizeDeliveryAttempt: vi.fn()
   };
-  return { repository, startProof, startDueProof, submitAction };
+  return { repository, startProof, startDueProof, submitAction, createLeftPassage, startLeftPassage };
 }

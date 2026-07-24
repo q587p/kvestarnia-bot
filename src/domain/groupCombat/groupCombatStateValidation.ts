@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
@@ -20,6 +22,14 @@ const zeroRewardsSchema = z.object({
   xp: z.literal(0),
   gold: z.literal(0),
   items: z.tuple([])
+}).strict();
+const rewardsSchema = z.object({
+  xp: nonNegativeInteger,
+  gold: nonNegativeInteger,
+  items: z.array(z.object({
+    itemId: z.string().min(1),
+    quantity: positiveInteger
+  }).strict()).max(1)
 }).strict();
 const statsSchema = z.object({
   strength: nonNegativeInteger,
@@ -101,8 +111,10 @@ const actorSchema = z.object({
 
 const enemySchema = z.object({
   id: z.string().min(1),
+  monsterId: z.string().min(1).optional(),
   name: z.string().min(1).max(93),
   order: nonNegativeInteger,
+  level: positiveInteger.max(23).optional(),
   hp: nonNegativeInteger,
   hpMax: positiveInteger,
   attack: positiveInteger,
@@ -137,11 +149,70 @@ const recapSchema = z.object({
   lines: z.array(z.string().min(1).max(587)).max(13)
 }).strict();
 
+const threatDecisionSchema = z.object({
+  enemyCount: z.union([z.literal(1), z.literal(2)]),
+  reason: z.enum(["base", "ordinary-win-streak"]),
+  eligibleWins: nonNegativeInteger,
+  secondEnemyLevelBonus: nonNegativeInteger
+}).strict();
+
+const productionSchema = z.object({
+  version: z.literal(1),
+  origin: z.literal("nyz-left-passage-party.v1"),
+  locationId: z.string().min(1),
+  encounterId: z.string().min(1),
+  encounterToken: z.string().min(1),
+  encounterSeed: z.string().min(1),
+  initiatingCharacterId: z.string().min(1),
+  initiatingRemortCount: nonNegativeInteger,
+  primaryMonsterId: z.string().min(1),
+  primaryBaseMonsterLevel: positiveInteger.max(23),
+  primaryEffectiveMonsterLevel: positiveInteger.max(23),
+  threat: z.object({
+    participants: z.array(z.object({
+      characterId: z.string().min(1),
+      rosterOrder: nonNegativeInteger,
+      remortCount: nonNegativeInteger,
+      decision: threatDecisionSchema
+    }).strict()).min(2).max(3),
+    sourceCharacterId: z.string().min(1),
+    sourceRosterOrder: nonNegativeInteger,
+    escalated: z.boolean(),
+    requestedSecondEnemyLevelBonus: nonNegativeInteger,
+    appliedSecondEnemyLevelBonus: nonNegativeInteger,
+    boostedEnemyId: z.string().min(1).nullable(),
+    levelCap: z.literal(23)
+  }).strict(),
+  remort: z.object({
+    participants: z.array(z.object({
+      characterId: z.string().min(1),
+      rosterOrder: nonNegativeInteger,
+      remortCount: nonNegativeInteger
+    }).strict()).min(2).max(3),
+    sourceCharacterId: z.string().min(1),
+    sourceRosterOrder: nonNegativeInteger,
+    sourceRemortCount: nonNegativeInteger,
+    backupAdjustments: z.array(z.object({
+      enemyId: z.string().min(1),
+      remortCount: nonNegativeInteger,
+      hpMaxAdded: nonNegativeInteger,
+      attackAdded: nonNegativeInteger
+    }).strict()).min(1).max(2)
+  }).strict(),
+  rewards: z.object({
+    winXpTotal: nonNegativeInteger,
+    winGoldTotal: nonNegativeInteger,
+    lossXpTotal: nonNegativeInteger,
+    commonItemId: z.string().min(1).nullable(),
+    commonItemQuantity: z.union([z.literal(0), z.literal(1)])
+  }).strict()
+}).strict();
+
 const stateSchema = z.object({
-  rulesVersion: z.literal(GROUP_COMBAT_RULES_VERSION),
+  rulesVersion: z.enum([GROUP_COMBAT_RULES_VERSION, GROUP_COMBAT_PRODUCTION_RULES_VERSION]),
   sessionId: z.string().min(1),
   partySessionId: z.string().min(1),
-  encounterKey: z.literal(GROUP_COMBAT_PROOF_ENCOUNTER_KEY),
+  encounterKey: z.enum([GROUP_COMBAT_PROOF_ENCOUNTER_KEY, GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY]),
   deterministicSeed: nonNegativeInteger,
   status: z.enum(["active", "won", "lost", "invalid"]),
   turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
@@ -149,8 +220,21 @@ const stateSchema = z.object({
   enemies: z.array(enemySchema).min(2).max(3),
   contributions: z.array(contributionSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
   statuses: z.array(statusSchema).max(93),
-  recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT)
+  recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT),
+  production: productionSchema.optional()
 }).strict().superRefine((state, context) => {
+  if (
+    state.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
+    (state.encounterKey !== GROUP_COMBAT_PROOF_ENCOUNTER_KEY || state.production !== undefined)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof state has production metadata." });
+  }
+  if (
+    state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+    (state.encounterKey !== GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY || state.production === undefined)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production state is missing left-passage metadata." });
+  }
   if (
     state.status !== "invalid"
     && (state.participants.length < 2 || state.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT)
@@ -187,13 +271,42 @@ const stateSchema = z.object({
   if (state.status === "lost" && state.participants.some((row) => row.hp > 0) && state.turn < GROUP_COMBAT_TURN_LIMIT) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Lost state has living participants before the turn cap." });
   }
+  if (state.production) {
+    const rosterIds = state.participants.map((row) => row.characterId);
+    const threatIds = state.production.threat.participants.map((row) => row.characterId);
+    const remortIds = state.production.remort.participants.map((row) => row.characterId);
+    if (
+      rosterIds.join("\0") !== threatIds.join("\0") ||
+      rosterIds.join("\0") !== remortIds.join("\0")
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Frozen difficulty roster does not match participants." });
+    }
+    if (
+      state.enemies[0]?.monsterId !== state.production.primaryMonsterId ||
+      state.enemies[0]?.level !== state.production.primaryEffectiveMonsterLevel
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary enemy identity changed." });
+    }
+  }
 });
 
 const resultSchema = z.object({
-  kind: z.literal("rewardless-proof"),
+  kind: z.enum(["rewardless-proof", "left-passage-party"]),
   outcome: z.enum(["won", "lost", "invalid"]),
   completedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
-  rewards: zeroRewardsSchema
+  rewards: rewardsSchema
+}).strict().superRefine((result, context) => {
+  if (result.kind === "rewardless-proof" && !zeroRewardsSchema.safeParse(result.rewards).success) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof result contains rewards." });
+  }
+});
+
+const settlementEffectsSchema = z.object({
+  resourcesKey: z.string().min(1),
+  xpKey: z.string().min(1),
+  goldKey: z.string().min(1),
+  itemKey: z.string().min(1).nullable(),
+  activityKey: z.string().min(1).nullable()
 }).strict();
 
 const settlementParticipantSchema = z.object({
@@ -202,12 +315,13 @@ const settlementParticipantSchema = z.object({
   rosterOrder: nonNegativeInteger,
   resources: z.object({ hp: nonNegativeInteger, mana: nonNegativeInteger }).strict(),
   contribution: contributionSchema,
-  rewards: zeroRewardsSchema
+  rewards: rewardsSchema,
+  effects: settlementEffectsSchema.optional()
 }).strict();
 
 const settlementPlanSchema = z.object({
   version: z.literal(1),
-  policy: z.literal("rewardless-proof"),
+  policy: z.enum(["rewardless-proof", "left-passage-party"]),
   sessionId: z.string().min(1),
   outcome: z.enum(["won", "lost", "invalid"]),
   completedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
@@ -221,16 +335,43 @@ const settlementPlanSchema = z.object({
   if (plan.participants.some((row) => row.contribution.characterId !== row.characterId)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Settlement contribution identity mismatch." });
   }
+  if (
+    plan.policy === "rewardless-proof" &&
+    plan.participants.some((row) => row.effects !== undefined || !zeroRewardsSchema.safeParse(row.rewards).success)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof settlement contains production effects." });
+  }
+  if (
+    plan.policy === "left-passage-party" &&
+    plan.participants.some((row) => row.effects === undefined)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production settlement is missing effect identities." });
+  }
 });
 
 const settlementReceiptSchema = z.object({
   version: z.literal(1),
-  policy: z.literal("rewardless-proof"),
+  policy: z.enum(["rewardless-proof", "left-passage-party"]),
   sessionId: z.string().min(1),
   characterId: z.string().min(1),
   remortCount: nonNegativeInteger,
-  rewards: zeroRewardsSchema
-}).strict();
+  resources: z.object({ hp: nonNegativeInteger, mana: nonNegativeInteger }).strict().optional(),
+  rewards: rewardsSchema,
+  effects: settlementEffectsSchema.optional()
+}).strict().superRefine((receipt, context) => {
+  if (
+    receipt.policy === "rewardless-proof" &&
+    (receipt.resources !== undefined || receipt.effects !== undefined || !zeroRewardsSchema.safeParse(receipt.rewards).success)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof receipt contains production effects." });
+  }
+  if (
+    receipt.policy === "left-passage-party" &&
+    (receipt.resources === undefined || receipt.effects === undefined)
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production receipt is missing effects." });
+  }
+});
 
 export class GroupCombatStateValidationError extends Error {}
 
@@ -263,11 +404,11 @@ export function parseGroupCombatResultStrict(value: unknown): GroupCombatResult 
 }
 
 export function parseGroupCombatSettlementPlanStrict(value: unknown): GroupCombatSettlementPlan {
-  return parseStrict(settlementPlanSchema, value);
+  return parseStrict(settlementPlanSchema, value) as unknown as GroupCombatSettlementPlan;
 }
 
 export function parseGroupCombatSettlementReceiptStrict(value: unknown): GroupCombatSettlementReceipt {
-  return parseStrict(settlementReceiptSchema, value);
+  return parseStrict(settlementReceiptSchema, value) as unknown as GroupCombatSettlementReceipt;
 }
 
 function parseStrict<T>(schema: z.ZodType<T>, value: unknown): T {

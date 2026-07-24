@@ -11,8 +11,15 @@ import {
   deliverGroupCombatParticipantCard
 } from "../groupCombatCardDelivery";
 import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
+import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
+import { formatRemainingWait, presentPartySession } from "../presenters/partySessionPresenter";
+import { buildPartyInviteUrl } from "../../services/partySessionService";
+import type {
+  GroupCombatStartResult,
+  LeftPassagePartyCreateResult
+} from "../../db/repositories/groupCombatRepository";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -43,7 +50,7 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
     }
-    await ctx.reply(presentGroupCombatStartFailure(result.state));
+    await ctx.reply(presentGroupCombatStartFailure(result));
   });
 }
 
@@ -64,18 +71,70 @@ export async function handleGroupCombatCallback(
     });
     return;
   }
+  if (callback.type === "invite-left") {
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.createLeftPassageParty({
+        telegramUserId,
+        encounterToken: callback.token,
+        chatId: BigInt(ctx.chat!.id),
+        messageId: ctx.callbackQuery?.message?.message_id ?? null
+      })
+    );
+    if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentLeftPassageInviteFailure(result),
+        show_alert: true
+      });
+      return;
+    }
+    const viewer = result.session.participants.find(
+      (participant) => participant.character.telegramUserId === telegramUserId
+    );
+    const inviteUrl = buildPartyInviteUrl(ctx.me.username, result.session.inviteToken);
+    await safeAnswerCallbackQuery(ctx, {
+      text: result.state === "created" ? "Заклик розіслано. Слід за вами ніхто не пересував." : "Показую вже відкритий збір."
+    });
+    await safeEditMessageText(ctx, presentPartySession(result.session, {
+      inviteUrl,
+      viewerCharacterId: viewer?.characterId,
+      notice: "Монстра в лівому проході притримано для цієї ватаги. Збір триває рівно три хвилини."
+    }), {
+      parse_mode: "HTML",
+      reply_markup: buildPartySessionKeyboard(result.session, {
+        viewerCharacterId: viewer?.characterId,
+        inviteUrl,
+        isPrivateDestination: true
+      })
+    });
+    return;
+  }
   if (callback.type === "start") {
     const result = await serializePartySessionDelivery(callback.token, () =>
       service.startProof(telegramUserId, callback.token)
     );
     if (!("session" in result)) {
       await safeAnswerCallbackQuery(ctx, {
-        text: presentGroupCombatStartFailure(result.state),
+        text: presentGroupCombatStartFailure(result),
         show_alert: true
       });
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Доказову сутичку запущено." });
+    await deliverGroupCombatCards(ctx.api, service, result.session);
+    return;
+  }
+  if (callback.type === "start-left") {
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.startLeftPassage(telegramUserId, callback.token)
+    );
+    if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentGroupCombatStartFailure(result),
+        show_alert: true
+      });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
     await deliverGroupCombatCards(ctx.api, service, result.session);
     return;
   }
@@ -164,6 +223,30 @@ export async function handleGroupCombatCallback(
     await safeAnswerCallbackQuery(ctx);
   }
   await deliverGroupCombatCards(ctx.api, service, session);
+}
+
+export function presentLeftPassageInviteFailure(
+  result: Exclude<LeftPassagePartyCreateResult, { session: unknown }>
+): string {
+  switch (result.state) {
+    case "disabled":
+      return "Гуртовий заклик у лівому проході зараз зачинено.";
+    case "wrong-location":
+      return "Заклик працює лише біля цього самого сліду в лівому проході.";
+    case "expired-invitation":
+      return "Слід уже вистиг. Потрібен новий огляд проходу.";
+    case "active-search":
+      return [
+        "У лівому проході ще триває ваш пошук.",
+        `Заклик можна відкрити за ${formatRemainingWait(result.availableAt, result.now)}.`
+      ].join("\n");
+    case "dead":
+      return "Без тями в атаку не кличуть. Навіть дуже переконливо.";
+    case "invalid-resources":
+      return "Запаси сил не сходяться з корчмарським журналом. Спершу оновіть стан пригодника.";
+    default:
+      return "Цей слід уже не можна чесно зарезервувати для ватаги.";
+  }
 }
 
 function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submitAction"]>>["state"]): {
@@ -260,20 +343,30 @@ function readCommandToken(text: string | undefined): string | null {
   return TOKEN_PATTERN.test(token) ? token : null;
 }
 
-export function presentGroupCombatStartFailure(state: string): string {
-  switch (state) {
+export function presentGroupCombatStartFailure(
+  result: Exclude<GroupCombatStartResult, { session: unknown }>
+): string {
+  switch (result.state) {
     case "invalid-size":
-      return "Для доказової сутички треба рівно 2–3 пригодники у ватазі.";
+      return "Для гуртової сутички треба рівно 2–3 пригодники у ватазі.";
     case "not-leader":
-      return "Запустити доказову сутичку може лише ватажок.";
+      return "Запустити гуртову сутичку може лише ватажок.";
     case "invalid-life":
       return "Склад ватаги належить іншому життю. Зберіть її заново.";
     case "blocked":
       return "Хтось із ватаги вже тримає інший бій за рукав.";
+    case "active-search":
+      return [
+        "Хтось із ватаги ще шукає слід у проході.",
+        `Рушити можна за ${formatRemainingWait(result.availableAt, result.now)}.`
+      ].join("\n");
     case "not-recruiting":
       return "Ватага вже не збирається.";
     case "disabled":
-      return "Доказовий гуртовий бій тут вимкнений.";
+      return "Гуртова атака тут зараз не відчинена.";
+    case "reservation-missing":
+    case "expired-invitation":
+      return "Зарезервована оказія вже не чекає на цю ватагу.";
     case "not-found":
       return [
         "Живої ватаги з таким кодом не знайдено.",
@@ -281,6 +374,6 @@ export function presentGroupCombatStartFailure(state: string): string {
         PARTY_CODE_HELP
       ].join("\n");
     default:
-      return "Не вдалося запустити доказову сутичку з цієї ватаги.";
+      return "Не вдалося запустити гуртову сутичку з цієї ватаги.";
   }
 }

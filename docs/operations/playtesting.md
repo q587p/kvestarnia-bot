@@ -328,6 +328,20 @@ Release-specific historical checklists and evidence live under
 15. Відкрий надвірну дошку памʼяті біля корчми.
 16. Очікування: блок `Реморти Тринадцятки` показує перші реморти без технічних id і точних timestamp-ів.
 
+## Гуртова атака в лівому проході
+
+Окремий повний пакет:
+[`0.4.2-left-passage-party-attack-qa.md`](../qa/0.4.2-left-passage-party-attack-qa.md).
+Ручний результат на фінальній голові ще pending.
+
+Для isolated local runtime постав
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і використай 2–3 тестові акаунти.
+Відкрий точну hard-оказію `deep-left`: сольна `⚔️ Атакувати` має лишитися, а
+поруч зʼявляється `🤝 Покликати в атаку`. Перевір deep-link і nearby join,
+ранній старт поточним ватажком, автоматичний старт рівно після трьох хвилин,
+transfer/join/leave на межі, restart у бою й settlement та вимкнення прапорця
+під час активної сутички. Жоден крок не має змінювати локацію учасника.
+
 ## Сервісні команди
 
 - `/version` — показує поточну версію бота.
@@ -375,6 +389,9 @@ Release-specific historical checklists and evidence live under
   [focused group-raid QA](../history/early-raid/big-barrel-brother-group-raid-qa.md);
 - raid chat перевіряється за
   [`0.3.15` raid-chat QA](../qa/0.3.15-raid-chat-qa.md).
+- left-passage party attack перевіряється за
+  [`0.4.2` focused QA](../qa/0.4.2-left-passage-party-attack-qa.md);
+  production entry default-off, ручний результат pending.
 
 Індекс поточних feature-specific пакетів:
 [`docs/qa/README.md`](../qa/README.md). Цей компактний smoke не дублює їхні

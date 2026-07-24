@@ -1,7 +1,7 @@
 # Post-Combat Contribution Cards
 
-Status: future task. This document does not authorize implementation inside
-`0.4.1`.
+Status: GroupCombat slice first shipped in repository release `0.4.2`; the
+cross-mode expansion remains future work.
 
 ## Goal
 
@@ -11,7 +11,7 @@ other completed fights wherever the mode stores enough truthful evidence.
 
 ## Scope
 
-- The first production party expedition renders a compact explained
+- The `0.4.2` left-passage party attack renders a compact explained
   contribution block for every participant.
 - Big Barrel result cards receive an equivalent private participant summary
   using the raid's canonical stored contribution fields.
@@ -36,7 +36,7 @@ other completed fights wherever the mode stores enough truthful evidence.
 
 ## Acceptance criteria
 
-1. The first production party expedition shows the six explained GroupCombat
+1. The left-passage party attack shows the six explained GroupCombat
    dimensions from its immutable terminal state/settlement plan.
 2. Big Barrel shows a truthful equivalent from canonical raid contribution
    state without changing raid reward eligibility or settlement.

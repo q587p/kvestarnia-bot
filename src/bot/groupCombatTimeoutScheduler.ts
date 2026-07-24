@@ -46,6 +46,40 @@ export function createGroupCombatTimeoutScheduler(
           console.error(`Kvestarnia: skipped failed scheduled GroupCombat start for ${party.inviteToken}.`, error);
         }
       }
+      const dueLeftPassageParties = await options.partySessions?.listDueRecruitingLeftPassageParty?.() ?? [];
+      for (const party of dueLeftPassageParties) {
+        try {
+          if (!service.isLeftPassageEntryEnabled()) {
+            await options.partySessions?.expireDueLeftPassageParty?.(
+              party.inviteToken,
+              party.version
+            );
+            continue;
+          }
+          const result = await serializePartySessionDelivery(party.inviteToken, () =>
+            service.startDueLeftPassage(party.inviteToken)
+          );
+          if ("session" in result) {
+            started.push(result.session);
+          } else if (
+            result.partyVersion !== undefined &&
+            (
+              result.state === "invalid-size" ||
+              result.state === "invalid-life" ||
+              result.state === "invalid-roster" ||
+              result.state === "reservation-missing" ||
+              result.state === "blocked"
+            )
+          ) {
+            await options.partySessions?.expireDueLeftPassageParty?.(
+              party.inviteToken,
+              result.partyVersion
+            );
+          }
+        } catch (error) {
+          console.error(`Kvestarnia: пропущено невдалий автоматичний старт лівого проходу ${party.inviteToken}.`, error);
+        }
+      }
       const repaired = await service.repair(13);
       const resolved = await service.resolveDue(13);
       const pending = await service.listPendingDelivery(13);

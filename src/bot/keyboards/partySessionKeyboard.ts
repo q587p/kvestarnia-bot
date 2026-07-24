@@ -37,7 +37,10 @@ import {
   makePartySessionShareCallbackData,
   makePartySessionViewCallbackData
 } from "../callbacks/partySessionCallbackData";
-import { makeGroupCombatStartCallbackData } from "../callbacks/groupCombatCallbackData";
+import {
+  makeGroupCombatStartCallbackData,
+  makeLeftPassageGroupCombatStartCallbackData
+} from "../callbacks/groupCombatCallbackData";
 import { appendGearActionButtons } from "./gearActionKeyboard";
 import { addPaginationControls } from "./pagination";
 
@@ -108,6 +111,14 @@ export function buildPartySessionKeyboard(
       options.viewerCharacterId === session.leaderCharacterId
     ) {
       keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();
+    }
+    if (
+      session.originKind === "nyz-left-passage-party.v1" &&
+      options.isPrivateDestination &&
+      options.viewerCharacterId === session.leaderCharacterId &&
+      joinedParticipantCount >= session.minimumParticipants
+    ) {
+      keyboard.text("⚔️ Рушити в атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
     }
 
     if (viewer && options.includeRaidChat) {

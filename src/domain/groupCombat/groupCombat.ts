@@ -18,7 +18,9 @@ import { mantokAbilityGrantDefinitions } from "../../content/mantokAbilityGrants
 import { SeededRandomSource } from "../../shared/random";
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
+export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
 export const GROUP_COMBAT_PROOF_ENCOUNTER_KEY = "proof-cellar-many";
+export const GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY = "nyz-left-passage-party.v1";
 export const GROUP_COMBAT_RECAP_LIMIT = 5;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
 export const GROUP_COMBAT_STATE_BYTE_LIMIT = 32_768;
@@ -33,6 +35,9 @@ export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
 ] as const;
 
 export type GroupCombatStatus = "active" | "won" | "lost" | "invalid";
+export type GroupCombatRulesVersion =
+  | typeof GROUP_COMBAT_RULES_VERSION
+  | typeof GROUP_COMBAT_PRODUCTION_RULES_VERSION;
 export type GroupCombatActionKey = "attack" | "guard" | "class" | "race" | "gear" | "item";
 export type GroupCombatTargetKind = "self" | "ally" | "enemy";
 export type GroupCombatStatusKind = "guard" | "response-mitigation" | "counter" | "bleed";
@@ -65,12 +70,75 @@ export interface GroupCombatActorSnapshot {
 
 export interface GroupCombatEnemyState {
   id: string;
+  monsterId?: string;
   name: string;
   order: number;
+  level?: number;
   hp: number;
   hpMax: number;
   attack: number;
   defense: number;
+}
+
+export interface GroupCombatThreatParticipantSnapshot {
+  characterId: string;
+  rosterOrder: number;
+  remortCount: number;
+  decision: {
+    enemyCount: 1 | 2;
+    reason: "base" | "ordinary-win-streak";
+    eligibleWins: number;
+    secondEnemyLevelBonus: number;
+  };
+}
+
+export interface GroupCombatRemortParticipantSnapshot {
+  characterId: string;
+  rosterOrder: number;
+  remortCount: number;
+}
+
+export interface GroupCombatLeftPassageDifficultySnapshot {
+  version: 1;
+  origin: "nyz-left-passage-party.v1";
+  locationId: string;
+  encounterId: string;
+  encounterToken: string;
+  encounterSeed: string;
+  initiatingCharacterId: string;
+  initiatingRemortCount: number;
+  primaryMonsterId: string;
+  primaryBaseMonsterLevel: number;
+  primaryEffectiveMonsterLevel: number;
+  threat: {
+    participants: GroupCombatThreatParticipantSnapshot[];
+    sourceCharacterId: string;
+    sourceRosterOrder: number;
+    escalated: boolean;
+    requestedSecondEnemyLevelBonus: number;
+    appliedSecondEnemyLevelBonus: number;
+    boostedEnemyId: string | null;
+    levelCap: 23;
+  };
+  remort: {
+    participants: GroupCombatRemortParticipantSnapshot[];
+    sourceCharacterId: string;
+    sourceRosterOrder: number;
+    sourceRemortCount: number;
+    backupAdjustments: Array<{
+      enemyId: string;
+      remortCount: number;
+      hpMaxAdded: number;
+      attackAdded: number;
+    }>;
+  };
+  rewards: {
+    winXpTotal: number;
+    winGoldTotal: number;
+    lossXpTotal: number;
+    commonItemId: string | null;
+    commonItemQuantity: 0 | 1;
+  };
 }
 
 export interface GroupCombatContribution {
@@ -100,10 +168,10 @@ export interface GroupCombatRecapEntry {
 }
 
 export interface GroupCombatState {
-  rulesVersion: typeof GROUP_COMBAT_RULES_VERSION;
+  rulesVersion: GroupCombatRulesVersion;
   sessionId: string;
   partySessionId: string;
-  encounterKey: typeof GROUP_COMBAT_PROOF_ENCOUNTER_KEY;
+  encounterKey: typeof GROUP_COMBAT_PROOF_ENCOUNTER_KEY | typeof GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
   deterministicSeed: number;
   status: GroupCombatStatus;
   turn: number;
@@ -112,6 +180,7 @@ export interface GroupCombatState {
   contributions: GroupCombatContribution[];
   statuses: GroupCombatTimedStatus[];
   recap: GroupCombatRecapEntry[];
+  production?: GroupCombatLeftPassageDifficultySnapshot;
 }
 
 export interface GroupCombatAction {
@@ -130,12 +199,19 @@ export interface GroupCombatSettlementPlanParticipant {
   rosterOrder: number;
   resources: { hp: number; mana: number };
   contribution: GroupCombatContribution;
-  rewards: { xp: 0; gold: 0; items: [] };
+  rewards: GroupCombatRewards;
+  effects?: {
+    resourcesKey: string;
+    xpKey: string;
+    goldKey: string;
+    itemKey: string | null;
+    activityKey: string | null;
+  };
 }
 
 export interface GroupCombatSettlementPlan {
   version: 1;
-  policy: "rewardless-proof";
+  policy: "rewardless-proof" | "left-passage-party";
   sessionId: string;
   outcome: "won" | "lost" | "invalid";
   completedTurn: number;
@@ -144,22 +220,26 @@ export interface GroupCombatSettlementPlan {
 
 export interface GroupCombatSettlementReceipt {
   version: 1;
-  policy: "rewardless-proof";
+  policy: "rewardless-proof" | "left-passage-party";
   sessionId: string;
   characterId: string;
   remortCount: number;
-  rewards: { xp: 0; gold: 0; items: [] };
+  resources?: { hp: number; mana: number };
+  rewards: GroupCombatRewards;
+  effects?: NonNullable<GroupCombatSettlementPlanParticipant["effects"]>;
 }
 
 export interface GroupCombatResult {
-  kind: "rewardless-proof";
+  kind: "rewardless-proof" | "left-passage-party";
   outcome: "won" | "lost" | "invalid";
   completedTurn: number;
-  rewards: {
-    xp: 0;
-    gold: 0;
-    items: [];
-  };
+  rewards: GroupCombatRewards;
+}
+
+export interface GroupCombatRewards {
+  xp: number;
+  gold: number;
+  items: Array<{ itemId: string; quantity: number }>;
 }
 
 export interface GroupCombatCommittedConsumable {
@@ -254,6 +334,40 @@ export function createGroupCombatProofState(input: {
     statuses: [],
     recap: []
   };
+}
+
+export function createLeftPassageGroupCombatState(input: {
+  sessionId: string;
+  partySessionId: string;
+  deterministicSeed: number;
+  participants: GroupCombatActorSnapshot[];
+  enemies: GroupCombatEnemyState[];
+  difficulty: GroupCombatLeftPassageDifficultySnapshot;
+}): GroupCombatState {
+  if (input.enemies.length !== input.participants.length) {
+    throw new Error("Left-passage group combat requires one enemy per frozen participant.");
+  }
+  const state = createGroupCombatProofState({
+    sessionId: input.sessionId,
+    partySessionId: input.partySessionId,
+    deterministicSeed: input.deterministicSeed,
+    participants: input.participants
+  });
+  state.rulesVersion = GROUP_COMBAT_PRODUCTION_RULES_VERSION;
+  state.encounterKey = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
+  state.enemies = [...input.enemies]
+    .sort((left, right) => left.order - right.order)
+    .map((enemy) => ({
+      ...enemy,
+      hpMax: positiveInteger(enemy.hpMax),
+      hp: clampInteger(enemy.hp, 0, enemy.hpMax),
+      attack: positiveInteger(enemy.attack),
+      defense: nonNegativeInteger(enemy.defense),
+      ...(enemy.level === undefined ? {} : { level: positiveInteger(enemy.level) })
+    }));
+  state.production = structuredClone(input.difficulty);
+  assertGroupCombatStateBudget(state);
+  return state;
 }
 
 export function getGroupCombatActionProfile(
@@ -546,21 +660,41 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
   if (state.status === "active") {
     return null;
   }
+  const production = state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
+    ? state.production
+    : undefined;
+  const orderedParticipants = [...state.participants].sort((left, right) => left.rosterOrder - right.rosterOrder);
+  const eligible = orderedParticipants.filter((participant) =>
+    getContribution(state, participant.characterId).committedActions > 0
+  );
+  const commonRecipient = production?.rewards.commonItemId && state.status === "won" && eligible.length > 0
+    ? eligible[state.deterministicSeed % eligible.length] ?? null
+    : null;
   return {
     version: 1,
-    policy: "rewardless-proof",
+    policy: production ? "left-passage-party" : "rewardless-proof",
     sessionId: state.sessionId,
     outcome: state.status,
     completedTurn: state.turn,
-    participants: [...state.participants]
-      .sort((left, right) => left.rosterOrder - right.rosterOrder)
+    participants: orderedParticipants
       .map((participant) => ({
         characterId: participant.characterId,
         remortCount: participant.remortCount,
         rosterOrder: participant.rosterOrder,
         resources: { hp: participant.hp, mana: participant.mana },
         contribution: { ...getContribution(state, participant.characterId) },
-        rewards: zeroRewards()
+        rewards: production
+          ? buildLeftPassageParticipantRewards(state, participant, eligible, commonRecipient)
+          : zeroRewards(),
+        ...(production
+          ? {
+              effects: buildSettlementEffectKeys(
+                state,
+                participant.characterId,
+                eligible[0]?.characterId === participant.characterId
+              )
+            }
+          : {})
       }))
   };
 }
@@ -573,11 +707,17 @@ export function buildGroupCombatSettlementReceipt(
   return participant
     ? {
         version: 1,
-        policy: "rewardless-proof",
+        policy: plan.policy,
         sessionId: plan.sessionId,
         characterId,
         remortCount: participant.remortCount,
-        rewards: zeroRewards()
+        rewards: cloneRewards(participant.rewards),
+        ...(plan.policy === "left-passage-party"
+          ? {
+              resources: { ...participant.resources },
+              effects: { ...participant.effects! }
+            }
+          : {})
       }
     : null;
 }
@@ -1074,10 +1214,14 @@ function buildTerminalResult(state: GroupCombatState): GroupCombatResult | null 
     return null;
   }
   return {
-    kind: "rewardless-proof",
+    kind: state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
+      ? "left-passage-party"
+      : "rewardless-proof",
     outcome: state.status,
     completedTurn: state.turn,
-    rewards: zeroRewards()
+    rewards: state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
+      ? sumSettlementRewards(buildGroupCombatSettlementPlan(state)?.participants ?? [])
+      : zeroRewards()
   };
 }
 
@@ -1094,8 +1238,81 @@ function emptyContribution(participant: GroupCombatActorSnapshot): GroupCombatCo
   };
 }
 
-function zeroRewards(): { xp: 0; gold: 0; items: [] } {
+function zeroRewards(): GroupCombatRewards {
   return { xp: 0, gold: 0, items: [] };
+}
+
+function buildLeftPassageParticipantRewards(
+  state: GroupCombatState,
+  participant: GroupCombatActorSnapshot,
+  eligible: GroupCombatActorSnapshot[],
+  commonRecipient: GroupCombatActorSnapshot | null
+): GroupCombatRewards {
+  const production = state.production;
+  if (!production || !eligible.some((candidate) => candidate.characterId === participant.characterId)) {
+    return zeroRewards();
+  }
+  const orderedEligible = [...eligible].sort((left, right) => left.rosterOrder - right.rosterOrder);
+  const index = orderedEligible.findIndex((candidate) => candidate.characterId === participant.characterId);
+  const xpTotal = state.status === "won"
+    ? production.rewards.winXpTotal
+    : state.status === "lost"
+      ? production.rewards.lossXpTotal
+      : 0;
+  const goldTotal = state.status === "won" ? production.rewards.winGoldTotal : 0;
+  return {
+    xp: splitNeutral(xpTotal, orderedEligible.length, index),
+    gold: splitNeutral(goldTotal, orderedEligible.length, index),
+    items: commonRecipient?.characterId === participant.characterId && production.rewards.commonItemId
+      ? [{
+          itemId: production.rewards.commonItemId,
+          quantity: production.rewards.commonItemQuantity
+        }]
+      : []
+  };
+}
+
+function splitNeutral(total: number, count: number, index: number): number {
+  if (count <= 0 || index < 0) {
+    return 0;
+  }
+  const safeTotal = nonNegativeInteger(total);
+  return Math.floor(safeTotal / count) + (index < safeTotal % count ? 1 : 0);
+}
+
+function buildSettlementEffectKeys(
+  state: GroupCombatState,
+  characterId: string,
+  recordsEncounterActivity: boolean
+): NonNullable<GroupCombatSettlementPlanParticipant["effects"]> {
+  const prefix = `group-combat:${state.sessionId}:participant:${characterId}`;
+  return {
+    resourcesKey: `${prefix}:resources`,
+    xpKey: `${prefix}:xp`,
+    goldKey: `${prefix}:gold`,
+    itemKey: `${prefix}:common-item`,
+    activityKey: recordsEncounterActivity && state.status === "won"
+      ? `group-combat:${state.sessionId}:activity`
+      : null
+  };
+}
+
+function cloneRewards(rewards: GroupCombatRewards): GroupCombatRewards {
+  return {
+    xp: rewards.xp,
+    gold: rewards.gold,
+    items: rewards.items.map((item) => ({ ...item }))
+  };
+}
+
+function sumSettlementRewards(
+  participants: readonly GroupCombatSettlementPlanParticipant[]
+): GroupCombatRewards {
+  return {
+    xp: participants.reduce((sum, row) => sum + row.rewards.xp, 0),
+    gold: participants.reduce((sum, row) => sum + row.rewards.gold, 0),
+    items: participants.flatMap((row) => row.rewards.items.map((item) => ({ ...item })))
+  };
 }
 
 function appendRecap(recap: GroupCombatRecapEntry[], entry: GroupCombatRecapEntry): GroupCombatRecapEntry[] {

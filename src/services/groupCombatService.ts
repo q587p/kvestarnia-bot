@@ -8,14 +8,24 @@ import type {
   GroupCombatSessionRecord,
   GroupCombatStartResult
 } from "../db/repositories/groupCombatRepository";
+import { randomBytes } from "node:crypto";
+import type { AchievementService } from "./achievementService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
+export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
+export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+export const LEFT_PASSAGE_LOCATION_ID = "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT";
 
 export class GroupCombatService {
   constructor(
     private readonly repository: GroupCombatRepository,
-    private readonly options: { enabled: boolean; devHelpersEnabled: boolean },
-    private readonly now: () => Date = () => new Date()
+    private readonly options: {
+      enabled: boolean;
+      devHelpersEnabled: boolean;
+      leftPassagePartyAttackEnabled?: boolean;
+    },
+    private readonly now: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -24,6 +34,55 @@ export class GroupCombatService {
 
   areDevHelpersEnabled(): boolean {
     return this.options.enabled && this.options.devHelpersEnabled;
+  }
+
+  isLeftPassageEntryEnabled(): boolean {
+    return this.options.enabled && this.options.leftPassagePartyAttackEnabled === true;
+  }
+
+  async createLeftPassageParty(input: {
+    telegramUserId: bigint;
+    encounterToken: string;
+    chatId?: bigint | null;
+    messageId?: number | null;
+  }) {
+    if (!this.isLeftPassageEntryEnabled()) {
+      return { state: "disabled" as const };
+    }
+    const now = this.now();
+    return this.repository.createLeftPassagePartyForTelegramUser({
+      ...input,
+      inviteToken: randomBytes(18).toString("base64url"),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      locationId: LEFT_PASSAGE_LOCATION_ID,
+      now,
+      joinUntilAt: new Date(now.getTime() + LEFT_PASSAGE_RECRUITING_MS)
+    });
+  }
+
+  async startLeftPassage(telegramUserId: bigint, partyInviteToken: string): Promise<GroupCombatStartResult> {
+    if (!this.isLeftPassageEntryEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.now();
+    return this.repository.startLeftPassageForTelegramUser({
+      telegramUserId,
+      partyInviteToken,
+      now,
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
+  }
+
+  async startDueLeftPassage(partyInviteToken: string): Promise<GroupCombatStartResult> {
+    if (!this.isLeftPassageEntryEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.now();
+    return this.repository.startDueLeftPassage({
+      partyInviteToken,
+      now,
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
   }
 
   currentTime(): Date {
@@ -68,11 +127,12 @@ export class GroupCombatService {
       return { state: "disabled" };
     }
     const now = this.now();
-    return this.repository.submitActionForTelegramUser({
+    const result = await this.repository.submitActionForTelegramUser({
       ...input,
       now,
       nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
     });
+    return this.settleTerminalResult(result);
   }
 
   findByToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null> {
@@ -101,8 +161,9 @@ export class GroupCombatService {
           now,
           nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
         });
-        if ("session" in result) {
-          resolved.push(result.session);
+        const settled = await this.settleTerminalResult(result);
+        if ("session" in settled) {
+          resolved.push(settled.session);
         }
       } catch {
         continue;
@@ -112,11 +173,46 @@ export class GroupCombatService {
   }
 
   async repair(limit = 13): Promise<number> {
-    return this.options.enabled ? this.repository.repairInvalidOrOrphaned(this.now(), limit) : 0;
+    if (!this.options.enabled) {
+      return 0;
+    }
+    const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
+    await this.settlePending(limit);
+    return repaired;
   }
 
-  settleParticipant(sessionId: string, telegramUserId: bigint) {
-    return this.repository.settleParticipant({ sessionId, telegramUserId, now: this.now() });
+  async settleParticipant(sessionId: string, telegramUserId: bigint) {
+    const now = this.now();
+    const result = await this.repository.settleParticipant({ sessionId, telegramUserId, now });
+    if (
+      (result.state === "settled" || result.state === "replayed") &&
+      result.receipt.policy === "left-passage-party"
+    ) {
+      await this.achievements?.trackEventSafely({
+        type: "left-passage.party-attack.completed",
+        characterId: result.receipt.characterId,
+        occurredAt: now,
+        sourceId: sessionId
+      });
+    }
+    return result;
+  }
+
+  async settlePending(limit = 13): Promise<number> {
+    if (!this.options.enabled) {
+      return 0;
+    }
+    const pending = await this.repository.listPendingSettlementParticipants(limit);
+    let settled = 0;
+    for (const participant of pending) {
+      try {
+        const result = await this.settleParticipant(participant.sessionId, participant.telegramUserId);
+        settled += result.state === "settled" || result.state === "replayed" ? 1 : 0;
+      } catch {
+        continue;
+      }
+    }
+    return settled;
   }
 
   async listPendingDelivery(limit = 13): Promise<GroupCombatSessionRecord[]> {
@@ -175,5 +271,20 @@ export class GroupCombatService {
       expectedDeliveryRevision,
       attemptedAt: this.now()
     });
+  }
+
+  private async settleTerminalResult(result: GroupCombatActionResult): Promise<GroupCombatActionResult> {
+    if (!("session" in result) || result.session.status === "active") {
+      return result;
+    }
+    for (const participant of result.session.participants) {
+      try {
+        await this.settleParticipant(result.session.id, participant.telegramUserId);
+      } catch {
+        continue;
+      }
+    }
+    const refreshed = await this.repository.findById(result.session.id);
+    return refreshed ? { ...result, session: refreshed } : result;
   }
 }

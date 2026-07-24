@@ -4,6 +4,7 @@ import {
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
   createGroupCombatProofState,
+  createLeftPassageGroupCombatState,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   resolveGroupCombatTurn,
@@ -31,6 +32,56 @@ describe("group combat proof reducer", () => {
       repairOwner: "group-combat",
       remortPolicy: "block"
     });
+  });
+
+  it("freezes production difficulty and rewards only meaningful participants from one neutral pool", () => {
+    const state = leftPassageState();
+    state.status = "won";
+    state.turn = 4;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.participants[0]!.hp = 17;
+    state.participants[0]!.mana = 3;
+    state.contributions[0]!.committedActions = 2;
+    const plan = buildGroupCombatSettlementPlan(state)!;
+
+    expect(plan.policy).toBe("left-passage-party");
+    expect(plan.participants[0]?.resources).toEqual({ hp: 17, mana: 3 });
+    expect(plan.participants[0]?.rewards).toEqual({
+      xp: 93,
+      gold: 42,
+      items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+    });
+    expect(plan.participants[1]?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
+    expect(plan.participants[0]?.effects?.activityKey).toBe("group-combat:group-session:activity");
+    expect(plan.participants[1]?.effects?.activityKey).toBeNull();
+    expect(buildGroupCombatSettlementReceipt(plan, "character-0")).toEqual(expect.objectContaining({
+      policy: "left-passage-party",
+      resources: { hp: 17, mana: 3 }
+    }));
+    expect(parseGroupCombatSettlementPlanStrict(plan)).toEqual(plan);
+    expect(parseGroupCombatStateStrict(state)).toEqual(state);
+  });
+
+  it("keeps the same encounter-wide reward budget for a strict 3x3 production state", () => {
+    const state = leftPassageState(3);
+    state.status = "won";
+    state.turn = 5;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.contributions.forEach((contribution) => {
+      contribution.committedActions = 1;
+    });
+
+    const plan = buildGroupCombatSettlementPlan(state)!;
+    expect(state.participants).toHaveLength(3);
+    expect(state.enemies).toHaveLength(3);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0)).toBe(93);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0)).toBe(42);
+    expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(1);
+    expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
 
   it("requires explicit live targets without mutating stale, wrong-side, or dead choices", () => {
@@ -564,6 +615,83 @@ function proofState(
     partySessionId: "party-session",
     deterministicSeed: 42,
     participants: Array.from({ length: count }, (_, index) => participant(index, overrides))
+  });
+}
+
+function leftPassageState(count: 2 | 3 = 2) {
+  const participants = Array.from({ length: count }, (_, index) => participant(index, {}));
+  return createLeftPassageGroupCombatState({
+    sessionId: "group-session",
+    partySessionId: "party-session",
+    deterministicSeed: 42,
+    participants,
+    enemies: participants.map((_, index) => ({
+      id: index === 0 ? "primary:encounter-13" : `backup:${index}:monster-deadline-spider`,
+      monsterId: "monster.deadline-spider",
+      name: index === 0 ? "Основний клопіт" : "Резервний клопіт",
+      order: index,
+      level: 4 + index,
+      hp: 23,
+      hpMax: 23,
+      attack: 5,
+      defense: 1
+    })),
+    difficulty: {
+      version: 1,
+      origin: "nyz-left-passage-party.v1",
+      locationId: "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT",
+      encounterId: "encounter-13",
+      encounterToken: "encounter-token-13",
+      encounterSeed: "encounter-seed-587",
+      initiatingCharacterId: "character-0",
+      initiatingRemortCount: 0,
+      primaryMonsterId: "monster.deadline-spider",
+      primaryBaseMonsterLevel: 3,
+      primaryEffectiveMonsterLevel: 4,
+      threat: {
+        participants: participants.map((entry) => ({
+          characterId: entry.characterId,
+          rosterOrder: entry.rosterOrder,
+          remortCount: entry.remortCount,
+          decision: {
+            enemyCount: 1,
+            reason: "base",
+            eligibleWins: 0,
+            secondEnemyLevelBonus: 0
+          }
+        })),
+        sourceCharacterId: "character-0",
+        sourceRosterOrder: 0,
+        escalated: false,
+        requestedSecondEnemyLevelBonus: 0,
+        appliedSecondEnemyLevelBonus: 0,
+        boostedEnemyId: null,
+        levelCap: 23
+      },
+      remort: {
+        participants: participants.map((entry) => ({
+          characterId: entry.characterId,
+          rosterOrder: entry.rosterOrder,
+          remortCount: entry.remortCount
+        })),
+        sourceCharacterId: "character-0",
+        sourceRosterOrder: 0,
+        sourceRemortCount: 0,
+        backupAdjustments: participants.slice(1).map((_, index) => ({
+          enemyId: `backup:${index + 1}:monster-deadline-spider`,
+          remortCount: 0,
+          hpMaxAdded: 0,
+          attackAdded: 0
+        }))
+      },
+      rewards: {
+        winXpTotal: 93,
+        winGoldTotal: 42,
+        lossXpTotal: 13,
+        commonItemId: "item.responsible-panic-bandage",
+        commonItemQuantity: 1
+      }
+    }
   });
 }
 

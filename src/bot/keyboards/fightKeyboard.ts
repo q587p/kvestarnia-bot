@@ -37,6 +37,8 @@ import {
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../callbacks/fightCallbackData";
+import { makeLeftPassagePartyInviteCallbackData } from "../callbacks/groupCombatCallbackData";
+import { makePartySessionViewCallbackData } from "../callbacks/partySessionCallbackData";
 import {
   makeDescentSearchStartCallbackData,
   makeDeepLevelOneSearchStartCallbackData,
@@ -352,12 +354,31 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
   encounterToken: string;
   searchAvailable?: boolean;
+  leftPassagePartyAttackEnabled?: boolean;
+  reservedPartyInviteToken?: string;
 }): InlineKeyboard {
-  const keyboard = new InlineKeyboard()
-    .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
-    .row();
+  const keyboard = new InlineKeyboard();
+  if (input.reservedPartyInviteToken) {
+    keyboard.text(
+      "🤝 Відкрити збір ватаги",
+      makePartySessionViewCallbackData(input.reservedPartyInviteToken)
+    ).row();
+  } else {
+    keyboard.text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input)).row();
+  }
 
-  if (input.searchAvailable !== false) {
+  if (
+    !input.reservedPartyInviteToken &&
+    input.passage === "deep-left" &&
+    input.leftPassagePartyAttackEnabled
+  ) {
+    keyboard.text(
+      "🤝 Покликати в атаку",
+      makeLeftPassagePartyInviteCallbackData(input.encounterToken)
+    ).row();
+  }
+
+  if (!input.reservedPartyInviteToken && input.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makePassageSearchStartCallbackData(input)).row();
   }
 

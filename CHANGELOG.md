@@ -7,6 +7,25 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.2] - 12026-07-24 - Left-Passage Party Attack
+
+### Added
+- Added the first production-capable `group-combat.v3` consumer for the exact hard `deep-left` pending encounter. The reserved preview remains the primary enemy while a typed `nyz-left-passage-party.v1` `PartySession` recruits an authoritative 2–3-person current-life roster for a deterministic 2×2 or 3×3 fight.
+- Added explicit encounter reservation fields and an additive `20260724233000_left_passage_party_attack` migration. Reservation binds the pending preview, initiating life, normalized left-passage location and party without overloading `periodId`; duplicate create/start, solo/start races, cancellation and undersized expiry converge without rerolling the primary.
+- Added canonical party difficulty snapshots. Each participant receives a bounded solo Низ pressure decision; the strongest source and strongest remort source use roster-order tie-breaking. Only backups receive canonical multi-enemy remort adjustments, and only the first backup receives the repeated-pressure level bonus capped at 23.
+- Added real per-participant settlement for final same-life HP/mana, committed consumables, neutral XP/gold, at most one encounter-wide common bandage, privacy-safe activity and the rewardless first-completion achievement. Timeout auto-guards do not qualify for rewards; each participant lease remains until that participant's canonical receipt commits.
+- Added private production cards with six persisted contribution dimensions, terminal journal replay, exact three-minute automatic start and current-leader early start. The solo `⚔️ Атакувати` action remains available before reservation; the party entry appears only on the exact left-passage preview.
+
+### Fixed
+- Separated runtime servicing from fresh entry. `LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false` blocks new invitations and starts by default while active combat timeout, repair, delivery and settlement continue; expired recruiting parties release their reservation even after the flag is turned off.
+- Preserved rewardless v1/v2 proof parsing, repair and delivery while production v3 uses strict state, result, plan and receipt validation.
+- Kept the reservation party-owned across leadership transfer. A departed initiator cannot reclaim it for solo combat and receives no participation or reward unless present in the frozen start roster.
+
+### Verification and rollout boundary
+- Focused domain, repository, service, callback, scheduler and integration coverage exercises reservation, 2×2 production start, terminal settlement replay and rollout isolation. Full gate and simulator evidence is recorded in the owning draft PR.
+- The production entry remains default-off. Manual three-account Telegram QA, production enablement, merge and deployment remain pending.
+- Guild foundation moved to `0.4.3`; this release adds no guild, Big Barrel migration, public matchmaking, group chat, >3×3 combat, rare item or new economy.
+
 ## [0.4.1] - 12026-07-24 - Group Combat Hardening
 
 ### Added

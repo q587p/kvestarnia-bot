@@ -528,6 +528,7 @@ export type PersistentFightPreviewResult =
       difficulty: PersistentFightDifficultyId;
       originLocationId: string;
       encounterToken: string;
+      reservedPartyInviteToken?: string;
       expiresAt: Date;
       monsterHp?: {
         current: number;
@@ -845,6 +846,9 @@ export class FightService {
       difficulty: difficulty.id,
       originLocationId,
       encounterToken: encounter.token,
+      ...(encounter.status === "reserved" && encounter.reservedPartyInviteToken
+        ? { reservedPartyInviteToken: encounter.reservedPartyInviteToken }
+        : {}),
       expiresAt: encounter.expiresAt,
       ...(recoveredEncounter?.monsterHp ? { monsterHp: recoveredEncounter.monsterHp } : {}),
       ...(options.refreshed ? { refreshed: options.refreshed } : {})
@@ -4224,6 +4228,12 @@ export class FightService {
         status: "pending",
         version: 1,
         combatSessionId: null,
+        reservationOrigin: null,
+        reservationRemortCount: null,
+        reservedPartySessionId: null,
+        reservedPartyInviteToken: null,
+        groupCombatSessionId: null,
+        reservedAt: null,
         expiresAt: new Date(now.getTime() + PENDING_PASSAGE_ENCOUNTER_TTL_MS),
         consumedAt: null,
         cancelledAt: null,
@@ -4558,7 +4568,7 @@ export class FightService {
     );
   }
 }
-function toThreatEscalationHistoryEntry(
+export function toThreatEscalationHistoryEntry(
   session: SoloCombatSessionCompletionRecord
 ): Parameters<typeof decideThreatEscalation>[0][number] {
   const state = session.state;
@@ -5286,7 +5296,7 @@ export function selectPersistentFightMonsterLevel(input: {
   return Math.max(1, Math.floor(input.characterLevel + difficulty.levelDelta));
 }
 
-function applyPersistentFightDifficulty(
+export function applyPersistentFightDifficulty(
   baseMonster: MonsterContent,
   character: CharacterSummary,
   difficulty: PersistentFightDifficultyConfig
@@ -5317,7 +5327,7 @@ function applyPersistentFightEncounterScaling(
   return level === difficultyScaled.level ? difficultyScaled : { ...difficultyScaled, level };
 }
 
-function applyThreatSecondEnemyLevelBonus(input: {
+export function applyThreatSecondEnemyLevelBonus(input: {
   baseMonster: MonsterContent;
   monster: MonsterContent;
   requestedLevelBonus: number;
@@ -5601,7 +5611,7 @@ function getPersistentFightSessionEncounterBaseMonsterLevel(
   return Math.max(1, Math.floor(storedLevel ?? fallbackLevel));
 }
 
-function selectSoloFightMonster(
+export function selectSoloFightMonster(
   character: CharacterSummary,
   rng: RandomSource,
   difficulty: PersistentFightDifficultyConfig = PERSISTENT_FIGHT_DIFFICULTY_CONFIG.normal,

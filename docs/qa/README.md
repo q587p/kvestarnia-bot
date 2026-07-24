@@ -18,6 +18,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 - [`0.3.15-raid-chat-qa.md`](0.3.15-raid-chat-qa.md) — focused raid-chat concurrency, restart, replay, delivery and terminal-retention QA package.
 - [`0.4.0-party-vs-many-proof-qa.md`](0.4.0-party-vs-many-proof-qa.md) — compact manual checklist for the default-off rewardless 2–3×2–3 group-combat proof; evidence remains pending until run with local accounts.
 - [`0.4.1-group-combat-hardening-qa.md`](0.4.1-group-combat-hardening-qa.md) — target/ability, AI/status/death, item/gear, settlement/lifecycle and delivery matrix for the hardened proof; manual evidence remains pending on the final exact head.
+- [`0.4.2-left-passage-party-attack-qa.md`](0.4.2-left-passage-party-attack-qa.md) — reservation, recruitment, authoritative roster, production settlement, flag and replay matrix for the default-off left-passage party attack; manual Telegram evidence remains pending.
 
 ## Historical smoke records
 

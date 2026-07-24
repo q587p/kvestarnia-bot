@@ -184,8 +184,10 @@ Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
 - `0.4.1`: implemented ability parity, AI/items/status hardening, immutable
   settlement skeleton and load/simulator coverage; production exposure and
   manual Telegram QA remain separate gates.
-- `0.4.2`: independent guild membership shell.
-- `0.4.3`: first reward-bearing party expedition.
+- `0.4.2`: first reward-bearing production-capable consumer: the exact
+  left-passage pending encounter, reserved by a 2–3-person `PartySession`;
+  production entry remains default-off.
+- `0.4.3`: independent guild membership shell.
 - `0.4.4`: guild weekly objective using the same party/group-combat runtime.
 - `0.4.5`–`0.4.11`: bounded Korchma/social-economy catch-up tasks may reuse the
   proven status/item boundaries without becoming group-combat runtime owners.

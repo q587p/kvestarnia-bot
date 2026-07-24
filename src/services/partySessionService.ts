@@ -21,6 +21,7 @@ export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
 export const PARTY_SESSION_TTL_MS = 13 * 60 * 1000;
 export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 export const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
+export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 export const GROUP_COMBAT_PARTY_PARTICIPANT_CAP = 3;
 export const GROUP_COMBAT_PARTY_MINIMUM_PARTICIPANTS = 2;
 export const GROUP_COMBAT_PARTY_TTL_MS = 3 * 60 * 1000;
@@ -41,8 +42,10 @@ export type PartyPersonalProtocolSignResult = PartyPersonalProtocolSignRepositor
 
 export interface PartySessionServiceOptions {
   enabled: boolean;
+  runtimeServicingEnabled?: boolean;
   devHelpersEnabled?: boolean;
   bigBarrelBrotherEnabled?: boolean;
+  leftPassagePartyAttackEnabled?: boolean;
 }
 
 export class PartySessionService {
@@ -57,12 +60,20 @@ export class PartySessionService {
     return this.options.enabled;
   }
 
+  private canServiceRuntime(): boolean {
+    return this.options.runtimeServicingEnabled === true || this.isEnabled();
+  }
+
   areDevHelpersEnabled(): boolean {
     return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
   isBigBarrelBrotherEnabled(): boolean {
     return this.isEnabled() && this.options.bigBarrelBrotherEnabled === true;
+  }
+
+  isLeftPassagePartyAttackEnabled(): boolean {
+    return this.isEnabled() && this.options.leftPassagePartyAttackEnabled === true;
   }
 
   async createForTelegramUser(
@@ -90,6 +101,7 @@ export class PartySessionService {
       now,
       periodId: input.periodId ?? null,
       originLocationId: input.originLocationId ?? null,
+      originKind: null,
       chatId: input.chatId ?? null,
       messageId: input.messageId ?? null
     });
@@ -118,6 +130,7 @@ export class PartySessionService {
       now,
       periodId: null,
       originLocationId: GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+      originKind: null,
       chatId: input.chatId ?? null,
       messageId: input.messageId ?? null
     });
@@ -307,6 +320,29 @@ export class PartySessionService {
     }
 
     return this.sessions.listDueRecruitingByOrigin(GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
+  async listDueRecruitingLeftPassageParty(): Promise<PartySessionRecord[]> {
+    if (!this.canServiceRuntime()) {
+      return [];
+    }
+
+    return this.sessions.listDueRecruitingByOriginKind(LEFT_PASSAGE_PARTY_ORIGIN_KIND, this.clock());
+  }
+
+  async expireDueLeftPassageParty(
+    inviteToken: string,
+    expectedVersion: number
+  ): Promise<PartyViewResult> {
+    if (!this.canServiceRuntime()) {
+      return { state: "not-found" };
+    }
+    const current = await this.sessions.findByToken(inviteToken, this.clock());
+    if (current?.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+      return { state: "not-found" };
+    }
+    const session = await this.sessions.forceExpireByToken(inviteToken, this.clock(), expectedVersion);
+    return session ? { state: "ready", session } : { state: "not-found" };
   }
 
   async expireByToken(inviteToken: string): Promise<PartyViewResult> {

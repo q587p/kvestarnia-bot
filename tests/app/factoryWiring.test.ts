@@ -236,9 +236,12 @@ describe("application factory wiring", () => {
       partySessions: new PartySessionService(repositories.partySessions, {
         enabled: nonProduction ||
           config.partySessionFoundationEnabled ||
-          config.bigBarrelBrotherRaidEnabled,
+          config.bigBarrelBrotherRaidEnabled ||
+          config.leftPassagePartyAttackEnabled,
+        runtimeServicingEnabled: true,
         devHelpersEnabled: nonProduction,
-        bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
+        bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+        leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
       }, undefined, achievements)
     `));
     expect(source).toContain(compact(`
@@ -270,14 +273,15 @@ describe("application factory wiring", () => {
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
   });
 
-  it("keeps group combat disabled in production even when its proof flag is set", async () => {
+  it("services group combat in production while keeping proof and left-passage entry disabled", async () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig({
       nodeEnv: "production",
       groupCombatProofEnabled: true
     }));
 
-    expect(services.groupCombat.isEnabled()).toBe(false);
+    expect(services.groupCombat.isEnabled()).toBe(true);
     expect(services.groupCombat.areDevHelpersEnabled()).toBe(false);
+    expect(services.groupCombat.isLeftPassageEntryEnabled()).toBe(false);
     await expect(services.groupCombat.startProof(42n, "proof-token-13")).resolves.toEqual({ state: "disabled" });
   });
 

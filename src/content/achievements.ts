@@ -59,6 +59,7 @@ export const achievementTriggerTypes = [
   "bureaucramancer.protocol.signed",
   "bureaucramancer.protocol.triggered",
   "warrior.raid-taunt.activated",
+  "left-passage.party-attack.completed",
   "korchma.round.purchased",
   "tavern.game.played",
   "tavern.game.won",
@@ -1454,6 +1455,17 @@ export const achievements = [
     sortOrder: 126.78,
     status: "enabled",
     trigger: { type: "warrior.raid-taunt.activated", threshold: 1 }
+  },
+  {
+    id: "achievement.left-passage.party-attack.first",
+    category: "combat",
+    title: "Ліворуч — гуртом",
+    description: "уперше завершити атаку ватаги в лівому проході й не сперечатися, хто саме кликав.",
+    hidden: false,
+    lockedDescription: "уперше завершити атаку ватаги в лівому проході.",
+    sortOrder: 127,
+    status: "enabled",
+    trigger: { type: "left-passage.party-attack.completed", threshold: 1 }
   },
   {
     id: "achievement.korchma.round.first",

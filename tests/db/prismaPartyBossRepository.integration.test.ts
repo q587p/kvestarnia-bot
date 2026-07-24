@@ -4679,6 +4679,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       leader_character_id TEXT NOT NULL,
       period_id TEXT,
       origin_location_id TEXT,
+      origin_kind TEXT,
       participant_cap INTEGER NOT NULL DEFAULT 8,
       minimum_participants INTEGER NOT NULL DEFAULT 1,
       join_until_at DATETIME NOT NULL,

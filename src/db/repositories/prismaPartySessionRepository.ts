@@ -83,6 +83,7 @@ const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
+const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
 const KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST = 13;
 const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
@@ -96,7 +97,9 @@ const partyCharacterInclude = {
   user: {
     select: {
       telegramUserId: true,
-      lastSeenLocationId: true
+      lastSeenLocationId: true,
+      currentAdventureId: true,
+      currentRaidId: true
     }
   },
   equipment: {
@@ -203,6 +206,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           leaderCharacterId: character.id,
           periodId: input.periodId ?? null,
           originLocationId: input.originLocationId ?? character.user.lastSeenLocationId ?? null,
+          originKind: input.originKind ?? null,
           participantCap: input.participantCap,
           minimumParticipants: input.minimumParticipants,
           joinUntilAt: input.joinUntilAt,
@@ -292,7 +296,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (
         session.status !== LIVE_STATUS ||
-        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId))
+        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId, session.originKind))
       ) {
         const expired = await expireSessionTx(tx, session.id, input.now, this.raidChat);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
@@ -307,9 +311,12 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      const ineligible = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
+      const ineligible = await getLeftPassageJoinIneligibleReason(tx, session, character, input.now)
+        ?? await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
       if (ineligible) {
-        return ineligible.reason === "loss-cooldown" || ineligible.reason === "pending-solo-raid"
+        return ineligible.reason === "loss-cooldown" ||
+          ineligible.reason === "pending-solo-raid" ||
+          ineligible.reason === "active-search"
           ? {
               state: "ineligible",
               reason: ineligible.reason,
@@ -1397,6 +1404,28 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     return sessions.map(mapSession);
   }
 
+  async listDueRecruitingByOriginKind(
+    originKind: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originKind,
+        expiresAt: { lte: now }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
   async expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       await expireTokenIfNeededTx(tx, inviteToken, now, this.raidChat);
@@ -1626,6 +1655,7 @@ async function expireTokenIfNeededTx(
       id: true,
       status: true,
       originLocationId: true,
+      originKind: true,
       expiresAt: true
     }
   });
@@ -1633,7 +1663,7 @@ async function expireTokenIfNeededTx(
   if (
     session?.status === LIVE_STATUS &&
     session.expiresAt <= now &&
-    !isAutomaticStartOrigin(session.originLocationId)
+    !isAutomaticStartOrigin(session.originLocationId, session.originKind)
   ) {
     await terminalizeSessionTx(tx, session.id, "expired", now, raidChat);
   }
@@ -1664,6 +1694,10 @@ async function expireRecruitingTx(
           GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID
         ]
       },
+      OR: [
+        { originKind: null },
+        { NOT: { originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND } }
+      ],
       expiresAt: {
         lte: now
       }
@@ -1684,9 +1718,10 @@ async function expireRecruitingTx(
   return sessions.length;
 }
 
-function isAutomaticStartOrigin(originLocationId: string | null): boolean {
+function isAutomaticStartOrigin(originLocationId: string | null, originKind: string | null): boolean {
   return originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
-    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
+    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID ||
+    originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
 }
 
 async function terminalizeSessionTx(
@@ -1721,6 +1756,13 @@ async function terminalizeSessionTx(
     occurredAt: now
   });
   await raidChat.terminalize(tx, sessionId, now);
+  const terminalSession = await tx.partySession.findUnique({
+    where: { id: sessionId },
+    select: { originKind: true }
+  });
+  if (terminalSession?.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    await releasePendingPassageReservationTx(tx, sessionId, now);
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId,
@@ -1730,6 +1772,52 @@ async function terminalizeSessionTx(
     },
     data: {
       activeMembershipKey: null
+    }
+  });
+}
+
+async function releasePendingPassageReservationTx(
+  tx: TxClient,
+  partySessionId: string,
+  now: Date
+): Promise<void> {
+  const encounter = await tx.pendingPassageEncounter.findFirst({
+    where: {
+      reservedPartySessionId: partySessionId,
+      status: "reserved"
+    },
+    include: {
+      character: {
+        select: {
+          _count: {
+            select: { remorts: true }
+          }
+        }
+      }
+    }
+  });
+  if (!encounter) {
+    return;
+  }
+
+  const sameLife = encounter.reservationRemortCount === encounter.character._count.remorts;
+  const reusable = sameLife && encounter.expiresAt > now;
+  await tx.pendingPassageEncounter.updateMany({
+    where: {
+      id: encounter.id,
+      status: "reserved",
+      version: encounter.version,
+      reservedPartySessionId: partySessionId
+    },
+    data: {
+      status: reusable ? "pending" : "expired",
+      activeKey: reusable ? encounter.activeKey : null,
+      reservationOrigin: null,
+      reservationRemortCount: null,
+      reservedPartySessionId: null,
+      reservedAt: null,
+      ...(!reusable ? { cancelledAt: now } : {}),
+      version: { increment: 1 }
     }
   });
 }
@@ -1744,6 +1832,7 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     leaderCharacterId: row.leaderCharacterId,
     periodId: row.periodId,
     originLocationId: row.originLocationId,
+    originKind: row.originKind,
     participantCap: row.participantCap,
     minimumParticipants: row.minimumParticipants,
     joinUntilAt: row.joinUntilAt,
@@ -1809,7 +1898,7 @@ async function getBigBarrelJoinIneligibleReason(
   character: CharacterRow,
   now: Date
 ): Promise<
-  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> }
+  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> }
   | { reason: "loss-cooldown"; availableAt: Date }
   | { reason: "pending-solo-raid"; availableAt: Date }
   | null
@@ -1873,6 +1962,67 @@ async function getBigBarrelJoinIneligibleReason(
     };
   }
 
+  return null;
+}
+
+async function getLeftPassageJoinIneligibleReason(
+  tx: TxClient,
+  session: PartySessionRow,
+  character: CharacterRow,
+  now: Date
+): Promise<
+  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> }
+  | { reason: "active-search"; availableAt: Date }
+  | null
+> {
+  if (session.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    return null;
+  }
+  if (session.expiresAt <= now) {
+    return { reason: "expired-invitation" };
+  }
+  if (
+    !session.originLocationId ||
+    character.user.lastSeenLocationId !== session.originLocationId ||
+    character.user.currentAdventureId !== null ||
+    character.user.currentRaidId !== null
+  ) {
+    return { reason: "wrong-location" };
+  }
+  const existing = session.participants.find((participant) => participant.characterId === character.id);
+  if (existing && existing.remortCount !== character._count.remorts) {
+    return { reason: "stale-life" };
+  }
+  if (character.hpCurrent <= 0) {
+    return { reason: "dead" };
+  }
+  if (
+    character.hpCurrent > character.hpMax ||
+    character.manaCurrent < 0 ||
+    character.manaCurrent > character.manaMax
+  ) {
+    return { reason: "invalid-resources" };
+  }
+  const [activeLease, activeSearch] = await Promise.all([
+    tx.activeCombatLease.findUnique({
+      where: { characterId: character.id },
+      select: { id: true }
+    }),
+    tx.passageSearchAction.findFirst({
+      where: {
+        characterId: character.id,
+        status: "running",
+        endsAt: { gt: now }
+      },
+      select: { id: true, endsAt: true }
+    })
+  ]);
+  if (activeLease) {
+    return { reason: "active-combat" };
+  }
+  if (activeSearch) {
+    return { reason: "active-search", availableAt: activeSearch.endsAt };
+  }
   return null;
 }
 

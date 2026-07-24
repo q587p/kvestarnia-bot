@@ -76,6 +76,7 @@ export interface PartySessionRecord {
   leaderCharacterId: string;
   periodId: string | null;
   originLocationId: string | null;
+  originKind: string | null;
   participantCap: number;
   minimumParticipants: number;
   joinUntilAt: Date;
@@ -94,6 +95,7 @@ export interface CreatePartySessionInput {
   inviteToken: string;
   periodId?: string | null;
   originLocationId?: string | null;
+  originKind?: string | null;
   participantCap: number;
   minimumParticipants: number;
   joinUntilAt: Date;
@@ -115,7 +117,13 @@ export type PartyJoinIneligibleReason =
   | "active-combat"
   | "already-completed"
   | "pending-solo-raid"
-  | "loss-cooldown";
+  | "loss-cooldown"
+  | "wrong-location"
+  | "stale-life"
+  | "dead"
+  | "invalid-resources"
+  | "active-search"
+  | "expired-invitation";
 
 export type PartyLossCooldownIneligible = {
   state: "ineligible";
@@ -127,6 +135,13 @@ export type PartyLossCooldownIneligible = {
 export type PartyPendingSoloRaidIneligible = {
   state: "ineligible";
   reason: "pending-solo-raid";
+  availableAt: Date;
+  now: Date;
+};
+
+export type PartyActiveSearchIneligible = {
+  state: "ineligible";
+  reason: "active-search";
   availableAt: Date;
   now: Date;
 };
@@ -152,10 +167,11 @@ export type PartyJoinRepositoryResult =
   | { state: "live-membership"; session: PartySessionRecord }
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
   | (PartyPendingSoloRaidIneligible & { session: PartySessionRecord })
+  | (PartyActiveSearchIneligible & { session: PartySessionRecord })
   | {
       state: "ineligible";
       session: PartySessionRecord;
-      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> | undefined;
+      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> | undefined;
     }
   | { state: "full" | PartyTerminalReplayState; session: PartySessionRecord };
 
@@ -321,6 +337,7 @@ export interface PartySessionRepository {
   ): Promise<PartySessionRecord | null>;
   listRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   listDueRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
+  listDueRecruitingByOriginKind(originKind: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;
   forceExpireByToken(inviteToken: string, now: Date, expectedVersion?: number): Promise<PartySessionRecord | null>;
   expireRecruiting(now: Date, limit?: number): Promise<number>;

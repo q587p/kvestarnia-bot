@@ -52,6 +52,40 @@ describe("group combat timeout scheduler", () => {
     expect(listPendingDelivery).toHaveBeenCalledWith(13);
   });
 
+  it("expires due left-passage recruitment when fresh entry is disabled but keeps runtime servicing", async () => {
+    const party = { inviteToken: "left-disabled-13", version: 7 };
+    const expireDueLeftPassageParty = vi.fn().mockResolvedValue({ state: "ready" });
+    const startDueLeftPassage = vi.fn();
+    const repair = vi.fn().mockResolvedValue(1);
+    const resolveDue = vi.fn().mockResolvedValue([]);
+    const listPendingDelivery = vi.fn().mockResolvedValue([]);
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        isLeftPassageEntryEnabled: () => false,
+        areDevHelpersEnabled: () => false,
+        startDueLeftPassage,
+        repair,
+        resolveDue,
+        listPendingDelivery
+      } as unknown as GroupCombatService,
+      { api: {} } as Bot,
+      {
+        partySessions: {
+          listDueRecruitingLeftPassageParty: vi.fn().mockResolvedValue([party]),
+          expireDueLeftPassageParty
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(startDueLeftPassage).not.toHaveBeenCalled();
+    expect(expireDueLeftPassageParty).toHaveBeenCalledWith(party.inviteToken, party.version);
+    expect(repair).toHaveBeenCalledWith(13);
+    expect(resolveDue).toHaveBeenCalledWith(13);
+    expect(listPendingDelivery).toHaveBeenCalledWith(13);
+  });
+
   it("waits for an in-flight pass during shutdown", async () => {
     let releaseRepair: (() => void) | undefined;
     const repair = vi.fn(() => new Promise<number>((resolve) => {

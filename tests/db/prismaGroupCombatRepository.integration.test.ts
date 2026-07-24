@@ -5,6 +5,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaGroupCombatRepository } from "../../src/db/repositories/prismaGroupCombatRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
+import { LEFT_PASSAGE_LOCATION_ID } from "../../src/services/groupCombatService";
 import {
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
@@ -14,6 +15,7 @@ import {
   buildGroupCombatSettlementPlan,
   GROUP_COMBAT_STATE_BYTE_LIMIT
 } from "../../src/domain/groupCombat/groupCombat";
+import { presentGroupCombat } from "../../src/bot/presenters/groupCombatPresenter";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
@@ -134,6 +136,228 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activeCombatLease.count({
       where: { characterId: { in: ["group-busy-user-0-character", "group-busy-user-1-character"] } }
     })).toBe(1);
+  });
+
+  it("keeps the exact left-passage reservation through leader transfer, starts 2x2, and settles exactly once", async () => {
+    const token = "left-party-reserve";
+    const telegramIds = [11931n, 11932n];
+    await seedParty(prisma, token, telegramIds);
+    await prisma.partyParticipant.deleteMany({ where: { session: { inviteToken: token } } });
+    await prisma.partySession.delete({ where: { inviteToken: token } });
+    await prisma.user.updateMany({
+      where: { telegramUserId: { in: telegramIds } },
+      data: {
+        lastSeenLocationId: LEFT_PASSAGE_LOCATION_ID,
+        currentAdventureId: null,
+        currentRaidId: null
+      }
+    });
+    const leaderCharacterId = `${token}-user-0-character`;
+    await prisma.pendingPassageEncounter.create({
+      data: {
+        id: `${token}-encounter`,
+        token: "left-preview-token-13",
+        characterId: leaderCharacterId,
+        originLocationId: LEFT_PASSAGE_LOCATION_ID,
+        passage: "deep-left",
+        difficulty: "hard",
+        monsterId: "monster.deadline-spider",
+        baseMonsterLevel: 3,
+        effectiveMonsterLevel: 4,
+        rulesVersion: "nyz-passage-preview-v1",
+        seedHash: "left-preview-seed-587",
+        status: "pending",
+        activeKey: `pending-passage:${leaderCharacterId}:${LEFT_PASSAGE_LOCATION_ID}`,
+        expiresAt: new Date(NOW.getTime() + 10 * 60_000)
+      }
+    });
+    const creationSearchEndsAt = new Date(NOW.getTime() + 93_000);
+    await prisma.passageSearchAction.create({
+      data: {
+        token: "left-create-search-13",
+        characterId: leaderCharacterId,
+        nodeKey: LEFT_PASSAGE_LOCATION_ID,
+        nodeKind: "passage",
+        status: "running",
+        activeKey: `passage-search:${leaderCharacterId}`,
+        startedAt: NOW,
+        endsAt: creationSearchEndsAt,
+        payloadJson: {}
+      }
+    });
+    await expect(repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-blocked-13",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: LEFT_PASSAGE_LOCATION_ID,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    })).resolves.toEqual({
+      state: "active-search",
+      availableAt: creationSearchEndsAt,
+      now: NOW
+    });
+    await prisma.passageSearchAction.delete({ where: { token: "left-create-search-13" } });
+    const created = await repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-invite-13",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: LEFT_PASSAGE_LOCATION_ID,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000),
+      chatId: telegramIds[0],
+      messageId: 13
+    });
+    expect(created.state).toBe("created");
+    if (!("session" in created)) {
+      throw new Error("Expected a reserved left-passage party.");
+    }
+    const secondCharacterId = `${token}-user-1-character`;
+    await prisma.partyParticipant.create({
+      data: {
+        sessionId: created.session.id,
+        characterId: secondCharacterId,
+        remortCount: 0,
+        status: "joined",
+        joinSource: "deep-link",
+        joinedAt: new Date(NOW.getTime() + 1),
+        activeMembershipKey: `party-member:${secondCharacterId}`,
+        chatId: telegramIds[1],
+        messageId: 23
+      }
+    });
+    await prisma.partySession.update({
+      where: { id: created.session.id },
+      data: {
+        leaderCharacterId: secondCharacterId,
+        activeLeaderKey: `party-leader:${secondCharacterId}`,
+        version: { increment: 1 }
+      }
+    });
+    const startSearchEndsAt = new Date(NOW.getTime() + 120_000);
+    await prisma.passageSearchAction.create({
+      data: {
+        token: "left-start-search-13",
+        characterId: secondCharacterId,
+        nodeKey: LEFT_PASSAGE_LOCATION_ID,
+        nodeKind: "passage",
+        status: "running",
+        activeKey: `passage-search:${secondCharacterId}`,
+        startedAt: NOW,
+        endsAt: startSearchEndsAt,
+        payloadJson: {}
+      }
+    });
+    await expect(repository.startLeftPassageForTelegramUser({
+      telegramUserId: telegramIds[1]!,
+      partyInviteToken: created.session.inviteToken,
+      now: new Date(NOW.getTime() + 2),
+      turnExpiresAt: new Date(NOW.getTime() + 23_002)
+    })).resolves.toEqual({
+      state: "active-search",
+      availableAt: startSearchEndsAt,
+      now: new Date(NOW.getTime() + 2),
+      partyVersion: created.session.version + 1
+    });
+    await prisma.passageSearchAction.delete({ where: { token: "left-start-search-13" } });
+    const { value: started, count: productionStartQueries } = await measureQueryEvents(
+      prisma,
+      queries,
+      () => repository.startLeftPassageForTelegramUser({
+        telegramUserId: telegramIds[1]!,
+        partyInviteToken: created.session.inviteToken,
+        now: new Date(NOW.getTime() + 2),
+        turnExpiresAt: new Date(NOW.getTime() + 23_002)
+      })
+    );
+    console.log("Left-passage production start query events", productionStartQueries);
+    expect(productionStartQueries).toBeLessThanOrEqual(42);
+    expect(started.state).toBe("started");
+    if (!("session" in started)) {
+      throw new Error("Expected a started left-passage group combat.");
+    }
+    expect(started.session.state.rulesVersion).toBe("group-combat.v3");
+    expect(started.session.state.production?.origin).toBe("nyz-left-passage-party.v1");
+    expect(started.session.state.enemies).toHaveLength(2);
+    expect(started.session.state.enemies[0]?.monsterId).toBe("monster.deadline-spider");
+    const productionStateBytes = Buffer.byteLength(JSON.stringify(started.session.state), "utf8");
+    console.log("Left-passage production state bytes", productionStateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
+    expect(productionStateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
+    await expect(prisma.pendingPassageEncounter.findUnique({
+      where: { token: "left-preview-token-13" },
+      select: { status: true, groupCombatSessionId: true }
+    })).resolves.toEqual({
+      status: "consumed",
+      groupCombatSessionId: started.session.id
+    });
+
+    let session = started.session;
+    while (session.status === "active") {
+      const enemy = session.state.enemies.find((candidate) => candidate.hp > 0)!;
+      for (const participant of session.state.participants.filter((candidate) => candidate.hp > 0)) {
+        const result = await repository.submitActionForTelegramUser({
+          telegramUserId: BigInt(participant.telegramUserId),
+          partyInviteToken: session.partyInviteToken,
+          turn: session.turn,
+          action: "attack",
+          targetKind: "enemy",
+          targetId: enemy.id,
+          now: new Date(NOW.getTime() + session.turn * 1000),
+          nextTurnExpiresAt: new Date(NOW.getTime() + session.turn * 1000 + 23_000)
+        });
+        if ("session" in result) {
+          session = result.session;
+        }
+        if (session.status !== "active") {
+          break;
+        }
+      }
+    }
+    expect(session.settlementPlan?.policy).toBe("left-passage-party");
+    const terminalCardBytes = Buffer.byteLength(
+      presentGroupCombat(session, session.participants[0]!.characterId, NOW),
+      "utf8"
+    );
+    console.log("Left-passage production terminal-card bytes", terminalCardBytes, "/4096");
+    expect(terminalCardBytes).toBeLessThanOrEqual(4_096);
+    expect(await prisma.activeCombatLease.count({
+      where: { kind: "group-combat", referenceId: session.id }
+    })).toBe(2);
+    const before = await resourceSnapshot(prisma, telegramIds);
+    for (const participant of session.participants) {
+      const first = await repository.settleParticipant({
+        sessionId: session.id,
+        telegramUserId: participant.telegramUserId,
+        now: new Date(NOW.getTime() + 93_000)
+      });
+      const replay = await repository.settleParticipant({
+        sessionId: session.id,
+        telegramUserId: participant.telegramUserId,
+        now: new Date(NOW.getTime() + 94_000)
+      });
+      expect(first.state).toBe("settled");
+      expect(replay.state).toBe("replayed");
+    }
+    const after = await resourceSnapshot(prisma, telegramIds);
+    const plannedByCharacter = new Map(
+      session.settlementPlan!.participants.map((participant) => [participant.characterId, participant])
+    );
+    for (const row of after) {
+      const prior = before.find((candidate) => candidate.id === row.id)!;
+      const planned = plannedByCharacter.get(row.id)!;
+      expect(row.xp - prior.xp).toBe(planned.rewards.xp);
+      expect(row.gold - prior.gold).toBe(planned.rewards.gold);
+      expect(row.hpCurrent).toBe(planned.resources.hp);
+      expect(row.manaCurrent).toBe(planned.resources.mana);
+    }
+    expect(await prisma.activeCombatLease.count({
+      where: { kind: "group-combat", referenceId: session.id }
+    })).toBe(0);
+    expect(await prisma.activityEvent.count({
+      where: { sourceId: session.id }
+    })).toBe(session.status === "won" ? 1 : 0);
   });
 
   it("starts due parties from the authoritative post-scan roster and preserves current-leader manual authorization", async () => {
@@ -2447,7 +2671,8 @@ async function resourceSnapshot(prisma: PrismaClient, telegramIds: bigint[]) {
 async function applyGroupCombatMigration(prisma: PrismaClient): Promise<void> {
   for (const migration of [
     "prisma/migrations/20260722090000_group_combat_proof/migration.sql",
-    "prisma/migrations/20260723194500_group_combat_hardening/migration.sql"
+    "prisma/migrations/20260723194500_group_combat_hardening/migration.sql",
+    "prisma/migrations/20260724233000_left_passage_party_attack/migration.sql"
   ]) {
     const sql = await readFile(resolve(migration), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
@@ -2495,6 +2720,36 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE active_combat_leases (
       id TEXT PRIMARY KEY, character_id TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, reference_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE solo_combat_sessions (
+      id TEXT PRIMARY KEY, character_id TEXT NOT NULL, monster_id TEXT NOT NULL, state_json JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active', turn INTEGER NOT NULL DEFAULT 1, reward_xp INTEGER,
+      reward_gold INTEGER, reward_items_json JSONB, reward_claimed_at DATETIME, expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE pending_passage_encounters (
+      id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, character_id TEXT NOT NULL,
+      origin_location_id TEXT NOT NULL, passage TEXT NOT NULL, difficulty TEXT NOT NULL,
+      monster_id TEXT NOT NULL, base_monster_level INTEGER NOT NULL, effective_monster_level INTEGER NOT NULL,
+      rules_version TEXT NOT NULL, seed_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+      active_key TEXT UNIQUE, version INTEGER NOT NULL DEFAULT 1, combat_session_id TEXT,
+      expires_at DATETIME NOT NULL, consumed_at DATETIME, cancelled_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE passage_search_actions (
+      id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, character_id TEXT NOT NULL, node_key TEXT NOT NULL,
+      node_kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'running', active_key TEXT UNIQUE,
+      started_at DATETIME NOT NULL, ends_at DATETIME NOT NULL, payload_json JSONB NOT NULL,
+      result_json JSONB, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE activity_events (
+      id TEXT PRIMARY KEY, event_type TEXT NOT NULL, category TEXT NOT NULL, severity TEXT NOT NULL,
+      visibility TEXT NOT NULL DEFAULT 'public', actor_character_id TEXT, actor_display_name TEXT,
+      related_character_ids_json JSONB, subject_kind TEXT, subject_id TEXT, subject_name TEXT,
+      source_type TEXT, source_id TEXT, dedupe_key TEXT UNIQUE, payload_json JSONB,
+      occurred_at DATETIME NOT NULL, published_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE party_sessions (
       id TEXT PRIMARY KEY, invite_token TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'recruiting',

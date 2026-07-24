@@ -471,6 +471,10 @@ async function handleFightCallback(
         reply_markup: buildPersistentFightPassagePreviewKeyboard({
           passage: resultPassage.passage,
           encounterToken: result.encounterToken,
+          ...(result.reservedPartyInviteToken
+            ? { reservedPartyInviteToken: result.reservedPartyInviteToken }
+            : {}),
+          leftPassagePartyAttackEnabled: services.groupCombat?.isLeftPassageEntryEnabled() === true,
           searchAvailable: await isPassageSearchAvailable(
             services.passageSearch,
             telegramUserId,

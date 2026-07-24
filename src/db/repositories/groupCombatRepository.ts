@@ -6,6 +6,7 @@ import type {
   GroupCombatState,
   GroupCombatTargetKind
 } from "../../domain/groupCombat/groupCombat";
+import type { PartySessionRecord } from "./partySessionRepository";
 
 export interface GroupCombatParticipantRecord {
   characterId: string;
@@ -54,16 +55,45 @@ export interface GroupCombatSessionRecord {
 
 export type GroupCombatStartResult =
   | {
-      state: "disabled" | "no-character" | "not-found" | "not-leader" | "not-recruiting" | "invalid-size" | "invalid-life" | "blocked" | "invalid-roster";
+      state: "disabled" | "no-character" | "not-found" | "not-leader" | "not-recruiting" | "invalid-size" | "invalid-life" | "blocked" | "invalid-roster" | "wrong-origin" | "wrong-location" | "expired-invitation" | "reservation-missing";
       partyVersion?: number;
     }
+  | { state: "active-search"; availableAt: Date; now: Date; partyVersion?: number }
   | { state: "started" | "already-active" | "terminal"; session: GroupCombatSessionRecord };
+
+export type LeftPassagePartyCreateResult =
+  | {
+      state:
+        | "disabled"
+        | "no-character"
+        | "invalid-preview"
+        | "wrong-location"
+        | "stale-life"
+        | "dead"
+        | "invalid-resources"
+        | "blocked"
+        | "expired-invitation";
+    }
+  | { state: "active-search"; availableAt: Date; now: Date }
+  | { state: "created" | "already-created" | "live-membership"; session: PartySessionRecord };
 
 export type GroupCombatActionResult =
   | { state: "disabled" | "no-character" | "not-found" | "not-participant" | "stale" | "actor-unavailable" | "invalid-target" | "action-unavailable" | "invalidated" }
   | { state: "queued" | "replaced" | "duplicate" | "resolved" | "terminal"; session: GroupCombatSessionRecord };
 
 export interface GroupCombatRepository {
+  createLeftPassagePartyForTelegramUser(input: {
+    telegramUserId: bigint;
+    encounterToken: string;
+    inviteToken: string;
+    originKind: string;
+    locationId: string;
+    now: Date;
+    joinUntilAt: Date;
+    chatId?: bigint | null;
+    messageId?: number | null;
+  }): Promise<LeftPassagePartyCreateResult>;
+
   startProofForTelegramUser(input: {
     telegramUserId: bigint;
     partyInviteToken: string;
@@ -72,6 +102,19 @@ export interface GroupCombatRepository {
   }): Promise<GroupCombatStartResult>;
 
   startDueProof(input: {
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult>;
+
+  startLeftPassageForTelegramUser(input: {
+    telegramUserId: bigint;
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult>;
+
+  startDueLeftPassage(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
@@ -100,6 +143,10 @@ export interface GroupCombatRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
   listPendingDeliverySessionIds(limit: number): Promise<string[]>;
+  listPendingSettlementParticipants(limit: number): Promise<Array<{
+    sessionId: string;
+    telegramUserId: bigint;
+  }>>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
 
   settleParticipant(input: {

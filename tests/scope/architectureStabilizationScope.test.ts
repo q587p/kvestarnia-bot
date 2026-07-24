@@ -12,7 +12,7 @@ const featureModuleOwners = {
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:tour:/", "/^v1:mem:/", "/^v1:ev:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:dkr:/", "/^v1:hunt:/", "/^v1:ygr:/"],
   "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
-  "social.ts": ["/^v[12]:gc:/", "/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:nc:/", "/^v1:party:/"]
+      "social.ts": ["/^v[123]:gc:/", "/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:nc:/", "/^v1:party:/"]
 };
 
 const expectedCallbackInventory = Object.values(featureModuleOwners).flat();

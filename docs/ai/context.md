@@ -3,14 +3,14 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current repository version: `0.4.1` — the separate restart-safe 2–3 player
-  versus 2–3 enemy group-combat proof behind default-off
-  `GROUP_COMBAT_PROOF_ENABLED`, hard-disabled in production. Start atomically
-  freezes current-life identity/resources/stats, supported class/race recipes,
-  supported gear/items, `Ситий` and `Натхнення`. `group-combat.v2` resolves
-  deterministic self/exact/lowest/all target scopes, mana/cooldown/fumble,
-  threat-based legal multi-enemy responses, guard/mitigation/counter/bleed and
-  multiple deaths. Timeout remains resource-free guard. Item consumption shares
+- Current repository version: `0.4.2` — the exact hard `deep-left` pending encounter can be reserved by a 2–3-person `PartySession` and resolved through production-capable `group-combat.v3` behind default-off `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; solo attack remains available.
+  Recruitment lasts three minutes, may start early by the current leader, and freezes the authoritative current-life same-location roster at start.
+  The exact preview is primary; deterministic backups reuse canonical solo Низ difficulty, strongest recent threat pressure and strongest remort, with the first backup threat bonus capped at 23.
+  Runtime servicing remains active when new entry is disabled. Per-player resources/consumables, neutral XP/gold, one common roll, activity, achievement, receipts and leases converge after restart/retry.
+  Manual Telegram QA, production enablement, merge and deployment remain pending.
+- The underlying `0.4.1` restart-safe 2–3 player versus 2–3 enemy proof remains available only behind `GROUP_COMBAT_PROOF_ENABLED` outside production.
+  Start freezes current-life identity/resources/stats, supported class/race/gear/items, `Ситий` and `Натхнення`; `group-combat.v2` resolves deterministic targets, mana/cooldown/fumble, threat responses and multiple deaths.
+  Timeout remains resource-free guard. Item consumption shares
   the winning action/turn transaction; Dense Bandage keeps five-own-action
   cooldown and Field Kit stays once per fight. Missing frozen inventory
   rewardlessly invalidates instead of retrying forever: every relational
@@ -81,10 +81,10 @@
   keeps the newest 13 rows across recruiting/active combat, retains terminal final-roster read-only access for 13 days, and never grants rewards,
   achievements or ordinary combat-journal duplication. Kharakternyk ward surfaces use `✴️`, distinct from the Molfar `🧿 Туманний оберіг`.
   `/dev_raid_chat` is non-production only.
-- `0.4.1` is still only a hidden rewardless proof. `0.4.2` is the next planned
-  version and owns independent guild identity; later accepted tasks add a small
-  guild identity, an expedition, a weekly goal and bounded social/economy
-  slices. Do not turn `PartyBossSession` into N×M state or imply guild
+- `0.4.2` is the first production-capable GroupCombat consumer, but its entry
+  remains default-off. `0.4.3` next owns independent guild identity; later
+  accepted tasks add a weekly goal and bounded social/economy slices. Do not
+  turn `PartyBossSession` into N×M state or imply guild
   bank/trade/war scope.
 
 ## Shipped class support
@@ -224,9 +224,9 @@
 
 ## Key docs
 
-- `docs/tasks/0.4.1-group-combat-hardening.md` — current repository release
-  contract; deployment, production availability and manual QA remain unproven.
-- `docs/tasks/0.4.2-guild-foundation.md` — next planned version contract.
+- `docs/tasks/0.4.2-left-passage-party-attack.md` — current repository release
+  contract; production enablement, deployment and manual QA remain unproven.
+- `docs/tasks/0.4.3-guild-foundation.md` — next planned version contract.
 - `docs/tasks/0.3.17-callback-read-path-collapse.md` — previous release contract
   and callback SQL-budget evidence.
 - `docs/tasks/0.3.16-closed-alpha-closeout.md` — shipped lifecycle closeout and base-runtime evidence.
