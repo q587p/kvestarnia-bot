@@ -88,15 +88,13 @@ function actionKey(action: GroupCombatActionKey): string {
     ? "a"
     : action === "guard"
       ? "g"
-      : action === "aid"
-        ? "h"
-        : action === "class"
-          ? "c"
-          : action === "race"
-            ? "r"
-            : action === "gear"
-              ? "e"
-              : "i";
+      : action === "class"
+        ? "c"
+        : action === "race"
+          ? "r"
+          : action === "gear"
+            ? "e"
+            : "i";
 }
 
 function parseAction(value: string | undefined): GroupCombatActionKey | null {
@@ -104,17 +102,15 @@ function parseAction(value: string | undefined): GroupCombatActionKey | null {
     ? "attack"
     : value === "g"
       ? "guard"
-      : value === "h"
-        ? "aid"
-        : value === "c"
-          ? "class"
-          : value === "r"
-            ? "race"
-            : value === "e"
-              ? "gear"
-              : value === "i"
-                ? "item"
-                : null;
+      : value === "c"
+        ? "class"
+        : value === "r"
+          ? "race"
+          : value === "e"
+            ? "gear"
+            : value === "i"
+              ? "item"
+              : null;
 }
 
 function parseBase36(value: string | undefined, allowZero = false): number | null {

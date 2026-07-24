@@ -23,14 +23,14 @@
   replay. Pending settlement is exactly zero-attempt/receipt-free/unsettled;
   completed receipts keep positive attempts and settledAt. Character resources,
   XP, gold, items, quests, achievements and activity rewards remain unchanged.
-  Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions. Strict
-  parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
+  Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions; terminal cards explain all six icons.
+  Generic Aid is absent: ally support uses authored class/race profiles. Strict parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
   Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
   journal. Stable query observations/budgets are `32/32` start, `20/20` queue,
   `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
   state/card/callback caps are `32,768`/`4,096`/`64` UTF-8 bytes; measured
-  maxima are `5,066` state, `1,637` card fixture and `46` callback. The 24-case
+  maxima are `5,066` state, `2,155` terminal-card fixture and `46` callback. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
   Generated eight-segment v2 action callbacks route through combat-lock/social

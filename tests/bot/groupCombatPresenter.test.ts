@@ -72,43 +72,53 @@ describe("group combat presenter", () => {
     expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
     expect(text).toContain("⏳ До захисту мовчунів — 23 с.");
     expect(text).toContain("\n\n<b>Пригодник із довгим ім’ям 1</b>, що робимо?");
-    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
+    expect(Buffer.byteLength(text, "utf8")).toBe(1_637);
+
+    state.status = "won";
+    session.status = "won";
+    state.enemies.forEach((enemy) => { enemy.hp = 0; });
+    state.contributions.forEach((contribution, index) => {
+      contribution.damage = 93;
+      contribution.healing = 93;
+      contribution.guardPrevented = 93;
+      contribution.control = 93;
+      contribution.damageTaken = 93;
+      contribution.committedActions = 25;
+      contribution.guardedTurns = index;
+    });
+    const terminalText = presentGroupCombat(session, participants[0]!.characterId, NOW);
+    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_155);
+    expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
-  it("groups exact-target actions into compact two-button rows", () => {
+  it("omits generic ally support controls even when allies are injured", () => {
     const session = createSession(3);
     session.state.participants[1]!.hp -= 1;
     session.state.participants[2]!.hp -= 1;
 
     const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
 
-    expect(rows.map((row) => row.length)).toEqual([2, 2, 2, 1]);
+    expect(rows.map((row) => row.length)).toEqual([2, 2, 1]);
     expect(rows.flat().map((button) => button.text)).toEqual([
       "⚔️ Комірний Шурхіт 1",
       "⚔️ Комірний Шурхіт 2",
       "⚔️ Комірний Шурхіт 3",
       "🛡️ Захиститися",
-      "🫶 Пригодник 2",
-      "🫶 Пригодник 3",
       "🔎 Оновити"
     ]);
   });
 
-  it("hides aid for full-health allies and exposes it after damage", () => {
+  it("offers authored class support without restoring generic ally support", () => {
     const session = createSession(2);
-
-    const fullHealthLabels = buildGroupCombatKeyboard(
-      session,
-      session.participants[0]!.characterId
-    ).inline_keyboard.flat().map((button) => button.text);
+    session.state.participants[0]!.classId = "class.priest";
     session.state.participants[1]!.hp -= 1;
-    const injuredLabels = buildGroupCombatKeyboard(
+    const labels = buildGroupCombatKeyboard(
       session,
       session.participants[0]!.characterId
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(fullHealthLabels).not.toContain("🫶 Пригодник 2");
-    expect(injuredLabels).toContain("🫶 Пригодник 2");
+    expect(labels).toContain("✨ Суворе благословення");
+    expect(labels).not.toContain("🫶 Пригодник 2");
   });
 
   it("hides combat items while their canonical cooldown or once-per-fight limit is active", () => {
@@ -216,6 +226,8 @@ describe("group combat presenter", () => {
     };
     const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
     expect(text).toContain("<b>Внесок:</b>");
+    expect(text).toContain("⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода");
+    expect(text).toContain("🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії");
     expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
   });

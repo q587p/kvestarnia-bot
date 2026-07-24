@@ -33,7 +33,7 @@ export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
 ] as const;
 
 export type GroupCombatStatus = "active" | "won" | "lost" | "invalid";
-export type GroupCombatActionKey = "attack" | "guard" | "aid" | "class" | "race" | "gear" | "item";
+export type GroupCombatActionKey = "attack" | "guard" | "class" | "race" | "gear" | "item";
 export type GroupCombatTargetKind = "self" | "ally" | "enemy";
 export type GroupCombatStatusKind = "guard" | "response-mitigation" | "counter" | "bleed";
 
@@ -376,17 +376,6 @@ export function validateGroupCombatAction(
   if (action.action === "guard") {
     return action.targetKind === "self" && action.targetId === actor.characterId ? "ok" : "invalid-target";
   }
-  if (action.action === "aid") {
-    return action.targetKind === "ally" && state.participants.some(
-      (target) =>
-        target.characterId === action.targetId &&
-        target.characterId !== actor.characterId &&
-        target.hp > 0 &&
-        target.hp < target.hpMax
-    )
-      ? "ok"
-      : "invalid-target";
-  }
   if (action.action === "item") {
     return action.targetKind !== "self" || action.targetId !== actor.characterId
       ? "invalid-target"
@@ -500,16 +489,6 @@ export function resolveGroupCombatTurn(
       contribution.guardedTurns += 1;
       actor.threat += 2;
       lines.push(action.origin === "timeout" ? `${actor.name} мовчить і стає в захист.` : `${actor.name} стає в захист.`);
-    } else if (action.action === "aid") {
-      tickActorAfterCommittedAction(actor);
-      tickGroupCombatItemCooldowns(actor);
-      const target = state.participants.find((candidate) => candidate.characterId === action.targetId)!;
-      const healed = healParticipant(target, Math.max(1, Math.floor(actor.support / 2)));
-      contribution.healing += healed;
-      actor.threat += healed * 2;
-      lines.push(healed > 0
-        ? `${actor.name} підтримує ${target.name}: +${healed} HP.`
-        : `${actor.name} підстраховує ${target.name}, але лікувати вже нічого.`);
     } else if (action.action === "item") {
       const itemId = action.payloadKey as GroupCombatCommittedConsumable["itemId"];
       tickActorAfterCommittedAction(actor);

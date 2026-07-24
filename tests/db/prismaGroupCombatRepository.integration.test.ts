@@ -135,7 +135,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toBe(1);
   });
 
-  it("rejects invalid and full-health aid targets, replaces a queued choice, then resolves a duplicate last-action race once", async () => {
+  it("rejects wrong-side targets, replaces a queued choice, then resolves a duplicate last-action race once", async () => {
     const session = await repository.findByPartyInviteToken("group-start");
     expect(session).not.toBeNull();
     const initial = session!;
@@ -154,24 +154,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
     expect(invalid.state).toBe("invalid-target");
-    expect(await prisma.groupCombatAction.count()).toBe(beforeActions);
-
-    initial.state.participants[1]!.hp = initial.state.participants[1]!.hpMax;
-    await prisma.groupCombatSession.update({
-      where: { id: initial.id },
-      data: { stateJson: initial.state as unknown as Prisma.InputJsonValue }
-    });
-    const fullHealthAid = await repository.submitActionForTelegramUser({
-      telegramUserId: leader.telegramUserId,
-      partyInviteToken: initial.partyInviteToken,
-      turn: initial.turn,
-      action: "aid",
-      targetKind: "ally",
-      targetId: joiner.characterId,
-      now: NOW,
-      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
-    });
-    expect(fullHealthAid.state).toBe("invalid-target");
     expect(await prisma.groupCombatAction.count()).toBe(beforeActions);
 
     const { value: queued, count: queueQueries } = await measureQueryEvents(prisma, queries, () => (
@@ -1419,27 +1401,37 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
   });
 
-  it.each(["actor", "target"] as const)(
+  it.each(["actor", "target", "retired-aid"] as const)(
     "invalidates a persisted current-turn action with a malformed %s",
     async (malformed) => {
       const token = `group-malformed-action-${malformed}`;
-      const ids = malformed === "actor" ? [1351n, 1352n] : [1361n, 1362n];
+      const ids = malformed === "actor"
+        ? [1351n, 1352n]
+        : malformed === "target"
+          ? [1361n, 1362n]
+          : [1365n, 1366n];
       const session = await startProof(prisma, repository, token, ids, new Date(NOW.getTime() - 1));
       let actorCharacterId = session.participants[0]!.characterId;
+      let actionKey = "attack";
+      let targetKind = "enemy";
       let targetId = session.state.enemies[0]!.id;
       if (malformed === "actor") {
         await seedParty(prisma, "group-action-outsider", [1363n, 1364n]);
         actorCharacterId = "group-action-outsider-user-0-character";
-      } else {
+      } else if (malformed === "target") {
         targetId = "enemy-that-is-not-canonical";
+      } else {
+        actionKey = "aid";
+        targetKind = "ally";
+        targetId = session.participants[1]!.characterId;
       }
       await prisma.groupCombatAction.create({
         data: {
           sessionId: session.id,
           actorCharacterId,
           turn: 1,
-          actionKey: "attack",
-          targetKind: "enemy",
+          actionKey,
+          targetKind,
           targetId,
           origin: "manual",
           submittedAt: NOW

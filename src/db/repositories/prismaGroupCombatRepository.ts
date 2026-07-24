@@ -1648,7 +1648,6 @@ function isGroupCombatStatus(value: string): value is GroupCombatStatus {
 function isGroupCombatActionKey(value: string): value is GroupCombatAction["action"] {
   return value === "attack" ||
     value === "guard" ||
-    value === "aid" ||
     value === "class" ||
     value === "race" ||
     value === "gear" ||

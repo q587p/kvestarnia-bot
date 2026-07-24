@@ -21,13 +21,13 @@ describe("group combat callback data", () => {
     const data = makeGroupCombatActionCallbackData({
       token: "proof-token-13",
       turn: 23,
-      action: "aid",
+      action: "class",
       targetIndex: 2
     });
     expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
     expect(parseGroupCombatCallbackData(data)).toEqual({
       ok: true,
-      value: { type: "action", token: "proof-token-13", turn: 23, action: "aid", targetIndex: 2 }
+      value: { type: "action", token: "proof-token-13", turn: 23, action: "class", targetIndex: 2 }
     });
   });
 
@@ -44,6 +44,7 @@ describe("group combat callback data", () => {
     expect(parseGroupCombatCallbackData("v1:gc:a:bad:1:a:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v1:gc:a:proof-token-13:1:a:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:a:proof-token-13:1:a:0").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v2:gc:a:proof-token-13:1:h:0:1").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:v:proof-token-13").ok).toBe(false);
     expect(parseGroupCombatCallbackData(`v1:gc:v:${"x".repeat(93)}`).ok).toBe(false);
   });

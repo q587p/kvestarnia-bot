@@ -59,17 +59,6 @@ export function buildGroupCombatKeyboard(
     action: "guard",
     targetIndex: viewer.rosterOrder
   }));
-  session.state.participants.forEach((ally, targetIndex) => {
-    if (ally.characterId === viewerCharacterId || ally.hp <= 0 || ally.hp >= ally.hpMax) {
-      return;
-    }
-    addActionButton(`🫶 ${ally.name}`, makeGroupCombatActionCallbackData({
-      token: session.partyInviteToken,
-      turn: session.turn,
-      action: "aid",
-      targetIndex
-    }));
-  });
   addAbilityButtons("class");
   addAbilityButtons("race");
   (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) => addAbilityButtons("gear", abilityId, optionIndex));

@@ -150,7 +150,9 @@ row requires at least one attempt, its immutable canonical receipt and a
 settlement timestamp.
 
 Contribution may include damage, healing, guard prevented, control, damage
-taken and committed actions. It must not make support builds ineligible.
+taken and committed actions. The terminal card explains those dimensions.
+GroupCombat has no generic Aid action: ally support comes from authored
+class/race ability profiles, whose contribution remains eligible.
 
 ## Performance budgets
 

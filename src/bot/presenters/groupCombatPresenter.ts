@@ -50,7 +50,8 @@ export function presentGroupCombat(
     : "";
   const contributionText = state.status === "active"
     ? ""
-    : `\n\n<b>Внесок:</b>\n${state.participants.map((participant) => {
+    : `\n\n<b>Внесок:</b>\n⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода\n` +
+      `🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії\n${state.participants.map((participant) => {
         const contribution = state.contributions.find((row) => row.characterId === participant.characterId);
         return contribution
           ? `${escapeHtml(participant.name)}: ⚔️ ${contribution.damage}, ❤️ ${contribution.healing}, 🛡️ ${contribution.guardPrevented}, 🌀 ${contribution.control}, 💥 ${contribution.damageTaken}, ✅ ${contribution.committedActions}`
@@ -127,6 +128,5 @@ function presentQueuedAction(
     const profile = actor ? getGroupCombatActionProfile(actor, action.action, action.payloadKey) : null;
     return profile ? `застосувати ${escapeHtml(profile.ability.label ?? "здібність")}` : "застосувати здібність";
   }
-  const ally = session.state.participants.find((candidate) => candidate.characterId === action.targetId);
-  return ally ? `підтримати ${escapeHtml(ally.name)}` : "підтримати союзника";
+  return "дію";
 }

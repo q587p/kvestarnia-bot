@@ -247,10 +247,7 @@ function resolveTarget(
     }
     return { kind: "self", id: viewer.characterId, ...(payloadKey ? { payloadKey } : {}) };
   }
-  const target = session.state.participants[targetIndex];
-  return target?.hp && target.hp < target.hpMax && target.characterId !== viewerCharacterId
-    ? { kind: "ally", id: target.characterId }
-    : null;
+  return null;
 }
 
 function readCommandToken(text: string | undefined): string | null {
