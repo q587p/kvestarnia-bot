@@ -137,7 +137,10 @@ entire reward mutation for an unbounded raid.
 Each participant has an idempotent settlement receipt. Resource, reward,
 achievement and activity mutations can retry independently while preserving one
 terminal plan. Partial delivery does not roll back combat. Participant count
-alone never multiplies encounter loot.
+alone never multiplies encounter loot. A pending settlement row is canonical
+only with zero attempts, no receipt and no settlement timestamp; a completed
+row requires at least one attempt, its immutable canonical receipt and a
+settlement timestamp.
 
 Contribution may include damage, healing, guard prevented, control, damage
 taken and committed actions. It must not make support builds ineligible.
@@ -158,7 +161,7 @@ direct single resolving action `22/35`, concurrent duplicate-final pair `31`
 aggregate and due-id scan `1/1`. Start performs two additional bounded reads
 over the allowlisted supported combat items for the frozen 2–3-person roster.
 Versioned state is capped at `32,768` UTF-8 bytes and the 24-case 2×2/3×3,
-13/25-turn support simulator observed `4,964`; participant cards are capped at
+13/25-turn support simulator observed `5,066`; participant cards are capped at
 Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
 
 ## Delivery sequence

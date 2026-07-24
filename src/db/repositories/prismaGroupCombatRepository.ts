@@ -1377,7 +1377,7 @@ async function rebuildTerminalParticipantArtifacts(
       data: {
         contributionJson: contribution as unknown as Prisma.InputJsonValue,
         settlementStatus: completed ? "completed" : "pending",
-        settlementAttempts: completed ? Math.max(1, participant.settlementAttempts) : participant.settlementAttempts,
+        settlementAttempts: completed ? Math.max(1, participant.settlementAttempts) : 0,
         settlementReceiptJson: receipt
           ? receipt as unknown as Prisma.InputJsonValue
           : Prisma.DbNull,
@@ -1614,8 +1614,12 @@ function validateSettlementRows(
       throw new GroupCombatStateValidationError("Relational contribution does not match terminal state.");
     }
     if (participant.settlementStatus === "pending") {
-      if (participant.settlementReceiptJson !== null || participant.settledAt !== null) {
-        throw new GroupCombatStateValidationError("Pending settlement row has completed receipt metadata.");
+      if (
+        participant.settlementAttempts !== 0
+        || participant.settlementReceiptJson !== null
+        || participant.settledAt !== null
+      ) {
+        throw new GroupCombatStateValidationError("Pending settlement row is not canonical.");
       }
       continue;
     }

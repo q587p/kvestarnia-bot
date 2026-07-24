@@ -18,14 +18,14 @@
   repair artifacts preserve up to 13 relational participants within the state
   cap; larger/unrepresentable corruption releases all owned leases/statuses
   before deterministic row cleanup and strict terminal-graph validation.
-  Terminal CAS writes one immutable zero-reward plan whose full participant rows
-  and receipts must match state/relational identity and contribution before
-  independent replay, without
-  changing Character resources, XP, gold, items, quests, achievements or
-  activity rewards. Contributions record actual damage, healing, guard
-  prevention, control, damage taken and committed actions. Strict
-  parser/relational/life/session/lease repair releases frozen statuses only after
-  terminal CAS. Canonical participant cards remain private-DM, monotonic and
+  Terminal CAS writes one immutable zero-reward plan whose participant rows and
+  receipts match state/relational identity and contribution before independent
+  replay. Pending settlement is exactly zero-attempt/receipt-free/unsettled;
+  completed receipts keep positive attempts and settledAt. Character resources,
+  XP, gold, items, quests, achievements and activity rewards remain unchanged.
+  Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions. Strict
+  parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
+  Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
   journal. Stable query observations/budgets are `32/32` start, `20/20` queue,
   `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;

@@ -1008,6 +1008,87 @@ describe("PrismaGroupCombatRepository integration", () => {
     }
   });
 
+  it("canonicalizes terminal pending attempts before a later integrity checkpoint without changing completed settlement", async () => {
+    const terminal = await forceTerminalProof(
+      prisma,
+      repository,
+      "group-terminal-pending-attempts",
+      [20_070n, 20_071n]
+    );
+    const row = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      include: { participants: { orderBy: { rosterOrder: "asc" } } }
+    });
+    const first = row.participants[0]!;
+    const second = row.participants[1]!;
+    const completedAt = new Date(NOW.getTime() - 13_000);
+    const completedReceipt = {
+      version: 1,
+      policy: "rewardless-proof",
+      sessionId: terminal.id,
+      characterId: second.characterId,
+      remortCount: second.remortCount,
+      rewards: { xp: 0, gold: 0, items: [] }
+    };
+    await prisma.groupCombatParticipant.update({
+      where: { id: first.id },
+      data: {
+        settlementStatus: "pending",
+        settlementAttempts: 13,
+        settlementReceiptJson: Prisma.DbNull,
+        settledAt: null
+      }
+    });
+    await prisma.groupCombatParticipant.update({
+      where: { id: second.id },
+      data: {
+        settlementStatus: "completed",
+        settlementAttempts: 13,
+        settlementReceiptJson: completedReceipt,
+        settledAt: completedAt
+      }
+    });
+
+    const firstRepairAt = new Date(NOW.getTime() + 13);
+    expect(await repository.repairInvalidOrOrphaned(firstRepairAt, 93)).toBeGreaterThanOrEqual(1);
+    const afterFirstRepair = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      include: { participants: { orderBy: { rosterOrder: "asc" } } }
+    });
+    expect(afterFirstRepair.terminalIntegrityCheckedAt).toBeNull();
+    expect(afterFirstRepair.participants[0]).toMatchObject({
+      settlementStatus: "pending",
+      settlementAttempts: 0,
+      settlementReceiptJson: null,
+      settledAt: null
+    });
+    expect(afterFirstRepair.participants[1]).toMatchObject({
+      settlementStatus: "completed",
+      settlementAttempts: 13,
+      settlementReceiptJson: completedReceipt,
+      settledAt: completedAt
+    });
+
+    const secondRepairAt = new Date(NOW.getTime() + 14);
+    await repository.repairInvalidOrOrphaned(secondRepairAt, 93);
+    const afterSecondRepair = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      include: { participants: { orderBy: { rosterOrder: "asc" } } }
+    });
+    expect(afterSecondRepair.terminalIntegrityCheckedAt).toEqual(secondRepairAt);
+    expect(afterSecondRepair.participants[1]).toMatchObject({
+      settlementStatus: "completed",
+      settlementAttempts: 13,
+      settlementReceiptJson: completedReceipt,
+      settledAt: completedAt
+    });
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: terminal.participants[1]!.telegramUserId,
+      now: new Date(NOW.getTime() + 15)
+    })).resolves.toEqual({ state: "replayed", receipt: completedReceipt });
+  });
+
   it("CAS-invalidates malformed state, releases all leases, and writes only rewardless proof", async () => {
     await seedParty(prisma, "group-broken", [1301n, 1302n, 1303n]);
     const started = await repository.startProofForTelegramUser({
@@ -1174,6 +1255,48 @@ describe("PrismaGroupCombatRepository integration", () => {
       participant.settledAt === null
     ))).toBe(true);
   });
+
+  it.each([13, -1])(
+    "invalidates an active v2 row whose pending settlement attempts are %i and resets them to zero",
+    async (settlementAttempts) => {
+      const suffix = settlementAttempts < 0 ? "negative" : "positive";
+      const telegramBase = settlementAttempts < 0 ? 20_080n : 20_082n;
+      const session = await startProof(
+        prisma,
+        repository,
+        `group-active-pending-attempts-${suffix}`,
+        [telegramBase, telegramBase + 1n]
+      );
+      const first = await prisma.groupCombatParticipant.findFirstOrThrow({
+        where: { sessionId: session.id },
+        orderBy: { rosterOrder: "asc" }
+      });
+      await prisma.groupCombatParticipant.update({
+        where: { id: first.id },
+        data: {
+          settlementStatus: "pending",
+          settlementAttempts,
+          settlementReceiptJson: Prisma.DbNull,
+          settledAt: null
+        }
+      });
+
+      expect(await repository.repairInvalidOrOrphaned(NOW, 93)).toBeGreaterThanOrEqual(1);
+      const repaired = await prisma.groupCombatSession.findUniqueOrThrow({
+        where: { id: session.id },
+        include: { participants: true }
+      });
+      expect(repaired.status).toBe("invalid");
+      expect(repaired.terminalIntegrityCheckedAt).toEqual(NOW);
+      expect(repaired.participants.every((participant) => (
+        participant.settlementStatus === "pending"
+        && participant.settlementAttempts === 0
+        && participant.settlementReceiptJson === null
+        && participant.settledAt === null
+      ))).toBe(true);
+      expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
+    }
+  );
 
   it("invalidates a shape-valid state whose roster is foreign to the relational participants", async () => {
     const session = await startProof(prisma, repository, "group-foreign-state", [1311n, 1312n]);
