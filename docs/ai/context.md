@@ -23,7 +23,7 @@
   replay. Pending settlement is exactly zero-attempt/receipt-free/unsettled;
   completed receipts keep positive attempts and settledAt. Character resources,
   XP, gold, items, quests, achievements and activity rewards remain unchanged.
-  Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions; terminal cards explain all six icons.
+  Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions; terminal cards explain all six icons. Future backlog extends this pattern to raids and other combats only where canonical evidence exists.
   Generic Aid is absent: ally support uses authored class/race profiles. Strict parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
   Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
