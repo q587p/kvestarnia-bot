@@ -34,7 +34,7 @@ const QUERY_BUDGETS = {
   dueScan: 1,
   deliveryScan: 1,
   settlementScan: 1,
-  achievementEffectScan: 1,
+  achievementEffectScan: 6,
   settlement: 20,
   idleRepair: 6
 } as const;
@@ -1308,7 +1308,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     }
     await prisma.groupCombatParticipant.updateMany({
       where: healthy,
-      data: { achievementEffectOccurredAt: new Date(NOW.getTime() + 100_000) }
+      data: { achievementEffectOccurredAt: new Date(NOW.getTime() - 100_000) }
     });
 
     await expect(repository.listPendingAchievementEffects(1)).resolves.toEqual([
@@ -1365,6 +1365,243 @@ describe("PrismaGroupCombatRepository integration", () => {
         achievementId: "achievement.left-passage.party-attack.first"
       }
     })).toBe(14);
+  });
+
+  it.each([
+    ["character id", 710_020n, (receipt: Record<string, unknown>) => ({
+      ...receipt,
+      characterId: "foreign-character"
+    })],
+    ["reward", 710_030n, (receipt: Record<string, unknown>) => ({
+      ...receipt,
+      rewards: {
+        ...(receipt.rewards as Record<string, unknown>),
+        xp: Number((receipt.rewards as Record<string, unknown>).xp) + 1
+      }
+    })],
+    ["resource", 710_040n, (receipt: Record<string, unknown>) => ({
+      ...receipt,
+      resources: {
+        ...(receipt.resources as Record<string, unknown>),
+        hp: Number((receipt.resources as Record<string, unknown>).hp) + 1
+      }
+    })],
+    ["activity key", 710_050n, (receipt: Record<string, unknown>) => ({
+      ...receipt,
+      effects: {
+        ...(receipt.effects as Record<string, unknown>),
+        activityKey: `${String((receipt.effects as Record<string, unknown>).activityKey)}:corrupt`
+      }
+    })]
+  ] as const)(
+    "quarantines a shape-valid %s receipt mutation before achievement projection",
+    async (
+      label: string,
+      firstId: bigint,
+      mutateReceipt: (receipt: Record<string, unknown>) => Record<string, unknown>
+    ) => {
+      const started = await startLeftPassageProduction(
+        prisma,
+        repository,
+        `left-receipt-integrity-${
+          label === "character id"
+            ? "character-id"
+            : label === "activity key" ? "activity-key" : label
+        }`,
+        [firstId, firstId + 1n]
+      );
+      const terminal = await terminalizeProductionSession(prisma, started);
+      const participant = terminal.participants[0]!;
+      await expect(repository.settleParticipant({
+        sessionId: terminal.id,
+        telegramUserId: participant.telegramUserId,
+        now: new Date(NOW.getTime() + 301_000)
+      })).resolves.toMatchObject({ state: "settled" });
+      const stored = await prisma.groupCombatParticipant.findFirstOrThrow({
+        where: { sessionId: terminal.id, characterId: participant.characterId }
+      });
+      const corruptedReceipt = mutateReceipt(
+        stored.settlementReceiptJson as Record<string, unknown>
+      );
+      await prisma.$transaction([
+        prisma.groupCombatSession.update({
+          where: { id: terminal.id },
+          data: { terminalIntegrityCheckedAt: new Date(NOW.getTime() + 301_001) }
+        }),
+        prisma.groupCombatParticipant.update({
+          where: { id: stored.id },
+          data: { settlementReceiptJson: corruptedReceipt }
+        })
+      ]);
+      const resourcesBeforeRepair = await resourceSnapshot(
+        prisma,
+        terminal.participants.map((row) => row.telegramUserId)
+      );
+      const leasesBeforeRepair = await prisma.activeCombatLease.count({
+        where: { referenceId: terminal.id }
+      });
+      const activitiesBeforeRepair = await prisma.activityEvent.count({
+        where: { sourceId: terminal.id }
+      });
+      const trackEvent = vi.fn(() =>
+        Promise.reject(new Error("unexpected achievement projection"))
+      );
+      const service = new GroupCombatService(
+        repository,
+        { enabled: true, devHelpersEnabled: false },
+        () => new Date(NOW.getTime() + 301_002),
+        { trackEvent } as unknown as AchievementService
+      );
+
+      await service.projectPendingAchievements(13);
+      expect(trackEvent).not.toHaveBeenCalledWith(expect.objectContaining({
+        characterId: participant.characterId
+      }));
+      expect(await prisma.characterAchievement.count({
+        where: {
+          characterId: participant.characterId,
+          achievementId: "achievement.left-passage.party-attack.first"
+        }
+      })).toBe(0);
+
+      const diagnostic = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      await expect(repository.repairInvalidOrOrphaned(
+        new Date(NOW.getTime() + 301_003),
+        13
+      )).resolves.toBeGreaterThanOrEqual(1);
+      const inspection = await repository.inspectOperatorRepair(terminal.id);
+      expect(inspection?.repairState).toBe("operator-required");
+      expect(inspection?.repairReason).toContain("immutable plan entry");
+      expect(inspection?.participants.find(
+        (row) => row.characterId === participant.characterId
+      )?.settlementReceipt).toEqual(corruptedReceipt);
+      expect(await resourceSnapshot(
+        prisma,
+        terminal.participants.map((row) => row.telegramUserId)
+      )).toEqual(resourcesBeforeRepair);
+      expect(await prisma.activeCombatLease.count({
+        where: { referenceId: terminal.id }
+      })).toBe(leasesBeforeRepair);
+      expect(await prisma.activityEvent.count({
+        where: { sourceId: terminal.id }
+      })).toBe(activitiesBeforeRepair);
+      await service.projectPendingAchievements(13);
+      expect(trackEvent).not.toHaveBeenCalledWith(expect.objectContaining({
+        characterId: participant.characterId
+      }));
+      diagnostic.mockRestore();
+    }
+  );
+
+  it("projects a healthy effect behind thirteen exact-key effects with bad receipts", async () => {
+    const manualParticipants: Array<{ sessionId: string; characterId: string }> = [];
+    for (let index = 0; index < 7; index += 1) {
+      const started = await startLeftPassageProduction(
+        prisma,
+        repository,
+        `left-bad-receipt-capacity-${index}`,
+        [710_060n + BigInt(index * 2), 710_061n + BigInt(index * 2)]
+      );
+      const terminal = await terminalizeProductionSession(prisma, started);
+      for (const participant of terminal.participants) {
+        await repository.settleParticipant({
+          sessionId: terminal.id,
+          telegramUserId: participant.telegramUserId,
+          now: new Date(NOW.getTime() + 302_000 + manualParticipants.length)
+        });
+        manualParticipants.push({
+          sessionId: terminal.id,
+          characterId: participant.characterId
+        });
+      }
+    }
+    const malformed = manualParticipants.slice(0, 13);
+    const healthyStarted = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-bad-receipt-capacity-healthy",
+      [710_080n, 710_081n]
+    );
+    const healthyTerminal = await terminalizeProductionSession(prisma, healthyStarted);
+    const healthyParticipant = healthyTerminal.participants[0]!;
+    await repository.settleParticipant({
+      sessionId: healthyTerminal.id,
+      telegramUserId: healthyParticipant.telegramUserId,
+      now: new Date(NOW.getTime() + 302_099)
+    });
+    const healthy = {
+      sessionId: healthyTerminal.id,
+      characterId: healthyParticipant.characterId
+    };
+    for (const [index, participant] of malformed.entries()) {
+      const row = await prisma.groupCombatParticipant.findFirstOrThrow({
+        where: participant
+      });
+      const receipt = row.settlementReceiptJson as Record<string, unknown>;
+      await prisma.groupCombatParticipant.update({
+        where: { id: row.id },
+        data: {
+          settlementReceiptJson: {
+            ...receipt,
+            rewards: {
+              ...(receipt.rewards as Record<string, unknown>),
+              gold: Number((receipt.rewards as Record<string, unknown>).gold) + 1
+            }
+          },
+          achievementEffectOccurredAt: new Date(NOW.getTime() + index)
+        }
+      });
+    }
+    await prisma.groupCombatParticipant.updateMany({
+      where: healthy,
+      data: { achievementEffectOccurredAt: new Date(NOW.getTime() - 200_000) }
+    });
+    await expect(repository.listPendingAchievementEffects(13)).resolves.toContainEqual(
+      expect.objectContaining(healthy)
+    );
+
+    const achievements = new AchievementService(new PrismaAchievementRepository(prisma));
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(NOW.getTime() + 302_100),
+      achievements
+    );
+    await service.projectPendingAchievements(13);
+    expect(await prisma.characterAchievement.count({
+      where: {
+        characterId: healthy.characterId,
+        achievementId: "achievement.left-passage.party-attack.first"
+      }
+    })).toBe(1);
+    expect(await prisma.characterAchievement.count({
+      where: {
+        characterId: { in: malformed.map((participant) => participant.characterId) },
+        achievementId: "achievement.left-passage.party-attack.first"
+      }
+    })).toBe(0);
+
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await expect(repository.repairInvalidOrOrphaned(
+      new Date(NOW.getTime() + 302_101),
+      13
+    )).resolves.toBeGreaterThanOrEqual(7);
+    expect(await prisma.groupCombatSession.count({
+      where: {
+        id: { in: malformed.map((participant) => participant.sessionId) },
+        repairState: "operator-required"
+      }
+    })).toBe(7);
+    await expect(service.projectPendingAchievements(13)).resolves.toBe(0);
+    expect(await prisma.characterAchievement.count({
+      where: {
+        characterId: {
+          in: [...manualParticipants, healthy].map((participant) => participant.characterId)
+        },
+        achievementId: "achievement.left-passage.party-attack.first"
+      }
+    })).toBe(1);
+    diagnostic.mockRestore();
   });
 
   it.each([
@@ -1438,6 +1675,276 @@ describe("PrismaGroupCombatRepository integration", () => {
         achievementId: "achievement.left-passage.party-attack.first"
       }
     })).toBe(1);
+  });
+
+  it.each([
+    ["canonical marker", 710_150n, false],
+    ["wrong-key marker", 710_160n, true]
+  ] as const)(
+    "reconciles a false projected %s to one retryable unlock",
+    async (label: string, firstId: bigint, wrongKey: boolean) => {
+      const started = await startLeftPassageProduction(
+        prisma,
+        repository,
+        `left-false-projected-${
+          label === "canonical marker" ? "canonical-marker" : "wrong-key-marker"
+        }`,
+        [firstId, firstId + 1n]
+      );
+      const terminal = await terminalizeProductionSession(prisma, started);
+      const participant = terminal.participants[0]!;
+      await repository.settleParticipant({
+        sessionId: terminal.id,
+        telegramUserId: participant.telegramUserId,
+        now: new Date(NOW.getTime() + 311_000)
+      });
+      await prisma.groupCombatParticipant.updateMany({
+        where: { sessionId: terminal.id, characterId: participant.characterId },
+        data: {
+          achievementEffectStatus: "projected",
+          achievementEffectProjectedAt: new Date(NOW.getTime() + 311_001),
+          ...(wrongKey ? { achievementEffectKey: "false-projected-key" } : {})
+        }
+      });
+      const resourcesBeforeProjection = await resourceSnapshot(
+        prisma,
+        terminal.participants.map((row) => row.telegramUserId)
+      );
+      const activitiesBeforeProjection = await prisma.activityEvent.count({
+        where: { sourceId: terminal.id }
+      });
+      const leasesBeforeProjection = await prisma.activeCombatLease.count({
+        where: { referenceId: terminal.id }
+      });
+      const actualAchievements = new AchievementService(
+        new PrismaAchievementRepository(prisma)
+      );
+      const trackEvent = vi.fn(actualAchievements.trackEvent.bind(actualAchievements));
+      const service = new GroupCombatService(
+        repository,
+        { enabled: true, devHelpersEnabled: false },
+        () => new Date(NOW.getTime() + 311_003),
+        { trackEvent } as unknown as AchievementService
+      );
+
+      await repository.repairInvalidOrOrphaned(
+        new Date(NOW.getTime() + 311_002),
+        13
+      );
+      await service.projectPendingAchievements(13);
+      await service.projectPendingAchievements(13);
+
+      expect(trackEvent.mock.calls.filter(([event]) =>
+        event.characterId === participant.characterId
+      )).toHaveLength(1);
+      expect(await prisma.characterAchievement.count({
+        where: {
+          characterId: participant.characterId,
+          achievementId: "achievement.left-passage.party-attack.first"
+        }
+      })).toBe(1);
+      expect(await resourceSnapshot(
+        prisma,
+        terminal.participants.map((row) => row.telegramUserId)
+      )).toEqual(resourcesBeforeProjection);
+      expect(await prisma.activityEvent.count({
+        where: { sourceId: terminal.id }
+      })).toBe(activitiesBeforeProjection);
+      expect(await prisma.activeCombatLease.count({
+        where: { referenceId: terminal.id }
+      })).toBe(leasesBeforeProjection);
+      const repairedEffect = await prisma.groupCombatParticipant.findFirstOrThrow({
+        where: { sessionId: terminal.id, characterId: participant.characterId },
+        select: {
+          achievementEffectKey: true,
+          achievementEffectStatus: true,
+          achievementEffectProjectedAt: true
+        }
+      });
+      expect(repairedEffect).toMatchObject({
+        achievementEffectKey:
+          `${terminal.id}:${participant.characterId}:left-passage.party-attack.completed`,
+        achievementEffectStatus: "projected"
+      });
+      expect(repairedEffect.achievementEffectProjectedAt).toBeInstanceOf(Date);
+    }
+  );
+
+  it("canonicalizes a corrupt projected marker when the character already owns the achievement", async () => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-owned-projected-repair",
+      [710_170n, 710_171n]
+    );
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const participant = terminal.participants[0]!;
+    await repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(NOW.getTime() + 312_000)
+    });
+    await prisma.characterAchievement.create({
+      data: {
+        characterId: participant.characterId,
+        achievementId: "achievement.left-passage.party-attack.first",
+        sourceType: "earlier-session",
+        sourceId: "earlier-session-id",
+        unlockedAt: new Date(NOW.getTime() - 93_000)
+      }
+    });
+    await prisma.groupCombatParticipant.updateMany({
+      where: { sessionId: terminal.id, characterId: participant.characterId },
+      data: {
+        achievementEffectKey: "corrupt-projected-key",
+        achievementEffectStatus: "projected",
+        achievementEffectProjectedAt: new Date(NOW.getTime() + 312_001)
+      }
+    });
+    const resourcesBeforeRepair = await resourceSnapshot(
+      prisma,
+      terminal.participants.map((row) => row.telegramUserId)
+    );
+    const activitiesBeforeRepair = await prisma.activityEvent.count({
+      where: { sourceId: terminal.id }
+    });
+    const leasesBeforeRepair = await prisma.activeCombatLease.count({
+      where: { referenceId: terminal.id }
+    });
+    const trackEvent = vi.fn(() =>
+      Promise.reject(new Error("unexpected achievement projection"))
+    );
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(NOW.getTime() + 312_003),
+      { trackEvent } as unknown as AchievementService
+    );
+
+    await repository.repairInvalidOrOrphaned(
+      new Date(NOW.getTime() + 312_002),
+      13
+    );
+    await expect(service.projectPendingAchievements(13)).resolves.toBe(0);
+    expect(trackEvent).not.toHaveBeenCalled();
+    expect(await prisma.characterAchievement.count({
+      where: {
+        characterId: participant.characterId,
+        achievementId: "achievement.left-passage.party-attack.first"
+      }
+    })).toBe(1);
+    expect(await resourceSnapshot(
+      prisma,
+      terminal.participants.map((row) => row.telegramUserId)
+    )).toEqual(resourcesBeforeRepair);
+    expect(await prisma.activityEvent.count({
+      where: { sourceId: terminal.id }
+    })).toBe(activitiesBeforeRepair);
+    expect(await prisma.activeCombatLease.count({
+      where: { referenceId: terminal.id }
+    })).toBe(leasesBeforeRepair);
+    const repairedEffect = await prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: terminal.id, characterId: participant.characterId },
+      select: {
+        achievementEffectKey: true,
+        achievementEffectStatus: true,
+        achievementEffectProjectedAt: true
+      }
+    });
+    expect(repairedEffect).toMatchObject({
+      achievementEffectKey:
+        `${terminal.id}:${participant.characterId}:left-passage.party-attack.completed`,
+      achievementEffectStatus: "projected"
+    });
+    expect(repairedEffect.achievementEffectProjectedAt).toBeInstanceOf(Date);
+  });
+
+  it("resolves concurrent pending projection and repair through achievement ownership", async () => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-achievement-repair-race",
+      [710_180n, 710_181n]
+    );
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const participant = terminal.participants[0]!;
+    await repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(NOW.getTime() + 313_000)
+    });
+    const resourcesBeforeRace = await resourceSnapshot(
+      prisma,
+      terminal.participants.map((row) => row.telegramUserId)
+    );
+    const activitiesBeforeRace = await prisma.activityEvent.count({
+      where: { sourceId: terminal.id }
+    });
+    const leasesBeforeRace = await prisma.activeCombatLease.count({
+      where: { referenceId: terminal.id }
+    });
+    let releaseMark!: () => void;
+    let markEntered!: () => void;
+    const markGate = new Promise<void>((resolve) => {
+      releaseMark = resolve;
+    });
+    const markStarted = new Promise<void>((resolve) => {
+      markEntered = resolve;
+    });
+    const racingRepository = new PrismaGroupCombatRepository(prisma, {
+      beforeAchievementProjectionMark: async ({ key }) => {
+        if (key.includes(participant.characterId)) {
+          markEntered();
+          await markGate;
+        }
+      }
+    });
+    const actualAchievements = new AchievementService(
+      new PrismaAchievementRepository(prisma)
+    );
+    const trackEvent = vi.fn(actualAchievements.trackEvent.bind(actualAchievements));
+    const service = new GroupCombatService(
+      racingRepository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(NOW.getTime() + 313_001),
+      { trackEvent } as unknown as AchievementService
+    );
+
+    const projection = service.projectPendingAchievements(13);
+    await markStarted;
+    await racingRepository.repairInvalidOrOrphaned(
+      new Date(NOW.getTime() + 313_002),
+      13
+    );
+    releaseMark();
+    await expect(projection).resolves.toBe(0);
+    await expect(service.projectPendingAchievements(13)).resolves.toBe(0);
+
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+    expect(await prisma.characterAchievement.count({
+      where: {
+        characterId: participant.characterId,
+        achievementId: "achievement.left-passage.party-attack.first"
+      }
+    })).toBe(1);
+    expect(await prisma.groupCombatParticipant.count({
+      where: {
+        sessionId: terminal.id,
+        characterId: participant.characterId,
+        achievementEffectStatus: "projected",
+        achievementEffectProjectedAt: { not: null }
+      }
+    })).toBe(1);
+    expect(await resourceSnapshot(
+      prisma,
+      terminal.participants.map((row) => row.telegramUserId)
+    )).toEqual(resourcesBeforeRace);
+    expect(await prisma.activityEvent.count({
+      where: { sourceId: terminal.id }
+    })).toBe(activitiesBeforeRace);
+    expect(await prisma.activeCombatLease.count({
+      where: { referenceId: terminal.id }
+    })).toBe(leasesBeforeRace);
   });
 
   it("clears a timeout-only stray effect and quarantines an ambiguous completed effect receipt", async () => {

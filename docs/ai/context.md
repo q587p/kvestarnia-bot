@@ -6,7 +6,7 @@
 - Current repository version: `0.4.2` — the exact hard `deep-left` pending encounter can be reserved by a 2–3-person `PartySession` and resolved through production-capable `group-combat.v3` behind default-off `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; solo attack remains available.
   Recruitment lasts three minutes, may start early by the current leader, and freezes the authoritative current-life same-location roster at start.
   The exact preview is primary; reservation-stable backups reuse canonical solo Низ difficulty from each frozen remort life, strongest recent threat pressure and strongest remort, with the first backup threat bonus capped at 23.
-  Runtime servicing remains active when new entry is disabled. One-transaction per-player resources/consumables, neutral manual-only XP/gold, one common roll, activity, achievement, receipts and participant-owned leases converge after restart/retry.
+  Runtime servicing remains active when new entry is disabled. One-transaction per-player resources/consumables, neutral manual-only XP/gold, one common roll, activity, receipts and participant-owned leases converge after restart/retry. Achievement projection requires the strict canonical plan plus exact receipt; repair reconciles false projected markers against actual ownership.
   Manual Telegram QA, production enablement, merge and deployment remain pending.
 - The underlying `0.4.1` restart-safe 2–3 player versus 2–3 enemy proof remains available only behind `GROUP_COMBAT_PROOF_ENABLED` outside production.
   Start freezes current-life identity/resources/stats, supported class/race/gear/items, `Ситий` and `Натхнення`; `group-combat.v2` resolves deterministic targets, mana/cooldown/fumble, threat responses and multiple deaths.
