@@ -53,6 +53,40 @@ export interface GroupCombatSessionRecord {
   queuedActions: GroupCombatQueuedActionRecord[];
 }
 
+export interface GroupCombatAchievementEffectRecord {
+  key: string;
+  type: "left-passage.party-attack.completed";
+  sessionId: string;
+  characterId: string;
+  occurredAt: Date;
+}
+
+export interface GroupCombatOperatorRepairRecord {
+  id: string;
+  encounterKey: string;
+  rulesVersion: string;
+  status: string;
+  turn: number;
+  version: number;
+  repairState: "operator-required";
+  repairReason: string;
+  state: unknown;
+  result: unknown;
+  settlementPlan: unknown;
+  participants: Array<{
+    characterId: string;
+    remortCount: number;
+    rosterOrder: number;
+    snapshot: unknown;
+    contribution: unknown;
+    settlementStatus: string;
+    settlementAttempts: number;
+    settlementReceipt: unknown;
+    achievementEffectKey: string | null;
+    achievementEffectStatus: string | null;
+  }>;
+}
+
 export type GroupCombatStartResult =
   | {
       state: "disabled" | "no-character" | "not-found" | "not-leader" | "not-recruiting" | "invalid-size" | "invalid-life" | "blocked" | "invalid-roster" | "wrong-origin" | "wrong-location" | "expired-invitation" | "reservation-missing";
@@ -141,12 +175,18 @@ export interface GroupCombatRepository {
   findByPartyInviteToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null>;
   findById(sessionId: string): Promise<GroupCombatSessionRecord | null>;
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
+  inspectOperatorRepair(sessionId: string): Promise<GroupCombatOperatorRepairRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
   listPendingDeliverySessionIds(limit: number): Promise<string[]>;
   listPendingSettlementParticipants(limit: number): Promise<Array<{
     sessionId: string;
     telegramUserId: bigint;
   }>>;
+  listPendingAchievementEffects(limit: number): Promise<GroupCombatAchievementEffectRecord[]>;
+  markAchievementEffectProjected(input: {
+    key: string;
+    projectedAt: Date;
+  }): Promise<boolean>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
 
   settleParticipant(input: {

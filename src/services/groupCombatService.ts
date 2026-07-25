@@ -163,6 +163,10 @@ export class GroupCombatService {
     return this.options.enabled ? this.repository.findActiveByTelegramUserId(telegramUserId) : Promise.resolve(null);
   }
 
+  inspectOperatorRepair(sessionId: string) {
+    return this.repository.inspectOperatorRepair(sessionId);
+  }
+
   async resolveDue(limit = 13): Promise<GroupCombatSessionRecord[]> {
     if (!this.options.enabled) {
       return [];
@@ -194,25 +198,43 @@ export class GroupCombatService {
     }
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     await this.settlePending(limit);
+    await this.projectPendingAchievements(limit);
     return repaired;
   }
 
   async settleParticipant(sessionId: string, telegramUserId: bigint) {
     const now = this.now();
     const result = await this.repository.settleParticipant({ sessionId, telegramUserId, now });
-    if (
-      (result.state === "settled" || result.state === "replayed") &&
-      result.receipt.policy === "left-passage-party" &&
-      result.receipt.manualParticipation === true
-    ) {
-      await this.achievements?.trackEventSafely({
-        type: "left-passage.party-attack.completed",
-        characterId: result.receipt.characterId,
-        occurredAt: now,
-        sourceId: sessionId
-      });
+    if (result.state === "settled" || result.state === "replayed") {
+      await this.projectPendingAchievements(13);
     }
     return result;
+  }
+
+  async projectPendingAchievements(limit = 13): Promise<number> {
+    if (!this.options.enabled || !this.achievements) {
+      return 0;
+    }
+    const effects = await this.repository.listPendingAchievementEffects(limit);
+    let projected = 0;
+    for (const effect of effects) {
+      try {
+        await this.achievements.trackEvent({
+          type: effect.type,
+          characterId: effect.characterId,
+          occurredAt: effect.occurredAt,
+          sourceId: effect.sessionId
+        });
+        const completed = await this.repository.markAchievementEffectProjected({
+          key: effect.key,
+          projectedAt: this.now()
+        });
+        projected += completed ? 1 : 0;
+      } catch {
+        continue;
+      }
+    }
+    return projected;
   }
 
   async settlePending(limit = 13): Promise<number> {

@@ -1202,6 +1202,7 @@ model GroupCombatSession {
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
   repairState     String?      @map("repair_state")
+  repairReason    String?      @map("repair_reason")
   stateJson      Json         @map("state_json")
   resultJson     Json?        @map("result_json")
   settlementPlanJson Json?    @map("settlement_plan_json")
@@ -1233,6 +1234,11 @@ model GroupCombatParticipant {
   settlementAttempts Int              @default(0) @map("settlement_attempts")
   settlementReceiptJson Json?         @map("settlement_receipt_json")
   settledAt        DateTime?          @map("settled_at")
+  achievementEffectKey String?        @unique @map("achievement_effect_key")
+  achievementEffectType String?       @map("achievement_effect_type")
+  achievementEffectStatus String?     @map("achievement_effect_status")
+  achievementEffectOccurredAt DateTime? @map("achievement_effect_occurred_at")
+  achievementEffectProjectedAt DateTime? @map("achievement_effect_projected_at")
   chatId           BigInt?            @map("chat_id")
   messageId        Int?               @map("message_id")
   referenceVersion Int                @default(0) @map("reference_version")
@@ -1243,6 +1249,7 @@ model GroupCombatParticipant {
   @@unique([sessionId, characterId])
   @@unique([sessionId, rosterOrder])
   @@index([characterId, sessionId])
+  @@index([achievementEffectStatus, updatedAt, id])
   @@map("group_combat_participants")
 }
 

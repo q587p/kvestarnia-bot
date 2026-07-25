@@ -1,5 +1,18 @@
 ALTER TABLE "party_sessions" ADD COLUMN "origin_kind" TEXT;
 ALTER TABLE "group_combat_sessions" ADD COLUMN "repair_state" TEXT;
+ALTER TABLE "group_combat_sessions" ADD COLUMN "repair_reason" TEXT;
+
+ALTER TABLE "group_combat_participants" ADD COLUMN "achievement_effect_key" TEXT;
+ALTER TABLE "group_combat_participants" ADD COLUMN "achievement_effect_type" TEXT;
+ALTER TABLE "group_combat_participants" ADD COLUMN "achievement_effect_status" TEXT;
+ALTER TABLE "group_combat_participants" ADD COLUMN "achievement_effect_occurred_at" DATETIME;
+ALTER TABLE "group_combat_participants" ADD COLUMN "achievement_effect_projected_at" DATETIME;
+
+CREATE UNIQUE INDEX "group_combat_participants_achievement_effect_key_key"
+ON "group_combat_participants"("achievement_effect_key");
+
+CREATE INDEX "group_combat_participants_achievement_effect_status_updated_at_id_idx"
+ON "group_combat_participants"("achievement_effect_status", "updated_at", "id");
 
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_origin" TEXT;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_remort_count" INTEGER;

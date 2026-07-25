@@ -57,6 +57,8 @@ import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupp
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import type {
   GroupCombatActionResult,
+  GroupCombatAchievementEffectRecord,
+  GroupCombatOperatorRepairRecord,
   GroupCombatParticipantRecord,
   GroupCombatQueuedActionRecord,
   GroupCombatRepository,
@@ -79,6 +81,7 @@ const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 2;
+const LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT = "left-passage.party-attack.completed";
 
 class GroupCombatMutationConflict extends Error {}
 class GroupCombatInventoryDrift extends Error {
@@ -159,6 +162,7 @@ export type GroupCombatSettlementStage =
   | "resources"
   | "items"
   | "activity"
+  | "achievement-effect"
   | "receipt"
   | "lease";
 
@@ -1064,7 +1068,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
 
   async findByPartyInviteToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null> {
     const row = await this.prisma.groupCombatSession.findFirst({
-      where: { partySession: { inviteToken: partyInviteToken } },
+      where: { partySession: { inviteToken: partyInviteToken }, repairState: null },
       select: { id: true }
     });
     return row ? loadSession(this.prisma, row.id) : null;
@@ -1078,6 +1082,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     const row = await this.prisma.groupCombatSession.findFirst({
       where: {
         status: "active",
+        repairState: null,
         participants: { some: { character: { user: { telegramUserId } } } }
       },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
@@ -1086,9 +1091,48 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return row ? loadSession(this.prisma, row.id) : null;
   }
 
+  async inspectOperatorRepair(sessionId: string): Promise<GroupCombatOperatorRepairRecord | null> {
+    const row = await this.prisma.groupCombatSession.findFirst({
+      where: { id: sessionId, repairState: "operator-required" },
+      include: {
+        participants: {
+          orderBy: [{ rosterOrder: "asc" }, { id: "asc" }]
+        }
+      }
+    });
+    if (!row || !row.repairReason) {
+      return null;
+    }
+    return {
+      id: row.id,
+      encounterKey: row.encounterKey,
+      rulesVersion: row.rulesVersion,
+      status: row.status,
+      turn: row.turn,
+      version: row.version,
+      repairState: "operator-required",
+      repairReason: row.repairReason,
+      state: row.stateJson,
+      result: row.resultJson,
+      settlementPlan: row.settlementPlanJson,
+      participants: row.participants.map((participant) => ({
+        characterId: participant.characterId,
+        remortCount: participant.remortCount,
+        rosterOrder: participant.rosterOrder,
+        snapshot: participant.snapshotJson,
+        contribution: participant.contributionJson,
+        settlementStatus: participant.settlementStatus,
+        settlementAttempts: participant.settlementAttempts,
+        settlementReceipt: participant.settlementReceiptJson,
+        achievementEffectKey: participant.achievementEffectKey,
+        achievementEffectStatus: participant.achievementEffectStatus
+      }))
+    };
+  }
+
   async listDueSessionIds(now: Date, limit: number): Promise<string[]> {
     const rows = await this.prisma.groupCombatSession.findMany({
-      where: { status: "active", turnExpiresAt: { lte: now } },
+      where: { status: "active", repairState: null, turnExpiresAt: { lte: now } },
       orderBy: [{ turnExpiresAt: "asc" }, { id: "asc" }],
       take: Math.min(93, Math.max(1, Math.floor(limit))),
       select: { id: true }
@@ -1098,7 +1142,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
 
   async listPendingDeliverySessionIds(limit: number): Promise<string[]> {
     const rows = await this.prisma.groupCombatSession.findMany({
-      where: { deliveryPending: true },
+      where: { deliveryPending: true, repairState: null },
       orderBy: [
         { deliveryAttemptedAt: "asc" },
         { updatedAt: "asc" },
@@ -1135,6 +1179,65 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       sessionId: row.sessionId,
       telegramUserId: row.character.user.telegramUserId
     }));
+  }
+
+  async listPendingAchievementEffects(limit: number): Promise<GroupCombatAchievementEffectRecord[]> {
+    const rows = await this.prisma.groupCombatParticipant.findMany({
+      where: {
+        settlementStatus: "completed",
+        achievementEffectStatus: "pending",
+        achievementEffectKey: { not: null },
+        achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
+        achievementEffectOccurredAt: { not: null },
+        session: { repairState: null }
+      },
+      orderBy: [{ achievementEffectOccurredAt: "asc" }, { updatedAt: "asc" }, { id: "asc" }],
+      take: Math.min(93, Math.max(1, Math.floor(limit))),
+      select: {
+        sessionId: true,
+        characterId: true,
+        achievementEffectKey: true,
+        achievementEffectType: true,
+        achievementEffectOccurredAt: true
+      }
+    });
+    return rows.flatMap((row) => {
+      const key = buildCompletionAchievementEffectKey(row.sessionId, row.characterId);
+      if (
+        row.achievementEffectKey !== key ||
+        row.achievementEffectType !== LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT ||
+        !row.achievementEffectOccurredAt
+      ) {
+        return [];
+      }
+      return [{
+        key,
+        type: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
+        sessionId: row.sessionId,
+        characterId: row.characterId,
+        occurredAt: row.achievementEffectOccurredAt
+      }];
+    });
+  }
+
+  async markAchievementEffectProjected(input: {
+    key: string;
+    projectedAt: Date;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        achievementEffectKey: input.key,
+        achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
+        achievementEffectStatus: "pending",
+        settlementStatus: "completed",
+        session: { repairState: null }
+      },
+      data: {
+        achievementEffectStatus: "projected",
+        achievementEffectProjectedAt: input.projectedAt
+      }
+    });
+    return updated.count === 1;
   }
 
   async repairInvalidOrOrphaned(now: Date, limit: number): Promise<number> {
@@ -1213,10 +1316,23 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         : 0;
     }
 
-    const leases = await this.prisma.activeCombatLease.findMany({
-      where: { kind: GROUP_COMBAT_LEASE_KIND },
-      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-      take: boundedLimit
+    const leaseCandidates = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT leases."id"
+      FROM "active_combat_leases" AS leases
+      LEFT JOIN "group_combat_sessions" AS sessions
+        ON sessions."id" = leases."reference_id"
+      WHERE leases."kind" = ${GROUP_COMBAT_LEASE_KIND}
+        AND (sessions."id" IS NULL OR sessions."repair_state" IS NULL)
+      ORDER BY leases."updated_at" ASC, leases."id" ASC
+      LIMIT ${boundedLimit}
+    `);
+    const unorderedLeases = await this.prisma.activeCombatLease.findMany({
+      where: { id: { in: leaseCandidates.map((candidate) => candidate.id) } }
+    });
+    const leaseById = new Map(unorderedLeases.map((lease) => [lease.id, lease]));
+    const leases = leaseCandidates.flatMap((candidate) => {
+      const lease = leaseById.get(candidate.id);
+      return lease ? [lease] : [];
     });
     for (const candidate of leases) {
       const didRepair = await this.prisma.$transaction(async (tx) => {
@@ -1225,6 +1341,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return false;
         }
         const owner = await tx.groupCombatSession.findUnique({ where: { id: lease.referenceId }, include: sessionInclude });
+        if (owner && owner.repairState !== null) {
+          return false;
+        }
         if (owner?.status === "active") {
           if (owner.participants.some((participant) => participant.characterId === lease.characterId)) {
             return false;
@@ -1411,12 +1530,24 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         data: {
           settlementStatus: "completed",
           settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
-          settledAt: input.now
+          settledAt: input.now,
+          ...(receipt.policy === "left-passage-party" && receipt.manualParticipation === true
+            ? {
+                achievementEffectKey: buildCompletionAchievementEffectKey(
+                  row.id,
+                  participant.characterId
+                ),
+                achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
+                achievementEffectStatus: "pending",
+                achievementEffectOccurredAt: input.now
+              }
+            : {})
         }
       });
       if (completed.count !== 1) {
         throw new GroupCombatMutationConflict();
       }
+      await this.runSettlementTestHook("achievement-effect", row.id, participant.characterId);
       await this.runSettlementTestHook("receipt", row.id, participant.characterId);
       if (plan.policy === "left-passage-party" && lease) {
         await releaseGroupCombatLease(tx, lease, input.now);
@@ -1449,6 +1580,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           sessionId: input.sessionId,
           referenceVersion: input.expectedReferenceVersion,
+          session: { repairState: null },
           character: { user: { telegramUserId: input.telegramUserId } }
         },
         data: {
@@ -1460,7 +1592,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       });
       if (updated.count === 1) {
         await tx.groupCombatSession.updateMany({
-          where: { id: input.sessionId },
+          where: { id: input.sessionId, repairState: null },
           data: { deliveryPending: true, deliveryAttemptedAt: null }
         });
       }
@@ -1483,6 +1615,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           sessionId: input.sessionId,
           referenceVersion: input.expectedReferenceVersion,
+          session: { repairState: null },
           chatId: input.chatId,
           messageId: input.messageId,
           character: { user: { telegramUserId: input.telegramUserId } }
@@ -1496,7 +1629,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       });
       if (updated.count === 1) {
         await tx.groupCombatSession.updateMany({
-          where: { id: input.sessionId },
+          where: { id: input.sessionId, repairState: null },
           data: { deliveryPending: true, deliveryAttemptedAt: null }
         });
       }
@@ -1522,7 +1655,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         chatId: input.chatId,
         messageId: input.messageId,
         deliveredRevision: { lt: input.expectedDeliveryRevision },
-        session: { deliveryRevision: input.expectedDeliveryRevision },
+        session: { deliveryRevision: input.expectedDeliveryRevision, repairState: null },
         character: { user: { telegramUserId: input.telegramUserId } }
       },
       data: { deliveredRevision: input.expectedDeliveryRevision }
@@ -1540,10 +1673,15 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: { id: input.sessionId },
         select: {
           deliveryRevision: true,
+          repairState: true,
           participants: { select: { deliveredRevision: true } }
         }
       });
-      if (!session || session.deliveryRevision !== input.expectedDeliveryRevision) {
+      if (
+        !session ||
+        session.repairState !== null ||
+        session.deliveryRevision !== input.expectedDeliveryRevision
+      ) {
         return false;
       }
       const complete = session.participants.every(
@@ -1553,6 +1691,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           id: input.sessionId,
           deliveryRevision: input.expectedDeliveryRevision,
+          repairState: null,
           deliveryPending: true
         },
         data: complete
@@ -2059,6 +2198,7 @@ async function markProductionOperatorRepairRequired(
     },
     data: {
       repairState: "operator-required",
+      repairReason: reason.slice(0, 587),
       terminalIntegrityCheckedAt: now
     }
   });
@@ -2070,6 +2210,10 @@ async function markProductionOperatorRepairRequired(
     reason
   });
   return "operator-repair-required";
+}
+
+function buildCompletionAchievementEffectKey(sessionId: string, characterId: string): string {
+  return `${sessionId}:${characterId}:${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}`;
 }
 
 function selectInvalidRepairRoster(row: SessionRow): {
