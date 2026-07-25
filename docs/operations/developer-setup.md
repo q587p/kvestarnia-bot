@@ -110,6 +110,9 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 проході Низу. Default `false`. Вимкнення блокує нові резервування й старти, але
 runtime далі обслуговує вже активні бої та settlement; прострочені збори
 закриваються з поверненням резервування.
+Локальна `/dev_group_combat_timeout TOKEN` переводить один активний бій цього
+збору через поточну межу timeout звичайним service-шляхом. У production вона не
+реєструється, не показується й не може мутувати стан.
 
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
@@ -151,6 +154,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_party` — збирає тимчасову локальну ватагу; коли GroupCombat proof увімкнений, створює окремий збір на 2–3 учасників із автоматичним стартом через три хвилини. Без proof зберігає звичайний party/session контракт. У production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
+- `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.
 - `/dev_raid_chat fill [14..131] | clear | expire composer|retention` — наповнює або очищає поточний Big Barrel чат і прискорює строки для перевірки newest-13, ліміту, composer та retention; доступна лише поза production, коли ввімкнений наявний Big Barrel прапорець.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.

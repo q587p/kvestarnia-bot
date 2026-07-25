@@ -42,13 +42,37 @@ describe("group combat bot flow", () => {
   it("cannot mutate through a dev command when the production gate is closed", async () => {
     const bot = testBot();
     const startProof = vi.fn();
+    const resolveDevTimeout = vi.fn();
     registerGroupCombatDevCommand(bot, {
       areDevHelpersEnabled: () => false,
-      startProof
+      startProof,
+      resolveDevTimeout
     } as unknown as GroupCombatService);
 
     await bot.handleUpdate(commandUpdate("/dev_group_combat proof-token-13"));
+    await bot.handleUpdate(commandUpdate("/dev_group_combat_timeout proof-token-13"));
     expect(startProof).not.toHaveBeenCalled();
+    expect(resolveDevTimeout).not.toHaveBeenCalled();
+  });
+
+  it("runs the narrow timeout helper only through the non-production group-combat gate", async () => {
+    const bot = testBot();
+    const resolveDevTimeout = vi.fn().mockResolvedValue({ state: "not-found" });
+    registerGroupCombatDevCommand(bot, {
+      areDevHelpersEnabled: () => true,
+      resolveDevTimeout
+    } as unknown as GroupCombatService);
+    const replies: string[] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        replies.push(String(payload.text));
+      }
+      return Promise.resolve({ ok: true, result: { message_id: replies.length } });
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_group_combat_timeout proof-token-13"));
+    expect(resolveDevTimeout).toHaveBeenCalledWith("proof-token-13");
+    expect(replies).toEqual(["Живої гуртової сутички з таким кодом не знайдено."]);
   });
 
   it("explains where the party code comes from and excludes the party_ prefix", async () => {

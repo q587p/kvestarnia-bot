@@ -5,8 +5,8 @@
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
 - Current repository version: `0.4.2` — the exact hard `deep-left` pending encounter can be reserved by a 2–3-person `PartySession` and resolved through production-capable `group-combat.v3` behind default-off `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; solo attack remains available.
   Recruitment lasts three minutes, may start early by the current leader, and freezes the authoritative current-life same-location roster at start.
-  The exact preview is primary; deterministic backups reuse canonical solo Низ difficulty, strongest recent threat pressure and strongest remort, with the first backup threat bonus capped at 23.
-  Runtime servicing remains active when new entry is disabled. Per-player resources/consumables, neutral XP/gold, one common roll, activity, achievement, receipts and leases converge after restart/retry.
+  The exact preview is primary; reservation-stable backups reuse canonical solo Низ difficulty from each frozen remort life, strongest recent threat pressure and strongest remort, with the first backup threat bonus capped at 23.
+  Runtime servicing remains active when new entry is disabled. One-transaction per-player resources/consumables, neutral manual-only XP/gold, one common roll, activity, achievement, receipts and participant-owned leases converge after restart/retry.
   Manual Telegram QA, production enablement, merge and deployment remain pending.
 - The underlying `0.4.1` restart-safe 2–3 player versus 2–3 enemy proof remains available only behind `GROUP_COMBAT_PROOF_ENABLED` outside production.
   Start freezes current-life identity/resources/stats, supported class/race/gear/items, `Ситий` and `Натхнення`; `group-combat.v2` resolves deterministic targets, mana/cooldown/fumble, threat responses and multiple deaths.
@@ -15,9 +15,9 @@
   cooldown and Field Kit stays once per fight. Missing frozen inventory
   rewardlessly invalidates instead of retrying forever: every relational
   contribution/settlement row is rewritten to the exact fallback. Invalid
-  repair artifacts preserve up to 13 relational participants within the state
+  v1/v2 repair artifacts preserve up to 13 relational participants within the state
   cap; larger/unrepresentable corruption releases all owned leases/statuses
-  before deterministic row cleanup and strict terminal-graph validation.
+  before deterministic row cleanup and strict terminal-graph validation. Untrustworthy production v3 rows instead retain leases under durable operator repair.
   Terminal CAS writes one immutable zero-reward plan whose participant rows and
   receipts match state/relational identity and contribution before independent
   replay. Pending settlement is exactly zero-attempt/receipt-free/unsettled;

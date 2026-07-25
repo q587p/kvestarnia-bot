@@ -10,12 +10,11 @@ import type {
 } from "../db/repositories/groupCombatRepository";
 import { randomBytes } from "node:crypto";
 import type { AchievementService } from "./achievementService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
 export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
-export const LEFT_PASSAGE_LOCATION_ID = "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT";
-
 export class GroupCombatService {
   constructor(
     private readonly repository: GroupCombatRepository,
@@ -54,7 +53,7 @@ export class GroupCombatService {
       ...input,
       inviteToken: randomBytes(18).toString("base64url"),
       originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
-      locationId: LEFT_PASSAGE_LOCATION_ID,
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       now,
       joinUntilAt: new Date(now.getTime() + LEFT_PASSAGE_RECRUITING_MS)
     });
@@ -112,6 +111,23 @@ export class GroupCombatService {
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
     });
+  }
+
+  async resolveDevTimeout(partyInviteToken: string): Promise<GroupCombatActionResult> {
+    if (!this.areDevHelpersEnabled()) {
+      return { state: "disabled" };
+    }
+    const session = await this.repository.findByPartyInviteToken(partyInviteToken);
+    if (!session) {
+      return { state: "not-found" };
+    }
+    const now = new Date(Math.max(this.now().getTime(), session.turnExpiresAt.getTime()));
+    const result = await this.repository.resolveTimedOutSession({
+      sessionId: session.id,
+      now,
+      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
+    return this.settleTerminalResult(result);
   }
 
   async submitAction(input: {
@@ -186,7 +202,8 @@ export class GroupCombatService {
     const result = await this.repository.settleParticipant({ sessionId, telegramUserId, now });
     if (
       (result.state === "settled" || result.state === "replayed") &&
-      result.receipt.policy === "left-passage-party"
+      result.receipt.policy === "left-passage-party" &&
+      result.receipt.manualParticipation === true
     ) {
       await this.achievements?.trackEventSafely({
         type: "left-passage.party-attack.completed",

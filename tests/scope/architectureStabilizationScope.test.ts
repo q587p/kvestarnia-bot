@@ -68,6 +68,7 @@ const expectedCommandAliasInventory = [
   "dev_adventure_reset",
   "dev_finish_attunements",
   "dev_group_combat",
+  "dev_group_combat_timeout",
   "dev_heal",
   "dev_help",
   "dev_hp_recovery_due",

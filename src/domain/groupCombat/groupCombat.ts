@@ -21,6 +21,7 @@ export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
 export const GROUP_COMBAT_PROOF_ENCOUNTER_KEY = "proof-cellar-many";
 export const GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY = "nyz-left-passage-party.v1";
+export const GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID = "item.responsible-panic-bandage";
 export const GROUP_COMBAT_RECAP_LIMIT = 5;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
 export const GROUP_COMBAT_STATE_BYTE_LIMIT = 32_768;
@@ -227,6 +228,7 @@ export interface GroupCombatSettlementReceipt {
   resources?: { hp: number; mana: number };
   rewards: GroupCombatRewards;
   effects?: NonNullable<GroupCombatSettlementPlanParticipant["effects"]>;
+  manualParticipation?: boolean;
 }
 
 export interface GroupCombatResult {
@@ -585,7 +587,9 @@ export function resolveGroupCombatTurn(
     }
     const action = actionsByActor.get(actor.characterId) ?? buildGroupCombatTimeoutAction(state, actor.characterId);
     const contribution = getContribution(state, actor.characterId);
-    contribution.committedActions += 1;
+    if (action.origin === "manual") {
+      contribution.committedActions += 1;
+    }
     if (action.action === "attack") {
       applyBasicAttack(state, actor, action, contribution, lines);
     } else if (action.action === "guard") {
@@ -715,7 +719,8 @@ export function buildGroupCombatSettlementReceipt(
         ...(plan.policy === "left-passage-party"
           ? {
               resources: { ...participant.resources },
-              effects: { ...participant.effects! }
+              effects: { ...participant.effects! },
+              manualParticipation: participant.contribution.committedActions > 0
             }
           : {})
       }
@@ -1220,7 +1225,7 @@ function buildTerminalResult(state: GroupCombatState): GroupCombatResult | null 
     outcome: state.status,
     completedTurn: state.turn,
     rewards: state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
-      ? sumSettlementRewards(buildGroupCombatSettlementPlan(state)?.participants ?? [])
+      ? sumGroupCombatSettlementRewards(buildGroupCombatSettlementPlan(state)?.participants ?? [])
       : zeroRewards()
   };
 }
@@ -1305,7 +1310,7 @@ function cloneRewards(rewards: GroupCombatRewards): GroupCombatRewards {
   };
 }
 
-function sumSettlementRewards(
+export function sumGroupCombatSettlementRewards(
   participants: readonly GroupCombatSettlementPlanParticipant[]
 ): GroupCombatRewards {
   return {
@@ -1313,6 +1318,36 @@ function sumSettlementRewards(
     gold: participants.reduce((sum, row) => sum + row.rewards.gold, 0),
     items: participants.flatMap((row) => row.rewards.items.map((item) => ({ ...item })))
   };
+}
+
+export function buildLeftPassageEncounterRewardBudget(input: {
+  enemyLevels: readonly number[];
+  deterministicKey: string;
+}): {
+  winXpTotal: number;
+  winGoldTotal: number;
+  lossXpTotal: number;
+  commonItemQuantity: 0 | 1;
+} {
+  const encounterLevelBudget = Math.max(
+    1,
+    ...input.enemyLevels.map((level) => Math.max(1, Math.floor(level)))
+  );
+  const winXpTotal = Math.max(2, encounterLevelBudget * 8);
+  return {
+    winXpTotal,
+    winGoldTotal: Math.max(1, encounterLevelBudget * 4),
+    lossXpTotal: Math.max(0, Math.floor(winXpTotal / 5)),
+    commonItemQuantity: stableGroupCombatSeed(input.deterministicKey) % 4 === 0 ? 1 : 0
+  };
+}
+
+export function stableGroupCombatSeed(value: string): number {
+  let hash = 0;
+  for (const character of value) {
+    hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
+  }
+  return hash;
 }
 
 function appendRecap(recap: GroupCombatRecapEntry[], entry: GroupCombatRecapEntry): GroupCombatRecapEntry[] {

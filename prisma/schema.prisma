@@ -1201,6 +1201,7 @@ model GroupCombatSession {
   deliveryPending Boolean     @default(true) @map("delivery_pending")
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
+  repairState     String?      @map("repair_state")
   stateJson      Json         @map("state_json")
   resultJson     Json?        @map("result_json")
   settlementPlanJson Json?    @map("settlement_plan_json")

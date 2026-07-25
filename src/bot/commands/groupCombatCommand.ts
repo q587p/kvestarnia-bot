@@ -31,6 +31,7 @@ const PARTY_CODE_HELP = [
   "У картці збору скопіюйте з посилання лише частину після «party_».",
   "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
 ].join("\n");
+const TIMEOUT_CODE_HELP = "⏱️ /dev_group_combat_timeout КОД — локально завершити поточне очікування ходу.";
 
 export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {
   bot.command("dev_group_combat", async (ctx) => {
@@ -51,6 +52,26 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       return;
     }
     await ctx.reply(presentGroupCombatStartFailure(result));
+  });
+  bot.command("dev_group_combat_timeout", async (ctx) => {
+    if (!service.areDevHelpersEnabled()) {
+      return;
+    }
+    const token = readCommandToken(ctx.message?.text);
+    if (!token) {
+      await ctx.reply(TIMEOUT_CODE_HELP);
+      return;
+    }
+    const result = await serializePartySessionDelivery(token, () =>
+      service.resolveDevTimeout(token)
+    );
+    if ("session" in result) {
+      await deliverGroupCombatCards(ctx.api, service, result.session);
+      return;
+    }
+    await ctx.reply(result.state === "not-found"
+      ? "Живої гуртової сутички з таким кодом не знайдено."
+      : "Очікування ходу не змінилося.");
   });
 }
 

@@ -1618,6 +1618,42 @@ describe("FightService", () => {
     expect(pending.createCount).toBe(1);
   });
 
+  it("creates the real deep-left preview with the canonical presence location used by party reservation", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9]),
+      pendingPassageEncounters: pending
+    });
+
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+    expect(preview).toMatchObject({
+      state: "persistent-preview",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected canonical deep-left preview.");
+    }
+    await expect(pending.findByTokenForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    )).resolves.toMatchObject({
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      passage: "deep-left",
+      status: "pending"
+    });
+  });
+
   it("rests the same passage after its pending monster is defeated", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });

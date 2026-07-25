@@ -76,6 +76,59 @@ describe("GroupCombatService", () => {
     expect(createLeftPassage).not.toHaveBeenCalled();
     expect(startLeftPassage).not.toHaveBeenCalled();
   });
+
+  it("tracks the first-completion achievement only for manual participants", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
+    const trackEventSafely = vi.fn();
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-07-25T10:00:00.000Z"),
+      { trackEventSafely } as never
+    );
+    const receipt = {
+      version: 1 as const,
+      policy: "left-passage-party" as const,
+      sessionId: "left-session",
+      characterId: "character-1",
+      remortCount: 0,
+      resources: { hp: 13, mana: 7 },
+      rewards: { xp: 0, gold: 0, items: [] },
+      effects: {
+        resourcesKey: "resources",
+        xpKey: "xp",
+        goldKey: "gold",
+        itemKey: null,
+        activityKey: null
+      }
+    };
+    settleParticipant.mockResolvedValueOnce({
+      state: "settled",
+      receipt: { ...receipt, manualParticipation: false }
+    });
+    settleParticipant.mockResolvedValueOnce({
+      state: "settled",
+      receipt: { ...receipt, manualParticipation: true }
+    });
+
+    await service.settleParticipant("left-session", 42n);
+    expect(trackEventSafely).not.toHaveBeenCalled();
+    await service.settleParticipant("left-session", 42n);
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the timeout QA helper non-mutating when dev helpers are disabled", async () => {
+    const { repository, findByPartyInviteToken, resolveTimedOutSession } = repositoryFixture();
+    const service = new GroupCombatService(repository, {
+      enabled: true,
+      devHelpersEnabled: false,
+      leftPassagePartyAttackEnabled: true
+    });
+
+    await expect(service.resolveDevTimeout("party-token-23")).resolves.toEqual({ state: "disabled" });
+    expect(findByPartyInviteToken).not.toHaveBeenCalled();
+    expect(resolveTimedOutSession).not.toHaveBeenCalled();
+  });
 });
 
 function repositoryFixture() {
@@ -84,6 +137,9 @@ function repositoryFixture() {
   const submitAction = vi.fn<GroupCombatRepository["submitActionForTelegramUser"]>();
   const createLeftPassage = vi.fn<GroupCombatRepository["createLeftPassagePartyForTelegramUser"]>();
   const startLeftPassage = vi.fn<GroupCombatRepository["startLeftPassageForTelegramUser"]>();
+  const findByPartyInviteToken = vi.fn<GroupCombatRepository["findByPartyInviteToken"]>();
+  const resolveTimedOutSession = vi.fn<GroupCombatRepository["resolveTimedOutSession"]>();
+  const settleParticipant = vi.fn<GroupCombatRepository["settleParticipant"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -91,19 +147,29 @@ function repositoryFixture() {
     startLeftPassageForTelegramUser: startLeftPassage,
     startDueLeftPassage: vi.fn(),
     submitActionForTelegramUser: submitAction,
-    resolveTimedOutSession: vi.fn(),
-    findByPartyInviteToken: vi.fn(),
+    resolveTimedOutSession,
+    findByPartyInviteToken,
     findById: vi.fn(),
     findActiveByTelegramUserId: vi.fn(),
     listDueSessionIds: vi.fn(),
     listPendingDeliverySessionIds: vi.fn(),
     listPendingSettlementParticipants: vi.fn(),
     repairInvalidOrOrphaned: vi.fn(),
-    settleParticipant: vi.fn(),
+    settleParticipant,
     compareAndSetParticipantCard: vi.fn(),
     releaseParticipantCard: vi.fn(),
     markParticipantCardDelivered: vi.fn(),
     finalizeDeliveryAttempt: vi.fn()
   };
-  return { repository, startProof, startDueProof, submitAction, createLeftPassage, startLeftPassage };
+  return {
+    repository,
+    startProof,
+    startDueProof,
+    submitAction,
+    createLeftPassage,
+    startLeftPassage,
+    findByPartyInviteToken,
+    resolveTimedOutSession,
+    settleParticipant
+  };
 }

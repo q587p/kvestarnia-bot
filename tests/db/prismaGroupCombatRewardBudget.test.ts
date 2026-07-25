@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildLeftPassageEncounterRewardBudget,
   selectStrongestLeftPassageRemortSource,
   selectStrongestLeftPassageThreatSource
 } from "../../src/db/repositories/prismaGroupCombatRepository";
+import { buildLeftPassageEncounterRewardBudget } from "../../src/domain/groupCombat/groupCombat";
 
 describe("left-passage group-combat reward budget", () => {
   it("does not multiply the encounter-wide budget or common roll by backup count", () => {

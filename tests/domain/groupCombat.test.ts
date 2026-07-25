@@ -3,6 +3,7 @@ import {
   buildGroupCombatTimeoutAction,
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
+  buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
@@ -13,6 +14,9 @@ import {
   type GroupCombatAction,
   type GroupCombatActorSnapshot
 } from "../../src/domain/groupCombat/groupCombat";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
+import { monsters } from "../../src/content";
+import { deriveMonsterCombatStats } from "../../src/domain/combat/monsterCombatStats";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
@@ -49,8 +53,8 @@ describe("group combat proof reducer", () => {
     expect(plan.policy).toBe("left-passage-party");
     expect(plan.participants[0]?.resources).toEqual({ hp: 17, mana: 3 });
     expect(plan.participants[0]?.rewards).toEqual({
-      xp: 93,
-      gold: 42,
+      xp: 40,
+      gold: 20,
       items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
     });
     expect(plan.participants[1]?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
@@ -78,10 +82,61 @@ describe("group combat proof reducer", () => {
     const plan = buildGroupCombatSettlementPlan(state)!;
     expect(state.participants).toHaveLength(3);
     expect(state.enemies).toHaveLength(3);
-    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0)).toBe(93);
-    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0)).toBe(42);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0)).toBe(48);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0)).toBe(24);
     expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(1);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
+  });
+
+  it("keeps timeout guards out of manual participation and every production reward", () => {
+    const state = leftPassageState();
+    const resolved = resolveGroupCombatTurn(state, []);
+
+    expect(resolved.state.contributions.map((row) => ({
+      committedActions: row.committedActions,
+      guardedTurns: row.guardedTurns
+    }))).toEqual([
+      { committedActions: 0, guardedTurns: 1 },
+      { committedActions: 0, guardedTurns: 1 }
+    ]);
+
+    resolved.state.status = "won";
+    resolved.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    const plan = buildGroupCombatSettlementPlan(resolved.state)!;
+    expect(plan.participants.map((row) => row.rewards)).toEqual([
+      { xp: 0, gold: 0, items: [] },
+      { xp: 0, gold: 0, items: [] }
+    ]);
+    expect(plan.participants.every((row) => row.effects?.activityKey === null)).toBe(true);
+    expect(plan.participants.map((row) =>
+      buildGroupCombatSettlementReceipt(plan, row.characterId)?.manualParticipation
+    )).toEqual([false, false]);
+  });
+
+  it("rewards only the manual participant in a mixed manual and timeout turn", () => {
+    const state = leftPassageState();
+    const manual = state.participants[0]!;
+    const resolved = resolveGroupCombatTurn(state, [{
+      actorCharacterId: manual.characterId,
+      turn: state.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: manual.characterId,
+      origin: "manual"
+    }]);
+
+    resolved.state.status = "won";
+    resolved.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    const plan = buildGroupCombatSettlementPlan(resolved.state)!;
+    expect(plan.participants[0]!.rewards.xp).toBeGreaterThan(0);
+    expect(plan.participants[0]!.rewards.gold).toBeGreaterThan(0);
+    expect(plan.participants[1]!.rewards).toEqual({ xp: 0, gold: 0, items: [] });
+    expect(plan.participants[0]!.effects?.activityKey).not.toBeNull();
+    expect(plan.participants[1]!.effects?.activityKey).toBeNull();
   });
 
   it("requires explicit live targets without mutating stale, wrong-side, or dead choices", () => {
@@ -604,6 +659,37 @@ describe("group combat proof reducer", () => {
         : participant)
     })).toThrow(GroupCombatStateValidationError);
   });
+
+  it("fails closed on shape-valid production location, roster, pressure, item, difficulty, and reward corruption", () => {
+    const corruptions: Array<(state: ReturnType<typeof leftPassageState>) => void> = [
+      (state) => {
+        state.production!.locationId = "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT";
+      },
+      (state) => {
+        state.enemies.pop();
+      },
+      (state) => {
+        state.production!.threat.sourceCharacterId = state.participants[1]!.characterId;
+      },
+      (state) => {
+        state.production!.remort.backupAdjustments[0]!.hpMaxAdded += 1;
+      },
+      (state) => {
+        state.production!.threat.appliedSecondEnemyLevelBonus = 1;
+      },
+      (state) => {
+        state.production!.rewards.winXpTotal += 1;
+      },
+      (state) => {
+        state.production!.rewards.commonItemId = "item.field-kit";
+      }
+    ];
+    for (const corrupt of corruptions) {
+      const state = leftPassageState();
+      corrupt(state);
+      expect(() => parseGroupCombatStateStrict(state)).toThrow(GroupCombatStateValidationError);
+    }
+  });
 });
 
 function proofState(
@@ -620,33 +706,47 @@ function proofState(
 
 function leftPassageState(count: 2 | 3 = 2) {
   const participants = Array.from({ length: count }, (_, index) => participant(index, {}));
+  const enemyInputs = [
+    { monsterId: "monster.deadline-spider", level: 4 },
+    { monsterId: "monster.spreadsheet-goblin", level: 5 },
+    { monsterId: "monster.preapproval-dragonling", level: 6 }
+  ].slice(0, count);
+  const enemies = enemyInputs.map(({ monsterId, level }, index) => {
+    const authored = monsters.find((monster) => monster.id === monsterId)!;
+    const stats = deriveMonsterCombatStats({ ...authored, level });
+    return {
+      id: index === 0 ? "primary:encounter-13" : `backup:${index}:${monsterId}`,
+      monsterId,
+      name: authored.name,
+      order: index,
+      level,
+      hp: stats.hpMax,
+      hpMax: stats.hpMax,
+      attack: stats.attack,
+      defense: Math.max(stats.armor, stats.resist)
+    };
+  });
+  const rewardBudget = buildLeftPassageEncounterRewardBudget({
+    enemyLevels: enemies.map((enemy) => enemy.level),
+    deterministicKey: "seed-23:party-session:rewards"
+  });
   return createLeftPassageGroupCombatState({
     sessionId: "group-session",
     partySessionId: "party-session",
     deterministicSeed: 42,
     participants,
-    enemies: participants.map((_, index) => ({
-      id: index === 0 ? "primary:encounter-13" : `backup:${index}:monster-deadline-spider`,
-      monsterId: "monster.deadline-spider",
-      name: index === 0 ? "Основний клопіт" : "Резервний клопіт",
-      order: index,
-      level: 4 + index,
-      hp: 23,
-      hpMax: 23,
-      attack: 5,
-      defense: 1
-    })),
+    enemies,
     difficulty: {
       version: 1,
       origin: "nyz-left-passage-party.v1",
-      locationId: "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       encounterId: "encounter-13",
       encounterToken: "encounter-token-13",
-      encounterSeed: "encounter-seed-587",
+      encounterSeed: "seed-23",
       initiatingCharacterId: "character-0",
       initiatingRemortCount: 0,
       primaryMonsterId: "monster.deadline-spider",
-      primaryBaseMonsterLevel: 3,
+      primaryBaseMonsterLevel: 2,
       primaryEffectiveMonsterLevel: 4,
       threat: {
         participants: participants.map((entry) => ({
@@ -678,18 +778,18 @@ function leftPassageState(count: 2 | 3 = 2) {
         sourceRosterOrder: 0,
         sourceRemortCount: 0,
         backupAdjustments: participants.slice(1).map((_, index) => ({
-          enemyId: `backup:${index + 1}:monster-deadline-spider`,
+          enemyId: enemies[index + 1]!.id,
           remortCount: 0,
           hpMaxAdded: 0,
           attackAdded: 0
         }))
       },
       rewards: {
-        winXpTotal: 93,
-        winGoldTotal: 42,
-        lossXpTotal: 13,
+        winXpTotal: rewardBudget.winXpTotal,
+        winGoldTotal: rewardBudget.winGoldTotal,
+        lossXpTotal: rewardBudget.lossXpTotal,
         commonItemId: "item.responsible-panic-bandage",
-        commonItemQuantity: 1
+        commonItemQuantity: rewardBudget.commonItemQuantity
       }
     }
   });

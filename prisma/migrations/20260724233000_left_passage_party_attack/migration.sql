@@ -1,4 +1,5 @@
 ALTER TABLE "party_sessions" ADD COLUMN "origin_kind" TEXT;
+ALTER TABLE "group_combat_sessions" ADD COLUMN "repair_state" TEXT;
 
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_origin" TEXT;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_remort_count" INTEGER;

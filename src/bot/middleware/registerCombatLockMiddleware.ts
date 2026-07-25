@@ -236,6 +236,7 @@ function isCombatLockSafeCommand(command: string): boolean {
     command === "dev_yeger_second_done" ||
     command === "dev_raid_win" ||
     command === "dev_group_combat" ||
+    command === "dev_group_combat_timeout" ||
     command === "online" ||
     command === "look" ||
     command === "restart" ||

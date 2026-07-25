@@ -7,7 +7,9 @@ import {
   buildGroupCombatTimeoutAction,
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
+  buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
+  GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -16,6 +18,8 @@ import {
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
   resolveGroupCombatTurn,
+  stableGroupCombatSeed,
+  sumGroupCombatSettlementRewards,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot,
@@ -42,7 +46,6 @@ import {
 } from "../../services/fightService";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
-import { BANDAGE_ITEM_ID } from "../../services/itemGrant";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
@@ -68,12 +71,12 @@ import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } f
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
 import type { SoloCombatSessionCompletionRecord } from "./soloCombatSessionRepository";
 import { PrismaPartySessionRepository } from "./prismaPartySessionRepository";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
 
 type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 4;
 const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
-const LEFT_PASSAGE_LOCATION_ID = "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT";
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 2;
 
@@ -150,8 +153,28 @@ interface FrozenParticipantPayload {
   inspiration?: unknown;
 }
 
+export type GroupCombatSettlementStage =
+  | "validated"
+  | "claimed"
+  | "resources"
+  | "items"
+  | "activity"
+  | "receipt"
+  | "lease";
+
+export interface GroupCombatSettlementTestHooks {
+  afterStage?(input: {
+    stage: GroupCombatSettlementStage;
+    sessionId: string;
+    characterId: string;
+  }): void | Promise<void>;
+}
+
 export class PrismaGroupCombatRepository implements GroupCombatRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly settlementTestHooks?: GroupCombatSettlementTestHooks
+  ) {}
 
   async createLeftPassagePartyForTelegramUser(input: {
     telegramUserId: bigint;
@@ -448,7 +471,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         }
         if (
           mode === "left-passage" && (
-            party.originLocationId !== LEFT_PASSAGE_LOCATION_ID ||
+            party.originLocationId !== PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
             party.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND
           )
         ) {
@@ -485,7 +508,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         if (
           mode === "left-passage" &&
           joined.some((participant) => (
-            participant.character.user.lastSeenLocationId !== LEFT_PASSAGE_LOCATION_ID ||
+            participant.character.user.lastSeenLocationId !== PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
             participant.character.user.currentAdventureId !== null ||
             participant.character.user.currentRaidId !== null
           ))
@@ -539,7 +562,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           mode === "left-passage" &&
           (
             !reservation ||
-            reservation.originLocationId !== LEFT_PASSAGE_LOCATION_ID ||
+            reservation.originLocationId !== PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
             reservation.passage !== "deep-left" ||
             reservation.difficulty !== "hard" ||
             reservation.rulesVersion !== LEFT_PASSAGE_PREVIEW_RULES_VERSION ||
@@ -657,7 +680,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           ? createGroupCombatProofState({
               sessionId,
               partySessionId: party.id,
-              deterministicSeed: stableSeed(`${party.id}:${sessionId}`),
+              deterministicSeed: stableGroupCombatSeed(`${party.id}:${sessionId}`),
               participants: frozen.map((row) => row.actor)
             })
           : await buildLeftPassageState({
@@ -1097,6 +1120,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         session: {
           status: { not: "active" },
           rulesVersion: GROUP_COMBAT_PRODUCTION_RULES_VERSION,
+          repairState: null,
           settlementPlanJson: { not: Prisma.DbNull }
         }
       },
@@ -1118,7 +1142,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     let repaired = 0;
     const sessionBatches = await Promise.all([
       this.prisma.groupCombatSession.findMany({
-        where: { status: "active" },
+        where: { status: "active", repairState: null },
         orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
         take: boundedLimit,
         select: { id: true }
@@ -1126,6 +1150,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       this.prisma.groupCombatSession.findMany({
         where: {
           status: { not: "active" },
+          repairState: null,
           OR: [
             { completedAt: null },
             { resultJson: { equals: Prisma.DbNull } }
@@ -1138,6 +1163,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       this.prisma.groupCombatSession.findMany({
         where: {
           status: { not: "active" },
+          repairState: null,
           terminalIntegrityCheckedAt: null
         },
         orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
@@ -1180,7 +1206,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return repairMalformedSession(tx, session, now);
         }
       });
-      repaired += outcome === "invalidated" || outcome === "terminal-repaired" ? 1 : 0;
+      repaired += outcome === "invalidated" ||
+        outcome === "terminal-repaired" ||
+        outcome === "operator-repair-required"
+        ? 1
+        : 0;
     }
 
     const leases = await this.prisma.activeCombatLease.findMany({
@@ -1249,29 +1279,56 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return { state: "invalid-plan" } as const;
       }
       if (participant.settlementReceiptJson !== null) {
-        return {
-          state: "replayed",
-          receipt: parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson)
-        } as const;
+        return replayValidatedReceipt(
+          plan,
+          participant.characterId,
+          participant.settlementReceiptJson
+        );
       }
       const receipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
       if (!receipt) {
         return { state: "invalid-plan" } as const;
       }
-      const settled = await tx.groupCombatParticipant.updateMany({
+      let character: SessionRow["participants"][number]["character"] | null = null;
+      let lease: Prisma.ActiveCombatLeaseGetPayload<Record<string, never>> | null = null;
+      if (plan.policy === "left-passage-party") {
+        character = await tx.character.findUnique({
+          where: { id: participant.characterId },
+          include: {
+            user: { select: { telegramUserId: true } },
+            _count: { select: { remorts: true } }
+          }
+        });
+        lease = await tx.activeCombatLease.findFirst({
+          where: {
+            characterId: participant.characterId,
+            kind: GROUP_COMBAT_LEASE_KIND,
+            referenceId: row.id
+          }
+        });
+        if (
+          !character ||
+          character._count.remorts !== participant.remortCount ||
+          !receipt.resources ||
+          !receipt.effects ||
+          !lease
+        ) {
+          return { state: "invalid-plan" } as const;
+        }
+      }
+      await this.runSettlementTestHook("validated", row.id, participant.characterId);
+      const claimed = await tx.groupCombatParticipant.updateMany({
         where: {
           id: participant.id,
           settlementStatus: "pending",
+          settlementAttempts: 0,
           settlementReceiptJson: { equals: Prisma.DbNull }
         },
         data: {
-          settlementStatus: "completed",
-          settlementAttempts: { increment: 1 },
-          settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
-          settledAt: input.now
+          settlementAttempts: { increment: 1 }
         }
       });
-      if (settled.count !== 1) {
+      if (claimed.count !== 1) {
         const winner = await tx.groupCombatParticipant.findUnique({
           where: { id: participant.id },
           select: { settlementReceiptJson: true }
@@ -1280,14 +1337,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           ? replayValidatedReceipt(plan, participant.characterId, winner.settlementReceiptJson)
           : { state: "invalid-plan" } as const;
       }
-      if (plan.policy === "left-passage-party") {
-        const character = await tx.character.findUnique({
-          where: { id: participant.characterId },
-          include: { _count: { select: { remorts: true } } }
-        });
-        if (!character || character._count.remorts !== participant.remortCount || !receipt.resources) {
-          return { state: "invalid-plan" } as const;
-        }
+      await this.runSettlementTestHook("claimed", row.id, participant.characterId);
+      if (plan.policy === "left-passage-party" && character && receipt.resources) {
         const xp = Math.max(0, character.xp + receipt.rewards.xp);
         const level = getLevelForXp(
           xp,
@@ -1305,6 +1356,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             gold: { increment: receipt.rewards.gold }
           }
         });
+        await this.runSettlementTestHook("resources", row.id, participant.characterId);
         for (const item of receipt.rewards.items) {
           await tx.characterItem.upsert({
             where: {
@@ -1321,6 +1373,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             update: { quantity: { increment: item.quantity } }
           });
         }
+        await this.runSettlementTestHook("items", row.id, participant.characterId);
         if (receipt.effects?.activityKey) {
           await tx.activityEvent.upsert({
             where: { dedupeKey: receipt.effects.activityKey },
@@ -1346,22 +1399,39 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             update: {}
           });
         }
+        await this.runSettlementTestHook("activity", row.id, participant.characterId);
       }
-      if (plan.policy === "left-passage-party") {
-        const lease = await tx.activeCombatLease.findFirst({
-          where: {
-            characterId: participant.characterId,
-            kind: GROUP_COMBAT_LEASE_KIND,
-            referenceId: row.id
-          }
-        });
-        if (!lease) {
-          throw new GroupCombatStateValidationError("Production settlement lost its combat lease.");
+      const completed = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          settlementStatus: "pending",
+          settlementAttempts: 1,
+          settlementReceiptJson: { equals: Prisma.DbNull }
+        },
+        data: {
+          settlementStatus: "completed",
+          settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
+          settledAt: input.now
         }
+      });
+      if (completed.count !== 1) {
+        throw new GroupCombatMutationConflict();
+      }
+      await this.runSettlementTestHook("receipt", row.id, participant.characterId);
+      if (plan.policy === "left-passage-party" && lease) {
         await releaseGroupCombatLease(tx, lease, input.now);
+        await this.runSettlementTestHook("lease", row.id, participant.characterId);
       }
       return { state: "settled", receipt } as const;
     });
+  }
+
+  private runSettlementTestHook(
+    stage: GroupCombatSettlementStage,
+    sessionId: string,
+    characterId: string
+  ): void | Promise<void> {
+    return this.settlementTestHooks?.afterStage?.({ stage, sessionId, characterId });
   }
 
   async compareAndSetParticipantCard(input: {
@@ -1508,12 +1578,47 @@ async function buildLeftPassageState(input: {
   }
   const primary = { ...primaryBase, level: input.reservation.effectiveMonsterLevel };
   const primaryStats = deriveMonsterCombatStats(primary);
-  const threatParticipants = await Promise.all(input.frozen.map(async ({ actor }) => {
-    const rows = await input.tx.soloCombatSession.findMany({
-      where: { characterId: actor.characterId },
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      take: THREAT_ESCALATION_HISTORY_LIMIT
-    });
+  const lifeClauses = input.frozen.map(({ actor }) => Prisma.sql`
+    (
+      session.character_id = ${actor.characterId}
+      AND (
+        CAST(json_extract(session.state_json, '$.life.remortCount') AS INTEGER) = ${actor.remortCount}
+        OR (
+          json_type(session.state_json, '$.life.remortCount') IS NULL
+          AND ${actor.remortCount} = 0
+        )
+      )
+    )
+  `);
+  const lifeRows = await input.tx.$queryRaw<Array<{ id: string; characterId: string }>>(Prisma.sql`
+    SELECT ranked.id, ranked.character_id AS characterId
+    FROM (
+      SELECT
+        session.id,
+        session.character_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY session.character_id
+          ORDER BY session.updated_at DESC, session.id DESC
+        ) AS history_rank
+      FROM solo_combat_sessions AS session
+      WHERE session.status <> 'active'
+        AND (${Prisma.join(lifeClauses, " OR ")})
+    ) AS ranked
+    WHERE ranked.history_rank <= ${THREAT_ESCALATION_HISTORY_LIMIT}
+  `);
+  const historyRows = await input.tx.soloCombatSession.findMany({
+    where: { id: { in: lifeRows.map((row) => row.id) } },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }]
+  });
+  const lifeIdsByCharacter = new Map<string, Set<string>>();
+  for (const row of lifeRows) {
+    const ids = lifeIdsByCharacter.get(row.characterId) ?? new Set<string>();
+    ids.add(row.id);
+    lifeIdsByCharacter.set(row.characterId, ids);
+  }
+  const threatParticipants = input.frozen.map(({ actor }) => {
+    const lifeIds = lifeIdsByCharacter.get(actor.characterId) ?? new Set<string>();
+    const rows = historyRows.filter((row) => lifeIds.has(row.id));
     const history = rows.flatMap((row): SoloCombatSessionCompletionRecord[] => {
       const session = mapSoloCombatSessionRecord(row);
       if (!session || session.status === "active") {
@@ -1539,7 +1644,7 @@ async function buildLeftPassageState(input: {
         { remortCount: actor.remortCount }
       )
     };
-  }));
+  });
   const threatSource = selectStrongestLeftPassageThreatSource(threatParticipants);
   const remortSource = selectStrongestLeftPassageRemortSource(
     input.frozen.map(({ actor }) => ({
@@ -1553,7 +1658,7 @@ async function buildLeftPassageState(input: {
     throw new GroupCombatStateValidationError("Left-passage combat has no frozen participant summary.");
   }
   const difficulty = getPersistentFightDifficultyConfig("hard");
-  const rng = new SeededRandomSource(`${input.reservation.seedHash}:${input.sessionId}:backups`);
+  const rng = new SeededRandomSource(`${input.reservation.seedHash}:${input.partySessionId}:backups`);
   const enemies = [{
     id: `primary:${input.reservation.id}`,
     monsterId: primary.id,
@@ -1621,7 +1726,7 @@ async function buildLeftPassageState(input: {
   return createLeftPassageGroupCombatState({
     sessionId: input.sessionId,
     partySessionId: input.partySessionId,
-    deterministicSeed: stableSeed(`${input.partySessionId}:${input.sessionId}`),
+    deterministicSeed: stableGroupCombatSeed(`${input.partySessionId}:${input.reservation.seedHash}`),
     participants: input.frozen.map((row) => row.actor),
     enemies,
     difficulty: {
@@ -1675,33 +1780,13 @@ async function buildLeftPassageState(input: {
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
-        commonItemId: rewardBudget.commonItemQuantity === 1 ? BANDAGE_ITEM_ID : null,
+        commonItemId: rewardBudget.commonItemQuantity === 1
+          ? GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID
+          : null,
         commonItemQuantity: rewardBudget.commonItemQuantity
       }
     }
   });
-}
-
-export function buildLeftPassageEncounterRewardBudget(input: {
-  enemyLevels: readonly number[];
-  deterministicKey: string;
-}): {
-  winXpTotal: number;
-  winGoldTotal: number;
-  lossXpTotal: number;
-  commonItemQuantity: 0 | 1;
-} {
-  const encounterLevelBudget = Math.max(
-    1,
-    ...input.enemyLevels.map((level) => Math.max(1, Math.floor(level)))
-  );
-  const winXpTotal = Math.max(2, encounterLevelBudget * 8);
-  return {
-    winXpTotal,
-    winGoldTotal: Math.max(1, encounterLevelBudget * 4),
-    lossXpTotal: Math.max(0, Math.floor(winXpTotal / 5)),
-    commonItemQuantity: stableSeed(input.deterministicKey) % 4 === 0 ? 1 : 0
-  };
 }
 
 function compareThreatSource(
@@ -1815,13 +1900,29 @@ async function claimActiveSessionMutation(tx: TxClient, row: SessionRow): Promis
   return { ...row, version: row.version + 1 };
 }
 
-type SessionRepairOutcome = "unchanged" | "validated" | "invalidated" | "terminal-repaired";
+type SessionRepairOutcome =
+  | "unchanged"
+  | "validated"
+  | "invalidated"
+  | "terminal-repaired"
+  | "operator-repair-required";
 
 async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date): Promise<SessionRepairOutcome> {
   try {
     const state = parseRowStateCore(row);
     if (state.status !== "active") {
-      const result = buildRewardlessResult(state.status, state.turn);
+      if (
+        state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+        row.participants.some((participant) => participant.settlementStatus === "completed")
+      ) {
+        return markProductionOperatorRepairRequired(
+          tx,
+          row,
+          now,
+          "terminal production artifacts include an already-completed participant"
+        );
+      }
+      const result = buildCanonicalTerminalResult(state);
       const plan = buildGroupCombatSettlementPlan(state)!;
       const updated = await tx.groupCombatSession.updateMany({
         where: { id: row.id, status: row.status, version: row.version },
@@ -1846,9 +1947,25 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
       await completeParty(tx, row.partySessionId);
       return "terminal-repaired";
     }
+    if (state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION) {
+      return markProductionOperatorRepairRequired(
+        tx,
+        row,
+        now,
+        "active production state failed canonical ownership or action validation"
+      );
+    }
   } catch (error) {
     if (!(error instanceof GroupCombatStateValidationError)) {
       throw error;
+    }
+    if (row.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION) {
+      return markProductionOperatorRepairRequired(
+        tx,
+        row,
+        now,
+        `production state cannot be recovered safely: ${error.message}`
+      );
     }
   }
   return invalidateSessionRewardlessly(tx, row, now);
@@ -1859,6 +1976,14 @@ async function invalidateSessionRewardlessly(
   row: SessionRow,
   now: Date
 ): Promise<SessionRepairOutcome> {
+  if (row.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION) {
+    return markProductionOperatorRepairRequired(
+      tx,
+      row,
+      now,
+      "production state cannot be downgraded to rewardless repair"
+    );
+  }
   const repairRoster = selectInvalidRepairRoster(row);
   const state = buildInvalidFallbackState(row, repairRoster.preserved);
   const result = buildRewardlessResult("invalid", state.turn);
@@ -1917,6 +2042,34 @@ async function invalidateSessionRewardlessly(
   }
   await completeParty(tx, row.partySessionId);
   return "invalidated";
+}
+
+async function markProductionOperatorRepairRequired(
+  tx: TxClient,
+  row: SessionRow,
+  now: Date,
+  reason: string
+): Promise<SessionRepairOutcome> {
+  const updated = await tx.groupCombatSession.updateMany({
+    where: {
+      id: row.id,
+      version: row.version,
+      rulesVersion: GROUP_COMBAT_PRODUCTION_RULES_VERSION,
+      repairState: null
+    },
+    data: {
+      repairState: "operator-required",
+      terminalIntegrityCheckedAt: now
+    }
+  });
+  if (updated.count !== 1) {
+    return "unchanged";
+  }
+  console.error("GroupCombat production repair requires operator disposition", {
+    sessionId: row.id,
+    reason
+  });
+  return "operator-repair-required";
 }
 
 function selectInvalidRepairRoster(row: SessionRow): {
@@ -2340,7 +2493,8 @@ function parseRowState(row: SessionRow): GroupCombatState {
     throw new GroupCombatStateValidationError("Terminal group combat is missing result metadata.");
   }
   const result = parseGroupCombatResultStrict(row.resultJson);
-  if (result.outcome !== state.status || result.completedTurn !== state.turn) {
+  const expectedResult = buildCanonicalTerminalResult(state);
+  if (!isDeepStrictEqual(result, expectedResult)) {
     throw new GroupCombatStateValidationError("Terminal group-combat result does not match state.");
   }
   const plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
@@ -2352,7 +2506,25 @@ function parseRowState(row: SessionRow): GroupCombatState {
   return state;
 }
 
+function buildCanonicalTerminalResult(state: GroupCombatState): GroupCombatResult {
+  const plan = buildGroupCombatSettlementPlan(state);
+  if (!plan) {
+    throw new GroupCombatStateValidationError("Active group combat has no terminal result.");
+  }
+  return {
+    kind: plan.policy,
+    outcome: plan.outcome,
+    completedTurn: plan.completedTurn,
+    rewards: plan.policy === "left-passage-party"
+      ? sumGroupCombatSettlementRewards(plan.participants)
+      : { xp: 0, gold: 0, items: [] }
+  };
+}
+
 function parseRowStateCore(row: SessionRow): GroupCombatState {
+  if (row.repairState !== null) {
+    throw new GroupCombatStateValidationError("Group combat requires operator repair.");
+  }
   const proof = row.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
     row.encounterKey === GROUP_COMBAT_PROOF_ENCOUNTER_KEY;
   const leftPassage = row.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
@@ -2478,14 +2650,6 @@ function readFrozenPayload(value: unknown): FrozenParticipantPayload | null {
     return null;
   }
   return value as unknown as FrozenParticipantPayload;
-}
-
-function stableSeed(value: string): number {
-  let hash = 0;
-  for (const code of value) {
-    hash = (Math.imul(hash, 31) + code.charCodeAt(0)) >>> 0;
-  }
-  return hash;
 }
 
 function isUniqueConflict(error: unknown): boolean {

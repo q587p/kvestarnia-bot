@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -10,11 +11,15 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
+  buildLeftPassageEncounterRewardBudget,
   type GroupCombatResult,
   type GroupCombatSettlementPlan,
   type GroupCombatSettlementReceipt,
   type GroupCombatState
 } from "./groupCombat";
+import { monsters } from "../../content";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
+import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 
 const nonNegativeInteger = z.number().int().min(0);
 const positiveInteger = z.number().int().positive();
@@ -159,7 +164,7 @@ const threatDecisionSchema = z.object({
 const productionSchema = z.object({
   version: z.literal(1),
   origin: z.literal("nyz-left-passage-party.v1"),
-  locationId: z.string().min(1),
+  locationId: z.literal(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT),
   encounterId: z.string().min(1),
   encounterToken: z.string().min(1),
   encounterSeed: z.string().min(1),
@@ -287,6 +292,141 @@ const stateSchema = z.object({
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary enemy identity changed." });
     }
+    if (
+      state.participants.length !== state.enemies.length ||
+      (state.participants.length !== 2 && state.participants.length !== 3)
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production combat must be exactly 2x2 or 3x3." });
+    }
+    const threatRowsMatch = state.production.threat.participants.every((row, index) => {
+      const participant = state.participants[index];
+      return participant &&
+        row.characterId === participant.characterId &&
+        row.rosterOrder === participant.rosterOrder &&
+        row.remortCount === participant.remortCount;
+    });
+    const remortRowsMatch = state.production.remort.participants.every((row, index) => {
+      const participant = state.participants[index];
+      return participant &&
+        row.characterId === participant.characterId &&
+        row.rosterOrder === participant.rosterOrder &&
+        row.remortCount === participant.remortCount;
+    });
+    if (!threatRowsMatch || !remortRowsMatch) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production difficulty rows do not match the frozen roster." });
+    }
+    const strongestThreat = [...state.production.threat.participants].sort((left, right) =>
+      right.decision.enemyCount - left.decision.enemyCount ||
+      (right.decision.enemyCount === 2 ? right.decision.secondEnemyLevelBonus : 0) -
+        (left.decision.enemyCount === 2 ? left.decision.secondEnemyLevelBonus : 0) ||
+      right.decision.eligibleWins - left.decision.eligibleWins ||
+      left.rosterOrder - right.rosterOrder
+    )[0];
+    const strongestRemort = [...state.production.remort.participants].sort((left, right) =>
+      right.remortCount - left.remortCount || left.rosterOrder - right.rosterOrder
+    )[0];
+    if (
+      !strongestThreat ||
+      strongestThreat.characterId !== state.production.threat.sourceCharacterId ||
+      strongestThreat.rosterOrder !== state.production.threat.sourceRosterOrder
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Threat source is not the strongest frozen roster source." });
+    }
+    if (
+      !strongestRemort ||
+      strongestRemort.characterId !== state.production.remort.sourceCharacterId ||
+      strongestRemort.rosterOrder !== state.production.remort.sourceRosterOrder ||
+      strongestRemort.remortCount !== state.production.remort.sourceRemortCount
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Remort source is not the strongest frozen roster source." });
+    }
+    const threatEscalated = strongestThreat?.decision.enemyCount === 2;
+    const requestedBonus = threatEscalated
+      ? strongestThreat.decision.secondEnemyLevelBonus
+      : 0;
+    const firstBackup = state.enemies[1];
+    const expectedBoostedEnemyId = threatEscalated ? firstBackup?.id ?? null : null;
+    const appliedBonus = state.production.threat.appliedSecondEnemyLevelBonus;
+    const preBonusLevel = (firstBackup?.level ?? 0) - appliedBonus;
+    const expectedAppliedBonus = threatEscalated
+      ? Math.min(requestedBonus, Math.max(0, 23 - preBonusLevel))
+      : 0;
+    if (
+      state.production.threat.escalated !== threatEscalated ||
+      state.production.threat.requestedSecondEnemyLevelBonus !== requestedBonus ||
+      state.production.threat.boostedEnemyId !== expectedBoostedEnemyId ||
+      appliedBonus !== expectedAppliedBonus ||
+      preBonusLevel < 1 ||
+      (firstBackup?.level ?? 24) > 23
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Threat pressure bonus or level cap is not canonical." });
+    }
+    const backupIds = state.enemies.slice(1).map((enemy) => enemy.id);
+    const adjustmentIds = state.production.remort.backupAdjustments.map((adjustment) => adjustment.enemyId);
+    if (backupIds.join("\0") !== adjustmentIds.join("\0")) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Remort adjustments do not match the frozen backups." });
+    }
+    for (const [index, adjustment] of state.production.remort.backupAdjustments.entries()) {
+      const enemy = state.enemies[index + 1];
+      const authored = monsters.find((monster) => monster.id === enemy?.monsterId);
+      if (!enemy || !authored || enemy.level === undefined) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production backup is not an authored levelled monster." });
+        continue;
+      }
+      const selected = { ...authored, level: enemy.level };
+      const baseline = deriveMonsterCombatStats(selected);
+      const pressured = deriveMonsterCombatStats(selected, {
+        remortCount: state.production.remort.sourceRemortCount,
+        remortPressureMode: "multi"
+      });
+      if (
+        adjustment.remortCount !== state.production.remort.sourceRemortCount ||
+        adjustment.hpMaxAdded !== pressured.hpMax - baseline.hpMax ||
+        adjustment.attackAdded !== pressured.attack - baseline.attack ||
+        enemy.hpMax !== pressured.hpMax ||
+        enemy.attack !== pressured.attack ||
+        enemy.defense !== Math.max(pressured.armor, pressured.resist)
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production backup pressure snapshot is not canonical." });
+      }
+    }
+    const primaryAuthored = monsters.find((monster) => monster.id === state.production?.primaryMonsterId);
+    const primaryEnemy = state.enemies[0];
+    if (
+      !primaryAuthored ||
+      primaryAuthored.level !== state.production.primaryBaseMonsterLevel ||
+      !primaryEnemy
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary monster baseline is not canonical." });
+    } else {
+      const primaryStats = deriveMonsterCombatStats({
+        ...primaryAuthored,
+        level: state.production.primaryEffectiveMonsterLevel
+      });
+      if (
+        primaryEnemy.hpMax !== primaryStats.hpMax ||
+        primaryEnemy.attack !== primaryStats.attack ||
+        primaryEnemy.defense !== Math.max(primaryStats.armor, primaryStats.resist)
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary combat snapshot is not canonical." });
+      }
+    }
+    const rewardBudget = buildLeftPassageEncounterRewardBudget({
+      enemyLevels: state.enemies.map((enemy) => enemy.level ?? 0),
+      deterministicKey: `${state.production.encounterSeed}:${state.partySessionId}:rewards`
+    });
+    const expectedCommonItemId = rewardBudget.commonItemQuantity === 1
+      ? GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID
+      : null;
+    if (
+      state.production.rewards.winXpTotal !== rewardBudget.winXpTotal ||
+      state.production.rewards.winGoldTotal !== rewardBudget.winGoldTotal ||
+      state.production.rewards.lossXpTotal !== rewardBudget.lossXpTotal ||
+      state.production.rewards.commonItemQuantity !== rewardBudget.commonItemQuantity ||
+      state.production.rewards.commonItemId !== expectedCommonItemId
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production reward budget or common loot is not canonical." });
+    }
   }
 });
 
@@ -357,17 +497,27 @@ const settlementReceiptSchema = z.object({
   remortCount: nonNegativeInteger,
   resources: z.object({ hp: nonNegativeInteger, mana: nonNegativeInteger }).strict().optional(),
   rewards: rewardsSchema,
-  effects: settlementEffectsSchema.optional()
+  effects: settlementEffectsSchema.optional(),
+  manualParticipation: z.boolean().optional()
 }).strict().superRefine((receipt, context) => {
   if (
     receipt.policy === "rewardless-proof" &&
-    (receipt.resources !== undefined || receipt.effects !== undefined || !zeroRewardsSchema.safeParse(receipt.rewards).success)
+    (
+      receipt.resources !== undefined ||
+      receipt.effects !== undefined ||
+      receipt.manualParticipation !== undefined ||
+      !zeroRewardsSchema.safeParse(receipt.rewards).success
+    )
   ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof receipt contains production effects." });
   }
   if (
     receipt.policy === "left-passage-party" &&
-    (receipt.resources === undefined || receipt.effects === undefined)
+    (
+      receipt.resources === undefined ||
+      receipt.effects === undefined ||
+      receipt.manualParticipation === undefined
+    )
   ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Production receipt is missing effects." });
   }
