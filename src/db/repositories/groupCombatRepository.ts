@@ -73,6 +73,16 @@ export interface GroupCombatOperatorRepairRecord {
   state: unknown;
   result: unknown;
   settlementPlan: unknown;
+  actions: Array<{
+    actorCharacterId: string;
+    turn: number;
+    actionKey: string;
+    targetKind: string;
+    targetId: string;
+    payloadKey: string | null;
+    origin: string;
+    submittedAt: Date;
+  }>;
   participants: Array<{
     characterId: string;
     remortCount: number;
@@ -83,7 +93,10 @@ export interface GroupCombatOperatorRepairRecord {
     settlementAttempts: number;
     settlementReceipt: unknown;
     achievementEffectKey: string | null;
+    achievementEffectType: string | null;
     achievementEffectStatus: string | null;
+    achievementEffectOccurredAt: Date | null;
+    achievementEffectProjectedAt: Date | null;
   }>;
 }
 

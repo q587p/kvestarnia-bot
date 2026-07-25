@@ -82,10 +82,10 @@
   achievements or ordinary combat-journal duplication. Kharakternyk ward surfaces use `✴️`, distinct from the Molfar `🧿 Туманний оберіг`.
   `/dev_raid_chat` is non-production only.
 - `0.4.2` is the first production-capable GroupCombat consumer, but its entry
-  remains default-off. `0.4.3` next owns independent guild identity; later
-  accepted tasks add a weekly goal and bounded social/economy slices. Do not
-  turn `PartyBossSession` into N×M state or imply guild
-  bank/trade/war scope.
+  remains default-off. Operator-required v3 rows are invisible and immutable to
+  ordinary reads/mutations; only explicit inspection exposes their raw evidence.
+  `0.4.3` next owns independent guild identity. Do not turn `PartyBossSession`
+  into N×M state or imply guild bank/trade/war scope.
 
 ## Shipped class support
 
