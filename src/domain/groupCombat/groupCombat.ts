@@ -15,6 +15,11 @@ import {
 } from "../combat/combatActions";
 import type { CharacterStats } from "../characters/starterStats";
 import { mantokAbilityGrantDefinitions } from "../../content/mantokAbilityGrants";
+import { findMonsterAbility } from "../../content/monsterAbilities";
+import { monsters } from "../../content/monsters";
+import { rollMonsterSkillDamage } from "../combat/combatBalance";
+import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
+import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
 import { SeededRandomSource } from "../../shared/random";
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
@@ -22,11 +27,12 @@ export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
 export const GROUP_COMBAT_PROOF_ENCOUNTER_KEY = "proof-cellar-many";
 export const GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY = "nyz-left-passage-party.v1";
 export const GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID = "item.responsible-panic-bandage";
-export const GROUP_COMBAT_RECAP_LIMIT = 5;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
-export const GROUP_COMBAT_STATE_BYTE_LIMIT = 32_768;
+export const GROUP_COMBAT_RECAP_LIMIT = GROUP_COMBAT_TURN_LIMIT;
+export const GROUP_COMBAT_STATE_BYTE_LIMIT = 65_536;
 export const GROUP_COMBAT_CARD_BYTE_LIMIT = 4_096;
 export const GROUP_COMBAT_PARTICIPANT_LIMIT = 3;
+export const GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT = 6;
 export const GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT = 13;
 const GROUP_COMBAT_BASIC_GUARD_SENTINEL = 32_767;
 export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
@@ -79,6 +85,9 @@ export interface GroupCombatEnemyState {
   hpMax: number;
   attack: number;
   defense: number;
+  abilityIds?: string[];
+  abilityCooldowns?: Record<string, { id: string; remainingTurns: number }>;
+  usedOnceAbilityIds?: string[];
 }
 
 export interface GroupCombatThreatParticipantSnapshot {
@@ -142,6 +151,32 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
   };
 }
 
+export function deriveLeftPassageEnemyCount(input: {
+  participants: Array<Pick<GroupCombatActorSnapshot, "characterId" | "level" | "remortCount">>;
+  threatParticipants: GroupCombatThreatParticipantSnapshot[];
+  primaryEffectiveMonsterLevel: number;
+}): number {
+  if (
+    input.participants.length < 1 ||
+    input.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT
+  ) {
+    throw new Error("Left-passage combat requires one to three participants.");
+  }
+  const threatByCharacterId = new Map(
+    input.threatParticipants.map((participant) => [participant.characterId, participant])
+  );
+  const extraEnemies = input.participants.filter((participant) => {
+    const threat = threatByCharacterId.get(participant.characterId);
+    return participant.remortCount > 0 ||
+      threat?.decision.enemyCount === 2 ||
+      participant.level >= input.primaryEffectiveMonsterLevel + 3;
+  }).length;
+  return Math.min(
+    GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT,
+    input.participants.length + extraEnemies
+  );
+}
+
 export interface GroupCombatContribution {
   characterId: string;
   damage: number;
@@ -151,6 +186,13 @@ export interface GroupCombatContribution {
   damageTaken: number;
   committedActions: number;
   guardedTurns: number;
+}
+
+export interface GroupCombatEnemyContribution {
+  enemyId: string;
+  damage: number;
+  actions: number;
+  specialActions: number;
 }
 
 export interface GroupCombatTimedStatus {
@@ -166,6 +208,24 @@ export interface GroupCombatTimedStatus {
 export interface GroupCombatRecapEntry {
   turn: number;
   lines: string[];
+  snapshot?: {
+    participants: Array<{
+      hp: number;
+      mana: number;
+      cooldowns?: Array<{ id: string; remainingTurns: number }>;
+      itemCooldowns?: Array<{ itemId: string; remainingTurns: number }>;
+    }>;
+    enemies: Array<{
+      hp: number;
+      cooldowns?: Array<{ id: string; remainingTurns: number }>;
+    }>;
+    effects?: Array<{
+      kind: GroupCombatStatusKind;
+      targetKind: "participant" | "enemy";
+      targetId: string;
+      remainingTurns: number;
+    }>;
+  };
 }
 
 export interface GroupCombatState {
@@ -179,6 +239,7 @@ export interface GroupCombatState {
   participants: GroupCombatActorSnapshot[];
   enemies: GroupCombatEnemyState[];
   contributions: GroupCombatContribution[];
+  enemyContributions?: GroupCombatEnemyContribution[];
   statuses: GroupCombatTimedStatus[];
   recap: GroupCombatRecapEntry[];
   production?: GroupCombatLeftPassageDifficultySnapshot;
@@ -271,7 +332,42 @@ export function createGroupCombatProofState(input: {
     throw new Error("Group combat proof requires two or three participants.");
   }
 
-  const participants = [...input.participants]
+  const participants = normalizeGroupCombatParticipants(input.participants);
+
+  const enemies = participants.map((_, index): GroupCombatEnemyState => {
+    const hpMax = 10 + participants.length * 2 + index * 2;
+    return {
+      id: `proof-enemy-${index + 1}`,
+      name: PROOF_ENEMY_NAMES[index] ?? `Підвальний гуркіт №${index + 1}`,
+      order: index,
+      hp: hpMax,
+      hpMax,
+      attack: 4 + index,
+      defense: index
+    };
+  });
+
+  return {
+    rulesVersion: GROUP_COMBAT_RULES_VERSION,
+    sessionId: input.sessionId,
+    partySessionId: input.partySessionId,
+    encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
+    deterministicSeed: nonNegativeInteger(input.deterministicSeed),
+    status: "active",
+    turn: 1,
+    participants,
+    enemies,
+    contributions: participants.map(emptyContribution),
+    enemyContributions: enemies.map(emptyEnemyContribution),
+    statuses: [],
+    recap: []
+  };
+}
+
+function normalizeGroupCombatParticipants(
+  input: GroupCombatActorSnapshot[]
+): GroupCombatActorSnapshot[] {
+  return [...input]
     .sort((left, right) => left.rosterOrder - right.rosterOrder)
     .map((participant) => ({
       ...participant,
@@ -308,34 +404,6 @@ export function createGroupCombatProofState(input: {
         ? { playerAbilityFumbles: structuredClone(participant.playerAbilityFumbles) }
         : {})
     }));
-
-  const enemies = participants.map((_, index): GroupCombatEnemyState => {
-    const hpMax = 10 + participants.length * 2 + index * 2;
-    return {
-      id: `proof-enemy-${index + 1}`,
-      name: PROOF_ENEMY_NAMES[index] ?? `Підвальний гуркіт №${index + 1}`,
-      order: index,
-      hp: hpMax,
-      hpMax,
-      attack: 4 + index,
-      defense: index
-    };
-  });
-
-  return {
-    rulesVersion: GROUP_COMBAT_RULES_VERSION,
-    sessionId: input.sessionId,
-    partySessionId: input.partySessionId,
-    encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
-    deterministicSeed: nonNegativeInteger(input.deterministicSeed),
-    status: "active",
-    turn: 1,
-    participants,
-    enemies,
-    contributions: participants.map(emptyContribution),
-    statuses: [],
-    recap: []
-  };
 }
 
 export function createLeftPassageGroupCombatState(input: {
@@ -346,18 +414,17 @@ export function createLeftPassageGroupCombatState(input: {
   enemies: GroupCombatEnemyState[];
   difficulty: GroupCombatLeftPassageDifficultySnapshot;
 }): GroupCombatState {
-  if (input.enemies.length !== input.participants.length) {
-    throw new Error("Left-passage group combat requires one enemy per frozen participant.");
+  if (
+    input.participants.length < 1 ||
+    input.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT
+  ) {
+    throw new Error("Left-passage group combat requires one to three participants.");
   }
-  const state = createGroupCombatProofState({
-    sessionId: input.sessionId,
-    partySessionId: input.partySessionId,
-    deterministicSeed: input.deterministicSeed,
-    participants: input.participants
-  });
-  state.rulesVersion = GROUP_COMBAT_PRODUCTION_RULES_VERSION;
-  state.encounterKey = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
-  state.enemies = [...input.enemies]
+  if (input.enemies.length < 1 || input.enemies.length > GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT) {
+    throw new Error("Left-passage group combat requires one to six enemies.");
+  }
+  const participants = normalizeGroupCombatParticipants(input.participants);
+  const enemies = [...input.enemies]
     .sort((left, right) => left.order - right.order)
     .map((enemy) => ({
       ...enemy,
@@ -367,7 +434,22 @@ export function createLeftPassageGroupCombatState(input: {
       defense: nonNegativeInteger(enemy.defense),
       ...(enemy.level === undefined ? {} : { level: positiveInteger(enemy.level) })
     }));
-  state.production = structuredClone(input.difficulty);
+  const state: GroupCombatState = {
+    rulesVersion: GROUP_COMBAT_PRODUCTION_RULES_VERSION,
+    sessionId: input.sessionId,
+    partySessionId: input.partySessionId,
+    encounterKey: GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+    deterministicSeed: nonNegativeInteger(input.deterministicSeed),
+    status: "active",
+    turn: 1,
+    participants,
+    enemies,
+    contributions: participants.map(emptyContribution),
+    enemyContributions: enemies.map(emptyEnemyContribution),
+    statuses: [],
+    recap: [],
+    production: structuredClone(input.difficulty)
+  };
   assertGroupCombatStateBudget(state);
   return state;
 }
@@ -643,7 +725,7 @@ export function resolveGroupCombatTurn(
     return terminalize(state, "lost", lines, committedConsumables);
   }
 
-  state.recap = appendRecap(state.recap, { turn: state.turn, lines });
+  state.recap = appendRecap(state, lines);
   state.turn += 1;
   assertGroupCombatStateBudget(state);
   return { state, result: null, settlementPlan: null, committedConsumables };
@@ -895,9 +977,46 @@ function applyEnemyPhase(state: GroupCombatState, lines: string[]): void {
     if (!target) {
       break;
     }
-    const contribution = getContribution(state, target.characterId);
-    const rawDamage = Math.max(1, enemy.attack - target.defense);
-    let damage = rawDamage;
+    tickEnemyAbilityCooldowns(enemy);
+    const enemyContribution = getEnemyContribution(state, enemy.id);
+    enemyContribution.actions += 1;
+    const ability = selectGroupCombatEnemyAbility(state, enemy);
+    const rawDamage = ability
+      ? rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability)
+      : Math.max(1, enemy.attack - target.defense);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    enemyContribution.damage += damage;
+    if (ability) {
+      enemyContribution.specialActions += 1;
+      enemy.abilityCooldowns = {
+        ...(enemy.abilityCooldowns ?? {}),
+        [ability.id]: {
+          id: ability.id,
+          remainingTurns: Math.max(1, ability.cooldownOwnActions)
+        }
+      };
+      if (ability.oncePerFight) {
+        enemy.usedOnceAbilityIds = [...new Set([...(enemy.usedOnceAbilityIds ?? []), ability.id])].sort();
+      }
+      lines.push(
+        damage > 0
+          ? `«${enemy.name}» застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
+          : `«${enemy.name}» застосовує ${ability.label}, але ${target.name} уникає шкоди.`
+      );
+    } else {
+      lines.push(`«${enemy.name}» відповідає ${target.name}: ${damage} шкоди.`);
+    }
+  }
+}
+
+function applyGroupCombatEnemyDamage(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  target: GroupCombatActorSnapshot,
+  rawDamage: number
+): number {
+    const targetContribution = getContribution(state, target.characterId);
+    let damage = Math.max(0, rawDamage);
     const protections = state.statuses
       .filter((status) =>
         status.targetKind === "participant" &&
@@ -920,8 +1039,7 @@ function applyEnemyPhase(state: GroupCombatState, lines: string[]): void {
     }
     damage = Math.min(target.hp, Math.max(0, damage));
     target.hp -= damage;
-    contribution.damageTaken += damage;
-    lines.push(`«${enemy.name}» відповідає ${target.name}: ${damage} шкоди.`);
+    targetContribution.damageTaken += damage;
 
     if (damage > 0 && target.hp > 0) {
       const counters = state.statuses
@@ -942,7 +1060,87 @@ function applyEnemyPhase(state: GroupCombatState, lines: string[]): void {
         }
       }
     }
+    return damage;
+}
+
+function getEnemyContribution(
+  state: GroupCombatState,
+  enemyId: string
+): GroupCombatEnemyContribution {
+  state.enemyContributions ??= state.enemies.map(emptyEnemyContribution);
+  const contribution = state.enemyContributions.find((candidate) => candidate.enemyId === enemyId);
+  if (!contribution) {
+    throw new Error(`Missing group-combat enemy contribution for ${enemyId}.`);
   }
+  return contribution;
+}
+
+function tickEnemyAbilityCooldowns(enemy: GroupCombatEnemyState): void {
+  const active = Object.entries(enemy.abilityCooldowns ?? {})
+    .map(([abilityId, cooldown]) => [
+      abilityId,
+      { id: cooldown.id, remainingTurns: Math.max(0, cooldown.remainingTurns - 1) }
+    ] as const)
+    .filter(([, cooldown]) => cooldown.remainingTurns > 0);
+  if (active.length > 0) {
+    enemy.abilityCooldowns = Object.fromEntries(active);
+  } else {
+    delete enemy.abilityCooldowns;
+  }
+}
+
+function selectGroupCombatEnemyAbility(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState
+) {
+  if ((state.turn + enemy.order - 1) % 3 !== 0) {
+    return null;
+  }
+  const available = (enemy.abilityIds ?? [])
+    .map((abilityId) => findMonsterAbility(abilityId))
+    .filter((ability) =>
+      ability !== null &&
+      (enemy.abilityCooldowns?.[ability.id]?.remainingTurns ?? 0) <= 0 &&
+      (!ability.oncePerFight || !(enemy.usedOnceAbilityIds ?? []).includes(ability.id))
+    );
+  if (available.length === 0) {
+    return null;
+  }
+  const rng = new SeededRandomSource(
+    `${state.deterministicSeed}:${state.turn}:${enemy.order}:monster-ability`
+  );
+  return available[rng.nextInt(0, available.length - 1)] ?? null;
+}
+
+function rollGroupCombatEnemyAbilityDamage(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  target: GroupCombatActorSnapshot,
+  ability: NonNullable<ReturnType<typeof findMonsterAbility>>
+): number {
+  const authored = enemy.monsterId
+    ? monsters.find((candidate) => candidate.id === enemy.monsterId)
+    : null;
+  if (!authored) {
+    return Math.max(1, enemy.attack - target.defense);
+  }
+  const monster = deriveMonsterCombatStats(
+    { ...authored, level: enemy.level ?? authored.level },
+    enemy.order > 0
+      ? {
+          remortCount: state.production?.remort.sourceRemortCount ?? 0,
+          remortPressureMode: "multi"
+        }
+      : {}
+  );
+  return rollMonsterSkillDamage(
+    actorCombatStats(target),
+    monster,
+    monsterAbilityAsCombatSkill(ability),
+    new SeededRandomSource(
+      `${state.deterministicSeed}:${state.turn}:${enemy.order}:${ability.id}:damage`
+    )
+  );
 }
 
 function chooseEnemyTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
@@ -1203,7 +1401,7 @@ function terminalize(
   lines: string[],
   committedConsumables: GroupCombatCommittedConsumable[]
 ): GroupCombatResolution {
-  state.recap = appendRecap(state.recap, { turn: state.turn, lines });
+  state.recap = appendRecap(state, lines);
   state.status = outcome;
   assertGroupCombatStateBudget(state);
   return {
@@ -1240,6 +1438,15 @@ function emptyContribution(participant: GroupCombatActorSnapshot): GroupCombatCo
     damageTaken: 0,
     committedActions: 0,
     guardedTurns: 0
+  };
+}
+
+function emptyEnemyContribution(enemy: GroupCombatEnemyState): GroupCombatEnemyContribution {
+  return {
+    enemyId: enemy.id,
+    damage: 0,
+    actions: 0,
+    specialActions: 0
   };
 }
 
@@ -1350,8 +1557,65 @@ export function stableGroupCombatSeed(value: string): number {
   return hash;
 }
 
-function appendRecap(recap: GroupCombatRecapEntry[], entry: GroupCombatRecapEntry): GroupCombatRecapEntry[] {
-  return [...recap, { turn: entry.turn, lines: entry.lines.slice(0, 13) }].slice(-GROUP_COMBAT_RECAP_LIMIT);
+function appendRecap(state: GroupCombatState, lines: string[]): GroupCombatRecapEntry[] {
+  const effects = state.statuses
+    .filter((status) => status.remainingTurns > 0)
+    .map((status) => ({
+      kind: status.kind,
+      targetKind: status.targetKind,
+      targetId: status.targetId,
+      remainingTurns: status.remainingTurns
+    }));
+  const entry: GroupCombatRecapEntry = {
+    turn: state.turn,
+    lines: lines.slice(0, 13),
+    snapshot: {
+      participants: state.participants.map((participant) => {
+        const cooldowns = getActiveGroupCombatCooldowns(participant);
+        const itemCooldowns = Object.values(participant.combatItems?.cooldowns ?? {})
+          .filter((cooldown) => cooldown.remainingTurns > 0)
+          .map((cooldown) => ({
+            itemId: cooldown.itemId,
+            remainingTurns: cooldown.remainingTurns
+          }))
+          .sort((left, right) => left.itemId.localeCompare(right.itemId));
+        return {
+          hp: participant.hp,
+          mana: participant.mana,
+          ...(cooldowns.length > 0 ? { cooldowns } : {}),
+          ...(itemCooldowns.length > 0 ? { itemCooldowns } : {})
+        };
+      }),
+      enemies: state.enemies.map((enemy) => {
+        const cooldowns = Object.values(enemy.abilityCooldowns ?? {})
+          .filter((cooldown) => cooldown.remainingTurns > 0)
+          .map((cooldown) => ({ id: cooldown.id, remainingTurns: cooldown.remainingTurns }))
+          .sort((left, right) => left.id.localeCompare(right.id));
+        return {
+          hp: enemy.hp,
+          ...(cooldowns.length > 0 ? { cooldowns } : {})
+        };
+      }),
+      ...(effects.length > 0 ? { effects } : {})
+    }
+  };
+  return [...state.recap, entry].slice(-GROUP_COMBAT_RECAP_LIMIT);
+}
+
+function getActiveGroupCombatCooldowns(
+  participant: GroupCombatActorSnapshot
+): Array<{ id: string; remainingTurns: number }> {
+  const entries = [
+    ...(participant.cooldowns?.skill ? [participant.cooldowns.skill] : []),
+    ...Object.values(participant.cooldowns?.abilities ?? {})
+  ];
+  const byId = new Map<string, { id: string; remainingTurns: number }>();
+  for (const cooldown of entries) {
+    if (cooldown.remainingTurns > 0) {
+      byId.set(cooldown.id, { id: cooldown.id, remainingTurns: cooldown.remainingTurns });
+    }
+  }
+  return [...byId.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
 
 function compareHpRatio<T extends { hp: number; hpMax: number }>(

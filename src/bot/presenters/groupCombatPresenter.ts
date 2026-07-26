@@ -7,6 +7,8 @@ import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { items } from "../../content";
+import { getCombatSkillDisplay } from "../../services/fightService";
+import { getMonsterAbilityLabel } from "../../domain/combat/monsterAbilityRuntime";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
@@ -17,7 +19,7 @@ export function presentGroupCombat(
   const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
   const production = state.rulesVersion === "group-combat.v3";
   const status = state.status === "active"
-    ? `🧪 <b>Бій: ${state.turn} хід</b>`
+    ? `${production ? "⚔️" : "🧪"} <b>Бій: ${state.turn} хід</b>`
     : state.status === "won"
       ? production ? "✅ Ватага втримала лівий прохід" : "✅ Доказову сутичку виграно"
       : state.status === "lost"
@@ -46,11 +48,12 @@ export function presentGroupCombat(
   const queuedAction = viewer
     ? session.queuedActions.find((action) => action.actorCharacterId === viewer.characterId)
     : null;
-  const recap = state.recap[state.recap.length - 1];
+  const recapRows = state.recap ?? [];
+  const recap = recapRows[recapRows.length - 1];
   const recapText = recap
     ? `\n\n<b>Останні дії:</b>\n${recap.lines.map((line) => escapeHtml(line)).join("\n")}`
     : "";
-  const contributionText = state.status === "active"
+  const participantContributionText = state.status === "active"
     ? ""
     : `\n\n<b>Внесок:</b>\n⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода\n` +
       `🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії\n${state.participants.map((participant) => {
@@ -58,6 +61,14 @@ export function presentGroupCombat(
         return contribution
           ? `${escapeHtml(participant.name)}: ⚔️ ${contribution.damage}, ❤️ ${contribution.healing}, 🛡️ ${contribution.guardPrevented}, 🌀 ${contribution.control}, 💥 ${contribution.damageTaken}, ✅ ${contribution.committedActions}`
           : `${escapeHtml(participant.name)}: запис не знайдено`;
+      }).join("\n")}`;
+  const enemyContributionText = state.status === "active" || !state.enemyContributions
+    ? ""
+    : `\n\n<b>Внесок ворогів:</b>\n💥 шкода ватазі · 🎯 дії · ✨ спецатаки\n${state.enemies.map((enemy) => {
+        const contribution = state.enemyContributions?.find((row) => row.enemyId === enemy.id);
+        return contribution
+          ? `${escapeHtml(enemy.name)}: 💥 ${contribution.damage}, 🎯 ${contribution.actions}, ✨ ${contribution.specialActions}`
+          : `${escapeHtml(enemy.name)}: запис не знайдено`;
       }).join("\n")}`;
   const remaining = formatRemainingTurn(session.turnExpiresAt, now);
   const settlement = session.settlementPlan?.participants.find(
@@ -79,11 +90,17 @@ export function presentGroupCombat(
       ? `\n\n${presentProductionSettlement(settlement.rewards)}`
       : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
-  const base = [status, "", ...enemies, ...party].join("\n");
-  const text = base + recapText + contributionText + ending;
+  const opening = state.status === "active" && state.turn === 1 && recapRows.length === 0
+    ? presentGroupCombatOpening(session)
+    : [];
+  const tacticalState = state.status === "active"
+    ? presentGroupCombatTacticalState(session, viewerCharacterId)
+    : [];
+  const base = [status, ...opening, "", ...enemies, ...party, ...tacticalState].join("\n");
+  const text = base + recapText + participantContributionText + enemyContributionText + ending;
   return Buffer.byteLength(text, "utf8") <= GROUP_COMBAT_CARD_BYTE_LIMIT
     ? text
-    : base + contributionText + ending;
+    : base + participantContributionText + enemyContributionText + ending;
 }
 
 function presentProductionSettlement(
@@ -127,12 +144,168 @@ export function presentGroupCombatJournal(
     title: session.state.rulesVersion === "group-combat.v3"
       ? "📜 <b>Журнал атаки в лівому проході</b>"
       : "📜 <b>Журнал доказової сутички</b>",
-    headerLines: ["", `Збережено останні ${total} ходів цієї сутички.`],
+    headerLines: [
+      "",
+      `Збережено весь бій: ${formatTurns(total)}.`,
+      ...presentGroupCombatRecapSnapshot(session, recap)
+    ],
     turn: recap.turn,
     page,
     totalPages: total,
     actionLines: recap.lines.map((line) => escapeHtml(line))
   });
+}
+
+function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] {
+  const state = session.state;
+  const party = state.participants.map((participant) =>
+    `🧑 ${escapeHtml(participant.name)} · рівень ${participant.level}`
+  );
+  const enemies = state.enemies.map((enemy) =>
+    `👹 ${escapeHtml(enemy.name)} · рівень ${enemy.level ?? "невідомий"}`
+  );
+  const tips = [
+    "Домовляйтеся про цілі: поранений ворог б’є так само сердито, доки не впаде.",
+    "Сильніша ватага привертає більше ворогів, зате має більше рук для рішень.",
+    "Кулдауни рахуються вашими діями, а мовчання Корчма перетворює на захист."
+  ] as const;
+  const tip = tips[Math.abs(state.deterministicSeed) % tips.length]!;
+  return [
+    "",
+    "<b>Хто проти кого:</b>",
+    `<b>Ватага (${party.length}):</b>`,
+    ...party,
+    `<b>Вороги (${enemies.length}):</b>`,
+    ...enemies,
+    "",
+    `<i>Порада дня: ${escapeHtml(tip)}</i>`
+  ];
+}
+
+function presentGroupCombatTacticalState(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string
+): string[] {
+  const state = session.state;
+  const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
+  if (!viewer) {
+    return [];
+  }
+  const cooldowns = [
+    ...(viewer.cooldowns?.skill ? [viewer.cooldowns.skill] : []),
+    ...Object.values(viewer.cooldowns?.abilities ?? {})
+  ];
+  const uniqueCooldowns = [...new Map(
+    cooldowns
+      .filter((cooldown) => cooldown.remainingTurns > 0)
+      .map((cooldown) => [cooldown.id, cooldown])
+  ).values()];
+  const lines = uniqueCooldowns.map((cooldown) => {
+    const skill = getCombatSkillDisplay(cooldown.id);
+    return `🫁 ${skill.icon} ${escapeHtml(skill.name)}: ще ${formatTurns(cooldown.remainingTurns)}.`;
+  });
+  for (const cooldown of Object.values(viewer.combatItems?.cooldowns ?? {})) {
+    if (cooldown.remainingTurns <= 0) {
+      continue;
+    }
+    const item = items.find((candidate) => candidate.id === cooldown.itemId);
+    lines.push(`🧻 ${escapeHtml(item?.name ?? cooldown.itemId)}: ще ${formatTurns(cooldown.remainingTurns)}.`);
+  }
+  for (const enemy of state.enemies) {
+    for (const cooldown of Object.values(enemy.abilityCooldowns ?? {})) {
+      if (cooldown.remainingTurns > 0) {
+        lines.push(
+          `👹 ${escapeHtml(enemy.name)} · ${escapeHtml(getMonsterAbilityLabel(cooldown.id) ?? cooldown.id)}: ще ${formatTurns(cooldown.remainingTurns)}.`
+        );
+      }
+    }
+  }
+  lines.push(...presentEffectLines(session, (state.statuses ?? []).map((status) => ({
+    kind: status.kind,
+    targetKind: status.targetKind,
+    targetId: status.targetId,
+    remainingTurns: status.remainingTurns
+  }))));
+  return lines.length > 0 ? ["", "<b>Кулдауни й ефекти:</b>", ...lines] : [];
+}
+
+function presentGroupCombatRecapSnapshot(
+  session: GroupCombatSessionRecord,
+  recap: GroupCombatSessionRecord["state"]["recap"][number]
+): string[] {
+  const snapshot = recap.snapshot;
+  if (!snapshot) {
+    return [];
+  }
+  const lines = ["", "<b>Стан після ходу:</b>"];
+  for (const [index, row] of snapshot.enemies.entries()) {
+    const enemy = session.state.enemies[index];
+    if (!enemy) {
+      continue;
+    }
+    lines.push(`👹 ${escapeHtml(enemy.name)} · рівень ${enemy.level ?? "невідомий"} — ❤️ життя ${row.hp}/${enemy.hpMax}`);
+    for (const cooldown of row.cooldowns ?? []) {
+      lines.push(
+        `  🫁 ${escapeHtml(getMonsterAbilityLabel(cooldown.id) ?? cooldown.id)}: ще ${formatTurns(cooldown.remainingTurns)}.`
+      );
+    }
+  }
+  for (const [index, row] of snapshot.participants.entries()) {
+    const participant = session.state.participants[index];
+    if (!participant) {
+      continue;
+    }
+    lines.push(
+      `🧑 ${escapeHtml(participant.name)} · рівень ${participant.level} — ❤️ життя ${row.hp}/${participant.hpMax} · 🔷 мана ${row.mana}/${participant.manaMax}`
+    );
+    for (const cooldown of row.cooldowns ?? []) {
+      const skill = getCombatSkillDisplay(cooldown.id);
+      lines.push(`  🫁 ${skill.icon} ${escapeHtml(skill.name)}: ще ${formatTurns(cooldown.remainingTurns)}.`);
+    }
+    for (const cooldown of row.itemCooldowns ?? []) {
+      const item = items.find((candidate) => candidate.id === cooldown.itemId);
+      lines.push(
+        `  🧻 ${escapeHtml(item?.name ?? cooldown.itemId)}: ще ${formatTurns(cooldown.remainingTurns)}.`
+      );
+    }
+  }
+  lines.push(...presentEffectLines(session, snapshot.effects ?? []));
+  return lines;
+}
+
+function presentEffectLines(
+  session: GroupCombatSessionRecord,
+  effects: Array<{
+    kind: "guard" | "response-mitigation" | "counter" | "bleed";
+    targetKind: "participant" | "enemy";
+    targetId: string;
+    remainingTurns: number;
+  }>
+): string[] {
+  return effects.map((effect) => {
+    const target = effect.targetKind === "participant"
+      ? session.state.participants.find((candidate) => candidate.characterId === effect.targetId)?.name
+      : session.state.enemies.find((candidate) => candidate.id === effect.targetId)?.name;
+    const label = effect.kind === "guard"
+      ? "🛡️ захист"
+      : effect.kind === "response-mitigation"
+        ? "🌀 послаблення відповіді"
+        : effect.kind === "counter"
+          ? "↩️ контрудар"
+          : "🩸 кровотеча";
+    return `${label} · ${escapeHtml(target ?? effect.targetId)}: ще ${formatTurns(effect.remainingTurns)}.`;
+  });
+}
+
+function formatTurns(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const word = mod10 === 1 && mod100 !== 11
+    ? "хід"
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? "ходи"
+      : "ходів";
+  return `${count} ${word}`;
 }
 
 function presentQueuedAction(

@@ -87,7 +87,7 @@ describe("group combat presenter", () => {
       contribution.guardedTurns = index;
     });
     const terminalText = presentGroupCombat(session, participants[0]!.characterId, NOW);
-    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_155);
+    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_433);
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -187,13 +187,80 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("23 с.");
   });
 
+  it("opens with rosters, levels and a deterministic tip, then shows active cooldowns and effects", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.cooldowns = {
+      skill: { id: "skill.forceful-strike", remainingTurns: 2 }
+    };
+    viewer.combatItems = {
+      cooldowns: {
+        "item.dense-bandage": { itemId: "item.dense-bandage", remainingTurns: 5 }
+      },
+      uses: {}
+    };
+    session.state.enemies[0]!.abilityCooldowns = {
+      "monster.deadline-web": { id: "monster.deadline-web", remainingTurns: 3 }
+    };
+    session.state.statuses = [{
+      id: "guard:character-1",
+      kind: "guard",
+      sourceCharacterId: viewer.characterId,
+      targetKind: "participant",
+      targetId: viewer.characterId,
+      value: 3,
+      remainingTurns: 2
+    }];
+
+    const first = presentGroupCombat(session, viewer.characterId, NOW);
+    const repeated = presentGroupCombat(session, viewer.characterId, NOW);
+
+    expect(first).toBe(repeated);
+    expect(first).toContain("<b>Хто проти кого:</b>");
+    expect(first).toContain("<b>Ватага (2):</b>");
+    expect(first).toContain("Пригодник 1 · рівень");
+    expect(first).toContain("<b>Вороги (2):</b>");
+    expect(first).toContain("<i>Порада дня:");
+    expect(first).toContain("<b>Кулдауни й ефекти:</b>");
+    expect(first).toContain("Силовий замах: ще 2 ходи.");
+    expect(first).toContain("Щільний бинт: ще 5 ходів.");
+    expect(first).toContain("Павутина «на вчора»: ще 3 ходи.");
+    expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
+    expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
+  });
+
   it("opens the shared bounded battle journal and returns to terminal results", () => {
     const session = createSession(2);
     session.status = "won";
     session.state.status = "won";
     session.state.recap = [
       { turn: 1, lines: ["Пригодник 1 стає в захист."] },
-      { turn: 2, lines: ["Пригодник 2 б’є Комірний Шурхіт 1 на 3."] }
+      {
+        turn: 2,
+        lines: ["Пригодник 2 б’є Комірний Шурхіт 1 на 3."],
+        snapshot: {
+          participants: session.state.participants.map((participant, index) => ({
+            hp: participant.hp - index,
+            mana: participant.mana,
+            cooldowns: index === 0
+              ? [{ id: "skill.forceful-strike", remainingTurns: 2 }]
+              : [],
+            itemCooldowns: []
+          })),
+          enemies: session.state.enemies.map((enemy, index) => ({
+            hp: enemy.hp - index,
+            cooldowns: index === 0
+              ? [{ id: "monster.deadline-web", remainingTurns: 3 }]
+              : []
+          })),
+          effects: [{
+            kind: "guard",
+            targetKind: "participant",
+            targetId: session.state.participants[0]!.characterId,
+            remainingTurns: 2
+          }]
+        }
+      }
     ];
 
     const text = presentGroupCombatJournal(session, 1);
@@ -204,7 +271,13 @@ describe("group combat presenter", () => {
 
     expect(text).toContain("📜 <b>Журнал доказової сутички</b>");
     expect(text).toContain("Хід <b>2</b> · запис 2/2");
+    expect(text).toContain("Збережено весь бій: 2 ходи.");
     expect(text).toContain("Пригодник 2 б’є Комірний Шурхіт 1 на 3.");
+    expect(text).toContain("❤️ життя");
+    expect(text).toContain("🔷 мана");
+    expect(text).toContain("Силовий замах: ще 2 ходи.");
+    expect(text).toContain("Павутина «на вчора»: ще 3 ходи.");
+    expect(text).toContain("🛡️ захист");
     expect(resultLabels).toContain("📜 Журнал");
     expect(journalLabels).toContain("↩️ До результатів");
   });
@@ -229,6 +302,9 @@ describe("group combat presenter", () => {
     expect(text).toContain("⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода");
     expect(text).toContain("🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії");
     expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4");
+    expect(text).toContain("<b>Внесок ворогів:</b>");
+    expect(text).toContain("💥 шкода ватазі · 🎯 дії · ✨ спецатаки");
+    expect(text).toContain("💥 0, 🎯 0, ✨ 0");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
   });
 });

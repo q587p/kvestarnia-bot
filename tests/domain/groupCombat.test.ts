@@ -6,8 +6,10 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
+  deriveLeftPassageEnemyCount,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
+  GROUP_COMBAT_STATE_BYTE_LIMIT,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
   validateGroupCombatAction,
@@ -17,6 +19,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 import { monsters } from "../../src/content";
 import { deriveMonsterCombatStats } from "../../src/domain/combat/monsterCombatStats";
+import { createMonsterAbilityRuntime } from "../../src/domain/combat/monsterAbilityRuntime";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
@@ -88,6 +91,68 @@ describe("group combat proof reducer", () => {
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
 
+  it("derives one to six enemies from party size and frozen participant power", () => {
+    const baseParticipants = [0, 1, 2].map((index) => participant(index, { level: 4 }));
+    const baseThreat = baseParticipants.map((entry) => ({
+      characterId: entry.characterId,
+      rosterOrder: entry.rosterOrder,
+      remortCount: entry.remortCount,
+      decision: {
+        enemyCount: 1 as const,
+        reason: "base" as const,
+        eligibleWins: 0,
+        secondEnemyLevelBonus: 0
+      }
+    }));
+
+    expect(deriveLeftPassageEnemyCount({
+      participants: baseParticipants.slice(0, 1),
+      threatParticipants: baseThreat.slice(0, 1),
+      primaryEffectiveMonsterLevel: 4
+    })).toBe(1);
+    expect(deriveLeftPassageEnemyCount({
+      participants: baseParticipants.slice(0, 2),
+      threatParticipants: baseThreat.slice(0, 2),
+      primaryEffectiveMonsterLevel: 4
+    })).toBe(2);
+    expect(deriveLeftPassageEnemyCount({
+      participants: baseParticipants.map((entry) => ({ ...entry, level: 7 })),
+      threatParticipants: baseThreat,
+      primaryEffectiveMonsterLevel: 4
+    })).toBe(6);
+    expect(deriveLeftPassageEnemyCount({
+      participants: [
+        { ...baseParticipants[0]!, remortCount: 1 },
+        baseParticipants[1]!,
+        baseParticipants[2]!
+      ],
+      threatParticipants: baseThreat.map((entry, index) => index === 1
+        ? {
+            ...entry,
+            decision: {
+              enemyCount: 2 as const,
+              reason: "ordinary-win-streak" as const,
+              eligibleWins: 3,
+              secondEnemyLevelBonus: 1
+            }
+          }
+        : entry),
+      primaryEffectiveMonsterLevel: 4
+    })).toBe(5);
+  });
+
+  it("strictly accepts production fights from solo 1x1 through strong-party 3x6", () => {
+    const solo = leftPassageState(1);
+    const strongParty = leftPassageState(3, true);
+
+    expect(solo.participants).toHaveLength(1);
+    expect(solo.enemies).toHaveLength(1);
+    expect(strongParty.participants).toHaveLength(3);
+    expect(strongParty.enemies).toHaveLength(6);
+    expect(parseGroupCombatStateStrict(solo)).toEqual(solo);
+    expect(parseGroupCombatStateStrict(strongParty)).toEqual(strongParty);
+  });
+
   it("keeps timeout guards out of manual participation and every production reward", () => {
     const state = leftPassageState();
     const resolved = resolveGroupCombatTurn(state, []);
@@ -139,6 +204,34 @@ describe("group combat proof reducer", () => {
     expect(plan.participants[1]!.effects?.activityKey).toBeNull();
   });
 
+  it("uses a frozen authored monster special and records its cooldown and contribution", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.hp = actor.hpMax = 93;
+    const resolved = resolveGroupCombatTurn(state, [{
+      actorCharacterId: actor.characterId,
+      turn: state.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: actor.characterId,
+      origin: "manual"
+    }]);
+    const enemy = resolved.state.enemies[0]!;
+    const contribution = resolved.state.enemyContributions?.[0];
+
+    expect(resolved.state.recap[0]?.lines.join("\n")).toContain("застосовує");
+    expect(Object.values(enemy.abilityCooldowns ?? {})).toEqual([
+      expect.objectContaining({ remainingTurns: 3 })
+    ]);
+    expect(contribution).toEqual(expect.objectContaining({
+      enemyId: enemy.id,
+      actions: 1,
+      specialActions: 1
+    }));
+    expect(contribution?.damage).toBeGreaterThanOrEqual(0);
+    expect(parseGroupCombatStateStrict(resolved.state)).toEqual(resolved.state);
+  });
+
   it("requires explicit live targets without mutating stale, wrong-side, or dead choices", () => {
     const state = proofState(2);
     const before = structuredClone(state);
@@ -178,7 +271,9 @@ describe("group combat proof reducer", () => {
       state = resolution.state;
       result = resolution.result;
       expect(state.recap.length).toBeLessThanOrEqual(GROUP_COMBAT_RECAP_LIMIT);
-      expect(JSON.stringify(state).length).toBeLessThan(13_000);
+      expect(Buffer.byteLength(JSON.stringify(state), "utf8")).toBeLessThanOrEqual(
+        GROUP_COMBAT_STATE_BYTE_LIMIT
+      );
     }
 
     expect(state.status).toBe("lost");
@@ -189,6 +284,30 @@ describe("group combat proof reducer", () => {
       rewards: { xp: 0, gold: 0, items: [] }
     });
     expect(parseGroupCombatResultStrict(result)).toEqual(result);
+  });
+
+  it("keeps the complete twenty-five-turn 3x6 production journal inside the state budget", () => {
+    let state = leftPassageState(3, true);
+    state.participants.forEach((actor) => {
+      actor.hp = 587;
+      actor.hpMax = 587;
+      actor.defense = 93;
+    });
+    for (let turn = 1; turn <= 25 && state.status === "active"; turn += 1) {
+      state = resolveGroupCombatTurn(
+        state,
+        state.participants
+          .filter((actor) => actor.hp > 0)
+          .map((actor) => buildGroupCombatTimeoutAction(state, actor.characterId))
+      ).state;
+    }
+
+    const stateBytes = Buffer.byteLength(JSON.stringify(state), "utf8");
+    console.log("Left-passage 3x6 full-journal state bytes", stateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
+    expect(state.recap).toHaveLength(25);
+    expect(state.recap.every((entry) => entry.snapshot !== undefined)).toBe(true);
+    expect(stateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
+    expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
 
   it("keeps thirteen simultaneous 3x3 proof states independent and bounded", () => {
@@ -220,7 +339,9 @@ describe("group combat proof reducer", () => {
 
     expect(sessions.every((state) => state.status === "lost")).toBe(true);
     expect(new Set(sessions.map((state) => state.sessionId)).size).toBe(13);
-    expect(Math.max(...sessions.map((state) => JSON.stringify(state).length))).toBeLessThan(13_000);
+    expect(Math.max(...sessions.map((state) =>
+      Buffer.byteLength(JSON.stringify(state), "utf8")
+    ))).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
   });
 
   it("strictly rejects unknown rules and inconsistent result rewards", () => {
@@ -704,16 +825,28 @@ function proofState(
   });
 }
 
-function leftPassageState(count: 2 | 3 = 2) {
-  const participants = Array.from({ length: count }, (_, index) => participant(index, {}));
-  const enemyInputs = [
+function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
+  const participants = Array.from(
+    { length: count },
+    (_, index) => participant(index, { level: strong ? 7 : 4 })
+  );
+  const enemyCount = strong ? count * 2 : count;
+  const enemyPool = [
     { monsterId: "monster.deadline-spider", level: 4 },
     { monsterId: "monster.spreadsheet-goblin", level: 5 },
     { monsterId: "monster.preapproval-dragonling", level: 6 }
-  ].slice(0, count);
+  ];
+  const enemyInputs = Array.from(
+    { length: enemyCount },
+    (_, index) => enemyPool[index % enemyPool.length]!
+  );
   const enemies = enemyInputs.map(({ monsterId, level }, index) => {
     const authored = monsters.find((monster) => monster.id === monsterId)!;
     const stats = deriveMonsterCombatStats({ ...authored, level });
+    const abilityIds = createMonsterAbilityRuntime({
+      monster: stats,
+      seed: `seed-23:party-session:enemy:${index}`
+    })?.loadoutIds ?? [];
     return {
       id: index === 0 ? "primary:encounter-13" : `backup:${index}:${monsterId}`,
       monsterId,
@@ -723,7 +856,8 @@ function leftPassageState(count: 2 | 3 = 2) {
       hp: stats.hpMax,
       hpMax: stats.hpMax,
       attack: stats.attack,
-      defense: Math.max(stats.armor, stats.resist)
+      defense: Math.max(stats.armor, stats.resist),
+      ...(abilityIds.length > 0 ? { abilityIds } : {})
     };
   });
   const rewardBudget = buildLeftPassageEncounterRewardBudget({
@@ -777,8 +911,8 @@ function leftPassageState(count: 2 | 3 = 2) {
         sourceCharacterId: "character-0",
         sourceRosterOrder: 0,
         sourceRemortCount: 0,
-        backupAdjustments: participants.slice(1).map((_, index) => ({
-          enemyId: enemies[index + 1]!.id,
+        backupAdjustments: enemies.slice(1).map((enemy) => ({
+          enemyId: enemy.id,
           remortCount: 0,
           hpMaxAdded: 0,
           attackAdded: 0
@@ -788,7 +922,9 @@ function leftPassageState(count: 2 | 3 = 2) {
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
-        commonItemId: "item.responsible-panic-bandage",
+        commonItemId: rewardBudget.commonItemQuantity === 1
+          ? "item.responsible-panic-bandage"
+          : null,
         commonItemQuantity: rewardBudget.commonItemQuantity
       }
     }

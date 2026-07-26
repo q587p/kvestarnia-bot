@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { sendOnline } from "../../src/bot/commands/onlineCommand";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { TavernGameSessionRecord } from "../../src/db/repositories/tavernGameRepository";
-import { BIG_BARREL_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
+import {
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+} from "../../src/services/partySessionService";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   PRESENCE_LOCATION_KORCHMA_BARREL,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
   type PresenceService
 } from "../../src/services/presenceService";
 
@@ -274,7 +278,8 @@ describe("online command", () => {
     await sendOnline(ctx, presenceService, {
       duelEnabled: true,
       partySessions: {
-        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" })
+        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" }),
+        listVisibleRecruitingAtLocation: () => Promise.resolve([])
       } as never
     });
 
@@ -319,7 +324,7 @@ describe("online command", () => {
           activity: null
         })
     } as unknown as PresenceService;
-    const listRecruitingBigBarrelBrother = vi.fn().mockResolvedValue([
+    const listVisibleRecruitingAtLocation = vi.fn().mockResolvedValue([
       makeRecruitingBigBarrelParty("partyABC12", "Kyjivan BooksDragon", [
         "Kyjivan BooksDragon",
         "Мала Буря"
@@ -330,11 +335,11 @@ describe("online command", () => {
     await sendOnline(ctx, presenceService, {
       partySessions: {
         getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(null),
-        listRecruitingBigBarrelBrother
+        listVisibleRecruitingAtLocation
       } as never
     });
 
-    expect(listRecruitingBigBarrelBrother).toHaveBeenCalledOnce();
+    expect(listVisibleRecruitingAtLocation).toHaveBeenCalledWith(PRESENCE_LOCATION_KORCHMA_BARREL);
     expect(replies).toHaveLength(1);
     expect(replies[0]?.text).toContain("🛢️ У зборі на груповий рейд «Старший Брат Бочки»: 2/8");
     expect(replies[0]?.text).toContain("— <b>Kyjivan BooksDragon</b>");
@@ -348,6 +353,94 @@ describe("online command", () => {
       "v1:party:j:partyABC12",
       "v1:party:j:partyDEF34"
     ]);
+  });
+
+  it("shows the left-passage gathering nearby and joins it without a direct link", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: { id: 42, is_bot: false, first_name: "Тест" },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () =>
+        Promise.resolve({
+          state: "ready",
+          globalTotal: 2,
+          location: {
+            id: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+            name: "Лівий прохід",
+            people: {
+              active: [
+                { telegramUserId: 42n, name: "Другий пригодник", status: "active" },
+                { telegramUserId: 1001n, name: "Shannar de Kassal", status: "active" }
+              ],
+              idle: [],
+              total: 2
+            }
+          },
+          activity: null
+        })
+    } as unknown as PresenceService;
+    const listVisibleRecruitingAtLocation = vi.fn().mockResolvedValue([
+      makeRecruitingLeftPassageParty("partyLEFT13", "Shannar de Kassal")
+    ]);
+
+    await sendOnline(ctx, presenceService, {
+      partySessions: {
+        getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(null),
+        listVisibleRecruitingAtLocation
+      } as never
+    });
+
+    expect(listVisibleRecruitingAtLocation).toHaveBeenCalledWith(
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    );
+    expect(replies[0]?.text).toContain("🤝 У зборі до атаки в лівому проході: 1/3");
+    expect(inlineButtonTexts(replies[0]?.options)).toContain("🤝 До атаки: Shannar de Kassal");
+    expect(inlineButtonCallbacks(replies[0]?.options)).toContain("v1:party:j:partyLEFT13");
+  });
+
+  it("shows a current left-passage participant the same nearby gathering as an open action", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Тест" },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: () => Promise.resolve({
+        state: "ready",
+        globalTotal: 1,
+        location: {
+          id: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+          name: "Лівий прохід",
+          people: {
+            active: [{ telegramUserId: 1001n, name: "Shannar de Kassal", status: "active" }],
+            idle: [],
+            total: 1
+          }
+        },
+        activity: null
+      })
+    } as unknown as PresenceService;
+    const session = makeRecruitingLeftPassageParty("partyLEFT13", "Shannar de Kassal");
+
+    await sendOnline(ctx, presenceService, {
+      partySessions: {
+        getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(session),
+        listVisibleRecruitingAtLocation: vi.fn().mockResolvedValue([session])
+      } as never
+    });
+
+    expect(inlineButtonTexts(replies[0]?.options)).toContain(
+      "🤝 Відкрити збір: Shannar de Kassal"
+    );
+    expect(inlineButtonCallbacks(replies[0]?.options)).toContain("v1:party:j:partyLEFT13");
   });
 
   it("shows open Shynok game tables near the Shynok with join buttons", async () => {
@@ -646,7 +739,7 @@ function makeRecruitingBigBarrelParty(
   participantNames: string[]
 ): PartySessionRecord {
   const now = new Date("2026-06-30T10:00:00.000Z");
-  const leader = makePartyCharacter("character-leader", 42n, leaderName);
+  const leader = makePartyCharacter("character-leader", 1001n, leaderName);
 
   return {
     id: `party-${inviteToken}`,
@@ -683,6 +776,32 @@ function makeRecruitingBigBarrelParty(
         character
       };
     })
+  };
+}
+
+function makeRecruitingLeftPassageParty(
+  inviteToken: string,
+  leaderName: string
+): PartySessionRecord {
+  const party = makeRecruitingBigBarrelParty(inviteToken, leaderName, [leaderName]);
+  return {
+    ...party,
+    periodId: null,
+    originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+    originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+    participantCap: 3,
+    minimumParticipants: 1,
+    leader: {
+      ...party.leader,
+      currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    },
+    participants: party.participants.map((participant) => ({
+      ...participant,
+      character: {
+        ...participant.character,
+        currentLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      }
+    }))
   };
 }
 

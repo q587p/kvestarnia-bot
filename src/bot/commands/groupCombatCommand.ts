@@ -381,7 +381,7 @@ export function presentGroupCombatStartFailure(
 ): string {
   switch (result.state) {
     case "invalid-size":
-      return "Для гуртової сутички треба рівно 2–3 пригодники у ватазі.";
+      return "Поточний склад ватаги не підходить для цієї сутички. Оновіть картку збору.";
     case "not-leader":
       return "Запустити гуртову сутичку може лише ватажок.";
     case "invalid-life":

@@ -37,6 +37,9 @@ describe("group combat bot flow", () => {
       availableAt,
       now
     })).toContain("3 хвилини");
+    expect(presentGroupCombatStartFailure({ state: "invalid-size" })).toContain(
+      "Поточний склад ватаги не підходить"
+    );
   });
 
   it("explains every left-passage reservation blocker instead of using an opaque fallback", () => {

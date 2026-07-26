@@ -15,6 +15,7 @@ import type {
 } from "../db/repositories/partySessionRepository";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 
 export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
@@ -304,6 +305,25 @@ export class PartySessionService {
     }
 
     return this.sessions.listRecruitingByOrigin(BIG_BARREL_PARTY_ORIGIN_LOCATION_ID, this.clock());
+  }
+
+  async listVisibleRecruitingAtLocation(locationId: string): Promise<PartySessionRecord[]> {
+    if (locationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID) {
+      return this.listRecruitingBigBarrelBrother();
+    }
+    if (
+      locationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT &&
+      this.isLeftPassagePartyAttackEnabled()
+    ) {
+      const sessions = await this.sessions.listRecruitingByOriginKind(
+        LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+        PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        this.clock()
+      );
+      return sessions;
+    }
+
+    return [];
   }
 
   async listDueRecruitingBigBarrelBrother(): Promise<PartySessionRecord[]> {

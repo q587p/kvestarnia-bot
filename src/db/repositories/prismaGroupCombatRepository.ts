@@ -9,6 +9,7 @@ import {
   buildGroupCombatSettlementReceipt,
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
+  deriveLeftPassageEnemyCount,
   GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
@@ -55,6 +56,7 @@ import {
 } from "../../domain/groupCombat/groupCombatStateValidation";
 import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
+import { createMonsterAbilityRuntime } from "../../domain/combat/monsterAbilityRuntime";
 import type {
   GroupCombatActionResult,
   GroupCombatOperatorRepairRecord,
@@ -80,9 +82,9 @@ import {
 type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 4;
 const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
-const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+const LEFT_PASSAGE_PARTY_ORIGIN_KIND = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
-const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 2;
+const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 1;
 
 class GroupCombatMutationConflict extends Error {}
 class GroupCombatInventoryDrift extends Error {
@@ -525,7 +527,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         }
 
         const joined = party.participants.filter((participant) => participant.status === "joined");
-        if (joined.length < 2 || joined.length > 3) {
+        const minimumParticipants = mode === "left-passage" ? 1 : 2;
+        if (joined.length < minimumParticipants || joined.length > 3) {
           return { state: "invalid-size", partyVersion: party.version };
         }
         const currentLeaderCharacterId = party.leaderCharacterId;
@@ -1777,14 +1780,20 @@ async function buildLeftPassageState(input: {
           : session.updatedAt
       }];
     });
+    const decision = decideThreatEscalation(
+      history.map(toThreatEscalationHistoryEntry),
+      { remortCount: actor.remortCount }
+    );
     return {
       characterId: actor.characterId,
       rosterOrder: actor.rosterOrder,
       remortCount: actor.remortCount,
-      decision: decideThreatEscalation(
-        history.map(toThreatEscalationHistoryEntry),
-        { remortCount: actor.remortCount }
-      )
+      decision: {
+        ...decision,
+        secondEnemyLevelBonus: decision.enemyCount === 2
+          ? decision.secondEnemyLevelBonus
+          : 0
+      }
     };
   });
   const threatSource = selectStrongestLeftPassageThreatSource(threatParticipants);
@@ -1800,7 +1809,16 @@ async function buildLeftPassageState(input: {
     throw new GroupCombatStateValidationError("Left-passage combat has no frozen participant summary.");
   }
   const difficulty = getPersistentFightDifficultyConfig("hard");
+  const enemyCount = deriveLeftPassageEnemyCount({
+    participants: input.frozen.map(({ actor }) => actor),
+    threatParticipants,
+    primaryEffectiveMonsterLevel: input.reservation.effectiveMonsterLevel
+  });
   const rng = new SeededRandomSource(`${input.reservation.seedHash}:${input.partySessionId}:backups`);
+  const primaryAbilityIds = createMonsterAbilityRuntime({
+    monster: primaryStats,
+    seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:0`
+  })?.loadoutIds ?? [];
   const enemies = [{
     id: `primary:${input.reservation.id}`,
     monsterId: primary.id,
@@ -1810,7 +1828,8 @@ async function buildLeftPassageState(input: {
     hp: primaryStats.hpMax,
     hpMax: primaryStats.hpMax,
     attack: primaryStats.attack,
-    defense: Math.max(primaryStats.armor, primaryStats.resist)
+    defense: Math.max(primaryStats.armor, primaryStats.resist),
+    ...(primaryAbilityIds.length > 0 ? { abilityIds: primaryAbilityIds } : {})
   }];
   const backupAdjustments: Array<{
     enemyId: string;
@@ -1821,7 +1840,7 @@ async function buildLeftPassageState(input: {
   let appliedSecondEnemyLevelBonus = 0;
   let boostedEnemyId: string | null = null;
   const usedMonsterIds = [primary.id];
-  for (let index = 1; index < input.frozen.length; index += 1) {
+  for (let index = 1; index < enemyCount; index += 1) {
     const base = selectSoloFightMonster(characterSummary, rng, difficulty, usedMonsterIds);
     let selected = applyPersistentFightDifficulty(base, characterSummary, difficulty);
     if (index === 1 && threatSource.decision.enemyCount === 2) {
@@ -1840,6 +1859,10 @@ async function buildLeftPassageState(input: {
       remortPressureMode: "multi"
     });
     const enemyId = `backup:${index}:${selected.id}`;
+    const abilityIds = createMonsterAbilityRuntime({
+      monster: pressured,
+      seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:${index}`
+    })?.loadoutIds ?? [];
     if (index === 1 && threatSource.decision.enemyCount === 2) {
       boostedEnemyId = enemyId;
     }
@@ -1852,7 +1875,8 @@ async function buildLeftPassageState(input: {
       hp: pressured.hpMax,
       hpMax: pressured.hpMax,
       attack: pressured.attack,
-      defense: Math.max(pressured.armor, pressured.resist)
+      defense: Math.max(pressured.armor, pressured.resist),
+      ...(abilityIds.length > 0 ? { abilityIds } : {})
     });
     backupAdjustments.push({
       enemyId,

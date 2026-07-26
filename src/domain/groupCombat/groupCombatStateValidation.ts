@@ -5,6 +5,7 @@ import {
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
+  GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RULES_VERSION,
@@ -12,6 +13,7 @@ import {
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
   buildLeftPassageEncounterRewardBudget,
+  deriveLeftPassageEnemyCount,
   type GroupCombatResult,
   type GroupCombatSettlementPlan,
   type GroupCombatSettlementReceipt,
@@ -20,6 +22,8 @@ import {
 import { monsters } from "../../content";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
+import { createMonsterAbilityRuntime } from "../combat/monsterAbilityRuntime";
+import { findMonsterAbility } from "../../content/monsterAbilities";
 
 const nonNegativeInteger = z.number().int().min(0);
 const positiveInteger = z.number().int().positive();
@@ -123,7 +127,13 @@ const enemySchema = z.object({
   hp: nonNegativeInteger,
   hpMax: positiveInteger,
   attack: positiveInteger,
-  defense: nonNegativeInteger
+  defense: nonNegativeInteger,
+  abilityIds: z.array(z.string().min(1)).max(13).optional(),
+  abilityCooldowns: z.record(z.string(), z.object({
+    id: z.string().min(1),
+    remainingTurns: positiveInteger.max(13)
+  }).strict()).optional(),
+  usedOnceAbilityIds: z.array(z.string().min(1)).max(13).optional()
 }).strict().refine((value) => value.hp <= value.hpMax, {
   message: "Enemy HP exceeds its maximum."
 });
@@ -139,6 +149,13 @@ const contributionSchema = z.object({
   guardedTurns: nonNegativeInteger
 }).strict();
 
+const enemyContributionSchema = z.object({
+  enemyId: z.string().min(1),
+  damage: nonNegativeInteger,
+  actions: nonNegativeInteger,
+  specialActions: nonNegativeInteger
+}).strict();
+
 const statusSchema = z.object({
   id: z.string().min(1).max(587),
   kind: z.enum(["guard", "response-mitigation", "counter", "bleed"]),
@@ -151,7 +168,34 @@ const statusSchema = z.object({
 
 const recapSchema = z.object({
   turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
-  lines: z.array(z.string().min(1).max(587)).max(13)
+  lines: z.array(z.string().min(1).max(587)).max(13),
+  snapshot: z.object({
+    participants: z.array(z.object({
+      hp: nonNegativeInteger,
+      mana: nonNegativeInteger,
+      cooldowns: z.array(z.object({
+        id: z.string().min(1),
+        remainingTurns: positiveInteger.max(13)
+      }).strict()).max(13).optional(),
+      itemCooldowns: z.array(z.object({
+        itemId: z.string().min(1),
+        remainingTurns: positiveInteger.max(13)
+      }).strict()).max(13).optional()
+    }).strict()).max(GROUP_COMBAT_PARTICIPANT_LIMIT),
+    enemies: z.array(z.object({
+      hp: nonNegativeInteger,
+      cooldowns: z.array(z.object({
+        id: z.string().min(1),
+        remainingTurns: positiveInteger.max(13)
+      }).strict()).max(13).optional()
+    }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
+    effects: z.array(z.object({
+      kind: z.enum(["guard", "response-mitigation", "counter", "bleed"]),
+      targetKind: z.enum(["participant", "enemy"]),
+      targetId: z.string().min(1),
+      remainingTurns: positiveInteger.max(13)
+    }).strict()).max(93).optional()
+  }).strict().optional()
 }).strict();
 
 const threatDecisionSchema = z.object({
@@ -179,7 +223,7 @@ const productionSchema = z.object({
       rosterOrder: nonNegativeInteger,
       remortCount: nonNegativeInteger,
       decision: threatDecisionSchema
-    }).strict()).min(2).max(3),
+    }).strict()).min(1).max(3),
     sourceCharacterId: z.string().min(1),
     sourceRosterOrder: nonNegativeInteger,
     escalated: z.boolean(),
@@ -193,7 +237,7 @@ const productionSchema = z.object({
       characterId: z.string().min(1),
       rosterOrder: nonNegativeInteger,
       remortCount: nonNegativeInteger
-    }).strict()).min(2).max(3),
+    }).strict()).min(1).max(3),
     sourceCharacterId: z.string().min(1),
     sourceRosterOrder: nonNegativeInteger,
     sourceRemortCount: nonNegativeInteger,
@@ -202,7 +246,7 @@ const productionSchema = z.object({
       remortCount: nonNegativeInteger,
       hpMaxAdded: nonNegativeInteger,
       attackAdded: nonNegativeInteger
-    }).strict()).min(1).max(2)
+    }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT - 1)
   }).strict(),
   rewards: z.object({
     winXpTotal: nonNegativeInteger,
@@ -222,8 +266,11 @@ const stateSchema = z.object({
   status: z.enum(["active", "won", "lost", "invalid"]),
   turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
   participants: z.array(actorSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
-  enemies: z.array(enemySchema).min(2).max(3),
+  enemies: z.array(enemySchema).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
   contributions: z.array(contributionSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
+  enemyContributions: z.array(enemyContributionSchema)
+    .max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT)
+    .optional(),
   statuses: z.array(statusSchema).max(93),
   recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT),
   production: productionSchema.optional()
@@ -240,11 +287,28 @@ const stateSchema = z.object({
   ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Production state is missing left-passage metadata." });
   }
-  if (
-    state.status !== "invalid"
-    && (state.participants.length < 2 || state.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT)
-  ) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Live or resolved proof roster must contain two or three participants." });
+  if (state.status !== "invalid") {
+    const minimumParticipants = state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION ? 1 : 2;
+    if (
+      state.participants.length < minimumParticipants ||
+      state.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
+          ? "Production roster must contain one to three participants."
+          : "Live or resolved proof roster must contain two or three participants."
+      });
+    }
+    if (
+      state.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
+      state.enemies.length !== state.participants.length
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Live or resolved proof enemy roster must match its participant roster."
+      });
+    }
   }
   requireUnique(state.participants.map((row) => row.characterId), context, "participant character ids");
   requireUnique(state.participants.map((row) => row.telegramUserId), context, "participant Telegram ids");
@@ -258,6 +322,68 @@ const stateSchema = z.object({
   const contributionIds = [...state.contributions.map((row) => row.characterId)].sort();
   if (participantIds.join("\0") !== contributionIds.join("\0")) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Contribution roster does not match participants." });
+  }
+  const enemyIds = state.enemies.map((row) => row.id);
+  const enemyContributionIds = state.enemyContributions?.map((row) => row.enemyId) ?? [];
+  if (
+    state.enemyContributions &&
+    (
+      enemyIds.join("\0") !== enemyContributionIds.join("\0") ||
+      state.enemyContributions.some((row) => row.specialActions > row.actions)
+    )
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Enemy contribution roster or action totals are invalid." });
+  }
+  if (
+    state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+    !state.enemyContributions
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy contributions are missing." });
+  }
+  for (const recap of state.recap) {
+    if (
+      state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+      !recap.snapshot
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production recap snapshot is missing." });
+      continue;
+    }
+    if (!recap.snapshot) {
+      continue;
+    }
+    if (
+      recap.snapshot.participants.length !== state.participants.length ||
+      recap.snapshot.enemies.length !== state.enemies.length
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap snapshot roster is not canonical." });
+    }
+    for (const [index, participant] of recap.snapshot.participants.entries()) {
+      const current = state.participants[index];
+      if (
+        !current ||
+        participant.hp > current.hpMax ||
+        participant.mana > current.manaMax
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap participant resources exceed frozen maxima." });
+      }
+    }
+    for (const [index, enemy] of recap.snapshot.enemies.entries()) {
+      const current = state.enemies[index];
+      if (
+        !current ||
+        enemy.hp > current.hpMax ||
+        (enemy.cooldowns ?? []).some((cooldown) => !(current.abilityIds ?? []).includes(cooldown.id))
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap enemy resources exceed frozen maxima." });
+      }
+    }
+    if ((recap.snapshot.effects ?? []).some((effect) =>
+      effect.targetKind === "participant"
+        ? !participantIds.includes(effect.targetId)
+        : !enemyIds.includes(effect.targetId)
+    )) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap effect target is not canonical." });
+    }
   }
   for (const status of state.statuses) {
     if (!participantIds.includes(status.sourceCharacterId)) {
@@ -292,11 +418,20 @@ const stateSchema = z.object({
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary enemy identity changed." });
     }
-    if (
-      state.participants.length !== state.enemies.length ||
-      (state.participants.length !== 2 && state.participants.length !== 3)
-    ) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production combat must be exactly 2x2 or 3x3." });
+    const expectedEnemyCount =
+      state.participants.length >= 1 &&
+      state.participants.length <= GROUP_COMBAT_PARTICIPANT_LIMIT
+        ? deriveLeftPassageEnemyCount({
+            participants: state.participants,
+            threatParticipants: state.production.threat.participants,
+            primaryEffectiveMonsterLevel: state.production.primaryEffectiveMonsterLevel
+          })
+        : -1;
+    if (state.enemies.length !== expectedEnemyCount) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Production enemy count does not match the frozen roster power."
+      });
     }
     const threatRowsMatch = state.production.threat.participants.every((row, index) => {
       const participant = state.participants[index];
@@ -356,8 +491,8 @@ const stateSchema = z.object({
       state.production.threat.requestedSecondEnemyLevelBonus !== requestedBonus ||
       state.production.threat.boostedEnemyId !== expectedBoostedEnemyId ||
       appliedBonus !== expectedAppliedBonus ||
-      preBonusLevel < 1 ||
-      (firstBackup?.level ?? 24) > 23
+      (threatEscalated && preBonusLevel < 1) ||
+      (firstBackup?.level ?? 0) > 23
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Threat pressure bonus or level cap is not canonical." });
     }
@@ -409,6 +544,44 @@ const stateSchema = z.object({
         primaryEnemy.defense !== Math.max(primaryStats.armor, primaryStats.resist)
       ) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary combat snapshot is not canonical." });
+      }
+    }
+    for (const enemy of state.enemies) {
+      const authored = monsters.find((monster) => monster.id === enemy.monsterId);
+      if (!authored || enemy.level === undefined) {
+        continue;
+      }
+      const stats = deriveMonsterCombatStats(
+        { ...authored, level: enemy.level },
+        enemy.order > 0
+          ? {
+              remortCount: state.production.remort.sourceRemortCount,
+              remortPressureMode: "multi"
+            }
+          : {}
+      );
+      const expectedAbilityIds = createMonsterAbilityRuntime({
+        monster: stats,
+        seed: `${state.production.encounterSeed}:${state.partySessionId}:enemy:${enemy.order}`
+      })?.loadoutIds ?? [];
+      if ((enemy.abilityIds ?? []).join("\0") !== expectedAbilityIds.join("\0")) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy ability loadout is not canonical." });
+      }
+      if (Object.entries(enemy.abilityCooldowns ?? {}).some(([abilityId, cooldown]) =>
+        cooldown.id !== abilityId ||
+        !expectedAbilityIds.includes(abilityId) ||
+        cooldown.remainingTurns > Math.max(1, findMonsterAbility(abilityId)?.cooldownOwnActions ?? 0)
+      )) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy ability cooldown is not canonical." });
+      }
+      if (new Set(enemy.usedOnceAbilityIds ?? []).size !== (enemy.usedOnceAbilityIds ?? []).length) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production once-only enemy ability markers are duplicated." });
+      }
+      if ((enemy.usedOnceAbilityIds ?? []).some((abilityId) => {
+        const ability = findMonsterAbility(abilityId);
+        return !expectedAbilityIds.includes(abilityId) || !ability?.oncePerFight;
+      })) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production once-only enemy ability marker is not canonical." });
       }
     }
     const rewardBudget = buildLeftPassageEncounterRewardBudget({

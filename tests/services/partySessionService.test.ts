@@ -4,8 +4,10 @@ import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
   GROUP_COMBAT_PARTY_PARTICIPANT_CAP,
   GROUP_COMBAT_PARTY_TTL_MS,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
   PartySessionService
 } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("PartySessionService GroupCombat proof recruiting", () => {
   it("creates a three-minute 2–3 participant proof announcement", async () => {
@@ -57,5 +59,38 @@ describe("PartySessionService GroupCombat proof recruiting", () => {
     await expect(service.listDueRecruitingGroupCombatProof()).resolves.toEqual([]);
     expect(createForTelegramUser).not.toHaveBeenCalled();
     expect(listDueRecruitingByOrigin).not.toHaveBeenCalled();
+  });
+
+  it("lists only exact left-passage recruiting sessions for the nearby surface", async () => {
+    const now = new Date("2026-07-26T10:00:00.000Z");
+    const exact = { originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT };
+    const listRecruitingByOriginKind = vi.fn().mockResolvedValue([exact]);
+    const service = new PartySessionService(
+      { listRecruitingByOriginKind } as unknown as PartySessionRepository,
+      { enabled: true, leftPassagePartyAttackEnabled: true },
+      () => now
+    );
+
+    await expect(service.listVisibleRecruitingAtLocation(
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    )).resolves.toEqual([exact]);
+    expect(listRecruitingByOriginKind).toHaveBeenCalledWith(
+      LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now
+    );
+  });
+
+  it("does not expose left-passage recruiting when fresh entry is disabled", async () => {
+    const listRecruitingByOriginKind = vi.fn();
+    const service = new PartySessionService(
+      { listRecruitingByOriginKind } as unknown as PartySessionRepository,
+      { enabled: true, leftPassagePartyAttackEnabled: false }
+    );
+
+    await expect(service.listVisibleRecruitingAtLocation(
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    )).resolves.toEqual([]);
+    expect(listRecruitingByOriginKind).not.toHaveBeenCalled();
   });
 });

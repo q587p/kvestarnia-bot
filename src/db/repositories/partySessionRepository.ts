@@ -336,6 +336,12 @@ export interface PartySessionRepository {
     input: { chatId: bigint; messageId: number; now: Date }
   ): Promise<PartySessionRecord | null>;
   listRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
+  listRecruitingByOriginKind(
+    originKind: string,
+    originLocationId: string,
+    now: Date,
+    limit?: number
+  ): Promise<PartySessionRecord[]>;
   listDueRecruitingByOrigin(originLocationId: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   listDueRecruitingByOriginKind(originKind: string, now: Date, limit?: number): Promise<PartySessionRecord[]>;
   expireByToken(inviteToken: string, now: Date): Promise<PartySessionRecord | null>;

@@ -86,6 +86,50 @@ describe("group combat timeout scheduler", () => {
     expect(listPendingDelivery).toHaveBeenCalledWith(13);
   });
 
+  it("automatically starts a due one-participant left-passage gathering", async () => {
+    const session = pendingSession();
+    session.status = "active";
+    session.state.status = "active";
+    session.result = null;
+    session.completedAt = null;
+    const party = {
+      inviteToken: session.partyInviteToken,
+      version: 7,
+      participants: [{ character: { telegramUserId: 1001n } }]
+    };
+    const startDueLeftPassage = vi.fn().mockResolvedValue({
+      state: "started",
+      session
+    });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        isLeftPassageEntryEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        startDueLeftPassage,
+        repair: vi.fn().mockResolvedValue(0),
+        resolveDue: vi.fn().mockResolvedValue([]),
+        listPendingDelivery: vi.fn().mockResolvedValue([]),
+        findById: vi.fn().mockResolvedValue(session),
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService,
+      {
+        api: { editMessageText, sendMessage: vi.fn(), deleteMessage: vi.fn() }
+      } as unknown as Bot,
+      {
+        partySessions: {
+          listDueRecruitingLeftPassageParty: vi.fn().mockResolvedValue([party])
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(startDueLeftPassage).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for an in-flight pass during shutdown", async () => {
     let releaseRepair: (() => void) | undefined;
     const repair = vi.fn(() => new Promise<number>((resolve) => {

@@ -25,6 +25,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BARREL
 } from "../../services/presenceService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentRecruitingPartyHeader } from "./partyPreparationPresenter";
 import { escapeHtml } from "./telegramHtml";
 
 const MAX_VISIBLE_PRESENCE_PEOPLE = 12;
@@ -184,7 +185,7 @@ function presentActivitySummary(
 function presentRecruitingParties(sessions: readonly PartySessionRecord[]): string[] {
   return sessions.flatMap((session, index) => {
     const joined = session.participants.filter((participant) => participant.status === "joined");
-    const header = `🛢️ У зборі на груповий рейд «Старший Брат Бочки»: ${joined.length}/${session.participantCap}`;
+    const header = presentRecruitingPartyHeader(session);
     const participants = joined.map((participant) =>
       `— ${presentCharacterDisplayName(participant.character, {
         maxNameLength: MAX_PRESENCE_NAME_LENGTH,

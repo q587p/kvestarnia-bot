@@ -28,6 +28,10 @@ import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft
 import { getCombatSkillDisplay } from "../../services/fightService";
 import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import {
+  presentPartyReadinessMarker,
+  supportsPartyReadiness
+} from "./partyPreparationPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
@@ -1227,7 +1231,7 @@ export function presentPartySession(
     : null;
   const big = session.originLocationId === "barrel.big-brother";
   const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
-  const leftPassage = session.originKind === "nyz-left-passage-party.v1";
+  const leftPassage = session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
   const lines = [
     big
       ? "🛢️ <b>Збір до Старшого Брата Бочки</b>"
@@ -1262,7 +1266,7 @@ export function presentPartySession(
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
     lines.push(...joined.map((participant, index) => `${index + 1}. ${presentRecruitingParticipantName(participant, {
-      showReadiness: big && session.status === "recruiting"
+      showReadiness: supportsPartyReadiness(session) && session.status === "recruiting"
     })}`));
   }
 
@@ -1276,7 +1280,7 @@ export function presentPartySession(
       : groupCombat
         ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
         : leftPassage
-          ? "Це справжня атака 2–3 пригодників на вже помічений гурт. Коли час добіжить, бій почнеться автоматично з поточним складом; лідер може рушити раніше."
+          ? "Це справжня атака 1–3 пригодників на вже помічений гурт. Коли час добіжить, бій почнеться автоматично; склад ворогів підлаштується під силу ватаги. Лідер може рушити раніше."
         : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -1467,7 +1471,9 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   if (session.status === "expired") {
-    return "Стан: строк збору минув";
+    return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+      ? "Стан: збір завершено без атаки"
+      : "Стан: строк збору минув";
   }
 
   if (session.status === "ineligible") {
@@ -1488,6 +1494,13 @@ function getStatusLine(session: PartySessionRecord): string {
   if (session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID) {
     return [
       `Стан: сутичка почнеться автоматично о ${formatTime(session.expiresAt)}.`,
+      "Лідер ватаги може почати бій раніше."
+    ].join("\n");
+  }
+
+  if (session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    return [
+      `Стан: атака почнеться автоматично о ${formatTime(session.expiresAt)}.`,
       "Лідер ватаги може почати бій раніше."
     ].join("\n");
   }
@@ -2402,7 +2415,7 @@ function presentRecruitingParticipantName(
   options: { showReadiness: boolean }
 ): string {
   const marker = options.showReadiness
-    ? participant.readiness === "ready" ? "✅ " : "⏳ "
+    ? presentPartyReadinessMarker(participant.readiness)
     : "";
 
   return `${marker}${presentParticipantName(participant)}`;

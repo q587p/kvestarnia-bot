@@ -3,9 +3,9 @@
 ## Identity and language
 
 - Product: Ukrainian-first humorous Telegram RPG `Квестарня`; technical slug/repo/package prefix `kvestarnia`; bot target `@kvestarnia_bot`.
-- Current repository version: `0.4.2` — the exact hard `deep-left` pending encounter can be reserved by a 2–3-person `PartySession` and resolved through production-capable `group-combat.v3` behind default-off `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; solo attack remains available, and the canonical preview presence marker does not self-block party reservation.
-  Recruitment lasts three minutes, may start early by the current leader, and freezes the authoritative current-life same-location roster at start.
-  The exact preview is primary; reservation-stable backups reuse canonical solo Низ difficulty from each frozen remort life, strongest recent threat pressure and strongest remort, with the first backup threat bonus capped at 23.
+- Current repository version: `0.4.2` — the exact hard `deep-left` pending encounter can be reserved by a 1–3-person `PartySession` and resolved against 1–6 enemies through production-capable `group-combat.v3` behind default-off `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; solo attack remains available, and the canonical preview presence marker does not self-block party reservation.
+  Recruitment lasts three minutes, is discoverable through exact-location `👀 Хто поруч`, shares readiness controls with Big Barrel, may start early by the current leader and auto-starts with the authoritative current-life same-location roster even when only the leader remains.
+  The exact preview is primary; one enemy per participant is the base, while each strong frozen participant may add one reservation-stable backup from canonical remort, solo Низ pressure or a three-level advantage, capped at six. Monster ability loadouts, the opening roster, cooldown/effect displays, enemy contributions and the complete 25-turn journal are deterministic.
   Runtime servicing remains active when new entry is disabled. One-transaction per-player effective resources/consumables, neutral manual-only XP/gold, one common roll, Chronicle activity, receipts and participant-owned leases converge after restart/retry. The new completion achievement is deferred: 0.4.2 emits no left-passage achievement event and settlement has no achievement-effect fields or projection work.
   Manual Telegram QA, production enablement, merge and deployment remain pending.
 - The underlying `0.4.1` restart-safe 2–3 player versus 2–3 enemy proof remains available only behind `GROUP_COMBAT_PROOF_ENABLED` outside production.
@@ -27,10 +27,10 @@
   Generic Aid is absent: ally support uses authored class/race profiles. Strict parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
   Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
-  journal. Stable query observations/budgets are `32/32` manual start, `31/32`
-  due start, `20/20` queue, `22/35` single resolve, `31` concurrent-pair aggregate and `1/1` due scan;
-  state/card/callback caps are `32,768`/`4,096`/`64` UTF-8 bytes; measured
-  maxima are `5,066` state, `2,155` terminal-card fixture and `46` callback. The 24-case
+  journal. Current production query observations/budgets are `33/33` manual start, `32/32`
+  due start, `21/21` queue, `23/35` single resolve, `32` concurrent-pair aggregate and `1/1` due scan;
+  state/card/callback caps are `65,536`/`4,096`/`64` UTF-8 bytes; measured
+  proof/presenter maxima are `19,578` state, `2,433` terminal-card fixture and `46` callback; the complete production 3×6 journal measured `45,700`. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
   Generated eight-segment v2 action callbacks route through combat-lock/social

@@ -313,6 +313,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     if (!("session" in created)) {
       throw new Error("Expected a reserved left-passage party.");
     }
+    expect(created.session.minimumParticipants).toBe(1);
     const secondCharacterId = `${token}-user-1-character`;
     const joined = await new PrismaPartySessionRepository(prisma).joinByTokenForTelegramUser(
       telegramIds[1]!,
@@ -416,6 +417,10 @@ describe("PrismaGroupCombatRepository integration", () => {
         }
       }
     }
+    expect(session.state.recap.some((entry) =>
+      entry.lines.some((line) => line.includes("застосовує"))
+    )).toBe(true);
+    expect(session.state.enemyContributions?.some((row) => row.specialActions > 0)).toBe(true);
     expect(session.settlementPlan?.policy).toBe("left-passage-party");
     const terminalCardBytes = Buffer.byteLength(
       presentGroupCombat(session, session.participants[0]!.characterId, NOW),
@@ -486,14 +491,37 @@ describe("PrismaGroupCombatRepository integration", () => {
   });
 
   it.each([
-    ["2x2", [11941n, 11942n]],
-    ["3x3", [11951n, 11952n, 11953n]]
-  ] as const)("freezes deterministic %s backups across a same-reservation restart", async (label, telegramIds) => {
+    ["1x1", [11940n], 1, false],
+    ["2x2", [11941n, 11942n], 2, false],
+    ["3x3", [11951n, 11952n, 11953n], 3, false],
+    ["3x6", [11801n, 11802n, 11803n], 6, true]
+  ] as const)("freezes deterministic %s enemies across a same-reservation restart", async (
+    label,
+    telegramIds,
+    expectedEnemyCount,
+    strongParty
+  ) => {
     const token = `left-deterministic-${label}`;
-    const first = await startLeftPassageProduction(prisma, repository, token, [...telegramIds]);
+    const first = await startLeftPassageProduction(
+      prisma,
+      repository,
+      token,
+      [...telegramIds],
+      strongParty
+        ? {
+            beforeStart: async (characterIds) => {
+            await prisma.character.updateMany({
+              where: { id: { in: characterIds } },
+              data: { level: 7 }
+            });
+            }
+          }
+        : {}
+    );
+    expect(first.state.enemies).toHaveLength(expectedEnemyCount);
     const firstSnapshot = {
       deterministicSeed: first.state.deterministicSeed,
-      backups: first.state.enemies.slice(1),
+      enemies: first.state.enemies,
       production: first.state.production
     };
     await prisma.activeCombatLease.deleteMany({ where: { referenceId: first.id } });
@@ -524,9 +552,42 @@ describe("PrismaGroupCombatRepository integration", () => {
     }
     expect({
       deterministicSeed: restarted.session.state.deterministicSeed,
-      backups: restarted.session.state.enemies.slice(1),
+      enemies: restarted.session.state.enemies,
       production: restarted.session.state.production
     }).toEqual(firstSnapshot);
+    if (label === "3x6") {
+      const stateBytes = Buffer.byteLength(JSON.stringify(restarted.session.state), "utf8");
+      const cardBytes = Buffer.byteLength(
+        presentGroupCombat(
+          restarted.session,
+          restarted.session.participants[0]!.characterId,
+          new Date(NOW.getTime() + 1)
+        ),
+        "utf8"
+      );
+      console.log(
+        "Left-passage 3x6 initial budgets",
+        { stateBytes, cardBytes },
+        { state: GROUP_COMBAT_STATE_BYTE_LIMIT, card: 4_096 }
+      );
+      expect(stateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
+      expect(cardBytes).toBeLessThanOrEqual(4_096);
+    }
+  });
+
+  it("automatically starts an expired one-participant left-passage gathering", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-due-solo",
+      [11811n],
+      { due: true }
+    );
+
+    expect(session.state.participants).toHaveLength(1);
+    expect(session.state.enemies).toHaveLength(1);
+    expect(session.status).toBe("active");
+    expect(session.partySessionId).toBe("left-due-solo-party");
   });
 
   it("derives pressure only from bounded canonical history in each frozen remort life", async () => {
@@ -3448,6 +3509,7 @@ async function startLeftPassageProduction(
   options: {
     remortCount?: number;
     beforeStart?: (characterIds: string[]) => Promise<void>;
+    due?: boolean;
   } = {}
 ) {
   await seedParty(prisma, token, telegramIds);
@@ -3467,7 +3529,7 @@ async function startLeftPassageProduction(
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       originKind: "nyz-left-passage-party.v1",
       participantCap: 3,
-      minimumParticipants: 2
+      minimumParticipants: 1
     }
   });
   await prisma.pendingPassageEncounter.create({
@@ -3514,12 +3576,24 @@ async function startLeftPassageProduction(
     }
   }
   await options.beforeStart?.(telegramIds.map((_, index) => `${token}-user-${index}-character`));
-  const started = await repository.startLeftPassageForTelegramUser({
-    telegramUserId: telegramIds[0]!,
-    partyInviteToken: token,
-    now: NOW,
-    turnExpiresAt: new Date(NOW.getTime() + 23_000)
-  });
+  if (options.due) {
+    await prisma.partySession.update({
+      where: { id: partyId },
+      data: { joinUntilAt: NOW, expiresAt: NOW }
+    });
+  }
+  const started = options.due
+    ? await repository.startDueLeftPassage({
+        partyInviteToken: token,
+        now: NOW,
+        turnExpiresAt: new Date(NOW.getTime() + 23_000)
+      })
+    : await repository.startLeftPassageForTelegramUser({
+        telegramUserId: telegramIds[0]!,
+        partyInviteToken: token,
+        now: NOW,
+        turnExpiresAt: new Date(NOW.getTime() + 23_000)
+      });
   if (started.state !== "started") {
     throw new Error(`Expected production group combat start, received ${started.state}.`);
   }

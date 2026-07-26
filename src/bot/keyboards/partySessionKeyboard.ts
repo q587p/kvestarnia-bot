@@ -41,6 +41,10 @@ import {
   makeGroupCombatStartCallbackData,
   makeLeftPassageGroupCombatStartCallbackData
 } from "../callbacks/groupCombatCallbackData";
+import {
+  presentPartyReadinessButton,
+  supportsPartyReadiness
+} from "../presenters/partyPreparationPresenter";
 import { appendGearActionButtons } from "./gearActionKeyboard";
 import { addPaginationControls } from "./pagination";
 
@@ -75,13 +79,15 @@ export function buildPartySessionKeyboard(
     if (!viewer) {
       keyboard.text("🤝 Приєднатися", makePartySessionJoinCallbackData(token)).row();
     } else {
-      if (session.originLocationId === "barrel.big-brother") {
+      if (supportsPartyReadiness(session)) {
         const ready = viewer.readiness === "ready";
         keyboard.text(
-          ready ? "⏳ Зачекайте" : getReadyButtonLabel(viewer.character.pronoun),
+          presentPartyReadinessButton(viewer.readiness),
           makePartySessionReadinessCallbackData(token, ready ? "waiting" : "ready")
         ).text("🔎 Оновити", makePartySessionViewCallbackData(token)).row();
         refreshPlaced = true;
+      }
+      if (session.originLocationId === "barrel.big-brother") {
         if (!session.wardSign && canPlaceKharakternykWardSign(viewer)) {
           keyboard.text("✴️ Поставити знак", makePartySessionWardPlaceCallbackData(token)).row();
         } else if (canSupportKharakternykWardSign(session, viewer)) {
@@ -115,10 +121,9 @@ export function buildPartySessionKeyboard(
     if (
       session.originKind === "nyz-left-passage-party.v1" &&
       options.isPrivateDestination &&
-      options.viewerCharacterId === session.leaderCharacterId &&
-      joinedParticipantCount >= session.minimumParticipants
+      options.viewerCharacterId === session.leaderCharacterId
     ) {
-      keyboard.text("⚔️ Рушити в атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
+      keyboard.text("⚔️ Почати атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
     }
 
     if (viewer && options.includeRaidChat) {
@@ -431,18 +436,6 @@ function buildTelegramShareUrl(inviteUrl: string): string {
   const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
 
   return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
-}
-
-function getReadyButtonLabel(pronoun: string): string {
-  if (pronoun === "he") {
-    return "✅ Готовий";
-  }
-
-  if (pronoun === "she") {
-    return "✅ Готова";
-  }
-
-  return "✅ Готові";
 }
 
 function getPartyBossSkillButtonLabel(classId: string | undefined): string {

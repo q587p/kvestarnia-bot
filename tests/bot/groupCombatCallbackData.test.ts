@@ -33,6 +33,19 @@ describe("group combat callback data", () => {
     });
   });
 
+  it("keeps the longest action callback at an exact measured byte budget", () => {
+    const data = makeGroupCombatActionCallbackData({
+      token: "abcdefghijklmnopqrstuvwx",
+      turn: 1_679_615,
+      action: "class",
+      optionIndex: 1_679_615,
+      targetIndex: 5
+    });
+
+    expect(Buffer.byteLength(data, "utf8")).toBe(46);
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(64);
+  });
+
   it("keeps left-passage invite and production start distinct and within Telegram's budget", () => {
     const invite = makeLeftPassagePartyInviteCallbackData("preview-token-13");
     const start = makeLeftPassageGroupCombatStartCallbackData("party-token-23");

@@ -28,6 +28,7 @@ import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
   LEFT_PASSAGE_PARTY_ORIGIN_KIND
 } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -1479,6 +1480,26 @@ describe("party session presenter", () => {
 
     const text = presentPartySession(session);
 
+    expect(text).toContain("1. ✅ <b>Голова</b>");
+    expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+  });
+
+  it("shows the same readiness markers for the left-passage gathering", () => {
+    const session = {
+      ...makePartySession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1,
+      participants: makePartySession().participants.map((participant, index) => ({
+        ...participant,
+        readiness: index === 0 ? "ready" as const : "waiting" as const
+      }))
+    };
+
+    const text = presentPartySession(session);
+
+    expect(text).toContain("🤝 <b>Ватага до лівого проходу</b>");
     expect(text).toContain("1. ✅ <b>Голова</b>");
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
   });

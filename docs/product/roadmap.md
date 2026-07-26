@@ -55,7 +55,8 @@ lifecycle/repair/race та release-evidence safeguards
 - Створити окремі `GroupCombatSession`, `GroupCombatParticipant` і
   `GroupCombatAction` із versioned strict state, target identity, repair і
   per-player settlement.
-- Межа першого runtime: 2–3 пригодники проти 2–3 ворогів. Масштаб понад 3×3 —
+- Межа production runtime `0.4.2`: 1–3 пригодники проти 1–6 ворогів за
+  незмінними reservation/party inputs. Більша ватага або понад шість ворогів —
   не прихована обіцянка.
 
 Канонічний технічний план:
@@ -87,10 +88,12 @@ separate pending evidence.
 ### 0.4.2 — Left-passage party attack
 
 Перший production-capable `GroupCombat`: точну hard-оказію лівого проходу
-можна зарезервувати за `PartySession`, зібрати 2–3 current-life пригодників і
-провести детерміновану 2×2 або 3×3 сутичку. Незмінний склад, ресурси й припаси,
-per-player settlement, одна спільна знахідка, журнал і підсумок внеску
-переживають restart/retry. Сольна кнопка лишається.
+можна зарезервувати за `PartySession`, зібрати 1–3 current-life пригодників і
+провести детерміновану сутичку проти 1–6 ворогів, масштабовану від замороженої
+кількости й сили учасників. Незмінний склад, ресурси, припаси й здібності
+ворогів, per-player settlement, одна спільна знахідка, повний журнал і підсумки
+внеску пригодників та монстрів переживають restart/retry. Збір видно через
+`👀 Хто поруч`, а сольна кнопка лишається.
 
 Вхід `LEFT_PASSAGE_PARTY_ATTACK_ENABLED` default-off. Код у repository release
 не доводить production enablement, deployment чи ручну Telegram QA; ці докази
@@ -158,7 +161,8 @@ guild-period completion receipt, не множиться на participant receip
 - guild bank або спільний інвентар;
 - повний trade/market/auction house;
 - guild wars, forced PvP або ставки;
-- raid finder, world-scale chat або encounters понад 3×3;
+- raid finder, world-scale chat, ватаги понад трьох або encounters понад шість
+  ворогів;
 - одночасна міграція Big Barrel на новий runtime;
 - Redis/Mini App як передумова;
 - широкий рефакторинг усіх solo/duel orchestration layers.

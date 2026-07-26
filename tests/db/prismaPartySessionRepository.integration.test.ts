@@ -16,6 +16,8 @@ import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureau
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
+import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -1628,6 +1630,44 @@ describe("PrismaPartySessionRepository integration", () => {
       now()
     )).resolves.toEqual([
       expect.objectContaining({ inviteToken: "party-due-group", status: "recruiting" })
+    ]);
+  });
+
+  it("lists recruiting left-passage gatherings by exact origin kind", async () => {
+    await seedCharacter(prisma, "left-nearby-user", 4021n, "Ліва");
+    await seedCharacter(prisma, "other-nearby-user", 4022n, "Інша");
+    await seedCharacter(prisma, "legacy-left-nearby-user", 4023n, "Старий літерал");
+    await repository.createForTelegramUser(4021n, {
+      ...partyInput("party-nearby-left"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+    await repository.createForTelegramUser(4022n, {
+      ...partyInput("party-nearby-other"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: "other-origin"
+    });
+    await repository.createForTelegramUser(4023n, {
+      ...partyInput("party-nearby-legacy-left"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT",
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.listRecruitingByOriginKind(
+      LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now()
+    )).resolves.toEqual([
+      expect.objectContaining({
+        inviteToken: "party-nearby-left",
+        originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+      })
     ]);
   });
 

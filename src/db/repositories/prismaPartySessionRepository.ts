@@ -1381,6 +1381,33 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     return sessions.map(mapSession);
   }
 
+  async listRecruitingByOriginKind(
+    originKind: string,
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    await this.expireRecruiting(now);
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originKind,
+        originLocationId,
+        expiresAt: {
+          gt: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
   async listDueRecruitingByOrigin(
     originLocationId: string,
     now: Date,
