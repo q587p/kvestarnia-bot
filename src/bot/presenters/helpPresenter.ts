@@ -160,6 +160,9 @@ export function presentDevHelp(
 ): string {
   const normalized = normalizeHelpVisibility(visibility);
   const sections = getDevHelpSections(normalized);
+  const promotedCommand = sections
+    .flatMap((section) => section.commands)
+    .find((entry) => entry.command === "dev_add_level");
 
   if (sections.length === 0) {
     return "Dev-команди тут не ввімкнені. Корчмар сховав викрутку.";
@@ -170,6 +173,9 @@ export function presentDevHelp(
       "🧰 Dev-довідка Квестарні",
       "",
       "Що саме треба підкрутити?",
+      ...(promotedCommand
+        ? ["", `${promotedCommand.icon} /${promotedCommand.command} — ${promotedCommand.description}`]
+        : []),
       "",
       ...sections.map((section) => `${section.title} — ${section.summary}.`),
       "",
@@ -185,7 +191,9 @@ export function presentDevHelp(
   return [
     `${section.title} · ${sections.indexOf(section) + 1}/${sections.length}`,
     "",
-    ...section.commands.map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`),
+    ...section.commands
+      .filter((entry) => entry.command !== promotedCommand?.command)
+      .map((entry) => `${entry.icon} /${entry.command} — ${entry.description}`),
     "",
     "Команди працюють тільки у локальній майстерні."
   ].join("\n");

@@ -138,6 +138,7 @@ describe("help presenter", () => {
     const resetVisibility = { includeDevReset: true, includeDevGrant: false };
     const grantVisibility = { includeDevReset: true, includeDevGrant: true };
     const resetMenu = presentDevHelp(resetVisibility);
+    const grantMenu = presentDevHelp(grantVisibility);
     const resetGeneral = presentDevHelp(resetVisibility, "general");
     const resetCombat = presentDevHelp(resetVisibility, "combat");
     const resetQuests = presentDevHelp(resetVisibility, "quests");
@@ -170,6 +171,15 @@ describe("help presenter", () => {
     expect(resetMenu).toContain("⚔️ Бої й ватага — сутички, рейди й гурт.");
     expect(resetMenu).toContain("🗺️ Справи й очікування — квести, кулдауни й повтори.");
     expect(resetMenu).not.toContain("/dev_help");
+    expect(resetMenu).not.toContain("/dev_add_level");
+    expect(grantMenu).toContain("🪜 /dev_add_level — додати рівні локально");
+    expect(grantMenu.indexOf("Що саме треба підкрутити?")).toBeLessThan(
+      grantMenu.indexOf("🪜 /dev_add_level — додати рівні локально")
+    );
+    expect(grantMenu.indexOf("🪜 /dev_add_level — додати рівні локально")).toBeLessThan(
+      grantMenu.indexOf("🧰 Загальне — персонаж і довідка.")
+    );
+    expect(grantMenu.match(/\/dev_add_level/gu)).toHaveLength(1);
     expect(resetGeneral).toContain("🧰 /dev_help");
     expect(resetGeneral).toContain("🧪 /dev_reset_me");
     expect(resetCombat).toContain("⏹️ /dev_raid_stop");
@@ -181,6 +191,7 @@ describe("help presenter", () => {
     expect(resetQuests).not.toContain("/dev_add_xp");
 
     expect(grantResources).toContain("🔢 /dev_add_xp");
+    expect(grantResources).not.toContain("/dev_add_level");
     expect(grantResources).toContain("🎲 /dev_add_random_item");
     expect(grantResources).toContain("🧾 /dev_add_item");
     expect(grantResources).toContain("🧻 /dev_add_bandage");
