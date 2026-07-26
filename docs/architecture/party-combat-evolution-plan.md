@@ -144,8 +144,8 @@ survivor resource/item settlement and participant notifications.
 The resolution transaction records a terminal plan, not every participant's
 entire reward mutation for an unbounded raid.
 
-Each participant has an idempotent settlement receipt. Resource, reward,
-achievement and activity mutations can retry independently while preserving one
+Each participant has an idempotent settlement receipt. Resource, reward and
+activity mutations can retry independently while preserving one
 terminal plan. Partial delivery does not roll back combat. Participant count
 alone never multiplies encounter loot. A pending settlement row is canonical
 only with zero attempts, no receipt and no settlement timestamp; a completed

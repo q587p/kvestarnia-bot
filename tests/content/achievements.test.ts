@@ -31,8 +31,17 @@ describe("achievement definitions", () => {
     const enabled = achievements.filter((definition) => definition.status === "enabled");
     const disabled = achievements.filter((definition) => definition.status === "disabled");
 
-    expect(enabled).toHaveLength(148);
+    expect(enabled).toHaveLength(147);
     expect(disabled).toHaveLength(12);
+  });
+
+  it("defers the left-passage party completion achievement and event", () => {
+    expect(achievements.some(
+      (definition) => definition.id === "achievement.left-passage.party-attack.first"
+    )).toBe(false);
+    expect(achievements.some(
+      (definition) => definition.trigger.type === "left-passage.party-attack.completed"
+    )).toBe(false);
   });
 
   it("does not ship enabled achievements with duplicate trigger gates", () => {

@@ -77,76 +77,27 @@ describe("GroupCombatService", () => {
     expect(startLeftPassage).not.toHaveBeenCalled();
   });
 
-  it("projects only durable manual-participation achievement effects", async () => {
-    const {
-      repository,
-      settleParticipant,
-      listPendingAchievementEffects,
-      markAchievementEffectProjected
-    } = repositoryFixture();
-    const trackEvent = vi.fn().mockResolvedValue([]);
-    const service = new GroupCombatService(
-      repository,
-      { enabled: true, devHelpersEnabled: false },
-      () => new Date("2026-07-25T10:00:00.000Z"),
-      { trackEvent } as never
-    );
+  it("settles participants without an achievement projector", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
     const receipt = leftPassageReceipt();
-    settleParticipant.mockResolvedValueOnce({
-      state: "settled",
-      receipt: { ...receipt, manualParticipation: false }
-    });
-    settleParticipant.mockResolvedValueOnce({
-      state: "settled",
-      receipt: { ...receipt, manualParticipation: true }
-    });
-    listPendingAchievementEffects.mockResolvedValueOnce([]);
-    listPendingAchievementEffects.mockResolvedValueOnce([{
-      key: "left-session:character-1:left-passage.party-attack.completed",
-      type: "left-passage.party-attack.completed",
-      sessionId: "left-session",
-      characterId: "character-1",
-      occurredAt: new Date("2026-07-25T10:00:00.000Z")
-    }]);
-    markAchievementEffectProjected.mockResolvedValue(true);
-
-    await service.settleParticipant("left-session", 42n);
-    expect(trackEvent).not.toHaveBeenCalled();
-    await service.settleParticipant("left-session", 42n);
-    expect(trackEvent).toHaveBeenCalledTimes(1);
-    expect(markAchievementEffectProjected).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps a failed durable achievement projection retryable", async () => {
-    const {
-      repository,
-      listPendingAchievementEffects,
-      markAchievementEffectProjected
-    } = repositoryFixture();
-    const effect = {
-      key: "left-session:character-1:left-passage.party-attack.completed",
-      type: "left-passage.party-attack.completed" as const,
-      sessionId: "left-session",
-      characterId: "character-1",
-      occurredAt: new Date("2026-07-25T10:00:00.000Z")
-    };
-    listPendingAchievementEffects.mockResolvedValue([effect]);
-    const trackEvent = vi.fn()
-      .mockRejectedValueOnce(new Error("achievement-store-down"))
-      .mockResolvedValueOnce([]);
-    markAchievementEffectProjected.mockResolvedValue(true);
+    settleParticipant.mockResolvedValue({ state: "settled", receipt });
+    const now = new Date("2026-07-26T10:00:00.000Z");
     const service = new GroupCombatService(
       repository,
       { enabled: true, devHelpersEnabled: false },
-      () => new Date("2026-07-25T10:00:00.000Z"),
-      { trackEvent } as never
+      () => now
     );
 
-    await expect(service.projectPendingAchievements(13)).resolves.toBe(0);
-    expect(markAchievementEffectProjected).not.toHaveBeenCalled();
-    await expect(service.projectPendingAchievements(13)).resolves.toBe(1);
-    expect(trackEvent).toHaveBeenCalledTimes(2);
-    expect(markAchievementEffectProjected).toHaveBeenCalledTimes(1);
+    await expect(service.settleParticipant("left-session", 42n)).resolves.toEqual({
+      state: "settled",
+      receipt
+    });
+    expect(settleParticipant).toHaveBeenCalledWith({
+      sessionId: "left-session",
+      telegramUserId: 42n,
+      now
+    });
+    expect("projectPendingAchievements" in service).toBe(false);
   });
 
   it("keeps the timeout QA helper non-mutating when dev helpers are disabled", async () => {
@@ -172,10 +123,6 @@ function repositoryFixture() {
   const findByPartyInviteToken = vi.fn<GroupCombatRepository["findByPartyInviteToken"]>();
   const resolveTimedOutSession = vi.fn<GroupCombatRepository["resolveTimedOutSession"]>();
   const settleParticipant = vi.fn<GroupCombatRepository["settleParticipant"]>();
-  const listPendingAchievementEffects =
-    vi.fn<GroupCombatRepository["listPendingAchievementEffects"]>();
-  const markAchievementEffectProjected =
-    vi.fn<GroupCombatRepository["markAchievementEffectProjected"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -191,8 +138,6 @@ function repositoryFixture() {
     listDueSessionIds: vi.fn(),
     listPendingDeliverySessionIds: vi.fn(),
     listPendingSettlementParticipants: vi.fn(),
-    listPendingAchievementEffects,
-    markAchievementEffectProjected,
     repairInvalidOrOrphaned: vi.fn(),
     settleParticipant,
     compareAndSetParticipantCard: vi.fn(),
@@ -209,9 +154,7 @@ function repositoryFixture() {
     startLeftPassage,
     findByPartyInviteToken,
     resolveTimedOutSession,
-    settleParticipant,
-    listPendingAchievementEffects,
-    markAchievementEffectProjected
+    settleParticipant
   };
 }
 

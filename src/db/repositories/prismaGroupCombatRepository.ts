@@ -57,7 +57,6 @@ import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupp
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
 import type {
   GroupCombatActionResult,
-  GroupCombatAchievementEffectRecord,
   GroupCombatOperatorRepairRecord,
   GroupCombatParticipantRecord,
   GroupCombatQueuedActionRecord,
@@ -81,9 +80,6 @@ const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 2;
-const LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT = "left-passage.party-attack.completed";
-const LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_ID =
-  "achievement.left-passage.party-attack.first";
 
 class GroupCombatMutationConflict extends Error {}
 class GroupCombatInventoryDrift extends Error {
@@ -164,7 +160,6 @@ export type GroupCombatSettlementStage =
   | "resources"
   | "items"
   | "activity"
-  | "achievement-effect"
   | "receipt"
   | "lease";
 
@@ -178,12 +173,6 @@ export interface GroupCombatSettlementTestHooks {
     stage: GroupCombatSettlementStage;
     sessionId: string;
     characterId: string;
-  }): void | Promise<void>;
-  beforeAchievementProjectionMark?(input: {
-    key: string;
-  }): void | Promise<void>;
-  beforeAchievementEffectRepair?(input: {
-    sessionId: string;
   }): void | Promise<void>;
 }
 
@@ -1170,12 +1159,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         contribution: participant.contributionJson,
         settlementStatus: participant.settlementStatus,
         settlementAttempts: participant.settlementAttempts,
-        settlementReceipt: participant.settlementReceiptJson,
-        achievementEffectKey: participant.achievementEffectKey,
-        achievementEffectType: participant.achievementEffectType,
-        achievementEffectStatus: participant.achievementEffectStatus,
-        achievementEffectOccurredAt: participant.achievementEffectOccurredAt,
-        achievementEffectProjectedAt: participant.achievementEffectProjectedAt
+        settlementReceipt: participant.settlementReceiptJson
       }))
     };
   }
@@ -1231,180 +1215,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     }));
   }
 
-  async listPendingAchievementEffects(limit: number): Promise<GroupCombatAchievementEffectRecord[]> {
-    const boundedLimit = Math.min(93, Math.max(1, Math.floor(limit)));
-    const scanLimit = Math.min(93, boundedLimit * 14);
-    const candidates = await this.prisma.$queryRaw<Array<{
-      id: string;
-      sessionId: string;
-    }>>(Prisma.sql`
-      SELECT
-        participants."id" AS "id",
-        participants."session_id" AS "sessionId"
-      FROM "group_combat_participants" AS participants
-      INNER JOIN "group_combat_sessions" AS sessions
-        ON sessions."id" = participants."session_id"
-      WHERE sessions."repair_state" IS NULL
-        AND participants."settlement_status" = 'completed'
-        AND participants."achievement_effect_status" = 'pending'
-        AND participants."achievement_effect_type" = ${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}
-        AND participants."settled_at" IS NOT NULL
-        AND participants."achievement_effect_occurred_at" IS NOT NULL
-        AND participants."achievement_effect_projected_at" IS NULL
-        AND participants."achievement_effect_key" =
-          participants."session_id" || ':' || participants."character_id" || ':' ||
-          ${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}
-      ORDER BY
-        participants."achievement_effect_occurred_at" ASC,
-        participants."updated_at" ASC,
-        participants."id" ASC
-      LIMIT ${scanLimit}
-    `);
-    if (candidates.length === 0) {
-      return [];
-    }
-    const sessions = await this.prisma.groupCombatSession.findMany({
-      where: {
-        id: { in: [...new Set(candidates.map((candidate) => candidate.sessionId))] },
-        repairState: null
-      },
-      include: sessionInclude
-    });
-    const sessionsById = new Map(sessions.map((session) => [session.id, session]));
-    const effects: GroupCombatAchievementEffectRecord[] = [];
-    for (const candidate of candidates) {
-      const session = sessionsById.get(candidate.sessionId);
-      const row = session?.participants.find((participant) => participant.id === candidate.id);
-      if (
-        !session
-        || !row
-        || session.settlementPlanJson === null
-        || row.achievementEffectKey === null
-        || row.achievementEffectOccurredAt === null
-      ) {
-        continue;
-      }
-      try {
-        parseRowState(session, { skipAchievementEffects: true });
-        const plan = parseGroupCombatSettlementPlanStrict(session.settlementPlanJson);
-        const replay = replayValidatedReceipt(
-          plan,
-          row.characterId,
-          row.settlementReceiptJson
-        );
-        if (
-          replay.state !== "replayed"
-          || replay.receipt.policy !== "left-passage-party"
-          || replay.receipt.manualParticipation !== true
-        ) {
-          continue;
-        }
-      } catch {
-        continue;
-      }
-      effects.push({
-        key: row.achievementEffectKey,
-        type: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
-        sessionId: row.sessionId,
-        characterId: row.characterId,
-        occurredAt: row.achievementEffectOccurredAt
-      });
-      if (effects.length >= boundedLimit) {
-        break;
-      }
-    }
-    return effects;
-  }
-
-  async markAchievementEffectProjected(input: {
-    key: string;
-    projectedAt: Date;
-  }): Promise<boolean> {
-    await this.settlementTestHooks?.beforeAchievementProjectionMark?.({ key: input.key });
-    return this.prisma.$transaction(async (tx) => {
-      const participant = await tx.groupCombatParticipant.findFirst({
-        where: {
-          achievementEffectKey: input.key,
-          achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
-          achievementEffectStatus: "pending",
-          achievementEffectProjectedAt: null,
-          settlementStatus: "completed",
-          session: { repairState: null }
-        },
-        select: {
-          id: true,
-          sessionId: true,
-          characterId: true
-        }
-      });
-      if (
-        !participant
-        || input.key !== buildCompletionAchievementEffectKey(
-          participant.sessionId,
-          participant.characterId
-        )
-      ) {
-        return false;
-      }
-      const session = await tx.groupCombatSession.findFirst({
-        where: { id: participant.sessionId, repairState: null },
-        include: sessionInclude
-      });
-      const currentParticipant = session?.participants.find(
-        (candidate) => candidate.id === participant.id
-      );
-      if (!session || !currentParticipant || session.settlementPlanJson === null) {
-        return false;
-      }
-      try {
-        parseRowState(session, { skipAchievementEffects: true });
-        const plan = parseGroupCombatSettlementPlanStrict(session.settlementPlanJson);
-        const replay = replayValidatedReceipt(
-          plan,
-          currentParticipant.characterId,
-          currentParticipant.settlementReceiptJson
-        );
-        if (
-          replay.state !== "replayed"
-          || replay.receipt.policy !== "left-passage-party"
-          || replay.receipt.manualParticipation !== true
-        ) {
-          return false;
-        }
-      } catch {
-        return false;
-      }
-      const achievement = await tx.characterAchievement.findUnique({
-        where: {
-          characterId_achievementId: {
-            characterId: currentParticipant.characterId,
-            achievementId: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_ID
-          }
-        },
-        select: { id: true }
-      });
-      if (!achievement) {
-        return false;
-      }
-      const updated = await tx.groupCombatParticipant.updateMany({
-        where: {
-          id: participant.id,
-          achievementEffectKey: input.key,
-          achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
-          achievementEffectStatus: "pending",
-          achievementEffectProjectedAt: null,
-          settlementStatus: "completed",
-          session: { repairState: null }
-        },
-        data: {
-          achievementEffectStatus: "projected",
-          achievementEffectProjectedAt: input.projectedAt
-        }
-      });
-      return updated.count === 1;
-    });
-  }
-
   async repairInvalidOrOrphaned(now: Date, limit: number): Promise<number> {
     const boundedLimit = Math.min(93, Math.max(1, Math.floor(limit)));
     let repaired = 0;
@@ -1438,16 +1248,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         take: boundedLimit,
         select: { id: true }
       }),
-      listMalformedAchievementEffectSessionIds(this.prisma, boundedLimit)
+      listChangedSettlementReceiptSessionIds(this.prisma, boundedLimit)
     ]);
-    const malformedAchievementEffectIds = new Set(sessionBatches[3].map((row) => row.id));
     const sessions = [...new Map(sessionBatches.flat().map((row) => [row.id, row])).values()];
     for (const candidate of sessions) {
-      if (malformedAchievementEffectIds.has(candidate.id)) {
-        await this.settlementTestHooks?.beforeAchievementEffectRepair?.({
-          sessionId: candidate.id
-        });
-      }
       const outcome = await this.prisma.$transaction(async (tx) => {
         const session = await tx.groupCombatSession.findFirst({
           where: { id: candidate.id, repairState: null },
@@ -1455,12 +1259,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         });
         if (!session) {
           return "unchanged" as const;
-        }
-        if (malformedAchievementEffectIds.has(session.id)) {
-          const effectRepair = await repairMalformedAchievementEffects(tx, session, now);
-          if (effectRepair !== "unchanged") {
-            return effectRepair;
-          }
         }
         try {
           const state = parseRowState(session);
@@ -1478,7 +1276,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               id: session.id,
               status: session.status,
               version: session.version,
-              terminalIntegrityCheckedAt: null,
+              terminalIntegrityCheckedAt: session.terminalIntegrityCheckedAt,
               repairState: null
             },
             data: { terminalIntegrityCheckedAt: now }
@@ -1718,34 +1516,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         data: {
           settlementStatus: "completed",
           settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
-          settledAt: input.now,
-          ...(receipt.policy === "left-passage-party" && receipt.manualParticipation === true
-            ? {
-                achievementEffectKey: buildCompletionAchievementEffectKey(
-                  row.id,
-                  participant.characterId
-                ),
-                achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
-                achievementEffectStatus: "pending",
-                achievementEffectOccurredAt: input.now
-              }
-            : {})
+          settledAt: input.now
         }
       });
       if (completed.count !== 1) {
         throw new GroupCombatMutationConflict();
       }
-      const completedParticipant = await tx.groupCombatParticipant.findFirst({
-        where: {
-          id: participant.id,
-          session: { repairState: null }
-        }
-      });
-      if (!completedParticipant) {
-        throw new GroupCombatMutationConflict();
-      }
-      validateParticipantAchievementEffect(completedParticipant, receipt);
-      await this.runSettlementTestHook("achievement-effect", row.id, participant.characterId);
       await this.runSettlementTestHook("receipt", row.id, participant.characterId);
       if (plan.policy === "left-passage-party" && lease) {
         await releaseGroupCombatLease(tx, lease, input.now);
@@ -2258,7 +2034,7 @@ type SessionRepairOutcome =
   | "terminal-repaired"
   | "operator-repair-required";
 
-async function listMalformedAchievementEffectSessionIds(
+async function listChangedSettlementReceiptSessionIds(
   prisma: PrismaClient,
   limit: number
 ): Promise<Array<{ id: string }>> {
@@ -2269,300 +2045,13 @@ async function listMalformedAchievementEffectSessionIds(
       ON participants."session_id" = sessions."id"
     WHERE sessions."repair_state" IS NULL
       AND sessions."rules_version" = ${GROUP_COMBAT_PRODUCTION_RULES_VERSION}
-      AND (
-        (
-          participants."settlement_status" = 'pending'
-          AND (
-            participants."achievement_effect_key" IS NOT NULL
-            OR participants."achievement_effect_type" IS NOT NULL
-            OR participants."achievement_effect_status" IS NOT NULL
-            OR participants."achievement_effect_occurred_at" IS NOT NULL
-            OR participants."achievement_effect_projected_at" IS NOT NULL
-          )
-        )
-        OR
-        (
-          participants."settlement_status" = 'completed'
-          AND (
-            participants."settled_at" IS NULL
-            OR
-            participants."settlement_receipt_json" IS NULL
-            OR json_valid(participants."settlement_receipt_json") = 0
-            OR CASE
-              WHEN json_valid(participants."settlement_receipt_json") = 1
-              THEN COALESCE(
-                json_extract(participants."settlement_receipt_json", '$.policy'),
-                ''
-              ) <> 'left-passage-party'
-              ELSE 0
-            END
-            OR CASE
-              WHEN json_valid(participants."settlement_receipt_json") = 1
-              THEN COALESCE(
-                json_type(participants."settlement_receipt_json", '$.manualParticipation'),
-                'missing'
-              ) NOT IN ('true', 'false')
-              ELSE 0
-            END
-            OR participants."achievement_effect_status" = 'pending'
-            OR (
-              participants."achievement_effect_status" = 'projected'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM "character_achievements" AS achievements
-                WHERE achievements."character_id" = participants."character_id"
-                  AND achievements."achievement_id" =
-                    ${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_ID}
-              )
-            )
-            OR CASE
-              WHEN json_valid(participants."settlement_receipt_json") = 1
-                AND json_extract(
-                  participants."settlement_receipt_json",
-                  '$.manualParticipation'
-                ) = 1
-              THEN (
-                participants."achievement_effect_key" IS NULL
-                OR participants."achievement_effect_key" <>
-                  participants."session_id" || ':' || participants."character_id" || ':' ||
-                  ${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}
-                OR participants."achievement_effect_type" IS NULL
-                OR participants."achievement_effect_type" <>
-                  ${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}
-                OR participants."achievement_effect_status" IS NULL
-                OR participants."achievement_effect_status" NOT IN ('pending', 'projected')
-                OR participants."achievement_effect_occurred_at" IS NULL
-                OR (
-                  participants."achievement_effect_status" = 'pending'
-                  AND participants."achievement_effect_projected_at" IS NOT NULL
-                )
-                OR (
-                  participants."achievement_effect_status" = 'projected'
-                  AND participants."achievement_effect_projected_at" IS NULL
-                )
-              )
-              ELSE 0
-            END
-            OR CASE
-              WHEN json_valid(participants."settlement_receipt_json") = 1
-                AND json_extract(
-                  participants."settlement_receipt_json",
-                  '$.manualParticipation'
-                ) = 0
-              THEN (
-                participants."achievement_effect_key" IS NOT NULL
-                OR participants."achievement_effect_type" IS NOT NULL
-                OR participants."achievement_effect_status" IS NOT NULL
-                OR participants."achievement_effect_occurred_at" IS NOT NULL
-                OR participants."achievement_effect_projected_at" IS NOT NULL
-              )
-              ELSE 0
-            END
-          )
-        )
-      )
+      AND sessions."status" <> 'active'
+      AND participants."settlement_status" = 'completed'
+      AND participants."updated_at" > sessions."updated_at"
     GROUP BY sessions."id"
     ORDER BY MIN(participants."updated_at") ASC, sessions."id" ASC
     LIMIT ${limit}
   `);
-}
-
-async function repairMalformedAchievementEffects(
-  tx: TxClient,
-  row: SessionRow,
-  now: Date
-): Promise<SessionRepairOutcome> {
-  let state: GroupCombatState;
-  let plan: GroupCombatSettlementPlan;
-  try {
-    state = parseRowState(row, { skipAchievementEffects: true });
-    if (state.status === "active" || row.settlementPlanJson === null) {
-      throw new GroupCombatStateValidationError(
-        "Achievement effect exists without a terminal canonical plan."
-      );
-    }
-    plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
-  } catch (error) {
-    if (!(error instanceof GroupCombatStateValidationError)) {
-      throw error;
-    }
-    return markProductionOperatorRepairRequired(
-      tx,
-      row,
-      now,
-      `achievement effect cannot be recovered safely: ${error.message}`
-    );
-  }
-
-  for (const participant of row.participants) {
-    if (participant.settlementStatus !== "completed") {
-      continue;
-    }
-    if (participant.settlementReceiptJson === null) {
-      return markProductionOperatorRepairRequired(
-        tx,
-        row,
-        now,
-        "completed achievement effect has no immutable settlement receipt"
-      );
-    }
-    if (
-      replayValidatedReceipt(
-        plan,
-        participant.characterId,
-        participant.settlementReceiptJson
-      ).state !== "replayed"
-    ) {
-      return markProductionOperatorRepairRequired(
-        tx,
-        row,
-        now,
-        "completed achievement effect has no trustworthy canonical settlement receipt"
-      );
-    }
-  }
-
-  let changed = false;
-  for (const participant of row.participants) {
-    if (participant.settlementStatus === "pending") {
-      if (!achievementEffectFieldsAreNull(participant)) {
-        const cleared = await tx.groupCombatParticipant.updateMany({
-          where: {
-            id: participant.id,
-            settlementStatus: "pending",
-            session: { repairState: null }
-          },
-          data: {
-            achievementEffectKey: null,
-            achievementEffectType: null,
-            achievementEffectStatus: null,
-            achievementEffectOccurredAt: null,
-            achievementEffectProjectedAt: null
-          }
-        });
-        if (cleared.count !== 1) {
-          throw new GroupCombatMutationConflict();
-        }
-        changed = true;
-      }
-      continue;
-    }
-
-    if (participant.settlementReceiptJson === null) {
-      return markProductionOperatorRepairRequired(
-        tx,
-        row,
-        now,
-        "completed achievement effect has no immutable settlement receipt"
-      );
-    }
-    const replay = replayValidatedReceipt(
-      plan,
-      participant.characterId,
-      participant.settlementReceiptJson
-    );
-    if (replay.state !== "replayed") {
-      return markProductionOperatorRepairRequired(
-        tx,
-        row,
-        now,
-        "completed achievement effect has no trustworthy canonical settlement receipt"
-      );
-    }
-
-    const manual = replay.receipt.policy === "left-passage-party"
-      && replay.receipt.manualParticipation === true;
-    if (!manual) {
-      if (!achievementEffectFieldsAreNull(participant)) {
-        const cleared = await tx.groupCombatParticipant.updateMany({
-          where: {
-            id: participant.id,
-            settlementStatus: "completed",
-            session: { repairState: null }
-          },
-          data: {
-            achievementEffectKey: null,
-            achievementEffectType: null,
-            achievementEffectStatus: null,
-            achievementEffectOccurredAt: null,
-            achievementEffectProjectedAt: null
-          }
-        });
-        if (cleared.count !== 1) {
-          throw new GroupCombatMutationConflict();
-        }
-        changed = true;
-      }
-      continue;
-    }
-
-    const achievement = await tx.characterAchievement.findUnique({
-      where: {
-        characterId_achievementId: {
-          characterId: participant.characterId,
-          achievementId: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_ID
-        }
-      },
-      select: { id: true }
-    });
-    const desiredStatus = achievement ? "projected" : "pending";
-    const desiredOccurredAt = participant.achievementEffectOccurredAt
-      ?? participant.settledAt
-      ?? now;
-    const desiredProjectedAt = achievement ? now : null;
-    let canonical = true;
-    try {
-      validateParticipantAchievementEffect(participant, replay.receipt);
-    } catch (error) {
-      if (!(error instanceof GroupCombatStateValidationError)) {
-        throw error;
-      }
-      canonical = false;
-    }
-    if (
-      canonical
-      && participant.achievementEffectStatus === desiredStatus
-      && participant.achievementEffectOccurredAt?.getTime() === desiredOccurredAt.getTime()
-      && participant.achievementEffectProjectedAt?.getTime() ===
-        desiredProjectedAt?.getTime()
-    ) {
-      continue;
-    }
-    const repaired = await tx.groupCombatParticipant.updateMany({
-      where: {
-        id: participant.id,
-        settlementStatus: "completed",
-        session: { repairState: null }
-      },
-      data: {
-        achievementEffectKey: buildCompletionAchievementEffectKey(
-          row.id,
-          participant.characterId
-        ),
-        achievementEffectType: LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT,
-        achievementEffectStatus: desiredStatus,
-        achievementEffectOccurredAt: desiredOccurredAt,
-        achievementEffectProjectedAt: desiredProjectedAt
-      }
-    });
-    if (repaired.count !== 1) {
-      throw new GroupCombatMutationConflict();
-    }
-    changed = true;
-  }
-
-  if (!changed) {
-    return "unchanged";
-  }
-  const repairedRow = await tx.groupCombatSession.findFirst({
-    where: { id: row.id, repairState: null },
-    include: sessionInclude
-  });
-  if (!repairedRow) {
-    throw new GroupCombatMutationConflict();
-  }
-  parseRowState(repairedRow);
-  return "terminal-repaired";
 }
 
 async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date): Promise<SessionRepairOutcome> {
@@ -2741,73 +2230,6 @@ async function markProductionOperatorRepairRequired(
     reason
   });
   return "operator-repair-required";
-}
-
-function buildCompletionAchievementEffectKey(sessionId: string, characterId: string): string {
-  return `${sessionId}:${characterId}:${LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT}`;
-}
-
-function achievementEffectFieldsAreNull(
-  participant: Pick<
-    SessionRow["participants"][number],
-    | "achievementEffectKey"
-    | "achievementEffectType"
-    | "achievementEffectStatus"
-    | "achievementEffectOccurredAt"
-    | "achievementEffectProjectedAt"
-  >
-): boolean {
-  return participant.achievementEffectKey === null
-    && participant.achievementEffectType === null
-    && participant.achievementEffectStatus === null
-    && participant.achievementEffectOccurredAt === null
-    && participant.achievementEffectProjectedAt === null;
-}
-
-function validateParticipantAchievementEffect(
-  participant: Pick<
-    SessionRow["participants"][number],
-    | "sessionId"
-    | "characterId"
-    | "settlementStatus"
-    | "settledAt"
-    | "achievementEffectKey"
-    | "achievementEffectType"
-    | "achievementEffectStatus"
-    | "achievementEffectOccurredAt"
-    | "achievementEffectProjectedAt"
-  >,
-  receipt: ReturnType<typeof parseGroupCombatSettlementReceiptStrict> | null
-): void {
-  if (
-    participant.settlementStatus !== "completed"
-    || receipt?.policy !== "left-passage-party"
-    || receipt.manualParticipation !== true
-  ) {
-    if (!achievementEffectFieldsAreNull(participant)) {
-      throw new GroupCombatStateValidationError(
-        "Non-manual settlement row has a stray achievement effect."
-      );
-    }
-    return;
-  }
-  const pending = participant.achievementEffectStatus === "pending";
-  const projected = participant.achievementEffectStatus === "projected";
-  if (
-    participant.achievementEffectKey !== buildCompletionAchievementEffectKey(
-      participant.sessionId,
-      participant.characterId
-    )
-    || participant.achievementEffectType !== LEFT_PASSAGE_COMPLETION_ACHIEVEMENT_EVENT
-    || (!pending && !projected)
-    || participant.achievementEffectOccurredAt === null
-    || (pending && participant.achievementEffectProjectedAt !== null)
-    || (projected && participant.achievementEffectProjectedAt === null)
-  ) {
-    throw new GroupCombatStateValidationError(
-      "Manual settlement row has a malformed achievement effect."
-    );
-  }
 }
 
 function selectInvalidRepairRoster(row: SessionRow): {
@@ -3025,12 +2447,7 @@ async function canonicalizeInvalidatedParticipantArtifacts(
         settlementStatus: "pending",
         settlementAttempts: 0,
         settlementReceiptJson: Prisma.DbNull,
-        settledAt: null,
-        achievementEffectKey: null,
-        achievementEffectType: null,
-        achievementEffectStatus: null,
-        achievementEffectOccurredAt: null,
-        achievementEffectProjectedAt: null
+        settledAt: null
       }
     });
   }
@@ -3065,12 +2482,7 @@ async function rebuildTerminalParticipantArtifacts(
         settlementReceiptJson: receipt
           ? receipt as unknown as Prisma.InputJsonValue
           : Prisma.DbNull,
-        settledAt: completed ? participant.settledAt ?? now : null,
-        achievementEffectKey: null,
-        achievementEffectType: null,
-        achievementEffectStatus: null,
-        achievementEffectOccurredAt: null,
-        achievementEffectProjectedAt: null
+        settledAt: completed ? participant.settledAt ?? now : null
       }
     });
   }
@@ -3245,17 +2657,14 @@ function mapSession(
   };
 }
 
-function parseRowState(
-  row: SessionRow,
-  options: { skipAchievementEffects?: boolean } = {}
-): GroupCombatState {
+function parseRowState(row: SessionRow): GroupCombatState {
   const state = parseRowStateCore(row);
   const terminal = state.status !== "active";
   if (!terminal) {
     if (row.resultJson !== null || row.settlementPlanJson !== null || row.completedAt !== null) {
       throw new GroupCombatStateValidationError("Active group combat has terminal result metadata.");
     }
-    validateSettlementRows(row, state, null, options);
+    validateSettlementRows(row, state, null);
     return state;
   }
   if (row.resultJson === null || row.settlementPlanJson === null || row.completedAt === null) {
@@ -3271,7 +2680,7 @@ function parseRowState(
   if (!expectedPlan || !isDeepStrictEqual(plan, expectedPlan)) {
     throw new GroupCombatStateValidationError("Terminal group-combat settlement plan does not match state.");
   }
-  validateSettlementRows(row, state, plan, options);
+  validateSettlementRows(row, state, plan);
   return state;
 }
 
@@ -3340,8 +2749,7 @@ function validateRelationalRoster(row: SessionRow, state: GroupCombatState): voi
 function validateSettlementRows(
   row: SessionRow,
   state: GroupCombatState,
-  plan: GroupCombatSettlementPlan | null,
-  options: { skipAchievementEffects?: boolean } = {}
+  plan: GroupCombatSettlementPlan | null
 ): void {
   const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
   for (const participant of row.participants) {
@@ -3356,9 +2764,6 @@ function validateSettlementRows(
         || participant.settledAt !== null
       ) {
         throw new GroupCombatStateValidationError("Pending settlement row is not canonical.");
-      }
-      if (!options.skipAchievementEffects) {
-        validateParticipantAchievementEffect(participant, null);
       }
       continue;
     }
@@ -3376,9 +2781,6 @@ function validateSettlementRows(
     const receipt = parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson);
     if (!expectedReceipt || !isDeepStrictEqual(receipt, expectedReceipt)) {
       throw new GroupCombatStateValidationError("Settlement receipt does not match its immutable plan entry.");
-    }
-    if (!options.skipAchievementEffects) {
-      validateParticipantAchievementEffect(participant, receipt);
     }
   }
 }

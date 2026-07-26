@@ -9,7 +9,6 @@ import type {
   GroupCombatStartResult
 } from "../db/repositories/groupCombatRepository";
 import { randomBytes } from "node:crypto";
-import type { AchievementService } from "./achievementService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
@@ -23,8 +22,7 @@ export class GroupCombatService {
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
     },
-    private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly now: () => Date = () => new Date()
   ) {}
 
   isEnabled(): boolean {
@@ -198,43 +196,11 @@ export class GroupCombatService {
     }
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     await this.settlePending(limit);
-    await this.projectPendingAchievements(limit);
     return repaired;
   }
 
-  async settleParticipant(sessionId: string, telegramUserId: bigint) {
-    const now = this.now();
-    const result = await this.repository.settleParticipant({ sessionId, telegramUserId, now });
-    if (result.state === "settled" || result.state === "replayed") {
-      await this.projectPendingAchievements(13);
-    }
-    return result;
-  }
-
-  async projectPendingAchievements(limit = 13): Promise<number> {
-    if (!this.options.enabled || !this.achievements) {
-      return 0;
-    }
-    const effects = await this.repository.listPendingAchievementEffects(limit);
-    let projected = 0;
-    for (const effect of effects) {
-      try {
-        await this.achievements.trackEvent({
-          type: effect.type,
-          characterId: effect.characterId,
-          occurredAt: effect.occurredAt,
-          sourceId: effect.sessionId
-        });
-        const completed = await this.repository.markAchievementEffectProjected({
-          key: effect.key,
-          projectedAt: this.now()
-        });
-        projected += completed ? 1 : 0;
-      } catch {
-        continue;
-      }
-    }
-    return projected;
+  settleParticipant(sessionId: string, telegramUserId: bigint) {
+    return this.repository.settleParticipant({ sessionId, telegramUserId, now: this.now() });
   }
 
   async settlePending(limit = 13): Promise<number> {

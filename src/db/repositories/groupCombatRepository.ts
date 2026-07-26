@@ -53,14 +53,6 @@ export interface GroupCombatSessionRecord {
   queuedActions: GroupCombatQueuedActionRecord[];
 }
 
-export interface GroupCombatAchievementEffectRecord {
-  key: string;
-  type: "left-passage.party-attack.completed";
-  sessionId: string;
-  characterId: string;
-  occurredAt: Date;
-}
-
 export interface GroupCombatOperatorRepairRecord {
   id: string;
   encounterKey: string;
@@ -92,11 +84,6 @@ export interface GroupCombatOperatorRepairRecord {
     settlementStatus: string;
     settlementAttempts: number;
     settlementReceipt: unknown;
-    achievementEffectKey: string | null;
-    achievementEffectType: string | null;
-    achievementEffectStatus: string | null;
-    achievementEffectOccurredAt: Date | null;
-    achievementEffectProjectedAt: Date | null;
   }>;
 }
 
@@ -195,11 +182,6 @@ export interface GroupCombatRepository {
     sessionId: string;
     telegramUserId: bigint;
   }>>;
-  listPendingAchievementEffects(limit: number): Promise<GroupCombatAchievementEffectRecord[]>;
-  markAchievementEffectProjected(input: {
-    key: string;
-    projectedAt: Date;
-  }): Promise<boolean>;
   repairInvalidOrOrphaned(now: Date, limit: number): Promise<number>;
 
   settleParticipant(input: {

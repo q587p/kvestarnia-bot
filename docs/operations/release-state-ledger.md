@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-07-25)
+## Current repository baseline (repository evidence, 12026-07-26)
 
 The current branch prepares package `0.4.2`. Merge, deployment and target
 availability remain separate evidence.
@@ -27,7 +27,7 @@ availability remain separate evidence.
 | 0.3.17 callback read-path collapse | yes (PR `#183`) | no new migration | no new production flag | yes; merge checks passed | post-deploy observation not recorded | deploy rollback; release operator unassigned | deferred |
 | 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` with durable card-delivery revisions | unavailable in production; default off and production-hard-disabled | yes; repository gates plus restart/convergence/privacy regressions | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
-| 0.4.2 left-passage party attack | no; draft branch only | no; branch includes unchanged additive `20260724233000_left_passage_party_attack` with durable v3 operator marker/reason and participant achievement-effect receipts; this follow-up adds no migration; rollback requires flag-off, healthy drain, explicit quarantine disposition and pre-migration restore | no target evidence; repository default off | focused 14 files / 399 plus 4 files / 52; full 4,092 unit + 652 integration, docs 416/249, Prisma validation/generation and simulator passed; action/timeout/settlement/delivery quarantine barriers, strict exact-receipt projection, false projected-marker ownership repair, bounded bad-receipt/wrong-key starvation, canonical effect repair and v1/v2 compatibility covered | pending on final exact head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
+| 0.4.2 left-passage party attack | no; draft branch only | no; branch keeps additive migration identity `20260724233000_left_passage_party_attack` with party origin, passage reservation and durable v3 operator marker/reason; its unreleased achievement-only participant columns/indexes were removed in place; rollback requires flag-off, healthy drain, explicit quarantine disposition and pre-migration restore | no target evidence; repository default off | focused 19 files / 524 tests plus 2 files / 103 cross-combat integration tests; full 331 files / 4,093 unit and 27 files / 637 integration tests; exact receipt settlement/retry, action/timeout/settlement/delivery quarantine barriers, deferred-achievement absence and v1/v2 compatibility covered | manual three-account Telegram QA pending on final exact head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

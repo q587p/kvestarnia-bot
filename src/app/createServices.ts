@@ -220,7 +220,7 @@ export function createServices(
       enabled: true,
       devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
       leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
-    }, undefined, achievements),
+    }),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(

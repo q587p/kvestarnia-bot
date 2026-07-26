@@ -162,7 +162,6 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.combat.threat-pressure.first` | enabled | visible | `combat.threat-pressure >= 1` | Натиск Низу підкрутив гайку | уперше відчути тиск Низу, коли друга проблема прийшла вже з інструкцією. |
 | `achievement.combat.threat-pressure.three` | enabled | visible | `combat.threat-pressure >= 3` | Три натиски і жодної ввічливости | тричі пережити тиск Низу й не погодитися, що це нормальна гостинність. |
 | `achievement.combat.hard-passage-win` | enabled | visible | `combat.persistent.hard-win >= 1` | Ліворуч було написано «не треба» | перемогти після складного лівого проходу в Низі й не сперечатися з написом. |
-| `achievement.left-passage.party-attack.first` | enabled | visible | `left-passage.party-attack.completed >= 1` | Ліворуч — гуртом | уперше завершити гуртову атаку в лівому проході Низу й повернути всіх до одного журналу. |
 | `achievement.combat.adventure-origin-win` | enabled | visible | `combat.persistent.adventure-origin-win >= 1` | Справу закрито кулаком | перемогти у бою, до якого привела корчемна справа. |
 | `achievement.combat.yeger-origin-win` | enabled | visible | `combat.persistent.yeger-origin-win >= 1` | Слід довів до синця | перемогти неупокоєну ціль Єгеря й повернути слід із синцем. |
 | `achievement.combat.low-hp-win` | enabled | hidden | `combat.persistent.low-hp-win >= 1` | На чесному слові й одному HP | перемогти у старшому бою, маючи не більш як 10% HP. |
