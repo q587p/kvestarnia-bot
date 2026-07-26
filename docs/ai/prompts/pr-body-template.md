@@ -20,6 +20,11 @@ Use this for release-oriented or runtime PRs. Keep it compact.
 - [ ] Not run — explain why
 
 ## Manual Telegram QA
+- Required `.env` keys and non-secret values:
+- Refresh/restart command:
+- Accounts and starting state:
+- Steps and expected visible result:
+- Actual result and status: completed / pending / blocked
 
 ## User-facing text checklist
 - [ ] Player-facing text is Ukrainian

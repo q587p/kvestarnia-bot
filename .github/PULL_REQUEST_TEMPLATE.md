@@ -27,6 +27,11 @@
 - [ ] Completed — record accounts/flows/results below
 - [ ] Pending or blocked — explain below
 - [ ] N/A — docs/repository hygiene only
+- Required `.env` keys and non-secret values:
+- Refresh/restart command:
+- Accounts and starting state:
+- Steps and expected visible result:
+- Actual result / evidence:
 
 ## User-facing text checklist
 - [ ] Player-facing text is Ukrainian

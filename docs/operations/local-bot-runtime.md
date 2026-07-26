@@ -75,8 +75,14 @@ This targets only the PID tree recorded for this repository's managed runtime. I
 1. Start `run-local-bot.cmd` and begin a manual Telegram test session.
 2. Let Codex edit and test the main repository. The running bot remains on its stable snapshot.
 3. Codex runs `npm run db:generate`, typecheck, build, and tests in the main checkout without touching the runtime Prisma DLL.
-4. At a meaningful checkpoint, run `refresh-local-bot.cmd` to promote the latest working files for manual testing.
-5. Repeat without restarting the bot for every intermediate Codex edit.
+4. At a meaningful checkpoint, first confirm every new task-specific variable
+   exists in the source `.env` with the intended local value, then run
+   `refresh-local-bot.cmd` to promote both the latest files and sanitized local
+   environment for manual testing.
+5. Run `status-local-bot.cmd` and verify the expected snapshot SHA. When a
+   feature depends on a new flag, also verify that key in the runtime `.env`;
+   the source `.env` alone does not change an already-running snapshot.
+6. Repeat without restarting the bot for every intermediate Codex edit.
 
 A restart is still required to test a new snapshot. Isolation makes that restart explicit and limited to the runtime bot instead of allowing arbitrary tooling to kill it during implementation.
 

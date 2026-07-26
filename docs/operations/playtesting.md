@@ -334,8 +334,11 @@ Release-specific historical checklists and evidence live under
 [`0.4.2-left-passage-party-attack-qa.md`](../qa/0.4.2-left-passage-party-attack-qa.md).
 Ручний результат на фінальній голові ще pending.
 
-Для isolated local runtime постав
-`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і використай 2–3 тестові акаунти.
+У checkout `.env` постав `NODE_ENV=development`,
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і
+`DEV_GRANT_COMMANDS_ENABLED=true`. Потім виконай `refresh-local-bot.cmd` та
+`status-local-bot.cmd`; перевір точний candidate SHA і цей прапорець у
+скопійованому runtime `.env`. Використай 2–3 тестові акаунти.
 Відкрий точну hard-оказію `deep-left`: сольна `⚔️ Атакувати` має лишитися, а
 поруч зʼявляється `🤝 Покликати в атаку`. Перевір deep-link і nearby join,
 ранній старт поточним ватажком, автоматичний старт рівно після трьох хвилин,
