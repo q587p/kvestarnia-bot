@@ -39,6 +39,24 @@ describe("group combat bot flow", () => {
     })).toContain("3 хвилини");
   });
 
+  it("explains every left-passage reservation blocker instead of using an opaque fallback", () => {
+    expect(presentLeftPassageInviteFailure({ state: "invalid-preview" })).toContain(
+      "Відкрийте лівий прохід ще раз"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-adventure" })).toContain(
+      "завершіть поточну пригоду"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-raid" })).toContain(
+      "завершіть поточний рейд"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-combat" })).toContain(
+      "завершіть поточний бій"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "reservation-conflict" })).toContain(
+      "Стан цього сліду вже змінився"
+    );
+  });
+
   it("cannot mutate through a dev command when the production gate is closed", async () => {
     const bot = testBot();
     const startProof = vi.fn();

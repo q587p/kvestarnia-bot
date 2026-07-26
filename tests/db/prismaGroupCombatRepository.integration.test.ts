@@ -7,7 +7,11 @@ import {
   PrismaGroupCombatRepository
 } from "../../src/db/repositories/prismaGroupCombatRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
-import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
+import { PrismaPartySessionRepository } from "../../src/db/repositories/prismaPartySessionRepository";
+import {
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+} from "../../src/services/presenceService";
 import {
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
@@ -147,7 +151,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toBe(1);
   });
 
-  it("keeps the exact left-passage reservation through leader transfer, starts 2x2, and settles exactly once", async () => {
+  it("accepts preview presence and effective resources, then settles the exact 2x2 reservation once", async () => {
     const token = "left-party-reserve";
     const telegramIds = [11931n, 11932n];
     await seedParty(prisma, token, telegramIds);
@@ -157,8 +161,17 @@ describe("PrismaGroupCombatRepository integration", () => {
       where: { telegramUserId: { in: telegramIds } },
       data: {
         lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
-        currentAdventureId: null,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT,
         currentRaidId: null
+      }
+    });
+    await prisma.character.updateMany({
+      where: { user: { telegramUserId: { in: telegramIds } } },
+      data: {
+        hpCurrent: 28,
+        hpMax: 20,
+        manaCurrent: 14,
+        manaMax: 10
       }
     });
     const leaderCharacterId = `${token}-user-0-character`;
@@ -203,6 +216,74 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
     })).resolves.toEqual({ state: "wrong-location" });
+    await prisma.user.update({
+      where: { telegramUserId: telegramIds[0]! },
+      data: { currentAdventureId: "adventure.other" }
+    });
+    await expect(repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-active-adventure",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    })).resolves.toEqual({ state: "active-adventure" });
+    await prisma.user.update({
+      where: { telegramUserId: telegramIds[0]! },
+      data: {
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT,
+        currentRaidId: "raid.other"
+      }
+    });
+    await expect(repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-active-raid",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    })).resolves.toEqual({ state: "active-raid" });
+    await prisma.user.update({
+      where: { telegramUserId: telegramIds[0]! },
+      data: { currentRaidId: null }
+    });
+    await prisma.character.update({
+      where: { id: leaderCharacterId },
+      data: { manaCurrent: 15 }
+    });
+    await expect(repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-invalid-resources",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    })).resolves.toEqual({ state: "invalid-resources" });
+    await prisma.character.update({
+      where: { id: leaderCharacterId },
+      data: { manaCurrent: 14 }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "left-party-existing-lease",
+        characterId: leaderCharacterId,
+        kind: "solo-combat",
+        referenceId: "existing-solo-combat"
+      }
+    });
+    await expect(repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId: telegramIds[0]!,
+      encounterToken: "left-preview-token-13",
+      inviteToken: "left-party-active-combat",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    })).resolves.toEqual({ state: "active-combat" });
+    await prisma.activeCombatLease.delete({ where: { id: "left-party-existing-lease" } });
     await expect(repository.createLeftPassagePartyForTelegramUser({
       telegramUserId: telegramIds[0]!,
       encounterToken: "left-preview-token-13",
@@ -233,19 +314,21 @@ describe("PrismaGroupCombatRepository integration", () => {
       throw new Error("Expected a reserved left-passage party.");
     }
     const secondCharacterId = `${token}-user-1-character`;
-    await prisma.partyParticipant.create({
-      data: {
-        sessionId: created.session.id,
-        characterId: secondCharacterId,
-        remortCount: 0,
-        status: "joined",
+    const joined = await new PrismaPartySessionRepository(prisma).joinByTokenForTelegramUser(
+      telegramIds[1]!,
+      created.session.inviteToken,
+      {
+        now: new Date(NOW.getTime() + 1),
         joinSource: "deep-link",
-        joinedAt: new Date(NOW.getTime() + 1),
-        activeMembershipKey: `party-member:${secondCharacterId}`,
         chatId: telegramIds[1],
         messageId: 23
       }
-    });
+    );
+    expect(joined.state).toBe("joined");
+    if (!("session" in joined)) {
+      throw new Error("Expected the canonical-preview participant to join.");
+    }
+    const transferredPartyVersion = joined.session.version + 1;
     await prisma.partySession.update({
       where: { id: created.session.id },
       data: {
@@ -277,7 +360,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       state: "active-search",
       availableAt: startSearchEndsAt,
       now: new Date(NOW.getTime() + 2),
-      partyVersion: created.session.version + 1
+      partyVersion: transferredPartyVersion
     });
     await prisma.passageSearchAction.delete({ where: { token: "left-start-search-13" } });
     const { value: started, count: productionStartQueries } = await measureQueryEvents(

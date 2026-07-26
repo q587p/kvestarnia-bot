@@ -52,6 +52,7 @@ import {
   BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL
 } from "../../services/bureaucramancerProtocol";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
+import { PRESENCE_ADVENTURE_SOLO_FIGHT } from "../../services/presenceService";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -1984,7 +1985,10 @@ async function getLeftPassageJoinIneligibleReason(
   if (
     !session.originLocationId ||
     character.user.lastSeenLocationId !== session.originLocationId ||
-    character.user.currentAdventureId !== null ||
+    (
+      character.user.currentAdventureId !== null &&
+      character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
+    ) ||
     character.user.currentRaidId !== null
   ) {
     return { reason: "wrong-location" };
@@ -1996,11 +2000,7 @@ async function getLeftPassageJoinIneligibleReason(
   if (character.hpCurrent <= 0) {
     return { reason: "dead" };
   }
-  if (
-    character.hpCurrent > character.hpMax ||
-    character.manaCurrent < 0 ||
-    character.manaCurrent > character.manaMax
-  ) {
+  if (hasInvalidEffectiveResources(character)) {
     return { reason: "invalid-resources" };
   }
   const [activeLease, activeSearch] = await Promise.all([
@@ -2024,6 +2024,16 @@ async function getLeftPassageJoinIneligibleReason(
     return { reason: "active-search", availableAt: activeSearch.endsAt };
   }
   return null;
+}
+
+function hasInvalidEffectiveResources(character: CharacterRow): boolean {
+  const effective = buildPartyBossCombatStats({
+    ...mapCharacter(character),
+    equipment: character.equipment
+  });
+  return character.hpCurrent > effective.hpMax ||
+    character.manaCurrent < 0 ||
+    character.manaCurrent > effective.manaMax;
 }
 
 async function findActiveBigBarrelLossCooldown(

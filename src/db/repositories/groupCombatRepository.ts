@@ -105,7 +105,10 @@ export type LeftPassagePartyCreateResult =
         | "stale-life"
         | "dead"
         | "invalid-resources"
-        | "blocked"
+        | "active-adventure"
+        | "active-raid"
+        | "active-combat"
+        | "reservation-conflict"
         | "expired-invitation";
     }
   | { state: "active-search"; availableAt: Date; now: Date }

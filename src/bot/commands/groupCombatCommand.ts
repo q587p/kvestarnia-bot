@@ -254,6 +254,12 @@ export function presentLeftPassageInviteFailure(
       return "Гуртовий заклик у лівому проході зараз зачинено.";
     case "wrong-location":
       return "Заклик працює лише біля цього самого сліду в лівому проході.";
+    case "no-character":
+      return "Квестарня не впізнала пригодника. Відкрийте персонажа й спробуйте ще раз.";
+    case "invalid-preview":
+      return "Ця оказія вже змінилася. Відкрийте лівий прохід ще раз.";
+    case "stale-life":
+      return "Цей слід лишився від попереднього життя. Огляньте лівий прохід ще раз.";
     case "expired-invitation":
       return "Слід уже вистиг. Потрібен новий огляд проходу.";
     case "active-search":
@@ -265,8 +271,14 @@ export function presentLeftPassageInviteFailure(
       return "Без тями в атаку не кличуть. Навіть дуже переконливо.";
     case "invalid-resources":
       return "Запаси сил не сходяться з корчмарським журналом. Спершу оновіть стан пригодника.";
-    default:
-      return "Цей слід уже не можна чесно зарезервувати для ватаги.";
+    case "active-adventure":
+      return "Спершу завершіть поточну пригоду, тоді кличте ватагу.";
+    case "active-raid":
+      return "Спершу завершіть поточний рейд, тоді кличте ватагу.";
+    case "active-combat":
+      return "Спершу завершіть поточний бій, тоді кличте ватагу.";
+    case "reservation-conflict":
+      return "Стан цього сліду вже змінився. Відкрийте лівий прохід ще раз.";
   }
 }
 

@@ -72,7 +72,10 @@ import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } f
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
 import type { SoloCombatSessionCompletionRecord } from "./soloCombatSessionRepository";
 import { PrismaPartySessionRepository } from "./prismaPartySessionRepository";
-import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
+import {
+  PRESENCE_ADVENTURE_SOLO_FIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+} from "../../services/presenceService";
 
 type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 4;
@@ -120,6 +123,41 @@ const passageReservationInclude = {
 type LeftPassageReservationRow = Prisma.PendingPassageEncounterGetPayload<{
   include: typeof passageReservationInclude;
 }>;
+type PartyCharacterRow = Prisma.CharacterGetPayload<{
+  include: typeof partyCharacterInclude;
+}>;
+
+function buildParticipantCombatStats(character: PartyCharacterRow, remortCount: number) {
+  return buildPartyBossCombatStats({
+    id: character.id,
+    userId: character.userId,
+    name: character.name,
+    pronoun: character.pronoun,
+    path: character.path,
+    raceId: character.raceId,
+    classId: character.classId,
+    level: character.level,
+    xp: character.xp,
+    gold: character.gold,
+    hpCurrent: character.hpCurrent,
+    hpMax: character.hpMax,
+    manaCurrent: character.manaCurrent,
+    manaMax: character.manaMax,
+    hpRegenAt: character.hpRegenAt,
+    manaRegenAt: character.manaRegenAt,
+    activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
+    statsJson: character.statsJson,
+    remortCount,
+    equipment: character.equipment
+  });
+}
+
+function hasInvalidEffectiveResources(character: PartyCharacterRow, remortCount: number): boolean {
+  const effective = buildParticipantCombatStats(character, remortCount);
+  return character.hpCurrent > effective.hpMax ||
+    character.manaCurrent < 0 ||
+    character.manaCurrent > effective.manaMax;
+}
 
 const sessionInclude = {
   partySession: { select: { inviteToken: true } },
@@ -223,10 +261,13 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return { state: "wrong-location" };
       }
       if (
-        character.user.currentAdventureId !== null ||
-        character.user.currentRaidId !== null
+        character.user.currentAdventureId !== null &&
+        character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
       ) {
-        return { state: "blocked" };
+        return { state: "active-adventure" };
+      }
+      if (character.user.currentRaidId !== null) {
+        return { state: "active-raid" };
       }
       if (encounter.expiresAt <= input.now) {
         if (encounter.status === "pending") {
@@ -262,11 +303,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       if (character.hpCurrent <= 0) {
         return { state: "dead" };
       }
-      if (
-        character.hpCurrent > character.hpMax ||
-        character.manaCurrent < 0 ||
-        character.manaCurrent > character.manaMax
-      ) {
+      if (hasInvalidEffectiveResources(character, character._count.remorts)) {
         return { state: "invalid-resources" };
       }
 
@@ -298,7 +335,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         })
       ]);
       if (combatLease) {
-        return { state: "blocked" };
+        return { state: "active-combat" };
       }
       if (activeSearch) {
         return { state: "active-search", availableAt: activeSearch.endsAt, now: input.now };
@@ -384,7 +421,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       });
       return encounter?.reservationOrigin === input.originKind && encounter.reservedPartySession
         ? { state: "already-created" as const, inviteToken: encounter.reservedPartySession.inviteToken }
-        : { state: "blocked" as const };
+        : { state: "reservation-conflict" as const };
     });
 
     if (!("inviteToken" in outcome)) {
@@ -504,18 +541,19 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         if (joined.some((participant) => participant.character.hpCurrent <= 0)) {
           return { state: "invalid-roster", partyVersion: party.version };
         }
-        if (joined.some((participant) => (
-          participant.character.hpCurrent > participant.character.hpMax ||
-          participant.character.manaCurrent < 0 ||
-          participant.character.manaCurrent > participant.character.manaMax
-        ))) {
+        if (joined.some((participant) =>
+          hasInvalidEffectiveResources(participant.character, participant.remortCount)
+        )) {
           return { state: "invalid-roster", partyVersion: party.version };
         }
         if (
           mode === "left-passage" &&
           joined.some((participant) => (
             participant.character.user.lastSeenLocationId !== PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT ||
-            participant.character.user.currentAdventureId !== null ||
+            (
+              participant.character.user.currentAdventureId !== null &&
+              participant.character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
+            ) ||
             participant.character.user.currentRaidId !== null
           ))
         ) {
@@ -599,28 +637,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           .filter((candidate) => candidate.status === "joined")
           .entries()) {
           const character = participant.character;
-          const combatStats = buildPartyBossCombatStats({
-            id: character.id,
-            userId: character.userId,
-            name: character.name,
-            pronoun: character.pronoun,
-            path: character.path,
-            raceId: character.raceId,
-            classId: character.classId,
-            level: character.level,
-            xp: character.xp,
-            gold: character.gold,
-            hpCurrent: character.hpCurrent,
-            hpMax: character.hpMax,
-            manaCurrent: character.manaCurrent,
-            manaMax: character.manaMax,
-            hpRegenAt: character.hpRegenAt,
-            manaRegenAt: character.manaRegenAt,
-            activeCosmeticTitleGrantId: character.activeCosmeticTitleGrantId,
-            statsJson: character.statsJson,
-            remortCount: participant.remortCount,
-            equipment: character.equipment
-          });
+          const combatStats = buildParticipantCombatStats(character, participant.remortCount);
           const sated = await freezeVarenykSatedFromCooldown({
             tx,
             characterId: character.id,
@@ -1373,9 +1390,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       if (row.status === "active" || row.settlementPlanJson === null) {
         return { state: "not-terminal" } as const;
       }
+      let state: GroupCombatState;
       let plan: GroupCombatSettlementPlan;
       try {
-        parseRowState(row);
+        state = parseRowState(row);
         plan = parseGroupCombatSettlementPlanStrict(row.settlementPlanJson);
       } catch {
         await repairMalformedSession(tx, row, input.now);
@@ -1392,6 +1410,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       if (!receipt) {
         return { state: "invalid-plan" } as const;
       }
+      const frozenParticipant = state.participants.find(
+        (candidate) => candidate.characterId === participant.characterId
+      );
       let character: SessionRow["participants"][number]["character"] | null = null;
       let lease: Prisma.ActiveCombatLeaseGetPayload<Record<string, never>> | null = null;
       if (plan.policy === "left-passage-party") {
@@ -1414,6 +1435,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           character._count.remorts !== participant.remortCount ||
           !receipt.resources ||
           !receipt.effects ||
+          !frozenParticipant ||
           !lease
         ) {
           return { state: "invalid-plan" } as const;
@@ -1442,7 +1464,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           : { state: "invalid-plan" } as const;
       }
       await this.runSettlementTestHook("claimed", row.id, participant.characterId);
-      if (plan.policy === "left-passage-party" && character && receipt.resources) {
+      if (
+        plan.policy === "left-passage-party" &&
+        character &&
+        receipt.resources &&
+        frozenParticipant
+      ) {
         const xp = Math.max(0, character.xp + receipt.rewards.xp);
         const level = getLevelForXp(
           xp,
@@ -1451,10 +1478,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         await tx.character.update({
           where: { id: character.id },
           data: {
-            hpCurrent: Math.min(character.hpMax, Math.max(0, receipt.resources.hp)),
-            manaCurrent: Math.min(character.manaMax, Math.max(0, receipt.resources.mana)),
-            hpRegenAt: receipt.resources.hp >= character.hpMax ? null : input.now,
-            manaRegenAt: receipt.resources.mana >= character.manaMax ? null : input.now,
+            hpCurrent: receipt.resources.hp,
+            manaCurrent: receipt.resources.mana,
+            hpRegenAt: receipt.resources.hp >= frozenParticipant.hpMax ? null : input.now,
+            manaRegenAt: receipt.resources.mana >= frozenParticipant.manaMax ? null : input.now,
             xp,
             level,
             gold: { increment: receipt.rewards.gold }
