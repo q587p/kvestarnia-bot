@@ -539,6 +539,48 @@ describe("group combat bot flow", () => {
     );
   });
 
+  it("keeps stale journal callbacks closed until combat is terminal", async () => {
+    const session = makeSession();
+    session.state.recap = [{ turn: 1, lines: ["Лідерка стає в захист."] }];
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-journal",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+    const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
+
+    await handleGroupCombatCallback(ctx, {
+      type: "journal",
+      token: session.partyInviteToken,
+      page: 0
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered
+    } as unknown as GroupCombatService);
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Журнал відкриється після завершення бою.",
+      show_alert: true
+    });
+    expect(editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[3])).not.toContain("📜 Журнал");
+    expect(markParticipantCardDelivered).toHaveBeenCalled();
+  });
+
   it.each([
     ["a newer chat message is known", 30],
     ["freshness tracking is empty after restart", null]

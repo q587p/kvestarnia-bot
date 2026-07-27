@@ -235,6 +235,20 @@ export async function handleGroupCombatCallback(
     return;
   }
   if (callback.type === "journal") {
+    if (session.status === "active") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Журнал відкриється після завершення бою.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
+      return;
+    }
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGroupCombatJournal(session, callback.page), {
       parse_mode: "HTML",

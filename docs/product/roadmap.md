@@ -91,7 +91,8 @@ separate pending evidence.
 можна зарезервувати за `PartySession`, зібрати 1–3 current-life пригодників і
 провести детерміновану сутичку проти 1–6 ворогів, масштабовану від замороженої
 кількости й сили учасників. Незмінний склад, ресурси, припаси й здібності
-ворогів, per-player settlement, одна спільна знахідка, повний журнал і підсумки
+ворогів, per-player settlement, детерміновані знахідки за кожного ворога,
+bounded журнал і підсумки
 внеску пригодників та монстрів переживають restart/retry. Збір видно через
 `👀 Хто поруч`, а сольна кнопка лишається. Після перемоги всі учасники бачать
 той самий детермінований 13–23-хвилинний чистий прохід і недоступний
@@ -100,6 +101,16 @@ separate pending evidence.
 Вхід `LEFT_PASSAGE_PARTY_ATTACK_ENABLED` default-off. Код у repository release
 не доводить production enablement, deployment чи ручну Telegram QA; ці докази
 лишаються pending.
+
+Відкладені бойові follow-ups без номера релізу:
+
+- privacy-safe локальний debug log для зависань і переходів бойових сесій:
+  session/rules/turn/state category, scheduler/CAS/settlement stage і дозволена
+  error category без Telegram ids, приватного тексту, callback payloads,
+  SQL-параметрів, сирих state/exception;
+- спільна восьмивимірна статистика внеску для звичайних боїв, тренування,
+  дуелей і Big Barrel/raid після окремого cross-mode contract review. Це не
+  розширює `0.4.2` і не починає `0.4.3`.
 
 ### 0.4.3 — Guild foundation
 

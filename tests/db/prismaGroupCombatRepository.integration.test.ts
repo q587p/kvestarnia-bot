@@ -556,6 +556,38 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(settlementObservation.count).toBe(QUERY_BUDGETS.settlementScan);
   });
 
+  it("never lowers a character level raised before production settlement", async () => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-preserve-level",
+      [11991n]
+    );
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const participant = terminal.participants[0]!;
+    await prisma.character.update({
+      where: { id: participant.characterId },
+      data: { level: 7 }
+    });
+
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(NOW.getTime() + 93_000)
+    })).resolves.toMatchObject({
+      state: "settled",
+      levelChange: {
+        oldLevel: 7,
+        newLevel: 7,
+        leveledUp: false
+      }
+    });
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: participant.characterId },
+      select: { level: true }
+    })).resolves.toEqual({ level: 7 });
+  });
+
   it.each([
     ["1x1", [11940n], 1, false],
     ["2x2", [11941n, 11942n], 2, false],

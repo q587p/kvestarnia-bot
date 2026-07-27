@@ -1518,9 +1518,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       ) {
         const xp = Math.max(0, character.xp + receipt.rewards.xp);
         const oldLevel = character.level;
-        const level = getLevelForXp(
-          xp,
-          participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+        const level = Math.max(
+          oldLevel,
+          getLevelForXp(
+            xp,
+            participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+          )
         );
         const effectiveAfterReward = buildParticipantCombatStats(
           { ...character, xp, level },
@@ -1660,9 +1663,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           ? {
               levelChange: {
                 oldLevel: character.level,
-                newLevel: getLevelForXp(
-                  Math.max(0, character.xp + receipt.rewards.xp),
-                  participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+                newLevel: Math.max(
+                  character.level,
+                  getLevelForXp(
+                    Math.max(0, character.xp + receipt.rewards.xp),
+                    participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+                  )
                 ),
                 leveledUp: getLevelForXp(
                   Math.max(0, character.xp + receipt.rewards.xp),

@@ -129,6 +129,19 @@ describe("group combat presenter", () => {
     expect(labels).not.toContain(`⚔️ ${session.state.enemies[0]!.name}`);
   });
 
+  it("keeps the journal off active combat cards even after resolved turns", () => {
+    const session = createSession(2);
+    session.state.recap = [{ turn: 1, lines: ["Пригодник 1 атакує."] }];
+
+    const labels = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard.flat().map((button) => button.text);
+
+    expect(labels).not.toContain("📜 Журнал");
+    expect(labels).toContain("🔎 Оновити");
+  });
+
   it("offers authored class support without restoring generic ally support", () => {
     const session = createSession(2);
     session.state.participants[0]!.classId = "class.priest";
@@ -279,6 +292,40 @@ describe("group combat presenter", () => {
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
+  it("explains remort reinforcements and Nyz pressure in the one-time intro", () => {
+    const session = productionTerminalSession();
+    session.state.production!.remort.sourceRemortCount = 3;
+    session.state.production!.threat.escalated = true;
+    session.state.production!.threat.appliedSecondEnemyLevelBonus = 2;
+
+    const intro = presentGroupCombatIntro(session);
+
+    expect(intro).toContain(
+      "🧿 <i>Відплата за минулі пригоди:</i> ремортна памʼять покликала ворогам підмогу."
+    );
+    expect(intro).toContain(
+      "📈 <i>Натиск Низу:</i> перша підмога отримала +2 рівні."
+    );
+  });
+
+  it("keeps each defeated-enemy notice in its own active-card paragraph", () => {
+    const session = createSession(2);
+    session.state.recap = [{
+      turn: 1,
+      lines: [
+        "Пригодник 1 атакує: 13 шкоди.",
+        "🧾 Знешкоджено: Комірний Шурхіт 1.",
+        "Комірний Шурхіт 2 відповідає Пригодник 1: 3 шкоди."
+      ]
+    }];
+
+    const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+
+    expect(text).toContain(
+      "Пригодник 1 атакує: 13 шкоди.\n\n🧾 Знешкоджено: Комірний Шурхіт 1.\n\nКомірний Шурхіт 2 відповідає Пригодник 1: 3 шкоди."
+    );
+  });
+
   it("opens the shared bounded battle journal and returns to terminal results", () => {
     const session = createSession(2);
     session.status = "won";
@@ -340,6 +387,22 @@ describe("group combat presenter", () => {
     expect(resultLabels).toContain("📊 Статистика");
     expect(resultLabels).not.toContain("🔎 Оновити");
     expect(journalLabels).toContain("↩️ До результатів");
+  });
+
+  it("labels a production journal as the rolling last twenty-five turns", () => {
+    const session = createSession(2);
+    session.status = "won";
+    session.state.status = "won";
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.state.recap = Array.from({ length: 25 }, (_, index) => ({
+      turn: index + 2,
+      lines: [`Хід ${index + 2}.`]
+    }));
+
+    const text = presentGroupCombatJournal(session, 0);
+
+    expect(text).toContain("Збережено останні 25 ходів: ходи 2–26.");
   });
 
   it("moves truthful terminal contribution dimensions to a separate bounded statistics card", () => {

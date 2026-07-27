@@ -204,11 +204,11 @@ const statusSchema = z.object({
   targetId: z.string().min(1),
   value: positiveInteger,
   remainingTurns: positiveInteger.max(13),
-  appliedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT).optional()
+  appliedTurn: positiveInteger.optional()
 }).strict();
 
 const recapSchema = z.object({
-  turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
+  turn: positiveInteger,
   lines: z.array(z.string().min(1).max(587)).max(13),
   monsterBarkIds: z.array(z.string().min(1)).max(6).optional(),
   snapshot: z.object({
@@ -316,7 +316,7 @@ const stateSchema = z.object({
   encounterKey: z.enum([GROUP_COMBAT_PROOF_ENCOUNTER_KEY, GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY]),
   deterministicSeed: nonNegativeInteger,
   status: z.enum(["active", "won", "lost", "invalid"]),
-  turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
+  turn: positiveInteger,
   participants: z.array(actorSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
   enemies: z.array(enemySchema).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
   contributions: z.array(contributionSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT),
@@ -333,6 +333,12 @@ const stateSchema = z.object({
     (state.encounterKey !== GROUP_COMBAT_PROOF_ENCOUNTER_KEY || state.production !== undefined)
   ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof state has production metadata." });
+  }
+  if (
+    state.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
+    state.turn > GROUP_COMBAT_TURN_LIMIT
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof turn exceeds its bounded limit." });
   }
   if (
     state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
@@ -824,11 +830,14 @@ function isCanonicalEnemyShield(
 const resultSchema = z.object({
   kind: z.enum(["rewardless-proof", "left-passage-party"]),
   outcome: z.enum(["won", "lost", "invalid"]),
-  completedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
+  completedTurn: positiveInteger,
   rewards: rewardsSchema
 }).strict().superRefine((result, context) => {
   if (result.kind === "rewardless-proof" && !zeroRewardsSchema.safeParse(result.rewards).success) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof result contains rewards." });
+  }
+  if (result.kind === "rewardless-proof" && result.completedTurn > GROUP_COMBAT_TURN_LIMIT) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof result exceeds its bounded turn limit." });
   }
 });
 
@@ -855,7 +864,7 @@ const settlementPlanSchema = z.object({
   policy: z.enum(["rewardless-proof", "left-passage-party"]),
   sessionId: z.string().min(1),
   outcome: z.enum(["won", "lost", "invalid"]),
-  completedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
+  completedTurn: positiveInteger,
   participants: z.array(settlementParticipantSchema).max(GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT)
 }).strict().superRefine((plan, context) => {
   if (plan.outcome !== "invalid" && plan.participants.length > GROUP_COMBAT_PARTICIPANT_LIMIT) {
@@ -871,6 +880,9 @@ const settlementPlanSchema = z.object({
     plan.participants.some((row) => row.effects !== undefined || !zeroRewardsSchema.safeParse(row.rewards).success)
   ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof settlement contains production effects." });
+  }
+  if (plan.policy === "rewardless-proof" && plan.completedTurn > GROUP_COMBAT_TURN_LIMIT) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Rewardless proof settlement exceeds its bounded turn limit." });
   }
   if (
     plan.policy === "left-passage-party" &&

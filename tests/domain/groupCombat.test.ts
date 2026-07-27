@@ -396,9 +396,52 @@ describe("group combat proof reducer", () => {
     const supportLine = supported.state.recap[0]!.lines.find((line) =>
       line.includes("Суворе благословення")
     );
-    expect(supportLine).toContain("захисний ефект для всіх союзників");
+    expect(supportLine).toContain("захист усім союзникам");
     expect(supportLine).toContain(`${supportState.participants[1]!.name}: +`);
     expect(supportLine).not.toContain("усім союзникам — по +");
+  });
+
+  it("keeps solo support and item recap lines short, iconic, and name-free", () => {
+    const supportState = leftPassageState(1);
+    const actor = supportState.participants[0]!;
+    actor.classId = "class.priest";
+    actor.hp = 10;
+    actor.hpMax = 93;
+    supportState.enemies[0]!.hp = 93;
+    supportState.enemies[0]!.hpMax = 93;
+    supportState.enemies[0]!.attack = 1;
+    const supported = resolveGroupCombatTurn(supportState, [
+      action(supportState, 0, "class", "self", actor.characterId)
+    ]);
+    const supportLine = supported.state.recap[0]!.lines.find((line) =>
+      line.includes("Суворе благословення")
+    );
+
+    expect(supportLine).toMatch(
+      /^✨ Суворе благословення: (?:\d+ шкоди; )?\+7 HP; захист усім союзникам\.$/
+    );
+    expect(supportLine).not.toContain(actor.name);
+    expect(supportLine).not.toContain("«");
+
+    const itemState = leftPassageState(1);
+    const itemActor = itemState.participants[0]!;
+    itemActor.hp = 30;
+    itemActor.hpMax = 93;
+    itemActor.combatItemQuantities = { "item.field-kit": 1 };
+    itemState.enemies[0]!.hp = 93;
+    itemState.enemies[0]!.hpMax = 93;
+    itemState.enemies[0]!.attack = 1;
+    const itemResult = resolveGroupCombatTurn(itemState, [{
+      ...action(itemState, 0, "item", "self", itemActor.characterId),
+      payloadKey: "item.field-kit"
+    }]);
+    const itemLine = itemResult.state.recap[0]!.lines.find((line) =>
+      line.includes("Польова аптечка")
+    );
+
+    expect(itemLine).toMatch(/^⚕️ Польова аптечка: \+\d+ HP\.$/);
+    expect(itemLine).not.toContain(itemActor.name);
+    expect(itemLine).not.toContain("«");
   });
 
   it("lets at most one deterministic monster speak in a multi-enemy turn", () => {
@@ -459,6 +502,53 @@ describe("group combat proof reducer", () => {
     expect(resolved.state.participants[1]!.mana).toBe(manaBefore);
     expect(resolved.state.participants[2]!.combatItemQuantities).toEqual(itemBefore);
     expect(resolved.committedConsumables).toEqual([]);
+    expect(resolved.state.recap[0]!.lines.join("\n")).not.toContain("відповідає");
+  });
+
+  it("gives an enemy alive at the exchange start one final basic response after defeat", () => {
+    const state = leftPassageState(1, true);
+    const actor = state.participants[0]!;
+    const defeated = state.enemies[0]!;
+    const survivor = state.enemies[1]!;
+    actor.hp = actor.hpMax = 93;
+    actor.attack = 93;
+    actor.defense = 20;
+    defeated.hp = 1;
+    defeated.attack = 1;
+    survivor.hp = survivor.hpMax = 93;
+    survivor.attack = 1;
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", defeated.id)
+    ]);
+    const recap = resolved.state.recap[0]!.lines.join("\n");
+
+    expect(resolved.state.status).toBe("active");
+    expect(resolved.state.enemies[0]!.hp).toBe(0);
+    expect(recap).toContain(
+      `${defeated.name} востаннє відповідає ${actor.name}: 1 шкоди.`
+    );
+    expect(recap).not.toContain(`${defeated.name} застосовує`);
+  });
+
+  it("keeps victory when the final enemy response also defeats the last participant", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    const enemy = state.enemies[0]!;
+    actor.hp = 1;
+    actor.attack = 93;
+    actor.defense = 0;
+    enemy.hp = 1;
+    enemy.attack = 93;
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", enemy.id)
+    ]);
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.state.participants[0]!.hp).toBe(0);
+    expect(resolved.state.enemies[0]!.hp).toBe(0);
+    expect(resolved.state.recap[0]!.lines.join("\n")).toContain(
+      `${enemy.name} востаннє відповідає ${actor.name}:`
+    );
   });
 
   it("keeps timeout-only participants ineligible after an early terminal action", () => {
@@ -743,6 +833,37 @@ describe("group combat proof reducer", () => {
     expect(state.recap).toHaveLength(25);
     expect(state.recap.every((entry) => entry.snapshot !== undefined)).toBe(true);
     expect(stateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
+    expect(parseGroupCombatStateStrict(state)).toEqual(state);
+  });
+
+  it("continues production combat past turn twenty-five with a rolling journal", () => {
+    let state = leftPassageState(1, true);
+    state.participants[0]!.hp = 587;
+    state.participants[0]!.hpMax = 587;
+    state.participants[0]!.defense = 93;
+    for (let turn = 1; turn <= 25; turn += 1) {
+      const resolved = resolveGroupCombatTurn(state, [
+        buildGroupCombatTimeoutAction(state, state.participants[0]!.characterId)
+      ]);
+      state = resolved.state;
+      expect(resolved.result).toBeNull();
+      expect(resolved.settlementPlan).toBeNull();
+    }
+
+    expect(state.status).toBe("active");
+    expect(state.turn).toBe(26);
+    expect(state.recap).toHaveLength(25);
+    expect(state.recap[0]!.turn).toBe(1);
+    expect(parseGroupCombatStateStrict(state)).toEqual(state);
+
+    state = resolveGroupCombatTurn(state, [
+      buildGroupCombatTimeoutAction(state, state.participants[0]!.characterId)
+    ]).state;
+    expect(state.status).toBe("active");
+    expect(state.turn).toBe(27);
+    expect(state.recap).toHaveLength(25);
+    expect(state.recap[0]!.turn).toBe(2);
+    expect(state.recap.at(-1)!.turn).toBe(26);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
 

@@ -727,6 +727,9 @@ export function resolveGroupCombatTurn(
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
     return terminalize(state, "won", lines, [], monsterBarkIds);
   }
+  const respondingEnemyIds = state.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .map((enemy) => enemy.id);
 
   const committedConsumables: GroupCombatCommittedConsumable[] = [];
   for (const actorAtStart of livingActors) {
@@ -774,7 +777,9 @@ export function resolveGroupCombatTurn(
       contribution.healing += healed;
       actor.threat += healed * 2;
       committedConsumables.push({ characterId: actor.characterId, itemId });
-      lines.push(`${actor.name} використовує ${GROUP_COMBAT_ITEM_NAMES[itemId]}: +${healed} HP.`);
+      lines.push(
+        `${presentParticipantActionLabel(state, actor, GROUP_COMBAT_ITEM_NAMES[itemId])}: +${healed} HP.`
+      );
     } else {
       applyAbilityAction(state, actor, action, contribution, lines);
       tickGroupCombatItemCooldowns(actor);
@@ -783,11 +788,7 @@ export function resolveGroupCombatTurn(
     tickParticipantMonsterEffects(state, actor.characterId);
   }
 
-  if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
-  }
-
-  applyEnemyPhase(state, lines, monsterBarkIds);
+  applyEnemyPhase(state, respondingEnemyIds, lines, monsterBarkIds);
   appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
     return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
@@ -803,7 +804,13 @@ export function resolveGroupCombatTurn(
     )
     .filter((status) => status.remainingTurns > 0);
 
-  if (state.participants.every((participant) => participant.hp <= 0) || state.turn >= GROUP_COMBAT_TURN_LIMIT) {
+  if (
+    state.participants.every((participant) => participant.hp <= 0) ||
+    (
+      state.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
+      state.turn >= GROUP_COMBAT_TURN_LIMIT
+    )
+  ) {
     return terminalize(state, "lost", lines, committedConsumables, monsterBarkIds);
   }
 
@@ -1128,7 +1135,13 @@ function applyAbilityAction(
   if (healingEntries.some((entry) => entry.healing > 0)) {
     effects.push(healingAllAllies
       ? presentMultiTargetHealing(healingEntries)
-      : healingEntries.map((entry) => `${entry.name}: +${entry.healing} HP`).join(", "));
+      : healingEntries.map((entry) =>
+          state.participants.length === 1
+            ? `+${entry.healing} HP`
+            : entry.name === actor.name
+              ? `собі +${entry.healing} HP`
+              : `${entry.name}: +${entry.healing} HP`
+        ).join(", "));
   }
   const hasProtectionEffect = Boolean(
     ability.guardReduction ||
@@ -1137,15 +1150,30 @@ function applyAbilityAction(
   );
   if (hasProtectionEffect) {
     effects.push(allAllyScope
-      ? "захисний ефект для всіх союзників"
+      ? "захист усім союзникам"
       : "захисний ефект");
   }
+  const actionLabel = presentParticipantActionLabel(
+    state,
+    actor,
+    ability.label ?? ability.id
+  );
   lines.push(
     resolved.summary.actorOutcome === "miss"
-      ? `${actor.name} застосовує «${ability.label}», але не влучає.`
-      : `${actor.name} застосовує «${ability.label}»${resolved.summary.critical ? " критично" : ""}: ` +
+      ? `${actionLabel}: промах.`
+      : `${actionLabel}${resolved.summary.critical ? " критично" : ""}: ` +
         `${effects.length > 0 ? effects.join("; ") : "без прямої шкоди"}.`
   );
+}
+
+function presentParticipantActionLabel(
+  state: GroupCombatState,
+  actor: GroupCombatActorSnapshot,
+  actionLabel: string
+): string {
+  return state.participants.length === 1
+    ? actionLabel
+    : `${actor.name} · ${actionLabel}`;
 }
 
 function presentMultiTargetDamage(entries: Array<{ name: string; damage: number }>): string {
@@ -1209,25 +1237,33 @@ function groupCombatEnemyActorStats(
 
 function applyEnemyPhase(
   state: GroupCombatState,
+  respondingEnemyIds: readonly string[],
   lines: string[],
   monsterBarkIds: string[]
 ): void {
-  const livingEnemies = state.enemies
-    .filter((candidate) => candidate.hp > 0)
+  const respondingEnemies = respondingEnemyIds
+    .map((enemyId) => state.enemies.find((candidate) => candidate.id === enemyId))
+    .filter((candidate): candidate is GroupCombatEnemyState => Boolean(candidate))
     .sort((a, b) => a.order - b.order);
-  const barkSpeaker = livingEnemies.length > 0
-    ? livingEnemies[
-        Math.abs(state.deterministicSeed + state.turn - 1) % livingEnemies.length
+  const barkCandidates = respondingEnemies.filter((enemy) => enemy.hp > 0);
+  const barkSpeaker = barkCandidates.length > 0
+    ? barkCandidates[
+        Math.abs(state.deterministicSeed + state.turn - 1) % barkCandidates.length
       ]
     : undefined;
-  for (const enemy of livingEnemies) {
+  for (const enemy of respondingEnemies) {
     if (!chooseEnemyTarget(state)) {
       break;
     }
-    tickEnemyAbilityCooldowns(enemy);
+    const defeatedFinalResponder = enemy.hp <= 0;
+    if (!defeatedFinalResponder) {
+      tickEnemyAbilityCooldowns(enemy);
+    }
     const enemyContribution = getEnemyContribution(state, enemy.id);
     enemyContribution.actions += 1;
-    const ability = selectGroupCombatEnemyAbility(state, enemy);
+    const ability = defeatedFinalResponder
+      ? null
+      : selectGroupCombatEnemyAbility(state, enemy);
     const authored = enemy.monsterId
       ? monsters.find((candidate) => candidate.id === enemy.monsterId)
       : null;
@@ -1292,9 +1328,13 @@ function applyEnemyPhase(
       );
       const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
       enemyContribution.damage += damage;
-      lines.push(`${enemy.name} відповідає ${target.name}: ${damage} шкоди.`);
+      lines.push(
+        `${enemy.name}${defeatedFinalResponder ? " востаннє" : ""} відповідає ${target.name}: ${damage} шкоди.`
+      );
     }
-    tickEnemyOwnStatuses(state, enemy.id);
+    if (!defeatedFinalResponder) {
+      tickEnemyOwnStatuses(state, enemy.id);
+    }
   }
 }
 
@@ -2645,7 +2685,7 @@ function clampInteger(value: number, minimum: number, maximum: number): number {
 
 const PROOF_ENEMY_NAMES = ["Комірний Шурхіт", "Сходовий Гуп", "Підвальний Перераховувач"] as const;
 const GROUP_COMBAT_ITEM_NAMES: Record<GroupCombatCommittedConsumable["itemId"], string> = {
-  "item.responsible-panic-bandage": "«Бинт відповідальної паніки»",
-  "item.dense-bandage": "«Щільний бинт»",
-  "item.field-kit": "«Польову аптечку»"
+  "item.responsible-panic-bandage": "🩹 Бинт відповідальної паніки",
+  "item.dense-bandage": "🩹 Щільний бинт",
+  "item.field-kit": "⚕️ Польова аптечка"
 };

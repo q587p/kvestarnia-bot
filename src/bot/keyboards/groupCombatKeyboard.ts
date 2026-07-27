@@ -89,15 +89,6 @@ export function buildGroupCombatKeyboard(
       )
       .row();
   }
-  if (session.state.recap.length > 0) {
-    keyboard.text(
-      "📜 Журнал",
-      makeGroupCombatJournalCallbackData(
-        session.partyInviteToken,
-        session.state.recap.length - 1
-      )
-    );
-  }
   return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
 
   function addAbilityButtons(action: Extract<GroupCombatActionKey, "class" | "race" | "gear">, payloadKey?: string, optionIndex = 0): void {

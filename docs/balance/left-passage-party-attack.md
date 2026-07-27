@@ -67,6 +67,14 @@ player damage. A persisted production loadout containing an unsupported
 ability is rejected strictly instead of being replayed under different
 semantics.
 
+An enemy that was alive at the start of the participant/enemy exchange retains
+one ordinary final basic response if participant damage defeats it first. That
+response cannot select a special, heal, shield or buff. A start-of-turn effect
+that defeats the last enemy ends combat before the exchange, so no enemy
+responds. Production loss requires all participants to be defeated; the
+25-turn forced loss remains proof-only. Longer production fights keep a rolling
+last-25-turn journal so serialized state stays bounded.
+
 ## Verification
 
 `npm run simulate:combat` completed the existing 24-case 2×2/3×3 matrix across
@@ -76,8 +84,8 @@ serialized proof state remained bounded. Production 1×1 through 3×6 coverage
 separately verifies the immutable scaling formula, supported ability filtering,
 authored targets/effects, cooldown replay and strict restart validation.
 
-The production state budget is `65,536` bytes so a complete 25-turn 3×6
-journal can retain every turn's HP/mana, cooldowns and active effects; the
+The production state budget is `65,536` bytes so the rolling last-25-turn 3×6
+journal can retain each recorded turn's HP/mana, cooldowns and active effects; the
 measured maximum and current card/query observations are recorded in the QA
 document and draft PR. Telegram cards remain capped at `4,096` bytes and
 callbacks at `64`. Reward-budget and loot regressions prove that each

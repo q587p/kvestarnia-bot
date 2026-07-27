@@ -229,11 +229,21 @@ export function presentGroupCombatJournal(
   }
   const page = Math.min(Math.max(0, Math.floor(requestedPage)), total - 1);
   const recap = session.state.recap[page]!;
+  const firstRecordedTurn = session.state.recap[0]?.turn ?? 1;
+  const lastRecordedTurn = session.state.recap.at(-1)?.turn ?? total;
+  const journalCoverage = firstRecordedTurn === 1
+    ? `Збережено весь бій: ${formatTurns(total)}.`
+    : `Збережено останні ${formatTurns(total)}: ходи ${firstRecordedTurn}–${lastRecordedTurn}.`;
   return presentBattleJournalPage({
     title: session.state.rulesVersion === "group-combat.v3"
       ? "📜 <b>Журнал бою</b>"
       : "📜 <b>Журнал доказової сутички</b>",
-    headerLines: ["", session.state.participants.map((participant) => escapeHtml(participant.name)).join(" · "), "", `Збережено весь бій: ${formatTurns(total)}.`],
+    headerLines: [
+      "",
+      session.state.participants.map((participant) => escapeHtml(participant.name)).join(" · "),
+      "",
+      journalCoverage
+    ],
     turn: recap.turn,
     page,
     totalPages: total,
@@ -261,6 +271,7 @@ function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] 
     "Кулдауни рахуються вашими діями, а мовчання Корчма перетворює на захист."
   ] as const;
   const tip = tips[Math.abs(state.deterministicSeed) % tips.length]!;
+  const difficultyNotes = presentGroupCombatDifficultyNotes(session);
   return [
     "⚔️ <b>Бій</b>",
     ...party,
@@ -269,9 +280,29 @@ function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] 
     "",
     "Проти вас:",
     ...enemies,
+    ...(difficultyNotes.length > 0 ? ["", ...difficultyNotes] : []),
     "",
     `<i>Порада дня: ${escapeHtml(tip)}</i>`
   ];
+}
+
+function presentGroupCombatDifficultyNotes(session: GroupCombatSessionRecord): string[] {
+  const production = session.state.production;
+  if (!production) {
+    return [];
+  }
+  const lines: string[] = [];
+  if (production.remort.sourceRemortCount > 0) {
+    lines.push("🧿 <i>Відплата за минулі пригоди:</i> ремортна памʼять покликала ворогам підмогу.");
+  }
+  if (production.threat.escalated) {
+    lines.push(
+      production.threat.appliedSecondEnemyLevelBonus > 0
+        ? `📈 <i>Натиск Низу:</i> перша підмога отримала +${production.threat.appliedSecondEnemyLevelBonus} ${formatLevelPoints(production.threat.appliedSecondEnemyLevelBonus)}.`
+        : `📈 <i>Натиск Низу:</i> перша підмога вперлася в межу ${production.threat.levelCap}.`
+    );
+  }
+  return lines;
 }
 
 function presentGroupCombatTacticalState(
@@ -384,10 +415,30 @@ function presentGroupCombatRecapActions(
     .map((barkId) => findMonsterBark(barkId))
     .filter((bark) => bark !== null)
     .map((bark) => presentMonsterBarkBlockquote(bark.text));
-  const lines = recap.lines.map((line) => escapeHtml(line));
+  const lines = recap.lines.flatMap((line, index) => {
+    const escaped = escapeHtml(line);
+    if (!line.startsWith("🧾 Знешкоджено:")) {
+      return [escaped];
+    }
+    return [
+      ...(index > 0 ? [""] : []),
+      escaped,
+      ...(index < recap.lines.length - 1 ? [""] : [])
+    ];
+  });
   return barks.length > 0 && lines.length > 0
     ? [...barks, "", ...lines]
     : [...barks, ...lines];
+}
+
+function formatLevelPoints(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  return mod10 === 1 && mod100 !== 11
+    ? "рівень"
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? "рівні"
+      : "рівнів";
 }
 
 function presentEffectLines(
