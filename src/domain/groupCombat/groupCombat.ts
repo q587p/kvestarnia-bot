@@ -16,7 +16,10 @@ import {
 } from "../combat/combatActions";
 import type { CharacterStats } from "../characters/starterStats";
 import { mantokAbilityGrantDefinitions } from "../../content/mantokAbilityGrants";
-import { findMonsterAbility } from "../../content/monsterAbilities";
+import {
+  findMonsterAbility,
+  type MonsterAbilityDefinition
+} from "../../content/monsterAbilities";
 import { monsters } from "../../content/monsters";
 import { rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
@@ -49,6 +52,17 @@ export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
   "item.dense-bandage",
   "item.field-kit"
 ] as const;
+export const GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS = [
+  "monster.royal-scurry",
+  "monster.smoke-without-approval",
+  "monster.preapproved-bite",
+  "monster.cabbage-plate",
+  "monster.compound-interest",
+  "monster.common-group-rally",
+  "monster.approved-dam",
+  "monster.classified-rustle",
+  "monster.return-to-staff"
+] as const;
 
 export type GroupCombatStatus = "active" | "won" | "lost" | "invalid";
 export type GroupCombatRulesVersion =
@@ -56,7 +70,16 @@ export type GroupCombatRulesVersion =
   | typeof GROUP_COMBAT_PRODUCTION_RULES_VERSION;
 export type GroupCombatActionKey = "attack" | "guard" | "class" | "race" | "gear" | "item";
 export type GroupCombatTargetKind = "self" | "ally" | "enemy";
-export type GroupCombatStatusKind = "guard" | "response-mitigation" | "counter" | "bleed";
+export type GroupCombatStatusKind =
+  | "guard"
+  | "response-mitigation"
+  | "counter"
+  | "bleed"
+  | "monster-accuracy-penalty"
+  | "monster-burn"
+  | "monster-damage-reduction"
+  | "monster-evasion"
+  | "monster-outgoing-damage";
 
 export interface GroupCombatActorSnapshot {
   characterId: string;
@@ -97,6 +120,11 @@ export interface GroupCombatEnemyState {
   abilityIds?: string[];
   abilityCooldowns?: Record<string, { id: string; remainingTurns: number }>;
   usedOnceAbilityIds?: string[];
+  shield?: {
+    sourceAbilityId: string;
+    sourceEnemyId: string;
+    points: number;
+  };
 }
 
 export interface GroupCombatThreatParticipantSnapshot {
@@ -213,11 +241,14 @@ export interface GroupCombatEnemyContribution {
 export interface GroupCombatTimedStatus {
   id: string;
   kind: GroupCombatStatusKind;
-  sourceCharacterId: string;
+  sourceCharacterId?: string;
+  sourceEnemyId?: string;
+  sourceAbilityId?: string;
   targetKind: "participant" | "enemy";
   targetId: string;
   value: number;
   remainingTurns: number;
+  appliedTurn?: number;
 }
 
 export interface GroupCombatRecapEntry {
@@ -234,6 +265,7 @@ export interface GroupCombatRecapEntry {
     enemies: Array<{
       hp: number;
       cooldowns?: Array<{ id: string; remainingTurns: number }>;
+      shieldPoints?: number;
     }>;
     effects?: Array<{
       kind: GroupCombatStatusKind;
@@ -660,11 +692,6 @@ export function resolveGroupCombatTurn(
   const state = cloneGroupCombatState(current);
   const lines: string[] = [];
   const monsterBarkIds: string[] = [];
-  applyBleedStatuses(state, lines);
-  if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, [], monsterBarkIds);
-  }
-
   const livingActors = state.participants.filter((participant) => participant.hp > 0);
   const actionsByActor = new Map(submittedActions.map((action) => [action.actorCharacterId, { ...action }]));
   const actions = livingActors.map(
@@ -674,6 +701,16 @@ export function resolveGroupCombatTurn(
     if (validateGroupCombatAction(state, action) !== "ok") {
       throw new Error(`Invalid group-combat action for ${action.actorCharacterId}.`);
     }
+  }
+  for (const action of actions) {
+    if (action.origin === "manual") {
+      getContribution(state, action.actorCharacterId).committedActions += 1;
+    }
+  }
+
+  applyBleedStatuses(state, lines);
+  if (state.enemies.every((enemy) => enemy.hp <= 0)) {
+    return terminalize(state, "won", lines, [], monsterBarkIds);
   }
 
   const committedConsumables: GroupCombatCommittedConsumable[] = [];
@@ -687,8 +724,10 @@ export function resolveGroupCombatTurn(
     }
     const action = actionsByActor.get(actor.characterId) ?? buildGroupCombatTimeoutAction(state, actor.characterId);
     const contribution = getContribution(state, actor.characterId);
-    if (action.origin === "manual") {
-      contribution.committedActions += 1;
+    applyParticipantMonsterEffects(state, actor, lines);
+    if (actor.hp <= 0) {
+      tickParticipantMonsterEffects(state, actor.characterId);
+      continue;
     }
     if (action.action === "attack") {
       applyBasicAttack(state, actor, action, contribution, lines);
@@ -725,6 +764,7 @@ export function resolveGroupCombatTurn(
       applyAbilityAction(state, actor, action, contribution, lines);
       tickGroupCombatItemCooldowns(actor);
     }
+    tickParticipantMonsterEffects(state, actor.characterId);
   }
 
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
@@ -736,7 +776,14 @@ export function resolveGroupCombatTurn(
     return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
   }
   state.statuses = state.statuses
-    .map((status) => status.kind === "bleed" ? status : { ...status, remainingTurns: status.remainingTurns - 1 })
+    .map((status) =>
+      status.kind === "bleed" ||
+      status.targetKind === "enemy" ||
+      status.kind === "monster-accuracy-penalty" ||
+      status.kind === "monster-burn"
+        ? status
+        : { ...status, remainingTurns: status.remainingTurns - 1 }
+    )
     .filter((status) => status.remainingTurns > 0);
 
   if (state.participants.every((participant) => participant.hp <= 0) || state.turn >= GROUP_COMBAT_TURN_LIMIT) {
@@ -844,6 +891,21 @@ export function isSupportedGroupCombatItem(
   return Boolean(itemId && (GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(itemId));
 }
 
+export function isSupportedGroupCombatMonsterAbility(
+  abilityId: string | undefined
+): abilityId is (typeof GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS)[number] {
+  return Boolean(
+    abilityId &&
+    (GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS as readonly string[]).includes(abilityId)
+  );
+}
+
+export function filterSupportedGroupCombatMonsterAbilityIds(
+  abilityIds: readonly string[]
+): string[] {
+  return abilityIds.filter(isSupportedGroupCombatMonsterAbility);
+}
+
 function applyBasicAttack(
   state: GroupCombatState,
   actor: GroupCombatActorSnapshot,
@@ -865,17 +927,19 @@ function applyBasicAttack(
     actorState: actorResourceState(actor),
     defenderState,
     actorStats: actorCombatStats(actor),
-    defenderStats: groupCombatEnemyActorStats(target, actor.level),
+    defenderStats: groupCombatEnemyActorStats(state, target, actor.level, actor.characterId),
     action: "attack",
     rng: new SeededRandomSource(
       `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:basic-attack`
     )
   });
   applyActorResourceState(actor, resolved.actorState);
-  target.hp = resolved.defenderState.hp;
-  const damage = Math.max(0, defenderState.hp - target.hp);
+  const damage = applyPlayerDamageToEnemy(
+    state,
+    target,
+    Math.max(0, defenderState.hp - resolved.defenderState.hp)
+  );
   contribution.damage += damage;
-  getEnemyContribution(state, target.id).damageTaken += damage;
   actor.threat += damage;
   tickGroupCombatItemCooldowns(actor);
   lines.push(
@@ -918,8 +982,8 @@ function applyAbilityAction(
     defenderState,
     actorStats: actorCombatStats(actor),
     defenderStats: primaryEnemy
-      ? groupCombatEnemyActorStats(primaryEnemy, actor.level)
-      : groupCombatEnemyActorStats({
+      ? groupCombatEnemyActorStats(state, primaryEnemy, actor.level, actor.characterId)
+      : groupCombatEnemyActorStats(state, {
           id: "group-combat-support-target",
           name: "Ціль підтримки",
           order: 0,
@@ -927,7 +991,7 @@ function applyAbilityAction(
           hpMax: 1,
           attack: 1,
           defense: 0
-        }, actor.level),
+        }, actor.level, actor.characterId),
     action: action.action === "class"
       ? "skill"
       : action.action === "race" || action.action === "gear"
@@ -938,18 +1002,21 @@ function applyAbilityAction(
     rng: new SeededRandomSource(`${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:${ability.id}`)
   });
   applyActorResourceState(actor, resolved.actorState);
-  if (primaryEnemy) {
-    primaryEnemy.hp = resolved.defenderState.hp;
-  }
 
   if (resolved.summary.fumble) {
     lines.push(`${actor.name}: ${resolved.summary.fumble.line}`);
     return;
   }
 
-  let dealt = primaryEnemy ? Math.max(0, defenderState.hp - primaryEnemy.hp) : 0;
+  let dealt = primaryEnemy
+    ? applyPlayerDamageToEnemy(
+        state,
+        primaryEnemy,
+        Math.max(0, defenderState.hp - resolved.defenderState.hp)
+      )
+    : 0;
   if (primaryEnemy) {
-    getEnemyContribution(state, primaryEnemy.id).damageTaken += dealt;
+    primaryEnemy.hp = Math.max(0, primaryEnemy.hp);
   }
   const otherEnemyIds = enemyTargets.filter((targetId) => targetId !== primaryEnemy?.id);
   for (const [index, targetId] of otherEnemyIds.entries()) {
@@ -963,9 +1030,7 @@ function applyAbilityAction(
     const damage = resolved.summary.actorDamage <= 0
       ? 0
       : Math.min(target.hp, Math.max(1, Math.floor(resolved.summary.actorDamage * ratio)));
-    target.hp -= damage;
-    dealt += damage;
-    getEnemyContribution(state, target.id).damageTaken += damage;
+    dealt += applyPlayerDamageToEnemy(state, target, damage);
   }
   contribution.damage += dealt;
   contribution.specialActions = (contribution.specialActions ?? 0) + 1;
@@ -1021,9 +1086,24 @@ function applyAbilityAction(
 }
 
 function groupCombatEnemyActorStats(
+  state: GroupCombatState,
   enemy: GroupCombatEnemyState,
-  fallbackLevel: number
+  fallbackLevel: number,
+  attackingCharacterId?: string
 ): MonsterCombatStats {
+  const evasionBonusPp = sumGroupCombatStatusValues(state, enemy.id, "monster-evasion");
+  const outgoingDamageBp = multiplyGroupCombatStatusValues(
+    state,
+    enemy.id,
+    "monster-outgoing-damage"
+  );
+  const accuracyPenaltyPp = attackingCharacterId
+    ? sumGroupCombatStatusValues(
+        state,
+        attackingCharacterId,
+        "monster-accuracy-penalty"
+      )
+    : 0;
   return {
     monsterId: enemy.monsterId ?? enemy.id,
     name: enemy.name,
@@ -1033,7 +1113,18 @@ function groupCombatEnemyActorStats(
     armor: enemy.defense,
     resist: enemy.defense,
     dexterity: 5,
-    tags: []
+    tags: [],
+    contextModifiers: {
+      outgoingDamageMultiplier: outgoingDamageBp / 10_000,
+      incomingDamageMultiplier: 1,
+      accuracyDeltaPp: 0,
+      evasionDeltaPp: evasionBonusPp + accuracyPenaltyPp,
+      abilityWeightDelta: 0,
+      signatureCooldownDelta: 0,
+      flatArmorDelta: 0,
+      flatResistDelta: 0,
+      flatDexterityDelta: 0
+    }
   };
 }
 
@@ -1043,8 +1134,7 @@ function applyEnemyPhase(
   monsterBarkIds: string[]
 ): void {
   for (const enemy of state.enemies.filter((candidate) => candidate.hp > 0).sort((a, b) => a.order - b.order)) {
-    const target = chooseEnemyTarget(state);
-    if (!target) {
+    if (!chooseEnemyTarget(state)) {
       break;
     }
     tickEnemyAbilityCooldowns(enemy);
@@ -1084,12 +1174,10 @@ function applyEnemyPhase(
         monsterBarkIds.push(bark.barkId);
       }
     }
-    const rawDamage = ability
-      ? rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability)
-      : Math.max(1, enemy.attack - target.defense);
-    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
-    enemyContribution.damage += damage;
-    if (ability) {
+    const special = ability
+      ? executeGroupCombatEnemyAbility(state, enemy, ability, lines)
+      : false;
+    if (ability && special) {
       enemyContribution.specialActions += 1;
       enemy.abilityCooldowns = {
         ...(enemy.abilityCooldowns ?? {}),
@@ -1101,14 +1189,25 @@ function applyEnemyPhase(
       if (ability.oncePerFight) {
         enemy.usedOnceAbilityIds = [...new Set([...(enemy.usedOnceAbilityIds ?? []), ability.id])].sort();
       }
-      lines.push(
-        damage > 0
-          ? `«${enemy.name}» застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
-          : `«${enemy.name}» застосовує ${ability.label}, але ${target.name} уникає шкоди.`
-      );
     } else {
+      const target = chooseEnemyTarget(state);
+      if (!target) {
+        break;
+      }
+      const outgoingDamageBp = multiplyGroupCombatStatusValues(
+        state,
+        enemy.id,
+        "monster-outgoing-damage"
+      );
+      const rawDamage = Math.max(
+        1,
+        Math.floor(Math.max(1, enemy.attack - target.defense) * outgoingDamageBp / 10_000)
+      );
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+      enemyContribution.damage += damage;
       lines.push(`«${enemy.name}» відповідає ${target.name}: ${damage} шкоди.`);
     }
+    tickEnemyOwnStatuses(state, enemy.id);
   }
 }
 
@@ -1133,7 +1232,7 @@ function applyGroupCombatEnemyDamage(
         ? Math.max(0, damage - Math.max(1, Math.floor(damage / 2)))
         : Math.min(damage, protection.value);
       damage -= prevented;
-      const source = getContribution(state, protection.sourceCharacterId);
+      const source = getContribution(state, protection.sourceCharacterId!);
       if (protection.kind === "guard") {
         source.guardPrevented += prevented;
       } else {
@@ -1156,7 +1255,7 @@ function applyGroupCombatEnemyDamage(
       for (const counter of counters) {
         const counterDamage = Math.min(enemy.hp, counter.value);
         enemy.hp -= counterDamage;
-        getContribution(state, counter.sourceCharacterId).damage += counterDamage;
+        getContribution(state, counter.sourceCharacterId!).damage += counterDamage;
         getEnemyContribution(state, enemy.id).damageTaken += counterDamage;
         const source = state.participants.find((candidate) => candidate.characterId === counter.sourceCharacterId);
         if (source) {
@@ -1165,6 +1264,65 @@ function applyGroupCombatEnemyDamage(
       }
     }
     return damage;
+}
+
+function applyPlayerDamageToEnemy(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  rawDamage: number
+): number {
+  let damage = Math.min(enemy.hp, Math.max(0, Math.floor(rawDamage)));
+  const reductions = state.statuses
+    .filter((status) =>
+      status.kind === "monster-damage-reduction" &&
+      status.targetKind === "enemy" &&
+      status.targetId === enemy.id &&
+      status.remainingTurns > 0 &&
+      status.sourceEnemyId
+    )
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const totalReductionBp = Math.min(
+    10_000,
+    reductions.reduce((total, status) => total + status.value, 0)
+  );
+  if (damage > 0 && totalReductionBp > 0) {
+    const reducedDamage = Math.max(
+      1,
+      Math.floor(damage * (10_000 - totalReductionBp) / 10_000)
+    );
+    let preventionLeft = damage - reducedDamage;
+    const totalAuthoredReduction = reductions.reduce(
+      (total, status) => total + status.value,
+      0
+    );
+    reductions.forEach((status, index) => {
+      const prevented = index === reductions.length - 1
+        ? preventionLeft
+        : Math.min(
+            preventionLeft,
+            Math.floor(
+              (damage - reducedDamage) * status.value / totalAuthoredReduction
+            )
+          );
+      getEnemyContribution(state, status.sourceEnemyId!).guardPrevented += prevented;
+      preventionLeft -= prevented;
+    });
+    damage = reducedDamage;
+  }
+  const shield = enemy.shield;
+  if (shield && damage > 0) {
+    const absorbed = Math.min(shield.points, damage);
+    damage -= absorbed;
+    shield.points -= absorbed;
+    getEnemyContribution(state, shield.sourceEnemyId).guardPrevented += absorbed;
+    if (shield.points <= 0) {
+      delete enemy.shield;
+    }
+  }
+  damage = Math.min(enemy.hp, damage);
+  enemy.hp -= damage;
+  getEnemyContribution(state, enemy.id).damageTaken += damage;
+  return damage;
 }
 
 function getEnemyContribution(
@@ -1204,8 +1362,10 @@ function selectGroupCombatEnemyAbility(
     .map((abilityId) => findMonsterAbility(abilityId))
     .filter((ability) =>
       ability !== null &&
+      isSupportedGroupCombatMonsterAbility(ability.id) &&
       (enemy.abilityCooldowns?.[ability.id]?.remainingTurns ?? 0) <= 0 &&
-      (!ability.oncePerFight || !(enemy.usedOnceAbilityIds ?? []).includes(ability.id))
+      (!ability.oncePerFight || !(enemy.usedOnceAbilityIds ?? []).includes(ability.id)) &&
+      canUseGroupCombatEnemyAbility(state, enemy, ability)
     );
   if (available.length === 0) {
     return null;
@@ -1214,6 +1374,151 @@ function selectGroupCombatEnemyAbility(
     `${state.deterministicSeed}:${state.turn}:${enemy.order}:monster-ability`
   );
   return available[rng.nextInt(0, available.length - 1)] ?? null;
+}
+
+function executeGroupCombatEnemyAbility(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition,
+  lines: string[]
+): boolean {
+  if (!isSupportedGroupCombatMonsterAbility(ability.id)) {
+    return false;
+  }
+  const contribution = getEnemyContribution(state, enemy.id);
+  if (ability.id === "monster.smoke-without-approval") {
+    let totalDamage = 0;
+    const targets = livingParticipants(state);
+    for (const target of targets) {
+      const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+      totalDamage += damage;
+      if (rawDamage > 0) {
+        addOrRefreshMonsterStatus(state, {
+          id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
+          kind: "monster-accuracy-penalty",
+          sourceEnemyId: enemy.id,
+          sourceAbilityId: ability.id,
+          targetKind: "participant",
+          targetId: target.characterId,
+          value: positiveInteger(Number(ability.parameters.accuracyPenaltyPp ?? 0)),
+          remainingTurns: positiveInteger(Number(ability.parameters.durationTargetActivations ?? 1)),
+          appliedTurn: state.turn
+        });
+      }
+    }
+    contribution.damage += totalDamage;
+    contribution.control += targets.length;
+    lines.push(
+      `«${enemy.name}» застосовує ${ability.label} по всій ватазі: ${totalDamage} шкоди.`
+    );
+    return true;
+  }
+  if (ability.id === "monster.preapproved-bite") {
+    const target = chooseEnemyTarget(state);
+    if (!target) {
+      return false;
+    }
+    const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    contribution.damage += damage;
+    if (rawDamage > 0) {
+      addOrRefreshMonsterStatus(state, {
+        id: `${state.turn}:${enemy.id}:${target.characterId}:burn`,
+        kind: "monster-burn",
+        sourceEnemyId: enemy.id,
+        sourceAbilityId: ability.id,
+        targetKind: "participant",
+        targetId: target.characterId,
+        value: Math.max(
+          1,
+          Math.floor(enemy.attack * Number(ability.parameters.burnDamageMultiplier ?? 0))
+        ),
+        remainingTurns: positiveInteger(Number(ability.parameters.burnTicks ?? 1)),
+        appliedTurn: state.turn
+      });
+      contribution.control += 1;
+    }
+    lines.push(
+      damage > 0
+        ? `«${enemy.name}» застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
+        : `«${enemy.name}» застосовує ${ability.label}, але ${target.name} уникає шкоди.`
+    );
+    return true;
+  }
+  if (ability.id === "monster.royal-scurry") {
+    applyEnemyDefenseEffects(state, enemy, enemy, ability);
+    contribution.guardedTurns += 1;
+    lines.push(`«${enemy.name}» застосовує ${ability.label} й укріплює власний захист.`);
+    return true;
+  }
+  if (ability.id === "monster.cabbage-plate") {
+    const healed = healEnemy(
+      enemy,
+      Math.max(1, Math.floor(enemy.hpMax * Number(ability.parameters.selfHealMaxHpFraction ?? 0)))
+    );
+    contribution.healing += healed;
+    applyEnemyShield(state, enemy, enemy, ability, Number(ability.parameters.shieldMaxHpFraction ?? 0));
+    lines.push(`«${enemy.name}» застосовує ${ability.label}: +${healed} HP і щит.`);
+    return true;
+  }
+  if (ability.id === "monster.compound-interest") {
+    const healed = healEnemy(
+      enemy,
+      Math.max(1, Math.floor(enemy.hpMax * Number(ability.parameters.selfHealMaxHpFraction ?? 0)))
+    );
+    contribution.healing += healed;
+    addEnemyBuffStatus(
+      state,
+      enemy,
+      enemy,
+      ability.id,
+      "monster-outgoing-damage",
+      Math.floor(Number(ability.parameters.outgoingDamageMultiplier ?? 1) * 10_000),
+      positiveInteger(Number(ability.parameters.durationOwnActivations ?? 1))
+    );
+    lines.push(`«${enemy.name}» застосовує ${ability.label}: +${healed} HP і сильніша відповідь.`);
+    return true;
+  }
+  if (
+    ability.id === "monster.common-group-rally" ||
+    ability.id === "monster.approved-dam" ||
+    ability.id === "monster.classified-rustle"
+  ) {
+    const allies = livingEnemies(state);
+    for (const ally of allies) {
+      applyEnemyDefenseEffects(state, enemy, ally, ability);
+    }
+    lines.push(`«${enemy.name}» застосовує ${ability.label} й укріплює всіх монстрів.`);
+    return true;
+  }
+  if (ability.id === "monster.return-to-staff") {
+    const ally = lowestHpEnemyAlly(state, enemy.id);
+    if (!ally) {
+      applyEnemyShield(
+        state,
+        enemy,
+        enemy,
+        ability,
+        Number(ability.parameters.soloFallbackShieldMaxHpFraction ?? 0)
+      );
+      lines.push(`«${enemy.name}» застосовує ${ability.label} й прикривається щитом.`);
+      return true;
+    }
+    const healed = healEnemy(
+      ally,
+      Math.max(1, Math.floor(ally.hpMax * Number(ability.parameters.healTargetMaxHpFraction ?? 0)))
+    );
+    contribution.healing += healed;
+    const before = state.statuses.length;
+    state.statuses = state.statuses.filter(
+      (status) => !(status.targetKind === "enemy" && status.targetId === ally.id && status.kind === "bleed")
+    );
+    contribution.control += before - state.statuses.length;
+    lines.push(`«${enemy.name}» застосовує ${ability.label} до «${ally.name}»: +${healed} HP.`);
+    return true;
+  }
+  return false;
 }
 
 function rollGroupCombatEnemyAbilityDamage(
@@ -1237,14 +1542,303 @@ function rollGroupCombatEnemyAbilityDamage(
         }
       : {}
   );
+  const modifiedMonster = {
+    ...monster,
+    contextModifiers: groupCombatEnemyActorStats(
+      state,
+      enemy,
+      enemy.level ?? monster.level
+    ).contextModifiers!
+  };
   return rollMonsterSkillDamage(
     actorCombatStats(target),
-    monster,
+    modifiedMonster,
     monsterAbilityAsCombatSkill(ability),
     new SeededRandomSource(
-      `${state.deterministicSeed}:${state.turn}:${enemy.order}:${ability.id}:damage`
+      `${state.deterministicSeed}:${state.turn}:${enemy.order}:${ability.id}:${target.rosterOrder}:damage`
     )
   );
+}
+
+function canUseGroupCombatEnemyAbility(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition
+): boolean {
+  if (
+    ability.id === "monster.smoke-without-approval" ||
+    ability.id === "monster.preapproved-bite"
+  ) {
+    return livingParticipants(state).length > 0;
+  }
+  if (
+    ability.id === "monster.royal-scurry" ||
+    ability.id === "monster.common-group-rally" ||
+    ability.id === "monster.approved-dam" ||
+    ability.id === "monster.classified-rustle"
+  ) {
+    return true;
+  }
+  if (ability.id === "monster.cabbage-plate") {
+    return enemy.hp < enemy.hpMax || (enemy.shield?.points ?? 0) <= 0;
+  }
+  if (ability.id === "monster.compound-interest") {
+    return enemy.hp < enemy.hpMax ||
+      !hasGroupCombatStatus(state, enemy.id, "monster-outgoing-damage");
+  }
+  if (ability.id === "monster.return-to-staff") {
+    const ally = lowestHpEnemyAlly(state, enemy.id);
+    return ally
+      ? ally.hp < ally.hpMax ||
+          state.statuses.some((status) =>
+            status.kind === "bleed" &&
+            status.targetKind === "enemy" &&
+            status.targetId === ally.id
+          )
+      : (enemy.shield?.points ?? 0) <= 0;
+  }
+  return false;
+}
+
+function livingParticipants(state: GroupCombatState): GroupCombatActorSnapshot[] {
+  return state.participants
+    .filter((participant) => participant.hp > 0)
+    .sort((left, right) => left.rosterOrder - right.rosterOrder);
+}
+
+function livingEnemies(state: GroupCombatState): GroupCombatEnemyState[] {
+  return state.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .sort((left, right) => left.order - right.order);
+}
+
+function lowestHpEnemyAlly(
+  state: GroupCombatState,
+  sourceEnemyId: string
+): GroupCombatEnemyState | null {
+  const allies = livingEnemies(state).filter((enemy) => enemy.id !== sourceEnemyId);
+  return allies.length === 0
+    ? null
+    : allies.reduce((lowest, candidate) =>
+        compareHpRatio(candidate, lowest, "order") < 0 ? candidate : lowest
+      );
+}
+
+function healEnemy(enemy: GroupCombatEnemyState, amount: number): number {
+  if (enemy.hp <= 0) {
+    return 0;
+  }
+  const before = enemy.hp;
+  enemy.hp = Math.min(enemy.hpMax, enemy.hp + Math.max(0, Math.floor(amount)));
+  return enemy.hp - before;
+}
+
+function applyEnemyDefenseEffects(
+  state: GroupCombatState,
+  source: GroupCombatEnemyState,
+  target: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition
+): void {
+  const duration = positiveInteger(Number(ability.parameters.durationOwnActivations ?? 1));
+  const shieldFraction = Number(ability.parameters.shieldMaxHpFraction ?? 0);
+  if (shieldFraction > 0) {
+    applyEnemyShield(state, source, target, ability, shieldFraction);
+  }
+  const damageReduction = Number(
+    ability.parameters.damageReduction ??
+    ability.parameters.selfDamageReduction ??
+    0
+  );
+  if (damageReduction > 0) {
+    addEnemyBuffStatus(
+      state,
+      source,
+      target,
+      ability.id,
+      "monster-damage-reduction",
+      Math.floor(damageReduction * 10_000),
+      duration
+    );
+  }
+  const evasionBonus = Number(
+    ability.parameters.evasionBonusPp ??
+    ability.parameters.selfEvasionBonusPp ??
+    0
+  );
+  if (evasionBonus > 0) {
+    addEnemyBuffStatus(
+      state,
+      source,
+      target,
+      ability.id,
+      "monster-evasion",
+      Math.floor(evasionBonus),
+      duration
+    );
+  }
+}
+
+function applyEnemyShield(
+  state: GroupCombatState,
+  source: GroupCombatEnemyState,
+  target: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition,
+  fraction: number
+): void {
+  const points = Math.max(1, Math.floor(target.hpMax * Math.min(0.4, fraction)));
+  if ((target.shield?.points ?? 0) >= points) {
+    return;
+  }
+  target.shield = {
+    sourceAbilityId: ability.id,
+    sourceEnemyId: source.id,
+    points
+  };
+  getEnemyContribution(state, source.id).guardedTurns += 1;
+}
+
+function addEnemyBuffStatus(
+  state: GroupCombatState,
+  source: GroupCombatEnemyState,
+  target: GroupCombatEnemyState,
+  sourceAbilityId: string,
+  kind: Extract<
+    GroupCombatStatusKind,
+    "monster-damage-reduction" | "monster-evasion" | "monster-outgoing-damage"
+  >,
+  value: number,
+  remainingTurns: number
+): void {
+  addOrRefreshMonsterStatus(state, {
+    id: `${state.turn}:${source.id}:${target.id}:${kind}`,
+    kind,
+    sourceEnemyId: source.id,
+    sourceAbilityId,
+    targetKind: "enemy",
+    targetId: target.id,
+    value: positiveInteger(value),
+    remainingTurns: positiveInteger(remainingTurns),
+    appliedTurn: state.turn
+  });
+}
+
+function addOrRefreshMonsterStatus(
+  state: GroupCombatState,
+  status: GroupCombatTimedStatus
+): void {
+  const existing = state.statuses.find((candidate) =>
+    candidate.kind === status.kind &&
+    candidate.sourceEnemyId === status.sourceEnemyId &&
+    candidate.sourceAbilityId === status.sourceAbilityId &&
+    candidate.targetKind === status.targetKind &&
+    candidate.targetId === status.targetId
+  );
+  if (!existing) {
+    state.statuses.push(status);
+    return;
+  }
+  existing.value = Math.max(existing.value, status.value);
+  existing.remainingTurns = Math.max(existing.remainingTurns, status.remainingTurns);
+  if (status.appliedTurn !== undefined) {
+    existing.appliedTurn = status.appliedTurn;
+  }
+}
+
+function tickEnemyOwnStatuses(state: GroupCombatState, enemyId: string): void {
+  state.statuses = state.statuses
+    .map((status) =>
+      status.targetKind === "enemy" &&
+      status.targetId === enemyId &&
+      status.kind !== "bleed" &&
+      (status.appliedTurn ?? -1) < state.turn
+        ? { ...status, remainingTurns: status.remainingTurns - 1 }
+        : status
+    )
+    .filter((status) => status.remainingTurns > 0);
+}
+
+function applyParticipantMonsterEffects(
+  state: GroupCombatState,
+  participant: GroupCombatActorSnapshot,
+  lines: string[]
+): void {
+  const burns = state.statuses
+    .filter((status) =>
+      status.kind === "monster-burn" &&
+      status.targetKind === "participant" &&
+      status.targetId === participant.characterId &&
+      status.remainingTurns > 0
+    )
+    .sort((left, right) => left.id.localeCompare(right.id));
+  if (burns.length === 0) {
+    return;
+  }
+  let totalDamage = 0;
+  for (const status of burns) {
+    const damage = Math.min(participant.hp, status.value);
+    participant.hp -= damage;
+    totalDamage += damage;
+    if (status.sourceEnemyId) {
+      getEnemyContribution(state, status.sourceEnemyId).damage += damage;
+    }
+  }
+  getContribution(state, participant.characterId).damageTaken += totalDamage;
+  lines.push(`🔥 ${participant.name} втрачає ${totalDamage} HP.`);
+}
+
+function tickParticipantMonsterEffects(
+  state: GroupCombatState,
+  characterId: string
+): void {
+  state.statuses = state.statuses
+    .map((status) =>
+      status.targetKind === "participant" &&
+      status.targetId === characterId &&
+      (status.kind === "monster-accuracy-penalty" || status.kind === "monster-burn")
+        ? { ...status, remainingTurns: status.remainingTurns - 1 }
+        : status
+    )
+    .filter((status) => status.remainingTurns > 0);
+}
+
+function hasGroupCombatStatus(
+  state: GroupCombatState,
+  targetId: string,
+  kind: GroupCombatStatusKind
+): boolean {
+  return state.statuses.some((status) =>
+    status.targetId === targetId &&
+    status.kind === kind &&
+    status.remainingTurns > 0
+  );
+}
+
+function sumGroupCombatStatusValues(
+  state: GroupCombatState,
+  targetId: string,
+  kind: GroupCombatStatusKind
+): number {
+  return state.statuses
+    .filter((status) =>
+      status.targetId === targetId &&
+      status.kind === kind &&
+      status.remainingTurns > 0
+    )
+    .reduce((sum, status) => sum + status.value, 0);
+}
+
+function multiplyGroupCombatStatusValues(
+  state: GroupCombatState,
+  targetId: string,
+  kind: GroupCombatStatusKind
+): number {
+  return state.statuses
+    .filter((status) =>
+      status.targetId === targetId &&
+      status.kind === kind &&
+      status.remainingTurns > 0
+    )
+    .reduce((product, status) => Math.floor(product * status.value / 10_000), 10_000);
 }
 
 function chooseEnemyTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
@@ -1265,7 +1859,7 @@ function applyBleedStatuses(state: GroupCombatState, lines: string[]): void {
     if (enemy) {
       const damage = Math.min(enemy.hp, status.value);
       enemy.hp -= damage;
-      getContribution(state, status.sourceCharacterId).damage += damage;
+      getContribution(state, status.sourceCharacterId!).damage += damage;
       getEnemyContribution(state, enemy.id).damageTaken += damage;
       lines.push(`🩸 «${enemy.name}» втрачає ${damage} HP.`);
     }
@@ -1722,7 +2316,8 @@ function appendRecap(
           .sort((left, right) => left.id.localeCompare(right.id));
         return {
           hp: enemy.hp,
-          ...(cooldowns.length > 0 ? { cooldowns } : {})
+          ...(cooldowns.length > 0 ? { cooldowns } : {}),
+          ...(enemy.shield?.points ? { shieldPoints: enemy.shield.points } : {})
         };
       }),
       ...(effects.length > 0 ? { effects } : {})

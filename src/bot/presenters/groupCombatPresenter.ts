@@ -266,6 +266,9 @@ function presentGroupCombatTacticalState(
     lines.push(`🧻 ${escapeHtml(item?.name ?? cooldown.itemId)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`);
   }
   for (const enemy of state.enemies) {
+    if (enemy.shield?.points) {
+      lines.push(`🫧 ${escapeHtml(enemy.name)} · щит: ${enemy.shield.points}.`);
+    }
     for (const cooldown of Object.values(enemy.abilityCooldowns ?? {})) {
       if (cooldown.remainingTurns > 0) {
         lines.push(
@@ -304,6 +307,9 @@ function presentGroupCombatRecapSnapshot(
       continue;
     }
     opponentRows.push(`👹 ${escapeHtml(enemy.name)} · рівень ${enemy.level ?? "невідомий"} — ❤️ життя ${row.hp}/${enemy.hpMax}`);
+    if (row.shieldPoints) {
+      noticeLines.push(`🫧 ${escapeHtml(enemy.name)} · щит: ${row.shieldPoints}.`);
+    }
     for (const cooldown of row.cooldowns ?? []) {
       noticeLines.push(
         `🫁 ${escapeHtml(getMonsterAbilityLabel(cooldown.id) ?? cooldown.id)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`
@@ -346,7 +352,16 @@ function presentGroupCombatRecapActions(
 function presentEffectLines(
   session: GroupCombatSessionRecord,
   effects: Array<{
-    kind: "guard" | "response-mitigation" | "counter" | "bleed";
+    kind:
+      | "guard"
+      | "response-mitigation"
+      | "counter"
+      | "bleed"
+      | "monster-accuracy-penalty"
+      | "monster-burn"
+      | "monster-damage-reduction"
+      | "monster-evasion"
+      | "monster-outgoing-damage";
     targetKind: "participant" | "enemy";
     targetId: string;
     remainingTurns: number;
@@ -362,7 +377,17 @@ function presentEffectLines(
         ? "🌀 послаблення відповіді"
         : effect.kind === "counter"
           ? "↩️ контрудар"
-          : "🩸 кровотеча";
+          : effect.kind === "bleed"
+            ? "🩸 кровотеча"
+            : effect.kind === "monster-accuracy-penalty"
+              ? "🌫️ збита влучність"
+              : effect.kind === "monster-burn"
+                ? "🔥 горіння"
+                : effect.kind === "monster-damage-reduction"
+                  ? "🧱 укріплення"
+                  : effect.kind === "monster-evasion"
+                    ? "🪽 ухилення"
+                    : "📈 посилена шкода";
     return `${label} · ${escapeHtml(target ?? effect.targetId)}: ще ${formatTurns(effect.remainingTurns)}.`;
   });
 }

@@ -14,10 +14,13 @@ import {
   GROUP_COMBAT_TURN_LIMIT,
   buildLeftPassageEncounterRewardBudget,
   deriveLeftPassageEnemyCount,
+  filterSupportedGroupCombatMonsterAbilityIds,
+  isSupportedGroupCombatMonsterAbility,
   type GroupCombatResult,
   type GroupCombatSettlementPlan,
   type GroupCombatSettlementReceipt,
-  type GroupCombatState
+  type GroupCombatState,
+  type GroupCombatStatusKind
 } from "./groupCombat";
 import { monsters } from "../../content";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
@@ -134,7 +137,12 @@ const enemySchema = z.object({
     id: z.string().min(1),
     remainingTurns: positiveInteger.max(13)
   }).strict()).optional(),
-  usedOnceAbilityIds: z.array(z.string().min(1)).max(13).optional()
+  usedOnceAbilityIds: z.array(z.string().min(1)).max(13).optional(),
+  shield: z.object({
+    sourceAbilityId: z.string().min(1),
+    sourceEnemyId: z.string().min(1),
+    points: positiveInteger
+  }).strict().optional()
 }).strict().refine((value) => value.hp <= value.hpMax, {
   message: "Enemy HP exceeds its maximum."
 });
@@ -176,12 +184,25 @@ const combatBarkStateSchema = z.object({
 
 const statusSchema = z.object({
   id: z.string().min(1).max(587),
-  kind: z.enum(["guard", "response-mitigation", "counter", "bleed"]),
-  sourceCharacterId: z.string().min(1),
+  kind: z.enum([
+    "guard",
+    "response-mitigation",
+    "counter",
+    "bleed",
+    "monster-accuracy-penalty",
+    "monster-burn",
+    "monster-damage-reduction",
+    "monster-evasion",
+    "monster-outgoing-damage"
+  ]),
+  sourceCharacterId: z.string().min(1).optional(),
+  sourceEnemyId: z.string().min(1).optional(),
+  sourceAbilityId: z.string().min(1).optional(),
   targetKind: z.enum(["participant", "enemy"]),
   targetId: z.string().min(1),
   value: positiveInteger,
-  remainingTurns: positiveInteger.max(13)
+  remainingTurns: positiveInteger.max(13),
+  appliedTurn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT).optional()
 }).strict();
 
 const recapSchema = z.object({
@@ -206,10 +227,21 @@ const recapSchema = z.object({
       cooldowns: z.array(z.object({
         id: z.string().min(1),
         remainingTurns: positiveInteger.max(13)
-      }).strict()).max(13).optional()
+      }).strict()).max(13).optional(),
+      shieldPoints: positiveInteger.optional()
     }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
     effects: z.array(z.object({
-      kind: z.enum(["guard", "response-mitigation", "counter", "bleed"]),
+      kind: z.enum([
+        "guard",
+        "response-mitigation",
+        "counter",
+        "bleed",
+        "monster-accuracy-penalty",
+        "monster-burn",
+        "monster-damage-reduction",
+        "monster-evasion",
+        "monster-outgoing-damage"
+      ]),
       targetKind: z.enum(["participant", "enemy"]),
       targetId: z.string().min(1),
       remainingTurns: positiveInteger.max(13)
@@ -424,14 +456,43 @@ const stateSchema = z.object({
     }
   }
   for (const status of state.statuses) {
-    if (!participantIds.includes(status.sourceCharacterId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Status source is not a participant." });
+    const participantSourced = status.kind === "guard" ||
+      status.kind === "response-mitigation" ||
+      status.kind === "counter" ||
+      status.kind === "bleed";
+    if (
+      participantSourced
+        ? !status.sourceCharacterId ||
+          status.sourceEnemyId !== undefined ||
+          status.sourceAbilityId !== undefined ||
+          !participantIds.includes(status.sourceCharacterId)
+        : !status.sourceEnemyId ||
+          !status.sourceAbilityId ||
+          status.sourceCharacterId !== undefined ||
+          !enemyIds.includes(status.sourceEnemyId) ||
+          status.appliedTurn === undefined ||
+          status.appliedTurn > state.turn ||
+          !isCanonicalMonsterStatus(state, status)
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Status source is not canonical." });
     }
     const legalTarget = status.targetKind === "participant"
       ? participantIds.includes(status.targetId)
       : state.enemies.some((enemy) => enemy.id === status.targetId);
-    if (!legalTarget || (status.kind === "bleed") !== (status.targetKind === "enemy")) {
+    const enemyTargetKind = status.kind === "bleed" ||
+      status.kind === "monster-damage-reduction" ||
+      status.kind === "monster-evasion" ||
+      status.kind === "monster-outgoing-damage";
+    if (!legalTarget || enemyTargetKind !== (status.targetKind === "enemy")) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Status target or kind is invalid." });
+    }
+  }
+  for (const enemy of state.enemies) {
+    if (
+      enemy.shield &&
+      !isCanonicalEnemyShield(state, enemy)
+    ) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Enemy shield source is not canonical." });
     }
   }
   if (state.status === "won" && state.enemies.some((row) => row.hp > 0)) {
@@ -598,10 +659,10 @@ const stateSchema = z.object({
             }
           : {}
       );
-      const expectedAbilityIds = createMonsterAbilityRuntime({
+      const expectedAbilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
         monster: stats,
         seed: `${state.production.encounterSeed}:${state.partySessionId}:enemy:${enemy.order}`
-      })?.loadoutIds ?? [];
+      })?.loadoutIds ?? []);
       if ((enemy.abilityIds ?? []).join("\0") !== expectedAbilityIds.join("\0")) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy ability loadout is not canonical." });
       }
@@ -646,6 +707,122 @@ const stateSchema = z.object({
     }
   }
 });
+
+type MonsterValidationState = {
+  turn: number;
+  enemies: Array<{
+    id: string;
+    attack: number;
+    hpMax: number;
+    abilityIds?: string[] | undefined;
+    shield?: {
+      sourceAbilityId: string;
+      sourceEnemyId: string;
+      points: number;
+    } | undefined;
+  }>;
+};
+
+type MonsterValidationStatus = {
+  kind: GroupCombatStatusKind;
+  sourceEnemyId?: string | undefined;
+  sourceAbilityId?: string | undefined;
+  targetId: string;
+  value: number;
+  remainingTurns: number;
+};
+
+function isCanonicalMonsterStatus(
+  state: MonsterValidationState,
+  status: MonsterValidationStatus
+): boolean {
+  if (!status.sourceEnemyId || !status.sourceAbilityId) {
+    return false;
+  }
+  const source = state.enemies.find((enemy) => enemy.id === status.sourceEnemyId);
+  const ability = findMonsterAbility(status.sourceAbilityId);
+  if (
+    !source ||
+    !ability ||
+    !isSupportedGroupCombatMonsterAbility(ability.id) ||
+    !(source.abilityIds ?? []).includes(ability.id)
+  ) {
+    return false;
+  }
+  const parameters = ability.parameters;
+  if (status.kind === "monster-accuracy-penalty") {
+    return ability.id === "monster.smoke-without-approval" &&
+      status.value === Math.floor(Number(parameters.accuracyPenaltyPp ?? 0)) &&
+      status.remainingTurns <= Math.floor(Number(parameters.durationTargetActivations ?? 1));
+  }
+  if (status.kind === "monster-burn") {
+    return ability.id === "monster.preapproved-bite" &&
+      status.value === Math.max(
+        1,
+        Math.floor(source.attack * Number(parameters.burnDamageMultiplier ?? 0))
+      ) &&
+      status.remainingTurns <= Math.floor(Number(parameters.burnTicks ?? 1));
+  }
+  if (status.kind === "monster-outgoing-damage") {
+    return ability.id === "monster.compound-interest" &&
+      status.targetId === source.id &&
+      status.value === Math.floor(Number(parameters.outgoingDamageMultiplier ?? 1) * 10_000) &&
+      status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
+  }
+  if (status.kind === "monster-damage-reduction") {
+    const reduction = Number(
+      parameters.damageReduction ??
+      parameters.selfDamageReduction ??
+      0
+    );
+    return reduction > 0 &&
+      (ability.id !== "monster.royal-scurry" || status.targetId === source.id) &&
+      status.value === Math.floor(reduction * 10_000) &&
+      status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
+  }
+  if (status.kind === "monster-evasion") {
+    const evasion = Number(
+      parameters.evasionBonusPp ??
+      parameters.selfEvasionBonusPp ??
+      0
+    );
+    return evasion > 0 &&
+      (ability.id !== "monster.royal-scurry" || status.targetId === source.id) &&
+      status.value === Math.floor(evasion) &&
+      status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
+  }
+  return false;
+}
+
+function isCanonicalEnemyShield(
+  state: MonsterValidationState,
+  target: MonsterValidationState["enemies"][number]
+): boolean {
+  const shield = target.shield;
+  if (!shield) {
+    return true;
+  }
+  const source = state.enemies.find((enemy) => enemy.id === shield.sourceEnemyId);
+  const ability = findMonsterAbility(shield.sourceAbilityId);
+  if (
+    !source ||
+    !ability ||
+    !isSupportedGroupCombatMonsterAbility(ability.id) ||
+    !(source.abilityIds ?? []).includes(ability.id)
+  ) {
+    return false;
+  }
+  const fraction = ability.id === "monster.return-to-staff"
+    ? Number(ability.parameters.soloFallbackShieldMaxHpFraction ?? 0)
+    : Number(ability.parameters.shieldMaxHpFraction ?? 0);
+  return fraction > 0 &&
+    (
+      ability.id === "monster.common-group-rally" ||
+      ability.id === "monster.approved-dam" ||
+      target.id === source.id
+    ) &&
+    shield.points <= Math.max(1, Math.floor(target.hpMax * Math.min(0.4, fraction)));
+}
 
 const resultSchema = z.object({
   kind: z.enum(["rewardless-proof", "left-passage-party"]),

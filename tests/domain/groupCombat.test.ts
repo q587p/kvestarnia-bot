@@ -7,6 +7,7 @@ import {
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
   deriveLeftPassageEnemyCount,
+  filterSupportedGroupCombatMonsterAbilityIds,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
@@ -206,8 +207,124 @@ describe("group combat proof reducer", () => {
     expect(plan.participants[1]!.effects?.activityKey).toBeNull();
   });
 
-  it("uses a frozen authored monster special and records its cooldown and contribution", () => {
-    const state = leftPassageState(1);
+  it("rewards every accepted manual action when the first actor kills the final enemy", () => {
+    const state = leftPassageState(3);
+    state.enemies.slice(1).forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.enemies[0]!.hp = 1;
+    state.participants[1]!.mana = 10;
+    state.participants[2]!.hp -= 5;
+    state.participants[2]!.combatItemQuantities["item.responsible-panic-bandage"] = 1;
+    const skippedAbilityMana = state.participants[1]!.mana;
+    const skippedItemHp = state.participants[2]!.hp;
+    const actions: GroupCombatAction[] = [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id),
+      action(state, 1, "class", "enemy", state.enemies[0]!.id),
+      {
+        ...action(
+          state,
+          2,
+          "item",
+          "self",
+          state.participants[2]!.characterId
+        ),
+        payloadKey: "item.responsible-panic-bandage"
+      }
+    ];
+    const resolved = resolveGroupCombatTurn(state, actions);
+    const plan = resolved.settlementPlan!;
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.state.contributions.map((row) => row.committedActions)).toEqual([1, 1, 1]);
+    expect(plan.participants.every((row) =>
+      row.rewards.xp > 0 &&
+      buildGroupCombatSettlementReceipt(plan, row.characterId)?.manualParticipation
+    )).toBe(true);
+    expect(plan.participants.filter((row) => row.effects?.activityKey)).toHaveLength(1);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0)).toBe(
+      state.production!.rewards.winXpTotal
+    );
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0)).toBe(
+      state.production!.rewards.winGoldTotal
+    );
+    expect(resolved.state.participants[1]!.mana).toBe(skippedAbilityMana);
+    expect(resolved.state.participants[1]!.cooldowns).toBeUndefined();
+    expect(resolved.state.participants[2]!.hp).toBe(skippedItemHp);
+    expect(resolved.state.participants[2]!.combatItemQuantities).toEqual({
+      "item.responsible-panic-bandage": 1
+    });
+    expect(resolved.committedConsumables).toEqual([]);
+  });
+
+  it("records accepted manual participation before a start-of-turn bleed win", () => {
+    const state = leftPassageState(3);
+    state.enemies.slice(1).forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.enemies[0]!.hp = 1;
+    state.participants[2]!.hp -= 5;
+    state.participants[2]!.combatItemQuantities["item.responsible-panic-bandage"] = 1;
+    state.statuses.push({
+      id: "final-bleed",
+      kind: "bleed",
+      sourceCharacterId: state.participants[0]!.characterId,
+      targetKind: "enemy",
+      targetId: state.enemies[0]!.id,
+      value: 1,
+      remainingTurns: 1
+    });
+    const manaBefore = state.participants[1]!.mana;
+    const itemBefore = structuredClone(state.participants[2]!.combatItemQuantities);
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", state.participants[0]!.characterId),
+      action(state, 1, "class", "enemy", state.enemies[0]!.id),
+      {
+        ...action(state, 2, "item", "self", state.participants[2]!.characterId),
+        payloadKey: "item.responsible-panic-bandage"
+      }
+    ]);
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.state.contributions.map((row) => row.committedActions)).toEqual([1, 1, 1]);
+    expect(resolved.settlementPlan!.participants.every((row) =>
+      row.rewards.xp > 0 &&
+      buildGroupCombatSettlementReceipt(
+        resolved.settlementPlan!,
+        row.characterId
+      )?.manualParticipation
+    )).toBe(true);
+    expect(resolved.settlementPlan!.participants.filter((row) =>
+      row.effects?.activityKey
+    )).toHaveLength(1);
+    expect(resolved.state.participants[1]!.mana).toBe(manaBefore);
+    expect(resolved.state.participants[2]!.combatItemQuantities).toEqual(itemBefore);
+    expect(resolved.committedConsumables).toEqual([]);
+  });
+
+  it("keeps timeout-only participants ineligible after an early terminal action", () => {
+    const state = leftPassageState(3);
+    state.enemies.slice(1).forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.enemies[0]!.hp = 1;
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id),
+      action(state, 1, "guard", "self", state.participants[1]!.characterId)
+    ]);
+
+    expect(resolved.state.contributions.map((row) => row.committedActions)).toEqual([1, 1, 0]);
+    expect(resolved.settlementPlan!.participants[2]!.rewards).toEqual({
+      xp: 0,
+      gold: 0,
+      items: []
+    });
+    expect(resolved.settlementPlan!.participants[2]!.effects?.activityKey).toBeNull();
+  });
+
+  it("uses a supported authored damage special and records its cooldown and contribution", () => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
     const actor = state.participants[0]!;
     actor.hp = actor.hpMax = 93;
     const resolved = resolveGroupCombatTurn(state, [{
@@ -232,6 +349,164 @@ describe("group combat proof reducer", () => {
     }));
     expect(contribution?.damage).toBeGreaterThanOrEqual(0);
     expect(parseGroupCombatStateStrict(resolved.state)).toEqual(resolved.state);
+  });
+
+  it("preserves self-only defense without turning it into player damage", () => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.royal-scurry"];
+    state.enemies[1]!.hp = 0;
+    const hpBefore = state.participants.map((participant) => participant.hp);
+    const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(state, participant.characterId)
+    ));
+
+    expect(resolved.state.participants.map((participant) => participant.hp)).toEqual(hpBefore);
+    expect(resolved.state.statuses).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "monster-damage-reduction",
+        sourceEnemyId: state.enemies[0]!.id,
+        targetId: state.enemies[0]!.id
+      }),
+      expect.objectContaining({
+        kind: "monster-evasion",
+        sourceEnemyId: state.enemies[0]!.id,
+        targetId: state.enemies[0]!.id
+      })
+    ]));
+    expect(resolved.state.enemyContributions?.[0]).toEqual(expect.objectContaining({
+      damage: 0,
+      specialActions: 1,
+      guardedTurns: 1
+    }));
+  });
+
+  it("applies authored damage reduction to later player damage", () => {
+    const initial = proofState(2);
+    initial.enemies[0]!.abilityIds = ["monster.royal-scurry"];
+    initial.enemies[1]!.hp = 0;
+    const defended = resolveGroupCombatTurn(initial, initial.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(initial, participant.characterId)
+    )).state;
+    defended.statuses = defended.statuses.filter((status) =>
+      status.kind !== "monster-evasion"
+    );
+    const unprotected = structuredClone(defended);
+    unprotected.statuses = [];
+    unprotected.enemyContributions![0]!.guardPrevented = 0;
+
+    const defendedResult = resolveGroupCombatTurn(defended, [
+      action(defended, 0, "attack", "enemy", defended.enemies[0]!.id)
+    ]);
+    const unprotectedResult = resolveGroupCombatTurn(unprotected, [
+      action(unprotected, 0, "attack", "enemy", unprotected.enemies[0]!.id)
+    ]);
+
+    expect(defendedResult.state.enemies[0]!.hp)
+      .toBeGreaterThan(unprotectedResult.state.enemies[0]!.hp);
+    expect(defendedResult.state.enemyContributions?.[0]?.guardPrevented)
+      .toBeGreaterThan(0);
+  });
+
+  it("applies an authored all-player special to every living participant", () => {
+    const state = proofState(3);
+    state.enemies[0]!.abilityIds = ["monster.smoke-without-approval"];
+    state.enemies.slice(1).forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.participants.forEach((participant) => {
+      participant.hp = participant.hpMax = 93;
+    });
+    const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(state, participant.characterId)
+    ));
+
+    expect(resolved.state.participants.every((participant) => participant.hp < participant.hpMax)).toBe(true);
+    expect(resolved.state.statuses.filter((status) =>
+      status.kind === "monster-accuracy-penalty"
+    )).toHaveLength(3);
+    expect(resolved.state.enemyContributions?.[0]?.damage).toBe(
+      resolved.state.participants.reduce((sum, participant) => sum + (participant.hpMax - participant.hp), 0)
+    );
+  });
+
+  it("falls back to a basic attack for an unsupported authored status ability", () => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.asset-freeze"];
+    const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(state, participant.characterId)
+    ));
+
+    expect(resolved.state.enemyContributions?.[0]).toEqual(expect.objectContaining({
+      actions: 1,
+      specialActions: 0
+    }));
+    expect(resolved.state.enemies[0]!.abilityCooldowns).toBeUndefined();
+    expect(resolved.state.recap[0]!.lines.join("\n")).not.toContain("Заморозити активи");
+  });
+
+  it("heals self and allies and buffs all monsters with exact supported scopes", () => {
+    const selfState = proofState(2);
+    selfState.enemies[0]!.abilityIds = ["monster.cabbage-plate"];
+    selfState.enemies[0]!.hp -= 10;
+    const selfResolved = resolveGroupCombatTurn(selfState, selfState.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(selfState, participant.characterId)
+    ));
+    expect(selfResolved.state.enemies[0]!.hp).toBeGreaterThan(selfState.enemies[0]!.hp);
+    expect(selfResolved.state.enemies[0]!.shield?.points).toBeGreaterThan(0);
+
+    const allyState = proofState(2);
+    allyState.enemies[0]!.abilityIds = ["monster.return-to-staff"];
+    allyState.enemies[1]!.hp = 5;
+    allyState.statuses.push({
+      id: "ally-bleed",
+      kind: "bleed",
+      sourceCharacterId: allyState.participants[0]!.characterId,
+      targetKind: "enemy",
+      targetId: allyState.enemies[1]!.id,
+      value: 1,
+      remainingTurns: 2
+    });
+    const allyResolved = resolveGroupCombatTurn(allyState, allyState.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(allyState, participant.characterId)
+    ));
+    expect(allyResolved.state.enemies[1]!.hp).toBeGreaterThan(4);
+    expect(allyResolved.state.enemyContributions?.[0]?.healing).toBeGreaterThan(0);
+    expect(allyResolved.state.statuses.some((status) =>
+      status.kind === "bleed" && status.targetId === allyState.enemies[1]!.id
+    )).toBe(false);
+
+    const groupState = proofState(2);
+    groupState.enemies[0]!.abilityIds = ["monster.common-group-rally"];
+    const groupResolved = resolveGroupCombatTurn(groupState, groupState.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(groupState, participant.characterId)
+    ));
+    expect(groupResolved.state.enemies.every((enemy) => (enemy.shield?.points ?? 0) > 0)).toBe(true);
+    expect(groupResolved.state.statuses.filter((status) =>
+      status.kind === "monster-damage-reduction"
+    )).toHaveLength(2);
+  });
+
+  it("replays supported monster cooldowns deterministically across a strict restart", () => {
+    const initial = proofState(2);
+    initial.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
+    const actions = initial.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(initial, participant.characterId)
+    );
+    const first = resolveGroupCombatTurn(initial, actions);
+    const repeated = resolveGroupCombatTurn(structuredClone(initial), actions);
+    expect(first).toEqual(repeated);
+
+    let restarted = parseGroupCombatStateStrict(first.state);
+    for (let index = 0; index < 3; index += 1) {
+      restarted = resolveGroupCombatTurn(
+        parseGroupCombatStateStrict(structuredClone(restarted)),
+        restarted.participants
+          .filter((participant) => participant.hp > 0)
+          .map((participant) => buildGroupCombatTimeoutAction(restarted, participant.characterId))
+      ).state;
+    }
+    expect(restarted.enemies[0]!.abilityCooldowns?.["monster.preapproved-bite"]?.remainingTurns).toBe(3);
+    expect(restarted.enemyContributions?.[0]?.specialActions).toBe(2);
   });
 
   it("requires explicit live targets without mutating stale, wrong-side, or dead choices", () => {
@@ -783,6 +1058,59 @@ describe("group combat proof reducer", () => {
     })).toThrow(GroupCombatStateValidationError);
   });
 
+  it("strictly rejects unsupported abilities in a persisted production loadout", () => {
+    const state = leftPassageState(1);
+    state.enemies[0]!.abilityIds = [
+      ...(state.enemies[0]!.abilityIds ?? []),
+      "monster.asset-freeze"
+    ];
+
+    expect(() => parseGroupCombatStateStrict(state)).toThrow(
+      "Production enemy ability loadout is not canonical."
+    );
+  });
+
+  it("strictly rejects forged supported monster effects and shields", () => {
+    const statusState = proofState(2);
+    statusState.enemies[0]!.abilityIds = ["monster.royal-scurry"];
+    statusState.statuses.push({
+      id: "forged-monster-buff",
+      kind: "monster-damage-reduction",
+      sourceEnemyId: statusState.enemies[0]!.id,
+      sourceAbilityId: "monster.royal-scurry",
+      targetKind: "enemy",
+      targetId: statusState.enemies[0]!.id,
+      value: 9999,
+      remainingTurns: 1,
+      appliedTurn: statusState.turn
+    });
+    expect(() => parseGroupCombatStateStrict(statusState)).toThrow(
+      "Status source is not canonical."
+    );
+
+    const shieldState = proofState(2);
+    shieldState.enemies[0]!.abilityIds = ["monster.cabbage-plate"];
+    shieldState.enemies[0]!.shield = {
+      sourceAbilityId: "monster.cabbage-plate",
+      sourceEnemyId: shieldState.enemies[0]!.id,
+      points: shieldState.enemies[0]!.hpMax
+    };
+    expect(() => parseGroupCombatStateStrict(shieldState)).toThrow(
+      "Enemy shield source is not canonical."
+    );
+
+    const wrongTargetState = proofState(2);
+    wrongTargetState.enemies[0]!.abilityIds = ["monster.cabbage-plate"];
+    wrongTargetState.enemies[1]!.shield = {
+      sourceAbilityId: "monster.cabbage-plate",
+      sourceEnemyId: wrongTargetState.enemies[0]!.id,
+      points: 1
+    };
+    expect(() => parseGroupCombatStateStrict(wrongTargetState)).toThrow(
+      "Enemy shield source is not canonical."
+    );
+  });
+
   it("fails closed on shape-valid production location, roster, pressure, item, difficulty, and reward corruption", () => {
     const corruptions: Array<(state: ReturnType<typeof leftPassageState>) => void> = [
       (state) => {
@@ -845,10 +1173,10 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
   const enemies = enemyInputs.map(({ monsterId, level }, index) => {
     const authored = monsters.find((monster) => monster.id === monsterId)!;
     const stats = deriveMonsterCombatStats({ ...authored, level });
-    const abilityIds = createMonsterAbilityRuntime({
+    const abilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
       monster: stats,
       seed: `seed-23:party-session:enemy:${index}`
-    })?.loadoutIds ?? [];
+    })?.loadoutIds ?? []);
     return {
       id: index === 0 ? "primary:encounter-13" : `backup:${index}:${monsterId}`,
       monsterId,

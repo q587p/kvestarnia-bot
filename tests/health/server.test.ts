@@ -105,8 +105,8 @@ describe("health server", () => {
     expect(text).toContain("Ліворуч тепер можна кликати ватагу");
     expect(text).toContain("У грі вже:");
     expect(text).toContain("Корчмар нарешті дозволив не сперечатися");
-    expect(text).toContain("звичний підсумок бою показує нагороду");
-    expect(text).toContain("однаково докладний внесок пригодників і монстрів");
+    expect(text).toContain("чудовиська не забувають, кого мали лікувати чи прикривати");
+    expect(text).toContain("підсумок однаково докладно показує внесок обох сторін");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

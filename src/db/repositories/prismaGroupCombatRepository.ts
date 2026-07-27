@@ -10,6 +10,7 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   deriveLeftPassageEnemyCount,
+  filterSupportedGroupCombatMonsterAbilityIds,
   GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
@@ -1528,14 +1529,18 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               visibility: "public",
               actorCharacterId: character.id,
               actorDisplayName: character.name,
-              relatedCharacterIds: plan.participants.map((entry) => entry.characterId),
+              relatedCharacterIds: plan.participants
+                .filter((entry) => entry.contribution.committedActions > 0)
+                .map((entry) => entry.characterId),
               subjectKind: "left-passage-encounter",
               subjectId: row.id,
               sourceType: GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
               sourceId: row.id,
               dedupeKey: receipt.effects.activityKey,
               payloadJson: {
-                participantCount: plan.participants.length,
+                participantCount: plan.participants.filter(
+                  (entry) => entry.contribution.committedActions > 0
+                ).length,
                 outcome: plan.outcome
               },
               occurredAt: input.now
@@ -1847,6 +1852,8 @@ async function buildLeftPassageState(input: {
     monster: primaryStats,
     seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:0`
   })?.loadoutIds ?? [];
+  const supportedPrimaryAbilityIds =
+    filterSupportedGroupCombatMonsterAbilityIds(primaryAbilityIds);
   const enemies = [{
     id: `primary:${input.reservation.id}`,
     monsterId: primary.id,
@@ -1857,7 +1864,9 @@ async function buildLeftPassageState(input: {
     hpMax: primaryStats.hpMax,
     attack: primaryStats.attack,
     defense: Math.max(primaryStats.armor, primaryStats.resist),
-    ...(primaryAbilityIds.length > 0 ? { abilityIds: primaryAbilityIds } : {})
+    ...(supportedPrimaryAbilityIds.length > 0
+      ? { abilityIds: supportedPrimaryAbilityIds }
+      : {})
   }];
   const backupAdjustments: Array<{
     enemyId: string;
@@ -1887,10 +1896,10 @@ async function buildLeftPassageState(input: {
       remortPressureMode: "multi"
     });
     const enemyId = `backup:${index}:${selected.id}`;
-    const abilityIds = createMonsterAbilityRuntime({
+    const abilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
       monster: pressured,
       seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:${index}`
-    })?.loadoutIds ?? [];
+    })?.loadoutIds ?? []);
     if (index === 1 && threatSource.decision.enemyCount === 2) {
       boostedEnemyId = enemyId;
     }

@@ -203,15 +203,33 @@ describe("group combat presenter", () => {
     session.state.enemies[0]!.abilityCooldowns = {
       "monster.deadline-web": { id: "monster.deadline-web", remainingTurns: 3 }
     };
-    session.state.statuses = [{
-      id: "guard:character-1",
-      kind: "guard",
-      sourceCharacterId: viewer.characterId,
-      targetKind: "participant",
-      targetId: viewer.characterId,
-      value: 3,
-      remainingTurns: 2
-    }];
+    session.state.enemies[0]!.shield = {
+      sourceAbilityId: "monster.common-group-rally",
+      sourceEnemyId: session.state.enemies[0]!.id,
+      points: 4
+    };
+    session.state.statuses = [
+      {
+        id: "guard:character-1",
+        kind: "guard",
+        sourceCharacterId: viewer.characterId,
+        targetKind: "participant",
+        targetId: viewer.characterId,
+        value: 3,
+        remainingTurns: 2
+      },
+      {
+        id: "monster-buff",
+        kind: "monster-damage-reduction",
+        sourceEnemyId: session.state.enemies[0]!.id,
+        sourceAbilityId: "monster.common-group-rally",
+        targetKind: "enemy",
+        targetId: session.state.enemies[0]!.id,
+        value: 1000,
+        remainingTurns: 1,
+        appliedTurn: session.state.turn
+      }
+    ];
 
     const intro = presentGroupCombatIntro(session);
     const first = presentGroupCombat(session, viewer.characterId, NOW);
@@ -229,7 +247,9 @@ describe("group combat presenter", () => {
     expect(first).toContain("Силовий замах відсапується: ще 2 ходи.");
     expect(first).toContain("Щільний бинт відсапується: ще 5 ходів.");
     expect(first).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
+    expect(first).toContain(`🫧 ${session.state.enemies[0]!.name} · щит: 4.`);
     expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
+    expect(first).toContain(`🧱 укріплення · ${session.state.enemies[0]!.name}: ще 1 хід.`);
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
   });
 

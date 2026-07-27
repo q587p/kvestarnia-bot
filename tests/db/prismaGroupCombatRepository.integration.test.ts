@@ -21,6 +21,7 @@ import { createGroupCombatTimeoutScheduler } from "../../src/bot/groupCombatTime
 import {
   buildGroupCombatSettlementPlan,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
+  GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
   sumGroupCombatSettlementRewards,
   type GroupCombatState
 } from "../../src/domain/groupCombat/groupCombat";
@@ -384,7 +385,9 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(started.session.state.production?.origin).toBe("nyz-left-passage-party.v1");
     expect(started.session.state.enemies).toHaveLength(2);
     expect(started.session.state.enemies[0]?.monsterId).toBe("monster.deadline-spider");
-    expect(started.session.state.enemies.every((enemy) => (enemy.abilityIds?.length ?? 0) > 0)).toBe(true);
+    expect(started.session.state.enemies.flatMap((enemy) => enemy.abilityIds ?? []).every(
+      (abilityId) => (GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS as readonly string[]).includes(abilityId)
+    )).toBe(true);
     const productionStateBytes = Buffer.byteLength(JSON.stringify(started.session.state), "utf8");
     console.log("Left-passage production state bytes", productionStateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
     expect(productionStateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
@@ -1268,6 +1271,16 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activityEvent.count({
       where: { sourceId: terminal.id, actorCharacterId: manual.characterId }
     })).toBe(1);
+    expect((await prisma.activityEvent.findUniqueOrThrow({
+      where: { dedupeKey: `group-combat:${terminal.id}:activity` },
+      select: { relatedCharacterIds: true, payloadJson: true }
+    }))).toEqual({
+      relatedCharacterIds: [manual.characterId],
+      payloadJson: {
+        participantCount: 1,
+        outcome: "won"
+      }
+    });
     expect(await prisma.characterAchievement.count({
       where: {
         characterId: { in: [manual.characterId, timeout.characterId] },
