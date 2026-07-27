@@ -401,7 +401,27 @@ describe("group combat proof reducer", () => {
     expect(supportLine).not.toContain("усім союзникам — по +");
   });
 
-  it("keeps solo support and item recap lines short, iconic, and name-free", () => {
+  it("names the solo actor and action once for abilities and items", () => {
+    const damageState = leftPassageState(1);
+    const damageActor = damageState.participants[0]!;
+    damageActor.raceId = "race.elf";
+    damageActor.stats.dexterity = 23;
+    damageState.enemies[0]!.hp = 93;
+    damageState.enemies[0]!.hpMax = 93;
+    damageState.enemies[0]!.defense = 0;
+    damageState.enemies[0]!.attack = 1;
+    const damaged = resolveGroupCombatTurn(damageState, [
+      action(damageState, 0, "race", "enemy", damageState.enemies[0]!.id)
+    ]);
+    const damageLine = damaged.state.recap[0]!.lines.find((line) =>
+      line.includes("Ображена точність")
+    );
+
+    expect(damageLine).toMatch(
+      /^Пригодник 0 застосовує вміння — 🎯 Ображена точність: (?:критично; )?\d+ шкоди\.$/
+    );
+    expect(damageLine).not.toContain("«");
+
     const supportState = leftPassageState(1);
     const actor = supportState.participants[0]!;
     actor.classId = "class.priest";
@@ -418,9 +438,9 @@ describe("group combat proof reducer", () => {
     );
 
     expect(supportLine).toMatch(
-      /^✨ Суворе благословення: (?:\d+ шкоди; )?\+7 HP; захист усім союзникам\.$/
+      /^Пригодник 0 застосовує вміння — ✨ Суворе благословення: (?:\d+ шкоди; )?\+7 HP; захист усім союзникам\.$/
     );
-    expect(supportLine).not.toContain(actor.name);
+    expect(supportLine?.split(actor.name)).toHaveLength(2);
     expect(supportLine).not.toContain("«");
 
     const itemState = leftPassageState(1);
@@ -439,8 +459,10 @@ describe("group combat proof reducer", () => {
       line.includes("Польова аптечка")
     );
 
-    expect(itemLine).toMatch(/^⚕️ Польова аптечка: \+\d+ HP\.$/);
-    expect(itemLine).not.toContain(itemActor.name);
+    expect(itemLine).toMatch(
+      /^Пригодник 0 використовує манатку — ⚕️ Польова аптечка: \+\d+ HP\.$/
+    );
+    expect(itemLine?.split(itemActor.name)).toHaveLength(2);
     expect(itemLine).not.toContain("«");
   });
 

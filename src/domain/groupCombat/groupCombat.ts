@@ -778,7 +778,11 @@ export function resolveGroupCombatTurn(
       actor.threat += healed * 2;
       committedConsumables.push({ characterId: actor.characterId, itemId });
       lines.push(
-        `${presentParticipantActionLabel(state, actor, GROUP_COMBAT_ITEM_NAMES[itemId])}: +${healed} HP.`
+        `${presentParticipantActionLabel(
+          actor,
+          "використовує манатку",
+          GROUP_COMBAT_ITEM_NAMES[itemId]
+        )}: +${healed} HP.`
       );
     } else {
       applyAbilityAction(state, actor, action, contribution, lines);
@@ -1154,26 +1158,24 @@ function applyAbilityAction(
       : "захисний ефект");
   }
   const actionLabel = presentParticipantActionLabel(
-    state,
     actor,
+    "застосовує вміння",
     ability.label ?? ability.id
   );
   lines.push(
     resolved.summary.actorOutcome === "miss"
       ? `${actionLabel}: промах.`
-      : `${actionLabel}${resolved.summary.critical ? " критично" : ""}: ` +
+      : `${actionLabel}: ${resolved.summary.critical ? "критично; " : ""}` +
         `${effects.length > 0 ? effects.join("; ") : "без прямої шкоди"}.`
   );
 }
 
 function presentParticipantActionLabel(
-  state: GroupCombatState,
   actor: GroupCombatActorSnapshot,
+  action: "застосовує вміння" | "використовує манатку",
   actionLabel: string
 ): string {
-  return state.participants.length === 1
-    ? actionLabel
-    : `${actor.name} · ${actionLabel}`;
+  return `${actor.name} ${action} — ${actionLabel}`;
 }
 
 function presentMultiTargetDamage(entries: Array<{ name: string; damage: number }>): string {
