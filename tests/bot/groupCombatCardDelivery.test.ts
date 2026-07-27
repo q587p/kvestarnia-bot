@@ -1,12 +1,75 @@
+import type { Api } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import {
   deliverCanonicalGroupCombatParticipantCard,
+  deliverGroupCombatStartIntro,
   type GroupCombatDeliveryTransport
 } from "../../src/bot/groupCombatCardDelivery";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 
 describe("group-combat canonical participant delivery", () => {
+  it("sends a production start intro separately to every participant", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn();
+    const releaseParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+
+    await expect(deliverGroupCombatStartIntro({
+      editMessageText,
+      sendMessage
+    } as unknown as Api, {
+      releaseParticipantCard
+    } as unknown as GroupCombatService, session)).resolves.toBe(2);
+
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(editMessageText).toHaveBeenNthCalledWith(
+      1,
+      1001,
+      21,
+      expect.stringContaining("<b>Хто проти кого:</b>"),
+      {
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: [] }
+      }
+    );
+    expect(String(editMessageText.mock.calls[0]?.[2])).toContain("<i>Порада дня:");
+    expect(String(editMessageText.mock.calls[1]?.[2])).toContain("<i>Порада дня:");
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(releaseParticipantCard).toHaveBeenCalledTimes(2);
+    expect(session.participants.map((participant) => participant.messageId)).toEqual([null, null]);
+  });
+
+  it("does not resend an intro for proof, replay or later-turn delivery", async () => {
+    const proof = makeSession();
+    const productionReplay = makeSession({ turn: 2 });
+    productionReplay.state.rulesVersion = "group-combat.v3";
+    productionReplay.state.encounterKey = "nyz-left-passage-party.v1";
+    const sendMessage = vi.fn();
+    const api = { sendMessage } as unknown as Api;
+
+    const service = {} as GroupCombatService;
+    await expect(deliverGroupCombatStartIntro(api, service, proof)).resolves.toBe(0);
+    await expect(deliverGroupCombatStartIntro(api, service, productionReplay)).resolves.toBe(0);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("converges an old-turn delivery to the newer authoritative turn before releasing its participant lock", async () => {
     const turnOne = makeSession({ turn: 1, version: 1 });
     const turnTwo = makeSession({ turn: 2, version: 2 });

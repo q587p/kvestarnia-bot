@@ -7,6 +7,7 @@ import {
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 import {
   presentGroupCombat,
+  presentGroupCombatIntro,
   presentGroupCombatJournal
 } from "../../src/bot/presenters/groupCombatPresenter";
 
@@ -187,7 +188,7 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("23 с.");
   });
 
-  it("opens with rosters, levels and a deterministic tip, then shows active cooldowns and effects", () => {
+  it("separates the opening roster and tip from the active cooldown and effect card", () => {
     const session = createSession(2);
     const viewer = session.state.participants[0]!;
     viewer.cooldowns = {
@@ -212,15 +213,18 @@ describe("group combat presenter", () => {
       remainingTurns: 2
     }];
 
+    const intro = presentGroupCombatIntro(session);
     const first = presentGroupCombat(session, viewer.characterId, NOW);
     const repeated = presentGroupCombat(session, viewer.characterId, NOW);
 
     expect(first).toBe(repeated);
-    expect(first).toContain("<b>Хто проти кого:</b>");
-    expect(first).toContain("<b>Ватага (2):</b>");
-    expect(first).toContain("Пригодник 1 · рівень");
-    expect(first).toContain("<b>Вороги (2):</b>");
-    expect(first).toContain("<i>Порада дня:");
+    expect(intro).toContain("<b>Хто проти кого:</b>");
+    expect(intro).toContain("<b>Ватага (2):</b>");
+    expect(intro).toContain("Пригодник 1 · рівень");
+    expect(intro).toContain("<b>Вороги (2):</b>");
+    expect(intro).toContain("<i>Порада дня:");
+    expect(first).not.toContain("<b>Хто проти кого:</b>");
+    expect(first).not.toContain("<i>Порада дня:");
     expect(first).toContain("<b>Кулдауни й ефекти:</b>");
     expect(first).toContain("Силовий замах: ще 2 ходи.");
     expect(first).toContain("Щільний бинт: ще 5 ходів.");

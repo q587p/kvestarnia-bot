@@ -90,17 +90,18 @@ export function presentGroupCombat(
       ? `\n\n${presentProductionSettlement(settlement.rewards)}`
       : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
-  const opening = state.status === "active" && state.turn === 1 && recapRows.length === 0
-    ? presentGroupCombatOpening(session)
-    : [];
   const tacticalState = state.status === "active"
     ? presentGroupCombatTacticalState(session, viewerCharacterId)
     : [];
-  const base = [status, ...opening, "", ...enemies, ...party, ...tacticalState].join("\n");
+  const base = [status, "", ...enemies, ...party, ...tacticalState].join("\n");
   const text = base + recapText + participantContributionText + enemyContributionText + ending;
   return Buffer.byteLength(text, "utf8") <= GROUP_COMBAT_CARD_BYTE_LIMIT
     ? text
     : base + participantContributionText + enemyContributionText + ending;
+}
+
+export function presentGroupCombatIntro(session: GroupCombatSessionRecord): string {
+  return presentGroupCombatOpening(session).join("\n");
 }
 
 function presentProductionSettlement(
@@ -171,7 +172,6 @@ function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] 
   ] as const;
   const tip = tips[Math.abs(state.deterministicSeed) % tips.length]!;
   return [
-    "",
     "<b>Хто проти кого:</b>",
     `<b>Ватага (${party.length}):</b>`,
     ...party,

@@ -8,7 +8,8 @@ import {
 } from "../../domain/groupCombat/groupCombat";
 import {
   deliverGroupCombatCards,
-  deliverGroupCombatParticipantCard
+  deliverGroupCombatParticipantCard,
+  deliverGroupCombatStartIntro
 } from "../groupCombatCardDelivery";
 import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
 import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
@@ -156,6 +157,9 @@ export async function handleGroupCombatCallback(
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
+    if (result.state === "started") {
+      await deliverGroupCombatStartIntro(ctx.api, service, result.session);
+    }
     await deliverGroupCombatCards(ctx.api, service, result.session);
     return;
   }

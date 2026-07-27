@@ -2,7 +2,10 @@ import type { Bot } from "grammy";
 import type { GroupCombatSessionRecord } from "../db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../services/groupCombatService";
 import type { PartySessionService } from "../services/partySessionService";
-import { deliverGroupCombatCards } from "./groupCombatCardDelivery";
+import {
+  deliverGroupCombatCards,
+  deliverGroupCombatStartIntro
+} from "./groupCombatCardDelivery";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -21,6 +24,7 @@ export function createGroupCombatTimeoutScheduler(
     }
     const operation = (async () => {
       const started: GroupCombatSessionRecord[] = [];
+      const freshlyStartedSessionIds = new Set<string>();
       const dueParties = service.areDevHelpersEnabled()
         ? await options.partySessions?.listDueRecruitingGroupCombatProof() ?? []
         : [];
@@ -31,6 +35,9 @@ export function createGroupCombatTimeoutScheduler(
           );
           if ("session" in result) {
             started.push(result.session);
+            if (result.state === "started") {
+              freshlyStartedSessionIds.add(result.session.id);
+            }
           } else if (
             result.partyVersion !== undefined &&
             (
@@ -61,6 +68,9 @@ export function createGroupCombatTimeoutScheduler(
           );
           if ("session" in result) {
             started.push(result.session);
+            if (result.state === "started") {
+              freshlyStartedSessionIds.add(result.session.id);
+            }
           } else if (
             result.partyVersion !== undefined &&
             (
@@ -87,6 +97,9 @@ export function createGroupCombatTimeoutScheduler(
         [...started, ...resolved, ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
+        if (freshlyStartedSessionIds.has(session.id)) {
+          await deliverGroupCombatStartIntro(bot.api, service, session);
+        }
         await deliverGroupCombatCards(bot.api, service, session);
       }
       return repaired + sessions.length;

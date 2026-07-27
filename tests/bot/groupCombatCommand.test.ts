@@ -232,6 +232,84 @@ describe("group combat bot flow", () => {
     expect(editMessageText).toHaveBeenCalledWith(1002, 22, expect.any(String), expect.any(Object));
   });
 
+  it("sends a separate intro before each production left-passage combat card", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    const startLeftPassage = vi.fn().mockResolvedValue({ state: "started", session });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({ message_id: 93 })
+      .mockResolvedValueOnce({ message_id: 94 });
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const releaseParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-party-left-start",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText, sendMessage, deleteMessage: vi.fn() } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start-left", token: session.partyInviteToken },
+      {
+        startLeftPassage,
+        findById: vi.fn().mockResolvedValue(session),
+        releaseParticipantCard,
+        compareAndSetParticipantCard,
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<i>Порада дня:");
+    expect(editMessageText).toHaveBeenCalledTimes(4);
+    const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
+    expect(editedTexts.filter((text) => text.includes("<b>Хто проти кого:</b>"))).toHaveLength(2);
+    expect(editedTexts.filter((text) => text.includes("<i>Порада дня:"))).toHaveLength(2);
+    expect(editedTexts.filter((text) => text.includes("⚔️ <b>Бій:"))).toHaveLength(2);
+  });
+
   it("reports a disabled party-card start callback without delivering combat cards", async () => {
     const startProof = vi.fn().mockResolvedValue({ state: "disabled" });
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);

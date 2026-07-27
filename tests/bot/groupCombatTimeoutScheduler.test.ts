@@ -90,8 +90,14 @@ describe("group combat timeout scheduler", () => {
     const session = pendingSession();
     session.status = "active";
     session.state.status = "active";
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
     session.result = null;
     session.completedAt = null;
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.enemies = session.state.enemies.slice(0, 1);
+    session.state.contributions = session.state.contributions.slice(0, 1);
     const party = {
       inviteToken: session.partyInviteToken,
       version: 7,
@@ -102,6 +108,39 @@ describe("group combat timeout scheduler", () => {
       session
     });
     const editMessageText = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const releaseParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
     const scheduler = createGroupCombatTimeoutScheduler(
       {
         isEnabled: () => true,
@@ -112,11 +151,13 @@ describe("group combat timeout scheduler", () => {
         resolveDue: vi.fn().mockResolvedValue([]),
         listPendingDelivery: vi.fn().mockResolvedValue([]),
         findById: vi.fn().mockResolvedValue(session),
+        releaseParticipantCard,
+        compareAndSetParticipantCard,
         markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
         finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
       } as unknown as GroupCombatService,
       {
-        api: { editMessageText, sendMessage: vi.fn(), deleteMessage: vi.fn() }
+        api: { editMessageText, sendMessage, deleteMessage: vi.fn() }
       } as unknown as Bot,
       {
         partySessions: {
@@ -127,7 +168,11 @@ describe("group combat timeout scheduler", () => {
 
     await expect(scheduler.tick()).resolves.toBe(1);
     expect(startDueLeftPassage).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
     expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(String(editMessageText.mock.calls[0]?.[2])).toContain("<b>Хто проти кого:</b>");
+    expect(String(editMessageText.mock.calls[1]?.[2])).not.toContain("<b>Хто проти кого:</b>");
   });
 
   it("waits for an in-flight pass during shutdown", async () => {

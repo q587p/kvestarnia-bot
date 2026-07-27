@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-07-26)
+## Current repository baseline (repository evidence, 12026-07-27)
 
 The current branch prepares package `0.4.2`. Merge, deployment and target
 availability remain separate evidence.

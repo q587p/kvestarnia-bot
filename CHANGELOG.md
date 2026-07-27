@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.2] - 12026-07-26 - Left-Passage Party Attack
+## [0.4.2] - 12026-07-27 - Left-Passage Party Attack
 
 ### Added
 - Added the first production-capable `group-combat.v3` consumer for the exact hard `deep-left` pending encounter. The reserved preview remains the primary enemy while a typed `nyz-left-passage-party.v1` `PartySession` recruits an authoritative 1–3-person current-life roster. One enemy per participant is the base; frozen remort, canonical solo Низ pressure or a three-level advantage adds one backup per strong participant, capped at six deterministic enemies.
@@ -15,7 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added canonical party difficulty snapshots. Each participant receives a bounded solo Низ pressure decision from only the frozen remort life; legacy history without life metadata applies only to base life. The strongest source and strongest remort source use roster-order tie-breaking. Backups derive deterministically from immutable reservation/party inputs, only backups receive canonical multi-enemy remort adjustments, and only the first backup receives the repeated-pressure level bonus capped at 23.
 - Added real per-participant settlement for final same-life HP/mana, committed consumables, neutral XP/gold, at most one encounter-wide common bandage and privacy-safe Chronicle activity. Timeout auto-guards do not qualify for rewards or activity; each participant lease remains until that participant's exact resource/reward/activity effects and canonical immutable receipt commit.
 - Added shared preparation rendering with `✅ Готово` / `⏳ Зачекайте`, an always-available current-leader start action and live gathering discovery/join through exact-location `👀 Хто поруч`. One-person gatherings now auto-start at the exact three-minute boundary instead of expiring as undersized.
-- Added private production cards with an opening roster/levels and deterministic tip, visible player/item/monster cooldowns and effect durations, authored deterministic monster specials, player plus monster contribution totals and complete 25-turn journal snapshots of HP, mana, cooldowns and effects. The state budget is `65,536` bytes for the measured full 3×6 journal; Telegram cards/callbacks remain capped at `4,096`/`64`.
+- Added a separate one-time production opening message with both rosters, levels and a deterministic tip, followed by a clean canonical combat card with visible player/item/monster cooldowns and effect durations. Authored deterministic monster specials, player plus monster contribution totals and complete 25-turn journal snapshots retain HP, mana, cooldowns and effects. The state budget is `65,536` bytes for the measured full 3×6 journal; Telegram cards/callbacks remain capped at `4,096`/`64`.
 
 ### Fixed
 - Kept the exact left-passage preview eligible for party reservation even though opening it records the canonical `adventure.solo-fight` presence marker. Other adventures, raids and owned combat leases still block entry with a specific explanation. Join/start resource validation and exact settlement now use the participant's canonical effective level/equipment maxima instead of rejecting or truncating valid level-scaled HP/mana against raw base columns.

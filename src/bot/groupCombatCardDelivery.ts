@@ -1,8 +1,12 @@
 import type { Api } from "grammy";
 import type { GroupCombatSessionRecord } from "../db/repositories/groupCombatRepository";
+import { GROUP_COMBAT_PRODUCTION_RULES_VERSION } from "../domain/groupCombat/groupCombat";
 import type { GroupCombatService } from "../services/groupCombatService";
 import { buildGroupCombatKeyboard } from "./keyboards/groupCombatKeyboard";
-import { presentGroupCombat } from "./presenters/groupCombatPresenter";
+import {
+  presentGroupCombat,
+  presentGroupCombatIntro
+} from "./presenters/groupCombatPresenter";
 import {
   isMessageNotModifiedError,
   isMessageUnavailableForEditError
@@ -25,6 +29,59 @@ export type GroupCombatParticipantDeliveryResult =
   | { state: "edited" | "unchanged" | "activated"; reference: GroupCombatMessageReference }
   | { state: "candidate-lost" | "retryable-edit-failure"; reference: GroupCombatMessageReference | null }
   | { state: "missing-participant" | "send-failed" | "activation-failed"; reference: null };
+
+export async function deliverGroupCombatStartIntro(
+  api: Api,
+  service: GroupCombatService,
+  session: GroupCombatSessionRecord
+): Promise<number> {
+  if (
+    session.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
+    session.state.status !== "active" ||
+    session.state.turn !== 1 ||
+    session.state.recap.length !== 0
+  ) {
+    return 0;
+  }
+  const text = presentGroupCombatIntro(session);
+  const results = await Promise.allSettled(session.participants.map(async (participant) => {
+    const reference = privateReference(participant);
+    if (!reference) {
+      await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
+      return true;
+    }
+    try {
+      await api.editMessageText(Number(reference.chatId), reference.messageId, text, {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: { inline_keyboard: [] }
+      });
+    } catch (error) {
+      if (!isMessageUnavailableForEditError(error)) {
+        return false;
+      }
+      const releasedUnavailable = await service.releaseParticipantCard({
+        sessionId: session.id,
+        telegramUserId: participant.telegramUserId,
+        expectedReferenceVersion: participant.referenceVersion,
+        chatId: reference.chatId,
+        messageId: reference.messageId
+      });
+      if (!releasedUnavailable) {
+        return false;
+      }
+      await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
+      return true;
+    }
+    return service.releaseParticipantCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: reference.chatId,
+      messageId: reference.messageId
+    });
+  }));
+  return results.filter((result) => result.status === "fulfilled" && result.value).length;
+}
 
 export async function deliverGroupCombatCards(
   api: Api,
