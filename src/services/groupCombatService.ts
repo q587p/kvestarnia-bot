@@ -94,6 +94,18 @@ export class GroupCombatService {
     });
   }
 
+  async startReadyLeftPassage(partyInviteToken: string): Promise<GroupCombatStartResult> {
+    if (!this.isLeftPassageEntryEnabled()) {
+      return { state: "disabled" };
+    }
+    const now = this.now();
+    return this.repository.startReadyLeftPassage({
+      partyInviteToken,
+      now,
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+    });
+  }
+
   currentTime(): Date {
     return this.now();
   }

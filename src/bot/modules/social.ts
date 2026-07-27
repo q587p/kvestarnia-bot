@@ -20,6 +20,10 @@ import {
   guardActivePassageSearchCommand,
   showActivePassageSearchIfNeeded
 } from "./passageSearchGuard";
+import {
+  placeCallbackToPersistentFightPassage,
+  sendPersistentFightPassagePreview
+} from "./persistentFightNavigation";
 import type { BotModuleDependencies } from "./types";
 
 export function registerSocialBotModule(
@@ -58,7 +62,19 @@ export function registerSocialBotModule(
       /^v[123]:gc:/,
       (data) => parseWhenAvailable(data, parseGroupCombatCallbackData, services.groupCombat),
       async (ctx, { callback, service }) => {
-        await handleGroupCombatCallback(ctx, callback, service);
+        await handleGroupCombatCallback(ctx, callback, service, {
+          refreshLeftPassagePreview: async (callbackContext) => {
+            const passage = placeCallbackToPersistentFightPassage("deep-left");
+            if (passage) {
+              await sendPersistentFightPassagePreview(
+                callbackContext,
+                services,
+                passage,
+                "edit"
+              );
+            }
+          }
+        });
       }
     );
   }

@@ -32,8 +32,11 @@ import {
 import {
   makeFightCallbackData,
   makeFightGearActionCallbackData,
+  makeFightItemsCallbackData,
   makeFightJournalCallbackData,
+  makeFightItemUseCallbackData,
   makeFightPassageAttackCallbackData,
+  makeFightTierTwoCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../callbacks/fightCallbackData";
@@ -78,7 +81,8 @@ export function buildFightResultKeyboard(
 
 export function buildPersistentFightKeyboard(
   session: SoloCombatSessionRecord,
-  character: CharacterSummary
+  character: CharacterSummary,
+  options: { includeCombatItems?: boolean } = {}
 ): InlineKeyboard {
   const turn = session.state?.turn ?? 1;
   const availability = session.state
@@ -124,13 +128,23 @@ export function buildPersistentFightKeyboard(
     keyboard.row();
   }
 
+  if (options.includeCombatItems) {
+    keyboard
+      .text(
+        "🎒 Одноразові манатки",
+        makeFightItemsCallbackData({ sessionId: session.id, turn })
+      )
+      .row();
+  }
+
   return keyboard
     .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
 }
 
 export function buildPersistentFightResultKeyboard(
   session: SoloCombatSessionRecord,
-  character: CharacterSummary
+  character: CharacterSummary,
+  options: { includeCombatItems?: boolean } = {}
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
     const navigation = getPersistentFightReturnNavigation(session);
@@ -145,7 +159,34 @@ export function buildPersistentFightResultKeyboard(
     return keyboard.text(navigation.returnLabel, makePlaceCallbackData(navigation.returnPlace));
   }
 
-  return buildPersistentFightKeyboard(session, character);
+  return buildPersistentFightKeyboard(session, character, options);
+}
+
+export function buildPersistentFightItemsKeyboard(input: {
+  sessionId: string;
+  turn: number;
+  items: readonly {
+    itemKey: string;
+    name: string;
+    quantity: number;
+  }[];
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const item of input.items) {
+    keyboard
+      .text(
+        `${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
+        makeFightItemUseCallbackData({
+          sessionId: input.sessionId,
+          turn: input.turn,
+          itemKey: item.itemKey
+        })
+      )
+      .row();
+  }
+
+  return keyboard.text("↩️ До бою", makeFightViewCallbackData(input.sessionId));
 }
 
 export function buildPersistentFightJournalKeyboard(
@@ -388,10 +429,15 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
 export function buildPersistentFightPassageRestKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
   searchAvailable?: boolean;
+  showTierTwo?: boolean;
 }): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  if (input.searchAvailable !== false) {
+  if (input.showTierTwo) {
+    keyboard.text("🪜 Ярус II", makeFightTierTwoCallbackData()).row();
+  }
+
+  if (!input.showTierTwo && input.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input)).row();
   }
 

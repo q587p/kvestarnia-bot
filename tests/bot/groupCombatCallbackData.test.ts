@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   makeGroupCombatActionCallbackData,
+  makeGroupCombatItemsMenuCallbackData,
   makeGroupCombatJournalCallbackData,
   makeGroupCombatStartCallbackData,
+  makeGroupCombatStatisticsCallbackData,
   makeLeftPassageGroupCombatStartCallbackData,
   makeLeftPassagePartyInviteCallbackData,
   parseGroupCombatCallbackData
@@ -70,11 +72,28 @@ describe("group combat callback data", () => {
     });
   });
 
+  it("round-trips the item menu and terminal statistics within Telegram's budget", () => {
+    const items = makeGroupCombatItemsMenuCallbackData("proof-token-13", 23);
+    const statistics = makeGroupCombatStatisticsCallbackData("proof-token-13");
+
+    expect(Buffer.byteLength(items, "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(statistics, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(items)).toEqual({
+      ok: true,
+      value: { type: "items", token: "proof-token-13", turn: 23 }
+    });
+    expect(parseGroupCombatCallbackData(statistics)).toEqual({
+      ok: true,
+      value: { type: "statistics", token: "proof-token-13" }
+    });
+  });
+
   it("rejects malformed and oversized callbacks", () => {
     expect(parseGroupCombatCallbackData("v1:gc:a:bad:1:a:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v1:gc:a:proof-token-13:1:a:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:a:proof-token-13:1:a:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:a:proof-token-13:1:h:0:1").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v2:gc:m:proof-token-13:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:v:proof-token-13").ok).toBe(false);
     expect(parseGroupCombatCallbackData(`v1:gc:v:${"x".repeat(93)}`).ok).toBe(false);
   });

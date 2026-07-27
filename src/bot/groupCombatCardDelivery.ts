@@ -178,6 +178,16 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 
   let reference = privateReference(participant);
   const replacedReference = input.forceReplacement === true ? reference : null;
+  if (
+    reference &&
+    input.forceReplacement === true &&
+    typeof (input.service as Partial<GroupCombatService>).compareAndSetParticipantCard !== "function"
+  ) {
+    const edited = await editExistingReferenceUntilCurrent(input, reference, current, true);
+    return edited.state === "missing"
+      ? { state: "activation-failed", reference: null }
+      : edited;
+  }
   if (reference && input.forceReplacement !== true) {
     const edited = await editExistingReferenceUntilCurrent(input, reference, current, input.forceRefresh === true);
     if (edited.state !== "missing") {

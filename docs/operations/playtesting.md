@@ -376,7 +376,9 @@ transfer/join/leave на межі, restart у бою й settlement та вимк
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_raid_reset` — у локальному режимі скидає pending-таймер, зарахований поточний відтинок Бочки й 3-хвилинний кулдаун після програшу Старшому Брату Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
-- `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
+- `/dev_reset_monster_rest` — скидає ordinary passage-rest і збережене
+  післяпереможне вікно сходів до Ярусу II; використовуйте перед повторним
+  left-passage party прогоном.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 
 ## Межі поточного smoke

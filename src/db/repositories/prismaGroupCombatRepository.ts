@@ -11,7 +11,6 @@ import {
   createGroupCombatProofState,
   deriveLeftPassageEnemyCount,
   filterSupportedGroupCombatMonsterAbilityIds,
-  GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -19,6 +18,8 @@ import {
   GROUP_COMBAT_RULES_VERSION,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
+  getLeftPassageTierTwoDiscoveryMinutes,
+  LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
   resolveGroupCombatTurn,
   stableGroupCombatSeed,
   sumGroupCombatSettlementRewards,
@@ -71,6 +72,7 @@ import type {
 } from "./groupCombatRepository";
 import { buildPartyBossCombatStats } from "./partyBossRepository";
 import { getCombatMantokAbilityGrantsForEquippedItems } from "../../content/mantokAbilityGrants";
+import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
 import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
@@ -156,11 +158,26 @@ function buildParticipantCombatStats(character: PartyCharacterRow, remortCount: 
   });
 }
 
-function hasInvalidEffectiveResources(character: PartyCharacterRow, remortCount: number): boolean {
+function getInvalidEffectiveResources(
+  character: PartyCharacterRow,
+  remortCount: number
+): {
+  hpCurrent: number;
+  hpMax: number;
+  manaCurrent: number;
+  manaMax: number;
+} | null {
   const effective = buildParticipantCombatStats(character, remortCount);
   return character.hpCurrent > effective.hpMax ||
     character.manaCurrent < 0 ||
-    character.manaCurrent > effective.manaMax;
+    character.manaCurrent > effective.manaMax
+    ? {
+        hpCurrent: character.hpCurrent,
+        hpMax: effective.hpMax,
+        manaCurrent: character.manaCurrent,
+        manaMax: effective.manaMax
+      }
+    : null;
 }
 
 const sessionInclude = {
@@ -307,10 +324,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       if (character.hpCurrent <= 0) {
         return { state: "dead" };
       }
-      if (hasInvalidEffectiveResources(character, character._count.remorts)) {
-        return { state: "invalid-resources" };
-      }
-
       const [combatLease, activeSearch, liveMembership] = await Promise.all([
         tx.activeCombatLease.findUnique({
           where: { characterId: character.id },
@@ -346,6 +359,13 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       }
       if (liveMembership) {
         return { state: "live-membership", inviteToken: liveMembership.session.inviteToken };
+      }
+      const invalidResources = getInvalidEffectiveResources(
+        character,
+        character._count.remorts
+      );
+      if (invalidResources) {
+        return { state: "invalid-resources", resources: invalidResources };
       }
 
       const partyId = randomUUID();
@@ -468,7 +488,15 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
   }): Promise<GroupCombatStartResult> {
-    return this.startCombat(input, null, "left-passage");
+    return this.startCombat(input, null, "left-passage", "due");
+  }
+
+  async startReadyLeftPassage(input: {
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult> {
+    return this.startCombat(input, null, "left-passage", "ready");
   }
 
   private async startCombat(
@@ -478,7 +506,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       turnExpiresAt: Date;
     },
     manualLeaderTelegramUserId: bigint | null,
-    mode: "proof" | "left-passage"
+    mode: "proof" | "left-passage",
+    automaticStart: "due" | "ready" = "due"
   ): Promise<GroupCombatStartResult> {
     try {
       return await this.prisma.$transaction(async (tx): Promise<GroupCombatStartResult> => {
@@ -524,11 +553,22 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         ) {
           return { state: "blocked", partyVersion: party.version };
         }
-        if (manualLeaderTelegramUserId === null && party.expiresAt.getTime() > input.now.getTime()) {
+        if (
+          manualLeaderTelegramUserId === null &&
+          automaticStart === "due" &&
+          party.expiresAt.getTime() > input.now.getTime()
+        ) {
           return { state: "not-recruiting" };
         }
 
         const joined = party.participants.filter((participant) => participant.status === "joined");
+        if (
+          manualLeaderTelegramUserId === null &&
+          automaticStart === "ready" &&
+          joined.some((participant) => !isReadyPartyParticipantSnapshot(participant.snapshotJson))
+        ) {
+          return { state: "not-recruiting" };
+        }
         const minimumParticipants = mode === "left-passage" ? 1 : 2;
         if (joined.length < minimumParticipants || joined.length > 3) {
           return { state: "invalid-size", partyVersion: party.version };
@@ -547,7 +587,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return { state: "invalid-roster", partyVersion: party.version };
         }
         if (joined.some((participant) =>
-          hasInvalidEffectiveResources(participant.character, participant.remortCount)
+          getInvalidEffectiveResources(participant.character, participant.remortCount)
         )) {
           return { state: "invalid-roster", partyVersion: party.version };
         }
@@ -661,10 +701,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             remortCount: participant.remortCount,
             now: input.now
           });
+          const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(
+            character.activeCosmeticTitleGrantId
+          );
           const actor: GroupCombatActorSnapshot = {
             characterId: character.id,
             telegramUserId: character.user.telegramUserId.toString(),
             name: character.name,
+            ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
             remortCount: participant.remortCount,
             rosterOrder,
             hp: sated.resources.hp,
@@ -1418,15 +1462,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       const frozenParticipant = state.participants.find(
         (candidate) => candidate.characterId === participant.characterId
       );
-      let character: SessionRow["participants"][number]["character"] | null = null;
+      let character: PartyCharacterRow | null = null;
       let lease: Prisma.ActiveCombatLeaseGetPayload<Record<string, never>> | null = null;
       if (plan.policy === "left-passage-party") {
         character = await tx.character.findUnique({
           where: { id: participant.characterId },
-          include: {
-            user: { select: { telegramUserId: true } },
-            _count: { select: { remorts: true } }
-          }
+          include: partyCharacterInclude
         });
         lease = await tx.activeCombatLease.findFirst({
           where: {
@@ -1481,13 +1522,22 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           xp,
           participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
         );
+        const effectiveAfterReward = buildParticipantCombatStats(
+          { ...character, xp, level },
+          participant.remortCount
+        );
+        const hpCurrent = Math.min(receipt.resources.hp, effectiveAfterReward.hpMax);
+        const manaCurrent = Math.min(
+          receipt.resources.mana,
+          effectiveAfterReward.manaMax
+        );
         await tx.character.update({
           where: { id: character.id },
           data: {
-            hpCurrent: receipt.resources.hp,
-            manaCurrent: receipt.resources.mana,
-            hpRegenAt: receipt.resources.hp >= frozenParticipant.hpMax ? null : input.now,
-            manaRegenAt: receipt.resources.mana >= frozenParticipant.manaMax ? null : input.now,
+            hpCurrent,
+            manaCurrent,
+            hpRegenAt: hpCurrent >= effectiveAfterReward.hpMax ? null : input.now,
+            manaRegenAt: manaCurrent >= effectiveAfterReward.manaMax ? null : input.now,
             xp,
             level,
             gold: { increment: receipt.rewards.gold }
@@ -1519,6 +1569,37 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           });
         }
         await this.runSettlementTestHook("items", row.id, participant.characterId);
+        if (state.status === "won" && row.completedAt) {
+          const discoveryAvailableAt = new Date(
+            row.completedAt.getTime() +
+              getLeftPassageTierTwoDiscoveryMinutes(state.deterministicSeed) *
+                60_000
+          );
+          await tx.characterCooldown.upsert({
+            where: {
+              characterId_key: {
+                characterId: character.id,
+                key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
+              }
+            },
+            create: {
+              characterId: character.id,
+              key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
+              availableAt: discoveryAvailableAt,
+              resultJson: {
+                kind: "left-passage-tier-two-discovery",
+                groupCombatSessionId: row.id
+              }
+            },
+            update: {
+              availableAt: discoveryAvailableAt,
+              resultJson: {
+                kind: "left-passage-tier-two-discovery",
+                groupCombatSessionId: row.id
+              }
+            }
+          });
+        }
         if (receipt.effects?.activityKey) {
           await tx.activityEvent.upsert({
             where: { dedupeKey: receipt.effects.activityKey },
@@ -1989,10 +2070,7 @@ async function buildLeftPassageState(input: {
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
-        commonItemId: rewardBudget.commonItemQuantity === 1
-          ? GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID
-          : null,
-        commonItemQuantity: rewardBudget.commonItemQuantity
+        lootVersion: 1
       }
     }
   });
@@ -2924,6 +3002,15 @@ function readFrozenPayload(value: unknown): FrozenParticipantPayload | null {
     return null;
   }
   return value as unknown as FrozenParticipantPayload;
+}
+
+function isReadyPartyParticipantSnapshot(value: unknown): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).raidReadiness === "ready"
+  );
 }
 
 function isUniqueConflict(error: unknown): boolean {

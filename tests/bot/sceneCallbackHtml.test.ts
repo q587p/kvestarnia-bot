@@ -8579,6 +8579,24 @@ describe("scene callback HTML options", () => {
     expect(JSON.stringify(preview?.payload.reply_markup)).toContain("v1:place:deep-level1");
   });
 
+  it("explains that the discovered second tier is still under construction", async () => {
+    const calls = await captureApiCalls(
+      "v1:fight:tier2",
+      servicesWith({})
+    );
+    const notice = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ярус II тимчасово")
+    );
+
+    expect(String(notice?.payload.text)).toContain("ремонтні роботи");
+    expect(String(notice?.payload.text)).toContain("Шлях відкриється");
+    expect(JSON.stringify(notice?.payload.reply_markup)).toContain(
+      "v1:place:deep-level1"
+    );
+  });
+
   it("starts a passage preview encounter only after Attack", async () => {
     const markAction = vi.fn(() => Promise.resolve());
     const escalatedSession = {

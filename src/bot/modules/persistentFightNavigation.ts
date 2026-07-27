@@ -100,6 +100,8 @@ export async function sendPersistentFightPassagePreview(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassageRestKeyboard({
           passage: passageFight.passage,
+          showTierTwo:
+            restWindow.restKind === "left-passage-tier-two-discovery",
           searchAvailable: await isPassageSearchAvailable(
             services.passageSearch,
             telegramUserId,
@@ -135,6 +137,8 @@ export async function sendPersistentFightPassagePreview(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightPassageRestKeyboard({
           passage: passageFight.passage,
+          showTierTwo:
+            preview.restKind === "left-passage-tier-two-discovery",
           searchAvailable: await isPassageSearchAvailable(
             services.passageSearch,
             telegramUserId,

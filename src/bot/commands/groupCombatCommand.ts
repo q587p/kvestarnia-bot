@@ -12,10 +12,17 @@ import {
   deliverGroupCombatSettlementNotifications,
   deliverGroupCombatStartIntro
 } from "../groupCombatCardDelivery";
-import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
+import {
+  buildGroupCombatItemsKeyboard,
+  buildGroupCombatJournalKeyboard,
+  buildGroupCombatStatisticsKeyboard
+} from "../keyboards/groupCombatKeyboard";
 import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
-import { getCallbackMessageFreshness } from "../messageFreshness";
-import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
+import {
+  presentGroupCombatItems,
+  presentGroupCombatJournal,
+  presentGroupCombatStatistics
+} from "../presenters/groupCombatPresenter";
 import { formatRemainingWait, presentPartySession } from "../presenters/partySessionPresenter";
 import { buildPartyInviteUrl } from "../../services/partySessionService";
 import type {
@@ -81,7 +88,10 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
 export async function handleGroupCombatCallback(
   ctx: Context,
   callback: GroupCombatCallback,
-  service: GroupCombatService
+  service: GroupCombatService,
+  options: {
+    refreshLeftPassagePreview?: (ctx: Context) => Promise<void>;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
   if (!telegramUserId) {
@@ -105,6 +115,13 @@ export async function handleGroupCombatCallback(
       })
     );
     if (!("session" in result)) {
+      if (result.state === "invalid-preview" && options.refreshLeftPassagePreview) {
+        await safeAnswerCallbackQuery(ctx, {
+          text: "Картка була не найновіша. Показую актуальний слід."
+        });
+        await options.refreshLeftPassagePreview(ctx);
+        return;
+      }
       await safeAnswerCallbackQuery(ctx, {
         text: presentLeftPassageInviteFailure(result),
         show_alert: true
@@ -177,7 +194,7 @@ export async function handleGroupCombatCallback(
   }
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
   if (
-    callback.type === "action" &&
+    (callback.type === "action" || callback.type === "items") &&
     callbackMessageId !== undefined &&
     viewer.messageId !== null &&
     callbackMessageId !== viewer.messageId
@@ -186,12 +203,38 @@ export async function handleGroupCombatCallback(
     await deliverGroupCombatCards(ctx.api, service, session);
     return;
   }
-  if (callback.type === "journal") {
-    if (session.status === "active") {
-      await safeAnswerCallbackQuery(ctx, { text: "Журнал відкриється після завершення сутички.", show_alert: true });
-      await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
+  if (callback.type === "items") {
+    if (session.status !== "active" || callback.turn !== session.turn || session.state.status !== "active") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Це меню зі старого ходу. Показую актуальний бій.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
       return;
     }
+    const keyboard = buildGroupCombatItemsKeyboard(session, viewer.characterId);
+    const hasAvailableItems = keyboard.inline_keyboard.length > 1;
+    await safeAnswerCallbackQuery(
+      ctx,
+      hasAvailableItems ? undefined : { text: "Немає корисних одноразових манаток для цього ходу." }
+    );
+    await safeEditMessageText(
+      ctx,
+      presentGroupCombatItems(session, viewer.characterId, hasAvailableItems),
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard
+      }
+    );
+    return;
+  }
+  if (callback.type === "journal") {
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGroupCombatJournal(session, callback.page), {
       parse_mode: "HTML",
@@ -199,12 +242,30 @@ export async function handleGroupCombatCallback(
     });
     return;
   }
+  if (callback.type === "statistics") {
+    if (session.status === "active") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Статистика відкриється після завершення бою.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGroupCombatStatistics(session), {
+      parse_mode: "HTML",
+      reply_markup: buildGroupCombatStatisticsKeyboard(session)
+    });
+    return;
+  }
   if (callback.type === "view") {
     await safeAnswerCallbackQuery(ctx);
-    const sourceIsNotCanonical = callbackMessageId !== undefined &&
-      viewer.messageId !== null &&
-      callbackMessageId !== viewer.messageId;
-    const sourceFreshness = getCallbackMessageFreshness(ctx);
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,
@@ -212,7 +273,7 @@ export async function handleGroupCombatCallback(
       viewer.characterId,
       {
         forceRefresh: true,
-        forceReplacement: sourceIsNotCanonical || sourceFreshness !== "fresh"
+        forceReplacement: true
       }
     );
     return;
@@ -251,6 +312,15 @@ export async function handleGroupCombatCallback(
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
+  if (callback.type === "action") {
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewer.characterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+  }
   await deliverGroupCombatCards(ctx.api, service, session);
   if (settlementNotices) {
     await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices);
@@ -280,8 +350,16 @@ export function presentLeftPassageInviteFailure(
       ].join("\n");
     case "dead":
       return "Без тями в атаку не кличуть. Навіть дуже переконливо.";
-    case "invalid-resources":
-      return "Запаси сил не сходяться з корчмарським журналом. Спершу оновіть стан пригодника.";
+    case "invalid-resources": {
+      const resources = result.resources;
+      return resources
+        ? [
+            "Запаси сил мають некоректне значення, тому бій не можна безпечно заморозити.",
+            `Зараз: HP ${resources.hpCurrent}/${resources.hpMax}, мана ${resources.manaCurrent}/${resources.manaMax}.`,
+            "Відкрийте персонажа, щоб синхронізувати ресурси, або скористайтеся локальною /dev_heal чи /dev_restore_mana."
+          ].join("\n")
+        : "Запаси сил мають некоректне значення. Відкрийте персонажа, щоб синхронізувати ресурси, і спробуйте ще раз.";
+    }
     case "active-adventure":
       return "Спершу завершіть поточну пригоду, тоді кличте ватагу.";
     case "active-raid":

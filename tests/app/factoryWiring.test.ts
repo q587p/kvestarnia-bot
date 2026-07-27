@@ -151,6 +151,8 @@ describe("application factory wiring", () => {
         dailyActions: repositories.dailyActions,
         combatSessions: repositories.soloCombatSessions,
         equipment: repositories.equipment,
+        inventory: repositories.inventory,
+        cooldowns: repositories.cooldowns,
         combatAnalytics: combatBalanceAnalytics,
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,

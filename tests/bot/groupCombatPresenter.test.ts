@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
+  buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
-  buildGroupCombatKeyboard
+  buildGroupCombatKeyboard,
+  buildGroupCombatStatisticsKeyboard
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 import {
   presentGroupCombat,
   presentGroupCombatIntro,
-  presentGroupCombatJournal
+  presentGroupCombatJournal,
+  presentGroupCombatStatistics
 } from "../../src/bot/presenters/groupCombatPresenter";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
@@ -48,7 +51,11 @@ describe("group combat presenter", () => {
       chatId: BigInt(actor.telegramUserId),
       messageId: 13 + actor.rosterOrder,
       referenceVersion: 1,
-      deliveredRevision: 0
+      deliveredRevision: 0,
+      settlementStatus: "pending" as const,
+      settlementAttempts: 0,
+      settlementReceipt: null,
+      settledAt: null
     }));
     const session: GroupCombatSessionRecord = {
       id: state.sessionId,
@@ -62,6 +69,7 @@ describe("group combat presenter", () => {
       deliveryAttemptedAt: null,
       state,
       result: null,
+      settlementPlan: null,
       turnExpiresAt: new Date(NOW.getTime() + 23_000),
       completedAt: null,
       participants,
@@ -70,10 +78,10 @@ describe("group combat presenter", () => {
 
     const text = presentGroupCombat(session, participants[0]!.characterId, NOW);
 
-    expect(text).toContain("🧪 <b>Бій: 1 хід</b>");
-    expect(text).toContain("⏳ До захисту мовчунів — 23 с.");
+    expect(text).toContain("🧪 <b>Бій</b>: 1 хід");
+    expect(text).toContain("⏳ На хід є 23 с. Потім Корчма поставить вас у захист.");
     expect(text).toContain("\n\n<b>Пригодник із довгим ім’ям 1</b>, що робимо?");
-    expect(Buffer.byteLength(text, "utf8")).toBe(1_637);
+    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
 
     state.status = "won";
     session.status = "won";
@@ -88,7 +96,6 @@ describe("group combat presenter", () => {
       contribution.guardedTurns = index;
     });
     const terminalText = presentGroupCombat(session, participants[0]!.characterId, NOW);
-    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_607);
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -107,6 +114,19 @@ describe("group combat presenter", () => {
       "🛡️ Захиститися",
       "🔎 Оновити"
     ]);
+  });
+
+  it("uses one plain attack button when only one monster remains", () => {
+    const session = createSession(2);
+    session.state.enemies[1]!.hp = 0;
+
+    const labels = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard.flat().map((button) => button.text);
+
+    expect(labels).toContain("⚔️ Атакувати");
+    expect(labels).not.toContain(`⚔️ ${session.state.enemies[0]!.name}`);
   });
 
   it("offers authored class support without restoring generic ally support", () => {
@@ -142,10 +162,15 @@ describe("group combat presenter", () => {
 
     const labels = buildGroupCombatKeyboard(session, viewer.characterId)
       .inline_keyboard.flat().map((button) => button.text);
+    const itemLabels = buildGroupCombatItemsKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("🩹 Бинт");
-    expect(labels).not.toContain("🧻 Щільний бинт");
-    expect(labels).not.toContain("🧰 Аптечка");
+    expect(labels).toContain("🎒 Одноразові манатки");
+    expect(labels).not.toContain("🩹 Бинт відповідальної паніки");
+    expect(itemLabels).toContain("🩹 Бинт відповідальної паніки");
+    expect(itemLabels).not.toContain("🩹 Щільний бинт");
+    expect(itemLabels).not.toContain("⚕️ Польова аптечка");
+    expect(itemLabels).toContain("↩️ До бою");
   });
 
   it("keeps action controls available so a queued choice can be changed", () => {
@@ -166,7 +191,7 @@ describe("group combat presenter", () => {
     const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
 
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
-    expect(text).toContain("⏳ До захисту мовчунів — 15 с.");
+    expect(text).toContain("⏳ На хід є 15 с. Потім Корчма поставить вас у захист.");
     expect(rows.flat().map((button) => button.text)).toEqual([
       "⚔️ Комірний Шурхіт 1",
       "⚔️ Комірний Шурхіт 2",
@@ -184,7 +209,7 @@ describe("group combat presenter", () => {
       new Date(session.turnExpiresAt.getTime() - 350)
     );
 
-    expect(text).toContain("⏳ До захисту мовчунів — 1 с.");
+    expect(text).toContain("⏳ На хід є 1 с. Потім Корчма поставить вас у захист.");
     expect(text).not.toContain("23 с.");
   });
 
@@ -236,14 +261,15 @@ describe("group combat presenter", () => {
     const repeated = presentGroupCombat(session, viewer.characterId, NOW);
 
     expect(first).toBe(repeated);
-    expect(intro).toContain("<b>Хто проти кого:</b>");
-    expect(intro).toContain("<b>Ватага (2):</b>");
-    expect(intro).toContain("Пригодник 1 · рівень");
-    expect(intro).toContain("<b>Вороги (2):</b>");
+    expect(intro).toContain("⚔️ <b>Бій</b>");
+    expect(intro).toContain("<b>Пригодник 1</b> · рівень");
+    expect(intro).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(intro).toContain("Проти вас:");
     expect(intro).toContain("<i>Порада дня:");
     expect(first).not.toContain("<b>Хто проти кого:</b>");
     expect(first).not.toContain("<i>Порада дня:");
-    expect(first).toContain("<b>Кулдауни й ефекти:</b>");
+    expect(first).not.toContain("<b>Кулдауни й ефекти:</b>");
+    expect(first).not.toContain("<b>Останні дії:</b>");
     expect(first).toContain("Силовий замах відсапується: ще 2 ходи.");
     expect(first).toContain("Щільний бинт відсапується: ще 5 ходів.");
     expect(first).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
@@ -259,6 +285,9 @@ describe("group combat presenter", () => {
     session.state.status = "won";
     session.state.rulesVersion = "group-combat.v3";
     session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.participants.forEach((participant) => {
+      participant.settlementStatus = "completed";
+    });
     session.state.recap = [
       { turn: 1, lines: ["Пригодник 1 стає в захист."] },
       {
@@ -308,10 +337,12 @@ describe("group combat presenter", () => {
     expect(text).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
     expect(text).toContain("🛡️ захист");
     expect(resultLabels).toContain("📜 Журнал");
+    expect(resultLabels).toContain("📊 Статистика");
+    expect(resultLabels).not.toContain("🔎 Оновити");
     expect(journalLabels).toContain("↩️ До результатів");
   });
 
-  it("renders truthful terminal contribution dimensions inside the card budget", () => {
+  it("moves truthful terminal contribution dimensions to a separate bounded statistics card", () => {
     const session = createSession(3);
     session.status = "won";
     session.state.status = "won";
@@ -327,14 +358,24 @@ describe("group combat presenter", () => {
       guardedTurns: 1,
       specialActions: 2
     };
-    const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
-    expect(text).toContain("<b>Внесок:</b>");
-    expect(text).toContain("⚔️ шкода суперникам · ❤️ лікування · 🛡️ відвернена шкода");
-    expect(text).toContain("🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії");
-    expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4, ✨ 2, 🧱 1");
-    expect(text).toContain("<b>Внесок ворогів:</b>");
-    expect(text).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 0, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
-    expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
+    const result = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+    const statistics = presentGroupCombatStatistics(session);
+    const labels = buildGroupCombatStatisticsKeyboard(session)
+      .inline_keyboard.flat().map((button) => button.text);
+
+    expect(result).not.toContain("<b>Легенда:</b>");
+    expect(result).not.toContain("<b>Пригодники:</b>");
+    expect(statistics).toContain("📊 <b>Статистика бою</b>");
+    expect(statistics).toContain("<b>Легенда:</b>");
+    expect(statistics).toContain("⚔️ шкода суперникам · ❤️ лікування · 🛡️ відвернена шкода");
+    expect(statistics).toContain("🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії");
+    expect(statistics).toContain("✨ спецатаки · 🧱 захисні ходи");
+    expect(statistics).toContain("<b>Пригодники:</b>");
+    expect(statistics).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4, ✨ 2, 🧱 1");
+    expect(statistics).toContain("<b>Монстри:</b>");
+    expect(statistics).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 0, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
+    expect(labels).toEqual(["↩️ До результатів"]);
+    expect(Buffer.byteLength(statistics, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
   it("uses the ordinary fight result and reward shape for a production participant", () => {
@@ -343,7 +384,7 @@ describe("group combat presenter", () => {
 
     const text = presentGroupCombat(session, viewer.characterId, NOW);
 
-    expect(text).toContain("🧾 Знешкоджено:");
+    expect(text).not.toContain("🧾 Знешкоджено:");
     expect(text).toContain("🎉 Ватага перемогла.");
     expect(text).toContain("Винагорода за бій:");
     expect(text).toContain("+13 XP");
@@ -353,13 +394,24 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("Ваш підсумок");
   });
 
+  it("states plainly when the encounter-wide manatka roll grants nothing", () => {
+    const session = productionTerminalSession();
+    const viewer = session.participants[0]!;
+    session.settlementPlan!.participants[0]!.rewards.items = [];
+
+    const text = presentGroupCombat(session, viewer.characterId, NOW);
+
+    expect(text).toContain("+13 XP");
+    expect(text).toContain("🎒 Манатки цього разу не випали.");
+  });
+
   it("keeps the full production result while excluding a timeout-only viewer from rewards", () => {
     const session = productionTerminalSession();
     const viewer = session.participants[1]!;
 
     const text = presentGroupCombat(session, viewer.characterId, NOW);
 
-    expect(text).toContain("🧾 Знешкоджено:");
+    expect(text).not.toContain("🧾 Знешкоджено:");
     expect(text).toContain("🎉 Ватага перемогла.");
     expect(text).toContain("Винагороди немає: цього разу ви не обрали жодної дії вручну.");
     expect(text).not.toContain("Винагорода за бій:");
@@ -429,8 +481,7 @@ function productionTerminalSession(): GroupCombatSessionRecord {
       winXpTotal: 13,
       winGoldTotal: 2,
       lossXpTotal: 2,
-      commonItemId: "item.responsible-panic-bandage",
-      commonItemQuantity: 1
+      lootVersion: 1
     }
   };
   session.participants[0]!.currentLevel = 4;
@@ -499,7 +550,11 @@ function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
     chatId: BigInt(actor.telegramUserId),
     messageId: 13 + actor.rosterOrder,
     referenceVersion: 1,
-    deliveredRevision: 0
+    deliveredRevision: 0,
+    settlementStatus: "pending" as const,
+    settlementAttempts: 0,
+    settlementReceipt: null,
+    settledAt: null
   }));
 
   return {
@@ -514,6 +569,7 @@ function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
     deliveryAttemptedAt: null,
     state,
     result: null,
+    settlementPlan: null,
     turnExpiresAt: new Date(NOW.getTime() + 23_000),
     completedAt: null,
     participants,

@@ -6,7 +6,7 @@ import {
 import { buildLeftPassageEncounterRewardBudget } from "../../src/domain/groupCombat/groupCombat";
 
 describe("left-passage group-combat reward budget", () => {
-  it("uses ordinary-fight XP and gold bands for 1x1, then adds enemy budgets without multiplying loot", () => {
+  it("uses ordinary-fight XP and gold bands for 1x1, then adds enemy budgets", () => {
     const oneByOne = buildLeftPassageEncounterRewardBudget({
       participantLevels: [3],
       enemies: [{ baseLevel: 2, effectiveLevel: 5 }],
@@ -35,7 +35,6 @@ describe("left-passage group-combat reward budget", () => {
     expect(oneByOne.winGoldTotal).toBeLessThanOrEqual(3);
     expect(twoByTwo.winXpTotal).toBeGreaterThan(oneByOne.winXpTotal);
     expect(threeByThree.winXpTotal).toBeGreaterThan(twoByTwo.winXpTotal);
-    expect(threeByThree.commonItemQuantity).toBeLessThanOrEqual(1);
   });
 
   it("selects non-leader pressure/remort sources and resolves exact ties by frozen roster order", () => {

@@ -9,7 +9,9 @@ import {
 } from "../../domain/groupCombat/groupCombat";
 import {
   makeGroupCombatActionCallbackData,
+  makeGroupCombatItemsMenuCallbackData,
   makeGroupCombatJournalCallbackData,
+  makeGroupCombatStatisticsCallbackData,
   makeGroupCombatViewCallbackData
 } from "../callbacks/groupCombatCallbackData";
 
@@ -23,9 +25,18 @@ export function buildGroupCombatKeyboard(
       keyboard.text(
         "📜 Журнал",
         makeGroupCombatJournalCallbackData(session.partyInviteToken, session.state.recap.length - 1)
-      ).row();
+      );
     }
-    return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
+    keyboard.text(
+      "📊 Статистика",
+      makeGroupCombatStatisticsCallbackData(session.partyInviteToken)
+    ).row();
+    const viewer = session.participants.find(
+      (participant) => participant.characterId === viewerCharacterId
+    );
+    return viewer?.settlementStatus === "pending"
+      ? keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken))
+      : keyboard;
   }
   const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
   if (!viewer || viewer.hp <= 0) {
@@ -42,16 +53,20 @@ export function buildGroupCombatKeyboard(
     }
   };
 
+  const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
   session.state.enemies.forEach((enemy, targetIndex) => {
     if (enemy.hp <= 0) {
       return;
     }
-    addActionButton(`⚔️ ${enemy.name}`, makeGroupCombatActionCallbackData({
+    addActionButton(
+      livingEnemies.length === 1 ? "⚔️ Атакувати" : `⚔️ ${enemy.name}`,
+      makeGroupCombatActionCallbackData({
       token: session.partyInviteToken,
       turn: session.turn,
       action: "attack",
       targetIndex
-    }));
+      })
+    );
   });
   addActionButton("🛡️ Захиститися", makeGroupCombatActionCallbackData({
     token: session.partyInviteToken,
@@ -62,29 +77,26 @@ export function buildGroupCombatKeyboard(
   addAbilityButtons("class");
   addAbilityButtons("race");
   (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) => addAbilityButtons("gear", abilityId, optionIndex));
-  GROUP_COMBAT_SUPPORTED_ITEM_IDS.forEach((itemId, optionIndex) => {
-    const candidate: GroupCombatAction = {
-      actorCharacterId: viewer.characterId,
-      turn: session.turn,
-      action: "item",
-      targetKind: "self",
-      targetId: viewer.characterId,
-      payloadKey: itemId,
-      origin: "manual"
-    };
-    if (validateGroupCombatAction(session.state, candidate) !== "ok") {
-      return;
-    }
-    addActionButton(GROUP_COMBAT_ITEM_BUTTONS[itemId], makeGroupCombatActionCallbackData({
-      token: session.partyInviteToken,
-      turn: session.turn,
-      action: "item",
-      optionIndex,
-      targetIndex: viewer.rosterOrder
-    }));
-  });
   if (buttonsInRow > 0) {
     keyboard.row();
+    buttonsInRow = 0;
+  }
+  if (listAvailableGroupCombatItems(session, viewer.characterId).length > 0) {
+    keyboard
+      .text(
+        "🎒 Одноразові манатки",
+        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn)
+      )
+      .row();
+  }
+  if (session.state.recap.length > 0) {
+    keyboard.text(
+      "📜 Журнал",
+      makeGroupCombatJournalCallbackData(
+        session.partyInviteToken,
+        session.state.recap.length - 1
+      )
+    );
   }
   return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
 
@@ -140,6 +152,40 @@ export function buildGroupCombatKeyboard(
   }
 }
 
+export function buildGroupCombatItemsKeyboard(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const item of listAvailableGroupCombatItems(session, viewerCharacterId)) {
+    keyboard.text(
+      formatGroupCombatItemButton(item.itemId, item.quantity),
+      makeGroupCombatActionCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        action: "item",
+        optionIndex: item.optionIndex,
+        targetIndex: item.rosterOrder
+      })
+    ).row();
+  }
+
+  return keyboard.text(
+    "↩️ До бою",
+    makeGroupCombatViewCallbackData(session.partyInviteToken)
+  );
+}
+
+export function buildGroupCombatStatisticsKeyboard(
+  session: GroupCombatSessionRecord
+): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "↩️ До результатів",
+    makeGroupCombatViewCallbackData(session.partyInviteToken)
+  );
+}
+
 export function buildGroupCombatJournalKeyboard(
   session: GroupCombatSessionRecord,
   requestedPage: number
@@ -170,8 +216,59 @@ export function buildGroupCombatJournalKeyboard(
   );
 }
 
+interface AvailableGroupCombatItem {
+  itemId: (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number];
+  optionIndex: number;
+  quantity: number;
+  rosterOrder: number;
+}
+
+function listAvailableGroupCombatItems(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string
+): AvailableGroupCombatItem[] {
+  if (session.status !== "active") {
+    return [];
+  }
+  const viewer = session.state.participants.find(
+    (participant) => participant.characterId === viewerCharacterId
+  );
+  if (!viewer || viewer.hp <= 0) {
+    return [];
+  }
+
+  return GROUP_COMBAT_SUPPORTED_ITEM_IDS.flatMap((itemId, optionIndex) => {
+    const candidate: GroupCombatAction = {
+      actorCharacterId: viewer.characterId,
+      turn: session.turn,
+      action: "item",
+      targetKind: "self",
+      targetId: viewer.characterId,
+      payloadKey: itemId,
+      origin: "manual"
+    };
+    if (validateGroupCombatAction(session.state, candidate) !== "ok") {
+      return [];
+    }
+    return [{
+      itemId,
+      optionIndex,
+      quantity: viewer.combatItemQuantities[itemId] ?? 0,
+      rosterOrder: viewer.rosterOrder
+    }];
+  });
+}
+
+function formatGroupCombatItemButton(
+  itemId: (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number],
+  quantity: number
+): string {
+  const quantityLabel = quantity > 1 ? ` ×${quantity}` : "";
+  return `${GROUP_COMBAT_ITEM_BUTTONS[itemId]}${quantityLabel}`;
+}
+
 const GROUP_COMBAT_ITEM_BUTTONS: Record<(typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number], string> = {
-  "item.responsible-panic-bandage": "🩹 Бинт",
-  "item.dense-bandage": "🧻 Щільний бинт",
-  "item.field-kit": "🧰 Аптечка"
+  "item.responsible-panic-bandage": "🩹 Бинт відповідальної паніки",
+  "item.dense-bandage": "🩹 Щільний бинт",
+  "item.field-kit": "⚕️ Польова аптечка"
 };

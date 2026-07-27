@@ -29,11 +29,20 @@ an earlier roster actor or a start-of-turn effect ends the fight before that
 action executes; skipped actions spend no mana, items or cooldowns. Timeout
 auto-guards do not qualify.
 
-Common loot is separate from those per-enemy XP/gold budgets: the encounter
-makes exactly one common-item roll, then assigns at most one bandage to one
-eligible participant. Rewards are not damage-weighted. The eight contribution
-dimensions are descriptive only: damage, healing, prevented damage, control,
-damage taken, committed/actions, special actions and guarded turns.
+Every enemy also gets one deterministic ordinary broad-loot roll and one
+ordinary post-fight bandage slot. The broad-loot multiplier is
+`clamp(1 + 0.05 × (effectiveEnemyLevel - recipientLevel), 0.75, 1.5)`;
+stronger enemies improve their roll, while additional enemies add independent
+opportunities. Enemy rolls are assigned round-robin from a deterministic
+offset among eligible manual participants and use the recipient's frozen
+class/race/LUCK profile. Authored monster loot and eligible Loot Expansion
+manatky can drop; a positive bandage slot keeps the ordinary `4–6%`
+LUCK-bounded chance to become `Іскрокамінь` instead. The immutable terminal
+plan is replayed without rerolling.
+
+Rewards are not damage-weighted. The eight contribution dimensions are
+descriptive only: damage, healing, prevented damage, control, damage taken,
+committed/actions, special actions and guarded turns.
 
 ## Supported monster-special contract
 
@@ -71,9 +80,10 @@ The production state budget is `65,536` bytes so a complete 25-turn 3×6
 journal can retain every turn's HP/mana, cooldowns and active effects; the
 measured maximum and current card/query observations are recorded in the QA
 document and draft PR. Telegram cards remain capped at `4,096` bytes and
-callbacks at `64`. Reward-budget regressions prove that each additional enemy
-adds its canonical XP/gold budget while common loot remains one encounter-wide
-roll.
+callbacks at `64`. Reward-budget and loot regressions prove that each
+additional enemy adds its canonical XP/gold budget and deterministic loot
+opportunities, that effective enemy level scales the broad-roll chance, and
+that authored/Loot Expansion items plus `Іскрокамінь` remain replay-safe.
 
 All six existing support profiles completed the simulator matrix without a
 required class/race composition gate; Telegram class/race evidence is still a

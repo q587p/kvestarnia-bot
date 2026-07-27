@@ -99,7 +99,7 @@ describe("group-combat canonical participant delivery", () => {
       1,
       1001,
       21,
-      expect.stringContaining("<b>Хто проти кого:</b>"),
+      expect.stringContaining("Бій починається. Корчма відкриває журнал ходів"),
       {
         parse_mode: "HTML",
         reply_markup: { inline_keyboard: [] }
@@ -182,10 +182,10 @@ describe("group-combat canonical participant delivery", () => {
     releaseFirstEdit.resolve();
 
     await expect(Promise.all([oldDelivery, newDelivery])).resolves.toHaveLength(2);
-    expect(edits[0]).toContain("Бій: 1 хід");
-    expect(edits.at(-1)).toContain("Бій: 2 хід");
-    expect(edits.slice(edits.findIndex((text) => text.includes("Бій: 2 хід")))).not.toEqual(
-      expect.arrayContaining([expect.stringContaining("Бій: 1 хід")])
+    expect(edits[0]).toContain("<b>Бій</b>: 1 хід");
+    expect(edits.at(-1)).toContain("<b>Бій</b>: 2 хід");
+    expect(edits.slice(edits.findIndex((text) => text.includes("<b>Бій</b>: 2 хід")))).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("<b>Бій</b>: 1 хід")])
     );
     expect(sendInertMessage).not.toHaveBeenCalled();
   });
@@ -588,7 +588,7 @@ describe("group-combat canonical participant delivery", () => {
       now: () => new Date("2026-07-22T10:00:17.000Z")
     });
 
-    expect(texts.at(-1)).toContain("⏳ До захисту мовчунів — 6 с.");
+    expect(texts.at(-1)).toContain("⏳ На хід є 6 с. Потім Корчма поставить вас у захист.");
     expect(texts.at(-1)).not.toContain("23 с.");
   });
 });

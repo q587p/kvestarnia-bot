@@ -78,6 +78,30 @@ describe("GroupCombatService", () => {
     expect(startLeftPassage).not.toHaveBeenCalled();
   });
 
+  it("starts a left-passage attack early through the all-ready repository gate", async () => {
+    const { repository, startReadyLeftPassage } = repositoryFixture();
+    startReadyLeftPassage.mockResolvedValue({ state: "not-found" });
+    const now = new Date("2026-07-27T18:23:00.000Z");
+    const service = new GroupCombatService(
+      repository,
+      {
+        enabled: true,
+        devHelpersEnabled: false,
+        leftPassagePartyAttackEnabled: true
+      },
+      () => now
+    );
+
+    await expect(service.startReadyLeftPassage("party-token-23")).resolves.toEqual({
+      state: "not-found"
+    });
+    expect(startReadyLeftPassage).toHaveBeenCalledWith({
+      partyInviteToken: "party-token-23",
+      now,
+      turnExpiresAt: new Date(now.getTime() + 23_000)
+    });
+  });
+
   it("settles participants without an achievement projector", async () => {
     const { repository, settleParticipant } = repositoryFixture();
     const receipt = leftPassageReceipt();
@@ -250,6 +274,7 @@ function repositoryFixture() {
   const submitAction = vi.fn<GroupCombatRepository["submitActionForTelegramUser"]>();
   const createLeftPassage = vi.fn<GroupCombatRepository["createLeftPassagePartyForTelegramUser"]>();
   const startLeftPassage = vi.fn<GroupCombatRepository["startLeftPassageForTelegramUser"]>();
+  const startReadyLeftPassage = vi.fn<GroupCombatRepository["startReadyLeftPassage"]>();
   const findByPartyInviteToken = vi.fn<GroupCombatRepository["findByPartyInviteToken"]>();
   const resolveTimedOutSession = vi.fn<GroupCombatRepository["resolveTimedOutSession"]>();
   const settleParticipant = vi.fn<GroupCombatRepository["settleParticipant"]>();
@@ -262,6 +287,7 @@ function repositoryFixture() {
     startDueProof,
     startLeftPassageForTelegramUser: startLeftPassage,
     startDueLeftPassage: vi.fn(),
+    startReadyLeftPassage,
     submitActionForTelegramUser: submitAction,
     resolveTimedOutSession,
     findByPartyInviteToken,
@@ -285,6 +311,7 @@ function repositoryFixture() {
     submitAction,
     createLeftPassage,
     startLeftPassage,
+    startReadyLeftPassage,
     findByPartyInviteToken,
     resolveTimedOutSession,
     settleParticipant,

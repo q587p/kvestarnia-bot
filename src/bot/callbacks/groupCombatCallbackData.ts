@@ -8,6 +8,8 @@ export type GroupCombatCallback =
   | { type: "invite-left"; token: string }
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
+  | { type: "statistics"; token: string }
+  | { type: "items"; token: string; turn: number }
   | {
       type: "action";
       token: string;
@@ -38,6 +40,14 @@ export function makeLeftPassageGroupCombatStartCallbackData(token: string): stri
 
 export function makeGroupCombatJournalCallbackData(token: string, page: number): string {
   return `v1:gc:j:${token}:${Math.max(0, Math.floor(page)).toString(36)}`;
+}
+
+export function makeGroupCombatStatisticsCallbackData(token: string): string {
+  return `v1:gc:t:${token}`;
+}
+
+export function makeGroupCombatItemsMenuCallbackData(token: string, turn: number): string {
+  return `v2:gc:m:${token}:${Math.max(1, Math.floor(turn)).toString(36)}`;
 }
 
 export function makeGroupCombatActionCallbackData(input: {
@@ -83,6 +93,13 @@ export function parseGroupCombatCallbackData(
   if (parts[0] === "v1" && parts[2] === "j" && parts.length === 5) {
     const page = parseBase36(parts[4], true);
     return page === null ? err("invalid") : ok({ type: "journal", token, page });
+  }
+  if (parts[0] === "v1" && parts[2] === "t" && parts.length === 4) {
+    return ok({ type: "statistics", token });
+  }
+  if (parts[0] === "v2" && parts[2] === "m" && parts.length === 5) {
+    const turn = parseBase36(parts[4]);
+    return turn === null ? err("invalid") : ok({ type: "items", token, turn });
   }
   if (parts[0] !== "v2" || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");

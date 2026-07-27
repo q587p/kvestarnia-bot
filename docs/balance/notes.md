@@ -14,6 +14,52 @@ MVP має бути веселим, не ідеально збалансован
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../history/phases/phase2/planning/unstable-balance-principles.md).
 
+## 0.4.2 left-passage party attack
+
+The encounter budget is built before any participant split. Every frozen enemy
+adds the ordinary persistent-PvE XP baseline and the ordinary character-level
+gold band to one encounter-wide total. That total is then split neutrally and
+deterministically only among participants with an accepted manual action; a
+timeout guard receives no XP, gold, item or activity share. Each defeated enemy
+also receives one deterministic ordinary-PvE broad-loot roll and one ordinary
+post-fight bandage slot. The broad-loot multiplier is
+`clamp(1 + 0.05 × (effectiveEnemyLevel - recipientLevel), 0.75, 1.5)`;
+therefore stronger enemies improve an individual roll and additional enemies
+add independent opportunities without multiplying any one roll. Enemy rolls
+are distributed round-robin from a deterministic offset among eligible manual
+participants, use that recipient's frozen class/race/LUCK profile and can grant
+authored monster loot or eligible Loot Expansion manatky. Each positive
+bandage slot keeps the ordinary `4–6%` LUCK-bounded replacement rule, so it may
+become `Іскрокамінь` instead of a bandage. Replays reuse the immutable terminal
+plan and never reroll. A winning result with no items states explicitly that no
+manatka dropped. Loss XP remains the bounded one-fifth consolation from the
+encounter XP budget and loss gold is zero.
+
+GroupCombat persists eight symmetric contribution dimensions for participants
+and monsters: damage, healing, prevented damage, weakened response/control,
+damage taken, committed actions, special attacks and defensive turns. These
+statistics explain the fight and do not change reward eligibility or split
+weights.
+
+Monster specials are allowlisted only when GroupCombat implements the authored
+target and effect exactly:
+
+- `royal-scurry`: self evasion plus self damage reduction;
+- `cabbage-plate`: self heal plus self shield;
+- `compound-interest`: self heal plus temporary outgoing-damage buff;
+- `common-group-rally`: shields and damage reduction for all living monsters;
+- `approved-dam`: stronger shields and damage reduction for all living monsters;
+- `classified-rustle`: evasion and damage reduction for all living monsters;
+- `return-to-staff`: heal and cleanse the lowest-HP living ally, or use the
+  authored solo self-shield fallback;
+- `smoke-without-approval`: damage and accuracy penalty to every living player;
+- `preapproved-bite`: damage and burn to one player.
+
+Every other authored monster ability is excluded from the frozen loadout and
+uses a basic attack. A persisted production loadout containing an unsupported
+ID is rejected strictly; no self-only, setup, sustain or non-damaging effect is
+converted into player damage.
+
 `0.3.16` closes the PartyBoss class/race support parity gap. Existing support
 actions now apply their authored ally scope in group combat: Priest healing can
 select the lowest-HP living ally and protect the party, while Molfar protection

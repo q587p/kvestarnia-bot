@@ -21,9 +21,17 @@ import {
   type MonsterAbilityDefinition
 } from "../../content/monsterAbilities";
 import { monsters } from "../../content/monsters";
+import { items } from "../../content/items";
+import { monsterLoot } from "../../content/monsterFlavor";
+import type { LootExpansionSourceId } from "../../content/lootExpansionV1";
 import { rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
+import {
+  rollBandageDropQuantity,
+  rollMonsterLoot,
+  rollPostFightBandageSlotReward
+} from "../loot";
 import { SeededRandomSource } from "../../shared/random";
 import {
   buildBaselinePersistentFightWinXp,
@@ -38,7 +46,10 @@ export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
 export const GROUP_COMBAT_PROOF_ENCOUNTER_KEY = "proof-cellar-many";
 export const GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY = "nyz-left-passage-party.v1";
-export const GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID = "item.responsible-panic-bandage";
+export const LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY =
+  "fight:left-passage-tier-two-discovery";
+export const LEFT_PASSAGE_TIER_TWO_DISCOVERY_MIN_MINUTES = 13;
+export const LEFT_PASSAGE_TIER_TWO_DISCOVERY_MAX_MINUTES = 23;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
 export const GROUP_COMBAT_RECAP_LIMIT = GROUP_COMBAT_TURN_LIMIT;
 export const GROUP_COMBAT_STATE_BYTE_LIMIT = 65_536;
@@ -85,6 +96,7 @@ export interface GroupCombatActorSnapshot {
   characterId: string;
   telegramUserId: string;
   name: string;
+  activeCosmeticTitle?: string;
   remortCount: number;
   rosterOrder: number;
   classId: string;
@@ -183,8 +195,7 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
     winXpTotal: number;
     winGoldTotal: number;
     lossXpTotal: number;
-    commonItemId: string | null;
-    commonItemQuantity: 0 | 1;
+    lootVersion: 1;
   };
 }
 
@@ -692,6 +703,9 @@ export function resolveGroupCombatTurn(
   const state = cloneGroupCombatState(current);
   const lines: string[] = [];
   const monsterBarkIds: string[] = [];
+  const defeatedEnemyIds = new Set(
+    state.enemies.filter((enemy) => enemy.hp <= 0).map((enemy) => enemy.id)
+  );
   const livingActors = state.participants.filter((participant) => participant.hp > 0);
   const actionsByActor = new Map(submittedActions.map((action) => [action.actorCharacterId, { ...action }]));
   const actions = livingActors.map(
@@ -709,6 +723,7 @@ export function resolveGroupCombatTurn(
   }
 
   applyBleedStatuses(state, lines);
+  appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
     return terminalize(state, "won", lines, [], monsterBarkIds);
   }
@@ -764,6 +779,7 @@ export function resolveGroupCombatTurn(
       applyAbilityAction(state, actor, action, contribution, lines);
       tickGroupCombatItemCooldowns(actor);
     }
+    appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
     tickParticipantMonsterEffects(state, actor.characterId);
   }
 
@@ -772,6 +788,7 @@ export function resolveGroupCombatTurn(
   }
 
   applyEnemyPhase(state, lines, monsterBarkIds);
+  appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
     return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
   }
@@ -818,9 +835,9 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
   const eligible = orderedParticipants.filter((participant) =>
     getContribution(state, participant.characterId).committedActions > 0
   );
-  const commonRecipient = production?.rewards.commonItemId && state.status === "won" && eligible.length > 0
-    ? eligible[state.deterministicSeed % eligible.length] ?? null
-    : null;
+  const lootRewards = production && state.status === "won"
+    ? buildLeftPassageEncounterLootRewards(state, eligible)
+    : new Map<string, GroupCombatRewards["items"]>();
   return {
     version: 1,
     policy: production ? "left-passage-party" : "rewardless-proof",
@@ -835,7 +852,12 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
         resources: { hp: participant.hp, mana: participant.mana },
         contribution: { ...getContribution(state, participant.characterId) },
         rewards: production
-          ? buildLeftPassageParticipantRewards(state, participant, eligible, commonRecipient)
+          ? buildLeftPassageParticipantRewards(
+              state,
+              participant,
+              eligible,
+              lootRewards.get(participant.characterId) ?? []
+            )
           : zeroRewards(),
         ...(production
           ? {
@@ -944,8 +966,8 @@ function applyBasicAttack(
   tickGroupCombatItemCooldowns(actor);
   lines.push(
     resolved.summary.actorOutcome === "miss"
-      ? `${actor.name} атакує «${target.name}», але не влучає.`
-      : `${actor.name} атакує «${target.name}»${resolved.summary.critical ? " критично" : ""}: ${damage} шкоди.`
+      ? `${actor.name} атакує ${target.name}, але не влучає.`
+      : `${actor.name} атакує ${target.name}${resolved.summary.critical ? " критично" : ""}: ${damage} шкоди.`
   );
 }
 
@@ -1008,13 +1030,18 @@ function applyAbilityAction(
     return;
   }
 
-  let dealt = primaryEnemy
+  const damageEntries: Array<{ name: string; damage: number }> = [];
+  const primaryDamage = primaryEnemy
     ? applyPlayerDamageToEnemy(
         state,
         primaryEnemy,
         Math.max(0, defenderState.hp - resolved.defenderState.hp)
       )
     : 0;
+  let dealt = primaryDamage;
+  if (primaryEnemy) {
+    damageEntries.push({ name: primaryEnemy.name, damage: primaryDamage });
+  }
   if (primaryEnemy) {
     primaryEnemy.hp = Math.max(0, primaryEnemy.hp);
   }
@@ -1030,7 +1057,9 @@ function applyAbilityAction(
     const damage = resolved.summary.actorDamage <= 0
       ? 0
       : Math.min(target.hp, Math.max(1, Math.floor(resolved.summary.actorDamage * ratio)));
-    dealt += applyPlayerDamageToEnemy(state, target, damage);
+    const applied = applyPlayerDamageToEnemy(state, target, damage);
+    dealt += applied;
+    damageEntries.push({ name: target.name, damage: applied });
   }
   contribution.damage += dealt;
   contribution.specialActions = (contribution.specialActions ?? 0) + 1;
@@ -1043,6 +1072,7 @@ function applyAbilityAction(
   const healingTargets = ability.recipe?.includes("self-heal")
     ? secondarySupportTargets.length > 0 ? secondarySupportTargets : [actor.characterId]
     : primarySupportTargets.length > 0 ? primarySupportTargets : secondarySupportTargets;
+  const healingEntries: Array<{ name: string; healing: number }> = [];
   if (ability.healAmount && healingTargets.length > 0) {
     for (const targetId of unique(healingTargets)) {
       const target = state.participants.find((candidate) => candidate.characterId === targetId);
@@ -1052,6 +1082,7 @@ function applyAbilityAction(
       const healed = healParticipant(target, ability.healAmount);
       contribution.healing += healed;
       actor.threat += healed * 2;
+      healingEntries.push({ name: target.name, healing: healed });
     }
   }
   const protectionTargets = secondarySupportTargets.length > 0
@@ -1077,12 +1108,60 @@ function applyAbilityAction(
     }
   }
   maybeAddGearBleed(state, actor, action, primaryEnemy);
+  const allEnemyScope =
+    primaryTargetScope === "all-enemies" ||
+    ability.secondaryTargetScope === "all-enemies";
+  const allAllyScope =
+    primaryTargetScope === "all-allies-including-self" ||
+    ability.secondaryTargetScope === "all-allies-including-self";
+  const healingAllAllies = ability.recipe?.includes("self-heal")
+    ? ability.secondaryTargetScope === "all-allies-including-self"
+    : primarySupportTargets.length > 0
+      ? primaryTargetScope === "all-allies-including-self"
+      : ability.secondaryTargetScope === "all-allies-including-self";
+  const effects: string[] = [];
+  if (dealt > 0) {
+    effects.push(allEnemyScope
+      ? presentMultiTargetDamage(damageEntries)
+      : `${dealt} шкоди`);
+  }
+  if (healingEntries.some((entry) => entry.healing > 0)) {
+    effects.push(healingAllAllies
+      ? presentMultiTargetHealing(healingEntries)
+      : healingEntries.map((entry) => `${entry.name}: +${entry.healing} HP`).join(", "));
+  }
+  const hasProtectionEffect = Boolean(
+    ability.guardReduction ||
+    ability.monsterDamageReduction ||
+    ability.counterDamage
+  );
+  if (hasProtectionEffect) {
+    effects.push(allAllyScope
+      ? "захисний ефект для всіх союзників"
+      : "захисний ефект");
+  }
   lines.push(
     resolved.summary.actorOutcome === "miss"
       ? `${actor.name} застосовує «${ability.label}», але не влучає.`
-      : `${actor.name} застосовує «${ability.label}»${resolved.summary.critical ? " критично" : ""}` +
-        `${dealt > 0 ? `: ${dealt} шкоди` : " без прямої шкоди"}.`
+      : `${actor.name} застосовує «${ability.label}»${resolved.summary.critical ? " критично" : ""}: ` +
+        `${effects.length > 0 ? effects.join("; ") : "без прямої шкоди"}.`
   );
+}
+
+function presentMultiTargetDamage(entries: Array<{ name: string; damage: number }>): string {
+  const sameDamage = entries.length > 0 &&
+    entries.every((entry) => entry.damage === entries[0]!.damage);
+  return sameDamage
+    ? `усім ворогам — по ${entries[0]!.damage} шкоди`
+    : `усім ворогам — ${entries.map((entry) => `${entry.name}: ${entry.damage} шкоди`).join(", ")}`;
+}
+
+function presentMultiTargetHealing(entries: Array<{ name: string; healing: number }>): string {
+  const sameHealing = entries.length > 0 &&
+    entries.every((entry) => entry.healing === entries[0]!.healing);
+  return sameHealing
+    ? `усім союзникам — по +${entries[0]!.healing} HP`
+    : `усім союзникам — ${entries.map((entry) => `${entry.name}: +${entry.healing} HP`).join(", ")}`;
 }
 
 function groupCombatEnemyActorStats(
@@ -1133,7 +1212,15 @@ function applyEnemyPhase(
   lines: string[],
   monsterBarkIds: string[]
 ): void {
-  for (const enemy of state.enemies.filter((candidate) => candidate.hp > 0).sort((a, b) => a.order - b.order)) {
+  const livingEnemies = state.enemies
+    .filter((candidate) => candidate.hp > 0)
+    .sort((a, b) => a.order - b.order);
+  const barkSpeaker = livingEnemies.length > 0
+    ? livingEnemies[
+        Math.abs(state.deterministicSeed + state.turn - 1) % livingEnemies.length
+      ]
+    : undefined;
+  for (const enemy of livingEnemies) {
     if (!chooseEnemyTarget(state)) {
       break;
     }
@@ -1144,7 +1231,7 @@ function applyEnemyPhase(
     const authored = enemy.monsterId
       ? monsters.find((candidate) => candidate.id === enemy.monsterId)
       : null;
-    if (authored) {
+    if (authored && enemy.id === barkSpeaker?.id) {
       const monster = deriveMonsterCombatStats(
         { ...authored, level: enemy.level ?? authored.level },
         enemy.order > 0
@@ -1205,7 +1292,7 @@ function applyEnemyPhase(
       );
       const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
       enemyContribution.damage += damage;
-      lines.push(`«${enemy.name}» відповідає ${target.name}: ${damage} шкоди.`);
+      lines.push(`${enemy.name} відповідає ${target.name}: ${damage} шкоди.`);
     }
     tickEnemyOwnStatuses(state, enemy.id);
   }
@@ -1410,7 +1497,7 @@ function executeGroupCombatEnemyAbility(
     contribution.damage += totalDamage;
     contribution.control += targets.length;
     lines.push(
-      `«${enemy.name}» застосовує ${ability.label} по всій ватазі: ${totalDamage} шкоди.`
+      `${enemy.name} застосовує ${ability.label} по всій ватазі: ${totalDamage} шкоди.`
     );
     return true;
   }
@@ -1441,15 +1528,15 @@ function executeGroupCombatEnemyAbility(
     }
     lines.push(
       damage > 0
-        ? `«${enemy.name}» застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
-        : `«${enemy.name}» застосовує ${ability.label}, але ${target.name} уникає шкоди.`
+        ? `${enemy.name} застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
+        : `${enemy.name} застосовує ${ability.label}, але ${target.name} уникає шкоди.`
     );
     return true;
   }
   if (ability.id === "monster.royal-scurry") {
     applyEnemyDefenseEffects(state, enemy, enemy, ability);
     contribution.guardedTurns += 1;
-    lines.push(`«${enemy.name}» застосовує ${ability.label} й укріплює власний захист.`);
+    lines.push(`${enemy.name} застосовує ${ability.label} й укріплює власний захист.`);
     return true;
   }
   if (ability.id === "monster.cabbage-plate") {
@@ -1459,7 +1546,7 @@ function executeGroupCombatEnemyAbility(
     );
     contribution.healing += healed;
     applyEnemyShield(state, enemy, enemy, ability, Number(ability.parameters.shieldMaxHpFraction ?? 0));
-    lines.push(`«${enemy.name}» застосовує ${ability.label}: +${healed} HP і щит.`);
+    lines.push(`${enemy.name} застосовує ${ability.label}: +${healed} HP і щит.`);
     return true;
   }
   if (ability.id === "monster.compound-interest") {
@@ -1477,7 +1564,7 @@ function executeGroupCombatEnemyAbility(
       Math.floor(Number(ability.parameters.outgoingDamageMultiplier ?? 1) * 10_000),
       positiveInteger(Number(ability.parameters.durationOwnActivations ?? 1))
     );
-    lines.push(`«${enemy.name}» застосовує ${ability.label}: +${healed} HP і сильніша відповідь.`);
+    lines.push(`${enemy.name} застосовує ${ability.label}: +${healed} HP і сильніша відповідь.`);
     return true;
   }
   if (
@@ -1489,7 +1576,7 @@ function executeGroupCombatEnemyAbility(
     for (const ally of allies) {
       applyEnemyDefenseEffects(state, enemy, ally, ability);
     }
-    lines.push(`«${enemy.name}» застосовує ${ability.label} й укріплює всіх монстрів.`);
+    lines.push(`${enemy.name} застосовує ${ability.label} й укріплює всіх монстрів.`);
     return true;
   }
   if (ability.id === "monster.return-to-staff") {
@@ -1502,7 +1589,7 @@ function executeGroupCombatEnemyAbility(
         ability,
         Number(ability.parameters.soloFallbackShieldMaxHpFraction ?? 0)
       );
-      lines.push(`«${enemy.name}» застосовує ${ability.label} й прикривається щитом.`);
+      lines.push(`${enemy.name} застосовує ${ability.label} й прикривається щитом.`);
       return true;
     }
     const healed = healEnemy(
@@ -1515,7 +1602,7 @@ function executeGroupCombatEnemyAbility(
       (status) => !(status.targetKind === "enemy" && status.targetId === ally.id && status.kind === "bleed")
     );
     contribution.control += before - state.statuses.length;
-    lines.push(`«${enemy.name}» застосовує ${ability.label} до «${ally.name}»: +${healed} HP.`);
+    lines.push(`${enemy.name} застосовує ${ability.label} до ${ally.name}: +${healed} HP.`);
     return true;
   }
   return false;
@@ -1861,7 +1948,7 @@ function applyBleedStatuses(state: GroupCombatState, lines: string[]): void {
       enemy.hp -= damage;
       getContribution(state, status.sourceCharacterId!).damage += damage;
       getEnemyContribution(state, enemy.id).damageTaken += damage;
-      lines.push(`🩸 «${enemy.name}» втрачає ${damage} HP.`);
+      lines.push(`🩸 ${enemy.name} втрачає ${damage} HP.`);
     }
     status.remainingTurns -= 1;
   }
@@ -2086,6 +2173,33 @@ function getCanonicalEnemyTarget(
     null;
 }
 
+function appendNewlyDefeatedEnemyLines(
+  state: GroupCombatState,
+  defeatedEnemyIds: Set<string>,
+  lines: string[]
+): void {
+  const newlyDefeated = state.enemies
+    .filter((enemy) => enemy.hp <= 0 && !defeatedEnemyIds.has(enemy.id))
+    .sort((left, right) => left.order - right.order);
+
+  if (newlyDefeated.length === 0) {
+    return;
+  }
+
+  const nextTarget = state.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .sort((left, right) => left.order - right.order)[0];
+
+  for (const enemy of newlyDefeated) {
+    defeatedEnemyIds.add(enemy.id);
+    lines.push(
+      nextTarget
+        ? `🧾 Знешкоджено: ${enemy.name}. Нова ціль — ${nextTarget.name}; Корчма переставила табличку без голосування.`
+        : `🧾 Знешкоджено: ${enemy.name}. У бойовій відомості Корчми навпроти супротивника стоїть «досить».`
+    );
+  }
+}
+
 function getContribution(state: GroupCombatState, characterId: string): GroupCombatContribution {
   const contribution = state.contributions.find((candidate) => candidate.characterId === characterId);
   if (!contribution) {
@@ -2164,7 +2278,7 @@ function buildLeftPassageParticipantRewards(
   state: GroupCombatState,
   participant: GroupCombatActorSnapshot,
   eligible: GroupCombatActorSnapshot[],
-  commonRecipient: GroupCombatActorSnapshot | null
+  itemRewards: readonly GroupCombatRewards["items"][number][]
 ): GroupCombatRewards {
   const production = state.production;
   if (!production || !eligible.some((candidate) => candidate.characterId === participant.characterId)) {
@@ -2181,13 +2295,140 @@ function buildLeftPassageParticipantRewards(
   return {
     xp: splitNeutral(xpTotal, orderedEligible.length, index),
     gold: splitNeutral(goldTotal, orderedEligible.length, index),
-    items: commonRecipient?.characterId === participant.characterId && production.rewards.commonItemId
-      ? [{
-          itemId: production.rewards.commonItemId,
-          quantity: production.rewards.commonItemQuantity
-        }]
-      : []
+    items: itemRewards.map((item) => ({ ...item }))
   };
+}
+
+export function buildLeftPassageEncounterLootRewards(
+  state: GroupCombatState,
+  eligibleParticipants: readonly GroupCombatActorSnapshot[]
+): Map<string, GroupCombatRewards["items"]> {
+  const rewards = new Map<string, GroupCombatRewards["items"]>();
+  if (
+    state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
+    state.status !== "won" ||
+    !state.production ||
+    eligibleParticipants.length === 0
+  ) {
+    return rewards;
+  }
+  const eligible = [...eligibleParticipants].sort(
+    (left, right) => left.rosterOrder - right.rosterOrder
+  );
+  const enemies = [...state.enemies].sort((left, right) => left.order - right.order);
+  const recipientOffset = stableGroupCombatSeed(
+    `${state.production.encounterSeed}:${state.partySessionId}:loot-recipient`
+  ) % eligible.length;
+
+  enemies.forEach((enemy, index) => {
+    const recipient = eligible[(recipientOffset + index) % eligible.length]!;
+    const monster = enemy.monsterId
+      ? monsters.find((candidate) => candidate.id === enemy.monsterId)
+      : undefined;
+    if (!monster) {
+      return;
+    }
+    const effectiveEnemyLevel = Math.max(1, Math.floor(enemy.level ?? monster.level));
+    const rng = new SeededRandomSource(
+      `${state.production!.encounterSeed}:${state.partySessionId}:loot:${enemy.order}:${enemy.monsterId}:${recipient.characterId}`
+    );
+    const loot = rollMonsterLoot({
+      monsterId: monster.id,
+      monsterLoot,
+      items,
+      luck: recipient.stats.luck,
+      dropChanceMultiplier: getLeftPassageEnemyLootDropChanceMultiplier({
+        effectiveEnemyLevel,
+        participantLevel: recipient.level
+      }),
+      rng,
+      character: {
+        level: effectiveEnemyLevel,
+        classId: recipient.classId,
+        raceId: recipient.raceId,
+        ...(recipient.activeCosmeticTitle
+          ? { title: recipient.activeCosmeticTitle }
+          : {})
+      },
+      sourceId: getGroupCombatLootExpansionSource(monster),
+      sourceTags: monster.tags
+    });
+    if (loot.state === "dropped") {
+      addGroupCombatLootReward(rewards, recipient.characterId, loot.item.id, 1);
+    }
+
+    const bandageSlot = rollPostFightBandageSlotReward({
+      bandageQuantity: rollBandageDropQuantity({
+        luck: recipient.stats.luck,
+        rng
+      }),
+      luck: recipient.stats.luck,
+      rng
+    });
+    if (bandageSlot) {
+      addGroupCombatLootReward(
+        rewards,
+        recipient.characterId,
+        bandageSlot.kind === "iskrokamin"
+          ? "item.iskrokamin"
+          : "item.responsible-panic-bandage",
+        bandageSlot.quantity
+      );
+    }
+  });
+
+  return rewards;
+}
+
+export function getLeftPassageEnemyLootDropChanceMultiplier(input: {
+  effectiveEnemyLevel: number;
+  participantLevel: number;
+}): number {
+  const levelDelta =
+    Math.max(1, Math.floor(input.effectiveEnemyLevel)) -
+    Math.max(1, Math.floor(input.participantLevel));
+  return Math.min(1.5, Math.max(0.75, 1 + levelDelta * 0.05));
+}
+
+function addGroupCombatLootReward(
+  rewards: Map<string, GroupCombatRewards["items"]>,
+  characterId: string,
+  itemId: string,
+  quantity: number
+): void {
+  const safeQuantity = Math.max(0, Math.floor(quantity));
+  if (safeQuantity <= 0) {
+    return;
+  }
+  const current = rewards.get(characterId) ?? [];
+  const existing = current.find((item) => item.itemId === itemId);
+  if (existing) {
+    existing.quantity += safeQuantity;
+  } else {
+    current.push({ itemId, quantity: safeQuantity });
+  }
+  rewards.set(characterId, current);
+}
+
+function getGroupCombatLootExpansionSource(monster: {
+  level: number;
+  tags: readonly string[];
+}): LootExpansionSourceId {
+  const tags = new Set(monster.tags);
+  if (["food", "kitchen", "pan", "cheese"].some((tag) => tags.has(tag))) {
+    return "kitchen_dungeon";
+  }
+  if (
+    ["bureaucracy", "paper", "queue", "tax", "audit", "deadline", "calendar"].some(
+      (tag) => tags.has(tag)
+    )
+  ) {
+    return "bureaucracy_wing";
+  }
+  if (["forest", "garden", "druid", "frog"].some((tag) => tags.has(tag))) {
+    return "forest_sidequest";
+  }
+  return monster.level >= 10 ? "elite_mob" : "trash_mob";
 }
 
 function splitNeutral(total: number, count: number, index: number): number {
@@ -2226,10 +2467,21 @@ function cloneRewards(rewards: GroupCombatRewards): GroupCombatRewards {
 export function sumGroupCombatSettlementRewards(
   participants: readonly GroupCombatSettlementPlanParticipant[]
 ): GroupCombatRewards {
+  const items: GroupCombatRewards["items"] = [];
+  for (const participant of participants) {
+    for (const reward of participant.rewards.items) {
+      const existing = items.find((item) => item.itemId === reward.itemId);
+      if (existing) {
+        existing.quantity += reward.quantity;
+      } else {
+        items.push({ ...reward });
+      }
+    }
+  }
   return {
     xp: participants.reduce((sum, row) => sum + row.rewards.xp, 0),
     gold: participants.reduce((sum, row) => sum + row.rewards.gold, 0),
-    items: participants.flatMap((row) => row.rewards.items.map((item) => ({ ...item })))
+    items
   };
 }
 
@@ -2241,7 +2493,6 @@ export function buildLeftPassageEncounterRewardBudget(input: {
   winXpTotal: number;
   winGoldTotal: number;
   lossXpTotal: number;
-  commonItemQuantity: 0 | 1;
 } {
   const characterLevel = Math.max(
     1,
@@ -2262,8 +2513,7 @@ export function buildLeftPassageEncounterRewardBudget(input: {
   return {
     winXpTotal: Math.max(2, winXpTotal),
     winGoldTotal,
-    lossXpTotal: Math.max(0, Math.floor(winXpTotal / 5)),
-    commonItemQuantity: stableGroupCombatSeed(input.deterministicKey) % 4 === 0 ? 1 : 0
+    lossXpTotal: Math.max(0, Math.floor(winXpTotal / 5))
   };
 }
 
@@ -2273,6 +2523,19 @@ export function stableGroupCombatSeed(value: string): number {
     hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
   }
   return hash;
+}
+
+export function getLeftPassageTierTwoDiscoveryMinutes(
+  deterministicSeed: number
+): number {
+  const span =
+    LEFT_PASSAGE_TIER_TWO_DISCOVERY_MAX_MINUTES -
+    LEFT_PASSAGE_TIER_TWO_DISCOVERY_MIN_MINUTES +
+    1;
+  return (
+    LEFT_PASSAGE_TIER_TWO_DISCOVERY_MIN_MINUTES +
+    (Math.max(0, Math.floor(deterministicSeed)) % span)
+  );
 }
 
 function appendRecap(

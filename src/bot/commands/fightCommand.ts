@@ -200,12 +200,20 @@ export async function sendFight(
   }
 
   if (result.state === "persistent-active") {
+    const includeCombatItems =
+      typeof fightService.hasPersistentFightCombatItemsForTelegramUser === "function" &&
+      await fightService.hasPersistentFightCombatItemsForTelegramUser(
+        telegramUserId,
+        result.session.id,
+        result.session.state?.turn ?? 1
+      );
     if (result.started && !options?.suppressStartIntro) {
       await sendResultText(presentPersistentFightIntro(result));
       const messageId = await sendText(ctx, "reply", presentPersistentFight(result), {
         type: "persistent-fight",
         character: result.character,
-        session: result.session
+        session: result.session,
+        includeCombatItems
       });
       await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
       return;
@@ -214,7 +222,8 @@ export async function sendFight(
     const messageId = await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
-      session: result.session
+      session: result.session,
+      includeCombatItems
     });
     await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
@@ -378,6 +387,7 @@ async function sendText(
         type: "persistent-fight";
         character: CharacterSummary;
         session: Parameters<typeof buildPersistentFightResultKeyboard>[0];
+        includeCombatItems?: boolean;
       } = false
 ): Promise<number | null> {
   const options = keyboard
@@ -425,7 +435,13 @@ async function sendText(
               : keyboard.type === "training-active"
               ? buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
               : keyboard.type === "persistent-fight"
-              ? buildPersistentFightResultKeyboard(keyboard.session, keyboard.character)
+              ? buildPersistentFightResultKeyboard(
+                  keyboard.session,
+                  keyboard.character,
+                  keyboard.includeCombatItems === undefined
+                    ? {}
+                    : { includeCombatItems: keyboard.includeCombatItems }
+                )
               : buildFightKeyboard(keyboard.character)
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);

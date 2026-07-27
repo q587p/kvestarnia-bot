@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   makeFightCallbackData,
   makeFightGearActionCallbackData,
+  makeFightItemsCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightPassageAttackCallbackData,
+  makeFightTierTwoCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData,
   parseFightCallbackData
@@ -87,6 +89,23 @@ describe("fight callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
+  it("parses the bounded persistent fight item-menu callback", () => {
+    const data = makeFightItemsCallbackData({
+      sessionId: "123e4567-e89b-12d3-a456-426614174000",
+      turn: 3
+    });
+
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: {
+        type: "items",
+        sessionId: "123e4567-e89b-12d3-a456-426614174000",
+        turn: 3
+      }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBe(53);
+  });
+
   it("parses persistent fight gear action callbacks", () => {
     const data = makeFightGearActionCallbackData({
       sessionId: "123e4567-e89b-12d3-a456-426614174000",
@@ -121,6 +140,16 @@ describe("fight callback data", () => {
       }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("parses the unavailable second-tier callback", () => {
+    const data = makeFightTierTwoCallbackData();
+
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "tier2" }
+    });
+    expect(data).toBe("v1:fight:tier2");
   });
 
   it("rejects invalid versions and actions", () => {

@@ -123,6 +123,12 @@ export type LeftPassagePartyCreateResult =
         | "active-combat"
         | "reservation-conflict"
         | "expired-invitation";
+      resources?: {
+        hpCurrent: number;
+        hpMax: number;
+        manaCurrent: number;
+        manaMax: number;
+      };
     }
   | { state: "active-search"; availableAt: Date; now: Date }
   | { state: "created" | "already-created" | "live-membership"; session: PartySessionRecord };
@@ -169,6 +175,12 @@ export interface GroupCombatRepository {
   }): Promise<GroupCombatStartResult>;
 
   startDueLeftPassage(input: {
+    partyInviteToken: string;
+    now: Date;
+    turnExpiresAt: Date;
+  }): Promise<GroupCombatStartResult>;
+
+  startReadyLeftPassage(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;

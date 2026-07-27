@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
-  GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -42,8 +41,10 @@ const rewardsSchema = z.object({
   items: z.array(z.object({
     itemId: z.string().min(1),
     quantity: positiveInteger
-  }).strict()).max(1)
-}).strict();
+  }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT * 2)
+}).strict().superRefine((rewards, context) => {
+  requireUnique(rewards.items.map((item) => item.itemId), context, "reward item ids");
+});
 const statsSchema = z.object({
   strength: nonNegativeInteger,
   dexterity: nonNegativeInteger,
@@ -98,6 +99,7 @@ const actorSchema = z.object({
   characterId: z.string().min(1),
   telegramUserId: z.string().regex(/^\d+$/),
   name: z.string().min(1).max(93),
+  activeCosmeticTitle: z.string().min(1).max(93).optional(),
   remortCount: nonNegativeInteger,
   rosterOrder: nonNegativeInteger,
   classId: z.string().min(1),
@@ -303,8 +305,7 @@ const productionSchema = z.object({
     winXpTotal: nonNegativeInteger,
     winGoldTotal: nonNegativeInteger,
     lossXpTotal: nonNegativeInteger,
-    commonItemId: z.string().min(1).nullable(),
-    commonItemQuantity: z.union([z.literal(0), z.literal(1)])
+    lootVersion: z.literal(1)
   }).strict()
 }).strict();
 
@@ -693,17 +694,13 @@ const stateSchema = z.object({
       })),
       deterministicKey: `${state.production.encounterSeed}:${state.partySessionId}:rewards`
     });
-    const expectedCommonItemId = rewardBudget.commonItemQuantity === 1
-      ? GROUP_COMBAT_LEFT_PASSAGE_COMMON_ITEM_ID
-      : null;
     if (
       state.production.rewards.winXpTotal !== rewardBudget.winXpTotal ||
       state.production.rewards.winGoldTotal !== rewardBudget.winGoldTotal ||
       state.production.rewards.lossXpTotal !== rewardBudget.lossXpTotal ||
-      state.production.rewards.commonItemQuantity !== rewardBudget.commonItemQuantity ||
-      state.production.rewards.commonItemId !== expectedCommonItemId
+      state.production.rewards.lootVersion !== 1
     ) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production reward budget or common loot is not canonical." });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production reward or loot contract is not canonical." });
     }
   }
 });

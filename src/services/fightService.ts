@@ -31,6 +31,8 @@ import type {
 } from "../db/repositories/pendingPassageEncounterRepository";
 import type { ShynokRepository } from "../db/repositories/shynokRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
+import type { InventoryRepository } from "../db/repositories/inventoryRepository";
+import type { CooldownRepository } from "../db/repositories/cooldownRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   runCombatProbe,
@@ -48,11 +50,13 @@ import {
   createCombatBarkState,
   getTerminalCombatTurnLogEventId,
   getCombatSkillProfile,
+  getCombatItemAvailability,
   isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
   normalizeCombatEnemies,
   recordCombatTimeout,
   resetCombatTimeout,
+  resolveCombatItemHealing,
   resolveCombatItemTurn,
   resolveCombatGearTurn,
   resolveCombatTurn,
@@ -79,6 +83,7 @@ import {
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import { applyBardInspirationPulseToSoloCombat } from "../domain/noncombat/bardSupport";
+import { LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY } from "../domain/groupCombat/groupCombat";
 import {
   getItemDropChance,
   rollBandageDropQuantity,
@@ -130,7 +135,7 @@ import {
   type RewardItemGrant
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
-import { findCombatUsableItemByKey } from "./combatItemUse";
+import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
 import {
   buildCompletedProblemQuestBranchProgress,
   buildCompletedProblemQuestProgress,
@@ -303,6 +308,7 @@ export type FightLookupResult =
       questProgress: ThirteenSmallProblemsProgress;
       availableAt: Date;
       now: Date;
+      restKind?: "ordinary" | "left-passage-tier-two-discovery";
     } & RecoveryNoticeField)
   | ({
       state: "persistent-active";
@@ -437,6 +443,28 @@ export type PersistentFightSnapshotResult =
       fightReward: PersistentFightReward | null;
     };
 
+export interface PersistentFightCombatItemMenuEntry {
+  itemId: string;
+  itemKey: string;
+  name: string;
+  quantity: number;
+}
+
+export type PersistentFightCombatItemMenuResult =
+  | { state: "no-character" }
+  | { state: "not-found"; character: CharacterSummary }
+  | {
+      state: "stale";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+    }
+  | {
+      state: "ready";
+      character: CharacterSummary;
+      session: SoloCombatSessionRecord;
+      items: PersistentFightCombatItemMenuEntry[];
+    };
+
 export interface CombatMessageReferenceInput {
   chatId: string;
   messageId: number;
@@ -557,6 +585,8 @@ export interface FightServiceDependencies {
   combatSessions?: SoloCombatSessionRepository;
   rng?: RandomSource;
   equipment?: EquipmentRepository;
+  inventory?: Pick<InventoryRepository, "listByTelegramUserId">;
+  cooldowns?: Pick<CooldownRepository, "findForTelegramUser" | "deleteForTelegramUser">;
   combatAnalytics?: CombatBalanceAnalyticsService;
   pendingPassageEncounters?: PendingPassageEncounterRepository;
   shynok?: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser">;
@@ -572,6 +602,10 @@ export class FightService {
   private readonly combatSessions: SoloCombatSessionRepository | undefined;
   private readonly rng: RandomSource;
   private readonly equipment: EquipmentRepository | undefined;
+  private readonly inventory: Pick<InventoryRepository, "listByTelegramUserId"> | undefined;
+  private readonly cooldowns:
+    | Pick<CooldownRepository, "findForTelegramUser" | "deleteForTelegramUser">
+    | undefined;
   private readonly combatAnalytics: CombatBalanceAnalyticsService | undefined;
   private readonly pendingPassageEncounters: PendingPassageEncounterRepository | undefined;
   private readonly shynok: Pick<ShynokRepository, "getActiveDrinkForTelegramUser" | "getRecoveryDrinkForTelegramUser"> | undefined;
@@ -586,6 +620,8 @@ export class FightService {
     combatSessions,
     rng = new CryptoRandomSource(),
     equipment,
+    inventory,
+    cooldowns,
     combatAnalytics,
     pendingPassageEncounters,
     shynok,
@@ -599,6 +635,8 @@ export class FightService {
     this.combatSessions = combatSessions;
     this.rng = rng;
     this.equipment = equipment;
+    this.inventory = inventory;
+    this.cooldowns = cooldowns;
     this.combatAnalytics = combatAnalytics;
     this.pendingPassageEncounters = pendingPassageEncounters;
     this.shynok = shynok;
@@ -748,16 +786,13 @@ export class FightService {
       return { state: "unavailable" };
     }
 
-    const cooldown = await this.getMonsterRestCooldown(telegramUserId, "normal");
-
-    if (!cooldown) {
-      return { state: "no-cooldown" };
-    }
-
-    const since = new Date(
-      cooldown.now.getTime() - MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT
+    const now = this.clock();
+    const since = new Date(now.getTime() - MONSTER_REST_COOLDOWN_MS);
+    const completedAt = new Date(
+      now.getTime() -
+        MONSTER_REST_COOLDOWN_MS * MONSTER_REST_ELIGIBLE_FIGHT_COUNT -
+        1
     );
-    const completedAt = new Date(since.getTime() - 1);
     const clearedSessions = await this.combatSessions.clearMonsterRestCooldownForTelegramUser(
       telegramUserId,
       {
@@ -765,9 +800,14 @@ export class FightService {
         completedAt
       }
     );
+    const discoveryCooldown = await this.cooldowns?.deleteForTelegramUser?.(
+      telegramUserId,
+      { key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY }
+    );
+    const clearedDiscovery = discoveryCooldown === "deleted" ? 1 : 0;
 
-    return clearedSessions > 0
-      ? { state: "reset", clearedSessions }
+    return clearedSessions + clearedDiscovery > 0
+      ? { state: "reset", clearedSessions: clearedSessions + clearedDiscovery }
       : { state: "no-cooldown" };
   }
 
@@ -794,6 +834,7 @@ export class FightService {
         questProgress: overview.questProgress,
         availableAt: passageRest.availableAt,
         now: passageRest.now,
+        ...(passageRest.restKind ? { restKind: passageRest.restKind } : {}),
         ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
       };
     }
@@ -870,8 +911,16 @@ export class FightService {
     }
 
     const now = this.clock();
-    const cooldown = options.originLocationId
-      ? await this.getPassageMonsterRestCooldown(telegramUserId, options.originLocationId, now)
+    const cooldown: {
+      availableAt: Date;
+      now: Date;
+      restKind?: "ordinary" | "left-passage-tier-two-discovery";
+    } | null = options.originLocationId
+      ? await this.getPassageMonsterRestCooldown(
+          telegramUserId,
+          options.originLocationId,
+          now
+        )
       : await this.getMonsterRestCooldown(telegramUserId, "normal");
 
     if (!cooldown) {
@@ -884,6 +933,7 @@ export class FightService {
       questProgress: overview.questProgress,
       availableAt: cooldown.availableAt,
       now: cooldown.now,
+      ...(cooldown.restKind ? { restKind: cooldown.restKind } : {}),
       ...(overview.recoveryNotice ? { recoveryNotice: overview.recoveryNotice } : {})
     };
   }
@@ -1636,6 +1686,92 @@ export class FightService {
             characterSummary
           )
     };
+  }
+
+  async listPersistentFightCombatItemsForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string,
+    turn: number
+  ): Promise<PersistentFightCombatItemMenuResult> {
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+
+    if (!character) {
+      return { state: "no-character" };
+    }
+
+    const characterSummary = await this.summarizeCharacterWithEquipment(telegramUserId, character);
+
+    if (!this.combatSessions) {
+      return { state: "not-found", character: characterSummary };
+    }
+
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (!session || isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return { state: "not-found", character: characterSummary };
+    }
+
+    if (
+      session.status !== "active" ||
+      session.state?.status !== "active" ||
+      session.state.turn !== turn ||
+      session.state.hero.hp <= 0
+    ) {
+      return { state: "stale", character: characterSummary, session };
+    }
+
+    const inventoryItems = await this.inventory?.listByTelegramUserId(telegramUserId);
+    const contentById = new Map(items.map((item) => [item.id, item]));
+    const entries = (inventoryItems ?? []).flatMap(
+      (inventoryItem): PersistentFightCombatItemMenuEntry[] => {
+        if (inventoryItem.characterId !== session.characterId || inventoryItem.quantity <= 0) {
+          return [];
+        }
+
+        const item = contentById.get(inventoryItem.itemId);
+        const combatItem = item ? getCombatUsableItem(item) : null;
+
+        if (
+          !combatItem ||
+          !getCombatItemAvailability(session.state!, combatItem.item.id).available ||
+          resolveCombatItemHealing(session.state!, {
+            id: combatItem.item.id,
+            name: combatItem.item.name,
+            effect: combatItem.effect
+          }) <= 0
+        ) {
+          return [];
+        }
+
+        return [{
+          itemId: combatItem.item.id,
+          itemKey: combatItem.key,
+          name: combatItem.item.name,
+          quantity: inventoryItem.quantity
+        }];
+      }
+    );
+
+    return {
+      state: "ready",
+      character: characterSummary,
+      session,
+      items: entries
+    };
+  }
+
+  async hasPersistentFightCombatItemsForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string,
+    turn: number
+  ): Promise<boolean> {
+    const result = await this.listPersistentFightCombatItemsForTelegramUser(
+      telegramUserId,
+      sessionId,
+      turn
+    );
+
+    return result.state === "ready" && result.items.length > 0;
   }
 
   async getProblemQuestProgressForTelegramUser(
@@ -4310,7 +4446,24 @@ export class FightService {
     telegramUserId: bigint,
     originLocationId: string,
     now: Date
-  ): Promise<{ availableAt: Date; now: Date } | null> {
+  ): Promise<{
+    availableAt: Date;
+    now: Date;
+    restKind?: "ordinary" | "left-passage-tier-two-discovery";
+  } | null> {
+    if (originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
+      const discovery = await this.cooldowns?.findForTelegramUser(
+        telegramUserId,
+        LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
+      );
+      if (discovery?.cooldown && discovery.cooldown.availableAt > now) {
+        return {
+          availableAt: discovery.cooldown.availableAt,
+          now,
+          restKind: "left-passage-tier-two-discovery"
+        };
+      }
+    }
     if (!this.pendingPassageEncounters) {
       return null;
     }
@@ -4328,7 +4481,9 @@ export class FightService {
     const completedAt = parseStoredDate(consumed.session.state.completedAt) ?? consumed.session.updatedAt;
     const availableAt = new Date(completedAt.getTime() + MONSTER_REST_COOLDOWN_MS);
 
-    return availableAt > now ? { availableAt, now } : null;
+    return availableAt > now
+      ? { availableAt, now, restKind: "ordinary" }
+      : null;
   }
 
   private buildPersistentFightCombatState(input: {

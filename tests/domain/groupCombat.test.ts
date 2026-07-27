@@ -3,11 +3,14 @@ import {
   buildGroupCombatTimeoutAction,
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
+  buildLeftPassageEncounterLootRewards,
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
   deriveLeftPassageEnemyCount,
   filterSupportedGroupCombatMonsterAbilityIds,
+  getLeftPassageEnemyLootDropChanceMultiplier,
+  getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
@@ -33,6 +36,16 @@ import {
 } from "../../src/domain/combat/combatLeaseRegistry";
 
 describe("group combat proof reducer", () => {
+  it("keeps the tier-two discovery window deterministic inside 13–23 minutes", () => {
+    const values = Array.from({ length: 42 }, (_, seed) =>
+      getLeftPassageTierTwoDiscoveryMinutes(seed)
+    );
+
+    expect(Math.min(...values)).toBe(13);
+    expect(Math.max(...values)).toBe(23);
+    expect(getLeftPassageTierTwoDiscoveryMinutes(587)).toBe(17);
+  });
+
   it("registers the group owner and repair boundary as remort-blocking", () => {
     expect(getCombatLeaseOwnerDescriptor(GROUP_COMBAT_LEASE_KIND)).toEqual({
       kind: "group-combat",
@@ -59,7 +72,7 @@ describe("group combat proof reducer", () => {
     expect(plan.participants[0]?.rewards).toEqual({
       xp: state.production!.rewards.winXpTotal,
       gold: state.production!.rewards.winGoldTotal,
-      items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+      items: []
     });
     expect(plan.participants[1]?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
     expect(plan.participants[0]?.effects?.activityKey).toBe("group-combat:group-session:activity");
@@ -90,8 +103,61 @@ describe("group combat proof reducer", () => {
       .toBe(state.production!.rewards.winXpTotal);
     expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0))
       .toBe(state.production!.rewards.winGoldTotal);
-    expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(1);
+    expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(3);
+    expect(buildGroupCombatSettlementPlan(structuredClone(state))).toEqual(plan);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
+  });
+
+  it("rolls per-enemy authored and expansion manatky, including rare Iskrokamin replacement", () => {
+    const state = leftPassageState(3, true);
+    state.status = "won";
+    state.turn = 5;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    state.contributions.forEach((contribution) => {
+      contribution.committedActions = 1;
+    });
+    const eligible = state.participants;
+    const seen = new Set<string>();
+
+    for (let seed = 0; seed < 23; seed += 1) {
+      const candidate = structuredClone(state);
+      candidate.production!.encounterSeed = `loot-contract-${seed}`;
+      for (const rewards of buildLeftPassageEncounterLootRewards(candidate, eligible).values()) {
+        rewards.forEach((item) => seen.add(item.itemId));
+      }
+    }
+
+    expect(seen).toContain("item.iskrokamin");
+    expect([...seen].some((itemId) => itemId.startsWith("item.loot-v1-"))).toBe(true);
+    expect([...seen].some((itemId) => itemId !== "item.iskrokamin")).toBe(true);
+  });
+
+  it("adds independent enemy opportunities and scales each broad-loot chance by enemy level", () => {
+    const state = leftPassageState(3, true);
+    state.status = "won";
+    const eligible = [state.participants[0]!];
+    const oneEnemy = structuredClone(state);
+    oneEnemy.enemies = oneEnemy.enemies.slice(0, 1);
+    const oneRewards = buildLeftPassageEncounterLootRewards(oneEnemy, eligible);
+    const allRewards = buildLeftPassageEncounterLootRewards(state, eligible);
+    const quantity = (rewards: Map<string, Array<{ quantity: number }>>) =>
+      [...rewards.values()].flat().reduce((sum, item) => sum + item.quantity, 0);
+
+    expect(quantity(allRewards)).toBeGreaterThanOrEqual(quantity(oneRewards));
+    expect(getLeftPassageEnemyLootDropChanceMultiplier({
+      effectiveEnemyLevel: 3,
+      participantLevel: 8
+    })).toBe(0.75);
+    expect(getLeftPassageEnemyLootDropChanceMultiplier({
+      effectiveEnemyLevel: 8,
+      participantLevel: 8
+    })).toBe(1);
+    expect(getLeftPassageEnemyLootDropChanceMultiplier({
+      effectiveEnemyLevel: 18,
+      participantLevel: 8
+    })).toBe(1.5);
   });
 
   it("derives one to six enemies from party size and frozen participant power", () => {
@@ -255,6 +321,99 @@ describe("group combat proof reducer", () => {
       "item.responsible-panic-bandage": 1
     });
     expect(resolved.committedConsumables).toEqual([]);
+  });
+
+  it("records each enemy defeat in the resolving turn instead of only at combat end", () => {
+    const state = proofState(2);
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 1;
+    });
+
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id),
+      action(state, 1, "attack", "enemy", state.enemies[0]!.id)
+    ]);
+    const defeatLines = resolved.state.recap[0]!.lines.filter((line) =>
+      line.startsWith("🧾 Знешкоджено:")
+    );
+
+    expect(defeatLines).toHaveLength(2);
+    expect(defeatLines[0]).toContain(state.enemies[0]!.name);
+    expect(defeatLines[0]).toContain(`Нова ціль — ${state.enemies[1]!.name}`);
+    expect(defeatLines[1]).toContain(state.enemies[1]!.name);
+    expect(defeatLines[1]).toContain("стоїть «досить»");
+  });
+
+  it("states the per-target meaning of all-enemy damage and all-ally protection", () => {
+    const damageState = proofState(2);
+    damageState.participants[0]!.classId = "class.bard";
+    damageState.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+    });
+    const damaged = resolveGroupCombatTurn(damageState, [
+      action(damageState, 0, "class", "enemy", damageState.enemies[0]!.id),
+      action(
+        damageState,
+        1,
+        "guard",
+        "self",
+        damageState.participants[1]!.characterId
+      )
+    ]);
+    const damageLine = damaged.state.recap[0]!.lines.find((line) =>
+      line.includes("Небезпечний куплет")
+    );
+    expect(damageLine).toContain("усім ворогам");
+    expect(damageLine).toMatch(/по \d+ шкоди|Комірний Шурхіт 1: \d+ шкоди, Комірний Шурхіт 2: \d+ шкоди/);
+
+    const supportState = proofState(3);
+    supportState.participants[0]!.classId = "class.priest";
+    supportState.participants[1]!.hp = 3;
+    const supported = resolveGroupCombatTurn(supportState, [
+      action(
+        supportState,
+        0,
+        "class",
+        "self",
+        supportState.participants[0]!.characterId
+      ),
+      action(
+        supportState,
+        1,
+        "guard",
+        "self",
+        supportState.participants[1]!.characterId
+      ),
+      action(
+        supportState,
+        2,
+        "guard",
+        "self",
+        supportState.participants[2]!.characterId
+      )
+    ]);
+    const supportLine = supported.state.recap[0]!.lines.find((line) =>
+      line.includes("Суворе благословення")
+    );
+    expect(supportLine).toContain("захисний ефект для всіх союзників");
+    expect(supportLine).toContain(`${supportState.participants[1]!.name}: +`);
+    expect(supportLine).not.toContain("усім союзникам — по +");
+  });
+
+  it("lets at most one deterministic monster speak in a multi-enemy turn", () => {
+    const state = leftPassageState(3);
+    const actions = state.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(state, participant.characterId)
+    );
+
+    const first = resolveGroupCombatTurn(state, actions);
+    const replay = resolveGroupCombatTurn(structuredClone(state), actions);
+
+    expect(first.state.recap[0]?.monsterBarkIds?.length ?? 0).toBeLessThanOrEqual(1);
+    expect(replay.state.recap[0]?.monsterBarkIds).toEqual(
+      first.state.recap[0]?.monsterBarkIds
+    );
   });
 
   it("records accepted manual participation before a start-of-turn bleed win", () => {
@@ -1132,7 +1291,7 @@ describe("group combat proof reducer", () => {
         state.production!.rewards.winXpTotal += 1;
       },
       (state) => {
-        state.production!.rewards.commonItemId = "item.field-kit";
+        (state.production!.rewards as { lootVersion: number }).lootVersion = 2;
       }
     ];
     for (const corrupt of corruptions) {
@@ -1256,10 +1415,7 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
-        commonItemId: rewardBudget.commonItemQuantity === 1
-          ? "item.responsible-panic-bandage"
-          : null,
-        commonItemQuantity: rewardBudget.commonItemQuantity
+        lootVersion: 1
       }
     }
   });

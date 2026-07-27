@@ -211,8 +211,8 @@ describe("group combat timeout scheduler", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
     expect(editMessageText).toHaveBeenCalledTimes(2);
-    expect(String(editMessageText.mock.calls[0]?.[2])).toContain("<b>Хто проти кого:</b>");
-    expect(String(editMessageText.mock.calls[1]?.[2])).not.toContain("<b>Хто проти кого:</b>");
+    expect(String(editMessageText.mock.calls[0]?.[2])).toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(String(editMessageText.mock.calls[1]?.[2])).not.toContain("Бій починається. Корчма відкриває журнал ходів");
   });
 
   it("waits for an in-flight pass during shutdown", async () => {

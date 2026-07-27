@@ -19,6 +19,13 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 - [`post-combat-contribution-cards.md`](post-combat-contribution-cards.md) —
   explained contribution statistics after raids and, where canonical evidence
   exists, other completed fights.
+- [`local-runtime-debug-logging.md`](local-runtime-debug-logging.md) — bounded
+  isolated-runtime stdout/stderr, crash evidence and status diagnostics.
+- [`bard-performance-in-combat.md`](bard-performance-in-combat.md) — deferred
+  deterministic contract for applying a new performance buff after combat has
+  already started.
+- [`nyz-tier-two.md`](nyz-tier-two.md) — future real Ярус II location behind
+  the `0.4.2` non-mutating construction notice.
 
 Consumed sequencing notes and shipped replacements live in
 [`../history/backlog/`](../history/backlog/).

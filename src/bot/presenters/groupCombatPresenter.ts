@@ -20,13 +20,14 @@ import { presentRewardBlock } from "./rewardPresenter";
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  notice?: string
 ): string {
   const state = session.state;
   const viewer = state.participants.find((participant) => participant.characterId === viewerCharacterId);
   const production = state.rulesVersion === "group-combat.v3";
   const status = state.status === "active"
-    ? `${production ? "⚔️" : "🧪"} <b>Бій: ${state.turn} хід</b>`
+    ? `${production ? "⚔️" : "🧪"} <b>Бій</b>: ${state.turn} хід`
     : state.status === "won"
       ? production ? "✅ Ватага втримала лівий прохід" : "✅ Доказову сутичку виграно"
       : state.status === "lost"
@@ -58,42 +59,8 @@ export function presentGroupCombat(
   const recapRows = state.recap ?? [];
   const recap = recapRows[recapRows.length - 1];
   const recapText = recap
-    ? `\n\n<b>Останні дії:</b>\n${presentGroupCombatRecapActions(recap).join("\n")}`
+    ? `\n\n${presentGroupCombatRecapActions(recap).join("\n")}`
     : "";
-  const participantContributionText = state.status === "active"
-    ? ""
-    : `\n\n<b>Внесок:</b>\n${presentBattleContributionLegend().join("\n")}\n${state.participants.map((participant) => {
-        const contribution = state.contributions.find((row) => row.characterId === participant.characterId);
-        return contribution
-          ? presentBattleContributionLine(participant.name, {
-              damage: contribution.damage,
-              healing: contribution.healing,
-              guardPrevented: contribution.guardPrevented,
-              control: contribution.control,
-              damageTaken: contribution.damageTaken,
-              actions: contribution.committedActions,
-              specialActions: contribution.specialActions ?? 0,
-              guardedTurns: contribution.guardedTurns
-            })
-          : `${escapeHtml(participant.name)}: запис не знайдено`;
-      }).join("\n")}`;
-  const enemyContributionText = state.status === "active" || !state.enemyContributions
-    ? ""
-    : `\n\n<b>Внесок ворогів:</b>\n${state.enemies.map((enemy) => {
-        const contribution = state.enemyContributions?.find((row) => row.enemyId === enemy.id);
-        return contribution
-          ? presentBattleContributionLine(enemy.name, {
-              damage: contribution.damage,
-              healing: contribution.healing ?? 0,
-              guardPrevented: contribution.guardPrevented ?? 0,
-              control: contribution.control ?? 0,
-              damageTaken: contribution.damageTaken ?? 0,
-              actions: contribution.actions,
-              specialActions: contribution.specialActions,
-              guardedTurns: contribution.guardedTurns ?? 0
-            })
-          : `${escapeHtml(enemy.name)}: запис не знайдено`;
-      }).join("\n")}`;
   const remaining = formatRemainingTurn(session.turnExpiresAt, now);
   const settlement = session.settlementPlan?.participants.find(
     (participant) => participant.characterId === viewerCharacterId
@@ -103,12 +70,12 @@ export function presentGroupCombat(
       ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, вибір записано: ${presentQueuedAction(
           session,
           queuedAction
-        )}. Можна змінити до розіграшу ходу.\n⏳ До захисту мовчунів — ${remaining}.`
+        )}. Можна змінити до розіграшу ходу.\n⏳ На хід є ${remaining}. Потім Корчма поставить вас у захист.`
       : [
           "",
           "",
-          `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо? Оберіть точну ціль.`,
-          `⏳ До захисту мовчунів — ${remaining}.`
+          `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо?${state.enemies.filter((enemy) => enemy.hp > 0).length > 1 ? " Оберіть точну ціль." : ""}`,
+          `⏳ На хід є ${remaining}. Потім Корчма поставить вас у захист.`
         ].join("\n")
     : production && settlement
       ? `\n\n${presentProductionSettlement(session, viewerCharacterId)}`
@@ -117,13 +84,78 @@ export function presentGroupCombat(
   const tacticalState = state.status === "active"
     ? presentGroupCombatTacticalState(session, viewerCharacterId)
     : [];
-  const base = [status, "", ...enemies, ...party, ...tacticalState].join("\n");
-  const text = state.status === "active"
-    ? base + recapText + ending
-    : base + recapText + ending + participantContributionText + enemyContributionText;
+  const base = [status, "", ...party, ...enemies, ...tacticalState].join("\n");
+  const noticeText = notice ? `\n\n${notice}` : "";
+  const text = base + recapText + noticeText + ending;
   return Buffer.byteLength(text, "utf8") <= GROUP_COMBAT_CARD_BYTE_LIMIT
     ? text
-    : base + participantContributionText + enemyContributionText + ending;
+    : base + noticeText + ending;
+}
+
+export function presentGroupCombatItems(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  hasAvailableItems: boolean,
+  now: Date = new Date()
+): string {
+  return presentGroupCombat(
+    session,
+    viewerCharacterId,
+    now,
+    hasAvailableItems
+      ? "🎒 Одноразові манатки: оберіть, що піде в цей хід. Новий вибір замінить попередній."
+      : "🎒 Одноразові манатки: зараз немає корисних предметів для цього ходу."
+  );
+}
+
+export function presentGroupCombatStatistics(session: GroupCombatSessionRecord): string {
+  const participantRows = session.state.participants.map((participant) => {
+    const contribution = session.state.contributions.find(
+      (row) => row.characterId === participant.characterId
+    );
+    return contribution
+      ? presentBattleContributionLine(participant.name, {
+          damage: contribution.damage,
+          healing: contribution.healing,
+          guardPrevented: contribution.guardPrevented,
+          control: contribution.control,
+          damageTaken: contribution.damageTaken,
+          actions: contribution.committedActions,
+          specialActions: contribution.specialActions ?? 0,
+          guardedTurns: contribution.guardedTurns
+        })
+      : `${escapeHtml(participant.name)}: запис не знайдено`;
+  });
+  const enemyRows = session.state.enemies.map((enemy) => {
+    const contribution = session.state.enemyContributions?.find(
+      (row) => row.enemyId === enemy.id
+    );
+    return contribution
+      ? presentBattleContributionLine(enemy.name, {
+          damage: contribution.damage,
+          healing: contribution.healing ?? 0,
+          guardPrevented: contribution.guardPrevented ?? 0,
+          control: contribution.control ?? 0,
+          damageTaken: contribution.damageTaken ?? 0,
+          actions: contribution.actions,
+          specialActions: contribution.specialActions,
+          guardedTurns: contribution.guardedTurns ?? 0
+        })
+      : `${escapeHtml(enemy.name)}: запис не знайдено`;
+  });
+
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    "<b>Легенда:</b>",
+    ...presentBattleContributionLegend(),
+    "",
+    "<b>Пригодники:</b>",
+    ...participantRows,
+    "",
+    "<b>Монстри:</b>",
+    ...enemyRows
+  ].join("\n");
 }
 
 export function presentGroupCombatIntro(session: GroupCombatSessionRecord): string {
@@ -149,10 +181,6 @@ function presentProductionSettlement(
   );
   const lines = [
     session.state.status === "won"
-      ? `🧾 Знешкоджено: ${session.state.enemies.map((enemy) => escapeHtml(enemy.name)).join(", ")}. У бойовій відомості Корчми навпроти супротивників стоїть «досить».`
-      : "🧾 Відомість закрито без переможної печатки.",
-    "",
-    session.state.status === "won"
       ? "🎉 Ватага перемогла. Лівий прохід утримано, журнал задоволено хрумтить сторінкою."
       : "🪦 Ватага відступила. Лівий прохід лишив за собою останнє слово.",
   ];
@@ -168,6 +196,9 @@ function presentProductionSettlement(
         quantity: reward.quantity
       }))
     }));
+    if (session.state.status === "won" && rewards.items.length === 0) {
+      lines.push("", "🎒 Манатки цього разу не випали.");
+    }
   }
   if (
     participant?.currentLevel !== undefined &&
@@ -214,10 +245,15 @@ export function presentGroupCombatJournal(
 function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] {
   const state = session.state;
   const party = state.participants.map((participant) =>
-    `🧑 ${escapeHtml(participant.name)} · рівень ${participant.level}`
+    [
+      `<b>${escapeHtml(participant.name)}</b>`,
+      participant.activeCosmeticTitle
+        ? `<i>${escapeHtml(participant.activeCosmeticTitle)}</i>`
+        : `рівень ${participant.level}`
+    ].join(" · ")
   );
   const enemies = state.enemies.map((enemy) =>
-    `👹 ${escapeHtml(enemy.name)} · рівень ${enemy.level ?? "невідомий"}`
+    `<b>${escapeHtml(enemy.name)}</b> · рівень ${enemy.level ?? "невідомий"}`
   );
   const tips = [
     "Домовляйтеся про цілі: поранений ворог б’є так само сердито, доки не впаде.",
@@ -226,10 +262,12 @@ function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] 
   ] as const;
   const tip = tips[Math.abs(state.deterministicSeed) % tips.length]!;
   return [
-    "<b>Хто проти кого:</b>",
-    `<b>Ватага (${party.length}):</b>`,
+    "⚔️ <b>Бій</b>",
     ...party,
-    `<b>Вороги (${enemies.length}):</b>`,
+    "",
+    "Бій починається. Корчма відкриває журнал ходів і робить вигляд, що це звичайний облік.",
+    "",
+    "Проти вас:",
     ...enemies,
     "",
     `<i>Порада дня: ${escapeHtml(tip)}</i>`
@@ -283,7 +321,7 @@ function presentGroupCombatTacticalState(
     targetId: status.targetId,
     remainingTurns: status.remainingTurns
   }))));
-  return lines.length > 0 ? ["", "<b>Кулдауни й ефекти:</b>", ...lines] : [];
+  return lines.length > 0 ? ["", ...lines] : [];
 }
 
 function presentGroupCombatRecapSnapshot(
@@ -346,7 +384,10 @@ function presentGroupCombatRecapActions(
     .map((barkId) => findMonsterBark(barkId))
     .filter((bark) => bark !== null)
     .map((bark) => presentMonsterBarkBlockquote(bark.text));
-  return [...barks, ...recap.lines.map((line) => escapeHtml(line))];
+  const lines = recap.lines.map((line) => escapeHtml(line));
+  return barks.length > 0 && lines.length > 0
+    ? [...barks, "", ...lines]
+    : [...barks, ...lines];
 }
 
 function presentEffectLines(
