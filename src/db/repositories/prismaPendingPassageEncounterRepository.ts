@@ -13,6 +13,11 @@ import type {
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
 import { freezeVarenykSatedForSoloCombatStart } from "./prismaVarenykSated";
+import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+} from "../../services/presenceService";
 
 type PrismaPendingPassageEncounterRecord = Awaited<
   ReturnType<PrismaClient["pendingPassageEncounter"]["findFirst"]>
@@ -521,16 +526,16 @@ function isRecoverablePriorSession(
 }
 
 function normalizeOrigin(value: string | undefined): string {
-  if (value === "location.korchma.deep.level1.left") {
-    return "location.korchma.deep.level1.left";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
   }
 
-  if (value === "location.korchma.deep.level1.right") {
-    return "location.korchma.deep.level1.right";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
   }
 
-  if (value === "location.korchma.deep.level1.straight") {
-    return "location.korchma.deep.level1.straight";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
   }
 
   return value ?? "";
@@ -539,11 +544,11 @@ function normalizeOrigin(value: string | undefined): string {
 function passageFromOrigin(value: string): PendingPassageEncounterRecord["passage"] {
   const normalized = normalizeOrigin(value);
 
-  if (normalized === "location.korchma.deep.level1.left") {
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
     return "deep-left";
   }
 
-  if (normalized === "location.korchma.deep.level1.right") {
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
     return "deep-right";
   }
 

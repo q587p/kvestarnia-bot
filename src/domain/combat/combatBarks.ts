@@ -25,6 +25,17 @@ export interface ResolveMonsterBarkInput {
   monsterHpAfterHeroAction: number;
 }
 
+export interface ResolveMonsterBarkStateInput {
+  barkState?: CombatBarkStateV1;
+  combatId: string;
+  status: CombatState["status"];
+  audience?: MonsterBarkAudience;
+  monster: MonsterCombatStats;
+  monsterCommittedAction: boolean;
+  monsterUsedAbility: boolean;
+  monsterHpAfterHeroAction: number;
+}
+
 export interface ResolveMonsterBarkResult {
   state: CombatBarkStateV1;
   barkId?: string;
@@ -53,12 +64,27 @@ export function createCombatBarkState(input: {
 }
 
 export function resolveMonsterBark(input: ResolveMonsterBarkInput): ResolveMonsterBarkResult {
-  const current = cloneBarkState(input.state.barks) ?? createCombatBarkState({
+  return resolveMonsterBarkState({
+    ...(input.state.barks ? { barkState: input.state.barks } : {}),
+    combatId: input.state.id ?? input.monster.monsterId,
+    status: input.state.status,
+    monster: input.monster,
+    monsterCommittedAction: input.monsterCommittedAction,
+    monsterUsedAbility: input.monsterUsedAbility,
+    monsterHpAfterHeroAction: input.monsterHpAfterHeroAction
+  });
+}
+
+export function resolveMonsterBarkState(
+  input: ResolveMonsterBarkStateInput
+): ResolveMonsterBarkResult {
+  const current = cloneBarkState(input.barkState) ?? createCombatBarkState({
     monsterId: input.monster.monsterId,
-    seed: input.state.id ?? input.monster.monsterId
+    seed: input.combatId,
+    ...(input.audience ? { audience: input.audience } : {})
   });
 
-  if (!input.monsterCommittedAction || input.state.status !== "active") {
+  if (!input.monsterCommittedAction || input.status !== "active") {
     return { state: current };
   }
 

@@ -35,6 +35,7 @@ import { decideThreatEscalation } from "../../domain/combat/threatEscalation";
 import type { ThreatEscalationDecision } from "../../domain/combat/threatEscalation";
 import { deriveMonsterCombatStats } from "../../domain/combat/monsterCombatStats";
 import { getLevelForXp } from "../../domain/progression/level";
+import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { SeededRandomSource } from "../../shared/random";
 import { monsters } from "../../content";
 import {
@@ -1474,6 +1475,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         frozenParticipant
       ) {
         const xp = Math.max(0, character.xp + receipt.rewards.xp);
+        const oldLevel = character.level;
         const level = getLevelForXp(
           xp,
           participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
@@ -1490,6 +1492,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             gold: { increment: receipt.rewards.gold }
           }
         });
+        await recordLevelMilestones(
+          tx,
+          character.id,
+          oldLevel,
+          level,
+          input.now,
+          { remortCount: participant.remortCount }
+        );
         await this.runSettlementTestHook("resources", row.id, participant.characterId);
         for (const item of receipt.rewards.items) {
           await tx.characterItem.upsert({
@@ -1557,7 +1567,25 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         await releaseGroupCombatLease(tx, lease, input.now);
         await this.runSettlementTestHook("lease", row.id, participant.characterId);
       }
-      return { state: "settled", receipt } as const;
+      return {
+        state: "settled",
+        receipt,
+        ...(plan.policy === "left-passage-party" && character
+          ? {
+              levelChange: {
+                oldLevel: character.level,
+                newLevel: getLevelForXp(
+                  Math.max(0, character.xp + receipt.rewards.xp),
+                  participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+                ),
+                leveledUp: getLevelForXp(
+                  Math.max(0, character.xp + receipt.rewards.xp),
+                  participant.remortCount > 0 ? { remortCount: participant.remortCount } : {}
+                ) > character.level
+              }
+            }
+          : {})
+      } as const;
     });
   }
 
@@ -1886,7 +1914,13 @@ async function buildLeftPassageState(input: {
     });
   }
   const rewardBudget = buildLeftPassageEncounterRewardBudget({
-    enemyLevels: enemies.map((enemy) => enemy.level ?? primary.level),
+    participantLevels: input.frozen.map((row) => row.actor.level),
+    enemies: enemies.map((enemy) => ({
+      baseLevel: enemy.id.startsWith("primary:")
+        ? input.reservation.baseMonsterLevel
+        : monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level ?? primary.level,
+      effectiveLevel: enemy.level ?? primary.level
+    })),
     deterministicKey: `${input.reservation.seedHash}:${input.partySessionId}:rewards`
   });
   return createLeftPassageGroupCombatState({
@@ -2358,7 +2392,8 @@ function buildInvalidFallbackState(
       control: 0,
       damageTaken: 0,
       committedActions: 0,
-      guardedTurns: 0
+      guardedTurns: 0,
+      specialActions: 0
     })),
     statuses: [],
     recap: []
@@ -2690,6 +2725,7 @@ function mapSession(
       characterId: participant.characterId,
       telegramUserId: participant.character.user.telegramUserId,
       name: participant.character.name,
+      currentLevel: participant.character.level,
       remortCount: participant.remortCount,
       rosterOrder: participant.rosterOrder,
       chatId: participant.chatId,

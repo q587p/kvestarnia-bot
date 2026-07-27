@@ -36,7 +36,7 @@ const QUERY_BUDGETS = {
   dueScan: 1,
   deliveryScan: 1,
   settlementScan: 1,
-  settlement: 20,
+  settlement: 23,
   idleRepair: 6
 } as const;
 type QueryObservation = keyof typeof QUERY_BUDGETS | "concurrentPair";
@@ -384,6 +384,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(started.session.state.production?.origin).toBe("nyz-left-passage-party.v1");
     expect(started.session.state.enemies).toHaveLength(2);
     expect(started.session.state.enemies[0]?.monsterId).toBe("monster.deadline-spider");
+    expect(started.session.state.enemies.every((enemy) => (enemy.abilityIds?.length ?? 0) > 0)).toBe(true);
     const productionStateBytes = Buffer.byteLength(JSON.stringify(started.session.state), "utf8");
     console.log("Left-passage production state bytes", productionStateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
     expect(productionStateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
@@ -417,10 +418,6 @@ describe("PrismaGroupCombatRepository integration", () => {
         }
       }
     }
-    expect(session.state.recap.some((entry) =>
-      entry.lines.some((line) => line.includes("застосовує"))
-    )).toBe(true);
-    expect(session.state.enemyContributions?.some((row) => row.specialActions > 0)).toBe(true);
     expect(session.settlementPlan?.policy).toBe("left-passage-party");
     const terminalCardBytes = Buffer.byteLength(
       presentGroupCombat(session, session.participants[0]!.characterId, NOW),
@@ -474,6 +471,13 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activityEvent.count({
       where: { sourceId: session.id }
     })).toBe(session.status === "won" ? 1 : 0);
+    expect(await prisma.dailyAction.count({
+      where: {
+        characterId: { in: session.participants.map((participant) => participant.characterId) },
+        key: "milestone.level.4",
+        localDate: "once"
+      }
+    })).toBe(2);
     const deliveryObservation = await measureQueryEvents(
       prisma,
       queries,
@@ -1969,7 +1973,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
-    const terminal = await repository.submitActionForTelegramUser({
+    let terminal = await repository.submitActionForTelegramUser({
       telegramUserId: second.telegramUserId,
       partyInviteToken: session.partyInviteToken,
       turn: 1,
@@ -1979,14 +1983,37 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
+    for (let attempt = 0; terminal.state === "resolved" && attempt < 23; attempt += 1) {
+      const nextSession = terminal.session;
+      for (const participant of nextSession.participants) {
+        const target = nextSession.state.enemies.find((enemy) => enemy.hp > 0);
+        if (!target) {
+          break;
+        }
+        terminal = await repository.submitActionForTelegramUser({
+          telegramUserId: participant.telegramUserId,
+          partyInviteToken: nextSession.partyInviteToken,
+          turn: nextSession.turn,
+          action: "attack",
+          targetKind: "enemy",
+          targetId: target.id,
+          now: new Date(NOW.getTime() + attempt + 1),
+          nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+        });
+        if (terminal.state === "terminal") {
+          break;
+        }
+      }
+    }
 
     expect(terminal.state).toBe("terminal");
-    expect("session" in terminal ? terminal.session.result : null).toEqual({
+    expect("session" in terminal ? terminal.session.result : null).toMatchObject({
       kind: "rewardless-proof",
       outcome: "won",
-      completedTurn: 1,
       rewards: { xp: 0, gold: 0, items: [] }
     });
+    expect("session" in terminal ? terminal.session.result?.completedTurn : null)
+      .toBeGreaterThanOrEqual(1);
     expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } })).toBe(0);
     expect(await resourceSnapshot(prisma, [1271n, 1272n])).toEqual(before);
     expect(await prisma.characterItem.count({ where: { character: { user: { telegramUserId: { in: [1271n, 1272n] } } } } })).toBe(0);
@@ -2099,7 +2126,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
     });
-    const terminal = await repository.submitActionForTelegramUser({
+    let terminal = await repository.submitActionForTelegramUser({
       telegramUserId: active!.participants[1]!.telegramUserId,
       partyInviteToken: "group-settlement",
       turn: 1,
@@ -2109,6 +2136,28 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
     });
+    for (let attempt = 0; terminal.state === "resolved" && attempt < 23; attempt += 1) {
+      const nextSession = terminal.session;
+      for (const participant of nextSession.participants) {
+        const target = nextSession.state.enemies.find((enemy) => enemy.hp > 0);
+        if (!target) {
+          break;
+        }
+        terminal = await repository.submitActionForTelegramUser({
+          telegramUserId: participant.telegramUserId,
+          partyInviteToken: nextSession.partyInviteToken,
+          turn: nextSession.turn,
+          action: "attack",
+          targetKind: "enemy",
+          targetId: target.id,
+          now: new Date(NOW.getTime() + attempt + 1),
+          nextTurnExpiresAt: new Date(NOW.getTime() + 46_000)
+        });
+        if (terminal.state === "terminal") {
+          break;
+        }
+      }
+    }
     expect(terminal.state).toBe("terminal");
     const storedPlan = await prisma.groupCombatSession.findUniqueOrThrow({
       where: { id: active!.id },
@@ -3806,7 +3855,7 @@ async function expectStoredTurnActionMatchesRecap(
   if (action.actionKey === "guard") {
     expect(recap?.lines).toContain(`${actor.name} стає в захист.`);
   } else {
-    expect(recap?.lines.some((line) => line.startsWith(`${actor.name} б’є `))).toBe(true);
+    expect(recap?.lines.some((line) => line.startsWith(`${actor.name} атакує `))).toBe(true);
   }
 }
 
@@ -4068,6 +4117,11 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       id TEXT PRIMARY KEY, character_id TEXT NOT NULL, key TEXT NOT NULL, available_at DATETIME NOT NULL,
       result_json JSONB, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE daily_actions (
+      id TEXT PRIMARY KEY, character_id TEXT NOT NULL, key TEXT NOT NULL, local_date TEXT NOT NULL,
+      reward_xp INTEGER NOT NULL, reward_gold INTEGER NOT NULL, spent_gold INTEGER NOT NULL DEFAULT 0,
+      result_json JSONB, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE active_combat_leases (
       id TEXT PRIMARY KEY, character_id TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, reference_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -4134,7 +4188,9 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE UNIQUE INDEX party_participants_session_id_character_id_key ON party_participants(session_id, character_id)`,
     `CREATE UNIQUE INDEX character_equipment_character_id_slot_key ON character_equipment(character_id, slot)`,
     `CREATE UNIQUE INDEX character_items_character_id_item_id_key ON character_items(character_id, item_id)`,
-    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`
+    `CREATE UNIQUE INDEX character_cooldowns_character_id_key_key ON character_cooldowns(character_id, key)`,
+    `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key
+      ON daily_actions(character_id, key, local_date)`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }

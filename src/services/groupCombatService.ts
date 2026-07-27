@@ -5,15 +5,26 @@ import type {
 import type {
   GroupCombatActionResult,
   GroupCombatRepository,
+  GroupCombatSettlementNotice,
   GroupCombatSessionRecord,
   GroupCombatStartResult
 } from "../db/repositories/groupCombatRepository";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
 import { randomBytes } from "node:crypto";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
 export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+export interface GroupCombatResolvedDelivery {
+  session: GroupCombatSessionRecord;
+  settlementNotices: GroupCombatSettlementNotice[];
+}
+export interface GroupCombatRepairWork {
+  repaired: number;
+  settlementNotices: GroupCombatSettlementNotice[];
+}
+
 export class GroupCombatService {
   constructor(
     private readonly repository: GroupCombatRepository,
@@ -22,7 +33,8 @@ export class GroupCombatService {
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
     },
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly achievements?: AchievementService
   ) {}
 
   isEnabled(): boolean {
@@ -166,12 +178,16 @@ export class GroupCombatService {
   }
 
   async resolveDue(limit = 13): Promise<GroupCombatSessionRecord[]> {
+    return (await this.resolveDueWithNotices(limit)).map((entry) => entry.session);
+  }
+
+  async resolveDueWithNotices(limit = 13): Promise<GroupCombatResolvedDelivery[]> {
     if (!this.options.enabled) {
       return [];
     }
     const now = this.now();
     const ids = await this.repository.listDueSessionIds(now, limit);
-    const resolved: GroupCombatSessionRecord[] = [];
+    const resolved: GroupCombatResolvedDelivery[] = [];
     for (const sessionId of ids) {
       try {
         const result = await this.repository.resolveTimedOutSession({
@@ -181,7 +197,10 @@ export class GroupCombatService {
         });
         const settled = await this.settleTerminalResult(result);
         if ("session" in settled) {
-          resolved.push(settled.session);
+          resolved.push({
+            session: settled.session,
+            settlementNotices: settled.settlementNotices ?? []
+          });
         }
       } catch {
         continue;
@@ -191,33 +210,111 @@ export class GroupCombatService {
   }
 
   async repair(limit = 13): Promise<number> {
-    if (!this.options.enabled) {
-      return 0;
-    }
-    const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
-    await this.settlePending(limit);
-    return repaired;
+    return (await this.repairWithNotices(limit)).repaired;
   }
 
-  settleParticipant(sessionId: string, telegramUserId: bigint) {
-    return this.repository.settleParticipant({ sessionId, telegramUserId, now: this.now() });
+  async repairWithNotices(limit = 13): Promise<GroupCombatRepairWork> {
+    if (!this.options.enabled) {
+      return { repaired: 0, settlementNotices: [] };
+    }
+    const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
+    const pending = await this.settlePendingWithNotices(limit);
+    return { repaired, settlementNotices: pending.settlementNotices };
+  }
+
+  async settleParticipant(sessionId: string, telegramUserId: bigint) {
+    const result = await this.repository.settleParticipant({
+      sessionId,
+      telegramUserId,
+      now: this.now()
+    });
+    if (
+      result.state !== "settled" ||
+      result.receipt.policy !== "left-passage-party" ||
+      result.receipt.manualParticipation !== true ||
+      !this.achievements
+    ) {
+      return result;
+    }
+    const session = await this.repository.findById(sessionId);
+    const unlocks: AchievementUnlock[] = [];
+    const sourceId = `group-combat:${sessionId}:participant:${result.receipt.characterId}`;
+    const occurredAt = this.now();
+    if (result.levelChange?.leveledUp) {
+      unlocks.push(...(await this.achievements?.trackEventSafely({
+        type: "level.reached",
+        characterId: result.receipt.characterId,
+        level: result.levelChange.newLevel,
+        occurredAt,
+        sourceId
+      }) ?? []));
+    }
+    if (result.receipt.rewards.items.length > 0) {
+      unlocks.push(...(await this.achievements?.trackEventSafely({
+        type: "item.received",
+        characterId: result.receipt.characterId,
+        itemIds: result.receipt.rewards.items.map((item) => item.itemId),
+        occurredAt,
+        sourceId
+      }) ?? []));
+    }
+    if (session?.state.status === "won" || session?.state.status === "lost") {
+      unlocks.push(...(await this.achievements?.trackEventSafely({
+        type: "combat.finished",
+        characterId: result.receipt.characterId,
+        outcome: session.state.status,
+        occurredAt,
+        sourceId
+      }) ?? []));
+    }
+    return { ...result, achievementUnlocks: unlocks };
   }
 
   async settlePending(limit = 13): Promise<number> {
+    return (await this.settlePendingWithNotices(limit)).settled;
+  }
+
+  async settlePendingWithNotices(limit = 13): Promise<{
+    settled: number;
+    settlementNotices: GroupCombatSettlementNotice[];
+  }> {
     if (!this.options.enabled) {
-      return 0;
+      return { settled: 0, settlementNotices: [] };
     }
     const pending = await this.repository.listPendingSettlementParticipants(limit);
     let settled = 0;
+    const settlementNotices: GroupCombatSettlementNotice[] = [];
     for (const participant of pending) {
       try {
         const result = await this.settleParticipant(participant.sessionId, participant.telegramUserId);
         settled += result.state === "settled" || result.state === "replayed" ? 1 : 0;
+        if (result.state === "settled") {
+          const session = await this.repository.findById(participant.sessionId);
+          const record = session?.participants.find(
+            (candidate) => candidate.telegramUserId === participant.telegramUserId
+          );
+          const frozen = record && session?.state.participants.find(
+            (candidate) => candidate.characterId === record.characterId
+          );
+          if (session && record && frozen) {
+            settlementNotices.push({
+              telegramUserId: record.telegramUserId,
+              characterId: record.characterId,
+              characterName: record.name,
+              classId: frozen.classId,
+              raceId: frozen.raceId,
+              levelChange: result.levelChange ?? null,
+              achievementUnlocks: "achievementUnlocks" in result
+                ? result.achievementUnlocks
+                : []
+            });
+          }
+        }
       } catch {
         continue;
       }
     }
-    return settled;
+    return { settled, settlementNotices };
   }
 
   async listPendingDelivery(limit = 13): Promise<GroupCombatSessionRecord[]> {
@@ -282,14 +379,39 @@ export class GroupCombatService {
     if (!("session" in result) || result.session.status === "active") {
       return result;
     }
+    const settlementNotices: GroupCombatSettlementNotice[] = [];
     for (const participant of result.session.participants) {
       try {
-        await this.settleParticipant(result.session.id, participant.telegramUserId);
+        const settlement = await this.settleParticipant(result.session.id, participant.telegramUserId);
+        if (settlement.state === "settled") {
+          const frozen = result.session.state.participants.find(
+            (candidate) => candidate.characterId === participant.characterId
+          );
+          if (frozen) {
+            settlementNotices.push({
+              telegramUserId: participant.telegramUserId,
+              characterId: participant.characterId,
+              characterName: participant.name,
+              classId: frozen.classId,
+              raceId: frozen.raceId,
+              levelChange: settlement.levelChange ?? null,
+              achievementUnlocks: "achievementUnlocks" in settlement
+                ? settlement.achievementUnlocks
+                : []
+            });
+          }
+        }
       } catch {
         continue;
       }
     }
     const refreshed = await this.repository.findById(result.session.id);
-    return refreshed ? { ...result, session: refreshed } : result;
+    return refreshed
+      ? {
+          ...result,
+          session: refreshed,
+          ...(settlementNotices.length > 0 ? { settlementNotices } : {})
+        }
+      : result;
   }
 }

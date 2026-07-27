@@ -1,5 +1,8 @@
 import type { Api } from "grammy";
-import type { GroupCombatSessionRecord } from "../db/repositories/groupCombatRepository";
+import type {
+  GroupCombatSessionRecord,
+  GroupCombatSettlementNotice
+} from "../db/repositories/groupCombatRepository";
 import { GROUP_COMBAT_PRODUCTION_RULES_VERSION } from "../domain/groupCombat/groupCombat";
 import type { GroupCombatService } from "../services/groupCombatService";
 import { buildGroupCombatKeyboard } from "./keyboards/groupCombatKeyboard";
@@ -11,6 +14,8 @@ import {
   isMessageNotModifiedError,
   isMessageUnavailableForEditError
 } from "./safeEditMessageText";
+import { presentLevelUpCelebration } from "./presenters/levelGrowthPresenter";
+import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
 
 const HTML_MESSAGE_OPTIONS = { parse_mode: "HTML" as const };
 const MAX_CONVERGENCE_EDITS = 4;
@@ -103,6 +108,25 @@ export async function deliverGroupCombatCards(
     await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
   }
   return results.filter((result) => result.status === "fulfilled" && isDelivered(result.value)).length;
+}
+
+export async function deliverGroupCombatSettlementNotifications(
+  api: Api,
+  notices: readonly GroupCombatSettlementNotice[]
+): Promise<number> {
+  const results = await Promise.allSettled(notices.map(async (notice) => {
+    const levelText = notice.levelChange
+      ? presentLevelUpCelebration(notice.levelChange, notice.classId, { raceId: notice.raceId })
+      : null;
+    const achievementText = presentAchievementUnlockNotification(notice.achievementUnlocks);
+    for (const text of [levelText, achievementText]) {
+      if (text) {
+        await api.sendMessage(Number(notice.telegramUserId), text, HTML_MESSAGE_OPTIONS);
+      }
+    }
+    return Boolean(levelText || achievementText);
+  }));
+  return results.filter((result) => result.status === "fulfilled" && result.value).length;
 }
 
 export function deliverGroupCombatParticipantCard(

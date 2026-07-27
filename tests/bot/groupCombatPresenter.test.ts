@@ -88,7 +88,7 @@ describe("group combat presenter", () => {
       contribution.guardedTurns = index;
     });
     const terminalText = presentGroupCombat(session, participants[0]!.characterId, NOW);
-    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_433);
+    expect(Buffer.byteLength(terminalText, "utf8")).toBe(2_607);
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -226,9 +226,9 @@ describe("group combat presenter", () => {
     expect(first).not.toContain("<b>Хто проти кого:</b>");
     expect(first).not.toContain("<i>Порада дня:");
     expect(first).toContain("<b>Кулдауни й ефекти:</b>");
-    expect(first).toContain("Силовий замах: ще 2 ходи.");
-    expect(first).toContain("Щільний бинт: ще 5 ходів.");
-    expect(first).toContain("Павутина «на вчора»: ще 3 ходи.");
+    expect(first).toContain("Силовий замах відсапується: ще 2 ходи.");
+    expect(first).toContain("Щільний бинт відсапується: ще 5 ходів.");
+    expect(first).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
     expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
   });
@@ -237,11 +237,14 @@ describe("group combat presenter", () => {
     const session = createSession(2);
     session.status = "won";
     session.state.status = "won";
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
     session.state.recap = [
       { turn: 1, lines: ["Пригодник 1 стає в захист."] },
       {
         turn: 2,
-        lines: ["Пригодник 2 б’є Комірний Шурхіт 1 на 3."],
+        lines: ["Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди."],
+        monsterBarkIds: ["bark.deadline-spider.engage-party"],
         snapshot: {
           participants: session.state.participants.map((participant, index) => ({
             hp: participant.hp - index,
@@ -273,14 +276,16 @@ describe("group combat presenter", () => {
     const journalLabels = buildGroupCombatJournalKeyboard(session, 1)
       .inline_keyboard.flat().map((button) => button.text);
 
-    expect(text).toContain("📜 <b>Журнал доказової сутички</b>");
+    expect(text).toContain("📜 <b>Журнал бою</b>");
     expect(text).toContain("Хід <b>2</b> · запис 2/2");
     expect(text).toContain("Збережено весь бій: 2 ходи.");
-    expect(text).toContain("Пригодник 2 б’є Комірний Шурхіт 1 на 3.");
+    expect(text).toContain("Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди.");
     expect(text).toContain("❤️ життя");
     expect(text).toContain("🔷 мана");
-    expect(text).toContain("Силовий замах: ще 2 ходи.");
-    expect(text).toContain("Павутина «на вчора»: ще 3 ходи.");
+    expect(text).toContain("🗣️ Монстр:");
+    expect(text).toContain("Усім терміново? Чудово, всіх і заплутаю.");
+    expect(text).toContain("Силовий замах відсапується: ще 2 ходи.");
+    expect(text).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
     expect(text).toContain("🛡️ захист");
     expect(resultLabels).toContain("📜 Журнал");
     expect(journalLabels).toContain("↩️ До результатів");
@@ -299,19 +304,147 @@ describe("group combat presenter", () => {
       control: 3,
       damageTaken: 11,
       committedActions: 4,
-      guardedTurns: 1
+      guardedTurns: 1,
+      specialActions: 2
     };
     const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
     expect(text).toContain("<b>Внесок:</b>");
-    expect(text).toContain("⚔️ шкода ворогам · ❤️ лікування · 🛡️ відвернена шкода");
+    expect(text).toContain("⚔️ шкода суперникам · ❤️ лікування · 🛡️ відвернена шкода");
     expect(text).toContain("🌀 послаблена відповідь · 💥 отримана шкода · ✅ дії");
-    expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4");
+    expect(text).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4, ✨ 2, 🧱 1");
     expect(text).toContain("<b>Внесок ворогів:</b>");
-    expect(text).toContain("💥 шкода ватазі · 🎯 дії · ✨ спецатаки");
-    expect(text).toContain("💥 0, 🎯 0, ✨ 0");
+    expect(text).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 0, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4_096);
   });
+
+  it("uses the ordinary fight result and reward shape for a production participant", () => {
+    const session = productionTerminalSession();
+    const viewer = session.participants[0]!;
+
+    const text = presentGroupCombat(session, viewer.characterId, NOW);
+
+    expect(text).toContain("🧾 Знешкоджено:");
+    expect(text).toContain("🎉 Ватага перемогла.");
+    expect(text).toContain("Винагорода за бій:");
+    expect(text).toContain("+13 XP");
+    expect(text).toContain("+2 золота");
+    expect(text).toContain("Здобуто: <i>Бинт відповідальної паніки</i>");
+    expect(text).toContain("🎉 Рівень підріс: <b>3 → 4</b>.");
+    expect(text).not.toContain("Ваш підсумок");
+  });
+
+  it("keeps the full production result while excluding a timeout-only viewer from rewards", () => {
+    const session = productionTerminalSession();
+    const viewer = session.participants[1]!;
+
+    const text = presentGroupCombat(session, viewer.characterId, NOW);
+
+    expect(text).toContain("🧾 Знешкоджено:");
+    expect(text).toContain("🎉 Ватага перемогла.");
+    expect(text).toContain("Винагороди немає: цього разу ви не обрали жодної дії вручну.");
+    expect(text).not.toContain("Винагорода за бій:");
+  });
 });
+
+function productionTerminalSession(): GroupCombatSessionRecord {
+  const session = createSession(2);
+  session.status = "won";
+  session.state.status = "won";
+  session.state.rulesVersion = "group-combat.v3";
+  session.state.encounterKey = "nyz-left-passage-party.v1";
+  session.state.enemies.forEach((enemy) => {
+    enemy.hp = 0;
+  });
+  session.state.participants.forEach((participant) => {
+    participant.level = 3;
+  });
+  session.state.contributions[0]!.committedActions = 2;
+  session.state.contributions[0]!.specialActions = 1;
+  session.state.contributions[1]!.committedActions = 0;
+  session.state.contributions[1]!.specialActions = 0;
+  session.state.production = {
+    version: 1,
+    origin: "nyz-left-passage-party.v1",
+    locationId: "location.korchma.deep.level1.left",
+    encounterId: "encounter-13",
+    encounterToken: "encounter-token-13",
+    encounterSeed: "encounter-seed-13",
+    initiatingCharacterId: session.participants[0]!.characterId,
+    initiatingRemortCount: 0,
+    primaryMonsterId: "monster.deadline-spider",
+    primaryBaseMonsterLevel: 2,
+    primaryEffectiveMonsterLevel: 5,
+    threat: {
+      participants: session.state.participants.map((participant) => ({
+        characterId: participant.characterId,
+        rosterOrder: participant.rosterOrder,
+        remortCount: 0,
+        decision: {
+          enemyCount: 1,
+          reason: "base",
+          eligibleWins: 0,
+          secondEnemyLevelBonus: 0
+        }
+      })),
+      sourceCharacterId: session.participants[0]!.characterId,
+      sourceRosterOrder: 0,
+      escalated: false,
+      requestedSecondEnemyLevelBonus: 0,
+      appliedSecondEnemyLevelBonus: 0,
+      boostedEnemyId: null,
+      levelCap: 23
+    },
+    remort: {
+      participants: session.state.participants.map((participant) => ({
+        characterId: participant.characterId,
+        rosterOrder: participant.rosterOrder,
+        remortCount: 0
+      })),
+      sourceCharacterId: session.participants[0]!.characterId,
+      sourceRosterOrder: 0,
+      sourceRemortCount: 0,
+      backupAdjustments: []
+    },
+    rewards: {
+      winXpTotal: 13,
+      winGoldTotal: 2,
+      lossXpTotal: 2,
+      commonItemId: "item.responsible-panic-bandage",
+      commonItemQuantity: 1
+    }
+  };
+  session.participants[0]!.currentLevel = 4;
+  session.participants[1]!.currentLevel = 3;
+  session.settlementPlan = {
+    version: 1,
+    policy: "left-passage-party",
+    sessionId: session.id,
+    outcome: "won",
+    completedTurn: 3,
+    participants: session.state.participants.map((participant, index) => ({
+      characterId: participant.characterId,
+      remortCount: participant.remortCount,
+      rosterOrder: participant.rosterOrder,
+      resources: { hp: participant.hp, mana: participant.mana },
+      contribution: { ...session.state.contributions[index]! },
+      rewards: index === 0
+        ? {
+            xp: 13,
+            gold: 2,
+            items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+          }
+        : { xp: 0, gold: 0, items: [] },
+      effects: {
+        resourcesKey: `resources-${index}`,
+        xpKey: `xp-${index}`,
+        goldKey: `gold-${index}`,
+        itemKey: index === 0 ? `item-${index}` : null,
+        activityKey: index === 0 ? "activity-13" : null
+      }
+    }))
+  };
+  return session;
+}
 
 function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
   const state = createGroupCombatProofState({

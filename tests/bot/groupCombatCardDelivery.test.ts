@@ -2,6 +2,7 @@ import type { Api } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import {
   deliverCanonicalGroupCombatParticipantCard,
+  deliverGroupCombatSettlementNotifications,
   deliverGroupCombatStartIntro,
   type GroupCombatDeliveryTransport
 } from "../../src/bot/groupCombatCardDelivery";
@@ -9,6 +10,61 @@ import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCo
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 
 describe("group-combat canonical participant delivery", () => {
+  it("delivers standard level and achievement notices as separate messages after settlement", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const api = { sendMessage } as unknown as Api;
+
+    await expect(deliverGroupCombatSettlementNotifications(api, [{
+      telegramUserId: 1001n,
+      characterId: "character-1",
+      characterName: "Лідерка",
+      classId: "class.priest",
+      raceId: "race.human-ish",
+      levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true },
+      achievementUnlocks: [{
+        id: "achievement.level.3",
+        title: "Перший поверх амбіцій",
+        cosmeticTitleGrantId: null,
+        unlockedAt: new Date("2026-07-27T08:00:00.000Z")
+      }]
+    }])).resolves.toBe(1);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Рівень підріс");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Нова ачівка");
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      1,
+      1001,
+      expect.any(String),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      2,
+      1001,
+      expect.any(String),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+  });
+
+  it("does not send settlement notices when no level or achievement was earned", async () => {
+    const sendMessage = vi.fn();
+
+    await expect(deliverGroupCombatSettlementNotifications(
+      { sendMessage } as unknown as Api,
+      [{
+        telegramUserId: 1001n,
+        characterId: "character-1",
+        characterName: "Лідерка",
+        classId: "class.priest",
+        raceId: "race.human-ish",
+        levelChange: null,
+        achievementUnlocks: []
+      }]
+    )).resolves.toBe(0);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("sends a production start intro separately to every participant", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";

@@ -9,6 +9,7 @@ import {
 import {
   deliverGroupCombatCards,
   deliverGroupCombatParticipantCard,
+  deliverGroupCombatSettlementNotifications,
   deliverGroupCombatStartIntro
 } from "../groupCombatCardDelivery";
 import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
@@ -18,6 +19,7 @@ import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
 import { formatRemainingWait, presentPartySession } from "../presenters/partySessionPresenter";
 import { buildPartyInviteUrl } from "../../services/partySessionService";
 import type {
+  GroupCombatSettlementNotice,
   GroupCombatStartResult,
   LeftPassagePartyCreateResult
 } from "../../db/repositories/groupCombatRepository";
@@ -215,6 +217,7 @@ export async function handleGroupCombatCallback(
     );
     return;
   }
+  let settlementNotices: GroupCombatSettlementNotice[] | undefined;
   if (callback.type === "action") {
     const target = resolveTarget(
       session,
@@ -243,11 +246,15 @@ export async function handleGroupCombatCallback(
       session = await service.findByToken(callback.token) ?? session;
     }
     const response = presentActionResult(result.state);
+    settlementNotices = "settlementNotices" in result ? result.settlementNotices : undefined;
     await safeAnswerCallbackQuery(ctx, response);
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
   await deliverGroupCombatCards(ctx.api, service, session);
+  if (settlementNotices) {
+    await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices);
+  }
 }
 
 export function presentLeftPassageInviteFailure(

@@ -72,6 +72,10 @@ import {
   type DrinkCombatModifiers,
   type MonsterCombatStats
 } from "../domain/combat";
+import {
+  buildBaselinePersistentFightWinXp,
+  buildPersistentFightWinGold
+} from "../domain/combat/combatRewards";
 import { buildShynokRecoveryWindows, getShynokDrinkDefinition } from "../domain/shynokDrinks";
 import { applyVarenykSatedPulseAfterSoloEnemyResponse } from "../domain/noncombat/varenykSatedSupport";
 import { applyBardInspirationPulseToSoloCombat } from "../domain/noncombat/bardSupport";
@@ -4859,31 +4863,6 @@ export function buildHardPersistentFightWinXpFloor(input: {
   baseMonsterLevel: number;
 }): number {
   return buildCenterBaselinePersistentFightWinXp(input) + 1;
-}
-
-function buildBaselinePersistentFightWinXp(input: {
-  characterLevel: number;
-  baseMonsterLevel: number;
-  effectiveMonsterLevel: number;
-}): number {
-  const antiFarmGap = input.characterLevel - input.baseMonsterLevel;
-
-  if (antiFarmGap > 3) {
-    return 2;
-  }
-
-  if (antiFarmGap > 2) {
-    return 3;
-  }
-
-  return Math.min(14, Math.max(5, 3 + input.effectiveMonsterLevel * 2));
-}
-
-function buildPersistentFightWinGold(
-  characterLevel: number,
-  rng: RandomSource
-): number {
-  return rng.nextInt(0, Math.max(0, Math.floor(characterLevel)));
 }
 
 function buildGoldSensitiveDropChanceMultiplier(input: {

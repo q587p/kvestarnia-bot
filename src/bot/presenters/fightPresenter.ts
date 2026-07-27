@@ -28,6 +28,7 @@ import type {
 import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
+import { presentMonsterBarkBlockquote } from "./monsterBarkPresenter";
 import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
@@ -1784,16 +1785,6 @@ function withMonsterBark(
     ...lines,
     ...(satedRecovery ? [satedRecovery] : [])
   ].join("\n");
-}
-
-function presentMonsterBarkBlockquote(text: string): string {
-  const barkText = stripOuterUkrainianQuotes(text.trim());
-
-  return `🗣️ Монстр:\n<blockquote>${escapeHtml(barkText)}</blockquote>`;
-}
-
-function stripOuterUkrainianQuotes(text: string): string {
-  return text.startsWith("«") && text.endsWith("»") ? text.slice(1, -1).trim() : text;
 }
 
 function presentSkillAction(skillId: string | undefined): string {

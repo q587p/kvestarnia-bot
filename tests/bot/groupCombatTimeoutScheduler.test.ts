@@ -52,6 +52,46 @@ describe("group combat timeout scheduler", () => {
     expect(listPendingDelivery).toHaveBeenCalledWith(13);
   });
 
+  it("delivers standard notices when a retryable participant settlement commits during repair", async () => {
+    const repair = vi.fn();
+    const repairWithNotices = vi.fn().mockResolvedValue({
+      repaired: 1,
+      settlementNotices: [{
+        telegramUserId: 1001n,
+        characterId: "character-1",
+        characterName: "Лідерка",
+        classId: "class.priest",
+        raceId: "race.human-ish",
+        levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true },
+        achievementUnlocks: [{
+          id: "achievement.level.3",
+          title: "Перший поверх амбіцій",
+          cosmeticTitleGrantId: null,
+          unlockedAt: new Date("2026-07-27T08:00:00.000Z")
+        }]
+      }]
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const scheduler = createGroupCombatTimeoutScheduler({
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      repair,
+      repairWithNotices,
+      resolveDue: vi.fn().mockResolvedValue([]),
+      listPendingDelivery: vi.fn().mockResolvedValue([])
+    } as unknown as GroupCombatService, {
+      api: { sendMessage }
+    } as unknown as Bot);
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+
+    expect(repairWithNotices).toHaveBeenCalledWith(13);
+    expect(repair).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Рівень підріс");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Нова ачівка");
+  });
+
   it("expires due left-passage recruitment when fresh entry is disabled but keeps runtime servicing", async () => {
     const party = { inviteToken: "left-disabled-13", version: 7 };
     const expireDueLeftPassageParty = vi.fn().mockResolvedValue({ state: "ready" });

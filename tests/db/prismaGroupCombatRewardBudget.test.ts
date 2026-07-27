@@ -6,17 +6,35 @@ import {
 import { buildLeftPassageEncounterRewardBudget } from "../../src/domain/groupCombat/groupCombat";
 
 describe("left-passage group-combat reward budget", () => {
-  it("does not multiply the encounter-wide budget or common roll by backup count", () => {
+  it("uses ordinary-fight XP and gold bands for 1x1, then adds enemy budgets without multiplying loot", () => {
+    const oneByOne = buildLeftPassageEncounterRewardBudget({
+      participantLevels: [3],
+      enemies: [{ baseLevel: 2, effectiveLevel: 5 }],
+      deterministicKey: "same-reserved-encounter"
+    });
     const twoByTwo = buildLeftPassageEncounterRewardBudget({
-      enemyLevels: [7, 8],
+      participantLevels: [3, 5],
+      enemies: [
+        { baseLevel: 2, effectiveLevel: 5 },
+        { baseLevel: 5, effectiveLevel: 5 }
+      ],
       deterministicKey: "same-reserved-encounter"
     });
     const threeByThree = buildLeftPassageEncounterRewardBudget({
-      enemyLevels: [7, 8, 6],
+      participantLevels: [3, 5, 4],
+      enemies: [
+        { baseLevel: 2, effectiveLevel: 5 },
+        { baseLevel: 5, effectiveLevel: 5 },
+        { baseLevel: 4, effectiveLevel: 4 }
+      ],
       deterministicKey: "same-reserved-encounter"
     });
 
-    expect(threeByThree).toEqual(twoByTwo);
+    expect(oneByOne.winXpTotal).toBe(13);
+    expect(oneByOne.winGoldTotal).toBeGreaterThanOrEqual(0);
+    expect(oneByOne.winGoldTotal).toBeLessThanOrEqual(3);
+    expect(twoByTwo.winXpTotal).toBeGreaterThan(oneByOne.winXpTotal);
+    expect(threeByThree.winXpTotal).toBeGreaterThan(twoByTwo.winXpTotal);
     expect(threeByThree.commonItemQuantity).toBeLessThanOrEqual(1);
   });
 

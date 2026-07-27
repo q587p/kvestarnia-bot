@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GroupCombatRepository } from "../../src/db/repositories/groupCombatRepository";
 import { GroupCombatService } from "../../src/services/groupCombatService";
+import type { AchievementService } from "../../src/services/achievementService";
 
 describe("GroupCombatService", () => {
   it("cannot start or mutate while the production-safe gate is closed", async () => {
@@ -112,6 +113,135 @@ describe("GroupCombatService", () => {
     expect(findByPartyInviteToken).not.toHaveBeenCalled();
     expect(resolveTimedOutSession).not.toHaveBeenCalled();
   });
+
+  it("tracks ordinary level, item, and combat achievements only after a manual settlement commits", async () => {
+    const { repository, settleParticipant, findById } = repositoryFixture();
+    const receipt = {
+      ...leftPassageReceipt(),
+      rewards: {
+        xp: 13,
+        gold: 2,
+        items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
+      }
+    };
+    settleParticipant.mockResolvedValue({
+      state: "settled",
+      receipt,
+      levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true }
+    });
+    findById.mockResolvedValue({
+      state: { status: "won" }
+    } as Awaited<ReturnType<GroupCombatRepository["findById"]>>);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>()
+      .mockResolvedValueOnce([{ id: "level", title: "Рівень", cosmeticTitleGrantId: null, unlockedAt: new Date() }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "combat", title: "Перемога", cosmeticTitleGrantId: null, unlockedAt: new Date() }]);
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-07-27T08:00:00.000Z"),
+      { trackEventSafely } as unknown as AchievementService
+    );
+
+    const result = await service.settleParticipant("left-session", 42n);
+
+    expect(trackEventSafely.mock.calls.map(([event]) => event.type)).toEqual([
+      "level.reached",
+      "item.received",
+      "combat.finished"
+    ]);
+    expect(result).toMatchObject({
+      state: "settled",
+      achievementUnlocks: [{ id: "level" }, { id: "combat" }]
+    });
+  });
+
+  it("does not progress ordinary achievements for a timeout-only settlement", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
+    settleParticipant.mockResolvedValue({
+      state: "settled",
+      receipt: { ...leftPassageReceipt(), manualParticipation: false }
+    });
+    const trackEventSafely = vi.fn();
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
+
+    await service.settleParticipant("left-session", 42n);
+
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
+  it("does not duplicate ordinary achievement progress when a completed settlement replays", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
+    settleParticipant.mockResolvedValue({
+      state: "replayed",
+      receipt: leftPassageReceipt()
+    });
+    const trackEventSafely = vi.fn();
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      undefined,
+      { trackEventSafely } as unknown as AchievementService
+    );
+
+    await service.settleParticipant("left-session", 42n);
+
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
+  it("returns one standard notice when a pending participant retry settles", async () => {
+    const {
+      repository,
+      listPendingSettlementParticipants,
+      settleParticipant,
+      findById
+    } = repositoryFixture();
+    listPendingSettlementParticipants.mockResolvedValue([{
+      sessionId: "left-session",
+      telegramUserId: 42n
+    }]);
+    settleParticipant.mockResolvedValue({
+      state: "settled",
+      receipt: leftPassageReceipt(),
+      levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true }
+    });
+    findById.mockResolvedValue({
+      participants: [{
+        telegramUserId: 42n,
+        characterId: "character-1",
+        name: "Лідерка"
+      }],
+      state: {
+        participants: [{
+          characterId: "character-1",
+          classId: "class.priest",
+          raceId: "race.human-ish"
+        }]
+      }
+    } as Awaited<ReturnType<GroupCombatRepository["findById"]>>);
+    const service = new GroupCombatService(repository, {
+      enabled: true,
+      devHelpersEnabled: false
+    });
+
+    await expect(service.settlePendingWithNotices(13)).resolves.toEqual({
+      settled: 1,
+      settlementNotices: [{
+        telegramUserId: 42n,
+        characterId: "character-1",
+        characterName: "Лідерка",
+        classId: "class.priest",
+        raceId: "race.human-ish",
+        levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true },
+        achievementUnlocks: []
+      }]
+    });
+  });
 });
 
 function repositoryFixture() {
@@ -123,6 +253,9 @@ function repositoryFixture() {
   const findByPartyInviteToken = vi.fn<GroupCombatRepository["findByPartyInviteToken"]>();
   const resolveTimedOutSession = vi.fn<GroupCombatRepository["resolveTimedOutSession"]>();
   const settleParticipant = vi.fn<GroupCombatRepository["settleParticipant"]>();
+  const findById = vi.fn<GroupCombatRepository["findById"]>();
+  const listPendingSettlementParticipants =
+    vi.fn<GroupCombatRepository["listPendingSettlementParticipants"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -132,12 +265,12 @@ function repositoryFixture() {
     submitActionForTelegramUser: submitAction,
     resolveTimedOutSession,
     findByPartyInviteToken,
-    findById: vi.fn(),
+    findById,
     findActiveByTelegramUserId: vi.fn(),
     inspectOperatorRepair: vi.fn(),
     listDueSessionIds: vi.fn(),
     listPendingDeliverySessionIds: vi.fn(),
-    listPendingSettlementParticipants: vi.fn(),
+    listPendingSettlementParticipants,
     repairInvalidOrOrphaned: vi.fn(),
     settleParticipant,
     compareAndSetParticipantCard: vi.fn(),
@@ -154,7 +287,9 @@ function repositoryFixture() {
     startLeftPassage,
     findByPartyInviteToken,
     resolveTimedOutSession,
-    settleParticipant
+    settleParticipant,
+    findById,
+    listPendingSettlementParticipants
   };
 }
 

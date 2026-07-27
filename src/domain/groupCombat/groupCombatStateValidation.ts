@@ -24,6 +24,7 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/prese
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { createMonsterAbilityRuntime } from "../combat/monsterAbilityRuntime";
 import { findMonsterAbility } from "../../content/monsterAbilities";
+import { findMonsterBark } from "../../content/monsterBarks";
 
 const nonNegativeInteger = z.number().int().min(0);
 const positiveInteger = z.number().int().positive();
@@ -146,14 +147,31 @@ const contributionSchema = z.object({
   control: nonNegativeInteger,
   damageTaken: nonNegativeInteger,
   committedActions: nonNegativeInteger,
-  guardedTurns: nonNegativeInteger
+  guardedTurns: nonNegativeInteger,
+  specialActions: nonNegativeInteger.optional()
 }).strict();
 
 const enemyContributionSchema = z.object({
   enemyId: z.string().min(1),
   damage: nonNegativeInteger,
+  healing: nonNegativeInteger.optional(),
+  guardPrevented: nonNegativeInteger.optional(),
+  control: nonNegativeInteger.optional(),
+  damageTaken: nonNegativeInteger.optional(),
   actions: nonNegativeInteger,
-  specialActions: nonNegativeInteger
+  specialActions: nonNegativeInteger,
+  guardedTurns: nonNegativeInteger.optional()
+}).strict();
+
+const combatBarkStateSchema = z.object({
+  version: z.literal(1),
+  rulesVersion: z.literal("monster-barks-v1"),
+  audience: z.literal("party"),
+  selectedEarlyBarkByMonsterId: z.record(z.string().min(1), z.string().min(1)),
+  emittedBarkIds: z.array(z.string().min(1)).max(13),
+  lastBarkOwnActionByMonsterId: z.record(z.string().min(1), nonNegativeInteger),
+  encounterBarkCountByMonsterId: z.record(z.string().min(1), nonNegativeInteger),
+  ownActionCountByMonsterId: z.record(z.string().min(1), nonNegativeInteger)
 }).strict();
 
 const statusSchema = z.object({
@@ -169,6 +187,7 @@ const statusSchema = z.object({
 const recapSchema = z.object({
   turn: positiveInteger.max(GROUP_COMBAT_TURN_LIMIT),
   lines: z.array(z.string().min(1).max(587)).max(13),
+  monsterBarkIds: z.array(z.string().min(1)).max(6).optional(),
   snapshot: z.object({
     participants: z.array(z.object({
       hp: nonNegativeInteger,
@@ -271,6 +290,7 @@ const stateSchema = z.object({
   enemyContributions: z.array(enemyContributionSchema)
     .max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT)
     .optional(),
+  enemyBarks: z.record(z.string().min(1), combatBarkStateSchema).optional(),
   statuses: z.array(statusSchema).max(93),
   recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT),
   production: productionSchema.optional()
@@ -336,9 +356,27 @@ const stateSchema = z.object({
   }
   if (
     state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-    !state.enemyContributions
+    (
+      !state.enemyContributions ||
+      state.contributions.some((row) => row.specialActions === undefined) ||
+      state.enemyContributions.some((row) =>
+        row.healing === undefined ||
+        row.guardPrevented === undefined ||
+        row.control === undefined ||
+        row.damageTaken === undefined ||
+        row.guardedTurns === undefined
+      )
+    )
   ) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy contributions are missing." });
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Production contribution dimensions are missing." });
+  }
+  if (
+    Object.keys(state.enemyBarks ?? {}).some((enemyId) => !enemyIds.includes(enemyId)) ||
+    state.recap.some((recap) =>
+      (recap.monsterBarkIds ?? []).some((barkId) => findMonsterBark(barkId) === null)
+    )
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Group-combat monster bark evidence is invalid." });
   }
   for (const recap of state.recap) {
     if (
@@ -585,7 +623,13 @@ const stateSchema = z.object({
       }
     }
     const rewardBudget = buildLeftPassageEncounterRewardBudget({
-      enemyLevels: state.enemies.map((enemy) => enemy.level ?? 0),
+      participantLevels: state.participants.map((participant) => participant.level),
+      enemies: state.enemies.map((enemy) => ({
+        baseLevel: enemy.id.startsWith("primary:")
+          ? state.production!.primaryBaseMonsterLevel
+          : monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level ?? 0,
+        effectiveLevel: enemy.level ?? 0
+      })),
       deterministicKey: `${state.production.encounterSeed}:${state.partySessionId}:rewards`
     });
     const expectedCommonItemId = rewardBudget.commonItemQuantity === 1

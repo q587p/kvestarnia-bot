@@ -7,11 +7,14 @@ import type {
   GroupCombatTargetKind
 } from "../../domain/groupCombat/groupCombat";
 import type { PartySessionRecord } from "./partySessionRepository";
+import type { RewardLevelChange } from "./dailyActionRepository";
+import type { AchievementUnlock } from "../../services/achievementService";
 
 export interface GroupCombatParticipantRecord {
   characterId: string;
   telegramUserId: bigint;
   name: string;
+  currentLevel?: number;
   remortCount: number;
   rosterOrder: number;
   chatId: bigint | null;
@@ -32,6 +35,16 @@ export interface GroupCombatQueuedActionRecord {
   targetId: string;
   payloadKey?: string;
   origin: "manual" | "timeout";
+}
+
+export interface GroupCombatSettlementNotice {
+  telegramUserId: bigint;
+  characterId: string;
+  characterName: string;
+  classId: string;
+  raceId: string;
+  levelChange: RewardLevelChange | null;
+  achievementUnlocks: AchievementUnlock[];
 }
 
 export interface GroupCombatSessionRecord {
@@ -116,7 +129,11 @@ export type LeftPassagePartyCreateResult =
 
 export type GroupCombatActionResult =
   | { state: "disabled" | "no-character" | "not-found" | "not-participant" | "stale" | "actor-unavailable" | "invalid-target" | "action-unavailable" | "invalidated" }
-  | { state: "queued" | "replaced" | "duplicate" | "resolved" | "terminal"; session: GroupCombatSessionRecord };
+  | {
+      state: "queued" | "replaced" | "duplicate" | "resolved" | "terminal";
+      session: GroupCombatSessionRecord;
+      settlementNotices?: GroupCombatSettlementNotice[];
+    };
 
 export interface GroupCombatRepository {
   createLeftPassagePartyForTelegramUser(input: {
@@ -193,7 +210,11 @@ export interface GroupCombatRepository {
     now: Date;
   }): Promise<
     | { state: "not-found" | "not-participant" | "not-terminal" | "invalid-plan" }
-    | { state: "settled" | "replayed"; receipt: GroupCombatSettlementReceipt }
+    | {
+        state: "settled" | "replayed";
+        receipt: GroupCombatSettlementReceipt;
+        levelChange?: RewardLevelChange;
+      }
   >;
 
   compareAndSetParticipantCard(input: {

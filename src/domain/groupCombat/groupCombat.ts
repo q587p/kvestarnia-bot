@@ -5,6 +5,7 @@ import {
 import type {
   CombatActorStats,
   CombatState,
+  MonsterCombatStats,
   PlayerAbilityFumblesState
 } from "../combat/combatState";
 import {
@@ -21,6 +22,14 @@ import { rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
 import { SeededRandomSource } from "../../shared/random";
+import {
+  buildBaselinePersistentFightWinXp,
+  buildPersistentFightWinGold
+} from "../combat/combatRewards";
+import {
+  resolveMonsterBarkState,
+  type CombatBarkStateV1
+} from "../combat/combatBarks";
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
@@ -186,13 +195,19 @@ export interface GroupCombatContribution {
   damageTaken: number;
   committedActions: number;
   guardedTurns: number;
+  specialActions?: number;
 }
 
 export interface GroupCombatEnemyContribution {
   enemyId: string;
   damage: number;
+  healing: number;
+  guardPrevented: number;
+  control: number;
+  damageTaken: number;
   actions: number;
   specialActions: number;
+  guardedTurns: number;
 }
 
 export interface GroupCombatTimedStatus {
@@ -208,6 +223,7 @@ export interface GroupCombatTimedStatus {
 export interface GroupCombatRecapEntry {
   turn: number;
   lines: string[];
+  monsterBarkIds?: string[];
   snapshot?: {
     participants: Array<{
       hp: number;
@@ -240,6 +256,7 @@ export interface GroupCombatState {
   enemies: GroupCombatEnemyState[];
   contributions: GroupCombatContribution[];
   enemyContributions?: GroupCombatEnemyContribution[];
+  enemyBarks?: Record<string, CombatBarkStateV1>;
   statuses: GroupCombatTimedStatus[];
   recap: GroupCombatRecapEntry[];
   production?: GroupCombatLeftPassageDifficultySnapshot;
@@ -642,9 +659,10 @@ export function resolveGroupCombatTurn(
 
   const state = cloneGroupCombatState(current);
   const lines: string[] = [];
+  const monsterBarkIds: string[] = [];
   applyBleedStatuses(state, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, []);
+    return terminalize(state, "won", lines, [], monsterBarkIds);
   }
 
   const livingActors = state.participants.filter((participant) => participant.hp > 0);
@@ -710,22 +728,22 @@ export function resolveGroupCombatTurn(
   }
 
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, committedConsumables);
+    return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
   }
 
-  applyEnemyPhase(state, lines);
+  applyEnemyPhase(state, lines, monsterBarkIds);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, committedConsumables);
+    return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
   }
   state.statuses = state.statuses
     .map((status) => status.kind === "bleed" ? status : { ...status, remainingTurns: status.remainingTurns - 1 })
     .filter((status) => status.remainingTurns > 0);
 
   if (state.participants.every((participant) => participant.hp <= 0) || state.turn >= GROUP_COMBAT_TURN_LIMIT) {
-    return terminalize(state, "lost", lines, committedConsumables);
+    return terminalize(state, "lost", lines, committedConsumables, monsterBarkIds);
   }
 
-  state.recap = appendRecap(state, lines);
+  state.recap = appendRecap(state, lines, monsterBarkIds);
   state.turn += 1;
   assertGroupCombatStateBudget(state);
   return { state, result: null, settlementPlan: null, committedConsumables };
@@ -837,13 +855,34 @@ function applyBasicAttack(
   if (!target) {
     return;
   }
-  const damage = Math.min(target.hp, Math.max(1, actor.attack - target.defense));
-  target.hp -= damage;
+  const defenderState: CombatActorResourceState = {
+    hp: target.hp,
+    hpMax: target.hpMax,
+    mana: 0,
+    manaMax: 0
+  };
+  const resolved = resolveActorCombatAction({
+    actorState: actorResourceState(actor),
+    defenderState,
+    actorStats: actorCombatStats(actor),
+    defenderStats: groupCombatEnemyActorStats(target, actor.level),
+    action: "attack",
+    rng: new SeededRandomSource(
+      `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:basic-attack`
+    )
+  });
+  applyActorResourceState(actor, resolved.actorState);
+  target.hp = resolved.defenderState.hp;
+  const damage = Math.max(0, defenderState.hp - target.hp);
   contribution.damage += damage;
+  getEnemyContribution(state, target.id).damageTaken += damage;
   actor.threat += damage;
-  tickActorAfterCommittedAction(actor);
   tickGroupCombatItemCooldowns(actor);
-  lines.push(`${actor.name} б’є «${target.name}» на ${damage}.`);
+  lines.push(
+    resolved.summary.actorOutcome === "miss"
+      ? `${actor.name} атакує «${target.name}», але не влучає.`
+      : `${actor.name} атакує «${target.name}»${resolved.summary.critical ? " критично" : ""}: ${damage} шкоди.`
+  );
 }
 
 function applyAbilityAction(
@@ -878,17 +917,17 @@ function applyAbilityAction(
     actorState: actorResourceState(actor),
     defenderState,
     actorStats: actorCombatStats(actor),
-    defenderStats: {
-      monsterId: primaryEnemy?.id ?? "group-combat-support-target",
-      ...(primaryEnemy ? { name: primaryEnemy.name } : {}),
-      level: Math.max(1, actor.level),
-      hpMax: primaryEnemy?.hpMax ?? 1,
-      attack: primaryEnemy?.attack ?? 1,
-      armor: primaryEnemy?.defense ?? 0,
-      resist: primaryEnemy?.defense ?? 0,
-      dexterity: 5,
-      tags: []
-    },
+    defenderStats: primaryEnemy
+      ? groupCombatEnemyActorStats(primaryEnemy, actor.level)
+      : groupCombatEnemyActorStats({
+          id: "group-combat-support-target",
+          name: "Ціль підтримки",
+          order: 0,
+          hp: 1,
+          hpMax: 1,
+          attack: 1,
+          defense: 0
+        }, actor.level),
     action: action.action === "class"
       ? "skill"
       : action.action === "race" || action.action === "gear"
@@ -909,6 +948,9 @@ function applyAbilityAction(
   }
 
   let dealt = primaryEnemy ? Math.max(0, defenderState.hp - primaryEnemy.hp) : 0;
+  if (primaryEnemy) {
+    getEnemyContribution(state, primaryEnemy.id).damageTaken += dealt;
+  }
   const otherEnemyIds = enemyTargets.filter((targetId) => targetId !== primaryEnemy?.id);
   for (const [index, targetId] of otherEnemyIds.entries()) {
     const target = getCanonicalEnemyTarget(state, targetId);
@@ -923,8 +965,10 @@ function applyAbilityAction(
       : Math.min(target.hp, Math.max(1, Math.floor(resolved.summary.actorDamage * ratio)));
     target.hp -= damage;
     dealt += damage;
+    getEnemyContribution(state, target.id).damageTaken += damage;
   }
   contribution.damage += dealt;
+  contribution.specialActions = (contribution.specialActions ?? 0) + 1;
   actor.threat += dealt;
 
   const primarySupportTargets = isSupportScope(primaryTargetScope) ? primaryTargets : [];
@@ -968,10 +1012,36 @@ function applyAbilityAction(
     }
   }
   maybeAddGearBleed(state, actor, action, primaryEnemy);
-  lines.push(`${actor.name} застосовує «${ability.label}»${dealt > 0 ? `: ${dealt} шкоди` : ""}.`);
+  lines.push(
+    resolved.summary.actorOutcome === "miss"
+      ? `${actor.name} застосовує «${ability.label}», але не влучає.`
+      : `${actor.name} застосовує «${ability.label}»${resolved.summary.critical ? " критично" : ""}` +
+        `${dealt > 0 ? `: ${dealt} шкоди` : " без прямої шкоди"}.`
+  );
 }
 
-function applyEnemyPhase(state: GroupCombatState, lines: string[]): void {
+function groupCombatEnemyActorStats(
+  enemy: GroupCombatEnemyState,
+  fallbackLevel: number
+): MonsterCombatStats {
+  return {
+    monsterId: enemy.monsterId ?? enemy.id,
+    name: enemy.name,
+    level: enemy.level ?? Math.max(1, fallbackLevel),
+    hpMax: enemy.hpMax,
+    attack: enemy.attack,
+    armor: enemy.defense,
+    resist: enemy.defense,
+    dexterity: 5,
+    tags: []
+  };
+}
+
+function applyEnemyPhase(
+  state: GroupCombatState,
+  lines: string[],
+  monsterBarkIds: string[]
+): void {
   for (const enemy of state.enemies.filter((candidate) => candidate.hp > 0).sort((a, b) => a.order - b.order)) {
     const target = chooseEnemyTarget(state);
     if (!target) {
@@ -981,6 +1051,39 @@ function applyEnemyPhase(state: GroupCombatState, lines: string[]): void {
     const enemyContribution = getEnemyContribution(state, enemy.id);
     enemyContribution.actions += 1;
     const ability = selectGroupCombatEnemyAbility(state, enemy);
+    const authored = enemy.monsterId
+      ? monsters.find((candidate) => candidate.id === enemy.monsterId)
+      : null;
+    if (authored) {
+      const monster = deriveMonsterCombatStats(
+        { ...authored, level: enemy.level ?? authored.level },
+        enemy.order > 0
+          ? {
+              remortCount: state.production?.remort.sourceRemortCount ?? 0,
+              remortPressureMode: "multi"
+            }
+          : {}
+      );
+      const bark = resolveMonsterBarkState({
+        ...(state.enemyBarks?.[enemy.id]
+          ? { barkState: state.enemyBarks[enemy.id] }
+          : {}),
+        combatId: `${state.sessionId}:${enemy.id}`,
+        status: "active",
+        audience: "party",
+        monster,
+        monsterCommittedAction: true,
+        monsterUsedAbility: Boolean(ability),
+        monsterHpAfterHeroAction: enemy.hp
+      });
+      state.enemyBarks = {
+        ...(state.enemyBarks ?? {}),
+        [enemy.id]: bark.state
+      };
+      if (bark.barkId) {
+        monsterBarkIds.push(bark.barkId);
+      }
+    }
     const rawDamage = ability
       ? rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability)
       : Math.max(1, enemy.attack - target.defense);
@@ -1054,6 +1157,7 @@ function applyGroupCombatEnemyDamage(
         const counterDamage = Math.min(enemy.hp, counter.value);
         enemy.hp -= counterDamage;
         getContribution(state, counter.sourceCharacterId).damage += counterDamage;
+        getEnemyContribution(state, enemy.id).damageTaken += counterDamage;
         const source = state.participants.find((candidate) => candidate.characterId === counter.sourceCharacterId);
         if (source) {
           source.threat += counterDamage;
@@ -1162,6 +1266,7 @@ function applyBleedStatuses(state: GroupCombatState, lines: string[]): void {
       const damage = Math.min(enemy.hp, status.value);
       enemy.hp -= damage;
       getContribution(state, status.sourceCharacterId).damage += damage;
+      getEnemyContribution(state, enemy.id).damageTaken += damage;
       lines.push(`🩸 «${enemy.name}» втрачає ${damage} HP.`);
     }
     status.remainingTurns -= 1;
@@ -1399,9 +1504,10 @@ function terminalize(
   state: GroupCombatState,
   outcome: "won" | "lost",
   lines: string[],
-  committedConsumables: GroupCombatCommittedConsumable[]
+  committedConsumables: GroupCombatCommittedConsumable[],
+  monsterBarkIds: string[] = []
 ): GroupCombatResolution {
-  state.recap = appendRecap(state, lines);
+  state.recap = appendRecap(state, lines, monsterBarkIds);
   state.status = outcome;
   assertGroupCombatStateBudget(state);
   return {
@@ -1437,7 +1543,8 @@ function emptyContribution(participant: GroupCombatActorSnapshot): GroupCombatCo
     control: 0,
     damageTaken: 0,
     committedActions: 0,
-    guardedTurns: 0
+    guardedTurns: 0,
+    specialActions: 0
   };
 }
 
@@ -1445,8 +1552,13 @@ function emptyEnemyContribution(enemy: GroupCombatEnemyState): GroupCombatEnemyC
   return {
     enemyId: enemy.id,
     damage: 0,
+    healing: 0,
+    guardPrevented: 0,
+    control: 0,
+    damageTaken: 0,
     actions: 0,
-    specialActions: 0
+    specialActions: 0,
+    guardedTurns: 0
   };
 }
 
@@ -1528,7 +1640,8 @@ export function sumGroupCombatSettlementRewards(
 }
 
 export function buildLeftPassageEncounterRewardBudget(input: {
-  enemyLevels: readonly number[];
+  participantLevels: readonly number[];
+  enemies: ReadonlyArray<{ baseLevel: number; effectiveLevel: number }>;
   deterministicKey: string;
 }): {
   winXpTotal: number;
@@ -1536,14 +1649,25 @@ export function buildLeftPassageEncounterRewardBudget(input: {
   lossXpTotal: number;
   commonItemQuantity: 0 | 1;
 } {
-  const encounterLevelBudget = Math.max(
+  const characterLevel = Math.max(
     1,
-    ...input.enemyLevels.map((level) => Math.max(1, Math.floor(level)))
+    ...input.participantLevels.map((level) => Math.max(1, Math.floor(level)))
   );
-  const winXpTotal = Math.max(2, encounterLevelBudget * 8);
+  const winXpTotal = input.enemies.reduce((sum, enemy) => (
+    sum + buildBaselinePersistentFightWinXp({
+      characterLevel,
+      baseMonsterLevel: Math.max(1, Math.floor(enemy.baseLevel)),
+      effectiveMonsterLevel: Math.max(1, Math.floor(enemy.effectiveLevel))
+    })
+  ), 0);
+  const goldRng = new SeededRandomSource(`${input.deterministicKey}:gold`);
+  const winGoldTotal = input.enemies.reduce(
+    (sum) => sum + buildPersistentFightWinGold(characterLevel, goldRng),
+    0
+  );
   return {
-    winXpTotal,
-    winGoldTotal: Math.max(1, encounterLevelBudget * 4),
+    winXpTotal: Math.max(2, winXpTotal),
+    winGoldTotal,
     lossXpTotal: Math.max(0, Math.floor(winXpTotal / 5)),
     commonItemQuantity: stableGroupCombatSeed(input.deterministicKey) % 4 === 0 ? 1 : 0
   };
@@ -1557,7 +1681,11 @@ export function stableGroupCombatSeed(value: string): number {
   return hash;
 }
 
-function appendRecap(state: GroupCombatState, lines: string[]): GroupCombatRecapEntry[] {
+function appendRecap(
+  state: GroupCombatState,
+  lines: string[],
+  monsterBarkIds: string[] = []
+): GroupCombatRecapEntry[] {
   const effects = state.statuses
     .filter((status) => status.remainingTurns > 0)
     .map((status) => ({
@@ -1569,6 +1697,7 @@ function appendRecap(state: GroupCombatState, lines: string[]): GroupCombatRecap
   const entry: GroupCombatRecapEntry = {
     turn: state.turn,
     lines: lines.slice(0, 13),
+    ...(monsterBarkIds.length > 0 ? { monsterBarkIds: monsterBarkIds.slice(0, 6) } : {}),
     snapshot: {
       participants: state.participants.map((participant) => {
         const cooldowns = getActiveGroupCombatCooldowns(participant);

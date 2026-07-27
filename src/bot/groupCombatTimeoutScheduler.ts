@@ -4,6 +4,7 @@ import type { GroupCombatService } from "../services/groupCombatService";
 import type { PartySessionService } from "../services/partySessionService";
 import {
   deliverGroupCombatCards,
+  deliverGroupCombatSettlementNotifications,
   deliverGroupCombatStartIntro
 } from "./groupCombatCardDelivery";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
@@ -90,19 +91,36 @@ export function createGroupCombatTimeoutScheduler(
           console.error(`Kvestarnia: пропущено невдалий автоматичний старт лівого проходу ${party.inviteToken}.`, error);
         }
       }
-      const repaired = await service.repair(13);
-      const resolved = await service.resolveDue(13);
+      const repairWork = typeof service.repairWithNotices === "function"
+        ? await service.repairWithNotices(13)
+        : {
+            repaired: await service.repair(13),
+            settlementNotices: []
+          };
+      const resolved = typeof service.resolveDueWithNotices === "function"
+        ? await service.resolveDueWithNotices(13)
+        : (await service.resolveDue(13)).map((session) => ({
+            session,
+            settlementNotices: []
+          }));
       const pending = await service.listPendingDelivery(13);
       const sessions = [...new Map(
-        [...started, ...resolved, ...pending].map((session) => [session.id, session])
+        [...started, ...resolved.map((entry) => entry.session), ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
         if (freshlyStartedSessionIds.has(session.id)) {
           await deliverGroupCombatStartIntro(bot.api, service, session);
         }
         await deliverGroupCombatCards(bot.api, service, session);
+        const notices = resolved.find((entry) => entry.session.id === session.id)?.settlementNotices ?? [];
+        if (notices.length > 0) {
+          await deliverGroupCombatSettlementNotifications(bot.api, notices);
+        }
       }
-      return repaired + sessions.length;
+      if (repairWork.settlementNotices.length > 0) {
+        await deliverGroupCombatSettlementNotifications(bot.api, repairWork.settlementNotices);
+      }
+      return repairWork.repaired + sessions.length;
     })();
     activeTick = operation;
     try {

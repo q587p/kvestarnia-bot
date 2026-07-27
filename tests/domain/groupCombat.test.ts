@@ -56,8 +56,8 @@ describe("group combat proof reducer", () => {
     expect(plan.policy).toBe("left-passage-party");
     expect(plan.participants[0]?.resources).toEqual({ hp: 17, mana: 3 });
     expect(plan.participants[0]?.rewards).toEqual({
-      xp: 40,
-      gold: 20,
+      xp: state.production!.rewards.winXpTotal,
+      gold: state.production!.rewards.winGoldTotal,
       items: [{ itemId: "item.responsible-panic-bandage", quantity: 1 }]
     });
     expect(plan.participants[1]?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
@@ -85,8 +85,10 @@ describe("group combat proof reducer", () => {
     const plan = buildGroupCombatSettlementPlan(state)!;
     expect(state.participants).toHaveLength(3);
     expect(state.enemies).toHaveLength(3);
-    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0)).toBe(48);
-    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0)).toBe(24);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0))
+      .toBe(state.production!.rewards.winXpTotal);
+    expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0))
+      .toBe(state.production!.rewards.winGoldTotal);
     expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(1);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
@@ -861,7 +863,11 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
     };
   });
   const rewardBudget = buildLeftPassageEncounterRewardBudget({
-    enemyLevels: enemies.map((enemy) => enemy.level),
+    participantLevels: participants.map((participant) => participant.level),
+    enemies: enemies.map((enemy) => ({
+      baseLevel: monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level,
+      effectiveLevel: enemy.level
+    })),
     deterministicKey: "seed-23:party-session:rewards"
   });
   return createLeftPassageGroupCombatState({
