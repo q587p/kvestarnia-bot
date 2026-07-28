@@ -26,8 +26,8 @@
   Contributions record actual damage, healing, guard prevention, control, damage taken and committed actions; terminal cards explain all six icons. Future backlog extends this pattern to raids and other combats only where canonical evidence exists.
   Generic Aid is absent: ally support uses authored class/race profiles. Strict parser/relational/life/session/lease repair releases frozen statuses only after terminal CAS.
   Canonical participant cards remain private-DM, monotonic and
-  repairable with truthful remaining time, contribution output and bounded
-  journal. Current production query observations/budgets are `35/35` manual start, `34/34`
+  repairable with truthful remaining time, contribution output and bounded journal.
+  Live cards and journal pages preserve the participant/enemy action exchange before rendering each defeated-enemy notice as a closing paragraph. Current production query observations/budgets are `35/35` manual start, `34/34`
   due start, `25/25` queue, `27/35` single resolve, `38` concurrent-pair aggregate, `41` production start, `1/1` due/delivery/pending-settlement scans, `6/6` idle repair and `27/38` participant-settlement events (the cap covers up to twelve aggregated per-enemy item grants);
   state/card/callback caps are `65,536`/`4,096`/`64` UTF-8 bytes; measured
   proof/presenter maxima are `20,150` state, `1,523` terminal-card fixture and `46` GroupCombat action callback; the rolling production 3×6 journal measured `38,804`, with initial 3×6 state/card at `11,489`/`536`. The 24-case

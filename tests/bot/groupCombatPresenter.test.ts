@@ -392,22 +392,32 @@ describe("group combat presenter", () => {
     );
   });
 
-  it("keeps each defeated-enemy notice in its own active-card paragraph", () => {
+  it("keeps defeated-enemy notices after the complete action exchange", () => {
     const session = createSession(2);
     session.state.recap = [{
       turn: 1,
       lines: [
         "Пригодник 1 атакує: 13 шкоди.",
         "🧾 Знешкоджено: Комірний Шурхіт 1.",
-        "Комірний Шурхіт 2 відповідає Пригодник 1: 3 шкоди."
+        "Комірний Шурхіт 2 відповідає Пригодник 1: 3 шкоди.",
+        "🧾 Знешкоджено: Комірний Шурхіт 2."
       ]
     }];
 
     const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+    const journal = presentGroupCombatJournal(session, 0);
 
-    expect(text).toContain(
-      "Пригодник 1 атакує: 13 шкоди.\n\n🧾 Знешкоджено: Комірний Шурхіт 1.\n\nКомірний 2 відповідає Пригодник 1: 3 шкоди."
-    );
+    for (const card of [text, journal]) {
+      const attackIndex = card.indexOf("Пригодник 1 атакує: 13 шкоди.");
+      const responseIndex = card.indexOf("відповідає Пригодник 1: 3 шкоди.");
+      const defeatIndex = card.indexOf("🧾 Знешкоджено: Комірний Шурхіт 1.");
+      expect(attackIndex).toBeGreaterThanOrEqual(0);
+      expect(responseIndex).toBeGreaterThan(attackIndex);
+      expect(defeatIndex).toBeGreaterThan(responseIndex);
+      expect(card).toContain(
+        "🧾 Знешкоджено: Комірний Шурхіт 1.\n\n🧾 Знешкоджено: Комірний Шурхіт 2."
+      );
+    }
   });
 
   it("opens the shared bounded battle journal and returns to terminal results", () => {

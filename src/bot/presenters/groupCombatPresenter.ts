@@ -429,20 +429,24 @@ function presentGroupCombatRecapActions(
     .map((barkId) => findMonsterBark(barkId))
     .filter((bark) => bark !== null)
     .map((bark) => presentMonsterBarkBlockquote(bark.text));
-  const lines = recap.lines.flatMap((line, index) => {
+  const actionLines: string[] = [];
+  const defeatedEnemyLines: string[] = [];
+  for (const line of recap.lines) {
     const visibleLine = compactEnemyNames && session && !line.startsWith("🧾 Знешкоджено:")
       ? compactGroupCombatEnemyNames(line, session)
       : line;
     const escaped = escapeHtml(visibleLine);
-    if (!line.startsWith("🧾 Знешкоджено:")) {
-      return [escaped];
+    if (line.startsWith("🧾 Знешкоджено:")) {
+      defeatedEnemyLines.push(escaped);
+    } else {
+      actionLines.push(escaped);
     }
-    return [
-      ...(index > 0 ? [""] : []),
-      escaped,
-      ...(index < recap.lines.length - 1 ? [""] : [])
-    ];
-  });
+  }
+  const lines = [
+    ...actionLines,
+    ...(actionLines.length > 0 && defeatedEnemyLines.length > 0 ? [""] : []),
+    ...defeatedEnemyLines.flatMap((line, index) => index > 0 ? ["", line] : [line])
+  ];
   return barks.length > 0 && lines.length > 0
     ? [...barks, "", ...lines]
     : [...barks, ...lines];
