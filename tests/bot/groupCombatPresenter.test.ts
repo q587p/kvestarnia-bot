@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
+  buildGroupCombatAbilityTargetKeyboard,
   buildGroupCombatActionMenuKeyboard,
   buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
@@ -117,18 +118,54 @@ describe("group combat presenter", () => {
       session,
       session.participants[0]!.characterId
     ).inline_keyboard;
-    const replyLabels = replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat();
+    const replyLabels = replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, session.participants[0]!.characterId).keyboard
+    ).flat();
 
     expect(rows).toEqual([]);
     expect(replyLabels).toEqual([
       "⚔️ Атакувати",
-      "✨ Вміння",
       "🛡️ Захиститися",
       "🎒 Разові",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
+    expect(replyLabels).not.toContain("✨ Вміння");
     expect(parseGroupCombatReplyButton("🎒 Манатки")).toBeNull();
+  });
+
+  it("shows every frozen ability directly and narrows a selected ability to targets only", () => {
+    const session = createSession(2);
+    session.state.participants[0]!.classId = "class.warrior";
+    session.state.participants[0]!.raceId = "race.dwarf";
+    const viewerCharacterId = session.participants[0]!.characterId;
+
+    const replyLabels = replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewerCharacterId).keyboard
+    ).flat();
+    expect(replyLabels).toContain("🪓 Силовий замах");
+    expect(replyLabels).toContain("🪨 Низький центр ваги");
+    expect(replyLabels).not.toContain("✨ Вміння");
+
+    const targetLabels = buildGroupCombatAbilityTargetKeyboard(
+      session,
+      viewerCharacterId,
+      { action: "class", label: "🪓 Силовий замах", optionIndex: 0 }
+    ).inline_keyboard.flat().map((button) => button.text);
+    expect(targetLabels.filter((label) => label.startsWith("🪓 Силовий замах"))).toHaveLength(2);
+    expect(targetLabels.some((label) => label.includes("Низький центр ваги"))).toBe(false);
+  });
+
+  it("gives a knocked-out participant only a refresh control while the group fight continues", () => {
+    const session = createSession(2);
+    session.state.participants[0]!.hp = 0;
+
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(
+        session,
+        session.participants[0]!.characterId
+      ).keyboard
+    ).flat()).toEqual(["🔎 Оновити"]);
   });
 
   it("uses one plain attack button when only one monster remains", () => {
@@ -424,7 +461,8 @@ describe("group combat presenter", () => {
     expect(text).toContain("Збережено весь бій: 2 ходи.");
     expect(text).toContain("Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди.");
     expect(text).toContain("❤️ життя");
-    expect(text).toContain("🔷 мана");
+    expect(text).toContain("🔮 мана");
+    expect(text).not.toContain("🔷 мана");
     expect(text).toContain("🗣️ Монстр:");
     expect(text).toContain("Усім терміново? Чудово, всіх і заплутаю.");
     expect(text).toContain("Силовий замах відсапується: ще 2 ходи.");

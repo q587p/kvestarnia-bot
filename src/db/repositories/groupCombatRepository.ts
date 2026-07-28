@@ -264,7 +264,10 @@ export interface GroupCombatRepository {
     claimToken: string;
     claimedAt: Date;
     staleBefore: Date;
-  }): Promise<boolean>;
+  }): Promise<
+    | { state: "claimed"; locationId: string | null }
+    | { state: "busy" | "superseded" | "not-found" }
+  >;
 
   releaseParticipantFleeExitDeliveryClaim(input: {
     sessionId: string;
@@ -277,19 +280,6 @@ export interface GroupCombatRepository {
     telegramUserId: bigint;
     claimToken: string;
     messageId: number;
-  }): Promise<boolean>;
-
-  resolveParticipantFleeExitNavigation(input: {
-    sessionId: string;
-    telegramUserId: bigint;
-  }): Promise<
-    | { state: "free"; locationId: string | null }
-    | { state: "superseded" | "not-found" }
-  >;
-
-  supersedeParticipantFleeExitDelivery(input: {
-    sessionId: string;
-    telegramUserId: bigint;
   }): Promise<boolean>;
 
   completeParticipantFleeExitDelivery(input: {

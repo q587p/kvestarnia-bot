@@ -403,7 +403,7 @@ function presentGroupCombatRecapSnapshot(
       continue;
     }
     actorRows.push(
-      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔷 мана ${row.mana}/${participant.manaMax}`
+      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}`
     );
     for (const cooldown of row.cooldowns ?? []) {
       const skill = getCombatSkillDisplay(cooldown.id);

@@ -53,6 +53,7 @@ import {
 } from "../../services/bureaucramancerProtocol";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 import { PRESENCE_ADVENTURE_SOLO_FIGHT } from "../../services/presenceService";
+import { LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY } from "../../domain/groupCombat/groupCombat";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -317,7 +318,8 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
       if (ineligible) {
         return ineligible.reason === "loss-cooldown" ||
           ineligible.reason === "pending-solo-raid" ||
-          ineligible.reason === "active-search"
+          ineligible.reason === "active-search" ||
+          ineligible.reason === "left-passage-rest"
           ? {
               state: "ineligible",
               reason: ineligible.reason,
@@ -1926,7 +1928,12 @@ async function getBigBarrelJoinIneligibleReason(
   character: CharacterRow,
   now: Date
 ): Promise<
-  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> }
+  | {
+      reason: Exclude<
+        PartyJoinIneligibleReason,
+        "loss-cooldown" | "pending-solo-raid" | "active-search" | "left-passage-rest"
+      >
+    }
   | { reason: "loss-cooldown"; availableAt: Date }
   | { reason: "pending-solo-raid"; availableAt: Date }
   | null
@@ -1999,8 +2006,14 @@ async function getLeftPassageJoinIneligibleReason(
   character: CharacterRow,
   now: Date
 ): Promise<
-  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> }
+  | {
+      reason: Exclude<
+        PartyJoinIneligibleReason,
+        "loss-cooldown" | "pending-solo-raid" | "active-search" | "left-passage-rest"
+      >
+    }
   | { reason: "active-search"; availableAt: Date }
+  | { reason: "left-passage-rest"; availableAt: Date }
   | null
 > {
   if (session.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
@@ -2030,7 +2043,7 @@ async function getLeftPassageJoinIneligibleReason(
   if (hasInvalidEffectiveResources(character)) {
     return { reason: "invalid-resources" };
   }
-  const [activeLease, activeSearch] = await Promise.all([
+  const [activeLease, activeSearch, leftPassageRest] = await Promise.all([
     tx.activeCombatLease.findUnique({
       where: { characterId: character.id },
       select: { id: true }
@@ -2042,6 +2055,15 @@ async function getLeftPassageJoinIneligibleReason(
         endsAt: { gt: now }
       },
       select: { id: true, endsAt: true }
+    }),
+    tx.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
+        }
+      },
+      select: { availableAt: true }
     })
   ]);
   if (activeLease) {
@@ -2049,6 +2071,9 @@ async function getLeftPassageJoinIneligibleReason(
   }
   if (activeSearch) {
     return { reason: "active-search", availableAt: activeSearch.endsAt };
+  }
+  if (leftPassageRest && leftPassageRest.availableAt > now) {
+    return { reason: "left-passage-rest", availableAt: leftPassageRest.availableAt };
   }
   return null;
 }

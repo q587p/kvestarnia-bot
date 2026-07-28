@@ -813,7 +813,7 @@ describe("main menu and scene keyboards", () => {
       encounterToken: "token13",
       searchAvailable: false
     }))).toEqual([
-      "⚔️ Атакувати",
+      "⚔️ Атакувати самостійно",
       "↩️ Повернутися до Сутеренів"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightPassageRestKeyboard({

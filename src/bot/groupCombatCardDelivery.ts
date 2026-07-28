@@ -119,17 +119,23 @@ export async function deliverGroupCombatCards(
           authoritative.state.turn === actor.fledAtTurn)
       )
     );
-    if (
-      actor?.fledAtTurn !== undefined &&
-      exitDeliveryStateOf(participant) !== "none"
-    ) {
-      return deliverParticipantFleeExit({
+    if (exitDeliveryStateOf(participant) !== "none") {
+      const exitDelivered = await deliverParticipantExitNavigation({
         api,
         service,
         sessionId: authoritative.id,
         participantCharacterId: participant.characterId,
         transport
       });
+      if (actor?.fledAtTurn !== undefined || !exitDelivered) {
+        return exitDelivered;
+      }
+    } else if (
+      authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+      authoritative.status !== "active" &&
+      participant.settlementStatus !== "completed"
+    ) {
+      return false;
     }
     if (
       authoritative.status === "active" &&
@@ -137,9 +143,14 @@ export async function deliverGroupCombatCards(
       isActiveGroupCombatParticipant(actor) &&
       participant.deliveredRevision === 0
     ) {
-      await deliverGroupCombatBattleKeyboard(api, participant.telegramUserId);
+      await deliverGroupCombatBattleKeyboard(
+        api,
+        authoritative,
+        participant.characterId
+      );
     }
     if (
+      authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
       (authoritative.status !== "active" || participantFledThisTurn) &&
       participant.deliveredRevision < authoritative.deliveryRevision
     ) {
@@ -184,7 +195,7 @@ export async function deliverGroupCombatCards(
   ).length;
 }
 
-async function deliverParticipantFleeExit(input: {
+async function deliverParticipantExitNavigation(input: {
   api: Api;
   service: GroupCombatService;
   sessionId: string;
@@ -206,59 +217,40 @@ async function deliverParticipantFleeExit(input: {
         participant.exitDeliveryState === "pending" ||
         participant.exitDeliveryState === "claimed"
       ) {
-        const navigation =
-          await input.service.resolveParticipantFleeExitNavigation({
-            sessionId: current.id,
-            telegramUserId: participant.telegramUserId
-          });
-        if (navigation.state === "superseded") {
-          const superseded =
-            await input.service.supersedeParticipantFleeExitDelivery({
-              sessionId: current.id,
-              telegramUserId: participant.telegramUserId
-            });
-          if (superseded) {
-            return true;
-          }
-          const latest = await loadAuthoritativeSession(
-            input.service,
-            input.sessionId
-          );
-          const latestParticipant = findParticipant(
-            latest,
-            input.participantCharacterId
-          );
-          return latestParticipant
-            ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
-            : false;
-        }
-        if (navigation.state === "not-found") {
-          return false;
-        }
         const now = serviceTime(input.service);
         const claimToken = randomUUID();
-        const claimed = await input.service.claimParticipantFleeExitDelivery({
+        const navigation = await input.service.claimParticipantFleeExitDelivery({
           sessionId: current.id,
           telegramUserId: participant.telegramUserId,
           claimToken,
           claimedAt: now,
           staleBefore: new Date(now.getTime() - FLEE_EXIT_DELIVERY_CLAIM_MS)
         });
-        if (!claimed) {
+        if (navigation.state === "superseded") {
+          return true;
+        }
+        if (navigation.state === "not-found" || navigation.state === "busy") {
           const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-          const latestParticipant = findParticipant(
-            latest,
-            input.participantCharacterId
-          );
+          const latestParticipant = findParticipant(latest, input.participantCharacterId);
           return latestParticipant
             ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
             : false;
         }
+        if (navigation.state !== "claimed") {
+          return false;
+        }
         let exitMessageId: number;
         try {
+          const fled = current.state.participants.some(
+            (actor) =>
+              actor.characterId === participant!.characterId &&
+              actor.fledAtTurn !== undefined
+          );
           const sent = await input.api.sendMessage(
             Number(participant.telegramUserId),
-            "🏃 Ви відступили з бою. Головне меню знову на місці.",
+            fled
+              ? "🏃 Ви відступили з бою. Головне меню знову на місці."
+              : "🏁 Бій завершено. Головне меню знову на місці.",
             {
               reply_markup: buildMainMenuKeyboard({
                 ...(navigation.locationId
@@ -373,12 +365,29 @@ function isCompletedExitDelivery(
 
 export async function deliverGroupCombatBattleKeyboard(
   api: Api,
-  telegramUserId: bigint
+  session: GroupCombatSessionRecord,
+  participantCharacterId: string
 ): Promise<void> {
+  const participant = session.participants.find(
+    (candidate) => candidate.characterId === participantCharacterId
+  );
+  if (!participant) {
+    return;
+  }
+  const actor = session.state.participants.find(
+    (candidate) => candidate.characterId === participantCharacterId
+  );
   await api.sendMessage(
-    Number(telegramUserId),
-    "⚔️ Бойова клавіатура готова.",
-    { reply_markup: buildGroupCombatReplyKeyboard() }
+    Number(participant.telegramUserId),
+    actor && isActiveGroupCombatParticipant(actor)
+      ? "⚔️ Бойова клавіатура готова."
+      : "💫 Ви непритомні й цього ходу не дієте. Можна стежити за боєм.",
+    {
+      reply_markup: buildGroupCombatReplyKeyboard(
+        session,
+        participantCharacterId
+      )
+    }
   );
 }
 

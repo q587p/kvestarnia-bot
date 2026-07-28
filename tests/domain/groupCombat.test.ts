@@ -326,7 +326,7 @@ describe("group combat proof reducer", () => {
       }));
       const actual = getGroupCombatProductionV1LootCandidates({
         monsterId: fixture.monster.id,
-        effectiveEnemyLevel: fixture.level,
+        participantLevel: fixture.level,
         classId: fixture.classId,
         raceId: fixture.raceId
       });
@@ -341,7 +341,7 @@ describe("group combat proof reducer", () => {
   it("keeps every released x025 variant epic and deterministically selectable", () => {
     const candidates = getGroupCombatProductionV1LootCandidates({
       monsterId: "monster.spreadsheet-goblin",
-      effectiveEnemyLevel: 23,
+      participantLevel: 23,
       classId: "class.warrior",
       raceId: "race.bisyny"
     });
@@ -372,6 +372,24 @@ describe("group combat proof reducer", () => {
         selectGroupCombatLootVersionOneCandidate(epic, { nextFloat })
       ).toBe(target);
     }
+  });
+
+  it("gates expansion loot by the frozen participant level, independently of enemy pressure", () => {
+    const levelThirteen = getGroupCombatProductionV1LootCandidates({
+      monsterId: "monster.spreadsheet-goblin",
+      participantLevel: 13,
+      classId: "class.warrior",
+      raceId: "race.bisyny"
+    });
+    const levelTwentyThree = getGroupCombatProductionV1LootCandidates({
+      monsterId: "monster.spreadsheet-goblin",
+      participantLevel: 23,
+      classId: "class.warrior",
+      raceId: "race.bisyny"
+    });
+
+    expect(levelThirteen.some(({ itemId }) => itemId.includes("loot-v1-x025"))).toBe(false);
+    expect(levelTwentyThree.some(({ itemId }) => itemId === "item.loot-v1-x025")).toBe(true);
   });
 
   it("adds independent enemy opportunities and scales each broad-loot chance by enemy level", () => {
@@ -1437,6 +1455,28 @@ describe("group combat proof reducer", () => {
     ]);
 
     expect(result.state.participants[0]!.cooldowns?.abilities?.["skill.forceful-strike"]?.remainingTurns).toBe(2);
+  });
+
+  it("ticks cooldowns on timeout guard without counting a manual action", () => {
+    const state = proofState(2);
+    state.participants[0]!.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 3
+        }
+      }
+    };
+
+    const result = resolveGroupCombatTurn(state, []);
+
+    expect(
+      result.state.participants[0]!.cooldowns?.abilities?.["skill.forceful-strike"]?.remainingTurns
+    ).toBe(2);
+    expect(result.state.contributions[0]).toMatchObject({
+      committedActions: 0,
+      guardedTurns: 1
+    });
   });
 
   it("resolves lowest-HP ties by roster order and excludes dead allies", () => {

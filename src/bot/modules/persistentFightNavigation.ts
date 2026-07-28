@@ -171,7 +171,9 @@ export async function sendPersistentFightPassagePreview(
       ...(preview.reservedPartyInviteToken
         ? { reservedPartyInviteToken: preview.reservedPartyInviteToken }
         : {}),
-      leftPassagePartyAttackEnabled: services.groupCombat?.isLeftPassageEntryEnabled() === true,
+      leftPassagePartyAttackEnabled:
+        preview.partyInvitationAvailable &&
+        services.groupCombat?.isLeftPassageEntryEnabled() === true,
       searchAvailable: await isPassageSearchAvailable(
         services.passageSearch,
         telegramUserId,

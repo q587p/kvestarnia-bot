@@ -560,6 +560,7 @@ export type PersistentFightPreviewResult =
       difficulty: PersistentFightDifficultyId;
       originLocationId: string;
       encounterToken: string;
+      partyInvitationAvailable: boolean;
       reservedPartyInviteToken?: string;
       expiresAt: Date;
       monsterHp?: {
@@ -891,6 +892,7 @@ export class FightService {
       difficulty: difficulty.id,
       originLocationId,
       encounterToken: encounter.token,
+      partyInvitationAvailable: encounter.status === "pending",
       ...(encounter.status === "reserved" && encounter.reservedPartyInviteToken
         ? { reservedPartyInviteToken: encounter.reservedPartyInviteToken }
         : {}),

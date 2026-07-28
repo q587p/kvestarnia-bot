@@ -878,10 +878,8 @@ export function resolveGroupCombatTurn(
     if (action.action === "attack") {
       applyBasicAttack(state, actor, action, contribution, lines);
     } else if (action.action === "guard") {
-      if (action.origin === "manual") {
-        tickActorAfterCommittedAction(actor);
-        tickGroupCombatItemCooldowns(actor);
-      }
+      tickActorAfterCommittedAction(actor);
+      tickGroupCombatItemCooldowns(actor);
       addProtectionStatus(
         state,
         actor.characterId,
@@ -2698,7 +2696,6 @@ function buildLeftPassageLootVersionOneSnapshot(
       if (!monster) {
         throw new Error(`Production loot snapshot requires authored monster ${enemy.monsterId ?? enemy.id}.`);
       }
-      const effectiveEnemyLevel = Math.max(1, Math.floor(enemy.level ?? monster.level));
       return {
         enemyId: enemy.id,
         monsterId: monster.id,
@@ -2706,7 +2703,7 @@ function buildLeftPassageLootVersionOneSnapshot(
         participantRolls: participants.map((participant) => {
           const candidates = getGroupCombatProductionV1LootCandidates({
             monsterId: monster.id,
-            effectiveEnemyLevel,
+            participantLevel: participant.level,
             classId: participant.classId,
             raceId: participant.raceId
           });
@@ -2749,7 +2746,7 @@ export function resolveGroupCombatLootVersionOneRoll(input: {
   const monsterId = input.enemy.monsterId ?? input.enemy.id;
   const candidates = input.candidates ?? getGroupCombatProductionV1LootCandidates({
     monsterId,
-    effectiveEnemyLevel: input.enemy.level ?? 1,
+    participantLevel: input.participant.level,
     classId: input.participant.classId,
     raceId: input.participant.raceId
   });

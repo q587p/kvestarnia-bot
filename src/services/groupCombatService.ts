@@ -26,7 +26,8 @@ export interface GroupCombatRepairWork {
 }
 
 export type GroupCombatExitNavigation =
-  | { state: "free"; locationId: string | null; questMarkers: unknown }
+  | { state: "claimed"; locationId: string | null; questMarkers: unknown }
+  | { state: "busy" }
   | { state: "superseded" }
   | { state: "not-found" };
 
@@ -387,14 +388,23 @@ export class GroupCombatService {
     return this.repository.markParticipantCardDelivered(input);
   }
 
-  claimParticipantFleeExitDelivery(input: {
+  async claimParticipantFleeExitDelivery(input: {
     sessionId: string;
     telegramUserId: bigint;
     claimToken: string;
     claimedAt: Date;
     staleBefore: Date;
-  }): Promise<boolean> {
-    return this.repository.claimParticipantFleeExitDelivery(input);
+  }): Promise<GroupCombatExitNavigation> {
+    const claim = await this.repository.claimParticipantFleeExitDelivery(input);
+    if (claim.state !== "claimed") {
+      return claim;
+    }
+    return {
+      ...claim,
+      questMarkers: this.resolveQuestMarkers
+        ? await this.resolveQuestMarkers(input.telegramUserId)
+        : null
+    };
   }
 
   releaseParticipantFleeExitDeliveryClaim(input: {
@@ -412,30 +422,6 @@ export class GroupCombatService {
     messageId: number;
   }): Promise<boolean> {
     return this.repository.markParticipantFleeExitMenuDelivered(input);
-  }
-
-  async resolveParticipantFleeExitNavigation(input: {
-    sessionId: string;
-    telegramUserId: bigint;
-  }): Promise<GroupCombatExitNavigation> {
-    const navigation =
-      await this.repository.resolveParticipantFleeExitNavigation(input);
-    if (navigation.state !== "free") {
-      return navigation;
-    }
-    return {
-      ...navigation,
-      questMarkers: this.resolveQuestMarkers
-        ? await this.resolveQuestMarkers(input.telegramUserId)
-        : null
-    };
-  }
-
-  supersedeParticipantFleeExitDelivery(input: {
-    sessionId: string;
-    telegramUserId: bigint;
-  }): Promise<boolean> {
-    return this.repository.supersedeParticipantFleeExitDelivery(input);
   }
 
   completeParticipantFleeExitDelivery(input: {

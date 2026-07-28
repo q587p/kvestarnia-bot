@@ -488,7 +488,9 @@ async function handleFightCallback(
           ...(result.reservedPartyInviteToken
             ? { reservedPartyInviteToken: result.reservedPartyInviteToken }
             : {}),
-          leftPassagePartyAttackEnabled: services.groupCombat?.isLeftPassageEntryEnabled() === true,
+          leftPassagePartyAttackEnabled:
+            result.partyInvitationAvailable &&
+            services.groupCombat?.isLeftPassageEntryEnabled() === true,
           searchAvailable: await isPassageSearchAvailable(
             services.passageSearch,
             telegramUserId,

@@ -440,7 +440,7 @@ async function redirectGroupCombatLockIfNeeded(
     });
   }
   if (isPrivate) {
-    await deliverGroupCombatBattleKeyboard(ctx.api, telegramUserId);
+    await deliverGroupCombatBattleKeyboard(ctx.api, active, viewer.characterId);
   }
   await deliverGroupCombatParticipantCard(
     ctx.api,

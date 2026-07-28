@@ -13,10 +13,12 @@ import {
   deliverGroupCombatStartIntro
 } from "../groupCombatCardDelivery";
 import {
+  buildGroupCombatAbilityTargetKeyboard,
   buildGroupCombatActionMenuKeyboard,
   buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
   buildGroupCombatStatisticsKeyboard,
+  parseGroupCombatReplyAbility,
   parseGroupCombatReplyButton
 } from "../keyboards/groupCombatKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
@@ -93,17 +95,21 @@ export function registerGroupCombatReplyKeyboard(
   service: GroupCombatService
 ): void {
   bot.on("message:text", async (ctx, next) => {
-    const replyAction = parseGroupCombatReplyButton(ctx.message.text.trim());
-    if (!replyAction) {
-      await next();
-      return;
-    }
+    const replyText = ctx.message.text.trim();
+    const replyAction = parseGroupCombatReplyButton(replyText);
     const telegramUserId = telegramUserIdFromContext(ctx.from);
     if (!telegramUserId || ctx.chat.type !== "private") {
+      if (!replyAction) {
+        await next();
+      }
       return;
     }
     const session = await service.findActiveForTelegramUser(telegramUserId);
     if (!session) {
+      if (!replyAction) {
+        await next();
+        return;
+      }
       await ctx.reply("🏁 Цей бій уже завершено. Головне меню повернуто.", {
         reply_markup: buildMainMenuKeyboard()
       });
@@ -113,6 +119,57 @@ export function registerGroupCombatReplyKeyboard(
       (participant) => participant.telegramUserId === telegramUserId
     );
     if (!viewer) {
+      return;
+    }
+    const replyAbility = parseGroupCombatReplyAbility(
+      session,
+      viewer.characterId,
+      replyText
+    );
+    if (!replyAction && !replyAbility) {
+      await next();
+      return;
+    }
+    if (replyAbility) {
+      const actor = session.state.participants.find(
+        (participant) => participant.characterId === viewer.characterId
+      );
+      const payloadKey = replyAbility.action === "gear"
+        ? actor?.gearAbilityIds[replyAbility.optionIndex]
+        : undefined;
+      const profile = actor
+        ? getGroupCombatActionProfile(actor, replyAbility.action, payloadKey)
+        : null;
+      const scopes = profile
+        ? [profile.ability.primaryTargetScope, profile.ability.secondaryTargetScope]
+            .filter(Boolean)
+        : [];
+      const targetIndexes = scopes.includes("single-enemy")
+        ? session.state.enemies
+            .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+            .filter(({ enemy }) => enemy.hp > 0)
+            .map(({ targetIndex }) => targetIndex)
+        : scopes.includes("single-ally-or-self")
+          ? session.state.participants
+              .map((participant, targetIndex) => ({ participant, targetIndex }))
+              .filter(({ participant }) => participant.hp > 0)
+              .map(({ targetIndex }) => targetIndex)
+          : [actor?.rosterOrder ?? 0];
+      if (targetIndexes.length === 1) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: replyAbility.action,
+          optionIndex: replyAbility.optionIndex,
+          targetIndex: targetIndexes[0]!
+        });
+        return;
+      }
+      await ctx.reply("✨ Оберіть точну ціль для цього вміння.", {
+        reply_markup: buildGroupCombatAbilityTargetKeyboard(
+          session,
+          viewer.characterId,
+          replyAbility
+        )
+      });
       return;
     }
     if (replyAction === "refresh") {
@@ -138,21 +195,6 @@ export function registerGroupCombatReplyKeyboard(
       }
       await ctx.reply("⚔️ Оберіть точну ціль.", {
         reply_markup: buildGroupCombatActionMenuKeyboard(session, viewer.characterId, "attack")
-      });
-      return;
-    }
-    if (replyAction === "abilities") {
-      const keyboard = buildGroupCombatActionMenuKeyboard(
-        session,
-        viewer.characterId,
-        "abilities"
-      );
-      if (keyboard.inline_keyboard.length <= 1) {
-        await ctx.reply("✨ Доступних умінь для цього ходу немає.");
-        return;
-      }
-      await ctx.reply("✨ Оберіть уміння й, якщо треба, точну ціль.", {
-        reply_markup: keyboard
       });
       return;
     }
@@ -212,7 +254,7 @@ export async function handleGroupCombatCallback(
     if (!("session" in result)) {
       if (result.state === "invalid-preview" && options.refreshLeftPassagePreview) {
         await safeAnswerCallbackQuery(ctx, {
-          text: "Картка була не найновіша. Показую актуальний слід."
+          text: "Ця кнопка вже не веде до збору ватаги. Оновив доступні дії."
         });
         await options.refreshLeftPassagePreview(ctx);
         return;
@@ -585,7 +627,8 @@ async function submitGroupCombatReplyAction(
   initialSession: NonNullable<Awaited<ReturnType<GroupCombatService["findByToken"]>>>,
   viewerCharacterId: string,
   choice: {
-    action: Extract<GroupCombatActionKey, "attack" | "guard" | "flee">;
+    action: Exclude<GroupCombatActionKey, "item">;
+    optionIndex?: number;
     targetIndex: number;
   }
 ): Promise<void> {
@@ -593,7 +636,7 @@ async function submitGroupCombatReplyAction(
     initialSession,
     viewerCharacterId,
     choice.action,
-    0,
+    choice.optionIndex ?? 0,
     choice.targetIndex
   );
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -614,7 +657,8 @@ async function submitGroupCombatReplyAction(
     turn: initialSession.turn,
     action: choice.action,
     targetKind: target.kind,
-    targetId: target.id
+    targetId: target.id,
+    ...(target.payloadKey ? { payloadKey: target.payloadKey } : {})
   });
   const session = "session" in result
     ? result.session

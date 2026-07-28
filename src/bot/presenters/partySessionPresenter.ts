@@ -201,6 +201,12 @@ function presentPartyJoinIneligible(
         `На поклик можна відповісти за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
       ].join("\n");
     }
+    if (reason === "left-passage-rest") {
+      return [
+        "Після попередньої перемоги лівий прохід іще відсапується.",
+        `До іншої ватаги можна приєднатися за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+      ].join("\n");
+    }
     if (reason === "expired-invitation") {
       return "Поклик із лівого проходу вже згас. Попросіть ватажка перевірити слід знову.";
     }

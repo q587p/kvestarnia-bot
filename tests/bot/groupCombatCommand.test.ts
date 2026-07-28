@@ -87,7 +87,7 @@ describe("group combat bot flow", () => {
     );
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({
-      text: "Картка була не найновіша. Показую актуальний слід."
+      text: "Ця кнопка вже не веде до збору ватаги. Оновив доступні дії."
     });
     expect(refreshLeftPassagePreview).toHaveBeenCalledWith(ctx);
   });
@@ -262,6 +262,41 @@ describe("group combat bot flow", () => {
       partyInviteToken: session.partyInviteToken,
       turn: 1,
       action: "attack",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
+  });
+
+  it("submits a concrete one-target ability directly without opening an ability submenu", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    session.state.participants[0]!.classId = "class.warrior";
+    session.state.participants[0]!.raceId = "race.dwarf";
+    session.state.enemies[1]!.hp = 0;
+    const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method) => Promise.resolve({
+      ok: true,
+      result: method === "sendMessage"
+        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+        : true
+    }));
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "class",
       targetKind: "enemy",
       targetId: "enemy-1"
     });
@@ -921,9 +956,9 @@ describe("group combat bot flow", () => {
       .toEqual([1001, 1002, 1001, 1002]);
     const sendCalls = apiCalls.filter((call) => call.method === "sendMessage");
     expect(readReplyKeyboard(sendCalls[0]?.replyMarkup))
-      .toEqual(buildGroupCombatReplyKeyboard().keyboard);
+      .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[0]!.characterId).keyboard);
     expect(readReplyKeyboard(sendCalls[1]?.replyMarkup))
-      .toEqual(buildGroupCombatReplyKeyboard().keyboard);
+      .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[1]!.characterId).keyboard);
     expect(sendCalls[2]?.replyMarkup).toEqual({ inline_keyboard: [] });
     expect(sendCalls[3]?.replyMarkup).toEqual({ inline_keyboard: [] });
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);

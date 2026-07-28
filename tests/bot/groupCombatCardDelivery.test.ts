@@ -415,10 +415,18 @@ describe("group-combat canonical participant delivery", () => {
       deleteMessage: vi.fn()
     } as unknown as Api, {
       ...movedService,
-      resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
-        state: "free",
+      claimParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+        claimToken: string;
+        claimedAt: Date;
+      }) => {
+        moved.participants[0]!.exitDeliveryState = "claimed";
+        moved.participants[0]!.exitDeliveryClaimToken = input.claimToken;
+        moved.participants[0]!.exitDeliveryClaimedAt = input.claimedAt;
+        return Promise.resolve({
+        state: "claimed",
         locationId: "korchma.bar",
         questMarkers: { fight: { state: "ready" } }
+        });
       }),
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, moved);
@@ -446,8 +454,10 @@ describe("group-combat canonical participant delivery", () => {
       deleteMessage: vi.fn()
     } as unknown as Api, {
       ...newerService,
-      resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
-        state: "superseded"
+      claimParticipantFleeExitDelivery: vi.fn().mockImplementation(() => {
+        newerCombat.participants[0]!.exitDeliveryState = "superseded";
+        newerCombat.participants[0]!.messageId = null;
+        return Promise.resolve({ state: "superseded" });
       }),
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, newerCombat);
@@ -1122,7 +1132,7 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         (candidate) => candidate.telegramUserId === input.telegramUserId
       ) ?? session.participants[0]!;
       if (participant.referenceVersion !== input.expectedReferenceVersion) {
-        return Promise.resolve(false);
+        return Promise.resolve({ state: "busy" });
       }
       participant.chatId = input.chatId;
       participant.messageId = input.messageId;
@@ -1164,30 +1174,11 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.exitDeliveryState = "claimed";
       participant.exitDeliveryClaimToken = input.claimToken;
       participant.exitDeliveryClaimedAt = input.claimedAt;
-      return Promise.resolve(true);
-    }),
-    resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
-      state: "free",
+      return Promise.resolve({
+        state: "claimed",
       locationId: "korchma.hall",
       questMarkers: null
-    }),
-    supersedeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
-      telegramUserId: bigint;
-    }) => {
-      const participant = session.participants.find(
-        (candidate) => candidate.telegramUserId === input.telegramUserId
-      );
-      if (!participant) {
-        return Promise.resolve(false);
-      }
-      participant.exitDeliveryState = "superseded";
-      participant.exitDeliveryClaimToken = null;
-      participant.exitDeliveryClaimedAt = null;
-      participant.exitDeliveryMessageId = null;
-      participant.chatId = null;
-      participant.messageId = null;
-      participant.referenceVersion += 1;
-      return Promise.resolve(true);
+      });
     }),
     releaseParticipantFleeExitDeliveryClaim: vi.fn().mockImplementation((input: {
       telegramUserId: bigint;

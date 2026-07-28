@@ -123,6 +123,7 @@ export type PartyJoinIneligibleReason =
   | "dead"
   | "invalid-resources"
   | "active-search"
+  | "left-passage-rest"
   | "expired-invitation";
 
 export type PartyLossCooldownIneligible = {
@@ -142,6 +143,13 @@ export type PartyPendingSoloRaidIneligible = {
 export type PartyActiveSearchIneligible = {
   state: "ineligible";
   reason: "active-search";
+  availableAt: Date;
+  now: Date;
+};
+
+export type PartyLeftPassageRestIneligible = {
+  state: "ineligible";
+  reason: "left-passage-rest";
   availableAt: Date;
   now: Date;
 };
@@ -168,10 +176,14 @@ export type PartyJoinRepositoryResult =
   | (PartyLossCooldownIneligible & { session: PartySessionRecord })
   | (PartyPendingSoloRaidIneligible & { session: PartySessionRecord })
   | (PartyActiveSearchIneligible & { session: PartySessionRecord })
+  | (PartyLeftPassageRestIneligible & { session: PartySessionRecord })
   | {
       state: "ineligible";
       session: PartySessionRecord;
-      reason?: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid" | "active-search"> | undefined;
+      reason?: Exclude<
+        PartyJoinIneligibleReason,
+        "loss-cooldown" | "pending-solo-raid" | "active-search" | "left-passage-rest"
+      > | undefined;
     }
   | { state: "full" | PartyTerminalReplayState; session: PartySessionRecord };
 

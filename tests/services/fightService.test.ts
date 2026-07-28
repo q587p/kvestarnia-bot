@@ -1639,7 +1639,8 @@ describe("FightService", () => {
     });
     expect(preview).toMatchObject({
       state: "persistent-preview",
-      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      partyInvitationAvailable: true
     });
     if (preview.state !== "persistent-preview") {
       throw new Error("Expected canonical deep-left preview.");
@@ -1934,6 +1935,7 @@ describe("FightService", () => {
       current: woundedHp + Math.floor(started.session.state.monster.hpMax / 2),
       max: started.session.state.monster.hpMax
     });
+    expect(woundedPreview.partyInvitationAvailable).toBe(false);
 
     const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,
@@ -2006,6 +2008,7 @@ describe("FightService", () => {
     expect(survivorPreview.encounterToken).toBe(preview.encounterToken);
     expect(survivorPreview.monster.id).toBe(preview.monster.id);
     expect(survivorPreview.monsterHp).toBeUndefined();
+    expect(survivorPreview.partyInvitationAvailable).toBe(false);
 
     const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,

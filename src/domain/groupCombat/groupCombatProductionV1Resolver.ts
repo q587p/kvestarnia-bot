@@ -286,7 +286,7 @@ export function getGroupCombatProductionV1BackupEffectiveLevel(
 
 export function getGroupCombatProductionV1LootCandidates(input: {
   monsterId: string;
-  effectiveEnemyLevel: number;
+  participantLevel: number;
   classId: string;
   raceId: string;
 }): GroupCombatProductionV1LootCandidate[] {
@@ -294,7 +294,7 @@ export function getGroupCombatProductionV1LootCandidates(input: {
   if (!monster) {
     throw new Error(`Unknown production-v1 monster ${input.monsterId}.`);
   }
-  const playerLevel = Math.max(1, Math.floor(input.effectiveEnemyLevel));
+  const playerLevel = Math.max(1, Math.floor(input.participantLevel));
   const sourceId = getLootSource(monster.level, monster.tags);
   const profileClass = normalizeContentId(input.classId, CLASS_ID_ALIASES);
   const profileRace = normalizeContentId(input.raceId, RACE_ID_ALIASES);

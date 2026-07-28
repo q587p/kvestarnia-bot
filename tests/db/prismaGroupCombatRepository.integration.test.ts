@@ -2210,6 +2210,73 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toBe(2);
   });
 
+  it("keeps a knocked-out participant leased while a living ally continues the production fight", async () => {
+    const telegramIds = [58723n, 58724n];
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-knocked-out-lease",
+      telegramIds,
+      {
+        beforeStart: async (characterIds) => {
+          await prisma.character.updateMany({
+            where: { id: { in: characterIds } },
+            data: {
+              hpCurrent: 587,
+              hpMax: 587,
+              statsJson: {
+                strength: 93,
+                dexterity: 93,
+                intelligence: 23,
+                charisma: 23,
+                luck: 23
+              }
+            }
+          });
+        }
+      }
+    );
+    const knockedOut = session.participants[0]!;
+    const survivor = session.participants[1]!;
+    const stateWithKnockout = structuredClone(session.state);
+    stateWithKnockout.participants[0]!.hp = 0;
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: stateWithKnockout as unknown as Prisma.InputJsonValue }
+    });
+
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: survivor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: session.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: survivor.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(resolved).toMatchObject({
+      state: "resolved",
+      session: {
+        status: "active"
+      }
+    });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: knockedOut.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat",
+      referenceId: session.id
+    });
+    await repository.repairInvalidOrOrphaned(new Date(NOW.getTime() + 1), 13);
+    await expect(repository.findActiveByTelegramUserId(knockedOut.telegramUserId))
+      .resolves.toMatchObject({ id: session.id });
+    await expect(prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: session.id },
+      select: { repairState: true, repairReason: true }
+    })).resolves.toEqual({ repairState: null, repairReason: null });
+  });
+
   it("commits one production escape durably while the other two participants continue and settle", async () => {
     const telegramIds = [58731n, 58732n, 58733n];
     const session = await startLeftPassageProduction(
@@ -2331,33 +2398,6 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
     expect(exitRow.settlementReceiptJson).not.toBeNull();
     const restartedDeliveryRepository = new PrismaGroupCombatRepository(prisma);
-    await expect(
-      restartedDeliveryRepository.resolveParticipantFleeExitNavigation({
-        sessionId: current.id,
-        telegramUserId: escapee.telegramUserId
-      })
-    ).resolves.toEqual({
-      state: "free",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
-    });
-    for (const kind of ["solo-combat", "group-combat"] as const) {
-      const leaseId = `left-durable-flee-delivery-${kind}`;
-      await prisma.activeCombatLease.create({
-        data: {
-          id: leaseId,
-          characterId: escapee.characterId,
-          kind,
-          referenceId: `newer-${kind}-ui`
-        }
-      });
-      await expect(
-        restartedDeliveryRepository.resolveParticipantFleeExitNavigation({
-          sessionId: current.id,
-          telegramUserId: escapee.telegramUserId
-        })
-      ).resolves.toEqual({ state: "superseded" });
-      await prisma.activeCombatLease.delete({ where: { id: leaseId } });
-    }
     const deliveryClaims = await Promise.all([
       restartedDeliveryRepository.claimParticipantFleeExitDelivery({
         sessionId: current.id,
@@ -2374,10 +2414,32 @@ describe("PrismaGroupCombatRepository integration", () => {
         staleBefore: new Date(NOW.getTime() - 23_000)
       })
     ]);
-    expect(deliveryClaims.filter(Boolean)).toHaveLength(1);
-    const originalWinningClaim = deliveryClaims[0]
+    expect(deliveryClaims.filter((claim) => claim.state === "claimed")).toHaveLength(1);
+    expect(deliveryClaims.filter((claim) => claim.state === "busy")).toHaveLength(1);
+    const originalWinningClaim = deliveryClaims[0]?.state === "claimed"
       ? "flee-delivery-a"
       : "flee-delivery-b";
+    expect(deliveryClaims.find((claim) => claim.state === "claimed")).toEqual({
+      state: "claimed",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+    const navigationGuard = await prisma.activeCombatLease.findUniqueOrThrow({
+      where: { characterId: escapee.characterId }
+    });
+    expect(navigationGuard).toMatchObject({
+      kind: "group-combat-exit-navigation",
+      referenceId: `${current.id}:${escapee.characterId}`
+    });
+    for (const kind of ["solo-combat", "group-combat"] as const) {
+      await expect(prisma.activeCombatLease.create({
+        data: {
+          id: `left-durable-flee-delivery-blocked-${kind}`,
+          characterId: escapee.characterId,
+          kind,
+          referenceId: `newer-${kind}-ui`
+        }
+      })).rejects.toMatchObject({ code: "P2002" });
+    }
     await expect(
       restartedDeliveryRepository.claimParticipantFleeExitDelivery({
         sessionId: current.id,
@@ -2386,9 +2448,18 @@ describe("PrismaGroupCombatRepository integration", () => {
         claimedAt: new Date(NOW.getTime() + 23_101),
         staleBefore: new Date(NOW.getTime() + 101)
       })
-    ).resolves.toBe(true);
+    ).resolves.toEqual({
+      state: "claimed",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
     expect(originalWinningClaim).toMatch(/^flee-delivery-[ab]$/);
     const winningClaim = "flee-delivery-restarted";
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: escapee.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat-exit-navigation",
+      referenceId: `${current.id}:${escapee.characterId}`
+    });
     await expect(
       restartedDeliveryRepository.markParticipantFleeExitMenuDelivered({
         sessionId: current.id,
@@ -2397,6 +2468,21 @@ describe("PrismaGroupCombatRepository integration", () => {
         messageId: 93
       })
     ).resolves.toBe(true);
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: escapee.characterId }
+    })).resolves.toBeNull();
+    for (const kind of ["solo-combat", "group-combat"] as const) {
+      const leaseId = `left-durable-flee-delivery-after-ack-${kind}`;
+      await expect(prisma.activeCombatLease.create({
+        data: {
+          id: leaseId,
+          characterId: escapee.characterId,
+          kind,
+          referenceId: `newer-${kind}-ui`
+        }
+      })).resolves.toMatchObject({ id: leaseId });
+      await prisma.activeCombatLease.delete({ where: { id: leaseId } });
+    }
     await expect(
       restartedDeliveryRepository.completeParticipantFleeExitDelivery({
         sessionId: current.id,

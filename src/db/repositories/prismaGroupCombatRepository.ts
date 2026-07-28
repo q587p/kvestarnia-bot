@@ -91,6 +91,7 @@ const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 1;
+const GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND = "group-combat-exit-navigation";
 
 class GroupCombatMutationConflict extends Error {}
 class GroupCombatInventoryDrift extends Error {
@@ -1450,7 +1451,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           const actor = state.participants.find(
             (participant) => participant.characterId === lease.characterId
           );
-          if (actor && actor.hp > 0 && actor.fledAtTurn === undefined) {
+          if (actor && actor.fledAtTurn === undefined) {
             return false;
           }
           if (actor?.fledAtTurn !== undefined) {
@@ -1680,7 +1681,15 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         data: {
           settlementStatus: "completed",
           settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
-          settledAt: input.now
+          settledAt: input.now,
+          ...(plan.policy === "left-passage-party"
+            ? {
+                exitDeliveryState: "pending",
+                exitDeliveryClaimToken: null,
+                exitDeliveryClaimedAt: null,
+                exitDeliveryMessageId: null
+              }
+            : {})
         }
       });
       if (completed.count !== 1) {
@@ -1831,29 +1840,118 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     claimToken: string;
     claimedAt: Date;
     staleBefore: Date;
-  }): Promise<boolean> {
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        settlementStatus: "completed",
-        session: { repairState: null },
-        character: { user: { telegramUserId: input.telegramUserId } },
-        OR: [
-          { exitDeliveryState: "pending" },
-          {
-            exitDeliveryState: "claimed",
-            exitDeliveryClaimedAt: { lte: input.staleBefore }
+  }): Promise<
+    | { state: "claimed"; locationId: string | null }
+    | { state: "busy" | "superseded" | "not-found" }
+  > {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const participant = await tx.groupCombatParticipant.findFirst({
+            where: {
+              sessionId: input.sessionId,
+              settlementStatus: "completed",
+              exitDeliveryState: { in: ["pending", "claimed"] },
+              session: { repairState: null },
+              character: { user: { telegramUserId: input.telegramUserId } }
+            },
+            select: {
+              id: true,
+              characterId: true,
+              character: {
+                select: {
+                  activeCombatLease: true,
+                  user: { select: { lastSeenLocationId: true } }
+                }
+              }
+            }
+          });
+          if (!participant) {
+            return { state: "not-found" as const };
           }
-        ]
-      },
-      data: {
-        exitDeliveryState: "claimed",
-        exitDeliveryClaimToken: input.claimToken,
-        exitDeliveryClaimedAt: input.claimedAt,
-        exitDeliveryMessageId: null
+          const guardReference = `${input.sessionId}:${participant.characterId}`;
+          const lease = participant.character.activeCombatLease;
+          const ownsGuard =
+            lease?.kind === GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND &&
+            lease.referenceId === guardReference;
+          if (lease && !ownsGuard) {
+            const superseded = await tx.groupCombatParticipant.updateMany({
+              where: {
+                id: participant.id,
+                settlementStatus: "completed",
+                exitDeliveryState: { in: ["pending", "claimed"] },
+                session: { repairState: null },
+                character: { activeCombatLease: { is: { id: lease.id } } }
+              },
+              data: {
+                exitDeliveryState: "superseded",
+                exitDeliveryClaimToken: null,
+                exitDeliveryClaimedAt: null,
+                exitDeliveryMessageId: null,
+                chatId: null,
+                messageId: null,
+                referenceVersion: { increment: 1 }
+              }
+            });
+            return {
+              state: superseded.count === 1 ? "superseded" as const : "busy" as const
+            };
+          }
+          let createdGuard = false;
+          if (!ownsGuard) {
+            await tx.activeCombatLease.create({
+              data: {
+                characterId: participant.characterId,
+                kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+                referenceId: guardReference
+              }
+            });
+            createdGuard = true;
+          }
+          const claimed = await tx.groupCombatParticipant.updateMany({
+            where: {
+              id: participant.id,
+              settlementStatus: "completed",
+              session: { repairState: null },
+              OR: [
+                { exitDeliveryState: "pending" },
+                {
+                  exitDeliveryState: "claimed",
+                  exitDeliveryClaimedAt: { lte: input.staleBefore }
+                }
+              ]
+            },
+            data: {
+              exitDeliveryState: "claimed",
+              exitDeliveryClaimToken: input.claimToken,
+              exitDeliveryClaimedAt: input.claimedAt,
+              exitDeliveryMessageId: null
+            }
+          });
+          if (claimed.count !== 1) {
+            if (createdGuard) {
+              await tx.activeCombatLease.deleteMany({
+                where: {
+                  characterId: participant.characterId,
+                  kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+                  referenceId: guardReference
+                }
+              });
+            }
+            return { state: "busy" as const };
+          }
+          return {
+            state: "claimed" as const,
+            locationId: participant.character.user.lastSeenLocationId
+          };
+        });
+      } catch (error) {
+        if (!isUniqueConflict(error) || attempt === 1) {
+          throw error;
+        }
       }
-    });
-    return updated.count === 1;
+    }
+    return { state: "busy" };
   }
 
   async releaseParticipantFleeExitDeliveryClaim(input: {
@@ -1861,22 +1959,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     telegramUserId: bigint;
     claimToken: string;
   }): Promise<boolean> {
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        exitDeliveryState: "claimed",
-        exitDeliveryClaimToken: input.claimToken,
-        session: { repairState: null },
-        character: { user: { telegramUserId: input.telegramUserId } }
-      },
-      data: {
-        exitDeliveryState: "pending",
-        exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null,
-        exitDeliveryMessageId: null
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: { id: true, characterId: true }
+      });
+      if (!participant) {
+        return false;
       }
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null }
+        },
+        data: {
+          exitDeliveryState: "pending",
+          exitDeliveryClaimToken: null,
+          exitDeliveryClaimedAt: null,
+          exitDeliveryMessageId: null
+        }
+      });
+      if (updated.count !== 1) {
+        return false;
+      }
+      await tx.activeCombatLease.deleteMany({
+        where: {
+          characterId: participant.characterId,
+          kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+          referenceId: `${input.sessionId}:${participant.characterId}`
+        }
+      });
+      return true;
     });
-    return updated.count === 1;
   }
 
   async markParticipantFleeExitMenuDelivered(input: {
@@ -1888,83 +2010,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     if (!Number.isSafeInteger(input.messageId) || input.messageId <= 0) {
       return false;
     }
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        exitDeliveryState: "claimed",
-        exitDeliveryClaimToken: input.claimToken,
-        session: { repairState: null },
-        character: { user: { telegramUserId: input.telegramUserId } }
-      },
-      data: {
-        exitDeliveryState: "menu-delivered",
-        exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null,
-        exitDeliveryMessageId: input.messageId
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: { id: true, characterId: true }
+      });
+      if (!participant) {
+        return false;
       }
-    });
-    return updated.count === 1;
-  }
-
-  async resolveParticipantFleeExitNavigation(input: {
-    sessionId: string;
-    telegramUserId: bigint;
-  }): Promise<
-    | { state: "free"; locationId: string | null }
-    | { state: "superseded" | "not-found" }
-  > {
-    const participant = await this.prisma.groupCombatParticipant.findFirst({
-      where: {
-        sessionId: input.sessionId,
-        exitDeliveryState: { in: ["pending", "claimed"] },
-        session: { repairState: null },
-        character: { user: { telegramUserId: input.telegramUserId } }
-      },
-      select: {
-        character: {
-          select: {
-            activeCombatLease: { select: { id: true } },
-            user: { select: { lastSeenLocationId: true } }
-          }
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null }
+        },
+        data: {
+          exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: null,
+          exitDeliveryClaimedAt: null,
+          exitDeliveryMessageId: input.messageId
         }
+      });
+      if (updated.count !== 1) {
+        return false;
       }
-    });
-    if (!participant) {
-      return { state: "not-found" };
-    }
-    return participant.character.activeCombatLease
-      ? { state: "superseded" }
-      : {
-          state: "free",
-          locationId: participant.character.user.lastSeenLocationId
-        };
-  }
-
-  async supersedeParticipantFleeExitDelivery(input: {
-    sessionId: string;
-    telegramUserId: bigint;
-  }): Promise<boolean> {
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        exitDeliveryState: { in: ["pending", "claimed"] },
-        session: { repairState: null },
-        character: {
-          activeCombatLease: { isNot: null },
-          user: { telegramUserId: input.telegramUserId }
+      await tx.activeCombatLease.deleteMany({
+        where: {
+          characterId: participant.characterId,
+          kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+          referenceId: `${input.sessionId}:${participant.characterId}`
         }
-      },
-      data: {
-        exitDeliveryState: "superseded",
-        exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null,
-        exitDeliveryMessageId: null,
-        chatId: null,
-        messageId: null,
-        referenceVersion: { increment: 1 }
-      }
+      });
+      return true;
     });
-    return updated.count === 1;
   }
 
   async completeParticipantFleeExitDelivery(input: {
@@ -2010,8 +2095,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: { id: input.sessionId, repairState: null },
         select: {
           deliveryRevision: true,
+          partySessionId: true,
+          turn: true,
+          stateJson: true,
           participants: {
             select: {
+              characterId: true,
               deliveredRevision: true,
               exitDeliveryState: true
             }
@@ -2024,11 +2113,28 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       ) {
         return false;
       }
+      const state = parseGroupCombatStateStrict(session.stateJson, {
+        sessionId: input.sessionId,
+        partySessionId: session.partySessionId,
+        turn: session.turn
+      });
       const complete = session.participants.every(
-        (participant) =>
-          participant.exitDeliveryState === "completed" ||
-          participant.exitDeliveryState === "superseded" ||
-          participant.deliveredRevision >= input.expectedDeliveryRevision
+        (participant) => {
+          const actor = state.participants.find(
+            (candidate) => candidate.characterId === participant.characterId
+          );
+          const exitComplete =
+            participant.exitDeliveryState === "completed" ||
+            participant.exitDeliveryState === "superseded";
+          return actor?.fledAtTurn !== undefined
+            ? exitComplete
+            : (
+                (state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
+                  state.status === "active" ||
+                  exitComplete) &&
+                participant.deliveredRevision >= input.expectedDeliveryRevision
+              );
+        }
       );
       const updated = await tx.groupCombatSession.updateMany({
         where: {
@@ -2808,12 +2914,12 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
     throw new GroupCombatStateValidationError("Group-combat ownership exists for a non-active session.");
   }
   const state = parseRowStateCore(row);
-  const activeIds = state.participants
-    .filter((participant) => participant.hp > 0 && participant.fledAtTurn === undefined)
+  const ownedIds = state.participants
+    .filter((participant) => participant.fledAtTurn === undefined)
     .map((participant) => participant.characterId);
-  const activeIdSet = new Set(activeIds);
+  const ownedIdSet = new Set(ownedIds);
   if (row.participants.some((participant) =>
-    activeIdSet.has(participant.characterId) &&
+    ownedIdSet.has(participant.characterId) &&
     participant.character._count.remorts !== participant.remortCount
   )) {
     throw new GroupCombatStateValidationError("Current character life does not match the group-combat roster.");
@@ -2821,12 +2927,12 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
   const leases = await tx.activeCombatLease.findMany({
     where: {
       OR: [
-        { characterId: { in: activeIds } },
+        { characterId: { in: ownedIds } },
         { kind: GROUP_COMBAT_LEASE_KIND, referenceId: row.id }
       ]
     }
   });
-  for (const participantId of activeIds) {
+  for (const participantId of ownedIds) {
     const lease = leases.find((candidate) => candidate.characterId === participantId);
     if (!lease || lease.kind !== GROUP_COMBAT_LEASE_KIND || lease.referenceId !== row.id) {
       throw new GroupCombatStateValidationError("Participant group-combat lease is missing or mismatched.");
@@ -2835,9 +2941,9 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
   if (leases.some((lease) => (
     lease.kind === GROUP_COMBAT_LEASE_KIND &&
     lease.referenceId === row.id &&
-    !activeIdSet.has(lease.characterId)
+    !ownedIdSet.has(lease.characterId)
   ))) {
-    throw new GroupCombatStateValidationError("Group-combat lease belongs to an inactive participant.");
+    throw new GroupCombatStateValidationError("Group-combat lease belongs to a participant who already fled.");
   }
 }
 
@@ -3572,10 +3678,14 @@ function validateSettlementRows(
         : participant.exitDeliveryMessageId === null;
     const productionExitCanonical =
       state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
-        ? (
-            (actor?.fledAtTurn === undefined && exitState === "none") ||
-            (actor?.fledAtTurn !== undefined && exitState !== "none")
-          )
+        ? state.status === "active"
+          ? (
+              (actor?.fledAtTurn === undefined && exitState === "none") ||
+              (actor?.fledAtTurn !== undefined && exitState !== "none")
+            )
+          : participant.settlementStatus === "completed"
+            ? exitState !== "none"
+            : exitState === "none"
         : exitState === "none";
     if (
       !actor ||

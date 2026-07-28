@@ -1574,6 +1574,17 @@ describe("party session presenter", () => {
     expect(searchText).toContain("ще триває ваш пошук");
     expect(searchText).toContain("3 хвилини");
     expect(searchText).not.toContain("Бочки");
+
+    const restText = presentPartyJoin({
+      state: "ineligible",
+      reason: "left-passage-rest",
+      availableAt: new Date("2026-06-30T10:03:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+    expect(restText).toContain("Після попередньої перемоги");
+    expect(restText).toContain("До іншої ватаги можна приєднатися за <b>3 хвилини</b>");
+    expect(restText).not.toContain("Бочки");
     expect(presentPartyJoin({
       state: "ineligible",
       reason: "invalid-resources",

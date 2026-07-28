@@ -405,7 +405,7 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
       makePartySessionViewCallbackData(input.reservedPartyInviteToken)
     ).row();
   } else {
-    keyboard.text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input)).row();
+    keyboard.text("⚔️ Атакувати самостійно", makeFightPassageAttackCallbackData(input)).row();
   }
 
   if (
@@ -414,7 +414,7 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
     input.leftPassagePartyAttackEnabled
   ) {
     keyboard.text(
-      "🤝 Покликати в атаку",
+      "🤝 Зібрати ватагу",
       makeLeftPassagePartyInviteCallbackData(input.encounterToken)
     ).row();
   }

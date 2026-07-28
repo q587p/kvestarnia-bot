@@ -20,11 +20,11 @@ describe("left-passage party attack keyboard", () => {
     }).inline_keyboard.flat();
 
     expect(left.map(({ text }) => text)).toEqual(expect.arrayContaining([
-      "⚔️ Атакувати",
-      "🤝 Покликати в атаку"
+      "⚔️ Атакувати самостійно",
+      "🤝 Зібрати ватагу"
     ]));
-    expect(straight.map(({ text }) => text)).not.toContain("🤝 Покликати в атаку");
-    expect(disabled.map(({ text }) => text)).not.toContain("🤝 Покликати в атаку");
+    expect(straight.map(({ text }) => text)).not.toContain("🤝 Зібрати ватагу");
+    expect(disabled.map(({ text }) => text)).not.toContain("🤝 Зібрати ватагу");
   });
 
   it("replaces attack/search controls with the reserved party card without exposing another start", () => {
@@ -37,8 +37,8 @@ describe("left-passage party attack keyboard", () => {
     const labels = buttons.map(({ text }) => text);
 
     expect(labels).toContain("🤝 Відкрити збір ватаги");
-    expect(labels).not.toContain("⚔️ Атакувати");
-    expect(labels).not.toContain("🤝 Покликати в атаку");
+    expect(labels).not.toContain("⚔️ Атакувати самостійно");
+    expect(labels).not.toContain("🤝 Зібрати ватагу");
     expect(labels).not.toContain("🔎 Пошукати");
   });
 });

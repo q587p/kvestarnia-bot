@@ -18,7 +18,6 @@ import { getDistinctShortMonsterNames } from "../presenters/monsterNamePresenter
 
 export const groupCombatReplyButtons = {
   attack: "⚔️ Атакувати",
-  abilities: "✨ Вміння",
   guard: "🛡️ Захиститися",
   items: "🎒 Разові",
   flee: "🏃 Відступити",
@@ -28,11 +27,33 @@ export const groupCombatReplyButtons = {
 export type GroupCombatReplyButtonAction = keyof typeof groupCombatReplyButtons;
 export type GroupCombatActionMenu = "attack" | "abilities";
 
-export function buildGroupCombatReplyKeyboard(): Keyboard {
-  return new Keyboard()
-    .text(groupCombatReplyButtons.attack)
-    .text(groupCombatReplyButtons.abilities)
-    .row()
+export function buildGroupCombatReplyKeyboard(
+  session?: GroupCombatSessionRecord,
+  viewerCharacterId?: string
+): Keyboard {
+  const viewer = session && viewerCharacterId
+    ? session.state.participants.find(
+        (participant) => participant.characterId === viewerCharacterId
+      )
+    : undefined;
+  if (session && viewerCharacterId && (!viewer || !isActiveGroupCombatParticipant(viewer))) {
+    return new Keyboard()
+      .text(groupCombatReplyButtons.refresh)
+      .resized()
+      .persistent()
+      .placeholder("Стежимо за боєм");
+  }
+  const keyboard = new Keyboard().text(groupCombatReplyButtons.attack);
+  const abilityLabels = session && viewerCharacterId
+    ? listGroupCombatReplyAbilities(session, viewerCharacterId).map(({ label }) => label)
+    : [];
+  for (const label of abilityLabels) {
+    keyboard.text(label).row();
+  }
+  if (abilityLabels.length === 0) {
+    keyboard.row();
+  }
+  return keyboard
     .text(groupCombatReplyButtons.guard)
     .text(groupCombatReplyButtons.items)
     .row()
@@ -41,6 +62,57 @@ export function buildGroupCombatReplyKeyboard(): Keyboard {
     .resized()
     .persistent()
     .placeholder("Що робимо в бою?");
+}
+
+export interface GroupCombatReplyAbility {
+  action: Extract<GroupCombatActionKey, "class" | "race" | "gear">;
+  label: string;
+  optionIndex: number;
+}
+
+export function listGroupCombatReplyAbilities(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string
+): GroupCombatReplyAbility[] {
+  const viewer = session.state.participants.find(
+    (participant) => participant.characterId === viewerCharacterId
+  );
+  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+    return [];
+  }
+  const abilities: GroupCombatReplyAbility[] = [];
+  const add = (
+    action: GroupCombatReplyAbility["action"],
+    payloadKey?: string,
+    optionIndex = 0
+  ): void => {
+    const profile = getGroupCombatActionProfile(viewer, action, payloadKey);
+    const label = profile?.ability.label;
+    if (
+      label &&
+      !abilities.some((ability) => ability.label === label)
+    ) {
+      abilities.push({ action, label, optionIndex });
+    }
+  };
+  add("class");
+  add("race");
+  (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) =>
+    add("gear", abilityId, optionIndex)
+  );
+  return abilities;
+}
+
+export function parseGroupCombatReplyAbility(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  text: string | undefined
+): GroupCombatReplyAbility | null {
+  if (!text) {
+    return null;
+  }
+  return listGroupCombatReplyAbilities(session, viewerCharacterId)
+    .find((ability) => ability.label === text) ?? null;
 }
 
 export function parseGroupCombatReplyButton(
@@ -52,6 +124,33 @@ export function parseGroupCombatReplyButton(
   return (Object.entries(groupCombatReplyButtons) as Array<
     [GroupCombatReplyButtonAction, string]
   >).find(([, label]) => label === text)?.[0] ?? null;
+}
+
+export function buildGroupCombatAbilityTargetKeyboard(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  ability: GroupCombatReplyAbility
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const buttons = listGroupCombatAbilityActionButtons(
+    session,
+    viewerCharacterId,
+    ability.action,
+    ability.optionIndex
+  );
+  buttons.forEach((button, index) => {
+    keyboard.text(button.label, button.callbackData);
+    if (index % 2 === 1) {
+      keyboard.row();
+    }
+  });
+  if (buttons.length % 2 === 1) {
+    keyboard.row();
+  }
+  return keyboard.text(
+    "↩️ До бою",
+    makeGroupCombatViewCallbackData(session.partyInviteToken)
+  );
 }
 
 export function buildGroupCombatKeyboard(
@@ -136,61 +235,95 @@ export function buildGroupCombatActionMenuKeyboard(
   return keyboard.text("↩️ До бою", makeGroupCombatViewCallbackData(session.partyInviteToken));
 
   function addAbilityButtons(action: Extract<GroupCombatActionKey, "class" | "race" | "gear">, payloadKey?: string, optionIndex = 0): void {
-    const profile = getGroupCombatActionProfile(viewer!, action, payloadKey);
-    if (!profile) {
-      return;
+    for (const button of listGroupCombatAbilityActionButtons(
+      session,
+      viewerCharacterId,
+      action,
+      optionIndex,
+      payloadKey
+    )) {
+      addActionButton(button.label, button.callbackData);
     }
-    const scopes = [profile.ability.primaryTargetScope, profile.ability.secondaryTargetScope].filter(Boolean);
-    const explicitEnemy = scopes.includes("single-enemy");
-    const explicitAlly = scopes.includes("single-ally-or-self");
-    const targets = explicitEnemy
-      ? session.state.enemies
+  }
+}
+
+function listGroupCombatAbilityActionButtons(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  action: Extract<GroupCombatActionKey, "class" | "race" | "gear">,
+  optionIndex: number,
+  explicitPayloadKey?: string
+): Array<{ label: string; callbackData: string }> {
+  const viewer = session.state.participants.find(
+    (participant) => participant.characterId === viewerCharacterId
+  );
+  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+    return [];
+  }
+  const payloadKey = explicitPayloadKey ??
+    (action === "gear" ? viewer.gearAbilityIds?.[optionIndex] : undefined);
+  const profile = getGroupCombatActionProfile(viewer, action, payloadKey);
+  if (!profile) {
+    return [];
+  }
+  const scopes = [
+    profile.ability.primaryTargetScope,
+    profile.ability.secondaryTargetScope
+  ].filter(Boolean);
+  const targets = scopes.includes("single-enemy")
+    ? session.state.enemies
+        .map((target, targetIndex) => ({ target, targetIndex }))
+        .filter(({ target }) => target.hp > 0)
+        .map(({ target, targetIndex }) => ({
+          kind: "enemy" as const,
+          id: target.id,
+          targetIndex
+        }))
+    : scopes.includes("single-ally-or-self")
+      ? session.state.participants
           .map((target, targetIndex) => ({ target, targetIndex }))
           .filter(({ target }) => target.hp > 0)
-          .map(({ target, targetIndex }) => ({ kind: "enemy" as const, id: target.id, targetIndex }))
-      : explicitAlly
-        ? session.state.participants
-            .map((target, targetIndex) => ({ target, targetIndex }))
-            .filter(({ target }) => target.hp > 0)
-            .map(({ target, targetIndex }) => ({
-              kind: target.characterId === viewer!.characterId ? "self" as const : "ally" as const,
-              id: target.characterId,
-              targetIndex
-            }))
-        : [{ kind: "self" as const, id: viewer!.characterId, targetIndex: viewer!.rosterOrder }];
-    const targetEnemyNames = getDistinctShortMonsterNames(
-      session.state.enemies.filter((enemy) => enemy.hp > 0)
-    );
-    for (const target of targets) {
-      const candidate: GroupCombatAction = {
-        actorCharacterId: viewer!.characterId,
-        turn: session.turn,
-        action,
-        targetKind: target.kind,
-        targetId: target.id,
-        ...(payloadKey ? { payloadKey } : {}),
-        origin: "manual"
-      };
-      if (validateGroupCombatAction(session.state, candidate) !== "ok") {
-        continue;
-      }
-      const suffix = targets.length > 1
-        ? target.kind === "enemy"
-          ? ` → ${targetEnemyNames.get(
-              session.state.enemies[target.targetIndex]?.order ?? -1
-            ) ?? "ворог"}`
-          : ` → ${session.state.participants[target.targetIndex]?.name ?? "союзник"}`
-        : "";
-      addActionButton(`${profile.ability.label}${suffix}`, makeGroupCombatActionCallbackData({
+          .map(({ target, targetIndex }) => ({
+            kind: target.characterId === viewer.characterId ? "self" as const : "ally" as const,
+            id: target.characterId,
+            targetIndex
+          }))
+      : [{ kind: "self" as const, id: viewer.characterId, targetIndex: viewer.rosterOrder }];
+  const targetEnemyNames = getDistinctShortMonsterNames(
+    session.state.enemies.filter((enemy) => enemy.hp > 0)
+  );
+  return targets.flatMap((target) => {
+    const candidate: GroupCombatAction = {
+      actorCharacterId: viewer.characterId,
+      turn: session.turn,
+      action,
+      targetKind: target.kind,
+      targetId: target.id,
+      ...(payloadKey ? { payloadKey } : {}),
+      origin: "manual"
+    };
+    if (validateGroupCombatAction(session.state, candidate) !== "ok") {
+      return [];
+    }
+    const suffix = targets.length > 1
+      ? target.kind === "enemy"
+        ? ` → ${targetEnemyNames.get(
+            session.state.enemies[target.targetIndex]?.order ?? -1
+          ) ?? "ворог"}`
+        : ` → ${session.state.participants[target.targetIndex]?.name ?? "союзник"}`
+      : "";
+    return [{
+      label: `${profile.ability.label}${suffix}`,
+      callbackData: makeGroupCombatActionCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
         action,
         optionIndex,
         targetIndex: target.targetIndex,
         source: "reply-menu"
-      }));
-    }
-  }
+      })
+    }];
+  });
 }
 
 export function buildGroupCombatItemsKeyboard(
