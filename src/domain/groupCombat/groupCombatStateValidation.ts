@@ -11,22 +11,22 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
-  buildLeftPassageEncounterRewardBudget,
+  buildGroupCombatProductionV1IntegrityDigest,
   deriveLeftPassageEnemyCount,
-  filterSupportedGroupCombatMonsterAbilityIds,
   isSupportedGroupCombatMonsterAbility,
+  resolveGroupCombatLootVersionOneRoll,
   type GroupCombatResult,
   type GroupCombatSettlementPlan,
   type GroupCombatSettlementReceipt,
   type GroupCombatState,
   type GroupCombatStatusKind
 } from "./groupCombat";
-import { monsters } from "../../content";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
-import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
-import { createMonsterAbilityRuntime } from "../combat/monsterAbilityRuntime";
-import { findMonsterAbility } from "../../content/monsterAbilities";
 import { findMonsterBark } from "../../content/monsterBarks";
+import {
+  findMonsterAbility,
+  type MonsterAbilityDefinition
+} from "../../content/monsterAbilities";
 
 const nonNegativeInteger = z.number().int().min(0);
 const positiveInteger = z.number().int().positive();
@@ -276,6 +276,15 @@ const lootVersionOneSnapshotSchema = z.object({
     order: nonNegativeInteger,
     participantRolls: z.array(z.object({
       characterId: z.string().min(1),
+      evidence: z.object({
+        candidateCount: nonNegativeInteger.max(587),
+        selection: z.object({
+          itemId: z.string().min(1),
+          rangeStart: nonNegativeInteger.max(1_000_000_000),
+          rangeEnd: positiveInteger.max(1_000_000_000)
+        }).strict().nullable(),
+        commitment: z.string().regex(/^[a-f0-9]{64}$/)
+      }).strict(),
       items: z.array(rewardItemSchema)
         .max(2)
         .superRefine((entries, context) => {
@@ -283,6 +292,47 @@ const lootVersionOneSnapshotSchema = z.object({
         })
     }).strict()).min(1).max(GROUP_COMBAT_PARTICIPANT_LIMIT)
   }).strict()).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT)
+}).strict();
+
+const frozenMonsterAbilitySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  role: z.enum([
+    "artillery", "cleanser", "controller", "defender", "setup",
+    "skirmisher", "striker", "sustain", "trickster"
+  ]),
+  targetScopes: z.array(z.enum([
+    "all-allies", "all-enemies", "lowest-hp-ally", "lowest-hp-enemy",
+    "self", "self-and-single-enemy", "single-enemy", "single-enemy-and-self"
+  ])).min(1),
+  cooldownOwnActions: nonNegativeInteger,
+  powerBand: z.enum(["minor", "standard", "strong", "ultimate"]),
+  parameters: z.record(z.string(), z.unknown()),
+  telegraphOneEnemyAction: z.boolean(),
+  oncePerFight: z.boolean(),
+  tags: z.array(z.string())
+}).strict();
+
+const productionV1EvidenceSchema = z.object({
+  version: z.literal(1),
+  enemies: z.array(z.object({
+    enemyId: z.string().min(1),
+    monsterId: z.string().min(1),
+    name: z.string().min(1).max(93),
+    order: nonNegativeInteger,
+    level: positiveInteger.max(23),
+    baseRewardLevel: positiveInteger.max(23),
+    hpMax: positiveInteger,
+    attack: positiveInteger,
+    defense: nonNegativeInteger,
+    combatStats: z.object({
+      dexterity: nonNegativeInteger,
+      spellPower: nonNegativeInteger.optional(),
+      tags: z.array(z.string()).max(13)
+    }).strict(),
+    abilities: z.array(frozenMonsterAbilitySchema).max(13)
+  }).strict()).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
+  integrityDigest: z.string().regex(/^[a-f0-9]{64}$/)
 }).strict();
 
 const productionSchema = z.object({
@@ -334,7 +384,8 @@ const productionSchema = z.object({
     lossXpTotal: nonNegativeInteger,
     lootVersion: z.literal(1),
     lootSnapshot: lootVersionOneSnapshotSchema
-  }).strict()
+  }).strict(),
+  canonicalV1: productionV1EvidenceSchema
 }).strict();
 
 const stateSchema = z.object({
@@ -584,6 +635,43 @@ const stateSchema = z.object({
         message: "Frozen loot-v1 evidence does not match the canonical encounter roster."
       });
     }
+    for (const frozenEnemy of frozenLootEnemies) {
+      const enemy = state.enemies.find(
+        (candidate) => candidate.id === frozenEnemy.enemyId
+      );
+      if (!enemy) {
+        continue;
+      }
+      for (const frozenRoll of frozenEnemy.participantRolls) {
+        const participant = state.participants.find(
+          (candidate) => candidate.characterId === frozenRoll.characterId
+        );
+        if (!participant) {
+          continue;
+        }
+        let expectedItems: Array<{ itemId: string; quantity: number }>;
+        try {
+          expectedItems = resolveGroupCombatLootVersionOneRoll({
+            state: state as unknown as GroupCombatState,
+            enemy: enemy as unknown as GroupCombatState["enemies"][number],
+            participant: participant as unknown as GroupCombatState["participants"][number],
+            evidence: frozenRoll.evidence
+          });
+        } catch {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Frozen loot-v1 roll evidence is not canonical."
+          });
+          continue;
+        }
+        if (JSON.stringify(expectedItems) !== JSON.stringify(frozenRoll.items)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Frozen loot-v1 output is not derivable from its canonical evidence."
+          });
+        }
+      }
+    }
     if (
       state.enemies[0]?.monsterId !== state.production.primaryMonsterId ||
       state.enemies[0]?.level !== state.production.primaryEffectiveMonsterLevel
@@ -673,106 +761,93 @@ const stateSchema = z.object({
     if (backupIds.join("\0") !== adjustmentIds.join("\0")) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Remort adjustments do not match the frozen backups." });
     }
-    for (const [index, adjustment] of state.production.remort.backupAdjustments.entries()) {
-      const enemy = state.enemies[index + 1];
-      const authored = monsters.find((monster) => monster.id === enemy?.monsterId);
-      if (!enemy || !authored || enemy.level === undefined) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production backup is not an authored levelled monster." });
-        continue;
-      }
-      const selected = { ...authored, level: enemy.level };
-      const baseline = deriveMonsterCombatStats(selected);
-      const pressured = deriveMonsterCombatStats(selected, {
-        remortCount: state.production.remort.sourceRemortCount,
-        remortPressureMode: "multi"
+    const evidence = state.production.canonicalV1;
+    const evidenceMatchesEnemies =
+      evidence.enemies.length === orderedEnemies.length &&
+      evidence.enemies.every((frozen, index) => {
+        const enemy = orderedEnemies[index];
+        return enemy &&
+          frozen.enemyId === enemy.id &&
+          frozen.monsterId === enemy.monsterId &&
+          frozen.name === enemy.name &&
+          frozen.order === enemy.order &&
+          frozen.level === enemy.level &&
+          frozen.hpMax === enemy.hpMax &&
+          frozen.attack === enemy.attack &&
+          frozen.defense === enemy.defense;
       });
-      if (
-        adjustment.remortCount !== state.production.remort.sourceRemortCount ||
-        adjustment.hpMaxAdded !== pressured.hpMax - baseline.hpMax ||
-        adjustment.attackAdded !== pressured.attack - baseline.attack ||
-        enemy.hpMax !== pressured.hpMax ||
-        enemy.attack !== pressured.attack ||
-        enemy.defense !== Math.max(pressured.armor, pressured.resist)
-      ) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production backup pressure snapshot is not canonical." });
-      }
+    if (!evidenceMatchesEnemies) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Production enemy state does not match immutable v1 evidence."
+      });
     }
-    const primaryAuthored = monsters.find((monster) => monster.id === state.production?.primaryMonsterId);
-    const primaryEnemy = state.enemies[0];
+    if (evidence.enemies.some((frozen, index) =>
+      (orderedEnemies[index]?.abilityIds ?? []).join("\0") !==
+        frozen.abilities.map((ability) => ability.id).join("\0")
+    )) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Production enemy ability loadout is not canonical."
+      });
+    }
     if (
-      !primaryAuthored ||
-      primaryAuthored.level !== state.production.primaryBaseMonsterLevel ||
-      !primaryEnemy
+      evidence.enemies[0]?.monsterId !== state.production.primaryMonsterId ||
+      evidence.enemies[0]?.baseRewardLevel !== state.production.primaryBaseMonsterLevel
     ) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary monster baseline is not canonical." });
-    } else {
-      const primaryStats = deriveMonsterCombatStats({
-        ...primaryAuthored,
-        level: state.production.primaryEffectiveMonsterLevel
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Reserved primary monster baseline is not canonical."
       });
+    }
+    for (const [index, adjustment] of state.production.remort.backupAdjustments.entries()) {
+      const enemy = evidence.enemies[index + 1];
       if (
-        primaryEnemy.hpMax !== primaryStats.hpMax ||
-        primaryEnemy.attack !== primaryStats.attack ||
-        primaryEnemy.defense !== Math.max(primaryStats.armor, primaryStats.resist)
+        !enemy ||
+        adjustment.remortCount !== state.production.remort.sourceRemortCount ||
+        adjustment.hpMaxAdded < 0 ||
+        adjustment.attackAdded < 0
       ) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary combat snapshot is not canonical." });
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Production backup pressure snapshot is not canonical."
+        });
       }
     }
-    for (const enemy of state.enemies) {
-      const authored = monsters.find((monster) => monster.id === enemy.monsterId);
-      if (!authored || enemy.level === undefined) {
+    for (const enemy of orderedEnemies) {
+      const frozen = evidence.enemies.find((candidate) => candidate.enemyId === enemy.id);
+      if (!frozen) {
         continue;
       }
-      const stats = deriveMonsterCombatStats(
-        { ...authored, level: enemy.level },
-        enemy.order > 0
-          ? {
-              remortCount: state.production.remort.sourceRemortCount,
-              remortPressureMode: "multi"
-            }
-          : {}
-      );
-      const expectedAbilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
-        monster: stats,
-        seed: `${state.production.encounterSeed}:${state.partySessionId}:enemy:${enemy.order}`
-      })?.loadoutIds ?? []);
-      if ((enemy.abilityIds ?? []).join("\0") !== expectedAbilityIds.join("\0")) {
-        context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy ability loadout is not canonical." });
-      }
-      if (Object.entries(enemy.abilityCooldowns ?? {}).some(([abilityId, cooldown]) =>
-        cooldown.id !== abilityId ||
-        !expectedAbilityIds.includes(abilityId) ||
-        cooldown.remainingTurns > Math.max(1, findMonsterAbility(abilityId)?.cooldownOwnActions ?? 0)
-      )) {
+      const expectedAbilityIds = frozen.abilities.map((ability) => ability.id);
+      if (Object.entries(enemy.abilityCooldowns ?? {}).some(([abilityId, cooldown]) => {
+        const ability = frozen.abilities.find((candidate) => candidate.id === abilityId);
+        return cooldown.id !== abilityId ||
+          !expectedAbilityIds.includes(abilityId) ||
+          cooldown.remainingTurns > Math.max(1, ability?.cooldownOwnActions ?? 0);
+      })) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Production enemy ability cooldown is not canonical." });
       }
       if (new Set(enemy.usedOnceAbilityIds ?? []).size !== (enemy.usedOnceAbilityIds ?? []).length) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Production once-only enemy ability markers are duplicated." });
       }
-      if ((enemy.usedOnceAbilityIds ?? []).some((abilityId) => {
-        const ability = findMonsterAbility(abilityId);
-        return !expectedAbilityIds.includes(abilityId) || !ability?.oncePerFight;
-      })) {
+      if ((enemy.usedOnceAbilityIds ?? []).some((abilityId) =>
+        !expectedAbilityIds.includes(abilityId) ||
+        !frozen.abilities.find((ability) => ability.id === abilityId)?.oncePerFight
+      )) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Production once-only enemy ability marker is not canonical." });
       }
     }
-    const rewardBudget = buildLeftPassageEncounterRewardBudget({
-      participantLevels: state.participants.map((participant) => participant.level),
-      enemies: state.enemies.map((enemy) => ({
-        baseLevel: enemy.id.startsWith("primary:")
-          ? state.production!.primaryBaseMonsterLevel
-          : monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level ?? 0,
-        effectiveLevel: enemy.level ?? 0
-      })),
-      deterministicKey: `${state.production.encounterSeed}:${state.partySessionId}:rewards`
-    });
     if (
-      state.production.rewards.winXpTotal !== rewardBudget.winXpTotal ||
-      state.production.rewards.winGoldTotal !== rewardBudget.winGoldTotal ||
-      state.production.rewards.lossXpTotal !== rewardBudget.lossXpTotal ||
-      state.production.rewards.lootVersion !== 1
+      state.production.rewards.lootVersion !== 1 ||
+      evidence.integrityDigest !== buildGroupCombatProductionV1IntegrityDigest(
+        state as unknown as GroupCombatState
+      )
     ) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "Production reward or loot contract is not canonical." });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Production-v1 evidence or frozen loot output failed its integrity commitment."
+      });
     }
   }
 });
@@ -790,6 +865,14 @@ type MonsterValidationState = {
       points: number;
     } | undefined;
   }>;
+  production?: {
+    canonicalV1: {
+      enemies: Array<{
+        enemyId: string;
+        abilities: MonsterAbilityDefinition[];
+      }>;
+    };
+  } | undefined;
 };
 
 type MonsterValidationStatus = {
@@ -809,9 +892,11 @@ function isCanonicalMonsterStatus(
     return false;
   }
   const source = state.enemies.find((enemy) => enemy.id === status.sourceEnemyId);
-  const ability = findMonsterAbility(status.sourceAbilityId);
+  if (!source) {
+    return false;
+  }
+  const ability = findValidationMonsterAbility(state, source.id, status.sourceAbilityId);
   if (
-    !source ||
     !ability ||
     !isSupportedGroupCombatMonsterAbility(ability.id) ||
     !(source.abilityIds ?? []).includes(ability.id)
@@ -872,7 +957,7 @@ function isCanonicalEnemyShield(
     return true;
   }
   const source = state.enemies.find((enemy) => enemy.id === shield.sourceEnemyId);
-  const ability = findMonsterAbility(shield.sourceAbilityId);
+  const ability = findValidationMonsterAbility(state, source?.id ?? "", shield.sourceAbilityId);
   if (
     !source ||
     !ability ||
@@ -891,6 +976,17 @@ function isCanonicalEnemyShield(
       target.id === source.id
     ) &&
     shield.points <= Math.max(1, Math.floor(target.hpMax * Math.min(0.4, fraction)));
+}
+
+function findValidationMonsterAbility(
+  state: MonsterValidationState,
+  enemyId: string,
+  abilityId: string
+): MonsterAbilityDefinition | null {
+  return state.production?.canonicalV1.enemies
+    .find((enemy) => enemy.enemyId === enemyId)
+    ?.abilities.find((ability) => ability.id === abilityId) ??
+    (state.production ? null : findMonsterAbility(abilityId));
 }
 
 const resultSchema = z.object({

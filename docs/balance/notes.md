@@ -32,9 +32,15 @@ authored monster loot or eligible Loot Expansion manatky. Each positive
 bandage slot keeps the ordinary `4–6%` LUCK-bounded replacement rule, so it may
 become `Іскрокамінь` instead of a bandage. Cosmetic titles stay
 presentation-only and enter none of these calculations. `lootVersion: 1`
-freezes each enemy/participant result at encounter start; terminal recipient
-selection and plan rebuilding use only that bounded evidence, so later catalog
-or generic-algorithm changes cannot reroll active or pending settlement. A
+freezes each enemy/participant roll as immutable canonical selection evidence
+plus an integrity commitment at encounter start. The version-1 resolver derives
+the exact item id and quantity from the frozen seed, participant gameplay
+profile, enemy order/level and bounded selection evidence. Restart and terminal
+plan rebuilding consult neither current items, monster loot, monster metadata
+nor the generic loot algorithm, so later content or algorithm drift cannot
+reroll or invalidate legitimate active or pending settlement. Changed item ids,
+quantities, recipients, duplicates, enemy stats, abilities or reward inputs fail
+closed instead of becoming new expected rewards. A
 winning result with no items states explicitly that no manatka dropped. Loss
 XP remains the bounded one-fifth consolation from the encounter XP budget and
 loss gold is zero.
@@ -55,10 +61,17 @@ enemy order. Start-of-turn effects still happen before the attempt, and the
 committed action ticks that actor's ability/item cooldowns without spending
 mana or an item. A failed attempt is not guard: the participant remains a
 valid enemy target for the shared enemy phase. A successful escape preserves
-current HP/mana, removes only that participant from later turns and targeting,
-restores their main menu, and forfeits this encounter's XP, gold, loot and
-activity; the remaining party continues. If nobody remains, the encounter is
-a loss. Timeout-generated guards never attempt escape.
+current HP/mana and already-committed inventory, resumes frozen timed statuses,
+durably records the turn/attempt receipt and releases only that participant's
+combat lease in one transaction before restoring their main menu. The actor is
+removed from later turns and targeting and forfeits this encounter's XP, gold,
+loot, Chronicle activity and generic combat/item/level events; the remaining
+party continues with only its own leases. Terminal settlement never overwrites
+an escapee's later resources or remort life. The shared passage-discovery
+decision can apply later only while the same frozen remort life still exists.
+If nobody remains, the encounter is a loss. Timeout-generated guards never
+attempt escape. Chronicle related-character ids and participant count include
+only the eligible manual roster, never escapees or timeout-only passengers.
 
 Monster specials are allowlisted only when GroupCombat implements the authored
 target and effect exactly:

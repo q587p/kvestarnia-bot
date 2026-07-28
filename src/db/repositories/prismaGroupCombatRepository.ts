@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { GROUP_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import {
   createLeftPassageGroupCombatState,
+  buildGroupCombatFleeExitReceipt,
   buildGroupCombatTimeoutAction,
   buildGroupCombatSettlementPlan,
   buildGroupCombatSettlementReceipt,
@@ -19,6 +20,7 @@ import {
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
   getLeftPassageTierTwoDiscoveryMinutes,
+  isGroupCombatManualRewardParticipant,
   LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
   resolveGroupCombatTurn,
   stableGroupCombatSeed,
@@ -220,7 +222,10 @@ export type GroupCombatSettlementStage =
   | "items"
   | "activity"
   | "receipt"
-  | "lease";
+  | "lease"
+  | "flee-resources"
+  | "flee-evidence"
+  | "flee-lease";
 
 export interface GroupCombatSettlementTestHooks {
   beforeRuntimeRead?(input: {
@@ -970,7 +975,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           throw new GroupCombatMutationConflict();
         }
       }
-      const result = await resolveIfReady(tx, claimedRow, state, input.now, input.nextTurnExpiresAt);
+      const result = await resolveIfReady(
+        tx,
+        claimedRow,
+        state,
+        input.now,
+        input.nextTurnExpiresAt,
+        this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
+      );
       if (result) {
         return result;
       }
@@ -1137,7 +1149,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             })
           });
         }
-        const result = await resolveIfReady(tx, claimedRow, state, input.now, input.nextTurnExpiresAt);
+        const result = await resolveIfReady(
+          tx,
+          claimedRow,
+          state,
+          input.now,
+          input.nextTurnExpiresAt,
+          this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
+        );
         if (!result) {
           throw new GroupCombatMutationConflict();
         }
@@ -1399,8 +1418,16 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return false;
         }
         if (owner?.status === "active") {
-          if (owner.participants.some((participant) => participant.characterId === lease.characterId)) {
+          const state = parseRowState(owner);
+          const actor = state.participants.find(
+            (participant) => participant.characterId === lease.characterId
+          );
+          if (actor && actor.hp > 0 && actor.fledAtTurn === undefined) {
             return false;
+          }
+          if (actor?.fledAtTurn !== undefined) {
+            await releaseGroupCombatLease(tx, lease, now);
+            return true;
           }
           return (await invalidateSessionRewardlessly(tx, owner, now)) === "invalidated";
         }
@@ -1580,37 +1607,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           });
         }
         await this.runSettlementTestHook("items", row.id, participant.characterId);
-        if (state.status === "won" && row.completedAt) {
-          const discoveryAvailableAt = new Date(
-            row.completedAt.getTime() +
-              getLeftPassageTierTwoDiscoveryMinutes(state.deterministicSeed) *
-                60_000
-          );
-          await tx.characterCooldown.upsert({
-            where: {
-              characterId_key: {
-                characterId: character.id,
-                key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
-              }
-            },
-            create: {
-              characterId: character.id,
-              key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
-              availableAt: discoveryAvailableAt,
-              resultJson: {
-                kind: "left-passage-tier-two-discovery",
-                groupCombatSessionId: row.id
-              }
-            },
-            update: {
-              availableAt: discoveryAvailableAt,
-              resultJson: {
-                kind: "left-passage-tier-two-discovery",
-                groupCombatSessionId: row.id
-              }
-            }
-          });
-        }
         if (receipt.effects?.activityKey) {
           await tx.activityEvent.upsert({
             where: { dedupeKey: receipt.effects.activityKey },
@@ -1622,7 +1618,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               actorCharacterId: character.id,
               actorDisplayName: character.name,
               relatedCharacterIds: plan.participants
-                .filter((entry) => entry.contribution.committedActions > 0)
+                .filter((entry) =>
+                  isGroupCombatManualRewardParticipant(state, entry.characterId)
+                )
                 .map((entry) => entry.characterId),
               subjectKind: "left-passage-encounter",
               subjectId: row.id,
@@ -1631,7 +1629,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               dedupeKey: receipt.effects.activityKey,
               payloadJson: {
                 participantCount: plan.participants.filter(
-                  (entry) => entry.contribution.committedActions > 0
+                  (entry) =>
+                    isGroupCombatManualRewardParticipant(state, entry.characterId)
                 ).length,
                 outcome: plan.outcome
               },
@@ -2129,7 +2128,8 @@ async function resolveIfReady(
   row: SessionRow,
   state: GroupCombatState,
   now: Date,
-  nextTurnExpiresAt: Date
+  nextTurnExpiresAt: Date,
+  afterStage?: GroupCombatSettlementTestHooks["afterStage"]
 ): Promise<GroupCombatActionResult | null> {
   const livingCount = state.participants.filter(
     (participant) => participant.hp > 0 && participant.fledAtTurn === undefined
@@ -2161,6 +2161,16 @@ async function resolveIfReady(
   }
   const resolution = resolveGroupCombatTurn(state, actions);
   const terminal = resolution.result !== null;
+  const previouslyFled = new Set(
+    state.participants
+      .filter((participant) => participant.fledAtTurn !== undefined)
+      .map((participant) => participant.characterId)
+  );
+  const newlyFled = resolution.state.participants.filter(
+    (participant) =>
+      participant.fledAtTurn !== undefined &&
+      !previouslyFled.has(participant.characterId)
+  );
   await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
   const updated = await tx.groupCombatSession.updateMany({
     where: {
@@ -2190,7 +2200,30 @@ async function resolveIfReady(
     throw new GroupCombatMutationConflict();
   }
   await updateContributions(tx, row.id, resolution.state.contributions);
+  if (resolution.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION) {
+    for (const participant of newlyFled) {
+      await commitSuccessfulGroupCombatFlee(
+        tx,
+        row,
+        resolution.state,
+        participant,
+        now,
+        afterStage
+      );
+    }
+  }
   if (terminal) {
+    if (
+      resolution.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+      resolution.state.status === "won"
+    ) {
+      await applyLeftPassageDiscoveryToMatchingLives(
+        tx,
+        row.id,
+        resolution.state,
+        now
+      );
+    }
     if (resolution.settlementPlan?.policy === "rewardless-proof") {
       await releaseAllGroupCombatLeases(tx, row.id, now);
     }
@@ -2250,7 +2283,12 @@ async function repairMalformedSession(tx: TxClient, row: SessionRow, now: Date):
     if (state.status !== "active") {
       if (
         state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-        row.participants.some((participant) => participant.settlementStatus === "completed")
+        row.participants.some((participant) =>
+          participant.settlementStatus === "completed" &&
+          state.participants.find(
+            (actor) => actor.characterId === participant.characterId
+          )?.fledAtTurn === undefined
+        )
       ) {
         return markProductionOperatorRepairRequired(
           tx,
@@ -2525,20 +2563,26 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
   if (row.status !== "active") {
     throw new GroupCombatStateValidationError("Group-combat ownership exists for a non-active session.");
   }
-  if (row.participants.some((participant) => participant.character._count.remorts !== participant.remortCount)) {
+  const state = parseRowStateCore(row);
+  const activeIds = state.participants
+    .filter((participant) => participant.hp > 0 && participant.fledAtTurn === undefined)
+    .map((participant) => participant.characterId);
+  const activeIdSet = new Set(activeIds);
+  if (row.participants.some((participant) =>
+    activeIdSet.has(participant.characterId) &&
+    participant.character._count.remorts !== participant.remortCount
+  )) {
     throw new GroupCombatStateValidationError("Current character life does not match the group-combat roster.");
   }
-  const participantIds = row.participants.map((participant) => participant.characterId);
-  const participantIdSet = new Set(participantIds);
   const leases = await tx.activeCombatLease.findMany({
     where: {
       OR: [
-        { characterId: { in: participantIds } },
+        { characterId: { in: activeIds } },
         { kind: GROUP_COMBAT_LEASE_KIND, referenceId: row.id }
       ]
     }
   });
-  for (const participantId of participantIds) {
+  for (const participantId of activeIds) {
     const lease = leases.find((candidate) => candidate.characterId === participantId);
     if (!lease || lease.kind !== GROUP_COMBAT_LEASE_KIND || lease.referenceId !== row.id) {
       throw new GroupCombatStateValidationError("Participant group-combat lease is missing or mismatched.");
@@ -2547,9 +2591,9 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
   if (leases.some((lease) => (
     lease.kind === GROUP_COMBAT_LEASE_KIND &&
     lease.referenceId === row.id &&
-    !participantIdSet.has(lease.characterId)
+    !activeIdSet.has(lease.characterId)
   ))) {
-    throw new GroupCombatStateValidationError("Group-combat lease belongs to a non-participant.");
+    throw new GroupCombatStateValidationError("Group-combat lease belongs to an inactive participant.");
   }
 }
 
@@ -2572,6 +2616,128 @@ async function releaseAllGroupCombatLeases(tx: TxClient, sessionId: string, now:
   });
   for (const lease of leases) {
     await releaseGroupCombatLease(tx, lease, now);
+  }
+}
+
+async function commitSuccessfulGroupCombatFlee(
+  tx: TxClient,
+  row: SessionRow,
+  state: GroupCombatState,
+  actor: GroupCombatActorSnapshot,
+  now: Date,
+  afterStage?: GroupCombatSettlementTestHooks["afterStage"]
+): Promise<void> {
+  const participant = row.participants.find(
+    (candidate) => candidate.characterId === actor.characterId
+  );
+  const receipt = buildGroupCombatFleeExitReceipt(state, actor.characterId);
+  const lease = await tx.activeCombatLease.findFirst({
+    where: {
+      characterId: actor.characterId,
+      kind: GROUP_COMBAT_LEASE_KIND,
+      referenceId: row.id
+    }
+  });
+  if (
+    !participant ||
+    participant.settlementStatus !== "pending" ||
+    participant.settlementAttempts !== 0 ||
+    participant.settlementReceiptJson !== null ||
+    participant.character._count.remorts !== actor.remortCount ||
+    !receipt ||
+    !lease
+  ) {
+    throw new GroupCombatStateValidationError(
+      "Successful flee could not commit its canonical participant exit."
+    );
+  }
+  await tx.character.update({
+    where: { id: actor.characterId },
+    data: {
+      hpCurrent: actor.hp,
+      manaCurrent: actor.mana,
+      hpRegenAt: actor.hp >= actor.hpMax ? null : now,
+      manaRegenAt: actor.mana >= actor.manaMax ? null : now
+    }
+  });
+  await afterStage?.({
+    stage: "flee-resources",
+    sessionId: row.id,
+    characterId: actor.characterId
+  });
+  const exited = await tx.groupCombatParticipant.updateMany({
+    where: {
+      id: participant.id,
+      settlementStatus: "pending",
+      settlementAttempts: 0,
+      settlementReceiptJson: { equals: Prisma.DbNull },
+      session: { repairState: null }
+    },
+    data: {
+      settlementStatus: "completed",
+      settlementAttempts: 1,
+      settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
+      settledAt: now
+    }
+  });
+  if (exited.count !== 1) {
+    throw new GroupCombatMutationConflict();
+  }
+  await afterStage?.({
+    stage: "flee-evidence",
+    sessionId: row.id,
+    characterId: actor.characterId
+  });
+  await releaseGroupCombatLease(tx, lease, now);
+  await afterStage?.({
+    stage: "flee-lease",
+    sessionId: row.id,
+    characterId: actor.characterId
+  });
+}
+
+async function applyLeftPassageDiscoveryToMatchingLives(
+  tx: TxClient,
+  sessionId: string,
+  state: GroupCombatState,
+  completedAt: Date
+): Promise<void> {
+  const discoveryAvailableAt = new Date(
+    completedAt.getTime() +
+      getLeftPassageTierTwoDiscoveryMinutes(state.deterministicSeed) * 60_000
+  );
+  for (const participant of state.participants) {
+    const character = await tx.character.findUnique({
+      where: { id: participant.characterId },
+      select: { id: true, _count: { select: { remorts: true } } }
+    });
+    if (!character || character._count.remorts !== participant.remortCount) {
+      continue;
+    }
+    await tx.characterCooldown.upsert({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
+        }
+      },
+      create: {
+        characterId: character.id,
+        key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
+        availableAt: discoveryAvailableAt,
+        resultJson: {
+          kind: "left-passage-tier-two-discovery",
+          groupCombatSessionId: sessionId
+        }
+      },
+      update: {
+        availableAt: discoveryAvailableAt,
+        resultJson: {
+          kind: "left-passage-tier-two-discovery",
+          groupCombatSessionId: sessionId
+        }
+      }
+    });
   }
 }
 
@@ -2631,14 +2797,22 @@ async function canonicalizeInvalidatedParticipantArtifacts(
     if (!contribution) {
       throw new GroupCombatStateValidationError("Invalidated participant is missing its contribution.");
     }
+    const fleeReceipt =
+      participant.settlementStatus === "completed" && participant.settledAt
+      ? buildGroupCombatFleeExitReceipt(state, participant.characterId)
+      : null;
     await tx.groupCombatParticipant.update({
       where: { id: participant.id },
       data: {
         contributionJson: contribution as unknown as Prisma.InputJsonValue,
-        settlementStatus: "pending",
-        settlementAttempts: 0,
-        settlementReceiptJson: Prisma.DbNull,
-        settledAt: null
+        settlementStatus: fleeReceipt ? "completed" : "pending",
+        settlementAttempts: fleeReceipt
+          ? Math.max(1, participant.settlementAttempts)
+          : 0,
+        settlementReceiptJson: fleeReceipt
+          ? fleeReceipt as unknown as Prisma.InputJsonValue
+          : Prisma.DbNull,
+        settledAt: fleeReceipt ? participant.settledAt : null
       }
     });
   }
@@ -2959,7 +3133,7 @@ function validateSettlementRows(
       }
       continue;
     }
-    if (participant.settlementStatus !== "completed" || !plan) {
+    if (participant.settlementStatus !== "completed") {
       throw new GroupCombatStateValidationError("Settlement status is invalid for group-combat state.");
     }
     if (
@@ -2969,7 +3143,9 @@ function validateSettlementRows(
     ) {
       throw new GroupCombatStateValidationError("Completed settlement row is missing receipt metadata.");
     }
-    const expectedReceipt = buildGroupCombatSettlementReceipt(plan, participant.characterId);
+    const expectedReceipt = plan
+      ? buildGroupCombatSettlementReceipt(plan, participant.characterId)
+      : buildGroupCombatFleeExitReceipt(state, participant.characterId);
     const receipt = parseGroupCombatSettlementReceiptStrict(participant.settlementReceiptJson);
     if (!expectedReceipt || !isDeepStrictEqual(receipt, expectedReceipt)) {
       throw new GroupCombatStateValidationError("Settlement receipt does not match its immutable plan entry.");

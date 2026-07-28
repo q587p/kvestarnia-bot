@@ -28,9 +28,10 @@ import { rollFleeSuccess, rollMonsterSkillDamage } from "../combat/combatBalance
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
 import {
-  rollBandageDropQuantity,
-  rollMonsterLoot,
-  rollPostFightBandageSlotReward
+  getLootCandidates,
+  getLootExpansionCandidates,
+  type LootCandidate,
+  type LootRarity
 } from "../loot";
 import { SeededRandomSource } from "../../shared/random";
 import {
@@ -41,6 +42,7 @@ import {
   resolveMonsterBarkState,
   type CombatBarkStateV1
 } from "../combat/combatBarks";
+import { createHash } from "node:crypto";
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
@@ -204,6 +206,7 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
     lootVersion: 1;
     lootSnapshot: GroupCombatLootVersionOneSnapshot;
   };
+  canonicalV1: GroupCombatProductionV1Evidence;
 }
 
 export interface GroupCombatLootVersionOneSnapshot {
@@ -214,9 +217,42 @@ export interface GroupCombatLootVersionOneSnapshot {
     order: number;
     participantRolls: Array<{
       characterId: string;
+      evidence: {
+        candidateCount: number;
+        selection: {
+          itemId: string;
+          rangeStart: number;
+          rangeEnd: number;
+        } | null;
+        commitment: string;
+      };
       items: Array<{ itemId: string; quantity: number }>;
     }>;
   }>;
+}
+
+export interface GroupCombatProductionV1EnemyEvidence {
+  enemyId: string;
+  monsterId: string;
+  name: string;
+  order: number;
+  level: number;
+  baseRewardLevel: number;
+  hpMax: number;
+  attack: number;
+  defense: number;
+  combatStats: {
+    dexterity: number;
+    spellPower?: number;
+    tags: string[];
+  };
+  abilities: MonsterAbilityDefinition[];
+}
+
+export interface GroupCombatProductionV1Evidence {
+  version: 1;
+  enemies: GroupCombatProductionV1EnemyEvidence[];
+  integrityDigest: string;
 }
 
 export function deriveLeftPassageEnemyCount(input: {
@@ -495,7 +531,7 @@ export function createLeftPassageGroupCombatState(input: {
   deterministicSeed: number;
   participants: GroupCombatActorSnapshot[];
   enemies: GroupCombatEnemyState[];
-  difficulty: Omit<GroupCombatLeftPassageDifficultySnapshot, "rewards"> & {
+  difficulty: Omit<GroupCombatLeftPassageDifficultySnapshot, "rewards" | "canonicalV1"> & {
     rewards: Omit<GroupCombatLeftPassageDifficultySnapshot["rewards"], "lootSnapshot"> & {
       lootSnapshot?: GroupCombatLootVersionOneSnapshot;
     };
@@ -543,8 +579,115 @@ export function createLeftPassageGroupCombatState(input: {
     production
   };
   state.production!.rewards.lootSnapshot = buildLeftPassageLootVersionOneSnapshot(state);
+  state.production!.canonicalV1 = buildGroupCombatProductionV1Evidence(state);
+  state.production!.canonicalV1.integrityDigest =
+    buildGroupCombatProductionV1IntegrityDigest(state);
   assertGroupCombatStateBudget(state);
   return state;
+}
+
+function buildGroupCombatProductionV1Evidence(
+  state: GroupCombatState
+): GroupCombatProductionV1Evidence {
+  if (!state.production) {
+    throw new Error("Production-v1 evidence requires frozen encounter metadata.");
+  }
+  return {
+    version: 1,
+    integrityDigest: "",
+    enemies: [...state.enemies]
+      .sort((left, right) => left.order - right.order)
+      .map((enemy) => {
+        const authored = monsters.find((candidate) => candidate.id === enemy.monsterId);
+        if (!authored || enemy.level === undefined) {
+          throw new Error(`Production-v1 evidence requires authored monster ${enemy.monsterId ?? enemy.id}.`);
+        }
+        const combatStats = deriveMonsterCombatStats(
+          { ...authored, level: enemy.level },
+          enemy.order > 0
+            ? {
+                remortCount: state.production!.remort.sourceRemortCount,
+                remortPressureMode: "multi"
+              }
+            : {}
+        );
+        const abilities = (enemy.abilityIds ?? []).map((abilityId) => {
+          const ability = findMonsterAbility(abilityId);
+          if (!ability || !isSupportedGroupCombatMonsterAbility(ability.id)) {
+            throw new Error(`Production-v1 evidence contains unsupported ability ${abilityId}.`);
+          }
+          return structuredClone(ability);
+        });
+        return {
+          enemyId: enemy.id,
+          monsterId: authored.id,
+          name: enemy.name,
+          order: enemy.order,
+          level: enemy.level,
+          baseRewardLevel: enemy.order === 0
+            ? state.production!.primaryBaseMonsterLevel
+            : authored.level,
+          hpMax: enemy.hpMax,
+          attack: enemy.attack,
+          defense: enemy.defense,
+          combatStats: {
+            dexterity: combatStats.dexterity,
+            ...(combatStats.spellPower === undefined
+              ? {}
+              : { spellPower: combatStats.spellPower }),
+            tags: [...combatStats.tags]
+          },
+          abilities
+        };
+      })
+  };
+}
+
+export function buildGroupCombatProductionV1IntegrityDigest(
+  state: GroupCombatState
+): string {
+  if (!state.production?.canonicalV1) {
+    return "";
+  }
+  const { integrityDigest: _ignored, ...canonicalV1 } = state.production.canonicalV1;
+  void _ignored;
+  const production = {
+    ...state.production,
+    canonicalV1
+  };
+  const payload = {
+    version: 1,
+    deterministicSeed: state.deterministicSeed,
+    participants: [...state.participants]
+      .sort((left, right) => left.rosterOrder - right.rosterOrder)
+      .map((participant) => ({
+        characterId: participant.characterId,
+        remortCount: participant.remortCount,
+        rosterOrder: participant.rosterOrder,
+        classId: participant.classId,
+        raceId: participant.raceId,
+        level: participant.level,
+        luck: participant.stats.luck
+      })),
+    production
+  };
+  return createHash("sha256")
+    .update(canonicalJson(payload))
+    .digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
 
 export function getGroupCombatActionProfile(
@@ -889,8 +1032,7 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
     : undefined;
   const orderedParticipants = [...state.participants].sort((left, right) => left.rosterOrder - right.rosterOrder);
   const eligible = orderedParticipants.filter((participant) =>
-    participant.fledAtTurn === undefined &&
-    getContribution(state, participant.characterId).committedActions > 0
+    isGroupCombatManualRewardParticipant(state, participant.characterId)
   );
   const lootRewards = production && state.status === "won"
     ? buildLeftPassageEncounterLootRewards(state, eligible)
@@ -971,6 +1113,50 @@ export function isSupportedGroupCombatItem(
   itemId: string | undefined
 ): itemId is (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number] {
   return Boolean(itemId && (GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(itemId));
+}
+
+export function isGroupCombatManualRewardParticipant(
+  state: GroupCombatState,
+  characterId: string
+): boolean {
+  const participant = state.participants.find(
+    (candidate) => candidate.characterId === characterId
+  );
+  return Boolean(
+    participant &&
+    participant.fledAtTurn === undefined &&
+    getContribution(state, characterId).committedActions > 0
+  );
+}
+
+export function buildGroupCombatFleeExitReceipt(
+  state: GroupCombatState,
+  characterId: string
+): GroupCombatSettlementReceipt | null {
+  if (
+    state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION
+  ) {
+    return null;
+  }
+  const participant = state.participants.find(
+    (candidate) =>
+      candidate.characterId === characterId &&
+      candidate.fledAtTurn !== undefined
+  );
+  if (!participant) {
+    return null;
+  }
+  return {
+    version: 1,
+    policy: "left-passage-party",
+    sessionId: state.sessionId,
+    characterId,
+    remortCount: participant.remortCount,
+    resources: { hp: participant.hp, mana: participant.mana },
+    rewards: zeroRewards(),
+    effects: buildSettlementEffectKeys(state, characterId, false),
+    manualParticipation: false
+  };
 }
 
 export function isSupportedGroupCombatMonsterAbility(
@@ -1604,7 +1790,7 @@ function selectGroupCombatEnemyAbility(
     return null;
   }
   const available = (enemy.abilityIds ?? [])
-    .map((abilityId) => findMonsterAbility(abilityId))
+    .map((abilityId) => findGroupCombatEnemyAbility(state, enemy, abilityId))
     .filter((ability) =>
       ability !== null &&
       isSupportedGroupCombatMonsterAbility(ability.id) &&
@@ -1619,6 +1805,19 @@ function selectGroupCombatEnemyAbility(
     `${state.deterministicSeed}:${state.turn}:${enemy.order}:monster-ability`
   );
   return available[rng.nextInt(0, available.length - 1)] ?? null;
+}
+
+function findGroupCombatEnemyAbility(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  abilityId: string
+): MonsterAbilityDefinition | null {
+  if (state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION) {
+    return state.production?.canonicalV1.enemies
+      .find((candidate) => candidate.enemyId === enemy.id)
+      ?.abilities.find((candidate) => candidate.id === abilityId) ?? null;
+  }
+  return findMonsterAbility(abilityId);
 }
 
 function executeGroupCombatEnemyAbility(
@@ -1772,21 +1971,35 @@ function rollGroupCombatEnemyAbilityDamage(
   target: GroupCombatActorSnapshot,
   ability: NonNullable<ReturnType<typeof findMonsterAbility>>
 ): number {
-  const authored = enemy.monsterId
+  const frozen = state.production?.canonicalV1.enemies.find(
+    (candidate) => candidate.enemyId === enemy.id
+  );
+  const authored = !frozen && enemy.monsterId
     ? monsters.find((candidate) => candidate.id === enemy.monsterId)
     : null;
-  if (!authored) {
+  const monster = frozen
+    ? {
+        ...groupCombatEnemyActorStats(state, enemy, enemy.level ?? target.level),
+        dexterity: frozen.combatStats.dexterity,
+        ...(frozen.combatStats.spellPower === undefined
+          ? {}
+          : { spellPower: frozen.combatStats.spellPower }),
+        tags: [...frozen.combatStats.tags]
+      }
+    : authored
+      ? deriveMonsterCombatStats(
+          { ...authored, level: enemy.level ?? authored.level },
+          enemy.order > 0
+            ? {
+                remortCount: state.production?.remort.sourceRemortCount ?? 0,
+                remortPressureMode: "multi"
+              }
+            : {}
+        )
+      : null;
+  if (!monster) {
     return Math.max(1, enemy.attack - target.defense);
   }
-  const monster = deriveMonsterCombatStats(
-    { ...authored, level: enemy.level ?? authored.level },
-    enemy.order > 0
-      ? {
-          remortCount: state.production?.remort.sourceRemortCount ?? 0,
-          remortPressureMode: "multi"
-        }
-      : {}
-  );
   const modifiedMonster = {
     ...monster,
     contextModifiers: groupCombatEnemyActorStats(
@@ -2530,57 +2743,349 @@ function buildLeftPassageLootVersionOneSnapshot(
         monsterId: monster.id,
         order: enemy.order,
         participantRolls: participants.map((participant) => {
-          const rng = new SeededRandomSource(
-            `${state.production!.encounterSeed}:${state.partySessionId}:loot:${enemy.order}:${monster.id}:${participant.characterId}`
-          );
-          const rewards = new Map<string, GroupCombatRewards["items"]>();
-          const loot = rollMonsterLoot({
-            monsterId: monster.id,
-            monsterLoot,
-            items,
-            luck: participant.stats.luck,
-            dropChanceMultiplier: getLeftPassageEnemyLootDropChanceMultiplier({
-              effectiveEnemyLevel,
-              participantLevel: participant.level
+          const candidates = [
+            ...getLootCandidates({
+              monsterId: monster.id,
+              monsterLoot,
+              items
             }),
-            rng,
-            character: {
-              level: effectiveEnemyLevel,
-              classId: participant.classId,
-              raceId: participant.raceId
-            },
-            sourceId: getGroupCombatLootExpansionSource(monster),
-            sourceTags: monster.tags
+            ...getLootExpansionCandidates({
+              profile: {
+                level: effectiveEnemyLevel,
+                classId: participant.classId,
+                raceId: participant.raceId
+              },
+              sourceId: getGroupCombatLootExpansionSource(monster),
+              sourceTags: monster.tags
+            })
+          ];
+          return buildGroupCombatLootVersionOneRoll({
+            state,
+            enemy,
+            participant,
+            candidates
           });
-          if (loot.state === "dropped") {
-            addGroupCombatLootReward(rewards, participant.characterId, loot.item.id, 1);
-          }
-          const bandageSlot = rollPostFightBandageSlotReward({
-            bandageQuantity: rollBandageDropQuantity({
-              luck: participant.stats.luck,
-              rng
-            }),
-            luck: participant.stats.luck,
-            rng
-          });
-          if (bandageSlot) {
-            addGroupCombatLootReward(
-              rewards,
-              participant.characterId,
-              bandageSlot.kind === "iskrokamin"
-                ? "item.iskrokamin"
-                : "item.responsible-panic-bandage",
-              bandageSlot.quantity
-            );
-          }
-          return {
-            characterId: participant.characterId,
-            items: rewards.get(participant.characterId) ?? []
-          };
         })
       };
     })
   };
+}
+
+function buildGroupCombatLootVersionOneRoll(input: {
+  state: GroupCombatState;
+  enemy: GroupCombatEnemyState;
+  participant: GroupCombatActorSnapshot;
+  candidates: readonly LootCandidate[];
+}): GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number] {
+  const selection = input.candidates.length > 0
+    ? selectGroupCombatLootVersionOneCandidate(input)
+    : null;
+  const evidence = {
+    candidateCount: input.candidates.length,
+    selection: selection?.evidence ?? null,
+    commitment: ""
+  };
+  evidence.commitment = buildGroupCombatLootVersionOneRollCommitment({
+    state: input.state,
+    enemy: input.enemy,
+    participant: input.participant,
+    evidence
+  });
+  return {
+    characterId: input.participant.characterId,
+    evidence,
+    items: resolveGroupCombatLootVersionOneRoll({
+      state: input.state,
+      enemy: input.enemy,
+      participant: input.participant,
+      evidence
+    })
+  };
+}
+
+function selectGroupCombatLootVersionOneCandidate(input: {
+  state: GroupCombatState;
+  enemy: GroupCombatEnemyState;
+  participant: GroupCombatActorSnapshot;
+  candidates: readonly LootCandidate[];
+}): {
+  evidence: NonNullable<
+    GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"]["selection"]
+  >;
+} | null {
+  const monsterId = input.enemy.monsterId ?? input.enemy.id;
+  const rng = createGroupCombatLootVersionOneRandom(
+    input.state,
+    input.enemy,
+    input.participant,
+    monsterId
+  );
+  const dropChance = getGroupCombatLootVersionOneDropChance(
+    input.participant.stats.luck
+  ) * getLeftPassageEnemyLootDropChanceMultiplier({
+    effectiveEnemyLevel: input.enemy.level ?? 1,
+    participantLevel: input.participant.level
+  });
+  if (rng.nextFloat() >= dropChance) {
+    return null;
+  }
+  const rarity = rollGroupCombatLootVersionOneRarity(
+    rng,
+    input.participant.stats.luck
+  );
+  const eligible = selectGroupCombatLootVersionOneCandidates(
+    input.candidates,
+    rarity
+  );
+  const totalWeight = eligible.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight ?? 1),
+    0
+  );
+  if (totalWeight <= 0) {
+    return null;
+  }
+  const cursor = rng.nextFloat() * totalWeight;
+  let weightBefore = 0;
+  for (const candidate of eligible) {
+    const weight = Math.max(0, candidate.weight ?? 1);
+    if (cursor < weightBefore + weight) {
+      return {
+        evidence: {
+          itemId: candidate.item.id,
+          rangeStart: Math.floor(weightBefore / totalWeight * 1_000_000_000),
+          rangeEnd: Math.ceil(
+            (weightBefore + weight) / totalWeight * 1_000_000_000
+          )
+        }
+      };
+    }
+    weightBefore += weight;
+  }
+  const fallback = eligible[eligible.length - 1]!;
+  const weight = Math.max(0, fallback.weight ?? 1);
+  return {
+    evidence: {
+      itemId: fallback.item.id,
+      rangeStart: Math.floor(
+        Math.max(0, totalWeight - weight) / totalWeight * 1_000_000_000
+      ),
+      rangeEnd: 1_000_000_000
+    }
+  };
+}
+
+export function resolveGroupCombatLootVersionOneRoll(input: {
+  state: GroupCombatState;
+  enemy: GroupCombatEnemyState;
+  participant: GroupCombatActorSnapshot;
+  evidence: GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"];
+}): Array<{ itemId: string; quantity: number }> {
+  if (
+    input.evidence.commitment !== buildGroupCombatLootVersionOneRollCommitment(input)
+  ) {
+    throw new Error("Frozen loot-v1 roll commitment is not canonical.");
+  }
+  const rewards = new Map<string, GroupCombatRewards["items"]>();
+  const rng = createGroupCombatLootVersionOneRandom(
+    input.state,
+    input.enemy,
+    input.participant,
+    input.enemy.monsterId ?? input.enemy.id
+  );
+  if (input.evidence.candidateCount > 0) {
+    const dropChance = getGroupCombatLootVersionOneDropChance(
+      input.participant.stats.luck
+    ) * getLeftPassageEnemyLootDropChanceMultiplier({
+      effectiveEnemyLevel: input.enemy.level ?? 1,
+      participantLevel: input.participant.level
+    });
+    const dropped = rng.nextFloat() < dropChance;
+    if (dropped) {
+      rollGroupCombatLootVersionOneRarity(rng, input.participant.stats.luck);
+      const cursor = rng.nextFloat();
+      const selection = input.evidence.selection;
+      const cursorUnit = Math.floor(cursor * 1_000_000_000);
+      if (
+        !selection ||
+        !Number.isInteger(selection.rangeStart) ||
+        !Number.isInteger(selection.rangeEnd) ||
+        selection.rangeStart < 0 ||
+        selection.rangeEnd > 1_000_000_000 ||
+        selection.rangeStart >= selection.rangeEnd ||
+        cursorUnit < selection.rangeStart ||
+        cursorUnit >= selection.rangeEnd
+      ) {
+        throw new Error("Frozen loot-v1 weighted selection evidence is not canonical.");
+      }
+      addGroupCombatLootReward(
+        rewards,
+        input.participant.characterId,
+        selection.itemId,
+        1
+      );
+    } else if (input.evidence.selection !== null) {
+      throw new Error("Frozen loot-v1 no-drop evidence contains a selected item.");
+    }
+  } else if (input.evidence.selection !== null) {
+    throw new Error("Frozen loot-v1 empty candidate evidence contains a selected item.");
+  }
+
+  const bandageQuantity = rollGroupCombatLootVersionOneBandageQuantity(
+    rng,
+    input.participant.stats.luck
+  );
+  if (bandageQuantity > 0) {
+    const replacement = rng.nextFloat() <
+      getGroupCombatLootVersionOneIskrokaminChance(input.participant.stats.luck);
+    addGroupCombatLootReward(
+      rewards,
+      input.participant.characterId,
+      replacement
+        ? "item.iskrokamin"
+        : "item.responsible-panic-bandage",
+      replacement ? Math.max(1, Math.ceil(bandageQuantity / 2)) : bandageQuantity
+    );
+  }
+  return rewards.get(input.participant.characterId) ?? [];
+}
+
+function buildGroupCombatLootVersionOneRollCommitment(input: {
+  state: GroupCombatState;
+  enemy: GroupCombatEnemyState;
+  participant: GroupCombatActorSnapshot;
+  evidence: GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"];
+}): string {
+  return createHash("sha256")
+    .update(canonicalJson({
+      version: 1,
+      encounterSeed: input.state.production!.encounterSeed,
+      partySessionId: input.state.partySessionId,
+      enemyOrder: input.enemy.order,
+      monsterId: input.enemy.monsterId ?? input.enemy.id,
+      characterId: input.participant.characterId,
+      luck: input.participant.stats.luck,
+      level: input.participant.level,
+      candidateCount: input.evidence.candidateCount,
+      selection: input.evidence.selection
+    }))
+    .digest("hex");
+}
+
+function createGroupCombatLootVersionOneRandom(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  participant: GroupCombatActorSnapshot,
+  monsterId: string
+): SeededRandomSource {
+  return new SeededRandomSource(
+    `${state.production!.encounterSeed}:${state.partySessionId}:loot:${enemy.order}:${monsterId}:${participant.characterId}`
+  );
+}
+
+const GROUP_COMBAT_LOOT_V1_RARITIES: LootRarity[] = [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary"
+];
+
+function rollGroupCombatLootVersionOneRarity(
+  rng: SeededRandomSource,
+  luck: number
+): LootRarity {
+  const roll = Math.min(0.999_999, Math.max(0, rng.nextFloat()));
+  const base: LootRarity = roll < 0.7
+    ? "common"
+    : roll < 0.92
+      ? "uncommon"
+      : roll < 0.99
+        ? "rare"
+        : "epic";
+  if (
+    base === "epic" ||
+    rng.nextFloat() >= getGroupCombatLootVersionOneLuckBonus(luck)
+  ) {
+    return base;
+  }
+  return GROUP_COMBAT_LOOT_V1_RARITIES[
+    Math.min(
+      GROUP_COMBAT_LOOT_V1_RARITIES.indexOf(base) + 1,
+      GROUP_COMBAT_LOOT_V1_RARITIES.length - 1
+    )
+  ] ?? base;
+}
+
+function selectGroupCombatLootVersionOneCandidates(
+  candidates: readonly LootCandidate[],
+  rarity: LootRarity
+): LootCandidate[] {
+  const targetIndex = GROUP_COMBAT_LOOT_V1_RARITIES.indexOf(rarity);
+  for (let index = targetIndex; index >= 0; index -= 1) {
+    const matching = candidates.filter(
+      (candidate) => candidate.rarity === GROUP_COMBAT_LOOT_V1_RARITIES[index]
+    );
+    if (matching.length > 0) {
+      return matching;
+    }
+  }
+  for (
+    let index = targetIndex + 1;
+    index < GROUP_COMBAT_LOOT_V1_RARITIES.length;
+    index += 1
+  ) {
+    const matching = candidates.filter(
+      (candidate) => candidate.rarity === GROUP_COMBAT_LOOT_V1_RARITIES[index]
+    );
+    if (matching.length > 0) {
+      return matching;
+    }
+  }
+  return [...candidates];
+}
+
+function rollGroupCombatLootVersionOneBandageQuantity(
+  rng: SeededRandomSource,
+  luck: number
+): number {
+  const roll = Math.min(0.999_999, Math.max(0, rng.nextFloat()));
+  const quantity = roll < 0.5
+    ? 0
+    : roll < 0.75
+      ? 1
+      : roll < 0.88
+        ? 2
+        : roll < 0.96
+          ? 3
+          : roll < 0.99
+            ? 4
+            : 5;
+  const upgradeChance = getGroupCombatLootVersionOneLuckBonus(luck);
+  if (quantity >= 5 || upgradeChance <= 0) {
+    return quantity;
+  }
+  return rng.nextFloat() < upgradeChance ? quantity + 1 : quantity;
+}
+
+function getGroupCombatLootVersionOneDropChance(luck: number): number {
+  return Math.min(
+    0.45,
+    Math.max(0.25, 0.35 + getGroupCombatLootVersionOneLuckBonus(luck))
+  );
+}
+
+function getGroupCombatLootVersionOneLuckBonus(luck: number): number {
+  return Math.min(0.1, Math.max(0, (Math.floor(luck) - 6) * 0.01));
+}
+
+function getGroupCombatLootVersionOneIskrokaminChance(luck: number): number {
+  return Math.min(
+    0.06,
+    Math.max(
+      0.04,
+      0.04 + getGroupCombatLootVersionOneLuckBonus(luck) * 0.2
+    )
+  );
 }
 
 export function getLeftPassageEnemyLootDropChanceMultiplier(input: {
