@@ -203,7 +203,7 @@ function presentPartyJoinIneligible(
     }
     if (reason === "left-passage-rest") {
       return [
-        "Після попередньої перемоги лівий прохід іще відсапується.",
+        "Після попередньої групової бійки ще триває перепочинок.",
         `До іншої ватаги можна приєднатися за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
       ].join("\n");
     }

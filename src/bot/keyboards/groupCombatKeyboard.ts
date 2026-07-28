@@ -90,6 +90,13 @@ export function listGroupCombatReplyAbilities(
     const label = profile?.ability.label;
     if (
       label &&
+      listGroupCombatAbilityActionButtons(
+        session,
+        viewerCharacterId,
+        action,
+        optionIndex,
+        payloadKey
+      ).length > 0 &&
       !abilities.some((ability) => ability.label === label)
     ) {
       abilities.push({ action, label, optionIndex });

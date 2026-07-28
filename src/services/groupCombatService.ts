@@ -430,6 +430,11 @@ export class GroupCombatService {
     expectedReferenceVersion: number;
     chatId: bigint | null;
     messageId: number | null;
+    terminalCard?: {
+      chatId: bigint;
+      messageId: number;
+      deliveryRevision: number;
+    };
   }): Promise<boolean> {
     return this.repository.completeParticipantFleeExitDelivery(input);
   }

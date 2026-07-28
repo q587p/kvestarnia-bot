@@ -2058,7 +2058,13 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     expectedReferenceVersion: number;
     chatId: bigint | null;
     messageId: number | null;
+    terminalCard?: {
+      chatId: bigint;
+      messageId: number;
+      deliveryRevision: number;
+    };
   }): Promise<boolean> {
+    const terminalCard = input.terminalCard ?? null;
     const updated = await this.prisma.groupCombatParticipant.updateMany({
       where: {
         sessionId: input.sessionId,
@@ -2066,15 +2072,26 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         referenceVersion: input.expectedReferenceVersion,
         chatId: input.chatId,
         messageId: input.messageId,
-        session: { repairState: null },
+        session: {
+          repairState: null,
+          ...(terminalCard
+            ? {
+                status: { not: "active" },
+                deliveryRevision: terminalCard.deliveryRevision
+              }
+            : {})
+        },
         character: { user: { telegramUserId: input.telegramUserId } }
       },
       data: {
         exitDeliveryState: "completed",
         exitDeliveryClaimToken: null,
         exitDeliveryClaimedAt: null,
-        chatId: null,
-        messageId: null,
+        chatId: terminalCard ? terminalCard.chatId : null,
+        messageId: terminalCard ? terminalCard.messageId : null,
+        ...(terminalCard
+          ? { deliveredRevision: terminalCard.deliveryRevision }
+          : {}),
         referenceVersion: { increment: 1 }
       }
     });

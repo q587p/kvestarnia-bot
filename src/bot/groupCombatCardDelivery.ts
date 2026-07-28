@@ -120,16 +120,13 @@ export async function deliverGroupCombatCards(
       )
     );
     if (exitDeliveryStateOf(participant) !== "none") {
-      const exitDelivered = await deliverParticipantExitNavigation({
+      return deliverParticipantExitNavigation({
         api,
         service,
         sessionId: authoritative.id,
         participantCharacterId: participant.characterId,
         transport
       });
-      if (actor?.fledAtTurn !== undefined || !exitDelivered) {
-        return exitDelivered;
-      }
     } else if (
       authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
       authoritative.status !== "active" &&
@@ -337,22 +334,91 @@ async function deliverParticipantExitNavigation(input: {
           }
         }
       }
-      const completed =
-        await input.service.completeParticipantFleeExitDelivery({
-          sessionId: current.id,
-          telegramUserId: participant.telegramUserId,
-          expectedReferenceVersion: participant.referenceVersion,
-          chatId: reference?.chatId ?? null,
-          messageId: reference?.messageId ?? null
-        });
+      const actor = current.state.participants.find(
+        (candidate) => candidate.characterId === participant.characterId
+      );
+      const shouldPublishTerminalCard =
+        current.status !== "active" &&
+        actor?.fledAtTurn === undefined;
+      let terminalCardReference: GroupCombatMessageReference | null = null;
+      if (shouldPublishTerminalCard) {
+        const card = buildCard(
+          current,
+          participant.characterId,
+          serviceTime(input.service)
+        );
+        const messageId = await input.transport.sendInertMessage(
+          participant.telegramUserId,
+          card.text,
+          card.options
+        );
+        if (messageId === null) {
+          return false;
+        }
+        terminalCardReference = {
+          chatId: participant.telegramUserId,
+          messageId
+        };
+      }
+      let completed = false;
+      try {
+        completed =
+          await input.service.completeParticipantFleeExitDelivery({
+            sessionId: current.id,
+            telegramUserId: participant.telegramUserId,
+            expectedReferenceVersion: participant.referenceVersion,
+            chatId: reference?.chatId ?? null,
+            messageId: reference?.messageId ?? null,
+            ...(terminalCardReference
+              ? {
+                  terminalCard: {
+                    chatId: terminalCardReference.chatId,
+                    messageId: terminalCardReference.messageId,
+                    deliveryRevision: current.deliveryRevision
+                  }
+                }
+              : {})
+          });
+      } catch {
+        const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+        const latestParticipant = findParticipant(latest, input.participantCharacterId);
+        if (latestParticipant?.exitDeliveryState === "completed") {
+          if (
+            terminalCardReference &&
+            (
+              latestParticipant.chatId !== terminalCardReference.chatId ||
+              latestParticipant.messageId !== terminalCardReference.messageId
+            )
+          ) {
+            await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
+          }
+          return true;
+        }
+        if (terminalCardReference && latestParticipant) {
+          await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
+        }
+        return false;
+      }
       if (completed) {
         return true;
       }
       const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-      return findParticipant(
+      const latestParticipant = findParticipant(
         latest,
         input.participantCharacterId
-      )?.exitDeliveryState === "completed";
+      );
+      const completedElsewhere = latestParticipant?.exitDeliveryState === "completed";
+      if (
+        terminalCardReference &&
+        (
+          !completedElsewhere ||
+          latestParticipant.chatId !== terminalCardReference.chatId ||
+          latestParticipant.messageId !== terminalCardReference.messageId
+        )
+      ) {
+        await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
+      }
+      return completedElsewhere;
     }
   );
 }

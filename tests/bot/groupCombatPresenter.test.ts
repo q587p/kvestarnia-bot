@@ -156,6 +156,35 @@ describe("group combat presenter", () => {
     expect(targetLabels.some((label) => label.includes("Низький центр ваги"))).toBe(false);
   });
 
+  it("hides cooldown and mana unavailable abilities from the direct reply keyboard", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.classId = "class.warrior";
+    viewer.raceId = "race.bisyny";
+    viewer.cooldowns = {
+      abilities: {
+        "ability.race.margin-note": {
+          id: "ability.race.margin-note",
+          remainingTurns: 2
+        }
+      }
+    };
+    const labels = (): string[] => replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    ).flat();
+
+    expect(labels()).toContain("🪓 Силовий замах");
+    expect(labels()).not.toContain("📝 Правка на полях");
+
+    viewer.cooldowns = undefined;
+    viewer.mana = 0;
+    expect(labels()).toContain("🪓 Силовий замах");
+    expect(labels()).not.toContain("📝 Правка на полях");
+
+    viewer.mana = 1;
+    expect(labels()).toContain("📝 Правка на полях");
+  });
+
   it("gives a knocked-out participant only a refresh control while the group fight continues", () => {
     const session = createSession(2);
     session.state.participants[0]!.hp = 0;

@@ -2277,6 +2277,73 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toEqual({ repairState: null, repairReason: null });
   });
 
+  it("atomically adopts the newest terminal result card while completing exit delivery", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-terminal-result-card",
+      [58725n, 58726n]
+    );
+    const participant = session.participants[0]!;
+    await prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: session.id,
+        characterId: participant.characterId
+      },
+      data: { exitDeliveryState: "menu-delivered" }
+    });
+
+    await expect(repository.completeParticipantFleeExitDelivery({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: participant.chatId,
+      messageId: participant.messageId,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 93,
+        deliveryRevision: session.deliveryRevision
+      }
+    })).resolves.toBe(false);
+
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { status: "won" }
+    });
+    await expect(repository.completeParticipantFleeExitDelivery({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: participant.chatId,
+      messageId: participant.messageId,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 93,
+        deliveryRevision: session.deliveryRevision
+      }
+    })).resolves.toBe(true);
+
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: {
+        sessionId: session.id,
+        characterId: participant.characterId
+      },
+      select: {
+        exitDeliveryState: true,
+        chatId: true,
+        messageId: true,
+        referenceVersion: true,
+        deliveredRevision: true
+      }
+    })).resolves.toEqual({
+      exitDeliveryState: "completed",
+      chatId: participant.telegramUserId,
+      messageId: 93,
+      referenceVersion: participant.referenceVersion + 1,
+      deliveredRevision: session.deliveryRevision
+    });
+  });
+
   it("commits one production escape durably while the other two participants continue and settle", async () => {
     const telegramIds = [58731n, 58732n, 58733n];
     const session = await startLeftPassageProduction(

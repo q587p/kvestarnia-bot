@@ -131,6 +131,9 @@ describe("group-combat canonical participant delivery", () => {
     const session = makeSession();
     session.status = "won";
     session.state.status = "won";
+    session.participants.forEach((participant) => {
+      participant.exitDeliveryState = "pending";
+    });
     session.state.enemies.forEach((enemy) => {
       enemy.hp = 0;
     });
@@ -184,11 +187,53 @@ describe("group-combat canonical participant delivery", () => {
       expect(participantSends[0]?.text).toContain("Головне меню");
       expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(true);
       expect(participantSends[1]?.text).toContain("Доказову сутичку виграно");
-      expect(edits.find((entry) =>
-        entry.chatId === Number(participant.telegramUserId) &&
-        entry.messageId === participantSends[1]!.messageId
-      )?.labels).toEqual(["📜 Журнал", "📊 Статистика"]);
+      expect(inlineButtonLabels(participantSends[1]?.replyMarkup)).toEqual([
+        "📜 Журнал",
+        "📊 Статистика"
+      ]);
+      expect(participant.exitDeliveryState).toBe("completed");
+      expect(participant.chatId).toBe(participant.telegramUserId);
+      expect(participant.messageId).toBe(participantSends[1]?.messageId);
+      expect(participant.deliveredRevision).toBe(session.deliveryRevision);
     }
+  });
+
+  it("retains an ambiguously committed terminal card when the authoritative reload is unavailable", async () => {
+    const session = makeSession();
+    session.status = "won";
+    session.state.status = "won";
+    session.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    session.participants = session.participants.slice(0, 1);
+    session.participants[0]!.exitDeliveryState = "pending";
+    let reads = 0;
+    const service = mutableCardService(session);
+    const deleteMessage = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({ message_id: 90 })
+      .mockResolvedValueOnce({ message_id: 91 });
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage
+    } as unknown as Api, {
+      ...service,
+      findById: vi.fn(() => {
+        reads += 1;
+        return Promise.resolve(reads <= 3 ? session : null);
+      }),
+      completeParticipantFleeExitDelivery: vi.fn().mockRejectedValue(
+        new Error("database acknowledgement outcome unknown")
+      ),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
+    } as unknown as GroupCombatService, session)).resolves.toBe(0);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Доказову сутичку виграно");
+    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(session.participants[0]!.exitDeliveryState).toBe("menu-delivered");
   });
 
   it("restores only a successful escapee's main keyboard while the party fight continues", async () => {
@@ -1219,6 +1264,11 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
     completeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
       telegramUserId: bigint;
       expectedReferenceVersion: number;
+      terminalCard?: {
+        chatId: bigint;
+        messageId: number;
+        deliveryRevision: number;
+      };
     }) => {
       const participant = session.participants.find(
         (candidate) =>
@@ -1230,8 +1280,11 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         return Promise.resolve(false);
       }
       participant.exitDeliveryState = "completed";
-      participant.chatId = null;
-      participant.messageId = null;
+      participant.chatId = input.terminalCard?.chatId ?? null;
+      participant.messageId = input.terminalCard?.messageId ?? null;
+      if (input.terminalCard) {
+        participant.deliveredRevision = input.terminalCard.deliveryRevision;
+      }
       participant.referenceVersion += 1;
       return Promise.resolve(true);
     })
@@ -1253,6 +1306,36 @@ function hasReplyKeyboard(value: unknown): boolean {
     "keyboard" in value &&
     Array.isArray(value.keyboard)
   );
+}
+
+function inlineButtonLabels(value: unknown): string[] {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("inline_keyboard" in value) ||
+    !Array.isArray(value.inline_keyboard)
+  ) {
+    return [];
+  }
+  const labels: string[] = [];
+  const rows: unknown[] = value.inline_keyboard;
+  for (const row of rows) {
+    if (!Array.isArray(row)) {
+      continue;
+    }
+    const buttons: unknown[] = row;
+    for (const button of buttons) {
+      if (
+        button &&
+        typeof button === "object" &&
+        "text" in button &&
+        typeof button.text === "string"
+      ) {
+        labels.push(button.text);
+      }
+    }
+  }
+  return labels;
 }
 
 function readReplyMarkup(value: unknown): unknown {

@@ -1582,8 +1582,9 @@ describe("party session presenter", () => {
       now: new Date("2026-06-30T10:00:00.000Z"),
       session
     });
-    expect(restText).toContain("Після попередньої перемоги");
+    expect(restText).toContain("Після попередньої групової бійки ще триває перепочинок");
     expect(restText).toContain("До іншої ватаги можна приєднатися за <b>3 хвилини</b>");
+    expect(restText).not.toContain("лівий прохід");
     expect(restText).not.toContain("Бочки");
     expect(presentPartyJoin({
       state: "ineligible",
