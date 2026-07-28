@@ -36,7 +36,15 @@ a code-owned immutable catalog and resolver: the exact candidates, weights,
 selected item and quantity are derived from the frozen seed, participant
 gameplay profile and enemy order/level. Persisted output is checked against
 that derivation; persisted selection ranges and adjacent public digests are
-not authority. Restart and terminal plan rebuilding consult neither current
+not authority. The relational participant snapshot is the independent
+start-time authority for identity, presentation, life, order, class, race,
+level, maxima, combat/support values, base stats, equipment, granted gear
+abilities and initial combat-item quantities. Runtime state may change only
+current HP/mana, cooldowns, threat, flee/fumble evidence and quantities
+canonically consumed by committed item actions. The immutable candidate
+catalog stores effective released rarity: every Loot Expansion `x025` base and
+enhancement variant is `epic` for selection even though its authoring source
+rarity was `legendary`. Restart and terminal plan rebuilding consult neither current
 items, monster loot, monster metadata/ability profiles nor the generic loot
 algorithm, so later content or algorithm drift cannot reroll or invalidate
 legitimate active or pending settlement. Coherent evidence/output mutations,
@@ -66,8 +74,17 @@ current HP/mana and already-committed inventory, resumes frozen timed statuses,
 durably records the turn/attempt receipt and releases only that participant's
 combat lease in one transaction before Telegram delivery. A separate durable
 exit-delivery state retries a failed main menu after later party turns, records
-an acknowledged menu before old-card retirement, and clears the inert combat
-card reference on completion without resending the menu. The actor is
+the returned Telegram message id before old-card retirement, and clears the
+inert combat card reference on completion without resending after durable
+acknowledgement. Gameplay exit is exactly once; Telegram notification is
+durable at-least-once because Bot API `sendMessage` has no idempotency key. If
+the process loses the acknowledgement after Telegram accepted the send, stale
+claim recovery may produce one bounded duplicate. A live claim retries its
+database acknowledgement without an immediate resend, while ordinary Telegram
+rejection returns the claim to retryable pending state. Before restoring a
+keyboard, delivery checks current authoritative navigation: a free player gets
+the menu for current presence and quest markers, while a newer combat durably
+supersedes the old exit delivery so its battle UI is never overwritten. The actor is
 removed from later turns and targeting and forfeits this encounter's XP, gold,
 loot, Chronicle activity and generic combat/item/level events; the remaining
 party continues with only its own leases. Terminal settlement never overwrites

@@ -25,6 +25,11 @@ export interface GroupCombatRepairWork {
   settlementNotices: GroupCombatSettlementNotice[];
 }
 
+export type GroupCombatExitNavigation =
+  | { state: "free"; locationId: string | null; questMarkers: unknown }
+  | { state: "superseded" }
+  | { state: "not-found" };
+
 export class GroupCombatService {
   constructor(
     private readonly repository: GroupCombatRepository,
@@ -34,7 +39,10 @@ export class GroupCombatService {
       leftPassagePartyAttackEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly resolveQuestMarkers?: (
+      telegramUserId: bigint
+    ) => Promise<unknown>
   ) {}
 
   isEnabled(): boolean {
@@ -401,8 +409,33 @@ export class GroupCombatService {
     sessionId: string;
     telegramUserId: bigint;
     claimToken: string;
+    messageId: number;
   }): Promise<boolean> {
     return this.repository.markParticipantFleeExitMenuDelivered(input);
+  }
+
+  async resolveParticipantFleeExitNavigation(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<GroupCombatExitNavigation> {
+    const navigation =
+      await this.repository.resolveParticipantFleeExitNavigation(input);
+    if (navigation.state !== "free") {
+      return navigation;
+    }
+    return {
+      ...navigation,
+      questMarkers: this.resolveQuestMarkers
+        ? await this.resolveQuestMarkers(input.telegramUserId)
+        : null
+    };
+  }
+
+  supersedeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<boolean> {
+    return this.repository.supersedeParticipantFleeExitDelivery(input);
   }
 
   completeParticipantFleeExitDelivery(input: {

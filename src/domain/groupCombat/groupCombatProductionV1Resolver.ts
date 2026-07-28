@@ -49,7 +49,10 @@ type CatalogMonster = {
 
 type ExpansionItem = {
   id: string;
+  /** Released materialized rarity, after the raw legendary-to-epic mapping. */
   rarity: GroupCombatProductionV1Rarity;
+  /** Raw authoring rarity, retained only for the released source-weight multiplier. */
+  sourceRarity?: GroupCombatProductionV1Rarity;
   minLevel: number;
   maxEnhancement: number;
   rollWeight: number;
@@ -300,7 +303,10 @@ export function getGroupCombatProductionV1LootCandidates(input: {
     if (base.minLevel > playerLevel || base.requirements.requiresTitle) {
       return [];
     }
-    const rarityMultiplier = getSourceRarityMultiplier(sourceId, base.rarity);
+    const rarityMultiplier = getSourceRarityMultiplier(
+      sourceId,
+      base.sourceRarity ?? base.rarity
+    );
     if (rarityMultiplier <= 0) {
       return [];
     }

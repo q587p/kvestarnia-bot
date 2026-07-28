@@ -383,6 +383,24 @@ This proof intentionally grants no XP, gold, items, quest/achievement/activity
 progress or ordinary resource settlement. Production parity and rewards remain
 future work; Big Barrel behavior is unchanged.
 
+`0.4.2` adds the first production `group-combat.v3` consumer on the exact
+left-passage reservation. `GroupCombatParticipant.snapshotJson` is the
+independent strict start-time authority for immutable actor identity,
+presentation, life/order, class/race/level, maxima, combat/support/base stats,
+equipment, granted gear abilities and initial combat-item quantities;
+`state_json` owns only bounded runtime HP/mana, cooldown, threat, flee/fumble and
+canonically committed item-use changes. Production loot uses the code-owned
+immutable v1 enemy/ability/effective-rarity catalog and resolver, never current
+content catalogs or generic loot code during restart/settlement. Telegram flee
+gameplay commits exactly once before delivery, but the notification contract is
+durable at-least-once: a live claim retries database acknowledgement for the
+returned Telegram message id without resending, while a crash after Bot API
+acceptance and before acknowledgement leaves a bounded duplicate risk on stale
+reclaim because `sendMessage` has no idempotency key. Delivery resolves current
+navigation before restoring a reply keyboard; current presence/quest markers
+build a free player's menu, and a newer combat durably supersedes the old
+delivery instead of overwriting its battle UI.
+
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
 

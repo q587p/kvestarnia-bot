@@ -21,11 +21,14 @@ import { GroupCombatService } from "../../src/services/groupCombatService";
 import { createGroupCombatTimeoutScheduler } from "../../src/bot/groupCombatTimeoutScheduler";
 import {
   buildGroupCombatSettlementPlan,
+  buildGroupCombatProductionV1Evidence,
+  buildLeftPassageEncounterRewardBudget,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
   LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
   resolveGroupCombatTurn,
+  resolveGroupCombatLootVersionOneRoll,
   sumGroupCombatSettlementRewards,
   type GroupCombatState
 } from "../../src/domain/groupCombat/groupCombat";
@@ -38,9 +41,9 @@ import { monsterLoot } from "../../src/content/monsterFlavor";
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
-  start: 34,
-  dueStart: 33,
-  queue: 23,
+  start: 35,
+  dueStart: 34,
+  queue: 25,
   singleResolve: 35,
   dueScan: 1,
   deliveryScan: 1,
@@ -1456,6 +1459,89 @@ describe("PrismaGroupCombatRepository integration", () => {
     }
   });
 
+  it.each([
+    ["active", "class-race-luck", 830_200n],
+    ["terminal", "class-race-luck", 830_210n],
+    ["active", "level-and-rewards", 830_220n],
+    ["terminal", "level-and-rewards", 830_230n],
+    ["active", "combat-stats", 830_240n],
+    ["terminal", "combat-stats", 830_250n],
+    ["active", "equipment-and-gear", 830_260n],
+    ["terminal", "equipment-and-gear", 830_270n],
+    ["active", "combat-item-quantity", 830_280n],
+    ["terminal", "combat-item-quantity", 830_290n]
+  ] as const)(
+    "rejects coherent %s participant %s forgery against the relational freeze",
+    async (phase, mutation, firstId) => {
+      const started = await startLeftPassageProduction(
+        prisma,
+        repository,
+        `left-participant-anchor-${phase}-${mutation}`,
+        [firstId, firstId + 1n]
+      );
+      const target = phase === "terminal"
+        ? await terminalizeProductionSession(prisma, started)
+        : started;
+      const forged = structuredClone(target.state);
+      const actor = forged.participants[0]!;
+      if (mutation === "class-race-luck") {
+        actor.classId = "class.mage";
+        actor.raceId = "race.elf";
+        actor.stats.luck += 1;
+      } else if (mutation === "level-and-rewards") {
+        actor.level += 1;
+      } else if (mutation === "combat-stats") {
+        actor.attack += 1;
+        actor.defense += 1;
+        actor.support += 1;
+      } else if (mutation === "equipment-and-gear") {
+        actor.equipmentItemIds = ["item.forged-equipment"];
+        actor.gearAbilityIds = ["gear.forged-ability"];
+      } else {
+        actor.combatItemQuantities["item.field-kit"] =
+          (actor.combatItemQuantities["item.field-kit"] ?? 0) + 1;
+      }
+      rebuildCoherentProductionParticipantOutputs(forged);
+      const settlementPlan = phase === "terminal"
+        ? buildGroupCombatSettlementPlan(forged)
+        : null;
+      const result = settlementPlan
+        ? {
+            kind: settlementPlan.policy,
+            outcome: settlementPlan.outcome,
+            completedTurn: settlementPlan.completedTurn,
+            rewards: sumGroupCombatSettlementRewards(
+              settlementPlan.participants
+            )
+          }
+        : null;
+      await prisma.groupCombatSession.update({
+        where: { id: target.id },
+        data: {
+          stateJson: forged as unknown as Prisma.InputJsonValue,
+          ...(settlementPlan
+            ? {
+                settlementPlanJson:
+                  settlementPlan as unknown as Prisma.InputJsonValue,
+                resultJson: result as unknown as Prisma.InputJsonValue
+              }
+            : {})
+        }
+      });
+
+      await expect(repository.findById(target.id)).rejects.toThrow(
+        "Relational frozen participant does not match state."
+      );
+      if (phase === "terminal") {
+        await expect(repository.settleParticipant({
+          sessionId: target.id,
+          telegramUserId: target.participants[0]!.telegramUserId,
+          now: new Date(NOW.getTime() + 49_700)
+        })).resolves.toEqual({ state: "invalid-plan" });
+      }
+    }
+  );
+
   it("rebuilds a corrupted terminal result only from the canonical frozen production plan", async () => {
     const started = await startLeftPassageProduction(
       prisma,
@@ -2240,10 +2326,38 @@ describe("PrismaGroupCombatRepository integration", () => {
       settlementAttempts: 1,
       exitDeliveryState: "pending",
       exitDeliveryClaimToken: null,
-      exitDeliveryClaimedAt: null
+      exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: null
     });
     expect(exitRow.settlementReceiptJson).not.toBeNull();
     const restartedDeliveryRepository = new PrismaGroupCombatRepository(prisma);
+    await expect(
+      restartedDeliveryRepository.resolveParticipantFleeExitNavigation({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId
+      })
+    ).resolves.toEqual({
+      state: "free",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+    for (const kind of ["solo-combat", "group-combat"] as const) {
+      const leaseId = `left-durable-flee-delivery-${kind}`;
+      await prisma.activeCombatLease.create({
+        data: {
+          id: leaseId,
+          characterId: escapee.characterId,
+          kind,
+          referenceId: `newer-${kind}-ui`
+        }
+      });
+      await expect(
+        restartedDeliveryRepository.resolveParticipantFleeExitNavigation({
+          sessionId: current.id,
+          telegramUserId: escapee.telegramUserId
+        })
+      ).resolves.toEqual({ state: "superseded" });
+      await prisma.activeCombatLease.delete({ where: { id: leaseId } });
+    }
     const deliveryClaims = await Promise.all([
       restartedDeliveryRepository.claimParticipantFleeExitDelivery({
         sessionId: current.id,
@@ -2279,7 +2393,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       restartedDeliveryRepository.markParticipantFleeExitMenuDelivered({
         sessionId: current.id,
         telegramUserId: escapee.telegramUserId,
-        claimToken: winningClaim
+        claimToken: winningClaim,
+        messageId: 93
       })
     ).resolves.toBe(true);
     await expect(
@@ -2297,6 +2412,7 @@ describe("PrismaGroupCombatRepository integration", () => {
         exitDeliveryState: true,
         exitDeliveryClaimToken: true,
         exitDeliveryClaimedAt: true,
+        exitDeliveryMessageId: true,
         chatId: true,
         messageId: true
       }
@@ -2304,6 +2420,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       exitDeliveryState: "completed",
       exitDeliveryClaimToken: null,
       exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: 93,
       chatId: null,
       messageId: null
     });
@@ -3074,6 +3191,77 @@ describe("PrismaGroupCombatRepository integration", () => {
       where: { id: active!.id },
       select: { settlementPlanJson: true }
     })).settlementPlanJson).toEqual(storedPlan.settlementPlanJson);
+  });
+
+  it("accepts only a canonically committed item action as a frozen inventory decrement across restart", async () => {
+    await seedParty(prisma, "group-field-kit-committed", [70_197n, 70_198n]);
+    const actor = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: 70_197n } }
+    });
+    await prisma.character.update({ where: { id: actor.id }, data: { hpCurrent: 10, hpMax: 30 } });
+    await prisma.characterItem.create({
+      data: { characterId: actor.id, itemId: "item.field-kit", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, "group-field-kit-committed", 70_197n);
+    const secondActor = session.participants[1]!;
+
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: 70_197n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: actor.id,
+      payloadKey: "item.field-kit",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: secondActor.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: secondActor.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "resolved", session: { turn: 2 } });
+
+    expect(await prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: actor.id, itemId: "item.field-kit" } }
+    })).toBeNull();
+    expect(await prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: actor.id
+        }
+      },
+      select: { actionKey: true, payloadKey: true, origin: true }
+    })).toEqual({
+      actionKey: "item",
+      payloadKey: "item.field-kit",
+      origin: "manual-item-committed"
+    });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    expect(await restarted.findById(session.id)).toMatchObject({ status: "active", turn: 2 });
+    const restartedState = (await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: session.id },
+      select: { stateJson: true }
+    })).stateJson as { participants: Array<{
+      characterId: string;
+      hp: number;
+      combatItemQuantities: Record<string, number>;
+    }> };
+    expect(restartedState.participants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        characterId: actor.id,
+        hp: 33,
+        combatItemQuantities: {}
+      })
+    ]));
   });
 
   it("fails closed and replays safely after a frozen field kit disappears during a Charokovalnia-style inventory mutation", async () => {
@@ -4411,6 +4599,43 @@ async function seedParty(prisma: PrismaClient, token: string, telegramIds: bigin
       }
     }
   });
+}
+
+function rebuildCoherentProductionParticipantOutputs(
+  state: GroupCombatState
+): void {
+  const production = state.production!;
+  const existingEvidence = production.canonicalV1;
+  const budget = buildLeftPassageEncounterRewardBudget({
+    participantLevels: state.participants.map((participant) => participant.level),
+    enemies: existingEvidence.enemies.map((enemy) => ({
+      baseLevel: enemy.baseRewardLevel,
+      effectiveLevel: enemy.level
+    })),
+    deterministicKey: `${production.encounterSeed}:${state.partySessionId}:rewards`
+  });
+  Object.assign(production.rewards, budget);
+  production.rewards.lootSnapshot = {
+    version: 1,
+    enemies: [...state.enemies]
+      .sort((left, right) => left.order - right.order)
+      .map((enemy) => ({
+        enemyId: enemy.id,
+        monsterId: enemy.monsterId ?? enemy.id,
+        order: enemy.order,
+        participantRolls: [...state.participants]
+          .sort((left, right) => left.rosterOrder - right.rosterOrder)
+          .map((participant) => ({
+            characterId: participant.characterId,
+            items: resolveGroupCombatLootVersionOneRoll({
+              state,
+              enemy,
+              participant
+            })
+          }))
+      }))
+  };
+  production.canonicalV1 = buildGroupCombatProductionV1Evidence(state);
 }
 
 function sha256Canonical(value: unknown): string {

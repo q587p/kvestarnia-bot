@@ -7257,7 +7257,8 @@ export const GROUP_COMBAT_PRODUCTION_V1_CATALOG = {
       },
       {
         "id": "x025",
-        "rarity": "legendary",
+        "rarity": "epic",
+        "sourceRarity": "legendary",
         "minLevel": 20,
         "maxEnhancement": 5,
         "rollWeight": 1,

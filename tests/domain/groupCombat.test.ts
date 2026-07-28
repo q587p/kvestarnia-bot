@@ -16,6 +16,8 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
+  selectGroupCombatLootVersionOneCandidate,
+  selectGroupCombatLootVersionOneCandidates,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActorSnapshot
@@ -23,6 +25,7 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 import { items, monsters } from "../../src/content";
 import { monsterLoot } from "../../src/content/monsterFlavor";
+import { lootExpansionV1Data } from "../../src/content/lootExpansionV1Data";
 import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
 import {
   mantokAbilityGrantDefinitions,
@@ -241,35 +244,69 @@ describe("group combat proof reducer", () => {
     }
   });
 
-  it("matches the committed v1 candidate contract at the 0.4.2 catalog boundary", () => {
-    const cases = [
-      {
-        monsterId: "monster.deadline-spider",
-        level: 4,
-        classId: "class.warrior",
-        raceId: "race.human-ish"
-      },
-      {
-        monsterId: "monster.preapproval-dragonling",
-        level: 7,
-        classId: "class.priest",
-        raceId: "race.elf"
-      },
-      {
-        monsterId: "monster.cabbage-knight-on-break",
-        level: 13,
-        classId: "class.bard",
-        raceId: "race.dwarf"
-      }
+  it("matches every released v1 direct-loot and expansion candidate boundary", () => {
+    const eligibilityProfiles = [
+      { classId: "class.unknown", raceId: "race.unknown" },
+      ...lootExpansionV1Data.classes.map((classEntry) => ({
+        classId: `class.${classEntry.id}`,
+        raceId: "race.unknown"
+      })),
+      ...lootExpansionV1Data.races.map((raceEntry) => ({
+        classId: "class.unknown",
+        raceId: `race.${raceEntry.id}`
+      }))
     ];
+    const affinityProfiles = lootExpansionV1Data.classes.flatMap((classEntry) =>
+      lootExpansionV1Data.races.map((raceEntry) => ({
+        classId: `class.${classEntry.id}`,
+        raceId: `race.${raceEntry.id}`
+      }))
+    );
+    const sourceMonsters = [...new Map(monsters.map((monster) => [
+      getTestLootExpansionSource(monster.level, monster.tags),
+      monster
+    ])).values()];
+    const affinityMonster = monsters.find((monster) =>
+      getTestLootExpansionSource(monster.level, monster.tags) ===
+        "bureaucracy_wing"
+    )!;
+    const cases = [
+      ...monsters.map((monster) => ({
+        monster,
+        level: 23,
+        classId: "class.unknown",
+        raceId: "race.unknown"
+      })),
+      ...sourceMonsters.flatMap((monster) =>
+        [1, 3, 6, 10, 14, 18, 23].map((level) => ({
+          monster,
+          level,
+          classId: "class.unknown",
+          raceId: "race.unknown"
+        }))
+      ),
+      ...[1, 3, 6, 10, 14, 18, 23].flatMap((level) =>
+        eligibilityProfiles.map((profile) => ({
+          monster: affinityMonster,
+          level,
+          ...profile
+        }))
+      ),
+      ...affinityProfiles.map((profile) => ({
+        monster: affinityMonster,
+        level: 23,
+        ...profile
+      }))
+    ];
+
     for (const fixture of cases) {
-      const monster = monsters.find(
-        (candidate) => candidate.id === fixture.monsterId
-      )!;
-      const sourceId = getTestLootExpansionSource(monster.level, monster.tags);
+      const sourceId = getTestLootExpansionSource(
+        fixture.monster.level,
+        fixture.monster.tags
+      );
       const expected = [
         ...lootDomain.getLootCandidates({
-          monsterId: monster.id,
+          monsterId: fixture.monster.id,
           monsterLoot,
           items
         }),
@@ -280,7 +317,7 @@ describe("group combat proof reducer", () => {
             raceId: fixture.raceId
           },
           sourceId,
-          sourceTags: monster.tags
+          sourceTags: fixture.monster.tags
         })
       ].map((candidate) => ({
         itemId: candidate.item.id,
@@ -288,7 +325,7 @@ describe("group combat proof reducer", () => {
         weight: candidate.weight ?? 1
       }));
       const actual = getGroupCombatProductionV1LootCandidates({
-        monsterId: fixture.monsterId,
+        monsterId: fixture.monster.id,
         effectiveEnemyLevel: fixture.level,
         classId: fixture.classId,
         raceId: fixture.raceId
@@ -298,6 +335,42 @@ describe("group combat proof reducer", () => {
       actual.forEach((candidate, index) => {
         expect(candidate.weight).toBeCloseTo(expected[index]!.weight, 12);
       });
+    }
+  });
+
+  it("keeps every released x025 variant epic and deterministically selectable", () => {
+    const candidates = getGroupCombatProductionV1LootCandidates({
+      monsterId: "monster.spreadsheet-goblin",
+      effectiveEnemyLevel: 23,
+      classId: "class.warrior",
+      raceId: "race.bisyny"
+    });
+    const epic = selectGroupCombatLootVersionOneCandidates(candidates, "epic");
+    const x025 = epic.filter((candidate) =>
+      candidate.itemId === "item.loot-v1-x025" ||
+      candidate.itemId.startsWith("item.loot-v1-x025-plus-")
+    );
+
+    expect(x025.map((candidate) => candidate.itemId)).toEqual([
+      "item.loot-v1-x025",
+      "item.loot-v1-x025-plus-1",
+      "item.loot-v1-x025-plus-2",
+      "item.loot-v1-x025-plus-3",
+      "item.loot-v1-x025-plus-4",
+      "item.loot-v1-x025-plus-5"
+    ]);
+    expect(x025.every((candidate) => candidate.rarity === "epic")).toBe(true);
+    const totalWeight = epic.reduce((sum, candidate) => sum + candidate.weight, 0);
+    for (const target of x025) {
+      const targetIndex = epic.indexOf(target);
+      const weightBefore = epic
+        .slice(0, targetIndex)
+        .reduce((sum, candidate) => sum + candidate.weight, 0);
+      const nextFloat = () =>
+        (weightBefore + target.weight / 2) / totalWeight;
+      expect(
+        selectGroupCombatLootVersionOneCandidate(epic, { nextFloat })
+      ).toBe(target);
     }
   });
 

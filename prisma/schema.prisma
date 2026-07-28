@@ -1241,6 +1241,7 @@ model GroupCombatParticipant {
   exitDeliveryState String            @default("none") @map("exit_delivery_state")
   exitDeliveryClaimToken String?       @map("exit_delivery_claim_token")
   exitDeliveryClaimedAt DateTime?      @map("exit_delivery_claimed_at")
+  exitDeliveryMessageId Int?           @map("exit_delivery_message_id")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

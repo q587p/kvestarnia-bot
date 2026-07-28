@@ -49,6 +49,7 @@ import { TavernRaidService } from "../services/tavernRaidService";
 import { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import { YegerQuestService } from "../services/yegerQuestService";
 import type { ApplicationRepositories } from "./createRepositories";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../bot/questMarkerSnapshot";
 
 export interface ApplicationServices extends BotServices {
   deployNotifications: DeployNotificationService;
@@ -121,8 +122,20 @@ export function createServices(
       devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
     }
   );
+  const groupCombat = new GroupCombatService(
+    repositories.groupCombatSessions,
+    {
+      enabled: true,
+      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+    },
+    undefined,
+    achievements,
+    (telegramUserId) =>
+      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+  );
 
-  return {
+  const services: ApplicationServices = {
     activityEvents,
     achievements,
     adventure: new AdventureService(
@@ -218,11 +231,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.huntContracts
     ),
-    groupCombat: new GroupCombatService(repositories.groupCombatSessions, {
-      enabled: true,
-      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
-    }, undefined, achievements),
+    groupCombat,
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(
@@ -302,4 +311,5 @@ export function createServices(
       publicActivityEvents
     )
   };
+  return services;
 }

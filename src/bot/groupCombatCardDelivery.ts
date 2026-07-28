@@ -29,6 +29,7 @@ import { presentAchievementUnlockNotification } from "./presenters/achievementPr
 const HTML_MESSAGE_OPTIONS = { parse_mode: "HTML" as const };
 const MAX_CONVERGENCE_EDITS = 4;
 const FLEE_EXIT_DELIVERY_CLAIM_MS = 23_000;
+const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const deliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
@@ -198,13 +199,42 @@ async function deliverParticipantFleeExit(input: {
       if (!current || !participant || exitDeliveryStateOf(participant) === "none") {
         return false;
       }
-      if (participant.exitDeliveryState === "completed") {
+      if (isCompletedExitDelivery(participant.exitDeliveryState)) {
         return true;
       }
       if (
         participant.exitDeliveryState === "pending" ||
         participant.exitDeliveryState === "claimed"
       ) {
+        const navigation =
+          await input.service.resolveParticipantFleeExitNavigation({
+            sessionId: current.id,
+            telegramUserId: participant.telegramUserId
+          });
+        if (navigation.state === "superseded") {
+          const superseded =
+            await input.service.supersedeParticipantFleeExitDelivery({
+              sessionId: current.id,
+              telegramUserId: participant.telegramUserId
+            });
+          if (superseded) {
+            return true;
+          }
+          const latest = await loadAuthoritativeSession(
+            input.service,
+            input.sessionId
+          );
+          const latestParticipant = findParticipant(
+            latest,
+            input.participantCharacterId
+          );
+          return latestParticipant
+            ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
+            : false;
+        }
+        if (navigation.state === "not-found") {
+          return false;
+        }
         const now = serviceTime(input.service);
         const claimToken = randomUUID();
         const claimed = await input.service.claimParticipantFleeExitDelivery({
@@ -216,23 +246,33 @@ async function deliverParticipantFleeExit(input: {
         });
         if (!claimed) {
           const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-          return findParticipant(
+          const latestParticipant = findParticipant(
             latest,
             input.participantCharacterId
-          )?.exitDeliveryState === "completed";
+          );
+          return latestParticipant
+            ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
+            : false;
         }
+        let exitMessageId: number;
         try {
-          await input.api.sendMessage(
+          const sent = await input.api.sendMessage(
             Number(participant.telegramUserId),
             "🏃 Ви відступили з бою. Головне меню знову на місці.",
             {
               reply_markup: buildMainMenuKeyboard({
-                ...(current.state.production?.locationId
-                  ? { locationId: current.state.production.locationId }
+                ...(navigation.locationId
+                  ? { locationId: navigation.locationId }
+                  : {}),
+                ...(navigation.questMarkers
+                  ? {
+                      questMarkers: navigation.questMarkers
+                    }
                   : {})
               })
             }
           );
+          exitMessageId = sent.message_id;
         } catch (error) {
           await input.service.releaseParticipantFleeExitDeliveryClaim({
             sessionId: current.id,
@@ -241,12 +281,24 @@ async function deliverParticipantFleeExit(input: {
           }).catch(() => false);
           throw error;
         }
-        const acknowledged =
-          await input.service.markParticipantFleeExitMenuDelivered({
-            sessionId: current.id,
-            telegramUserId: participant.telegramUserId,
-            claimToken
-          });
+        let acknowledged = false;
+        for (
+          let attempt = 0;
+          attempt < FLEE_EXIT_ACK_ATTEMPTS && !acknowledged;
+          attempt += 1
+        ) {
+          try {
+            acknowledged =
+              await input.service.markParticipantFleeExitMenuDelivered({
+                sessionId: current.id,
+                telegramUserId: participant.telegramUserId,
+                claimToken,
+                messageId: exitMessageId
+              });
+          } catch {
+            // Keep the live claim and retry acknowledgement without resending.
+          }
+        }
         if (!acknowledged) {
           current = await loadAuthoritativeSession(input.service, input.sessionId);
           participant = findParticipant(current, input.participantCharacterId);
@@ -266,7 +318,7 @@ async function deliverParticipantFleeExit(input: {
       if (!current || !participant) {
         return false;
       }
-      if (participant.exitDeliveryState === "completed") {
+      if (isCompletedExitDelivery(participant.exitDeliveryState)) {
         return true;
       }
       if (participant.exitDeliveryState !== "menu-delivered") {
@@ -311,6 +363,12 @@ async function deliverParticipantFleeExit(input: {
       )?.exitDeliveryState === "completed";
     }
   );
+}
+
+function isCompletedExitDelivery(
+  state: GroupCombatParticipantRecord["exitDeliveryState"]
+): boolean {
+  return state === "completed" || state === "superseded";
 }
 
 export async function deliverGroupCombatBattleKeyboard(

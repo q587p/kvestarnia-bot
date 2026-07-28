@@ -53,6 +53,8 @@ import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
   GroupCombatStateValidationError,
+  parseGroupCombatActorSnapshotStrict,
+  parseFrozenGroupCombatActorSnapshotStrict,
   parseGroupCombatResultStrict,
   parseGroupCombatSettlementPlanStrict,
   parseGroupCombatSettlementReceiptStrict,
@@ -207,6 +209,19 @@ const sessionInclude = {
       }
     },
     orderBy: [{ rosterOrder: "asc" as const }, { id: "asc" as const }]
+  },
+  actions: {
+    where: { origin: "manual-item-committed" },
+    select: {
+      actorCharacterId: true,
+      turn: true,
+      actionKey: true,
+      targetKind: true,
+      targetId: true,
+      payloadKey: true,
+      origin: true
+    },
+    orderBy: [{ turn: "asc" as const }, { actorCharacterId: "asc" as const }]
   }
 } satisfies Prisma.GroupCombatSessionInclude;
 
@@ -1834,7 +1849,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       data: {
         exitDeliveryState: "claimed",
         exitDeliveryClaimToken: input.claimToken,
-        exitDeliveryClaimedAt: input.claimedAt
+        exitDeliveryClaimedAt: input.claimedAt,
+        exitDeliveryMessageId: null
       }
     });
     return updated.count === 1;
@@ -1856,7 +1872,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       data: {
         exitDeliveryState: "pending",
         exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null
+        exitDeliveryClaimedAt: null,
+        exitDeliveryMessageId: null
       }
     });
     return updated.count === 1;
@@ -1866,7 +1883,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     sessionId: string;
     telegramUserId: bigint;
     claimToken: string;
+    messageId: number;
   }): Promise<boolean> {
+    if (!Number.isSafeInteger(input.messageId) || input.messageId <= 0) {
+      return false;
+    }
     const updated = await this.prisma.groupCombatParticipant.updateMany({
       where: {
         sessionId: input.sessionId,
@@ -1878,7 +1899,69 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       data: {
         exitDeliveryState: "menu-delivered",
         exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null
+        exitDeliveryClaimedAt: null,
+        exitDeliveryMessageId: input.messageId
+      }
+    });
+    return updated.count === 1;
+  }
+
+  async resolveParticipantFleeExitNavigation(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<
+    | { state: "free"; locationId: string | null }
+    | { state: "superseded" | "not-found" }
+  > {
+    const participant = await this.prisma.groupCombatParticipant.findFirst({
+      where: {
+        sessionId: input.sessionId,
+        exitDeliveryState: { in: ["pending", "claimed"] },
+        session: { repairState: null },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      select: {
+        character: {
+          select: {
+            activeCombatLease: { select: { id: true } },
+            user: { select: { lastSeenLocationId: true } }
+          }
+        }
+      }
+    });
+    if (!participant) {
+      return { state: "not-found" };
+    }
+    return participant.character.activeCombatLease
+      ? { state: "superseded" }
+      : {
+          state: "free",
+          locationId: participant.character.user.lastSeenLocationId
+        };
+  }
+
+  async supersedeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        exitDeliveryState: { in: ["pending", "claimed"] },
+        session: { repairState: null },
+        character: {
+          activeCombatLease: { isNot: null },
+          user: { telegramUserId: input.telegramUserId }
+        }
+      },
+      data: {
+        exitDeliveryState: "superseded",
+        exitDeliveryClaimToken: null,
+        exitDeliveryClaimedAt: null,
+        exitDeliveryMessageId: null,
+        chatId: null,
+        messageId: null,
+        referenceVersion: { increment: 1 }
       }
     });
     return updated.count === 1;
@@ -1944,6 +2027,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       const complete = session.participants.every(
         (participant) =>
           participant.exitDeliveryState === "completed" ||
+          participant.exitDeliveryState === "superseded" ||
           participant.deliveredRevision >= input.expectedDeliveryRevision
       );
       const updated = await tx.groupCombatSession.updateMany({
@@ -2323,6 +2407,12 @@ async function resolveIfReady(
       !previouslyFled.has(participant.characterId)
   );
   await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
+  await markCommittedItemActions(
+    tx,
+    row.id,
+    row.turn,
+    resolution.committedConsumables
+  );
   const updated = await tx.groupCombatSession.updateMany({
     where: {
       id: row.id,
@@ -2643,28 +2733,31 @@ function buildInvalidFallbackState(
   row: SessionRow,
   repairParticipants: SessionRow["participants"]
 ): GroupCombatState {
-  const participants = repairParticipants.map((participant): GroupCombatActorSnapshot => ({
-    characterId: participant.characterId,
-    telegramUserId: participant.character.user.telegramUserId.toString(),
-    name: participant.character.name.slice(0, 93) || "Невідомий пригодник",
-    remortCount: participant.remortCount,
-    rosterOrder: participant.rosterOrder,
-    hp: Math.min(Math.max(0, participant.character.hpCurrent), Math.max(1, participant.character.hpMax)),
-    hpMax: Math.max(1, participant.character.hpMax),
-    mana: Math.min(Math.max(0, participant.character.manaCurrent), Math.max(0, participant.character.manaMax)),
-    manaMax: Math.max(0, participant.character.manaMax),
-    attack: 1,
-    defense: 0,
-    support: 1,
-    classId: "class.unknown",
-    raceId: "race.unknown",
-    level: 1,
-    stats: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 },
-    equipmentItemIds: [],
-    gearAbilityIds: [],
-    combatItemQuantities: {},
-    threat: 0
-  }));
+  const committedItemsByCharacter = collectCommittedItemEvidence(row.actions);
+  const participants = repairParticipants.map((participant): GroupCombatActorSnapshot => {
+    const frozen = readFrozenPayload(participant.snapshotJson)?.actor;
+    if (!frozen) {
+      throw new GroupCombatStateValidationError(
+        "Invalid fallback cannot recover a malformed relational participant snapshot."
+      );
+    }
+    const combatItemQuantities = subtractCommittedCombatItems(
+      frozen.combatItemQuantities,
+      committedItemsByCharacter.get(participant.characterId)
+    );
+    if (!combatItemQuantities) {
+      throw new GroupCombatStateValidationError(
+        "Invalid fallback cannot recover forged committed item evidence."
+      );
+    }
+    return {
+      ...frozen,
+      hp: Math.min(Math.max(0, participant.character.hpCurrent), frozen.hpMax),
+      mana: Math.min(Math.max(0, participant.character.manaCurrent), frozen.manaMax),
+      combatItemQuantities,
+      threat: 0
+    };
+  });
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
     sessionId: row.id,
@@ -2831,7 +2924,8 @@ async function commitSuccessfulGroupCombatFlee(
       settledAt: now,
       exitDeliveryState: "pending",
       exitDeliveryClaimToken: null,
-      exitDeliveryClaimedAt: null
+      exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: null
     }
   });
   if (exited.count !== 1) {
@@ -3075,6 +3169,34 @@ async function consumeCommittedItems(
   }
 }
 
+const COMMITTED_ITEM_ACTION_ORIGIN = "manual-item-committed";
+
+async function markCommittedItemActions(
+  tx: TxClient,
+  sessionId: string,
+  turn: number,
+  items: readonly GroupCombatCommittedConsumable[]
+): Promise<void> {
+  for (const item of items) {
+    const updated = await tx.groupCombatAction.updateMany({
+      where: {
+        sessionId,
+        turn,
+        actorCharacterId: item.characterId,
+        actionKey: "item",
+        payloadKey: item.itemId,
+        origin: "manual"
+      },
+      data: { origin: COMMITTED_ITEM_ACTION_ORIGIN }
+    });
+    if (updated.count !== 1) {
+      throw new GroupCombatStateValidationError(
+        "Committed item action is missing its relational evidence."
+      );
+    }
+  }
+}
+
 async function invalidateInventoryDrift(
   prisma: PrismaClient,
   sessionId: string,
@@ -3170,6 +3292,7 @@ function mapSession(
       ),
       exitDeliveryClaimToken: participant.exitDeliveryClaimToken,
       exitDeliveryClaimedAt: participant.exitDeliveryClaimedAt,
+      exitDeliveryMessageId: participant.exitDeliveryMessageId,
       settlementStatus: participant.settlementStatus === "completed" ? "completed" : "pending",
       settlementAttempts: participant.settlementAttempts,
       settlementReceipt: participant.settlementReceiptJson === null
@@ -3234,6 +3357,7 @@ function parseRowStateCore(row: SessionRow): GroupCombatState {
   if (!proof && !leftPassage) {
     throw new GroupCombatStateValidationError("Unknown group-combat rules or encounter version.");
   }
+  validateRelationalFrozenParticipantsBeforeStateParse(row);
   const state = parseGroupCombatStateStrict(row.stateJson, {
     sessionId: row.id,
     partySessionId: row.partySessionId,
@@ -3276,21 +3400,150 @@ function parseRowStateCore(row: SessionRow): GroupCombatState {
 }
 
 function validateRelationalRoster(row: SessionRow, state: GroupCombatState): void {
-  if (row.participants.length !== state.participants.length) {
+  validateRelationalActors(row, state.participants);
+}
+
+function validateRelationalFrozenParticipantsBeforeStateParse(
+  row: SessionRow
+): void {
+  if (
+    !row.stateJson ||
+    typeof row.stateJson !== "object" ||
+    Array.isArray(row.stateJson)
+  ) {
+    return;
+  }
+  const participants = (row.stateJson as Record<string, unknown>).participants;
+  if (!Array.isArray(participants)) {
+    return;
+  }
+  let actors: GroupCombatActorSnapshot[];
+  try {
+    actors = participants.map(parseGroupCombatActorSnapshotStrict);
+  } catch {
+    return;
+  }
+  validateRelationalActors(row, actors);
+}
+
+function validateRelationalActors(
+  row: SessionRow,
+  actors: readonly GroupCombatActorSnapshot[]
+): void {
+  if (row.participants.length !== actors.length) {
     throw new GroupCombatStateValidationError("Relational participant cardinality does not match state.");
   }
-  const stateByCharacterId = new Map(state.participants.map((participant) => [participant.characterId, participant]));
+  const stateByCharacterId = new Map(actors.map((participant) => [participant.characterId, participant]));
+  const committedItemsByCharacter = collectCommittedItemEvidence(row.actions);
   for (const participant of row.participants) {
     const actor = stateByCharacterId.get(participant.characterId);
+    const frozen = readFrozenPayload(participant.snapshotJson);
+    const frozenActor = frozen?.actor;
+    const expectedCombatItems = frozenActor
+      ? subtractCommittedCombatItems(
+          frozenActor.combatItemQuantities,
+          committedItemsByCharacter.get(participant.characterId)
+        )
+      : null;
     if (
       !actor ||
+      !frozenActor ||
       actor.telegramUserId !== participant.character.user.telegramUserId.toString() ||
       actor.remortCount !== participant.remortCount ||
-      actor.rosterOrder !== participant.rosterOrder
+      actor.rosterOrder !== participant.rosterOrder ||
+      !sameFrozenParticipantGameplayInputs(actor, frozenActor) ||
+      expectedCombatItems === null ||
+      !isDeepStrictEqual(actor.combatItemQuantities, expectedCombatItems)
     ) {
-      throw new GroupCombatStateValidationError("Relational participant identity does not match state.");
+      throw new GroupCombatStateValidationError(
+        "Relational frozen participant does not match state."
+      );
     }
   }
+  if ([...committedItemsByCharacter.keys()].some((characterId) => !stateByCharacterId.has(characterId))) {
+    throw new GroupCombatStateValidationError(
+      "Relational committed item evidence references an unknown participant."
+    );
+  }
+}
+
+function collectCommittedItemEvidence(
+  actions: readonly PersistedActionRow[]
+): Map<string, Map<string, number>> {
+  const committedItemsByCharacter = new Map<string, Map<string, number>>();
+  for (const action of actions) {
+    if (action.origin !== COMMITTED_ITEM_ACTION_ORIGIN) {
+      continue;
+    }
+    if (
+      action.actionKey !== "item" ||
+      action.targetKind !== "self" ||
+      action.targetId !== action.actorCharacterId ||
+      !action.payloadKey ||
+      !(GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(action.payloadKey)
+    ) {
+      throw new GroupCombatStateValidationError(
+        "Relational committed item evidence is not canonical."
+      );
+    }
+    const quantities = committedItemsByCharacter.get(action.actorCharacterId) ??
+      new Map<string, number>();
+    quantities.set(
+      action.payloadKey,
+      (quantities.get(action.payloadKey) ?? 0) + 1
+    );
+    committedItemsByCharacter.set(action.actorCharacterId, quantities);
+  }
+  return committedItemsByCharacter;
+}
+
+function sameFrozenParticipantGameplayInputs(
+  actor: GroupCombatActorSnapshot,
+  frozen: GroupCombatActorSnapshot
+): boolean {
+  return actor.characterId === frozen.characterId &&
+    actor.telegramUserId === frozen.telegramUserId &&
+    actor.name === frozen.name &&
+    actor.activeCosmeticTitle === frozen.activeCosmeticTitle &&
+    actor.remortCount === frozen.remortCount &&
+    actor.rosterOrder === frozen.rosterOrder &&
+    actor.classId === frozen.classId &&
+    actor.raceId === frozen.raceId &&
+    actor.level === frozen.level &&
+    actor.hpMax === frozen.hpMax &&
+    actor.manaMax === frozen.manaMax &&
+    actor.attack === frozen.attack &&
+    actor.defense === frozen.defense &&
+    actor.support === frozen.support &&
+    isDeepStrictEqual(actor.stats, frozen.stats) &&
+    isDeepStrictEqual(
+      [...actor.equipmentItemIds].sort(),
+      [...frozen.equipmentItemIds].sort()
+    ) &&
+    isDeepStrictEqual(
+      [...actor.gearAbilityIds].sort(),
+      [...frozen.gearAbilityIds].sort()
+    );
+}
+
+function subtractCommittedCombatItems(
+  frozen: Readonly<Record<string, number>>,
+  committed: ReadonlyMap<string, number> | undefined
+): Record<string, number> | null {
+  const remaining = { ...frozen };
+  for (const [itemId, quantity] of committed ?? []) {
+    const frozenQuantity = remaining[itemId] ?? 0;
+    if (quantity > frozenQuantity) {
+      return null;
+    }
+    const next = frozenQuantity - quantity;
+    if (next === 0) {
+      delete remaining[itemId];
+    } else {
+      remaining[itemId] = next;
+    }
+  }
+  return remaining;
 }
 
 function validateSettlementRows(
@@ -3312,6 +3565,11 @@ function validateSettlementRows(
         participant.exitDeliveryClaimedAt !== null
       : participant.exitDeliveryClaimToken === null &&
         participant.exitDeliveryClaimedAt === null;
+    const messageCanonical =
+      exitState === "menu-delivered" || exitState === "completed"
+        ? participant.exitDeliveryMessageId !== null &&
+          participant.exitDeliveryMessageId > 0
+        : participant.exitDeliveryMessageId === null;
     const productionExitCanonical =
       state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
         ? (
@@ -3322,6 +3580,7 @@ function validateSettlementRows(
     if (
       !actor ||
       !claimCanonical ||
+      !messageCanonical ||
       !productionExitCanonical
     ) {
       throw new GroupCombatStateValidationError(
@@ -3373,7 +3632,8 @@ function parseGroupCombatExitDeliveryState(
     value === "pending" ||
     value === "claimed" ||
     value === "menu-delivered" ||
-    value === "completed"
+    value === "completed" ||
+    value === "superseded"
   ) {
     return value;
   }
@@ -3417,11 +3677,24 @@ function readFrozenPayload(value: unknown): FrozenParticipantPayload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
-  const actor = (value as Record<string, unknown>).actor;
-  if (!actor || typeof actor !== "object" || Array.isArray(actor)) {
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (
+    keys.some((key) => key !== "actor" && key !== "summary" && key !== "sated" && key !== "inspiration") ||
+    !("actor" in record)
+  ) {
     return null;
   }
-  return value as unknown as FrozenParticipantPayload;
+  try {
+    return {
+      actor: parseFrozenGroupCombatActorSnapshotStrict(record.actor),
+      ...("summary" in record ? { summary: record.summary as CharacterSummary } : {}),
+      ...("sated" in record ? { sated: record.sated } : {}),
+      ...("inspiration" in record ? { inspiration: record.inspiration } : {})
+    };
+  } catch {
+    return null;
+  }
 }
 
 function isReadyPartyParticipantSnapshot(value: unknown): boolean {

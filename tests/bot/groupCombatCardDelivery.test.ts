@@ -215,7 +215,9 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session)).resolves.toBe(2);
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toHaveLength(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(1001);
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Ви відступили з бою");
     expect(hasReplyKeyboard(readReplyMarkup(sendMessage.mock.calls[0]?.[2] as unknown))).toBe(true);
@@ -294,6 +296,167 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
+  });
+
+  it("retries acknowledgement on one live claim without resending the menu", async () => {
+    const session = makeSession({
+      turn: 3,
+      deliveryRevision: 3,
+      deliveredRevision: 3
+    });
+    session.participants[0]!.exitDeliveryState = "pending";
+    session.state.participants[0]!.fleeAttempts = 1;
+    session.state.participants[0]!.fledAtTurn = 1;
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 587 });
+    const service = mutableCardService(session);
+    const acknowledge = vi.fn()
+      .mockRejectedValueOnce(new Error("database acknowledgement failed"))
+      .mockResolvedValueOnce(false)
+      .mockImplementation((
+        input: Parameters<typeof service.markParticipantFleeExitMenuDelivered>[0]
+      ) =>
+        service.markParticipantFleeExitMenuDelivered(input)
+      );
+
+    await deliverGroupCombatCards({
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn()
+    } as unknown as Api, {
+      ...service,
+      markParticipantFleeExitMenuDelivered: acknowledge,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session);
+
+    expect(sendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toHaveLength(1);
+    expect(acknowledge).toHaveBeenCalledTimes(3);
+    expect(session.participants[0]!.exitDeliveryMessageId).toBe(587);
+    expect(session.participants[0]!.exitDeliveryState).toBe("completed");
+  });
+
+  it("bounds the ambiguous send-ack crash gap to a stale-claim duplicate", async () => {
+    const session = makeSession({
+      turn: 3,
+      deliveryRevision: 3,
+      deliveredRevision: 3
+    });
+    session.participants[0]!.exitDeliveryState = "pending";
+    session.state.participants[0]!.fleeAttempts = 1;
+    session.state.participants[0]!.fledAtTurn = 1;
+    let exitMessageId = 91;
+    const sendMessage = vi.fn().mockImplementation((
+      _chatId: number,
+      text: string
+    ) => Promise.resolve({
+      message_id: text.includes("Ви відступили з бою")
+        ? ++exitMessageId
+        : 700
+    }));
+    const service = mutableCardService(session);
+    let currentTime = new Date("2026-07-28T10:00:00.000Z");
+    const acknowledge = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockImplementation((
+        input: Parameters<typeof service.markParticipantFleeExitMenuDelivered>[0]
+      ) =>
+        service.markParticipantFleeExitMenuDelivered(input)
+      );
+    const deliveryService = {
+      ...service,
+      currentTime: () => currentTime,
+      markParticipantFleeExitMenuDelivered: acknowledge,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    const api = {
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn()
+    } as unknown as Api;
+
+    await deliverGroupCombatCards(api, deliveryService, session);
+    await deliverGroupCombatCards(api, deliveryService, session);
+    expect(sendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toHaveLength(1);
+    expect(session.participants[0]!.exitDeliveryState).toBe("claimed");
+
+    session.turn = 8;
+    session.state.turn = 8;
+    session.deliveryRevision = 8;
+    currentTime = new Date(currentTime.getTime() + 23_001);
+    await deliverGroupCombatCards(api, deliveryService, session);
+
+    expect(sendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toHaveLength(2);
+    expect(session.participants[0]!.exitDeliveryMessageId).toBe(93);
+    expect(session.participants[0]!.exitDeliveryState).toBe("completed");
+  });
+
+  it("uses current free-player navigation and supersedes a newer combat UI", async () => {
+    const moved = makeSession({
+      turn: 4,
+      deliveryRevision: 4,
+      deliveredRevision: 4
+    });
+    moved.participants[0]!.exitDeliveryState = "pending";
+    moved.state.participants[0]!.fleeAttempts = 1;
+    moved.state.participants[0]!.fledAtTurn = 1;
+    const movedSend = vi.fn().mockResolvedValue({ message_id: 94 });
+    const movedService = mutableCardService(moved);
+
+    await deliverGroupCombatCards({
+      sendMessage: movedSend,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn()
+    } as unknown as Api, {
+      ...movedService,
+      resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
+        state: "free",
+        locationId: "korchma.bar",
+        questMarkers: { fight: { state: "ready" } }
+      }),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, moved);
+
+    const movedMenuCall = movedSend.mock.calls.find((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    );
+    const movedKeyboard = JSON.stringify(movedMenuCall?.[2]);
+    expect(movedKeyboard).not.toContain("Лівий прохід");
+    expect(movedKeyboard).toContain("Квести");
+
+    const newerCombat = makeSession({
+      turn: 4,
+      deliveryRevision: 4,
+      deliveredRevision: 4
+    });
+    newerCombat.participants[0]!.exitDeliveryState = "pending";
+    newerCombat.state.participants[0]!.fleeAttempts = 1;
+    newerCombat.state.participants[0]!.fledAtTurn = 1;
+    const newerSend = vi.fn();
+    const newerService = mutableCardService(newerCombat);
+    await deliverGroupCombatCards({
+      sendMessage: newerSend,
+      editMessageText: vi.fn(),
+      deleteMessage: vi.fn()
+    } as unknown as Api, {
+      ...newerService,
+      resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
+        state: "superseded"
+      }),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, newerCombat);
+
+    expect(newerSend.mock.calls.some((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toBe(false);
+    expect(newerCombat.participants[0]!.exitDeliveryState).toBe("superseded");
+    expect(newerCombat.participants[0]!.messageId).toBeNull();
   });
 
   it("does not resend a successful flee menu when retiring the old card retries", async () => {
@@ -923,7 +1086,8 @@ function participantRecord(
     deliveredRevision: overrides.deliveredRevision ?? 0,
     exitDeliveryState: overrides.exitDeliveryState ?? "none",
     exitDeliveryClaimToken: null,
-    exitDeliveryClaimedAt: null
+    exitDeliveryClaimedAt: null,
+    exitDeliveryMessageId: null
   };
 }
 
@@ -979,6 +1143,7 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       telegramUserId: bigint;
       claimToken: string;
       claimedAt: Date;
+      staleBefore: Date;
     }) => {
       const participant = session.participants.find(
         (candidate) => candidate.telegramUserId === input.telegramUserId
@@ -987,7 +1152,11 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         !participant ||
         (
           participant.exitDeliveryState !== "pending" &&
-          participant.exitDeliveryState !== "claimed"
+          (
+            participant.exitDeliveryState !== "claimed" ||
+            !participant.exitDeliveryClaimedAt ||
+            participant.exitDeliveryClaimedAt > input.staleBefore
+          )
         )
       ) {
         return Promise.resolve(false);
@@ -995,6 +1164,29 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.exitDeliveryState = "claimed";
       participant.exitDeliveryClaimToken = input.claimToken;
       participant.exitDeliveryClaimedAt = input.claimedAt;
+      return Promise.resolve(true);
+    }),
+    resolveParticipantFleeExitNavigation: vi.fn().mockResolvedValue({
+      state: "free",
+      locationId: "korchma.hall",
+      questMarkers: null
+    }),
+    supersedeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+      telegramUserId: bigint;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant) {
+        return Promise.resolve(false);
+      }
+      participant.exitDeliveryState = "superseded";
+      participant.exitDeliveryClaimToken = null;
+      participant.exitDeliveryClaimedAt = null;
+      participant.exitDeliveryMessageId = null;
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
       return Promise.resolve(true);
     }),
     releaseParticipantFleeExitDeliveryClaim: vi.fn().mockImplementation((input: {
@@ -1017,6 +1209,7 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
     markParticipantFleeExitMenuDelivered: vi.fn().mockImplementation((input: {
       telegramUserId: bigint;
       claimToken: string;
+      messageId: number;
     }) => {
       const participant = session.participants.find(
         (candidate) =>
@@ -1029,6 +1222,7 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.exitDeliveryState = "menu-delivered";
       participant.exitDeliveryClaimToken = null;
       participant.exitDeliveryClaimedAt = null;
+      participant.exitDeliveryMessageId = input.messageId;
       return Promise.resolve(true);
     }),
     completeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {

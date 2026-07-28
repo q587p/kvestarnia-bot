@@ -139,6 +139,31 @@ const actorSchema = z.object({
   { message: "Participant flee evidence is not canonical." }
 );
 
+export function parseGroupCombatActorSnapshotStrict(
+  value: unknown
+): GroupCombatState["participants"][number] {
+  return actorSchema.parse(value) as GroupCombatState["participants"][number];
+}
+
+export function parseFrozenGroupCombatActorSnapshotStrict(
+  value: unknown
+): GroupCombatState["participants"][number] {
+  const actor = parseGroupCombatActorSnapshotStrict(value);
+  if (
+    actor.threat !== 0 ||
+    actor.combatItems !== undefined ||
+    actor.fleeAttempts !== undefined ||
+    actor.fledAtTurn !== undefined ||
+    actor.cooldowns !== undefined ||
+    actor.playerAbilityFumbles !== undefined
+  ) {
+    throw new GroupCombatStateValidationError(
+      "Frozen relational participant contains runtime combat state."
+    );
+  }
+  return actor;
+}
+
 const enemySchema = z.object({
   id: z.string().min(1),
   monsterId: z.string().min(1).optional(),

@@ -21,9 +21,10 @@ export interface GroupCombatParticipantRecord {
   messageId: number | null;
   referenceVersion: number;
   deliveredRevision: number;
-  exitDeliveryState: "none" | "pending" | "claimed" | "menu-delivered" | "completed";
+  exitDeliveryState: "none" | "pending" | "claimed" | "menu-delivered" | "completed" | "superseded";
   exitDeliveryClaimToken: string | null;
   exitDeliveryClaimedAt: Date | null;
+  exitDeliveryMessageId: number | null;
   settlementStatus: "pending" | "completed";
   settlementAttempts: number;
   settlementReceipt: GroupCombatSettlementReceipt | null;
@@ -275,6 +276,20 @@ export interface GroupCombatRepository {
     sessionId: string;
     telegramUserId: bigint;
     claimToken: string;
+    messageId: number;
+  }): Promise<boolean>;
+
+  resolveParticipantFleeExitNavigation(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<
+    | { state: "free"; locationId: string | null }
+    | { state: "superseded" | "not-found" }
+  >;
+
+  supersedeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
   }): Promise<boolean>;
 
   completeParticipantFleeExitDelivery(input: {

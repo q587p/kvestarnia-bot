@@ -2851,7 +2851,7 @@ function rollGroupCombatLootVersionOneRarity(
   ] ?? base;
 }
 
-function selectGroupCombatLootVersionOneCandidates(
+export function selectGroupCombatLootVersionOneCandidates(
   candidates: readonly GroupCombatProductionV1LootCandidate[],
   rarity: GroupCombatProductionV1Rarity
 ): GroupCombatProductionV1LootCandidate[] {
@@ -2879,9 +2879,9 @@ function selectGroupCombatLootVersionOneCandidates(
   return [...candidates];
 }
 
-function selectGroupCombatLootVersionOneCandidate(
+export function selectGroupCombatLootVersionOneCandidate(
   candidates: readonly GroupCombatProductionV1LootCandidate[],
-  rng: SeededRandomSource
+  rng: Pick<SeededRandomSource, "nextFloat">
 ): GroupCombatProductionV1LootCandidate | null {
   const totalWeight = candidates.reduce(
     (sum, candidate) => sum + Math.max(0, candidate.weight),
