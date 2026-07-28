@@ -434,10 +434,13 @@ export function buildPersistentFightPassageRestKeyboard(input: {
   const keyboard = new InlineKeyboard();
 
   if (input.showTierTwo) {
-    keyboard.text("🪜 Ярус II", makeFightTierTwoCallbackData()).row();
+    return keyboard
+      .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"))
+      .row()
+      .text("🪜 Ярус II", makeFightTierTwoCallbackData());
   }
 
-  if (!input.showTierTwo && input.searchAvailable !== false) {
+  if (input.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input)).row();
   }
 

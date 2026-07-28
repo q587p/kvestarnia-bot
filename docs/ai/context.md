@@ -28,7 +28,7 @@
   Canonical participant cards remain private-DM, monotonic and
   repairable with truthful remaining time, contribution output and bounded
   journal. Current production query observations/budgets are `33/33` manual start, `32/32`
-  due start, `21/21` queue, `23/35` single resolve, `32` concurrent-pair aggregate, `1/1` due/delivery/pending-settlement scans, `6/6` idle repair and `26/38` participant-settlement events (the cap covers up to twelve aggregated per-enemy item grants);
+  due start, `21/21` queue, `23/35` single resolve, `32` concurrent-pair aggregate, `1/1` due/delivery/pending-settlement scans, `6/6` idle repair and `25/38` participant-settlement events (the cap covers up to twelve aggregated per-enemy item grants);
   state/card/callback caps are `65,536`/`4,096`/`64` UTF-8 bytes; measured
   proof/presenter maxima are `20,150` state, `1,523` terminal-card fixture and `53` callback; the rolling production 3×6 journal measured `46,419`. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero

@@ -3308,19 +3308,19 @@ describe("main menu and scene keyboards", () => {
     }
   });
 
-  it("shows the discovered second tier above the return button without search", () => {
+  it("shows the return button above the discovered second tier without search", () => {
     const keyboard = buildPersistentFightPassageRestKeyboard({
       passage: "deep-left",
       showTierTwo: true
     });
 
     expect(inlineButtonRows(keyboard)).toEqual([
-      ["🪜 Ярус II"],
-      ["↩️ Повернутися до Сутеренів"]
+      ["↩️ Повернутися до Сутеренів"],
+      ["🪜 Ярус II"]
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
-      "v1:fight:tier2",
-      "v1:place:deep-level1"
+      "v1:place:deep-level1",
+      "v1:fight:tier2"
     ]);
   });
 
