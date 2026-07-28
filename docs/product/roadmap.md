@@ -102,12 +102,19 @@ bounded журнал і підсумки
 не доводить production enablement, deployment чи ручну Telegram QA; ці докази
 лишаються pending.
 
-Відкладені бойові follow-ups без номера релізу:
+Відкладені runtime і бойові follow-ups без номера релізу:
 
-- privacy-safe локальний debug log для зависань і переходів бойових сесій:
-  session/rules/turn/state category, scheduler/CAS/settlement stage і дозволена
-  error category без Telegram ids, приватного тексту, callback payloads,
-  SQL-параметрів, сирих state/exception;
+- надійна діягностика isolated local bot: bounded rotating stdout/stderr
+  crash-log поза repository з snapshot SHA, PID tree, timestamps, exit code,
+  health/polling state та дозволеною error category без token, Telegram ids,
+  приватного тексту, callback payloads, SQL-параметрів і сирих state/exception;
+- local-runtime worker watchdog: manager і `status-local-bot.cmd` мають
+  перевіряти фактичний bot worker та `/health`, а не лише живу npm/`ts-node-dev`
+  оболонку; загиблий worker із живим wrapper позначається як failed, лишає
+  придатний crash-log і отримує bounded restart/recovery contract із тестами;
+- privacy-safe бойовий debug log для зависань і переходів сесій:
+  session/rules/turn/state category та scheduler/CAS/settlement stage без
+  приватних payloads;
 - спільна восьмивимірна статистика внеску для звичайних боїв, тренування,
   дуелей і Big Barrel/raid після окремого cross-mode contract review. Це не
   розширює `0.4.2` і не починає `0.4.3`.
