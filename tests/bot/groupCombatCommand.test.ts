@@ -4,7 +4,8 @@ import {
   handleGroupCombatCallback,
   presentGroupCombatStartFailure,
   presentLeftPassageInviteFailure,
-  registerGroupCombatDevCommand
+  registerGroupCombatDevCommand,
+  registerGroupCombatReplyKeyboard
 } from "../../src/bot/commands/groupCombatCommand";
 import { deliverGroupCombatCards } from "../../src/bot/groupCombatCardDelivery";
 import {
@@ -16,7 +17,10 @@ import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotServices } from "../../src/bot/botServices";
 import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
-import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
+import {
+  buildGroupCombatActionMenuKeyboard,
+  buildGroupCombatReplyKeyboard
+} from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group combat bot flow", () => {
   afterEach(() => {
@@ -181,7 +185,7 @@ describe("group combat bot flow", () => {
     expect(submitAction).not.toHaveBeenCalled();
   });
 
-  it("routes a real v2 action button through combat-lock middleware and the social module exactly once", async () => {
+  it("routes a reply-menu action through combat-lock middleware and the social module exactly once", async () => {
     const bot = testBot();
     const session = makeSession();
     const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
@@ -195,9 +199,13 @@ describe("group combat bot flow", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
     const services = { groupCombat: service } as unknown as BotServices;
-    const callbackData = buildGroupCombatKeyboard(session, "character-1").inline_keyboard
+    const callbackData = buildGroupCombatActionMenuKeyboard(
+      session,
+      "character-1",
+      "attack"
+    ).inline_keyboard
       .flat()
-      .find((button) => "callback_data" in button && button.callback_data.startsWith("v2:gc:a:"));
+      .find((button) => "callback_data" in button && button.callback_data.startsWith("v3:gc:a:"));
 
     expect(callbackData).toBeDefined();
     bot.api.config.use((_prev, method) => Promise.resolve({
@@ -226,10 +234,74 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("starts the proof from the leader party card and delivers canonical private cards", async () => {
+  it("submits a one-enemy attack directly from the compact battle reply keyboard", async () => {
+    const bot = testBot();
     const session = makeSession();
+    session.state.enemies[1]!.hp = 0;
+    const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method) => Promise.resolve({
+      ok: true,
+      result: method === "sendMessage"
+        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+        : true
+    }));
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
+  });
+
+  it("submits an individual flee attempt from the compact battle reply keyboard", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method) => Promise.resolve({
+      ok: true,
+      result: method === "sendMessage"
+        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+        : true
+    }));
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🏃 Відступити"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "flee",
+      targetKind: "self",
+      targetId: "character-1"
+    });
+  });
+
+  it("starts the proof from the leader party card and delivers canonical private cards", async () => {
+    const session = makeSession({ deliveredRevision: 0 });
     const startProof = vi.fn().mockResolvedValue({ state: "started", session });
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
@@ -239,7 +311,7 @@ describe("group combat bot flow", () => {
         data: "unused",
         message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
       },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -249,26 +321,38 @@ describe("group combat bot flow", () => {
       {
         startProof,
         findById: vi.fn().mockResolvedValue(session),
-        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+        markParticipantCardDelivered: delivery.markParticipantCardDelivered,
         finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
       } as unknown as GroupCombatService
     );
 
     expect(startProof).toHaveBeenCalledWith(1001n, session.partyInviteToken);
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Доказову сутичку запущено." });
-    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
-    expect(editMessageText).toHaveBeenCalledWith(1002, 22, expect.any(String), expect.any(Object));
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1002,
+      22,
+      expect.any(String),
+      expect.any(Object)
+    );
   });
 
   it("sends a separate intro before each production left-passage combat card", async () => {
-    const session = makeSession();
+    const session = makeSession({ deliveredRevision: 0 });
     session.state.rulesVersion = "group-combat.v3";
     session.state.encounterKey = "nyz-left-passage-party.v1";
     const startLeftPassage = vi.fn().mockResolvedValue({ state: "started", session });
     const editMessageText = vi.fn().mockResolvedValue(true);
-    const sendMessage = vi.fn()
-      .mockResolvedValueOnce({ message_id: 93 })
-      .mockResolvedValueOnce({ message_id: 94 });
+    let nextMessageId = 93;
+    const sendMessage = vi.fn().mockImplementation(() =>
+      Promise.resolve({ message_id: nextMessageId++ })
+    );
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const releaseParticipantCard = vi.fn((input: {
       telegramUserId: bigint;
@@ -328,9 +412,11 @@ describe("group combat bot flow", () => {
     );
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
-    expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<i>Порада дня:");
+    expect(sendMessage).toHaveBeenCalledTimes(4);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бойова клавіатура готова");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Бойова клавіатура готова");
+    expect(String(sendMessage.mock.calls[2]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(String(sendMessage.mock.calls[3]?.[1])).not.toContain("<i>Порада дня:");
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(2);
@@ -367,13 +453,13 @@ describe("group combat bot flow", () => {
     const session = makeSession();
     const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
     const findByToken = vi.fn().mockResolvedValue(session);
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       chat: { id: 1001, type: "private" },
       callbackQuery: { id: "callback-1", data: "unused" },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -387,7 +473,8 @@ describe("group combat bot flow", () => {
       findByToken,
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
@@ -400,7 +487,7 @@ describe("group combat bot flow", () => {
       targetId: "enemy-2"
     });
     expect(answerCallbackQuery).toHaveBeenCalled();
-    expect(editMessageText).toHaveBeenCalledTimes(3);
+    expect(delivery.editMessageText).toHaveBeenCalledTimes(2);
   });
 
   it("rejects mutating buttons from a superseded card and refreshes the canonical reference", async () => {
@@ -410,7 +497,7 @@ describe("group combat bot flow", () => {
       void options;
       return Promise.resolve(true);
     });
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       chat: { id: 1001, type: "private" },
@@ -419,7 +506,7 @@ describe("group combat bot flow", () => {
         data: "unused",
         message: { message_id: 9, date: 1, chat: { id: 1001, type: "private" } }
       },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -433,13 +520,19 @@ describe("group combat bot flow", () => {
       findByToken: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
     expect(submitAction).not.toHaveBeenCalled();
     expect(answerCallbackQuery.mock.calls[0]?.[0]?.text).toContain("стара картка");
-    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
   });
 
   it("opens one-use items as a second-level menu without submitting an item", async () => {
@@ -552,7 +645,10 @@ describe("group combat bot flow", () => {
         data: "unused",
         message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
       },
-      api: { editMessageText } as unknown as Api,
+      api: {
+        editMessageText,
+        deleteMessage: vi.fn().mockResolvedValue(true)
+      } as unknown as Api,
       answerCallbackQuery
     } as unknown as Context;
     const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
@@ -578,7 +674,6 @@ describe("group combat bot flow", () => {
       expect.any(Object)
     );
     expect(JSON.stringify(editMessageText.mock.calls[0]?.[3])).not.toContain("📜 Журнал");
-    expect(markParticipantCardDelivered).toHaveBeenCalled();
   });
 
   it.each([
@@ -673,14 +768,14 @@ describe("group combat bot flow", () => {
     const activatedOptions = editMessageText.mock.calls[1]?.[3] as {
       reply_markup?: { inline_keyboard?: unknown[] };
     } | undefined;
-    expect(activatedOptions?.reply_markup?.inline_keyboard?.length).toBeGreaterThan(0);
+    expect(activatedOptions?.reply_markup?.inline_keyboard).toEqual([]);
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
       deliveredRevision: session.deliveryRevision
     });
-    expect(actionable).toEqual(new Set([31]));
+    expect(actionable).toEqual(new Set());
   });
 
   it("opens, pages, and restores terminal results on the same canonical message", async () => {
@@ -747,33 +842,32 @@ describe("group combat bot flow", () => {
   });
 
   it("repairs an unavailable canonical message after combat already committed", async () => {
-    const session = makeSession();
-    const sendMessage = vi.fn()
-      .mockResolvedValueOnce({ message_id: 31 })
-      .mockResolvedValueOnce({ message_id: 32 });
-    const editMessageText = vi.fn().mockRejectedValue(new Error("Bad Request: message to edit not found"));
+    const session = makeSession({ deliveredRevision: 0 });
+    const delivery = cardDeliveryHarness(session);
+    delivery.editMessageText.mockRejectedValue(
+      new Error("Bad Request: message to edit not found")
+    );
     const compareAndSetParticipantCard = vi.fn().mockResolvedValue(true);
-    const api = { editMessageText, sendMessage } as unknown as Api;
 
-    const delivered = await deliverGroupCombatCards(api, {
+    const delivered = await deliverGroupCombatCards(delivery.api, {
       findById: vi.fn().mockResolvedValue(session),
       compareAndSetParticipantCard,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session);
 
     expect(delivered).toBe(2);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(delivery.sendMessage).toHaveBeenCalledTimes(4);
     expect(compareAndSetParticipantCard).toHaveBeenCalledTimes(2);
     expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
       expectedReferenceVersion: 1,
-      messageId: 31
+      messageId: 33
     }));
   });
 
   it("starts from a supergroup but publishes participant cards only to private DMs", async () => {
     const bot = testBot();
-    const session = makeSession();
+    const session = makeSession({ deliveredRevision: 0 });
     session.participants = session.participants.map((participant, index) => ({
       ...participant,
       chatId: -100587n,
@@ -823,11 +917,15 @@ describe("group combat bot flow", () => {
 
     expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
-    expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId)).toEqual([1001, 1002]);
-    expect(apiCalls.filter((call) => call.method === "sendMessage")).toEqual([
-      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } }),
-      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } })
-    ]);
+    expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
+      .toEqual([1001, 1002, 1001, 1002]);
+    const sendCalls = apiCalls.filter((call) => call.method === "sendMessage");
+    expect(readReplyKeyboard(sendCalls[0]?.replyMarkup))
+      .toEqual(buildGroupCombatReplyKeyboard().keyboard);
+    expect(readReplyKeyboard(sendCalls[1]?.replyMarkup))
+      .toEqual(buildGroupCombatReplyKeyboard().keyboard);
+    expect(sendCalls[2]?.replyMarkup).toEqual({ inline_keyboard: [] });
+    expect(sendCalls[3]?.replyMarkup).toEqual({ inline_keyboard: [] });
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
   });
 
@@ -917,7 +1015,9 @@ describe("group combat bot flow", () => {
   });
 });
 
-function makeSession(): GroupCombatSessionRecord {
+function makeSession(
+  overrides: { deliveredRevision?: number } = {}
+): GroupCombatSessionRecord {
   return {
     id: "group-session",
     partySessionId: "party-session",
@@ -933,8 +1033,8 @@ function makeSession(): GroupCombatSessionRecord {
     result: null,
     settlementPlan: null,
     participants: [
-      participantRecord("character-1", 1001n, "Лідерка", 0, 21),
-      participantRecord("character-2", 1002n, "Друг", 1, 22)
+      participantRecord("character-1", 1001n, "Лідерка", 0, 21, overrides.deliveredRevision),
+      participantRecord("character-2", 1002n, "Друг", 1, 22, overrides.deliveredRevision)
     ],
     queuedActions: [],
     state: {
@@ -962,7 +1062,14 @@ function makeSession(): GroupCombatSessionRecord {
   };
 }
 
-function participantRecord(characterId: string, telegramUserId: bigint, name: string, rosterOrder: number, messageId: number) {
+function participantRecord(
+  characterId: string,
+  telegramUserId: bigint,
+  name: string,
+  rosterOrder: number,
+  messageId: number,
+  deliveredRevision = 1
+) {
   return {
     characterId,
     telegramUserId,
@@ -972,7 +1079,7 @@ function participantRecord(characterId: string, telegramUserId: bigint, name: st
     chatId: telegramUserId,
     messageId,
     referenceVersion: 1,
-    deliveredRevision: 0,
+    deliveredRevision,
     settlementStatus: "pending" as const,
     settlementAttempts: 0,
     settlementReceipt: null,
@@ -1004,6 +1111,48 @@ function testBot(): Bot {
   });
 }
 
+function cardDeliveryHarness(session: GroupCombatSessionRecord) {
+  let nextMessageId = 31;
+  const editMessageText = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockImplementation(() =>
+    Promise.resolve({ message_id: nextMessageId++ })
+  );
+  const compareAndSetParticipantCard = vi.fn((input: {
+    telegramUserId: bigint;
+    chatId: bigint;
+    messageId: number;
+  }) => {
+    const participant = session.participants.find(
+      (candidate) => candidate.telegramUserId === input.telegramUserId
+    )!;
+    participant.chatId = input.chatId;
+    participant.messageId = input.messageId;
+    participant.referenceVersion += 1;
+    participant.deliveredRevision = 0;
+    return Promise.resolve(true);
+  });
+  const markParticipantCardDelivered = vi.fn((input: {
+    telegramUserId: bigint;
+  }) => {
+    const participant = session.participants.find(
+      (candidate) => candidate.telegramUserId === input.telegramUserId
+    )!;
+    participant.deliveredRevision = session.deliveryRevision;
+    return Promise.resolve(true);
+  });
+  return {
+    api: {
+      editMessageText,
+      sendMessage,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api,
+    editMessageText,
+    sendMessage,
+    compareAndSetParticipantCard,
+    markParticipantCardDelivered
+  };
+}
+
 function commandUpdate(text: string) {
   return {
     update_id: 1,
@@ -1028,6 +1177,17 @@ function groupCommandUpdate(text: string) {
   };
 }
 
+function textUpdate(text: string) {
+  const update = commandUpdate(text);
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      entities: undefined
+    }
+  };
+}
+
 function callbackUpdate(data: string) {
   return {
     update_id: 2,
@@ -1043,4 +1203,10 @@ function callbackUpdate(data: string) {
       }
     }
   };
+}
+
+function readReplyKeyboard(value: unknown): unknown {
+  return value && typeof value === "object" && "keyboard" in value
+    ? value.keyboard
+    : undefined;
 }

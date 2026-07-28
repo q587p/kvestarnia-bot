@@ -13,7 +13,11 @@ import { handleItemPostalCallback } from "../commands/itemPostalCommand";
 import { handleClassNoncombatCallback } from "../commands/classNoncombatCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { handlePartySessionCallback, registerPartySessionDevCommand } from "../commands/partySessionCommand";
-import { handleGroupCombatCallback, registerGroupCombatDevCommand } from "../commands/groupCombatCommand";
+import {
+  handleGroupCombatCallback,
+  registerGroupCombatDevCommand,
+  registerGroupCombatReplyKeyboard
+} from "../commands/groupCombatCommand";
 import { playerFromContext } from "../context";
 
 import {
@@ -57,6 +61,7 @@ export function registerSocialBotModule(
   }
 
   if (services.groupCombat?.isEnabled()) {
+    registerGroupCombatReplyKeyboard(bot, services.groupCombat);
     registerParsedCallbackRoute(
       bot,
       /^v[123]:gc:/,

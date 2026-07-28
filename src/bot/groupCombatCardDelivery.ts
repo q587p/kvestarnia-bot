@@ -3,9 +3,16 @@ import type {
   GroupCombatSessionRecord,
   GroupCombatSettlementNotice
 } from "../db/repositories/groupCombatRepository";
-import { GROUP_COMBAT_PRODUCTION_RULES_VERSION } from "../domain/groupCombat/groupCombat";
+import {
+  GROUP_COMBAT_PRODUCTION_RULES_VERSION,
+  isActiveGroupCombatParticipant
+} from "../domain/groupCombat/groupCombat";
 import type { GroupCombatService } from "../services/groupCombatService";
-import { buildGroupCombatKeyboard } from "./keyboards/groupCombatKeyboard";
+import {
+  buildGroupCombatKeyboard,
+  buildGroupCombatReplyKeyboard
+} from "./keyboards/groupCombatKeyboard";
+import { buildMainMenuKeyboard } from "./keyboards/mainMenuKeyboard";
 import {
   presentGroupCombat,
   presentGroupCombatIntro
@@ -93,21 +100,94 @@ export async function deliverGroupCombatCards(
   service: GroupCombatService,
   session: GroupCombatSessionRecord
 ): Promise<number> {
+  const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
+  const keyboardResults = await Promise.allSettled(authoritative.participants.map(async (participant) => {
+    const actor = authoritative.state.participants.find(
+      (candidate) => candidate.characterId === participant.characterId
+    );
+    const participantFledThisTurn = Boolean(
+      actor?.fledAtTurn !== undefined &&
+      (
+        (authoritative.status === "active" &&
+          authoritative.state.turn === actor.fledAtTurn + 1) ||
+        (authoritative.status !== "active" &&
+          authoritative.state.turn === actor.fledAtTurn)
+      )
+    );
+    if (
+      authoritative.status === "active" &&
+      actor &&
+      isActiveGroupCombatParticipant(actor) &&
+      participant.deliveredRevision === 0
+    ) {
+      await deliverGroupCombatBattleKeyboard(api, participant.telegramUserId);
+      return participant.characterId;
+    }
+    if (
+      (authoritative.status !== "active" || participantFledThisTurn) &&
+      participant.deliveredRevision < authoritative.deliveryRevision
+    ) {
+      await api.sendMessage(
+        Number(participant.telegramUserId),
+        participantFledThisTurn
+          ? "🏃 Ви відступили з бою. Головне меню знову на місці."
+          : "🏁 Бій завершено. Головне меню знову на місці.",
+        {
+          reply_markup: buildMainMenuKeyboard({
+            ...(authoritative.state.production?.locationId
+              ? { locationId: authoritative.state.production.locationId }
+              : {})
+          })
+        }
+      );
+    }
+    return participant.characterId;
+  }));
+  const keyboardReadyCharacterIds = new Set(
+    keyboardResults.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
+    )
+  );
   const transport = apiTransport(api);
-  const results = await Promise.allSettled(session.participants.map((participant) => (
+  const results = await Promise.allSettled(authoritative.participants
+    .filter((participant) => keyboardReadyCharacterIds.has(participant.characterId))
+    .map((participant) => (
     deliverCanonicalGroupCombatParticipantCard({
       service,
-      sessionId: session.id,
+      sessionId: authoritative.id,
       participantCharacterId: participant.characterId,
       transport,
-      now: () => serviceTime(service)
+      now: () => serviceTime(service),
+      ...((authoritative.status === "active" &&
+        participant.deliveredRevision === 0) ||
+        (authoritative.status === "active" &&
+          authoritative.state.participants.some((actor) =>
+            actor.characterId === participant.characterId &&
+            actor.fledAtTurn !== undefined &&
+            authoritative.state.turn === actor.fledAtTurn + 1
+          )) ||
+        (authoritative.status !== "active" &&
+          participant.deliveredRevision < authoritative.deliveryRevision)
+        ? { forceReplacement: true }
+        : {})
     })
-  )));
-  const latest = await loadAuthoritativeSession(service, session.id);
+    )));
+  const latest = await loadAuthoritativeSession(service, authoritative.id);
   if (latest) {
     await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
   }
   return results.filter((result) => result.status === "fulfilled" && isDelivered(result.value)).length;
+}
+
+export async function deliverGroupCombatBattleKeyboard(
+  api: Api,
+  telegramUserId: bigint
+): Promise<void> {
+  await api.sendMessage(
+    Number(telegramUserId),
+    "⚔️ Бойова клавіатура готова.",
+    { reply_markup: buildGroupCombatReplyKeyboard() }
+  );
 }
 
 export async function deliverGroupCombatSettlementNotifications(

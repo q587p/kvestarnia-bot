@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
+  buildGroupCombatActionMenuKeyboard,
   buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
   buildGroupCombatKeyboard,
-  buildGroupCombatStatisticsKeyboard
+  buildGroupCombatReplyKeyboard,
+  buildGroupCombatStatisticsKeyboard,
+  parseGroupCombatReplyButton
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 import {
   presentGroupCombat,
@@ -105,30 +108,37 @@ describe("group combat presenter", () => {
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
-  it("omits generic ally support controls even when allies are injured", () => {
+  it("keeps the active card clean and exposes only the compact battle reply keyboard", () => {
     const session = createSession(3);
     session.state.participants[1]!.hp -= 1;
     session.state.participants[2]!.hp -= 1;
 
-    const rows = buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard;
+    const rows = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard;
+    const replyLabels = replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat();
 
-    expect(rows.map((row) => row.length)).toEqual([2, 2, 1]);
-    expect(rows.flat().map((button) => button.text)).toEqual([
-      "⚔️ Комірний 1",
-      "⚔️ Комірний 2",
-      "⚔️ Комірний 3",
+    expect(rows).toEqual([]);
+    expect(replyLabels).toEqual([
+      "⚔️ Атакувати",
+      "✨ Вміння",
       "🛡️ Захиститися",
+      "🎒 Разові",
+      "🏃 Відступити",
       "🔎 Оновити"
     ]);
+    expect(parseGroupCombatReplyButton("🎒 Манатки")).toBeNull();
   });
 
   it("uses one plain attack button when only one monster remains", () => {
     const session = createSession(2);
     session.state.enemies[1]!.hp = 0;
 
-    const labels = buildGroupCombatKeyboard(
+    const labels = buildGroupCombatActionMenuKeyboard(
       session,
-      session.participants[0]!.characterId
+      session.participants[0]!.characterId,
+      "attack"
     ).inline_keyboard.flat().map((button) => button.text);
 
     expect(labels).toContain("⚔️ Атакувати");
@@ -148,9 +158,10 @@ describe("group combat presenter", () => {
     }];
 
     const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
-    const labels = buildGroupCombatKeyboard(
+    const labels = buildGroupCombatActionMenuKeyboard(
       session,
-      session.participants[0]!.characterId
+      session.participants[0]!.characterId,
+      "attack"
     ).inline_keyboard.flat().map((button) => button.text);
 
     expect(text).toContain("👹 Архівний: HP 14/14");
@@ -160,8 +171,7 @@ describe("group combat presenter", () => {
     expect(labels).toEqual([
       "⚔️ Архівний",
       "⚔️ Капустяний",
-      "🛡️ Захиститися",
-      "🔎 Оновити"
+      "↩️ До бою"
     ]);
   });
 
@@ -174,21 +184,22 @@ describe("group combat presenter", () => {
       session.participants[0]!.characterId
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).not.toContain("📜 Журнал");
-    expect(labels).toContain("🔎 Оновити");
+    expect(labels).toEqual([]);
   });
 
   it("offers authored class support without restoring generic ally support", () => {
     const session = createSession(2);
     session.state.participants[0]!.classId = "class.priest";
     session.state.participants[1]!.hp -= 1;
-    const labels = buildGroupCombatKeyboard(
+    const labels = buildGroupCombatActionMenuKeyboard(
       session,
-      session.participants[0]!.characterId
+      session.participants[0]!.characterId,
+      "abilities"
     ).inline_keyboard.flat().map((button) => button.text);
 
     expect(labels).toContain("✨ Суворе благословення");
     expect(labels).not.toContain("🫶 Пригодник 2");
+    expect(labels).toContain("↩️ До бою");
   });
 
   it("retains the frozen cosmetic title in the combat presentation", () => {
@@ -216,13 +227,9 @@ describe("group combat presenter", () => {
       }
     };
 
-    const labels = buildGroupCombatKeyboard(session, viewer.characterId)
-      .inline_keyboard.flat().map((button) => button.text);
     const itemLabels = buildGroupCombatItemsKeyboard(session, viewer.characterId)
       .inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("🎒 Одноразові манатки");
-    expect(labels).not.toContain("🩹 Бинт відповідальної паніки");
     expect(itemLabels).toContain("🩹 Бинт відповідальної паніки");
     expect(itemLabels).not.toContain("🩹 Щільний бинт");
     expect(itemLabels).not.toContain("⚕️ Польова аптечка");
@@ -248,12 +255,9 @@ describe("group combat presenter", () => {
 
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
     expect(text).toContain("⏳ На хід є 15 с. Потім Корчма поставить вас у захист.");
-    expect(rows.flat().map((button) => button.text)).toEqual([
-      "⚔️ Комірний 1",
-      "⚔️ Комірний 2",
-      "🛡️ Захиститися",
-      "🔎 Оновити"
-    ]);
+    expect(rows).toEqual([]);
+    expect(replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat())
+      .toContain("🛡️ Захиститися");
   });
 
   it("renders authoritative remaining time close to timeout instead of resetting the turn", () => {
@@ -523,6 +527,11 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("Винагорода за бій:");
   });
 });
+
+function replyKeyboardTexts(keyboard: unknown): string[][] {
+  const rows = keyboard as Array<Array<{ text: string }>>;
+  return rows.map((row) => row.map((button) => button.text));
+}
 
 function productionTerminalSession(): GroupCombatSessionRecord {
   const session = createSession(2);

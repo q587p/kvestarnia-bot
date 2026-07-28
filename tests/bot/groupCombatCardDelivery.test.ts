@@ -2,6 +2,7 @@ import type { Api } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import {
   deliverCanonicalGroupCombatParticipantCard,
+  deliverGroupCombatCards,
   deliverGroupCombatSettlementNotifications,
   deliverGroupCombatStartIntro,
   type GroupCombatDeliveryTransport
@@ -124,6 +125,103 @@ describe("group-combat canonical participant delivery", () => {
     await expect(deliverGroupCombatStartIntro(api, service, proof)).resolves.toBe(0);
     await expect(deliverGroupCombatStartIntro(api, service, productionReplay)).resolves.toBe(0);
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("restores the main reply keyboard before publishing a fresh terminal Journal/Statistics card", async () => {
+    const session = makeSession();
+    session.status = "won";
+    session.state.status = "won";
+    session.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    session.state.recap = [{ turn: 1, lines: ["Лідерка атакує Шурхіт: 12 шкоди."] }];
+    let nextMessageId = 90;
+    const sends: Array<{
+      chatId: number;
+      messageId: number;
+      text: string;
+      replyMarkup: unknown;
+    }> = [];
+    const edits: Array<{ chatId: number; messageId: number; labels: string[] }> = [];
+    const sendMessage = vi.fn((
+      chatId: number,
+      text: string,
+      options?: { reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> } | { keyboard?: unknown } }
+    ) => {
+      const messageId = nextMessageId++;
+      sends.push({ chatId, messageId, text, replyMarkup: options?.reply_markup });
+      return Promise.resolve({ message_id: messageId });
+    });
+    const editMessageText = vi.fn((
+      chatId: number,
+      messageId: number,
+      _text: string,
+      options?: { reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> } }
+    ) => {
+      edits.push({
+        chatId,
+        messageId,
+        labels: options?.reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? []
+      });
+      return Promise.resolve(true);
+    });
+    const service = mutableCardService(session);
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, {
+      ...service,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session)).resolves.toBe(2);
+
+    for (const participant of session.participants) {
+      const participantSends = sends.filter(
+        (entry) => entry.chatId === Number(participant.telegramUserId)
+      );
+      expect(participantSends).toHaveLength(2);
+      expect(participantSends[0]?.text).toContain("Головне меню");
+      expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(true);
+      expect(participantSends[1]?.text).toContain("Доказову сутичку виграно");
+      expect(edits.find((entry) =>
+        entry.chatId === Number(participant.telegramUserId) &&
+        entry.messageId === participantSends[1]!.messageId
+      )?.labels).toEqual(["📜 Журнал", "📊 Статистика"]);
+    }
+  });
+
+  it("restores only a successful escapee's main keyboard while the party fight continues", async () => {
+    const session = makeSession({
+      turn: 2,
+      deliveryRevision: 2,
+      deliveredRevision: 1
+    });
+    session.participants[1]!.deliveredRevision = 2;
+    session.state.participants[0]!.fleeAttempts = 1;
+    session.state.participants[0]!.fledAtTurn = 1;
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({ message_id: 90 })
+      .mockResolvedValueOnce({ message_id: 91 });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session)).resolves.toBe(2);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe(1001);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Ви відступили з бою");
+    expect(hasReplyKeyboard(readReplyMarkup(sendMessage.mock.calls[0]?.[2] as unknown))).toBe(true);
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain(
+      "Ви відступили. Ватага продовжує бій без вас."
+    );
+    expect(sendMessage.mock.calls.some((call) => call[0] === 1002)).toBe(false);
   });
 
   it("converges an old-turn delivery to the newer authoritative turn before releasing its participant lock", async () => {
@@ -271,7 +369,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits).toHaveLength(2);
     expect(edits[0]).toEqual({ messageId: 21, buttons: [] });
     expect(edits[1]?.messageId).toBe(93);
-    expect(edits[1]?.buttons.some((button) => button.includes("Шурхіт"))).toBe(true);
+    expect(edits[1]?.buttons).toEqual([]);
     expect(deleteMessage).toHaveBeenCalledWith(oldReference);
   });
 
@@ -302,7 +400,7 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(result).toMatchObject({ state: "activated", reference: { messageId: 93 } });
-    expect(actionable).toEqual(new Set([93]));
+    expect(actionable).toEqual(new Set());
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 21 });
   });
 
@@ -314,9 +412,8 @@ describe("group-combat canonical participant delivery", () => {
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
-        if (reference.messageId === 93 && hasButtons) {
+        if (reference.messageId === 93) {
           candidateAttempts += 1;
-          actionable.add(93);
           if (candidateAttempts === 1) {
             return Promise.reject(new Error("response lost after Telegram applied edit"));
           }
@@ -343,7 +440,7 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(failed).toMatchObject({ state: "retryable-edit-failure", reference: { messageId: 93 } });
-    expect(actionable).toEqual(new Set([93]));
+    expect(actionable).toEqual(new Set());
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 93, deliveredRevision: 0 });
     expect(deleteMessage).not.toHaveBeenCalled();
 
@@ -354,7 +451,7 @@ describe("group-combat canonical participant delivery", () => {
       transport
     });
 
-    expect(actionable).toEqual(new Set([93]));
+    expect(actionable).toEqual(new Set());
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 93, deliveredRevision: 1 });
     expect(retried).toMatchObject({ state: "edited", reference: { messageId: 93 } });
     expect(candidateAttempts).toBe(2);
@@ -368,7 +465,7 @@ describe("group-combat canonical participant delivery", () => {
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
-        if (reference.messageId === 93 && hasButtons) {
+        if (reference.messageId === 93) {
           candidateAttempts += 1;
           if (candidateAttempts === 1) {
             return Promise.reject(new Error("Telegram failed before applying edit"));
@@ -406,7 +503,7 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(retried).toMatchObject({ state: "edited", reference: { messageId: 93 } });
-    expect(actionable).toEqual(new Set([93]));
+    expect(actionable).toEqual(new Set());
     expect(candidateAttempts).toBe(2);
   });
 
@@ -418,7 +515,7 @@ describe("group-combat canonical participant delivery", () => {
       editMessage: (reference, _text, options) => {
         const hasButtons = options.reply_markup.inline_keyboard.flat().length > 0;
         edits.push({ messageId: reference.messageId, hasButtons });
-        if (reference.messageId === 93 && hasButtons) {
+        if (reference.messageId === 93) {
           actionable.delete(93);
           return Promise.reject(new Error("Bad Request: message to edit not found"));
         }
@@ -448,10 +545,10 @@ describe("group-combat canonical participant delivery", () => {
     expect(result).toMatchObject({ state: "edited", reference: { messageId: 21 } });
     expect(edits).toEqual([
       { messageId: 21, hasButtons: false },
-      { messageId: 93, hasButtons: true },
-      { messageId: 21, hasButtons: true }
+      { messageId: 93, hasButtons: false },
+      { messageId: 21, hasButtons: false }
     ]);
-    expect(actionable).toEqual(new Set([21]));
+    expect(actionable).toEqual(new Set());
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
   });
 
@@ -545,8 +642,8 @@ describe("group-combat canonical participant delivery", () => {
     releaseFirstEdit.resolve();
 
     await expect(delivery).resolves.toMatchObject({ state: "edited" });
-    expect(keyboards[0]).toEqual(expect.arrayContaining([expect.stringContaining("Шурхіт")]));
-    expect(keyboards.at(-1)).toEqual(expect.arrayContaining([expect.stringContaining("Шурхіт")]));
+    expect(keyboards[0]).toEqual([]);
+    expect(keyboards.at(-1)).toEqual([]);
     expect(texts.at(-1)).toContain("вибір записано: захиститися");
     expect(afterQueue.version).toBe(beforeQueue.version);
     expect(afterQueue.status).toBe(beforeQueue.status);
@@ -694,11 +791,14 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
   return {
     findById: vi.fn(() => Promise.resolve(session)),
     compareAndSetParticipantCard: vi.fn((input: {
+      telegramUserId?: bigint;
       expectedReferenceVersion: number;
       chatId: bigint;
       messageId: number;
     }) => {
-      const participant = session.participants[0]!;
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      ) ?? session.participants[0]!;
       if (participant.referenceVersion !== input.expectedReferenceVersion) {
         return Promise.resolve(false);
       }
@@ -708,8 +808,13 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.deliveredRevision = 0;
       return Promise.resolve(true);
     }),
-    markParticipantCardDelivered: vi.fn().mockImplementation(() => {
-      session.participants[0]!.deliveredRevision = session.deliveryRevision;
+    markParticipantCardDelivered: vi.fn().mockImplementation((input: {
+      telegramUserId?: bigint;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      ) ?? session.participants[0]!;
+      participant.deliveredRevision = session.deliveryRevision;
       return Promise.resolve(true);
     })
   } as unknown as GroupCombatService;
@@ -721,4 +826,19 @@ function deferred<T>() {
     resolve = resolver;
   });
   return { promise, resolve };
+}
+
+function hasReplyKeyboard(value: unknown): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    "keyboard" in value &&
+    Array.isArray(value.keyboard)
+  );
+}
+
+function readReplyMarkup(value: unknown): unknown {
+  return value && typeof value === "object" && "reply_markup" in value
+    ? value.reply_markup
+    : undefined;
 }

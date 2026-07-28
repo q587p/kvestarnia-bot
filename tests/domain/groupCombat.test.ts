@@ -363,6 +363,74 @@ describe("group combat proof reducer", () => {
     expect(plan.participants[1]!.effects?.activityKey).toBeNull();
   });
 
+  it("rolls each participant flee independently and excludes only the successful escape from rewards", () => {
+    const state = leftPassageState(3);
+    state.deterministicSeed = 1;
+    state.participants[0]!.combatItemQuantities["item.responsible-panic-bandage"] = 1;
+    state.participants[1]!.combatItemQuantities["item.responsible-panic-bandage"] = 1;
+    const resourcesBefore = state.participants.slice(0, 2).map((participant) => ({
+      mana: participant.mana,
+      items: { ...participant.combatItemQuantities }
+    }));
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "flee", "self", state.participants[0]!.characterId),
+      action(state, 1, "flee", "self", state.participants[1]!.characterId),
+      action(state, 2, "guard", "self", state.participants[2]!.characterId)
+    ]);
+
+    expect(resolved.state.status).toBe("active");
+    expect(resolved.state.participants.slice(0, 2).map((participant) => participant.fleeAttempts))
+      .toEqual([1, 1]);
+    const escaped = resolved.state.participants.find(
+      (participant) => participant.fledAtTurn !== undefined
+    )!;
+    const remaining = resolved.state.participants.filter(
+      (participant) => participant.fledAtTurn === undefined
+    );
+    expect(escaped.hp).toBeGreaterThan(0);
+    expect(resolved.committedConsumables).toEqual([]);
+    expect(resolved.state.participants.slice(0, 2).map((participant) => ({
+      mana: participant.mana,
+      items: participant.combatItemQuantities
+    }))).toEqual(resourcesBefore);
+
+    resolved.state.status = "won";
+    resolved.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    const plan = buildGroupCombatSettlementPlan(resolved.state)!;
+    const escapedPlan = plan.participants.find(
+      (participant) => participant.characterId === escaped.characterId
+    )!;
+    expect(escapedPlan.rewards).toEqual({ xp: 0, gold: 0, items: [] });
+    expect(escapedPlan.manualParticipation).toBe(false);
+    expect(remaining.every((participant) =>
+      plan.participants.find((row) => row.characterId === participant.characterId)!.rewards.xp > 0
+    )).toBe(true);
+  });
+
+  it("counts failed flee attempts separately without turning them into guard", () => {
+    const state = leftPassageState();
+    state.deterministicSeed = 0;
+    const first = resolveGroupCombatTurn(state, [
+      action(state, 0, "flee", "self", state.participants[0]!.characterId),
+      action(state, 1, "guard", "self", state.participants[1]!.characterId)
+    ]);
+    const fleeing = first.state.participants[0]!;
+
+    expect(fleeing.fleeAttempts).toBe(1);
+    expect(first.state.contributions[0]!.guardedTurns).toBe(0);
+    expect(first.state.recap.at(-1)?.lines).toContain(
+      `${fleeing.name} пробує відступити, але Лівий прохід не відпускає. Спроба 1.`
+    );
+
+    const second = resolveGroupCombatTurn(first.state, [
+      action(first.state, 0, "flee", "self", fleeing.characterId),
+      action(first.state, 1, "guard", "self", first.state.participants[1]!.characterId)
+    ]);
+    expect(second.state.participants[0]!.fleeAttempts).toBe(2);
+  });
+
   it("rewards every accepted manual action when the first actor kills the final enemy", () => {
     const state = leftPassageState(3);
     state.enemies.slice(1).forEach((enemy) => {
@@ -1658,6 +1726,27 @@ describe("group combat proof reducer", () => {
     };
     expect(() => parseGroupCombatStateStrict(wrongTargetState)).toThrow(
       "Enemy shield source is not canonical."
+    );
+  });
+
+  it("strictly rejects forged participant flee evidence", () => {
+    const missingAttempts = leftPassageState();
+    missingAttempts.participants[0]!.fledAtTurn = 1;
+    expect(() => parseGroupCombatStateStrict(missingAttempts)).toThrow(
+      "Participant flee evidence is not canonical."
+    );
+
+    const impossibleFailure = leftPassageState();
+    impossibleFailure.participants[0]!.fleeAttempts = 7;
+    expect(() => parseGroupCombatStateStrict(impossibleFailure)).toThrow(
+      "Participant flee evidence is not canonical."
+    );
+
+    const futureEscape = leftPassageState();
+    futureEscape.participants[0]!.fleeAttempts = 1;
+    futureEscape.participants[0]!.fledAtTurn = futureEscape.turn + 1;
+    expect(() => parseGroupCombatStateStrict(futureEscape)).toThrow(
+      "Participant fled after the current turn."
     );
   });
 

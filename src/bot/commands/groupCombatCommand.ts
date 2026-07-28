@@ -13,10 +13,13 @@ import {
   deliverGroupCombatStartIntro
 } from "../groupCombatCardDelivery";
 import {
+  buildGroupCombatActionMenuKeyboard,
   buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
-  buildGroupCombatStatisticsKeyboard
+  buildGroupCombatStatisticsKeyboard,
+  parseGroupCombatReplyButton
 } from "../keyboards/groupCombatKeyboard";
+import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
 import {
   presentGroupCombatItems,
@@ -82,6 +85,98 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
     await ctx.reply(result.state === "not-found"
       ? "Живої гуртової сутички з таким кодом не знайдено."
       : "Очікування ходу не змінилося.");
+  });
+}
+
+export function registerGroupCombatReplyKeyboard(
+  bot: Bot,
+  service: GroupCombatService
+): void {
+  bot.on("message:text", async (ctx, next) => {
+    const replyAction = parseGroupCombatReplyButton(ctx.message.text.trim());
+    if (!replyAction) {
+      await next();
+      return;
+    }
+    const telegramUserId = telegramUserIdFromContext(ctx.from);
+    if (!telegramUserId || ctx.chat.type !== "private") {
+      return;
+    }
+    const session = await service.findActiveForTelegramUser(telegramUserId);
+    if (!session) {
+      await ctx.reply("🏁 Цей бій уже завершено. Головне меню повернуто.", {
+        reply_markup: buildMainMenuKeyboard()
+      });
+      return;
+    }
+    const viewer = session.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    if (!viewer) {
+      return;
+    }
+    if (replyAction === "refresh") {
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+      return;
+    }
+    if (replyAction === "attack") {
+      const livingTargets = session.state.enemies
+        .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+        .filter(({ enemy }) => enemy.hp > 0);
+      if (livingTargets.length === 1) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: "attack",
+          targetIndex: livingTargets[0]!.targetIndex
+        });
+        return;
+      }
+      await ctx.reply("⚔️ Оберіть точну ціль.", {
+        reply_markup: buildGroupCombatActionMenuKeyboard(session, viewer.characterId, "attack")
+      });
+      return;
+    }
+    if (replyAction === "abilities") {
+      const keyboard = buildGroupCombatActionMenuKeyboard(
+        session,
+        viewer.characterId,
+        "abilities"
+      );
+      if (keyboard.inline_keyboard.length <= 1) {
+        await ctx.reply("✨ Доступних умінь для цього ходу немає.");
+        return;
+      }
+      await ctx.reply("✨ Оберіть уміння й, якщо треба, точну ціль.", {
+        reply_markup: keyboard
+      });
+      return;
+    }
+    if (replyAction === "items") {
+      const keyboard = buildGroupCombatItemsKeyboard(
+        session,
+        viewer.characterId,
+        "reply-menu"
+      );
+      const hasAvailableItems = keyboard.inline_keyboard.length > 1;
+      await ctx.reply(
+        hasAvailableItems
+          ? "🎒 Оберіть одноразову манатку."
+          : "🎒 Корисних одноразових манаток для цього ходу немає.",
+        { reply_markup: keyboard }
+      );
+      return;
+    }
+    await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+      action: replyAction === "flee" ? "flee" : "guard",
+      targetIndex: session.state.participants.find(
+        (participant) => participant.characterId === viewer.characterId
+      )?.rosterOrder ?? 0
+    });
   });
 }
 
@@ -195,12 +290,19 @@ export async function handleGroupCombatCallback(
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
   if (
     (callback.type === "action" || callback.type === "items") &&
+    !(callback.type === "action" && callback.source === "reply-menu") &&
     callbackMessageId !== undefined &&
     viewer.messageId !== null &&
     callbackMessageId !== viewer.messageId
   ) {
     await safeAnswerCallbackQuery(ctx, { text: "Це стара картка. Показую актуальну.", show_alert: true });
-    await deliverGroupCombatCards(ctx.api, service, session);
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewer.characterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
     return;
   }
   if (callback.type === "items") {
@@ -323,10 +425,13 @@ export async function handleGroupCombatCallback(
     const response = presentActionResult(result.state);
     settlementNotices = "settlementNotices" in result ? result.settlementNotices : undefined;
     await safeAnswerCallbackQuery(ctx, response);
+    if (callback.source === "reply-menu" && callbackMessageId !== undefined) {
+      await ctx.api.deleteMessage(ctx.chat.id, callbackMessageId).catch(() => undefined);
+    }
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
-  if (callback.type === "action") {
+  if (callback.type === "action" && session.status === "active") {
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,
@@ -431,7 +536,7 @@ function resolveTarget(
     const target = session.state.enemies[targetIndex];
     return target?.hp ? { kind: "enemy", id: target.id } : null;
   }
-  if (action === "guard") {
+  if (action === "guard" || action === "flee") {
     const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
     return viewer?.hp ? { kind: "self", id: viewer.characterId } : null;
   }
@@ -472,6 +577,55 @@ function resolveTarget(
     return { kind: "self", id: viewer.characterId, ...(payloadKey ? { payloadKey } : {}) };
   }
   return null;
+}
+
+async function submitGroupCombatReplyAction(
+  ctx: Context,
+  service: GroupCombatService,
+  initialSession: NonNullable<Awaited<ReturnType<GroupCombatService["findByToken"]>>>,
+  viewerCharacterId: string,
+  choice: {
+    action: Extract<GroupCombatActionKey, "attack" | "guard" | "flee">;
+    targetIndex: number;
+  }
+): Promise<void> {
+  const target = resolveTarget(
+    initialSession,
+    viewerCharacterId,
+    choice.action,
+    0,
+    choice.targetIndex
+  );
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+  if (!target || !telegramUserId) {
+    await ctx.reply("Ціль уже не годиться. Оновлюю бій.");
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      initialSession.id,
+      viewerCharacterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+    return;
+  }
+  const result = await service.submitAction({
+    telegramUserId,
+    partyInviteToken: initialSession.partyInviteToken,
+    turn: initialSession.turn,
+    action: choice.action,
+    targetKind: target.kind,
+    targetId: target.id
+  });
+  const session = "session" in result
+    ? result.session
+    : await service.findByToken(initialSession.partyInviteToken) ?? initialSession;
+  if (!("session" in result)) {
+    await ctx.reply(presentActionResult(result.state).text);
+  }
+  await deliverGroupCombatCards(ctx.api, service, session);
+  if ("settlementNotices" in result && result.settlementNotices) {
+    await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices);
+  }
 }
 
 function readCommandToken(text: string | undefined): string | null {

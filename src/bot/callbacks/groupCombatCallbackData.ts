@@ -17,6 +17,7 @@ export type GroupCombatCallback =
       action: GroupCombatActionKey;
       optionIndex?: number;
       targetIndex: number;
+      source?: "reply-menu";
     };
 
 type GroupCombatCallbackError = "invalid" | "too-long";
@@ -56,8 +57,10 @@ export function makeGroupCombatActionCallbackData(input: {
   action: GroupCombatActionKey;
   optionIndex?: number;
   targetIndex: number;
+  source?: "reply-menu";
 }): string {
-  return `v2:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
+  const version = input.source === "reply-menu" ? "v3" : "v2";
+  return `${version}:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
     0,
     Math.floor(input.optionIndex ?? 0)
   ).toString(36)}:${input.targetIndex.toString(36)}`;
@@ -101,7 +104,7 @@ export function parseGroupCombatCallbackData(
     const turn = parseBase36(parts[4]);
     return turn === null ? err("invalid") : ok({ type: "items", token, turn });
   }
-  if (parts[0] !== "v2" || parts[2] !== "a" || parts.length !== 8) {
+  if ((parts[0] !== "v2" && parts[0] !== "v3") || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");
   }
   const turn = parseBase36(parts[4]);
@@ -115,7 +118,8 @@ export function parseGroupCombatCallbackData(
         turn,
         action,
         ...(optionIndex > 0 ? { optionIndex } : {}),
-        targetIndex
+        targetIndex,
+        ...(parts[0] === "v3" ? { source: "reply-menu" as const } : {})
       })
     : err("invalid");
 }
@@ -131,7 +135,9 @@ function actionKey(action: GroupCombatActionKey): string {
           ? "r"
           : action === "gear"
             ? "e"
-            : "i";
+            : action === "item"
+              ? "i"
+              : "f";
 }
 
 function parseAction(value: string | undefined): GroupCombatActionKey | null {
@@ -147,7 +153,9 @@ function parseAction(value: string | undefined): GroupCombatActionKey | null {
             ? "gear"
             : value === "i"
               ? "item"
-              : null;
+              : value === "f"
+                ? "flee"
+                : null;
 }
 
 function parseBase36(value: string | undefined, allowZero = false): number | null {

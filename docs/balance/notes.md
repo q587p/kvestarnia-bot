@@ -45,6 +45,21 @@ damage taken, committed actions, special attacks and defensive turns. These
 statistics explain the fight and do not change reward eligibility or split
 weights.
 
+Each living participant resolves `flee` independently against the first living
+enemy in frozen order, using the ordinary PvE formula and that participant's
+own persisted attempt count: first-attempt chance is
+`clamp(0.45 + (DEX + LUCK - enemy level * 3) * 0.015, 0.25, 0.8)`, attempts
+2–4 ramp toward 93%, attempts 5/6 use 93%/96.5%, and attempt 7 is guaranteed.
+The roll is deterministic from encounter, turn, roster order, attempt and
+enemy order. Start-of-turn effects still happen before the attempt, and the
+committed action ticks that actor's ability/item cooldowns without spending
+mana or an item. A failed attempt is not guard: the participant remains a
+valid enemy target for the shared enemy phase. A successful escape preserves
+current HP/mana, removes only that participant from later turns and targeting,
+restores their main menu, and forfeits this encounter's XP, gold, loot and
+activity; the remaining party continues. If nobody remains, the encounter is
+a loss. Timeout-generated guards never attempt escape.
+
 Monster specials are allowlisted only when GroupCombat implements the authored
 target and effect exactly:
 

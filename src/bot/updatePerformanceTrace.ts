@@ -226,7 +226,7 @@ function classifyPresentationMethod(method: string): CallbackPresentationMethod 
 
 function classifyCallbackRoute(data: string): string {
   const [version, namespace, kind] = data.split(":", 3);
-  if ((version === "v1" || version === "v2") && namespace === "gc") {
+  if ((version === "v1" || version === "v2" || version === "v3") && namespace === "gc") {
     return "callback.group-combat";
   }
   if (version !== "v1") {

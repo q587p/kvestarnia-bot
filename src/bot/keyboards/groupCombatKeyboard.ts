@@ -1,24 +1,73 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, Keyboard } from "grammy";
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import {
   getGroupCombatActionProfile,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  isActiveGroupCombatParticipant,
   validateGroupCombatAction,
   type GroupCombatAction,
   type GroupCombatActionKey
 } from "../../domain/groupCombat/groupCombat";
 import {
   makeGroupCombatActionCallbackData,
-  makeGroupCombatItemsMenuCallbackData,
   makeGroupCombatJournalCallbackData,
   makeGroupCombatStatisticsCallbackData,
   makeGroupCombatViewCallbackData
 } from "../callbacks/groupCombatCallbackData";
 import { getDistinctShortMonsterNames } from "../presenters/monsterNamePresenter";
 
+export const groupCombatReplyButtons = {
+  attack: "⚔️ Атакувати",
+  abilities: "✨ Вміння",
+  guard: "🛡️ Захиститися",
+  items: "🎒 Разові",
+  flee: "🏃 Відступити",
+  refresh: "🔎 Оновити"
+} as const;
+
+export type GroupCombatReplyButtonAction = keyof typeof groupCombatReplyButtons;
+export type GroupCombatActionMenu = "attack" | "abilities";
+
+export function buildGroupCombatReplyKeyboard(): Keyboard {
+  return new Keyboard()
+    .text(groupCombatReplyButtons.attack)
+    .text(groupCombatReplyButtons.abilities)
+    .row()
+    .text(groupCombatReplyButtons.guard)
+    .text(groupCombatReplyButtons.items)
+    .row()
+    .text(groupCombatReplyButtons.flee)
+    .text(groupCombatReplyButtons.refresh)
+    .resized()
+    .persistent()
+    .placeholder("Що робимо в бою?");
+}
+
+export function parseGroupCombatReplyButton(
+  text: string | undefined
+): GroupCombatReplyButtonAction | null {
+  if (!text) {
+    return null;
+  }
+  return (Object.entries(groupCombatReplyButtons) as Array<
+    [GroupCombatReplyButtonAction, string]
+  >).find(([, label]) => label === text)?.[0] ?? null;
+}
+
 export function buildGroupCombatKeyboard(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string
+): InlineKeyboard {
+  if (session.status === "active") {
+    return new InlineKeyboard([]);
+  }
+  return buildGroupCombatActionMenuKeyboard(session, viewerCharacterId, "attack");
+}
+
+export function buildGroupCombatActionMenuKeyboard(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  menu: GroupCombatActionMenu
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (session.status !== "active") {
@@ -40,7 +89,7 @@ export function buildGroupCombatKeyboard(
       : keyboard;
   }
   const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
-  if (!viewer || viewer.hp <= 0) {
+  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
     return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
   }
 
@@ -54,46 +103,37 @@ export function buildGroupCombatKeyboard(
     }
   };
 
-  const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
-  const shortEnemyNames = getDistinctShortMonsterNames(livingEnemies);
-  session.state.enemies.forEach((enemy, targetIndex) => {
-    if (enemy.hp <= 0) {
-      return;
-    }
-    addActionButton(
-      livingEnemies.length === 1
-        ? "⚔️ Атакувати"
-        : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
-      makeGroupCombatActionCallbackData({
-      token: session.partyInviteToken,
-      turn: session.turn,
-      action: "attack",
-      targetIndex
-      })
+  if (menu === "attack") {
+    const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
+    const shortEnemyNames = getDistinctShortMonsterNames(livingEnemies);
+    session.state.enemies.forEach((enemy, targetIndex) => {
+      if (enemy.hp <= 0) {
+        return;
+      }
+      addActionButton(
+        livingEnemies.length === 1
+          ? "⚔️ Атакувати"
+          : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
+        makeGroupCombatActionCallbackData({
+          token: session.partyInviteToken,
+          turn: session.turn,
+          action: "attack",
+          targetIndex,
+          source: "reply-menu"
+        })
+      );
+    });
+  } else {
+    addAbilityButtons("class");
+    addAbilityButtons("race");
+    (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) =>
+      addAbilityButtons("gear", abilityId, optionIndex)
     );
-  });
-  addActionButton("🛡️ Захиститися", makeGroupCombatActionCallbackData({
-    token: session.partyInviteToken,
-    turn: session.turn,
-    action: "guard",
-    targetIndex: viewer.rosterOrder
-  }));
-  addAbilityButtons("class");
-  addAbilityButtons("race");
-  (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) => addAbilityButtons("gear", abilityId, optionIndex));
+  }
   if (buttonsInRow > 0) {
     keyboard.row();
-    buttonsInRow = 0;
   }
-  if (listAvailableGroupCombatItems(session, viewer.characterId).length > 0) {
-    keyboard
-      .text(
-        "🎒 Одноразові манатки",
-        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn)
-      )
-      .row();
-  }
-  return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
+  return keyboard.text("↩️ До бою", makeGroupCombatViewCallbackData(session.partyInviteToken));
 
   function addAbilityButtons(action: Extract<GroupCombatActionKey, "class" | "race" | "gear">, payloadKey?: string, optionIndex = 0): void {
     const profile = getGroupCombatActionProfile(viewer!, action, payloadKey);
@@ -146,7 +186,8 @@ export function buildGroupCombatKeyboard(
         turn: session.turn,
         action,
         optionIndex,
-        targetIndex: target.targetIndex
+        targetIndex: target.targetIndex,
+        source: "reply-menu"
       }));
     }
   }
@@ -154,7 +195,8 @@ export function buildGroupCombatKeyboard(
 
 export function buildGroupCombatItemsKeyboard(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string
+  viewerCharacterId: string,
+  source?: "reply-menu"
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
@@ -166,7 +208,8 @@ export function buildGroupCombatItemsKeyboard(
         turn: session.turn,
         action: "item",
         optionIndex: item.optionIndex,
-        targetIndex: item.rosterOrder
+        targetIndex: item.rosterOrder,
+        ...(source ? { source } : {})
       })
     ).row();
   }
@@ -233,7 +276,7 @@ function listAvailableGroupCombatItems(
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
   );
-  if (!viewer || viewer.hp <= 0) {
+  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
     return [];
   }
 

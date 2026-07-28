@@ -1,7 +1,8 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import {
   getGroupCombatActionProfile,
-  GROUP_COMBAT_CARD_BYTE_LIMIT
+  GROUP_COMBAT_CARD_BYTE_LIMIT,
+  isActiveGroupCombatParticipant
 } from "../../domain/groupCombat/groupCombat";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -43,7 +44,9 @@ export function presentGroupCombat(
     showHpLabel: true
   }));
   const party = state.participants.map((participant) => presentBattleCombatantResourceLine({
-    icon: participant.hp > 0
+    icon: participant.fledAtTurn !== undefined
+      ? "🏃"
+      : participant.hp > 0
       ? participant.characterId === viewerCharacterId ? "❤️" : "🫶"
       : "☠️",
     name: participant.name,
@@ -68,7 +71,9 @@ export function presentGroupCombat(
     (participant) => participant.characterId === viewerCharacterId
   );
   const ending = state.status === "active"
-    ? queued
+    ? viewer?.fledAtTurn !== undefined
+      ? "\n\n🏃 Ви відступили. Ватага продовжує бій без вас."
+      : queued
       ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, вибір записано: ${presentQueuedAction(
           session,
           queuedAction
@@ -83,7 +88,9 @@ export function presentGroupCombat(
       ? `\n\n${presentProductionSettlement(session, viewerCharacterId)}`
       : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
-  const tacticalState = state.status === "active"
+  const tacticalState = state.status === "active" &&
+    viewer &&
+    isActiveGroupCombatParticipant(viewer)
     ? presentGroupCombatTacticalState(session, viewerCharacterId)
     : [];
   const base = [status, "", ...party, ...enemies, ...tacticalState].join("\n");
@@ -534,6 +541,9 @@ function presentQueuedAction(
   }
   if (action.action === "guard") {
     return "захиститися";
+  }
+  if (action.action === "flee") {
+    return "відступити всією ватагою";
   }
   if (action.action === "attack") {
     const enemy = session.state.enemies.find((candidate) => candidate.id === action.targetId);

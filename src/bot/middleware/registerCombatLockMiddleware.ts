@@ -37,7 +37,10 @@ import {
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
-import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
+import {
+  deliverGroupCombatBattleKeyboard,
+  deliverGroupCombatParticipantCard
+} from "../groupCombatCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -161,7 +164,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:party:rc:") &&
       !data.startsWith("v1:party:rw:") &&
-      !/^v[12]:gc:/.test(data) &&
+      !/^v[123]:gc:/.test(data) &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );
@@ -435,6 +438,9 @@ async function redirectGroupCombatLockIfNeeded(
       text: "Доказова сутичка триває в особистій розмові з Квестарнею.",
       show_alert: true
     });
+  }
+  if (isPrivate) {
+    await deliverGroupCombatBattleKeyboard(ctx.api, telegramUserId);
   }
   await deliverGroupCombatParticipantCard(
     ctx.api,

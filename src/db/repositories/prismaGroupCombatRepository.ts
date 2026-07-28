@@ -1115,7 +1115,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return actionResultAfterRepair(await repairMalformedSession(tx, row, input.now));
         }
         const claimedRow = await claimActiveSessionMutation(tx, row);
-        const missing = state.participants.filter((participant) => participant.hp > 0 && !submitted.has(participant.characterId));
+        const missing = state.participants.filter((participant) =>
+          participant.hp > 0 &&
+          participant.fledAtTurn === undefined &&
+          !submitted.has(participant.characterId)
+        );
         if (missing.length > 0) {
           await tx.groupCombatAction.createMany({
             data: missing.map((participant) => {
@@ -1177,7 +1181,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       select: { id: true }
     });
-    return row ? loadSession(this.prisma, row.id) : null;
+    const session = row ? await loadSession(this.prisma, row.id) : null;
+    const actor = session?.state.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId.toString()
+    );
+    return actor?.fledAtTurn === undefined ? session : null;
   }
 
   async inspectOperatorRepair(sessionId: string): Promise<GroupCombatOperatorRepairRecord | null> {
@@ -2123,7 +2131,9 @@ async function resolveIfReady(
   now: Date,
   nextTurnExpiresAt: Date
 ): Promise<GroupCombatActionResult | null> {
-  const livingCount = state.participants.filter((participant) => participant.hp > 0).length;
+  const livingCount = state.participants.filter(
+    (participant) => participant.hp > 0 && participant.fledAtTurn === undefined
+  ).length;
   const actionRows = await tx.groupCombatAction.findMany({
     where: { sessionId: row.id, turn: row.turn },
     orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
@@ -2141,7 +2151,9 @@ async function resolveIfReady(
     return null;
   }
   const livingIds = new Set(
-    state.participants.filter((participant) => participant.hp > 0).map((participant) => participant.characterId)
+    state.participants
+      .filter((participant) => participant.hp > 0 && participant.fledAtTurn === undefined)
+      .map((participant) => participant.characterId)
   );
   const actionIds = new Set(actions.map((action) => action.actorCharacterId));
   if (actions.length !== livingCount || actionIds.size !== livingCount || [...livingIds].some((id) => !actionIds.has(id))) {
@@ -2975,7 +2987,8 @@ function isGroupCombatActionKey(value: string): value is GroupCombatAction["acti
     value === "class" ||
     value === "race" ||
     value === "gear" ||
-    value === "item";
+    value === "item" ||
+    value === "flee";
 }
 
 function mapAction(row: PersistedActionRow): GroupCombatQueuedActionRecord {

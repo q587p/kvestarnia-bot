@@ -248,7 +248,15 @@ describe("group combat timeout scheduler", () => {
   it("delivers a committed pending revision discovered after restart", async () => {
     const session = pendingSession();
     const editMessageText = vi.fn().mockResolvedValue(true);
-    const sendMessage = vi.fn();
+    const sends: Array<{ chatId: number; text: string; replyMarkup: unknown }> = [];
+    const sendMessage = vi.fn((
+      chatId: number,
+      text: string,
+      options?: { reply_markup?: unknown }
+    ) => {
+      sends.push({ chatId, text, replyMarkup: options?.reply_markup });
+      return Promise.resolve({ message_id: 93 });
+    });
     const finalizeDeliveryAttempt = vi.fn().mockResolvedValue(true);
     const service = {
       isEnabled: () => true,
@@ -266,7 +274,12 @@ describe("group combat timeout scheduler", () => {
 
     await expect(scheduler.tick()).resolves.toBe(1);
     expect(editMessageText).toHaveBeenCalledTimes(2);
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    const leaderMainMenu = sends.find((send) =>
+      send.chatId === 1001 && send.text.includes("Головне меню")
+    );
+    expect(leaderMainMenu).toBeDefined();
+    expect(hasReplyKeyboard(leaderMainMenu?.replyMarkup)).toBe(true);
     expect(finalizeDeliveryAttempt).toHaveBeenCalledWith(session.id, session.deliveryRevision);
   });
 
@@ -538,4 +551,13 @@ function pendingSession(): GroupCombatSessionRecord {
       recap: []
     }
   };
+}
+
+function hasReplyKeyboard(value: unknown): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    "keyboard" in value &&
+    Array.isArray(value.keyboard)
+  );
 }

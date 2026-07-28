@@ -72,6 +72,48 @@ describe("group combat callback data", () => {
     });
   });
 
+  it("marks reply-menu actions and round-trips party retreat within Telegram's budget", () => {
+    const menu = makeGroupCombatActionCallbackData({
+      token: "proof-token-13",
+      turn: 23,
+      action: "class",
+      targetIndex: 2,
+      source: "reply-menu"
+    });
+    const flee = makeGroupCombatActionCallbackData({
+      token: "proof-token-13",
+      turn: 23,
+      action: "flee",
+      targetIndex: 0,
+      source: "reply-menu"
+    });
+
+    expect(Buffer.byteLength(menu, "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(flee, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(menu)).toEqual({
+      ok: true,
+      value: {
+        type: "action",
+        token: "proof-token-13",
+        turn: 23,
+        action: "class",
+        targetIndex: 2,
+        source: "reply-menu"
+      }
+    });
+    expect(parseGroupCombatCallbackData(flee)).toEqual({
+      ok: true,
+      value: {
+        type: "action",
+        token: "proof-token-13",
+        turn: 23,
+        action: "flee",
+        targetIndex: 0,
+        source: "reply-menu"
+      }
+    });
+  });
+
   it("round-trips the item menu and terminal statistics within Telegram's budget", () => {
     const items = makeGroupCombatItemsMenuCallbackData("proof-token-13", 23);
     const statistics = makeGroupCombatStatisticsCallbackData("proof-token-13");

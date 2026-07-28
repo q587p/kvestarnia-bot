@@ -15,10 +15,14 @@ describe("group-combat lock middleware", () => {
 
     await bot.handleUpdate(commandUpdate("private"));
 
-    expect(calls.sends).toEqual([expect.objectContaining({
+    expect(calls.sends).toHaveLength(2);
+    expect(calls.sends[0]?.chatId).toBe(1001);
+    expect(calls.sends[0]?.text).toContain("Бойова клавіатура готова");
+    expect(readReplyKeyboard(calls.sends[0]?.replyMarkup)).toBeDefined();
+    expect(calls.sends[1]).toMatchObject({
       chatId: 1001,
       replyMarkup: { inline_keyboard: [] }
-    })]);
+    });
     expect(calls.edits).toEqual([
       expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: { inline_keyboard: [] } }),
       expect.objectContaining({ chatId: 1001, messageId: 93 })
@@ -199,4 +203,10 @@ function activeSession(): GroupCombatSessionRecord {
       recap: []
     }
   };
+}
+
+function readReplyKeyboard(value: unknown): unknown {
+  return value && typeof value === "object" && "keyboard" in value
+    ? value.keyboard
+    : undefined;
 }

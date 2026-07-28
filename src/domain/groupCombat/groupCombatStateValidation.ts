@@ -119,11 +119,18 @@ const actorSchema = z.object({
   combatItemQuantities: combatItemQuantitiesSchema,
   combatItems: combatItemsSchema.optional(),
   threat: nonNegativeInteger,
+  fleeAttempts: positiveInteger.max(7).optional(),
+  fledAtTurn: positiveInteger.optional(),
   cooldowns: cooldownsSchema.optional(),
   playerAbilityFumbles: fumblesSchema.optional()
 }).strict().refine((value) => value.hp <= value.hpMax && value.mana <= value.manaMax, {
   message: "Participant resources exceed frozen maxima."
-});
+}).refine(
+  (value) =>
+    (value.fledAtTurn === undefined || value.fleeAttempts !== undefined) &&
+    (value.fleeAttempts !== 7 || value.fledAtTurn !== undefined),
+  { message: "Participant flee evidence is not canonical." }
+);
 
 const enemySchema = z.object({
   id: z.string().min(1),
@@ -216,6 +223,8 @@ const recapSchema = z.object({
     participants: z.array(z.object({
       hp: nonNegativeInteger,
       mana: nonNegativeInteger,
+      fleeAttempts: positiveInteger.max(7).optional(),
+      fledAtTurn: positiveInteger.optional(),
       cooldowns: z.array(z.object({
         id: z.string().min(1),
         remainingTurns: positiveInteger.max(13)
@@ -513,6 +522,19 @@ const stateSchema = z.object({
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Status target or kind is invalid." });
     }
   }
+  if (state.participants.some((participant) =>
+    participant.fledAtTurn !== undefined && participant.fledAtTurn > state.turn
+  )) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Participant fled after the current turn." });
+  }
+  if (
+    state.status === "active" &&
+    state.participants.every((participant) =>
+      participant.hp <= 0 || participant.fledAtTurn !== undefined
+    )
+  ) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Active state has no remaining participants." });
+  }
   for (const enemy of state.enemies) {
     if (
       enemy.shield &&
@@ -524,7 +546,11 @@ const stateSchema = z.object({
   if (state.status === "won" && state.enemies.some((row) => row.hp > 0)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Won state has living enemies." });
   }
-  if (state.status === "lost" && state.participants.some((row) => row.hp > 0) && state.turn < GROUP_COMBAT_TURN_LIMIT) {
+  if (
+    state.status === "lost" &&
+    state.participants.some((row) => row.hp > 0 && row.fledAtTurn === undefined) &&
+    state.turn < GROUP_COMBAT_TURN_LIMIT
+  ) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Lost state has living participants before the turn cap." });
   }
   if (state.production) {
@@ -896,6 +922,7 @@ const settlementParticipantSchema = z.object({
   resources: z.object({ hp: nonNegativeInteger, mana: nonNegativeInteger }).strict(),
   contribution: contributionSchema,
   rewards: rewardsSchema,
+  manualParticipation: z.boolean().optional(),
   effects: settlementEffectsSchema.optional()
 }).strict();
 

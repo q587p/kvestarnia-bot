@@ -24,6 +24,7 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
   LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
+  resolveGroupCombatTurn,
   sumGroupCombatSettlementRewards,
   type GroupCombatState
 } from "../../src/domain/groupCombat/groupCombat";
@@ -1871,6 +1872,90 @@ describe("PrismaGroupCombatRepository integration", () => {
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
     expect(stale.state).toBe("stale");
+  });
+
+  it("persists one participant's flee roll across repository restart and resolves it once", async () => {
+    const session = await startProof(
+      prisma,
+      repository,
+      "group-independent-retreat",
+      [58721n, 58722n]
+    );
+    const first = session.participants[0]!;
+    const second = session.participants[1]!;
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: first.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: session.turn,
+      action: "flee",
+      targetKind: "self",
+      targetId: first.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    await expect(restarted.findByPartyInviteToken(session.partyInviteToken))
+      .resolves.toMatchObject({
+        queuedActions: [
+          expect.objectContaining({
+            actorCharacterId: first.characterId,
+            action: "flee",
+            targetKind: "self",
+            targetId: first.characterId
+          })
+        ]
+      });
+    const expected = resolveGroupCombatTurn(session.state, [
+      {
+        actorCharacterId: first.characterId,
+        turn: session.turn,
+        action: "flee",
+        targetKind: "self",
+        targetId: first.characterId,
+        origin: "manual"
+      },
+      {
+        actorCharacterId: second.characterId,
+        turn: session.turn,
+        action: "guard",
+        targetKind: "self",
+        targetId: second.characterId,
+        origin: "manual"
+      }
+    ]);
+    const resolved = await restarted.submitActionForTelegramUser({
+      telegramUserId: second.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: session.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: second.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_001)
+    });
+
+    expect(resolved.state).toBe("resolved");
+    if (!("session" in resolved)) {
+      throw new Error("Expected the resolving flee turn to return its session.");
+    }
+    expect(resolved.session.status).toBe(expected.state.status);
+    expect(resolved.session.state.status).toBe(expected.state.status);
+    expect(resolved.session.state.recap).toEqual(expected.state.recap);
+    const persistedFirst = resolved.session.state.participants.find(
+      (participant) => participant.characterId === first.characterId
+    );
+    expect(persistedFirst?.fleeAttempts).toBe(1);
+    expect(persistedFirst?.fledAtTurn).toBe(expected.state.participants[0]!.fledAtTurn);
+    const firstActiveSession = await restarted.findActiveByTelegramUserId(first.telegramUserId);
+    if (expected.state.participants[0]!.fledAtTurn === undefined) {
+      expect(firstActiveSession).toMatchObject({ id: session.id });
+    } else {
+      expect(firstActiveSession).toBeNull();
+    }
+    expect(await prisma.groupCombatAction.count({
+      where: { sessionId: session.id, turn: session.turn }
+    })).toBe(2);
   });
 
   it("keeps one final resolving submission within its direct query budget", async () => {

@@ -24,7 +24,7 @@ import { monsters } from "../../content/monsters";
 import { items } from "../../content/items";
 import { monsterLoot } from "../../content/monsterFlavor";
 import type { LootExpansionSourceId } from "../../content/lootExpansionV1";
-import { rollMonsterSkillDamage } from "../combat/combatBalance";
+import { rollFleeSuccess, rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
 import {
@@ -83,7 +83,7 @@ export type GroupCombatStatus = "active" | "won" | "lost" | "invalid";
 export type GroupCombatRulesVersion =
   | typeof GROUP_COMBAT_RULES_VERSION
   | typeof GROUP_COMBAT_PRODUCTION_RULES_VERSION;
-export type GroupCombatActionKey = "attack" | "guard" | "class" | "race" | "gear" | "item";
+export type GroupCombatActionKey = "attack" | "guard" | "class" | "race" | "gear" | "item" | "flee";
 export type GroupCombatTargetKind = "self" | "ally" | "enemy";
 export type GroupCombatStatusKind =
   | "guard"
@@ -119,6 +119,8 @@ export interface GroupCombatActorSnapshot {
   combatItemQuantities: Record<string, number>;
   combatItems?: CombatState["combatItems"];
   threat: number;
+  fleeAttempts?: number;
+  fledAtTurn?: number;
   cooldowns?: CombatState["cooldowns"];
   playerAbilityFumbles?: PlayerAbilityFumblesState;
 }
@@ -288,6 +290,8 @@ export interface GroupCombatRecapEntry {
     participants: Array<{
       hp: number;
       mana: number;
+      fleeAttempts?: number;
+      fledAtTurn?: number;
       cooldowns?: Array<{ id: string; remainingTurns: number }>;
       itemCooldowns?: Array<{ itemId: string; remainingTurns: number }>;
     }>;
@@ -340,6 +344,7 @@ export interface GroupCombatSettlementPlanParticipant {
   resources: { hp: number; mana: number };
   contribution: GroupCombatContribution;
   rewards: GroupCombatRewards;
+  manualParticipation?: boolean;
   effects?: {
     resourcesKey: string;
     xpKey: string;
@@ -577,11 +582,11 @@ export function resolveGroupCombatTargets(
   explicitTargetId?: string
 ): string[] {
   const actor = state.participants.find((candidate) => candidate.characterId === actorCharacterId);
-  if (!actor || actor.hp <= 0) {
+  if (!actor || !isActiveGroupCombatParticipant(actor)) {
     return [];
   }
   const allies = state.participants
-    .filter((candidate) => candidate.hp > 0)
+    .filter(isActiveGroupCombatParticipant)
     .sort((left, right) => left.rosterOrder - right.rosterOrder);
   const enemies = state.enemies
     .filter((candidate) => candidate.hp > 0)
@@ -646,7 +651,7 @@ export function validateGroupCombatAction(
     return "stale";
   }
   const actor = state.participants.find((candidate) => candidate.characterId === action.actorCharacterId);
-  if (!actor || actor.hp <= 0) {
+  if (!actor || !isActiveGroupCombatParticipant(actor)) {
     return "actor-unavailable";
   }
   if (action.action === "attack") {
@@ -661,6 +666,13 @@ export function validateGroupCombatAction(
   }
   if (action.action === "guard") {
     return action.targetKind === "self" && action.targetId === actor.characterId ? "ok" : "invalid-target";
+  }
+  if (action.action === "flee") {
+    return action.origin === "manual" &&
+      action.targetKind === "self" &&
+      action.targetId === actor.characterId
+      ? "ok"
+      : "invalid-target";
   }
   if (action.action === "item") {
     return action.targetKind !== "self" || action.targetId !== actor.characterId
@@ -734,7 +746,7 @@ export function resolveGroupCombatTurn(
   const defeatedEnemyIds = new Set(
     state.enemies.filter((enemy) => enemy.hp <= 0).map((enemy) => enemy.id)
   );
-  const livingActors = state.participants.filter((participant) => participant.hp > 0);
+  const livingActors = state.participants.filter(isActiveGroupCombatParticipant);
   const actionsByActor = new Map(submittedActions.map((action) => [action.actorCharacterId, { ...action }]));
   const actions = livingActors.map(
     (actor) => actionsByActor.get(actor.characterId) ?? buildGroupCombatTimeoutAction(state, actor.characterId)
@@ -749,7 +761,6 @@ export function resolveGroupCombatTurn(
       getContribution(state, action.actorCharacterId).committedActions += 1;
     }
   }
-
   applyBleedStatuses(state, lines);
   appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
@@ -765,7 +776,7 @@ export function resolveGroupCombatTurn(
       break;
     }
     const actor = state.participants.find((candidate) => candidate.characterId === actorAtStart.characterId)!;
-    if (actor.hp <= 0) {
+    if (!isActiveGroupCombatParticipant(actor)) {
       continue;
     }
     const action = actionsByActor.get(actor.characterId) ?? buildGroupCombatTimeoutAction(state, actor.characterId);
@@ -791,7 +802,13 @@ export function resolveGroupCombatTurn(
       );
       contribution.guardedTurns += 1;
       actor.threat += 2;
-      lines.push(action.origin === "timeout" ? `${actor.name} мовчить і стає в захист.` : `${actor.name} стає в захист.`);
+      lines.push(
+        action.origin === "timeout"
+          ? `${actor.name} мовчить і стає в захист.`
+          : `${actor.name} стає в захист.`
+      );
+    } else if (action.action === "flee") {
+      applyFleeAction(state, actor, lines);
     } else if (action.action === "item") {
       const itemId = action.payloadKey as GroupCombatCommittedConsumable["itemId"];
       tickActorAfterCommittedAction(actor);
@@ -837,7 +854,7 @@ export function resolveGroupCombatTurn(
     .filter((status) => status.remainingTurns > 0);
 
   if (
-    state.participants.every((participant) => participant.hp <= 0) ||
+    state.participants.every((participant) => !isActiveGroupCombatParticipant(participant)) ||
     (
       state.rulesVersion === GROUP_COMBAT_RULES_VERSION &&
       state.turn >= GROUP_COMBAT_TURN_LIMIT
@@ -872,6 +889,7 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
     : undefined;
   const orderedParticipants = [...state.participants].sort((left, right) => left.rosterOrder - right.rosterOrder);
   const eligible = orderedParticipants.filter((participant) =>
+    participant.fledAtTurn === undefined &&
     getContribution(state, participant.characterId).committedActions > 0
   );
   const lootRewards = production && state.status === "won"
@@ -890,6 +908,7 @@ export function buildGroupCombatSettlementPlan(state: GroupCombatState): GroupCo
         rosterOrder: participant.rosterOrder,
         resources: { hp: participant.hp, mana: participant.mana },
         contribution: { ...getContribution(state, participant.characterId) },
+        ...(participant.fledAtTurn !== undefined ? { manualParticipation: false } : {}),
         rewards: production
           ? buildLeftPassageParticipantRewards(
               state,
@@ -928,7 +947,9 @@ export function buildGroupCombatSettlementReceipt(
           ? {
               resources: { ...participant.resources },
               effects: { ...participant.effects! },
-              manualParticipation: participant.contribution.committedActions > 0
+              manualParticipation:
+                participant.manualParticipation ??
+                (participant.contribution.committedActions > 0)
             }
           : {})
       }
@@ -1008,6 +1029,41 @@ function applyBasicAttack(
       ? `${actor.name} атакує ${target.name}, але не влучає.`
       : `${actor.name} атакує ${target.name}${resolved.summary.critical ? " критично" : ""}: ${damage} шкоди.`
   );
+}
+
+function applyFleeAction(
+  state: GroupCombatState,
+  actor: GroupCombatActorSnapshot,
+  lines: string[]
+): void {
+  const primaryEnemy = livingEnemies(state)[0];
+  if (!primaryEnemy) {
+    return;
+  }
+  const attempt = (actor.fleeAttempts ?? 0) + 1;
+  const fled = rollFleeSuccess(
+    actorCombatStats(actor),
+    groupCombatEnemyActorStats(state, primaryEnemy, actor.level, actor.characterId),
+    new SeededRandomSource(
+      `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:flee:${attempt}:${primaryEnemy.order}`
+    ),
+    attempt
+  );
+  actor.fleeAttempts = attempt;
+  tickActorAfterCommittedAction(actor);
+  tickGroupCombatItemCooldowns(actor);
+  if (!fled) {
+    lines.push(
+      `${actor.name} пробує відступити, але Лівий прохід не відпускає. Спроба ${attempt}.`
+    );
+    return;
+  }
+  actor.fledAtTurn = state.turn;
+  actor.threat = 0;
+  state.statuses = state.statuses.filter(
+    (status) => !(status.targetKind === "participant" && status.targetId === actor.characterId)
+  );
+  lines.push(`${actor.name} виривається з бою. Спроба ${attempt} вдалася.`);
 }
 
 function applyAbilityAction(
@@ -1124,7 +1180,7 @@ function applyAbilityAction(
   if (ability.healAmount && healingTargets.length > 0) {
     for (const targetId of unique(healingTargets)) {
       const target = state.participants.find((candidate) => candidate.characterId === targetId);
-      if (!target || target.hp <= 0) {
+      if (!target || !isActiveGroupCombatParticipant(target)) {
         continue;
       }
       const healed = healParticipant(target, ability.healAmount);
@@ -1791,7 +1847,7 @@ function canUseGroupCombatEnemyAbility(
 
 function livingParticipants(state: GroupCombatState): GroupCombatActorSnapshot[] {
   return state.participants
-    .filter((participant) => participant.hp > 0)
+    .filter(isActiveGroupCombatParticipant)
     .sort((left, right) => left.rosterOrder - right.rosterOrder);
 }
 
@@ -2031,7 +2087,7 @@ function multiplyGroupCombatStatusValues(
 }
 
 function chooseEnemyTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
-  const living = state.participants.filter((participant) => participant.hp > 0);
+  const living = state.participants.filter(isActiveGroupCombatParticipant);
   return living.sort((left, right) =>
     right.threat - left.threat ||
     compareHpRatio(left, right, "rosterOrder") ||
@@ -2258,7 +2314,7 @@ function applyCombatItem(
 }
 
 function healParticipant(target: GroupCombatActorSnapshot, amount: number): number {
-  if (target.hp <= 0) {
+  if (!isActiveGroupCombatParticipant(target)) {
     return 0;
   }
   const before = target.hp;
@@ -2273,6 +2329,12 @@ function getCanonicalEnemyTarget(
   return state.enemies.find((enemy) => enemy.id === preferredId && enemy.hp > 0) ??
     state.enemies.filter((enemy) => enemy.hp > 0).sort((left, right) => left.order - right.order)[0] ??
     null;
+}
+
+export function isActiveGroupCombatParticipant(
+  participant: Pick<GroupCombatActorSnapshot, "hp" | "fledAtTurn">
+): boolean {
+  return participant.hp > 0 && participant.fledAtTurn === undefined;
 }
 
 function appendNewlyDefeatedEnemyLines(
@@ -2709,6 +2771,12 @@ function appendRecap(
         return {
           hp: participant.hp,
           mana: participant.mana,
+          ...(participant.fleeAttempts !== undefined
+            ? { fleeAttempts: participant.fleeAttempts }
+            : {}),
+          ...(participant.fledAtTurn !== undefined
+            ? { fledAtTurn: participant.fledAtTurn }
+            : {}),
           ...(cooldowns.length > 0 ? { cooldowns } : {}),
           ...(itemCooldowns.length > 0 ? { itemCooldowns } : {})
         };

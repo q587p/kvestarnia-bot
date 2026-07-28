@@ -106,7 +106,8 @@ describe("update performance tracing", () => {
 
   it.each([
     "v1:gc:v:proof-token-13",
-    "v2:gc:a:proof-token-13:1:a:0:0"
+    "v2:gc:a:proof-token-13:1:a:0:0",
+    "v3:gc:a:proof-token-13:1:a:0:0"
   ])("classifies retained and current GroupCombat callbacks without exposing data: %s", async (data) => {
     vi.stubEnv("KVESTARNIA_PERF_SAMPLE_RATE", "1");
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
@@ -114,7 +115,7 @@ describe("update performance tracing", () => {
     installApiStub(bot);
     installUpdatePerformanceTracing(bot);
     registerUpdateRouteBoundary(bot);
-    bot.callbackQuery(/^v[12]:gc:/, async (ctx) => {
+    bot.callbackQuery(/^v[123]:gc:/, async (ctx) => {
       await ctx.answerCallbackQuery();
       await ctx.editMessageText("ватага");
     });
