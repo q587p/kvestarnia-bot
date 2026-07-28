@@ -1238,6 +1238,9 @@ model GroupCombatParticipant {
   messageId        Int?               @map("message_id")
   referenceVersion Int                @default(0) @map("reference_version")
   deliveredRevision Int               @default(0) @map("delivered_revision")
+  exitDeliveryState String            @default("none") @map("exit_delivery_state")
+  exitDeliveryClaimToken String?       @map("exit_delivery_claim_token")
+  exitDeliveryClaimedAt DateTime?      @map("exit_delivery_claimed_at")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

@@ -31,16 +31,17 @@ participants, use that recipient's frozen class/race/LUCK profile and can grant
 authored monster loot or eligible Loot Expansion manatky. Each positive
 bandage slot keeps the ordinary `4–6%` LUCK-bounded replacement rule, so it may
 become `Іскрокамінь` instead of a bandage. Cosmetic titles stay
-presentation-only and enter none of these calculations. `lootVersion: 1`
-freezes each enemy/participant roll as immutable canonical selection evidence
-plus an integrity commitment at encounter start. The version-1 resolver derives
-the exact item id and quantity from the frozen seed, participant gameplay
-profile, enemy order/level and bounded selection evidence. Restart and terminal
-plan rebuilding consult neither current items, monster loot, monster metadata
-nor the generic loot algorithm, so later content or algorithm drift cannot
-reroll or invalidate legitimate active or pending settlement. Changed item ids,
-quantities, recipients, duplicates, enemy stats, abilities or reward inputs fail
-closed instead of becoming new expected rewards. A
+presentation-only and enter none of these calculations. `lootVersion: 1` uses
+a code-owned immutable catalog and resolver: the exact candidates, weights,
+selected item and quantity are derived from the frozen seed, participant
+gameplay profile and enemy order/level. Persisted output is checked against
+that derivation; persisted selection ranges and adjacent public digests are
+not authority. Restart and terminal plan rebuilding consult neither current
+items, monster loot, monster metadata/ability profiles nor the generic loot
+algorithm, so later content or algorithm drift cannot reroll or invalidate
+legitimate active or pending settlement. Coherent evidence/output mutations,
+changed item ids, quantities, recipients, duplicates, enemy stats, abilities
+or reward inputs fail closed instead of becoming new expected rewards. A
 winning result with no items states explicitly that no manatka dropped. Loss
 XP remains the bounded one-fifth consolation from the encounter XP budget and
 loss gold is zero.
@@ -63,7 +64,10 @@ mana or an item. A failed attempt is not guard: the participant remains a
 valid enemy target for the shared enemy phase. A successful escape preserves
 current HP/mana and already-committed inventory, resumes frozen timed statuses,
 durably records the turn/attempt receipt and releases only that participant's
-combat lease in one transaction before restoring their main menu. The actor is
+combat lease in one transaction before Telegram delivery. A separate durable
+exit-delivery state retries a failed main menu after later party turns, records
+an acknowledged menu before old-card retirement, and clears the inert combat
+card reference on completion without resending the menu. The actor is
 removed from later turns and targeting and forfeits this encounter's XP, gold,
 loot, Chronicle activity and generic combat/item/level events; the remaining
 party continues with only its own leases. Terminal settlement never overwrites

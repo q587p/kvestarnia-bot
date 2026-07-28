@@ -379,6 +379,42 @@ export class GroupCombatService {
     return this.repository.markParticipantCardDelivered(input);
   }
 
+  claimParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }): Promise<boolean> {
+    return this.repository.claimParticipantFleeExitDelivery(input);
+  }
+
+  releaseParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    return this.repository.releaseParticipantFleeExitDeliveryClaim(input);
+  }
+
+  markParticipantFleeExitMenuDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    return this.repository.markParticipantFleeExitMenuDelivered(input);
+  }
+
+  completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
+  }): Promise<boolean> {
+    return this.repository.completeParticipantFleeExitDelivery(input);
+  }
+
   finalizeDeliveryAttempt(sessionId: string, expectedDeliveryRevision: number): Promise<boolean> {
     return this.repository.finalizeDeliveryAttempt({
       sessionId,

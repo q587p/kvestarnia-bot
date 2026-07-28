@@ -1,5 +1,7 @@
 import type { Api } from "grammy";
+import { randomUUID } from "node:crypto";
 import type {
+  GroupCombatParticipantRecord,
   GroupCombatSessionRecord,
   GroupCombatSettlementNotice
 } from "../db/repositories/groupCombatRepository";
@@ -26,6 +28,7 @@ import { presentAchievementUnlockNotification } from "./presenters/achievementPr
 
 const HTML_MESSAGE_OPTIONS = { parse_mode: "HTML" as const };
 const MAX_CONVERGENCE_EDITS = 4;
+const FLEE_EXIT_DELIVERY_CLAIM_MS = 23_000;
 const deliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
@@ -101,7 +104,8 @@ export async function deliverGroupCombatCards(
   session: GroupCombatSessionRecord
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
-  const keyboardResults = await Promise.allSettled(authoritative.participants.map(async (participant) => {
+  const transport = apiTransport(api);
+  const results = await Promise.allSettled(authoritative.participants.map(async (participant) => {
     const actor = authoritative.state.participants.find(
       (candidate) => candidate.characterId === participant.characterId
     );
@@ -115,13 +119,24 @@ export async function deliverGroupCombatCards(
       )
     );
     if (
+      actor?.fledAtTurn !== undefined &&
+      exitDeliveryStateOf(participant) !== "none"
+    ) {
+      return deliverParticipantFleeExit({
+        api,
+        service,
+        sessionId: authoritative.id,
+        participantCharacterId: participant.characterId,
+        transport
+      });
+    }
+    if (
       authoritative.status === "active" &&
       actor &&
       isActiveGroupCombatParticipant(actor) &&
       participant.deliveredRevision === 0
     ) {
       await deliverGroupCombatBattleKeyboard(api, participant.telegramUserId);
-      return participant.characterId;
     }
     if (
       (authoritative.status !== "active" || participantFledThisTurn) &&
@@ -141,18 +156,7 @@ export async function deliverGroupCombatCards(
         }
       );
     }
-    return participant.characterId;
-  }));
-  const keyboardReadyCharacterIds = new Set(
-    keyboardResults.flatMap((result) =>
-      result.status === "fulfilled" ? [result.value] : []
-    )
-  );
-  const transport = apiTransport(api);
-  const results = await Promise.allSettled(authoritative.participants
-    .filter((participant) => keyboardReadyCharacterIds.has(participant.characterId))
-    .map((participant) => (
-    deliverCanonicalGroupCombatParticipantCard({
+    return deliverCanonicalGroupCombatParticipantCard({
       service,
       sessionId: authoritative.id,
       participantCharacterId: participant.characterId,
@@ -160,23 +164,153 @@ export async function deliverGroupCombatCards(
       now: () => serviceTime(service),
       ...((authoritative.status === "active" &&
         participant.deliveredRevision === 0) ||
-        (authoritative.status === "active" &&
-          authoritative.state.participants.some((actor) =>
-            actor.characterId === participant.characterId &&
-            actor.fledAtTurn !== undefined &&
-            authoritative.state.turn === actor.fledAtTurn + 1
-          )) ||
+        (authoritative.status === "active" && participantFledThisTurn) ||
         (authoritative.status !== "active" &&
           participant.deliveredRevision < authoritative.deliveryRevision)
         ? { forceReplacement: true }
         : {})
-    })
-    )));
+    });
+  }));
   const latest = await loadAuthoritativeSession(service, authoritative.id);
   if (latest) {
     await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
   }
-  return results.filter((result) => result.status === "fulfilled" && isDelivered(result.value)).length;
+  return results.filter((result) =>
+    result.status === "fulfilled" &&
+    (typeof result.value === "boolean"
+      ? result.value
+      : isDelivered(result.value))
+  ).length;
+}
+
+async function deliverParticipantFleeExit(input: {
+  api: Api;
+  service: GroupCombatService;
+  sessionId: string;
+  participantCharacterId: string;
+  transport: GroupCombatDeliveryTransport;
+}): Promise<boolean> {
+  return withParticipantDeliveryLock(
+    `${input.sessionId}:${input.participantCharacterId}:flee-exit`,
+    async () => {
+      let current = await loadAuthoritativeSession(input.service, input.sessionId);
+      let participant = findParticipant(current, input.participantCharacterId);
+      if (!current || !participant || exitDeliveryStateOf(participant) === "none") {
+        return false;
+      }
+      if (participant.exitDeliveryState === "completed") {
+        return true;
+      }
+      if (
+        participant.exitDeliveryState === "pending" ||
+        participant.exitDeliveryState === "claimed"
+      ) {
+        const now = serviceTime(input.service);
+        const claimToken = randomUUID();
+        const claimed = await input.service.claimParticipantFleeExitDelivery({
+          sessionId: current.id,
+          telegramUserId: participant.telegramUserId,
+          claimToken,
+          claimedAt: now,
+          staleBefore: new Date(now.getTime() - FLEE_EXIT_DELIVERY_CLAIM_MS)
+        });
+        if (!claimed) {
+          const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+          return findParticipant(
+            latest,
+            input.participantCharacterId
+          )?.exitDeliveryState === "completed";
+        }
+        try {
+          await input.api.sendMessage(
+            Number(participant.telegramUserId),
+            "🏃 Ви відступили з бою. Головне меню знову на місці.",
+            {
+              reply_markup: buildMainMenuKeyboard({
+                ...(current.state.production?.locationId
+                  ? { locationId: current.state.production.locationId }
+                  : {})
+              })
+            }
+          );
+        } catch (error) {
+          await input.service.releaseParticipantFleeExitDeliveryClaim({
+            sessionId: current.id,
+            telegramUserId: participant.telegramUserId,
+            claimToken
+          }).catch(() => false);
+          throw error;
+        }
+        const acknowledged =
+          await input.service.markParticipantFleeExitMenuDelivered({
+            sessionId: current.id,
+            telegramUserId: participant.telegramUserId,
+            claimToken
+          });
+        if (!acknowledged) {
+          current = await loadAuthoritativeSession(input.service, input.sessionId);
+          participant = findParticipant(current, input.participantCharacterId);
+          if (
+            !participant ||
+            (
+              participant.exitDeliveryState !== "menu-delivered" &&
+              participant.exitDeliveryState !== "completed"
+            )
+          ) {
+            return false;
+          }
+        }
+      }
+      current = await loadAuthoritativeSession(input.service, input.sessionId);
+      participant = findParticipant(current, input.participantCharacterId);
+      if (!current || !participant) {
+        return false;
+      }
+      if (participant.exitDeliveryState === "completed") {
+        return true;
+      }
+      if (participant.exitDeliveryState !== "menu-delivered") {
+        return false;
+      }
+      const reference = privateReference(participant);
+      if (reference) {
+        const card = buildCard(
+          current,
+          participant.characterId,
+          serviceTime(input.service)
+        );
+        try {
+          await input.transport.editMessage(reference, card.text, {
+            ...card.options,
+            reply_markup: { inline_keyboard: [] }
+          });
+        } catch (error) {
+          if (
+            !isMessageNotModifiedError(error) &&
+            !isMessageUnavailableForEditError(error)
+          ) {
+            return false;
+          }
+        }
+      }
+      const completed =
+        await input.service.completeParticipantFleeExitDelivery({
+          sessionId: current.id,
+          telegramUserId: participant.telegramUserId,
+          expectedReferenceVersion: participant.referenceVersion,
+          chatId: reference?.chatId ?? null,
+          messageId: reference?.messageId ?? null
+        });
+      if (completed) {
+        return true;
+      }
+      const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+      return findParticipant(
+        latest,
+        input.participantCharacterId
+      )?.exitDeliveryState === "completed";
+    }
+  );
 }
 
 export async function deliverGroupCombatBattleKeyboard(
@@ -252,7 +386,11 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
   let participant = findParticipant(current, input.participantCharacterId);
-  if (!current || !participant) {
+  if (
+    !current ||
+    !participant ||
+    exitDeliveryStateOf(participant) !== "none"
+  ) {
     return { state: "missing-participant", reference: null };
   }
 
@@ -361,6 +499,12 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     messageId: candidate.messageId
   });
   return { state: "activation-failed", reference: null };
+}
+
+function exitDeliveryStateOf(
+  participant: Pick<GroupCombatParticipantRecord, "exitDeliveryState">
+): GroupCombatParticipantRecord["exitDeliveryState"] {
+  return participant.exitDeliveryState ?? "none";
 }
 
 async function makePreviousReferenceInert(

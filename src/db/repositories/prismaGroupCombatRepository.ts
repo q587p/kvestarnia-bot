@@ -11,7 +11,6 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   deriveLeftPassageEnemyCount,
-  filterSupportedGroupCombatMonsterAbilityIds,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -35,18 +34,18 @@ import {
   type GroupCombatState,
   type GroupCombatStatus
 } from "../../domain/groupCombat/groupCombat";
+import {
+  deriveGroupCombatProductionV1MonsterStats,
+  findGroupCombatProductionV1Monster,
+  getGroupCombatProductionV1BackupEffectiveLevel,
+  resolveGroupCombatProductionV1MonsterAbilities,
+  selectGroupCombatProductionV1BackupMonster
+} from "../../domain/groupCombat/groupCombatProductionV1Resolver";
 import { decideThreatEscalation } from "../../domain/combat/threatEscalation";
 import type { ThreatEscalationDecision } from "../../domain/combat/threatEscalation";
-import { deriveMonsterCombatStats } from "../../domain/combat/monsterCombatStats";
 import { getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
-import { SeededRandomSource } from "../../shared/random";
-import { monsters } from "../../content";
 import {
-  applyPersistentFightDifficulty,
-  applyThreatSecondEnemyLevelBonus,
-  getPersistentFightDifficultyConfig,
-  selectSoloFightMonster,
   THREAT_ESCALATION_HISTORY_LIMIT,
   toThreatEscalationHistoryEntry
 } from "../../services/fightService";
@@ -61,7 +60,6 @@ import {
 } from "../../domain/groupCombat/groupCombatStateValidation";
 import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupport";
 import { parseVarenykSatedCombatState } from "../../domain/noncombat/varenykSatedSupport";
-import { createMonsterAbilityRuntime } from "../../domain/combat/monsterAbilityRuntime";
 import type {
   GroupCombatActionResult,
   GroupCombatOperatorRepairRecord,
@@ -184,6 +182,21 @@ function getInvalidEffectiveResources(
 
 const sessionInclude = {
   partySession: { select: { inviteToken: true } },
+  passageEncounter: {
+    select: {
+      id: true,
+      token: true,
+      characterId: true,
+      originLocationId: true,
+      monsterId: true,
+      baseMonsterLevel: true,
+      effectiveMonsterLevel: true,
+      seedHash: true,
+      reservationRemortCount: true,
+      reservedPartySessionId: true,
+      groupCombatSessionId: true
+    }
+  },
   participants: {
     include: {
       character: {
@@ -1711,6 +1724,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           sessionId: input.sessionId,
           referenceVersion: input.expectedReferenceVersion,
+          exitDeliveryState: "none",
           session: { repairState: null },
           character: { user: { telegramUserId: input.telegramUserId } }
         },
@@ -1746,6 +1760,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           sessionId: input.sessionId,
           referenceVersion: input.expectedReferenceVersion,
+          exitDeliveryState: "none",
           session: { repairState: null },
           chatId: input.chatId,
           messageId: input.messageId,
@@ -1783,6 +1798,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       where: {
         sessionId: input.sessionId,
         referenceVersion: input.expectedReferenceVersion,
+        exitDeliveryState: "none",
         chatId: input.chatId,
         messageId: input.messageId,
         deliveredRevision: { lt: input.expectedDeliveryRevision },
@@ -1790,6 +1806,109 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         character: { user: { telegramUserId: input.telegramUserId } }
       },
       data: { deliveredRevision: input.expectedDeliveryRevision }
+    });
+    return updated.count === 1;
+  }
+
+  async claimParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        settlementStatus: "completed",
+        session: { repairState: null },
+        character: { user: { telegramUserId: input.telegramUserId } },
+        OR: [
+          { exitDeliveryState: "pending" },
+          {
+            exitDeliveryState: "claimed",
+            exitDeliveryClaimedAt: { lte: input.staleBefore }
+          }
+        ]
+      },
+      data: {
+        exitDeliveryState: "claimed",
+        exitDeliveryClaimToken: input.claimToken,
+        exitDeliveryClaimedAt: input.claimedAt
+      }
+    });
+    return updated.count === 1;
+  }
+
+  async releaseParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        exitDeliveryState: "claimed",
+        exitDeliveryClaimToken: input.claimToken,
+        session: { repairState: null },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      data: {
+        exitDeliveryState: "pending",
+        exitDeliveryClaimToken: null,
+        exitDeliveryClaimedAt: null
+      }
+    });
+    return updated.count === 1;
+  }
+
+  async markParticipantFleeExitMenuDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        exitDeliveryState: "claimed",
+        exitDeliveryClaimToken: input.claimToken,
+        session: { repairState: null },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      data: {
+        exitDeliveryState: "menu-delivered",
+        exitDeliveryClaimToken: null,
+        exitDeliveryClaimedAt: null
+      }
+    });
+    return updated.count === 1;
+  }
+
+  async completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
+  }): Promise<boolean> {
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        exitDeliveryState: "menu-delivered",
+        referenceVersion: input.expectedReferenceVersion,
+        chatId: input.chatId,
+        messageId: input.messageId,
+        session: { repairState: null },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      data: {
+        exitDeliveryState: "completed",
+        exitDeliveryClaimToken: null,
+        exitDeliveryClaimedAt: null,
+        chatId: null,
+        messageId: null,
+        referenceVersion: { increment: 1 }
+      }
     });
     return updated.count === 1;
   }
@@ -1808,7 +1927,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: { id: input.sessionId, repairState: null },
         select: {
           deliveryRevision: true,
-          participants: { select: { deliveredRevision: true } }
+          participants: {
+            select: {
+              deliveredRevision: true,
+              exitDeliveryState: true
+            }
+          }
         }
       });
       if (
@@ -1818,7 +1942,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return false;
       }
       const complete = session.participants.every(
-        (participant) => participant.deliveredRevision >= input.expectedDeliveryRevision
+        (participant) =>
+          participant.exitDeliveryState === "completed" ||
+          participant.deliveredRevision >= input.expectedDeliveryRevision
       );
       const updated = await tx.groupCombatSession.updateMany({
         where: {
@@ -1844,12 +1970,23 @@ async function buildLeftPassageState(input: {
   frozen: FrozenParticipantPayload[];
   now: Date;
 }): Promise<GroupCombatState> {
-  const primaryBase = monsters.find((monster) => monster.id === input.reservation.monsterId);
+  const primaryBase = findGroupCombatProductionV1Monster(
+    input.reservation.monsterId
+  );
   if (!primaryBase) {
-    throw new GroupCombatStateValidationError("Reserved left-passage monster no longer exists.");
+    throw new GroupCombatStateValidationError(
+      "Reserved left-passage monster is outside the immutable production-v1 catalog."
+    );
   }
-  const primary = { ...primaryBase, level: input.reservation.effectiveMonsterLevel };
-  const primaryStats = deriveMonsterCombatStats(primary);
+  const primaryStats = deriveGroupCombatProductionV1MonsterStats({
+    monsterId: primaryBase.id,
+    effectiveLevel: input.reservation.effectiveMonsterLevel
+  });
+  if (!primaryStats) {
+    throw new GroupCombatStateValidationError(
+      "Reserved left-passage monster has no production-v1 combat profile."
+    );
+  }
   const lifeClauses = input.frozen.map(({ actor }) => Prisma.sql`
     (
       session.character_id = ${actor.characterId}
@@ -1935,25 +2072,21 @@ async function buildLeftPassageState(input: {
   if (!characterSummary) {
     throw new GroupCombatStateValidationError("Left-passage combat has no frozen participant summary.");
   }
-  const difficulty = getPersistentFightDifficultyConfig("hard");
   const enemyCount = deriveLeftPassageEnemyCount({
     participants: input.frozen.map(({ actor }) => actor),
     threatParticipants,
     primaryEffectiveMonsterLevel: input.reservation.effectiveMonsterLevel
   });
-  const rng = new SeededRandomSource(`${input.reservation.seedHash}:${input.partySessionId}:backups`);
-  const primaryAbilityIds = createMonsterAbilityRuntime({
-    monster: primaryStats,
-    seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:0`
-  })?.loadoutIds ?? [];
-  const supportedPrimaryAbilityIds =
-    filterSupportedGroupCombatMonsterAbilityIds(primaryAbilityIds);
+  const supportedPrimaryAbilityIds = resolveGroupCombatProductionV1MonsterAbilities({
+    monsterId: primaryBase.id,
+    effectiveLevel: input.reservation.effectiveMonsterLevel
+  }).map((ability) => ability.id);
   const enemies = [{
     id: `primary:${input.reservation.id}`,
-    monsterId: primary.id,
-    name: primary.name,
+    monsterId: primaryBase.id,
+    name: primaryBase.name,
     order: 0,
-    level: primary.level,
+    level: input.reservation.effectiveMonsterLevel,
     hp: primaryStats.hpMax,
     hpMax: primaryStats.hpMax,
     attack: primaryStats.attack,
@@ -1970,39 +2103,55 @@ async function buildLeftPassageState(input: {
   }> = [];
   let appliedSecondEnemyLevelBonus = 0;
   let boostedEnemyId: string | null = null;
-  const usedMonsterIds = [primary.id];
+  const usedMonsterIds = [primaryBase.id];
   for (let index = 1; index < enemyCount; index += 1) {
-    const base = selectSoloFightMonster(characterSummary, rng, difficulty, usedMonsterIds);
-    let selected = applyPersistentFightDifficulty(base, characterSummary, difficulty);
+    const base = selectGroupCombatProductionV1BackupMonster({
+      participantLevel: characterSummary.level,
+      encounterSeed: input.reservation.seedHash,
+      partySessionId: input.partySessionId,
+      index,
+      usedMonsterIds
+    });
+    const baseEffectiveLevel =
+      getGroupCombatProductionV1BackupEffectiveLevel(characterSummary.level);
+    let selectedLevel = baseEffectiveLevel;
     if (index === 1 && threatSource.decision.enemyCount === 2) {
-      const boosted = applyThreatSecondEnemyLevelBonus({
-        baseMonster: base,
-        monster: selected,
-        requestedLevelBonus: threatSource.decision.secondEnemyLevelBonus
-      });
-      selected = boosted.monster;
-      appliedSecondEnemyLevelBonus = boosted.appliedLevelBonus;
+      selectedLevel = Math.min(
+        23,
+        baseEffectiveLevel + threatSource.decision.secondEnemyLevelBonus
+      );
+      appliedSecondEnemyLevelBonus = selectedLevel - baseEffectiveLevel;
     }
-    usedMonsterIds.push(selected.id);
-    const baseline = deriveMonsterCombatStats(selected);
-    const pressured = deriveMonsterCombatStats(selected, {
+    usedMonsterIds.push(base.id);
+    const baseline = deriveGroupCombatProductionV1MonsterStats({
+      monsterId: base.id,
+      effectiveLevel: selectedLevel
+    });
+    const pressured = deriveGroupCombatProductionV1MonsterStats({
+      monsterId: base.id,
+      effectiveLevel: selectedLevel,
       remortCount: remortSource.remortCount,
       remortPressureMode: "multi"
     });
-    const enemyId = `backup:${index}:${selected.id}`;
-    const abilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
-      monster: pressured,
-      seed: `${input.reservation.seedHash}:${input.partySessionId}:enemy:${index}`
-    })?.loadoutIds ?? []);
+    if (!baseline || !pressured) {
+      throw new GroupCombatStateValidationError(
+        `Production-v1 backup ${base.id} has no combat profile.`
+      );
+    }
+    const enemyId = `backup:${index}:${base.id}`;
+    const abilityIds = resolveGroupCombatProductionV1MonsterAbilities({
+      monsterId: base.id,
+      effectiveLevel: selectedLevel
+    }).map((ability) => ability.id);
     if (index === 1 && threatSource.decision.enemyCount === 2) {
       boostedEnemyId = enemyId;
     }
     enemies.push({
       id: enemyId,
-      monsterId: selected.id,
-      name: selected.name,
+      monsterId: base.id,
+      name: base.name,
       order: index,
-      level: selected.level,
+      level: selectedLevel,
       hp: pressured.hpMax,
       hpMax: pressured.hpMax,
       attack: pressured.attack,
@@ -2021,8 +2170,10 @@ async function buildLeftPassageState(input: {
     enemies: enemies.map((enemy) => ({
       baseLevel: enemy.id.startsWith("primary:")
         ? input.reservation.baseMonsterLevel
-        : monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level ?? primary.level,
-      effectiveLevel: enemy.level ?? primary.level
+        : findGroupCombatProductionV1Monster(enemy.monsterId ?? "")?.level ??
+          enemy.level ??
+          input.reservation.effectiveMonsterLevel,
+      effectiveLevel: enemy.level ?? input.reservation.effectiveMonsterLevel
     })),
     deterministicKey: `${input.reservation.seedHash}:${input.partySessionId}:rewards`
   });
@@ -2677,7 +2828,10 @@ async function commitSuccessfulGroupCombatFlee(
       settlementStatus: "completed",
       settlementAttempts: 1,
       settlementReceiptJson: receipt as unknown as Prisma.InputJsonValue,
-      settledAt: now
+      settledAt: now,
+      exitDeliveryState: "pending",
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null
     }
   });
   if (exited.count !== 1) {
@@ -3010,8 +3164,12 @@ function mapSession(
       chatId: participant.chatId,
       messageId: participant.messageId,
       referenceVersion: participant.referenceVersion,
-      deliveredRevision: participant.deliveredRevision
-      ,
+      deliveredRevision: participant.deliveredRevision,
+      exitDeliveryState: parseGroupCombatExitDeliveryState(
+        participant.exitDeliveryState
+      ),
+      exitDeliveryClaimToken: participant.exitDeliveryClaimToken,
+      exitDeliveryClaimedAt: participant.exitDeliveryClaimedAt,
       settlementStatus: participant.settlementStatus === "completed" ? "completed" : "pending",
       settlementAttempts: participant.settlementAttempts,
       settlementReceipt: participant.settlementReceiptJson === null
@@ -3090,6 +3248,29 @@ function parseRowStateCore(row: SessionRow): GroupCombatState {
   ) {
     throw new GroupCombatStateValidationError("Stored group-combat identity does not match state.");
   }
+  if (leftPassage) {
+    const encounter = row.passageEncounter;
+    const production = state.production;
+    if (
+      !encounter ||
+      !production ||
+      encounter.id !== production.encounterId ||
+      encounter.token !== production.encounterToken ||
+      encounter.characterId !== production.initiatingCharacterId ||
+      encounter.originLocationId !== production.locationId ||
+      encounter.monsterId !== production.primaryMonsterId ||
+      encounter.baseMonsterLevel !== production.primaryBaseMonsterLevel ||
+      encounter.effectiveMonsterLevel !== production.primaryEffectiveMonsterLevel ||
+      encounter.seedHash !== production.encounterSeed ||
+      encounter.reservationRemortCount !== production.initiatingRemortCount ||
+      encounter.reservedPartySessionId !== row.partySessionId ||
+      encounter.groupCombatSessionId !== row.id
+    ) {
+      throw new GroupCombatStateValidationError(
+        "Production encounter evidence does not match its relational reservation."
+      );
+    }
+  }
   validateRelationalRoster(row, state);
   return state;
 }
@@ -3120,6 +3301,33 @@ function validateSettlementRows(
   const contributions = new Map(state.contributions.map((contribution) => [contribution.characterId, contribution]));
   for (const participant of row.participants) {
     const contribution = contributions.get(participant.characterId);
+    const actor = state.participants.find(
+      (candidate) => candidate.characterId === participant.characterId
+    );
+    const exitState = parseGroupCombatExitDeliveryState(
+      participant.exitDeliveryState
+    );
+    const claimCanonical = exitState === "claimed"
+      ? participant.exitDeliveryClaimToken !== null &&
+        participant.exitDeliveryClaimedAt !== null
+      : participant.exitDeliveryClaimToken === null &&
+        participant.exitDeliveryClaimedAt === null;
+    const productionExitCanonical =
+      state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION
+        ? (
+            (actor?.fledAtTurn === undefined && exitState === "none") ||
+            (actor?.fledAtTurn !== undefined && exitState !== "none")
+          )
+        : exitState === "none";
+    if (
+      !actor ||
+      !claimCanonical ||
+      !productionExitCanonical
+    ) {
+      throw new GroupCombatStateValidationError(
+        "Participant flee exit-delivery evidence is not canonical."
+      );
+    }
     if (!contribution || !isDeepStrictEqual(participant.contributionJson, contribution)) {
       throw new GroupCombatStateValidationError("Relational contribution does not match terminal state.");
     }
@@ -3155,6 +3363,23 @@ function validateSettlementRows(
 
 function isGroupCombatStatus(value: string): value is GroupCombatStatus {
   return value === "active" || value === "won" || value === "lost" || value === "invalid";
+}
+
+function parseGroupCombatExitDeliveryState(
+  value: string
+): GroupCombatParticipantRecord["exitDeliveryState"] {
+  if (
+    value === "none" ||
+    value === "pending" ||
+    value === "claimed" ||
+    value === "menu-delivered" ||
+    value === "completed"
+  ) {
+    return value;
+  }
+  throw new GroupCombatStateValidationError(
+    "Group-combat participant has an invalid flee exit-delivery state."
+  );
 }
 
 function isGroupCombatActionKey(value: string): value is GroupCombatAction["action"] {

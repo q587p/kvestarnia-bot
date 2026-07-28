@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isDeepStrictEqual } from "node:util";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
@@ -11,7 +12,8 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   GROUP_COMBAT_TURN_LIMIT,
-  buildGroupCombatProductionV1IntegrityDigest,
+  buildGroupCombatProductionV1Evidence,
+  buildLeftPassageEncounterRewardBudget,
   deriveLeftPassageEnemyCount,
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatLootVersionOneRoll,
@@ -21,6 +23,11 @@ import {
   type GroupCombatState,
   type GroupCombatStatusKind
 } from "./groupCombat";
+import {
+  deriveGroupCombatProductionV1MonsterStats,
+  getGroupCombatProductionV1BackupEffectiveLevel,
+  selectGroupCombatProductionV1BackupMonster
+} from "./groupCombatProductionV1Resolver";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
 import { findMonsterBark } from "../../content/monsterBarks";
 import {
@@ -276,15 +283,6 @@ const lootVersionOneSnapshotSchema = z.object({
     order: nonNegativeInteger,
     participantRolls: z.array(z.object({
       characterId: z.string().min(1),
-      evidence: z.object({
-        candidateCount: nonNegativeInteger.max(587),
-        selection: z.object({
-          itemId: z.string().min(1),
-          rangeStart: nonNegativeInteger.max(1_000_000_000),
-          rangeEnd: positiveInteger.max(1_000_000_000)
-        }).strict().nullable(),
-        commitment: z.string().regex(/^[a-f0-9]{64}$/)
-      }).strict(),
       items: z.array(rewardItemSchema)
         .max(2)
         .superRefine((entries, context) => {
@@ -331,8 +329,7 @@ const productionV1EvidenceSchema = z.object({
       tags: z.array(z.string()).max(13)
     }).strict(),
     abilities: z.array(frozenMonsterAbilitySchema).max(13)
-  }).strict()).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
-  integrityDigest: z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict()).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT)
 }).strict();
 
 const productionSchema = z.object({
@@ -654,20 +651,19 @@ const stateSchema = z.object({
           expectedItems = resolveGroupCombatLootVersionOneRoll({
             state: state as unknown as GroupCombatState,
             enemy: enemy as unknown as GroupCombatState["enemies"][number],
-            participant: participant as unknown as GroupCombatState["participants"][number],
-            evidence: frozenRoll.evidence
+            participant: participant as unknown as GroupCombatState["participants"][number]
           });
         } catch {
           context.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Frozen loot-v1 roll evidence is not canonical."
+            message: "Frozen loot-v1 resolver inputs are not canonical."
           });
           continue;
         }
         if (JSON.stringify(expectedItems) !== JSON.stringify(frozenRoll.items)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Frozen loot-v1 output is not derivable from its canonical evidence."
+          message: "Frozen loot-v1 output is not derivable from immutable v1 inputs."
           });
         }
       }
@@ -762,33 +758,21 @@ const stateSchema = z.object({
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Remort adjustments do not match the frozen backups." });
     }
     const evidence = state.production.canonicalV1;
-    const evidenceMatchesEnemies =
-      evidence.enemies.length === orderedEnemies.length &&
-      evidence.enemies.every((frozen, index) => {
-        const enemy = orderedEnemies[index];
-        return enemy &&
-          frozen.enemyId === enemy.id &&
-          frozen.monsterId === enemy.monsterId &&
-          frozen.name === enemy.name &&
-          frozen.order === enemy.order &&
-          frozen.level === enemy.level &&
-          frozen.hpMax === enemy.hpMax &&
-          frozen.attack === enemy.attack &&
-          frozen.defense === enemy.defense;
-      });
-    if (!evidenceMatchesEnemies) {
+    let expectedEvidence: unknown = null;
+    try {
+      expectedEvidence = buildGroupCombatProductionV1Evidence(
+        state as unknown as GroupCombatState
+      );
+    } catch {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Production enemy state does not match immutable v1 evidence."
+        message: "Production enemy state is not derivable from immutable v1 inputs."
       });
     }
-    if (evidence.enemies.some((frozen, index) =>
-      (orderedEnemies[index]?.abilityIds ?? []).join("\0") !==
-        frozen.abilities.map((ability) => ability.id).join("\0")
-    )) {
+    if (expectedEvidence && !isDeepStrictEqual(evidence, expectedEvidence)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Production enemy ability loadout is not canonical."
+        message: "Production enemy evidence does not match the immutable v1 resolver."
       });
     }
     if (
@@ -800,19 +784,73 @@ const stateSchema = z.object({
         message: "Reserved primary monster baseline is not canonical."
       });
     }
+    const usedMonsterIds = [state.production.primaryMonsterId];
+    const firstParticipantLevel = state.participants[0]?.level ?? 1;
     for (const [index, adjustment] of state.production.remort.backupAdjustments.entries()) {
       const enemy = evidence.enemies[index + 1];
+      const backupIndex = index + 1;
+      const expectedMonster = selectGroupCombatProductionV1BackupMonster({
+        participantLevel: firstParticipantLevel,
+        encounterSeed: state.production.encounterSeed,
+        partySessionId: state.partySessionId,
+        index: backupIndex,
+        usedMonsterIds
+      });
+      const expectedBaseLevel = getGroupCombatProductionV1BackupEffectiveLevel(
+        firstParticipantLevel
+      );
+      const expectedLevel = Math.min(
+        23,
+        expectedBaseLevel +
+          (backupIndex === 1
+            ? state.production.threat.appliedSecondEnemyLevelBonus
+            : 0)
+      );
+      const baseline = deriveGroupCombatProductionV1MonsterStats({
+        monsterId: expectedMonster.id,
+        effectiveLevel: expectedLevel
+      });
+      const pressured = deriveGroupCombatProductionV1MonsterStats({
+        monsterId: expectedMonster.id,
+        effectiveLevel: expectedLevel,
+        remortCount: state.production.remort.sourceRemortCount,
+        remortPressureMode: "multi"
+      });
       if (
         !enemy ||
+        enemy.monsterId !== expectedMonster.id ||
+        enemy.level !== expectedLevel ||
         adjustment.remortCount !== state.production.remort.sourceRemortCount ||
-        adjustment.hpMaxAdded < 0 ||
-        adjustment.attackAdded < 0
+        !baseline ||
+        !pressured ||
+        adjustment.hpMaxAdded !== pressured.hpMax - baseline.hpMax ||
+        adjustment.attackAdded !== pressured.attack - baseline.attack
       ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Production backup pressure snapshot is not canonical."
         });
       }
+      usedMonsterIds.push(expectedMonster.id);
+    }
+    const expectedRewardBudget = buildLeftPassageEncounterRewardBudget({
+      participantLevels: state.participants.map((participant) => participant.level),
+      enemies: evidence.enemies.map((enemy) => ({
+        baseLevel: enemy.baseRewardLevel,
+        effectiveLevel: enemy.level
+      })),
+      deterministicKey:
+        `${state.production.encounterSeed}:${state.partySessionId}:rewards`
+    });
+    if (
+      state.production.rewards.winXpTotal !== expectedRewardBudget.winXpTotal ||
+      state.production.rewards.winGoldTotal !== expectedRewardBudget.winGoldTotal ||
+      state.production.rewards.lossXpTotal !== expectedRewardBudget.lossXpTotal
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Production reward budget is not derivable from immutable v1 inputs."
+      });
     }
     for (const enemy of orderedEnemies) {
       const frozen = evidence.enemies.find((candidate) => candidate.enemyId === enemy.id);
@@ -838,15 +876,10 @@ const stateSchema = z.object({
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Production once-only enemy ability marker is not canonical." });
       }
     }
-    if (
-      state.production.rewards.lootVersion !== 1 ||
-      evidence.integrityDigest !== buildGroupCombatProductionV1IntegrityDigest(
-        state as unknown as GroupCombatState
-      )
-    ) {
+    if (state.production.rewards.lootVersion !== 1) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Production-v1 evidence or frozen loot output failed its integrity commitment."
+        message: "Production-v1 loot resolver version is not canonical."
       });
     }
   }

@@ -21,6 +21,9 @@ export interface GroupCombatParticipantRecord {
   messageId: number | null;
   referenceVersion: number;
   deliveredRevision: number;
+  exitDeliveryState: "none" | "pending" | "claimed" | "menu-delivered" | "completed";
+  exitDeliveryClaimToken: string | null;
+  exitDeliveryClaimedAt: Date | null;
   settlementStatus: "pending" | "completed";
   settlementAttempts: number;
   settlementReceipt: GroupCombatSettlementReceipt | null;
@@ -252,6 +255,34 @@ export interface GroupCombatRepository {
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
+  }): Promise<boolean>;
+
+  claimParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }): Promise<boolean>;
+
+  releaseParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean>;
+
+  markParticipantFleeExitMenuDelivered(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean>;
+
+  completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
   }): Promise<boolean>;
 
   finalizeDeliveryAttempt(input: {

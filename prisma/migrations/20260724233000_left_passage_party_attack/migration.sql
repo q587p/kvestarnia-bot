@@ -1,6 +1,9 @@
 ALTER TABLE "party_sessions" ADD COLUMN "origin_kind" TEXT;
 ALTER TABLE "group_combat_sessions" ADD COLUMN "repair_state" TEXT;
 ALTER TABLE "group_combat_sessions" ADD COLUMN "repair_reason" TEXT;
+ALTER TABLE "group_combat_participants" ADD COLUMN "exit_delivery_state" TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE "group_combat_participants" ADD COLUMN "exit_delivery_claim_token" TEXT;
+ALTER TABLE "group_combat_participants" ADD COLUMN "exit_delivery_claimed_at" DATETIME;
 
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_origin" TEXT;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_remort_count" INTEGER;

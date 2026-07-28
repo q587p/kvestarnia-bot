@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
@@ -30,14 +31,16 @@ import {
 } from "../../src/domain/groupCombat/groupCombat";
 import { presentGroupCombat } from "../../src/bot/presenters/groupCombatPresenter";
 import { items, monsters } from "../../src/content";
+import { monsterAbilities } from "../../src/content/monsterAbilities";
+import { monsterCombatProfiles } from "../../src/content/monsterCombatProfiles";
 import { monsterLoot } from "../../src/content/monsterFlavor";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
-  start: 33,
-  dueStart: 32,
-  queue: 21,
+  start: 34,
+  dueStart: 33,
+  queue: 23,
   singleResolve: 35,
   dueScan: 1,
   deliveryScan: 1,
@@ -1312,7 +1315,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     ["active", "quantity", 830_110n],
     ["terminal", "item-id", 830_120n],
     ["terminal", "quantity", 830_130n]
-  ] as const)("rejects a shape-valid %s loot-v1 %s mutation against its immutable commitment", async (
+  ] as const)("rejects a shape-valid %s loot-v1 %s mutation against its immutable resolver", async (
     phase,
     mutation,
     firstId
@@ -1350,13 +1353,105 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
 
     await expect(repository.findById(target.id)).rejects.toThrow(
-      "Frozen loot-v1 output is not derivable from its canonical evidence."
+      "Frozen loot-v1 output is not derivable from immutable v1 inputs."
     );
     if (phase === "terminal") {
       await expect(repository.settleParticipant({
         sessionId: target.id,
         telegramUserId: target.participants[0]!.telegramUserId,
         now: new Date(NOW.getTime() + 49_000)
+      })).resolves.toEqual({ state: "invalid-plan" });
+    }
+  });
+
+  it.each([
+    ["active", 830_140n],
+    ["terminal", 830_150n]
+  ] as const)("rejects coherently forged legacy loot evidence and public checksums in %s state", async (
+    phase,
+    firstId
+  ) => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      `left-loot-v1-coherent-${phase}`,
+      [firstId, firstId + 1n]
+    );
+    const target = phase === "terminal"
+      ? await terminalizeProductionSession(prisma, started)
+      : started;
+    const forged = structuredClone(target.state);
+    const forgedRoll = forged.production!.rewards.lootSnapshot.enemies
+      .flatMap((enemy) => enemy.participantRolls)[0]!;
+    const forgedEnemy = forged.enemies[0]!;
+    const forgedParticipant = forged.participants[0]!;
+    const selection = {
+      itemId: "item.iskrokamin",
+      rangeStart: 0,
+      rangeEnd: 1_000_000_000
+    };
+    forgedRoll.items = [{
+      itemId: "item.iskrokamin",
+      quantity: 2
+    }];
+    Object.assign(forgedRoll, {
+      evidence: {
+        candidateCount: 1,
+        selection,
+        commitment: sha256Canonical({
+          version: 1,
+          encounterSeed: forged.production!.encounterSeed,
+          partySessionId: forged.partySessionId,
+          enemyOrder: forgedEnemy.order,
+          monsterId: forgedEnemy.monsterId ?? forgedEnemy.id,
+          characterId: forgedParticipant.characterId,
+          luck: forgedParticipant.stats.luck,
+          level: forgedParticipant.level,
+          candidateCount: 1,
+          selection
+        })
+      }
+    });
+    forged.production!.canonicalV1.enemies[0]!.hpMax += 1;
+    forged.enemies[0]!.hpMax += 1;
+    const canonicalV1 = structuredClone(forged.production!.canonicalV1) as
+      typeof forged.production.canonicalV1 & { integrityDigest?: string };
+    delete canonicalV1.integrityDigest;
+    Object.assign(forged.production!.canonicalV1, {
+      integrityDigest: sha256Canonical({
+        version: 1,
+        deterministicSeed: forged.deterministicSeed,
+        participants: [...forged.participants]
+          .sort((left, right) => left.rosterOrder - right.rosterOrder)
+          .map((participant) => ({
+            characterId: participant.characterId,
+            remortCount: participant.remortCount,
+            rosterOrder: participant.rosterOrder,
+            classId: participant.classId,
+            raceId: participant.raceId,
+            level: participant.level,
+            luck: participant.stats.luck
+          })),
+        production: {
+          ...forged.production!,
+          canonicalV1
+        }
+      })
+    });
+    await prisma.groupCombatSession.update({
+      where: { id: target.id },
+      data: {
+        stateJson: forged as unknown as Prisma.InputJsonValue,
+        terminalIntegrityCheckedAt: null
+      }
+    });
+
+    await expect(repository.findById(target.id)).rejects.toThrow();
+    if (phase === "terminal") {
+      await expect(repository.settleParticipant({
+        sessionId: target.id,
+        telegramUserId: target.participants[0]!.telegramUserId,
+        now: new Date(NOW.getTime() + 49_500)
       })).resolves.toEqual({ state: "invalid-plan" });
     }
   });
@@ -1467,11 +1562,21 @@ describe("PrismaGroupCombatRepository integration", () => {
     );
     const itemCatalog = [...items];
     const monsterCatalog = [...monsters];
+    const abilityCatalog = [...monsterAbilities];
+    const profileCatalog = [...monsterCombatProfiles];
     const lootCatalog = structuredClone(monsterLoot);
 
     try {
       items.splice(0, items.length);
       monsters.splice(0, monsters.length);
+      (monsterAbilities as unknown as unknown[]).splice(
+        0,
+        monsterAbilities.length
+      );
+      (monsterCombatProfiles as unknown as unknown[]).splice(
+        0,
+        monsterCombatProfiles.length
+      );
       for (const key of Object.keys(monsterLoot)) {
         delete monsterLoot[key];
       }
@@ -1501,6 +1606,16 @@ describe("PrismaGroupCombatRepository integration", () => {
     } finally {
       items.splice(0, items.length, ...itemCatalog);
       monsters.splice(0, monsters.length, ...monsterCatalog);
+      (monsterAbilities as unknown as unknown[]).splice(
+        0,
+        monsterAbilities.length,
+        ...abilityCatalog
+      );
+      (monsterCombatProfiles as unknown as unknown[]).splice(
+        0,
+        monsterCombatProfiles.length,
+        ...profileCatalog
+      );
       for (const key of Object.keys(monsterLoot)) {
         delete monsterLoot[key];
       }
@@ -2122,9 +2237,76 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
     expect(exitRow).toMatchObject({
       settlementStatus: "completed",
-      settlementAttempts: 1
+      settlementAttempts: 1,
+      exitDeliveryState: "pending",
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null
     });
     expect(exitRow.settlementReceiptJson).not.toBeNull();
+    const restartedDeliveryRepository = new PrismaGroupCombatRepository(prisma);
+    const deliveryClaims = await Promise.all([
+      restartedDeliveryRepository.claimParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        claimToken: "flee-delivery-a",
+        claimedAt: new Date(NOW.getTime() + 100),
+        staleBefore: new Date(NOW.getTime() - 23_000)
+      }),
+      restartedDeliveryRepository.claimParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        claimToken: "flee-delivery-b",
+        claimedAt: new Date(NOW.getTime() + 100),
+        staleBefore: new Date(NOW.getTime() - 23_000)
+      })
+    ]);
+    expect(deliveryClaims.filter(Boolean)).toHaveLength(1);
+    const originalWinningClaim = deliveryClaims[0]
+      ? "flee-delivery-a"
+      : "flee-delivery-b";
+    await expect(
+      restartedDeliveryRepository.claimParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        claimToken: "flee-delivery-restarted",
+        claimedAt: new Date(NOW.getTime() + 23_101),
+        staleBefore: new Date(NOW.getTime() + 101)
+      })
+    ).resolves.toBe(true);
+    expect(originalWinningClaim).toMatch(/^flee-delivery-[ab]$/);
+    const winningClaim = "flee-delivery-restarted";
+    await expect(
+      restartedDeliveryRepository.markParticipantFleeExitMenuDelivered({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        claimToken: winningClaim
+      })
+    ).resolves.toBe(true);
+    await expect(
+      restartedDeliveryRepository.completeParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        expectedReferenceVersion: exitRow.referenceVersion,
+        chatId: exitRow.chatId,
+        messageId: exitRow.messageId
+      })
+    ).resolves.toBe(true);
+    await expect(prisma.groupCombatParticipant.findUniqueOrThrow({
+      where: { id: exitRow.id },
+      select: {
+        exitDeliveryState: true,
+        exitDeliveryClaimToken: true,
+        exitDeliveryClaimedAt: true,
+        chatId: true,
+        messageId: true
+      }
+    })).resolves.toEqual({
+      exitDeliveryState: "completed",
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null,
+      chatId: null,
+      messageId: null
+    });
     await expect(repository.submitActionForTelegramUser({
       telegramUserId: escapee.telegramUserId,
       partyInviteToken: current.partyInviteToken,
@@ -4229,6 +4411,24 @@ async function seedParty(prisma: PrismaClient, token: string, telegramIds: bigin
       }
     }
   });
+}
+
+function sha256Canonical(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
 
 async function seedDueParty(prisma: PrismaClient, token: string, telegramIds: bigint[]): Promise<void> {

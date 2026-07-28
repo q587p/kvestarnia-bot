@@ -21,18 +21,9 @@ import {
   type MonsterAbilityDefinition
 } from "../../content/monsterAbilities";
 import { monsters } from "../../content/monsters";
-import { items } from "../../content/items";
-import { monsterLoot } from "../../content/monsterFlavor";
-import type { LootExpansionSourceId } from "../../content/lootExpansionV1";
 import { rollFleeSuccess, rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
-import {
-  getLootCandidates,
-  getLootExpansionCandidates,
-  type LootCandidate,
-  type LootRarity
-} from "../loot";
 import { SeededRandomSource } from "../../shared/random";
 import {
   buildBaselinePersistentFightWinXp,
@@ -42,7 +33,14 @@ import {
   resolveMonsterBarkState,
   type CombatBarkStateV1
 } from "../combat/combatBarks";
-import { createHash } from "node:crypto";
+import {
+  deriveGroupCombatProductionV1MonsterStats,
+  findGroupCombatProductionV1Monster,
+  getGroupCombatProductionV1LootCandidates,
+  resolveGroupCombatProductionV1MonsterAbilities,
+  type GroupCombatProductionV1LootCandidate,
+  type GroupCombatProductionV1Rarity
+} from "./groupCombatProductionV1Resolver";
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
@@ -217,15 +215,6 @@ export interface GroupCombatLootVersionOneSnapshot {
     order: number;
     participantRolls: Array<{
       characterId: string;
-      evidence: {
-        candidateCount: number;
-        selection: {
-          itemId: string;
-          rangeStart: number;
-          rangeEnd: number;
-        } | null;
-        commitment: string;
-      };
       items: Array<{ itemId: string; quantity: number }>;
     }>;
   }>;
@@ -252,7 +241,6 @@ export interface GroupCombatProductionV1EnemyEvidence {
 export interface GroupCombatProductionV1Evidence {
   version: 1;
   enemies: GroupCombatProductionV1EnemyEvidence[];
-  integrityDigest: string;
 }
 
 export function deriveLeftPassageEnemyCount(input: {
@@ -580,13 +568,11 @@ export function createLeftPassageGroupCombatState(input: {
   };
   state.production!.rewards.lootSnapshot = buildLeftPassageLootVersionOneSnapshot(state);
   state.production!.canonicalV1 = buildGroupCombatProductionV1Evidence(state);
-  state.production!.canonicalV1.integrityDigest =
-    buildGroupCombatProductionV1IntegrityDigest(state);
   assertGroupCombatStateBudget(state);
   return state;
 }
 
-function buildGroupCombatProductionV1Evidence(
+export function buildGroupCombatProductionV1Evidence(
   state: GroupCombatState
 ): GroupCombatProductionV1Evidence {
   if (!state.production) {
@@ -594,100 +580,60 @@ function buildGroupCombatProductionV1Evidence(
   }
   return {
     version: 1,
-    integrityDigest: "",
     enemies: [...state.enemies]
       .sort((left, right) => left.order - right.order)
       .map((enemy) => {
-        const authored = monsters.find((candidate) => candidate.id === enemy.monsterId);
+        const authored = enemy.monsterId
+          ? findGroupCombatProductionV1Monster(enemy.monsterId)
+          : null;
         if (!authored || enemy.level === undefined) {
           throw new Error(`Production-v1 evidence requires authored monster ${enemy.monsterId ?? enemy.id}.`);
         }
-        const combatStats = deriveMonsterCombatStats(
-          { ...authored, level: enemy.level },
-          enemy.order > 0
+        const combatStats = deriveGroupCombatProductionV1MonsterStats({
+          monsterId: authored.id,
+          effectiveLevel: enemy.level,
+          ...(enemy.order > 0
             ? {
                 remortCount: state.production!.remort.sourceRemortCount,
-                remortPressureMode: "multi"
+                remortPressureMode: "multi" as const
               }
-            : {}
-        );
-        const abilities = (enemy.abilityIds ?? []).map((abilityId) => {
-          const ability = findMonsterAbility(abilityId);
-          if (!ability || !isSupportedGroupCombatMonsterAbility(ability.id)) {
-            throw new Error(`Production-v1 evidence contains unsupported ability ${abilityId}.`);
-          }
-          return structuredClone(ability);
+            : {})
         });
+        if (!combatStats) {
+          throw new Error(`Production-v1 evidence cannot resolve monster ${authored.id}.`);
+        }
+        const abilities = resolveGroupCombatProductionV1MonsterAbilities({
+          monsterId: authored.id,
+          effectiveLevel: enemy.level
+        });
+        if (
+          enemy.name !== authored.name ||
+          enemy.hpMax !== combatStats.hpMax ||
+          enemy.attack !== combatStats.attack ||
+          enemy.defense !== Math.max(combatStats.armor, combatStats.resist) ||
+          (enemy.abilityIds ?? []).join("\0") !==
+            abilities.map((ability) => ability.id).join("\0")
+        ) {
+          throw new Error(`Production-v1 enemy ${enemy.id} is not canonical.`);
+        }
         return {
           enemyId: enemy.id,
           monsterId: authored.id,
           name: enemy.name,
           order: enemy.order,
           level: enemy.level,
-          baseRewardLevel: enemy.order === 0
-            ? state.production!.primaryBaseMonsterLevel
-            : authored.level,
+          baseRewardLevel: authored.level,
           hpMax: enemy.hpMax,
           attack: enemy.attack,
           defense: enemy.defense,
           combatStats: {
             dexterity: combatStats.dexterity,
-            ...(combatStats.spellPower === undefined
-              ? {}
-              : { spellPower: combatStats.spellPower }),
             tags: [...combatStats.tags]
           },
           abilities
         };
       })
   };
-}
-
-export function buildGroupCombatProductionV1IntegrityDigest(
-  state: GroupCombatState
-): string {
-  if (!state.production?.canonicalV1) {
-    return "";
-  }
-  const { integrityDigest: _ignored, ...canonicalV1 } = state.production.canonicalV1;
-  void _ignored;
-  const production = {
-    ...state.production,
-    canonicalV1
-  };
-  const payload = {
-    version: 1,
-    deterministicSeed: state.deterministicSeed,
-    participants: [...state.participants]
-      .sort((left, right) => left.rosterOrder - right.rosterOrder)
-      .map((participant) => ({
-        characterId: participant.characterId,
-        remortCount: participant.remortCount,
-        rosterOrder: participant.rosterOrder,
-        classId: participant.classId,
-        raceId: participant.raceId,
-        level: participant.level,
-        luck: participant.stats.luck
-      })),
-    production
-  };
-  return createHash("sha256")
-    .update(canonicalJson(payload))
-    .digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    const object = value as Record<string, unknown>;
-    return `{${Object.keys(object)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
 }
 
 export function getGroupCombatActionProfile(
@@ -1568,19 +1514,34 @@ function applyEnemyPhase(
     const ability = defeatedFinalResponder
       ? null
       : selectGroupCombatEnemyAbility(state, enemy);
-    const authored = enemy.monsterId
+    const frozen = state.production?.canonicalV1.enemies.find(
+      (candidate) => candidate.enemyId === enemy.id
+    );
+    const authored = !frozen && enemy.monsterId
       ? monsters.find((candidate) => candidate.id === enemy.monsterId)
       : null;
-    if (authored && enemy.id === barkSpeaker?.id) {
-      const monster = deriveMonsterCombatStats(
-        { ...authored, level: enemy.level ?? authored.level },
-        enemy.order > 0
-          ? {
-              remortCount: state.production?.remort.sourceRemortCount ?? 0,
-              remortPressureMode: "multi"
-            }
-          : {}
-      );
+    if ((frozen || authored) && enemy.id === barkSpeaker?.id) {
+      const monster = frozen
+        ? {
+            monsterId: frozen.monsterId,
+            name: frozen.name,
+            level: frozen.level,
+            hpMax: frozen.hpMax,
+            attack: frozen.attack,
+            armor: frozen.defense,
+            resist: frozen.defense,
+            dexterity: frozen.combatStats.dexterity,
+            tags: [...frozen.combatStats.tags]
+          }
+        : deriveMonsterCombatStats(
+            { ...authored!, level: enemy.level ?? authored!.level },
+            enemy.order > 0
+              ? {
+                  remortCount: state.production?.remort.sourceRemortCount ?? 0,
+                  remortPressureMode: "multi"
+                }
+              : {}
+          );
       const bark = resolveMonsterBarkState({
         ...(state.enemyBarks?.[enemy.id]
           ? { barkState: state.enemyBarks[enemy.id] }
@@ -2732,8 +2693,8 @@ function buildLeftPassageLootVersionOneSnapshot(
     version: 1,
     enemies: enemies.map((enemy) => {
       const monster = enemy.monsterId
-        ? monsters.find((candidate) => candidate.id === enemy.monsterId)
-        : undefined;
+        ? findGroupCombatProductionV1Monster(enemy.monsterId)
+        : null;
       if (!monster) {
         throw new Error(`Production loot snapshot requires authored monster ${enemy.monsterId ?? enemy.id}.`);
       }
@@ -2743,22 +2704,12 @@ function buildLeftPassageLootVersionOneSnapshot(
         monsterId: monster.id,
         order: enemy.order,
         participantRolls: participants.map((participant) => {
-          const candidates = [
-            ...getLootCandidates({
-              monsterId: monster.id,
-              monsterLoot,
-              items
-            }),
-            ...getLootExpansionCandidates({
-              profile: {
-                level: effectiveEnemyLevel,
-                classId: participant.classId,
-                raceId: participant.raceId
-              },
-              sourceId: getGroupCombatLootExpansionSource(monster),
-              sourceTags: monster.tags
-            })
-          ];
+          const candidates = getGroupCombatProductionV1LootCandidates({
+            monsterId: monster.id,
+            effectiveEnemyLevel,
+            classId: participant.classId,
+            raceId: participant.raceId
+          });
           return buildGroupCombatLootVersionOneRoll({
             state,
             enemy,
@@ -2775,102 +2726,16 @@ function buildGroupCombatLootVersionOneRoll(input: {
   state: GroupCombatState;
   enemy: GroupCombatEnemyState;
   participant: GroupCombatActorSnapshot;
-  candidates: readonly LootCandidate[];
+  candidates: readonly GroupCombatProductionV1LootCandidate[];
 }): GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number] {
-  const selection = input.candidates.length > 0
-    ? selectGroupCombatLootVersionOneCandidate(input)
-    : null;
-  const evidence = {
-    candidateCount: input.candidates.length,
-    selection: selection?.evidence ?? null,
-    commitment: ""
-  };
-  evidence.commitment = buildGroupCombatLootVersionOneRollCommitment({
-    state: input.state,
-    enemy: input.enemy,
-    participant: input.participant,
-    evidence
-  });
   return {
     characterId: input.participant.characterId,
-    evidence,
     items: resolveGroupCombatLootVersionOneRoll({
       state: input.state,
       enemy: input.enemy,
       participant: input.participant,
-      evidence
+      candidates: input.candidates
     })
-  };
-}
-
-function selectGroupCombatLootVersionOneCandidate(input: {
-  state: GroupCombatState;
-  enemy: GroupCombatEnemyState;
-  participant: GroupCombatActorSnapshot;
-  candidates: readonly LootCandidate[];
-}): {
-  evidence: NonNullable<
-    GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"]["selection"]
-  >;
-} | null {
-  const monsterId = input.enemy.monsterId ?? input.enemy.id;
-  const rng = createGroupCombatLootVersionOneRandom(
-    input.state,
-    input.enemy,
-    input.participant,
-    monsterId
-  );
-  const dropChance = getGroupCombatLootVersionOneDropChance(
-    input.participant.stats.luck
-  ) * getLeftPassageEnemyLootDropChanceMultiplier({
-    effectiveEnemyLevel: input.enemy.level ?? 1,
-    participantLevel: input.participant.level
-  });
-  if (rng.nextFloat() >= dropChance) {
-    return null;
-  }
-  const rarity = rollGroupCombatLootVersionOneRarity(
-    rng,
-    input.participant.stats.luck
-  );
-  const eligible = selectGroupCombatLootVersionOneCandidates(
-    input.candidates,
-    rarity
-  );
-  const totalWeight = eligible.reduce(
-    (sum, candidate) => sum + Math.max(0, candidate.weight ?? 1),
-    0
-  );
-  if (totalWeight <= 0) {
-    return null;
-  }
-  const cursor = rng.nextFloat() * totalWeight;
-  let weightBefore = 0;
-  for (const candidate of eligible) {
-    const weight = Math.max(0, candidate.weight ?? 1);
-    if (cursor < weightBefore + weight) {
-      return {
-        evidence: {
-          itemId: candidate.item.id,
-          rangeStart: Math.floor(weightBefore / totalWeight * 1_000_000_000),
-          rangeEnd: Math.ceil(
-            (weightBefore + weight) / totalWeight * 1_000_000_000
-          )
-        }
-      };
-    }
-    weightBefore += weight;
-  }
-  const fallback = eligible[eligible.length - 1]!;
-  const weight = Math.max(0, fallback.weight ?? 1);
-  return {
-    evidence: {
-      itemId: fallback.item.id,
-      rangeStart: Math.floor(
-        Math.max(0, totalWeight - weight) / totalWeight * 1_000_000_000
-      ),
-      rangeEnd: 1_000_000_000
-    }
   };
 }
 
@@ -2878,21 +2743,23 @@ export function resolveGroupCombatLootVersionOneRoll(input: {
   state: GroupCombatState;
   enemy: GroupCombatEnemyState;
   participant: GroupCombatActorSnapshot;
-  evidence: GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"];
+  candidates?: readonly GroupCombatProductionV1LootCandidate[];
 }): Array<{ itemId: string; quantity: number }> {
-  if (
-    input.evidence.commitment !== buildGroupCombatLootVersionOneRollCommitment(input)
-  ) {
-    throw new Error("Frozen loot-v1 roll commitment is not canonical.");
-  }
   const rewards = new Map<string, GroupCombatRewards["items"]>();
+  const monsterId = input.enemy.monsterId ?? input.enemy.id;
+  const candidates = input.candidates ?? getGroupCombatProductionV1LootCandidates({
+    monsterId,
+    effectiveEnemyLevel: input.enemy.level ?? 1,
+    classId: input.participant.classId,
+    raceId: input.participant.raceId
+  });
   const rng = createGroupCombatLootVersionOneRandom(
     input.state,
     input.enemy,
     input.participant,
-    input.enemy.monsterId ?? input.enemy.id
+    monsterId
   );
-  if (input.evidence.candidateCount > 0) {
+  if (candidates.length > 0) {
     const dropChance = getGroupCombatLootVersionOneDropChance(
       input.participant.stats.luck
     ) * getLeftPassageEnemyLootDropChanceMultiplier({
@@ -2901,33 +2768,23 @@ export function resolveGroupCombatLootVersionOneRoll(input: {
     });
     const dropped = rng.nextFloat() < dropChance;
     if (dropped) {
-      rollGroupCombatLootVersionOneRarity(rng, input.participant.stats.luck);
-      const cursor = rng.nextFloat();
-      const selection = input.evidence.selection;
-      const cursorUnit = Math.floor(cursor * 1_000_000_000);
-      if (
-        !selection ||
-        !Number.isInteger(selection.rangeStart) ||
-        !Number.isInteger(selection.rangeEnd) ||
-        selection.rangeStart < 0 ||
-        selection.rangeEnd > 1_000_000_000 ||
-        selection.rangeStart >= selection.rangeEnd ||
-        cursorUnit < selection.rangeStart ||
-        cursorUnit >= selection.rangeEnd
-      ) {
-        throw new Error("Frozen loot-v1 weighted selection evidence is not canonical.");
-      }
-      addGroupCombatLootReward(
-        rewards,
-        input.participant.characterId,
-        selection.itemId,
-        1
+      const rarity = rollGroupCombatLootVersionOneRarity(
+        rng,
+        input.participant.stats.luck
       );
-    } else if (input.evidence.selection !== null) {
-      throw new Error("Frozen loot-v1 no-drop evidence contains a selected item.");
+      const selection = selectGroupCombatLootVersionOneCandidate(
+        selectGroupCombatLootVersionOneCandidates(candidates, rarity),
+        rng
+      );
+      if (selection) {
+        addGroupCombatLootReward(
+          rewards,
+          input.participant.characterId,
+          selection.itemId,
+          1
+        );
+      }
     }
-  } else if (input.evidence.selection !== null) {
-    throw new Error("Frozen loot-v1 empty candidate evidence contains a selected item.");
   }
 
   const bandageQuantity = rollGroupCombatLootVersionOneBandageQuantity(
@@ -2949,28 +2806,6 @@ export function resolveGroupCombatLootVersionOneRoll(input: {
   return rewards.get(input.participant.characterId) ?? [];
 }
 
-function buildGroupCombatLootVersionOneRollCommitment(input: {
-  state: GroupCombatState;
-  enemy: GroupCombatEnemyState;
-  participant: GroupCombatActorSnapshot;
-  evidence: GroupCombatLootVersionOneSnapshot["enemies"][number]["participantRolls"][number]["evidence"];
-}): string {
-  return createHash("sha256")
-    .update(canonicalJson({
-      version: 1,
-      encounterSeed: input.state.production!.encounterSeed,
-      partySessionId: input.state.partySessionId,
-      enemyOrder: input.enemy.order,
-      monsterId: input.enemy.monsterId ?? input.enemy.id,
-      characterId: input.participant.characterId,
-      luck: input.participant.stats.luck,
-      level: input.participant.level,
-      candidateCount: input.evidence.candidateCount,
-      selection: input.evidence.selection
-    }))
-    .digest("hex");
-}
-
 function createGroupCombatLootVersionOneRandom(
   state: GroupCombatState,
   enemy: GroupCombatEnemyState,
@@ -2982,7 +2817,7 @@ function createGroupCombatLootVersionOneRandom(
   );
 }
 
-const GROUP_COMBAT_LOOT_V1_RARITIES: LootRarity[] = [
+const GROUP_COMBAT_LOOT_V1_RARITIES: GroupCombatProductionV1Rarity[] = [
   "common",
   "uncommon",
   "rare",
@@ -2993,9 +2828,9 @@ const GROUP_COMBAT_LOOT_V1_RARITIES: LootRarity[] = [
 function rollGroupCombatLootVersionOneRarity(
   rng: SeededRandomSource,
   luck: number
-): LootRarity {
+): GroupCombatProductionV1Rarity {
   const roll = Math.min(0.999_999, Math.max(0, rng.nextFloat()));
-  const base: LootRarity = roll < 0.7
+  const base: GroupCombatProductionV1Rarity = roll < 0.7
     ? "common"
     : roll < 0.92
       ? "uncommon"
@@ -3017,9 +2852,9 @@ function rollGroupCombatLootVersionOneRarity(
 }
 
 function selectGroupCombatLootVersionOneCandidates(
-  candidates: readonly LootCandidate[],
-  rarity: LootRarity
-): LootCandidate[] {
+  candidates: readonly GroupCombatProductionV1LootCandidate[],
+  rarity: GroupCombatProductionV1Rarity
+): GroupCombatProductionV1LootCandidate[] {
   const targetIndex = GROUP_COMBAT_LOOT_V1_RARITIES.indexOf(rarity);
   for (let index = targetIndex; index >= 0; index -= 1) {
     const matching = candidates.filter(
@@ -3042,6 +2877,29 @@ function selectGroupCombatLootVersionOneCandidates(
     }
   }
   return [...candidates];
+}
+
+function selectGroupCombatLootVersionOneCandidate(
+  candidates: readonly GroupCombatProductionV1LootCandidate[],
+  rng: SeededRandomSource
+): GroupCombatProductionV1LootCandidate | null {
+  const totalWeight = candidates.reduce(
+    (sum, candidate) => sum + Math.max(0, candidate.weight),
+    0
+  );
+  if (totalWeight <= 0) {
+    return null;
+  }
+  const cursor = rng.nextFloat() * totalWeight;
+  let weightBefore = 0;
+  for (const candidate of candidates) {
+    const weight = Math.max(0, candidate.weight);
+    if (cursor < weightBefore + weight) {
+      return candidate;
+    }
+    weightBefore += weight;
+  }
+  return candidates[candidates.length - 1] ?? null;
 }
 
 function rollGroupCombatLootVersionOneBandageQuantity(
@@ -3116,27 +2974,6 @@ function addGroupCombatLootReward(
     current.push({ itemId, quantity: safeQuantity });
   }
   rewards.set(characterId, current);
-}
-
-function getGroupCombatLootExpansionSource(monster: {
-  level: number;
-  tags: readonly string[];
-}): LootExpansionSourceId {
-  const tags = new Set(monster.tags);
-  if (["food", "kitchen", "pan", "cheese"].some((tag) => tags.has(tag))) {
-    return "kitchen_dungeon";
-  }
-  if (
-    ["bureaucracy", "paper", "queue", "tax", "audit", "deadline", "calendar"].some(
-      (tag) => tags.has(tag)
-    )
-  ) {
-    return "bureaucracy_wing";
-  }
-  if (["forest", "garden", "druid", "frog"].some((tag) => tags.has(tag))) {
-    return "forest_sidequest";
-  }
-  return monster.level >= 10 ? "elite_mob" : "trash_mob";
 }
 
 function splitNeutral(total: number, count: number, index: number): number {

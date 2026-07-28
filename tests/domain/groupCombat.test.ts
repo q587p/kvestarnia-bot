@@ -8,7 +8,6 @@ import {
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
   deriveLeftPassageEnemyCount,
-  filterSupportedGroupCombatMonsterAbilityIds,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
@@ -31,8 +30,14 @@ import {
 } from "../../src/content/mantokAbilityGrants";
 import * as lootDomain from "../../src/domain/loot";
 import type { CombatSkillProfile } from "../../src/domain/combat";
-import { deriveMonsterCombatStats } from "../../src/domain/combat/monsterCombatStats";
-import { createMonsterAbilityRuntime } from "../../src/domain/combat/monsterAbilityRuntime";
+import {
+  deriveGroupCombatProductionV1MonsterStats,
+  findGroupCombatProductionV1Monster,
+  getGroupCombatProductionV1BackupEffectiveLevel,
+  getGroupCombatProductionV1LootCandidates,
+  resolveGroupCombatProductionV1MonsterAbilities,
+  selectGroupCombatProductionV1BackupMonster
+} from "../../src/domain/groupCombat/groupCombatProductionV1Resolver";
 import {
   GroupCombatStateValidationError,
   parseGroupCombatResultStrict,
@@ -75,13 +80,17 @@ describe("group combat proof reducer", () => {
     state.participants[0]!.mana = 3;
     state.contributions[0]!.committedActions = 2;
     const plan = buildGroupCombatSettlementPlan(state)!;
+    const expectedLoot = buildLeftPassageEncounterLootRewards(
+      state,
+      [state.participants[0]!]
+    );
 
     expect(plan.policy).toBe("left-passage-party");
     expect(plan.participants[0]?.resources).toEqual({ hp: 17, mana: 3 });
     expect(plan.participants[0]?.rewards).toEqual({
       xp: state.production!.rewards.winXpTotal,
       gold: state.production!.rewards.winGoldTotal,
-      items: []
+      items: expectedLoot.get(state.participants[0]!.characterId) ?? []
     });
     expect(plan.participants[1]?.rewards).toEqual({ xp: 0, gold: 0, items: [] });
     expect(plan.participants[0]?.effects?.activityKey).toBe("group-combat:group-session:activity");
@@ -106,13 +115,21 @@ describe("group combat proof reducer", () => {
     });
 
     const plan = buildGroupCombatSettlementPlan(state)!;
+    const expectedLoot = buildLeftPassageEncounterLootRewards(
+      state,
+      state.participants
+    );
     expect(state.participants).toHaveLength(3);
     expect(state.enemies).toHaveLength(3);
     expect(plan.participants.reduce((sum, row) => sum + row.rewards.xp, 0))
       .toBe(state.production!.rewards.winXpTotal);
     expect(plan.participants.reduce((sum, row) => sum + row.rewards.gold, 0))
       .toBe(state.production!.rewards.winGoldTotal);
-    expect(plan.participants.flatMap((row) => row.rewards.items)).toHaveLength(3);
+    expect(plan.participants.flatMap((row) => row.rewards.items)).toEqual(
+      plan.participants.flatMap((row) =>
+        expectedLoot.get(row.characterId) ?? []
+      )
+    );
     expect(buildGroupCombatSettlementPlan(structuredClone(state))).toEqual(plan);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
   });
@@ -221,6 +238,66 @@ describe("group combat proof reducer", () => {
         delete monsterLoot[key];
       }
       Object.assign(monsterLoot, lootCatalog);
+    }
+  });
+
+  it("matches the committed v1 candidate contract at the 0.4.2 catalog boundary", () => {
+    const cases = [
+      {
+        monsterId: "monster.deadline-spider",
+        level: 4,
+        classId: "class.warrior",
+        raceId: "race.human-ish"
+      },
+      {
+        monsterId: "monster.preapproval-dragonling",
+        level: 7,
+        classId: "class.priest",
+        raceId: "race.elf"
+      },
+      {
+        monsterId: "monster.cabbage-knight-on-break",
+        level: 13,
+        classId: "class.bard",
+        raceId: "race.dwarf"
+      }
+    ];
+    for (const fixture of cases) {
+      const monster = monsters.find(
+        (candidate) => candidate.id === fixture.monsterId
+      )!;
+      const sourceId = getTestLootExpansionSource(monster.level, monster.tags);
+      const expected = [
+        ...lootDomain.getLootCandidates({
+          monsterId: monster.id,
+          monsterLoot,
+          items
+        }),
+        ...lootDomain.getLootExpansionCandidates({
+          profile: {
+            level: fixture.level,
+            classId: fixture.classId,
+            raceId: fixture.raceId
+          },
+          sourceId,
+          sourceTags: monster.tags
+        })
+      ].map((candidate) => ({
+        itemId: candidate.item.id,
+        rarity: candidate.rarity,
+        weight: candidate.weight ?? 1
+      }));
+      const actual = getGroupCombatProductionV1LootCandidates({
+        monsterId: fixture.monsterId,
+        effectiveEnemyLevel: fixture.level,
+        classId: fixture.classId,
+        raceId: fixture.raceId
+      });
+      expect(actual.map(({ itemId, rarity }) => ({ itemId, rarity })))
+        .toEqual(expected.map(({ itemId, rarity }) => ({ itemId, rarity })));
+      actual.forEach((candidate, index) => {
+        expect(candidate.weight).toBeCloseTo(expected[index]!.weight, 12);
+      });
     }
   });
 
@@ -1684,7 +1761,7 @@ describe("group combat proof reducer", () => {
     ];
 
     expect(() => parseGroupCombatStateStrict(state)).toThrow(
-      "Production enemy ability loadout is not canonical."
+      "Production enemy state is not derivable from immutable v1 inputs."
     );
   });
 
@@ -1817,22 +1894,34 @@ function leftPassageState(
     })
   );
   const enemyCount = strong ? count * 2 : count;
-  const enemyPool = [
-    { monsterId: "monster.deadline-spider", level: 4 },
-    { monsterId: "monster.spreadsheet-goblin", level: 5 },
-    { monsterId: "monster.preapproval-dragonling", level: 6 }
-  ];
-  const enemyInputs = Array.from(
-    { length: enemyCount },
-    (_, index) => enemyPool[index % enemyPool.length]!
-  );
+  const usedMonsterIds = ["monster.deadline-spider"];
+  const enemyInputs = Array.from({ length: enemyCount }, (_, index) => {
+    if (index === 0) {
+      return { monsterId: "monster.deadline-spider", level: 4 };
+    }
+    const monster = selectGroupCombatProductionV1BackupMonster({
+      participantLevel: participants[0]!.level,
+      encounterSeed,
+      partySessionId: "party-session",
+      index,
+      usedMonsterIds
+    });
+    usedMonsterIds.push(monster.id);
+    return {
+      monsterId: monster.id,
+      level: getGroupCombatProductionV1BackupEffectiveLevel(participants[0]!.level)
+    };
+  });
   const enemies = enemyInputs.map(({ monsterId, level }, index) => {
-    const authored = monsters.find((monster) => monster.id === monsterId)!;
-    const stats = deriveMonsterCombatStats({ ...authored, level });
-    const abilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
-      monster: stats,
-      seed: `${encounterSeed}:party-session:enemy:${index}`
-    })?.loadoutIds ?? []);
+    const authored = findGroupCombatProductionV1Monster(monsterId)!;
+    const stats = deriveGroupCombatProductionV1MonsterStats({
+      monsterId,
+      effectiveLevel: level
+    })!;
+    const abilityIds = resolveGroupCombatProductionV1MonsterAbilities({
+      monsterId,
+      effectiveLevel: level
+    }).map((ability) => ability.id);
     return {
       id: index === 0 ? "primary:encounter-13" : `backup:${index}:${monsterId}`,
       monsterId,
@@ -1849,7 +1938,7 @@ function leftPassageState(
   const rewardBudget = buildLeftPassageEncounterRewardBudget({
     participantLevels: participants.map((participant) => participant.level),
     enemies: enemies.map((enemy) => ({
-      baseLevel: monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level,
+      baseLevel: findGroupCombatProductionV1Monster(enemy.monsterId)?.level ?? enemy.level,
       effectiveLevel: enemy.level
     })),
     deterministicKey: `${encounterSeed}:party-session:rewards`
@@ -1942,6 +2031,26 @@ function participant(index: number, overrides: Partial<GroupCombatActorSnapshot>
     threat: 0,
     ...overrides
   };
+}
+
+function getTestLootExpansionSource(
+  level: number,
+  tags: readonly string[]
+): "kitchen_dungeon" | "bureaucracy_wing" | "forest_sidequest" | "elite_mob" | "trash_mob" {
+  const tagSet = new Set(tags);
+  if (["food", "kitchen", "pan", "cheese"].some((tag) => tagSet.has(tag))) {
+    return "kitchen_dungeon";
+  }
+  if (
+    ["bureaucracy", "paper", "queue", "tax", "audit", "deadline", "calendar"]
+      .some((tag) => tagSet.has(tag))
+  ) {
+    return "bureaucracy_wing";
+  }
+  if (["forest", "garden", "druid", "frog"].some((tag) => tagSet.has(tag))) {
+    return "forest_sidequest";
+  }
+  return level >= 10 ? "elite_mob" : "trash_mob";
 }
 
 function action(
