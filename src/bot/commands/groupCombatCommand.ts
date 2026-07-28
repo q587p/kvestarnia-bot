@@ -641,7 +641,6 @@ async function submitGroupCombatReplyAction(
   );
   const telegramUserId = telegramUserIdFromContext(ctx.from);
   if (!target || !telegramUserId) {
-    await ctx.reply("Ціль уже не годиться. Оновлюю бій.");
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,
@@ -664,9 +663,25 @@ async function submitGroupCombatReplyAction(
     ? result.session
     : await service.findByToken(initialSession.partyInviteToken) ?? initialSession;
   if (!("session" in result)) {
-    await ctx.reply(presentActionResult(result.state).text);
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewerCharacterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+  } else {
+    await deliverGroupCombatCards(ctx.api, service, session);
+    if (session.status === "active") {
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewerCharacterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+    }
   }
-  await deliverGroupCombatCards(ctx.api, service, session);
   if ("settlementNotices" in result && result.settlementNotices) {
     await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices);
   }

@@ -234,25 +234,33 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("submits a one-enemy attack directly from the compact battle reply keyboard", async () => {
+  it("redraws an unavailable reply-menu action as the newest canonical battle card", async () => {
     const bot = testBot();
     const session = makeSession();
     session.state.enemies[1]!.hp = 0;
-    const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
+    const submitAction = vi.fn().mockResolvedValue({ state: "action-unavailable" });
     const service = {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
       findByToken: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
-    bot.api.config.use((_prev, method) => Promise.resolve({
-      ok: true,
-      result: method === "sendMessage"
-        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
-        : true
-    }));
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
     registerGroupCombatReplyKeyboard(bot, service);
 
     await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
@@ -265,6 +273,14 @@ describe("group combat bot flow", () => {
       targetKind: "enemy",
       targetId: "enemy-1"
     });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]).toContain("<b>Бій</b>:");
+    expect(sentTexts[0]).not.toContain("Ця дія зараз недоступна");
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
   });
 
   it("submits a concrete one-target ability directly without opening an ability submenu", async () => {
@@ -273,13 +289,15 @@ describe("group combat bot flow", () => {
     session.state.participants[0]!.classId = "class.warrior";
     session.state.participants[0]!.raceId = "race.dwarf";
     session.state.enemies[1]!.hp = 0;
+    const delivery = cardDeliveryHarness(session);
     const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
     const service = {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
       findByToken: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
     bot.api.config.use((_prev, method) => Promise.resolve({
@@ -305,20 +323,28 @@ describe("group combat bot flow", () => {
   it("submits an individual flee attempt from the compact battle reply keyboard", async () => {
     const bot = testBot();
     const session = makeSession();
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
     const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
     const service = {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
-    bot.api.config.use((_prev, method) => Promise.resolve({
-      ok: true,
-      result: method === "sendMessage"
-        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
-        : true
-    }));
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
     registerGroupCombatReplyKeyboard(bot, service);
 
     await bot.handleUpdate(textUpdate("🏃 Відступити"));
@@ -330,6 +356,12 @@ describe("group combat bot flow", () => {
       action: "flee",
       targetKind: "self",
       targetId: "character-1"
+    });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]).toContain("<b>Бій</b>:");
+    expect(session.participants[0]).toMatchObject({
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
     });
   });
 
