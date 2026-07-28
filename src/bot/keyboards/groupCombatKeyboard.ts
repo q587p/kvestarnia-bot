@@ -14,6 +14,7 @@ import {
   makeGroupCombatStatisticsCallbackData,
   makeGroupCombatViewCallbackData
 } from "../callbacks/groupCombatCallbackData";
+import { getDistinctShortMonsterNames } from "../presenters/monsterNamePresenter";
 
 export function buildGroupCombatKeyboard(
   session: GroupCombatSessionRecord,
@@ -54,12 +55,15 @@ export function buildGroupCombatKeyboard(
   };
 
   const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
+  const shortEnemyNames = getDistinctShortMonsterNames(livingEnemies);
   session.state.enemies.forEach((enemy, targetIndex) => {
     if (enemy.hp <= 0) {
       return;
     }
     addActionButton(
-      livingEnemies.length === 1 ? "⚔️ Атакувати" : `⚔️ ${enemy.name}`,
+      livingEnemies.length === 1
+        ? "⚔️ Атакувати"
+        : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
       makeGroupCombatActionCallbackData({
       token: session.partyInviteToken,
       turn: session.turn,
@@ -114,6 +118,9 @@ export function buildGroupCombatKeyboard(
               targetIndex
             }))
         : [{ kind: "self" as const, id: viewer!.characterId, targetIndex: viewer!.rosterOrder }];
+    const targetEnemyNames = getDistinctShortMonsterNames(
+      session.state.enemies.filter((enemy) => enemy.hp > 0)
+    );
     for (const target of targets) {
       const candidate: GroupCombatAction = {
         actorCharacterId: viewer!.characterId,
@@ -129,7 +136,9 @@ export function buildGroupCombatKeyboard(
       }
       const suffix = targets.length > 1
         ? target.kind === "enemy"
-          ? ` → ${session.state.enemies[target.targetIndex]?.name ?? "ворог"}`
+          ? ` → ${targetEnemyNames.get(
+              session.state.enemies[target.targetIndex]?.order ?? -1
+            ) ?? "ворог"}`
           : ` → ${session.state.participants[target.targetIndex]?.name ?? "союзник"}`
         : "";
       addActionButton(`${profile.ability.label}${suffix}`, makeGroupCombatActionCallbackData({

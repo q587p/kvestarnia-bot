@@ -35,13 +35,14 @@ const zeroRewardsSchema = z.object({
   gold: z.literal(0),
   items: z.tuple([])
 }).strict();
+const rewardItemSchema = z.object({
+  itemId: z.string().min(1),
+  quantity: positiveInteger
+}).strict();
 const rewardsSchema = z.object({
   xp: nonNegativeInteger,
   gold: nonNegativeInteger,
-  items: z.array(z.object({
-    itemId: z.string().min(1),
-    quantity: positiveInteger
-  }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT * 2)
+  items: z.array(rewardItemSchema).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT * 2)
 }).strict().superRefine((rewards, context) => {
   requireUnique(rewards.items.map((item) => item.itemId), context, "reward item ids");
 });
@@ -258,6 +259,23 @@ const threatDecisionSchema = z.object({
   secondEnemyLevelBonus: nonNegativeInteger
 }).strict();
 
+const lootVersionOneSnapshotSchema = z.object({
+  version: z.literal(1),
+  enemies: z.array(z.object({
+    enemyId: z.string().min(1),
+    monsterId: z.string().min(1),
+    order: nonNegativeInteger,
+    participantRolls: z.array(z.object({
+      characterId: z.string().min(1),
+      items: z.array(rewardItemSchema)
+        .max(2)
+        .superRefine((entries, context) => {
+          requireUnique(entries.map((entry) => entry.itemId), context, "frozen loot item ids");
+        })
+    }).strict()).min(1).max(GROUP_COMBAT_PARTICIPANT_LIMIT)
+  }).strict()).min(1).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT)
+}).strict();
+
 const productionSchema = z.object({
   version: z.literal(1),
   origin: z.literal("nyz-left-passage-party.v1"),
@@ -305,7 +323,8 @@ const productionSchema = z.object({
     winXpTotal: nonNegativeInteger,
     winGoldTotal: nonNegativeInteger,
     lossXpTotal: nonNegativeInteger,
-    lootVersion: z.literal(1)
+    lootVersion: z.literal(1),
+    lootSnapshot: lootVersionOneSnapshotSchema
   }).strict()
 }).strict();
 
@@ -517,6 +536,27 @@ const stateSchema = z.object({
       rosterIds.join("\0") !== remortIds.join("\0")
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Frozen difficulty roster does not match participants." });
+    }
+    const orderedEnemies = [...state.enemies].sort((left, right) => left.order - right.order);
+    const frozenLootEnemies = state.production.rewards.lootSnapshot.enemies;
+    const lootEnemyRowsMatch =
+      frozenLootEnemies.length === orderedEnemies.length &&
+      frozenLootEnemies.every((row, index) => {
+        const enemy = orderedEnemies[index];
+        return enemy &&
+          row.enemyId === enemy.id &&
+          row.monsterId === enemy.monsterId &&
+          row.order === enemy.order &&
+          row.participantRolls.length === rosterIds.length &&
+          row.participantRolls.every((roll, participantIndex) =>
+            roll.characterId === rosterIds[participantIndex]
+          );
+      });
+    if (!lootEnemyRowsMatch) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Frozen loot-v1 evidence does not match the canonical encounter roster."
+      });
     }
     if (
       state.enemies[0]?.monsterId !== state.production.primaryMonsterId ||

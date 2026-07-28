@@ -96,6 +96,12 @@ describe("group combat presenter", () => {
       contribution.guardedTurns = index;
     });
     const terminalText = presentGroupCombat(session, participants[0]!.characterId, NOW);
+    console.log(
+      "GroupCombat presenter terminal fixture bytes",
+      Buffer.byteLength(terminalText, "utf8"),
+      "/",
+      4_096
+    );
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -108,9 +114,9 @@ describe("group combat presenter", () => {
 
     expect(rows.map((row) => row.length)).toEqual([2, 2, 1]);
     expect(rows.flat().map((button) => button.text)).toEqual([
-      "⚔️ Комірний Шурхіт 1",
-      "⚔️ Комірний Шурхіт 2",
-      "⚔️ Комірний Шурхіт 3",
+      "⚔️ Комірний 1",
+      "⚔️ Комірний 2",
+      "⚔️ Комірний 3",
       "🛡️ Захиститися",
       "🔎 Оновити"
     ]);
@@ -127,6 +133,36 @@ describe("group combat presenter", () => {
 
     expect(labels).toContain("⚔️ Атакувати");
     expect(labels).not.toContain(`⚔️ ${session.state.enemies[0]!.name}`);
+  });
+
+  it("uses distinct ordinary-fight short monster names on the live card and target buttons", () => {
+    const session = createSession(2);
+    session.state.enemies[0]!.name = "Архівний книшоїд";
+    session.state.enemies[1]!.name = "Капустяний лицар на перерві";
+    session.state.recap = [{
+      turn: 1,
+      lines: [
+        "Архівний книшоїд відповідає Пригодник 1: 3 шкоди.",
+        "Капустяний лицар на перерві відповідає Пригодник 1: 3 шкоди."
+      ]
+    }];
+
+    const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+    const labels = buildGroupCombatKeyboard(
+      session,
+      session.participants[0]!.characterId
+    ).inline_keyboard.flat().map((button) => button.text);
+
+    expect(text).toContain("👹 Архівний: HP 14/14");
+    expect(text).toContain("👹 Капустяний: HP 16/16");
+    expect(text).toContain("Архівний відповідає Пригодник 1: 3 шкоди.");
+    expect(text).toContain("Капустяний відповідає Пригодник 1: 3 шкоди.");
+    expect(labels).toEqual([
+      "⚔️ Архівний",
+      "⚔️ Капустяний",
+      "🛡️ Захиститися",
+      "🔎 Оновити"
+    ]);
   });
 
   it("keeps the journal off active combat cards even after resolved turns", () => {
@@ -153,6 +189,13 @@ describe("group combat presenter", () => {
 
     expect(labels).toContain("✨ Суворе благословення");
     expect(labels).not.toContain("🫶 Пригодник 2");
+  });
+
+  it("retains the frozen cosmetic title in the combat presentation", () => {
+    const session = createSession(2);
+    session.state.participants[0]!.activeCosmeticTitle = "Туманник";
+
+    expect(presentGroupCombatIntro(session)).toContain("<i>Туманник</i>");
   });
 
   it("hides combat items while their canonical cooldown or once-per-fight limit is active", () => {
@@ -206,8 +249,8 @@ describe("group combat presenter", () => {
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
     expect(text).toContain("⏳ На хід є 15 с. Потім Корчма поставить вас у захист.");
     expect(rows.flat().map((button) => button.text)).toEqual([
-      "⚔️ Комірний Шурхіт 1",
-      "⚔️ Комірний Шурхіт 2",
+      "⚔️ Комірний 1",
+      "⚔️ Комірний 2",
       "🛡️ Захиститися",
       "🔎 Оновити"
     ]);
@@ -286,9 +329,9 @@ describe("group combat presenter", () => {
     expect(first).toContain("Силовий замах відсапується: ще 2 ходи.");
     expect(first).toContain("Щільний бинт відсапується: ще 5 ходів.");
     expect(first).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
-    expect(first).toContain(`🫧 ${session.state.enemies[0]!.name} · щит: 4.`);
+    expect(first).toContain("🫧 Комірний 1 · щит: 4.");
     expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
-    expect(first).toContain(`🧱 укріплення · ${session.state.enemies[0]!.name}: ще 1 хід.`);
+    expect(first).toContain("🧱 укріплення · Комірний 1: ще 1 хід.");
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -322,7 +365,7 @@ describe("group combat presenter", () => {
     const text = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
 
     expect(text).toContain(
-      "Пригодник 1 атакує: 13 шкоди.\n\n🧾 Знешкоджено: Комірний Шурхіт 1.\n\nКомірний Шурхіт 2 відповідає Пригодник 1: 3 шкоди."
+      "Пригодник 1 атакує: 13 шкоди.\n\n🧾 Знешкоджено: Комірний Шурхіт 1.\n\nКомірний 2 відповідає Пригодник 1: 3 шкоди."
     );
   });
 

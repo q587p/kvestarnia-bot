@@ -37,8 +37,13 @@ opportunities. Enemy rolls are assigned round-robin from a deterministic
 offset among eligible manual participants and use the recipient's frozen
 class/race/LUCK profile. Authored monster loot and eligible Loot Expansion
 manatky can drop; a positive bandage slot keeps the ordinary `4–6%`
-LUCK-bounded chance to become `Іскрокамінь` instead. The immutable terminal
-plan is replayed without rerolling.
+LUCK-bounded chance to become `Іскрокамінь` instead. Cosmetic titles are
+presentation-only: their text never enters candidate, chance, weight,
+recipient or settlement calculations. At encounter start, `lootVersion: 1`
+freezes the result for every canonical enemy/participant pair. Terminal
+round-robin recipient selection reads that bounded evidence, rebuilds the
+canonical plan from it and never calls the mutable current catalog or generic
+loot algorithm.
 
 Rewards are not damage-weighted. The eight contribution dimensions are
 descriptive only: damage, healing, prevented damage, control, damage taken,
@@ -67,6 +72,13 @@ player damage. A persisted production loadout containing an unsupported
 ability is rejected strictly instead of being replayed under different
 semantics.
 
+Two player support profiles have an authored direct-damage component without
+an enemy target scope: `skill.strict-blessing` and
+`gear.asclepius-instruction`. GroupCombat preserves their lowest-HP ally heal
+and all-ally protection, while direct damage deterministically selects the
+first living enemy in frozen order. No other supported profile is allowed to
+use this exception without an explicit classification.
+
 An enemy that was alive at the start of the participant/enemy exchange retains
 one ordinary final basic response if participant damage defeats it first. That
 response cannot select a special, heal, shield or buff. A start-of-turn effect
@@ -82,7 +94,9 @@ six support profiles and 13/25-turn scenarios with deterministic replay, legal
 targets, committed-action accounting and authored cooldown reuse. Its maximum
 serialized proof state remained bounded. Production 1×1 through 3×6 coverage
 separately verifies the immutable scaling formula, supported ability filtering,
-authored targets/effects, cooldown replay and strict restart validation.
+authored targets/effects, the two support-scope/direct-damage profiles,
+cooldown/fumble replay, cosmetic-title invariance, frozen loot-v1
+catalog/algorithm drift and strict restart validation.
 
 The production state budget is `65,536` bytes so the rolling last-25-turn 3×6
 journal can retain each recorded turn's HP/mana, cooldowns and active effects; the

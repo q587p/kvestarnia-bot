@@ -74,6 +74,10 @@ export const GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS = [
   "monster.classified-rustle",
   "monster.return-to-staff"
 ] as const;
+export const GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS = [
+  "skill.strict-blessing",
+  "gear.asclepius-instruction"
+] as const;
 
 export type GroupCombatStatus = "active" | "won" | "lost" | "invalid";
 export type GroupCombatRulesVersion =
@@ -196,7 +200,21 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
     winGoldTotal: number;
     lossXpTotal: number;
     lootVersion: 1;
+    lootSnapshot: GroupCombatLootVersionOneSnapshot;
   };
+}
+
+export interface GroupCombatLootVersionOneSnapshot {
+  version: 1;
+  enemies: Array<{
+    enemyId: string;
+    monsterId: string;
+    order: number;
+    participantRolls: Array<{
+      characterId: string;
+      items: Array<{ itemId: string; quantity: number }>;
+    }>;
+  }>;
 }
 
 export function deriveLeftPassageEnemyCount(input: {
@@ -472,7 +490,11 @@ export function createLeftPassageGroupCombatState(input: {
   deterministicSeed: number;
   participants: GroupCombatActorSnapshot[];
   enemies: GroupCombatEnemyState[];
-  difficulty: GroupCombatLeftPassageDifficultySnapshot;
+  difficulty: Omit<GroupCombatLeftPassageDifficultySnapshot, "rewards"> & {
+    rewards: Omit<GroupCombatLeftPassageDifficultySnapshot["rewards"], "lootSnapshot"> & {
+      lootSnapshot?: GroupCombatLootVersionOneSnapshot;
+    };
+  };
 }): GroupCombatState {
   if (
     input.participants.length < 1 ||
@@ -494,6 +516,11 @@ export function createLeftPassageGroupCombatState(input: {
       defense: nonNegativeInteger(enemy.defense),
       ...(enemy.level === undefined ? {} : { level: positiveInteger(enemy.level) })
     }));
+  const production = structuredClone(input.difficulty) as GroupCombatLeftPassageDifficultySnapshot;
+  production.rewards.lootSnapshot = {
+    version: 1,
+    enemies: []
+  };
   const state: GroupCombatState = {
     rulesVersion: GROUP_COMBAT_PRODUCTION_RULES_VERSION,
     sessionId: input.sessionId,
@@ -508,8 +535,9 @@ export function createLeftPassageGroupCombatState(input: {
     enemyContributions: enemies.map(emptyEnemyContribution),
     statuses: [],
     recap: [],
-    production: structuredClone(input.difficulty)
+    production
   };
+  state.production!.rewards.lootSnapshot = buildLeftPassageLootVersionOneSnapshot(state);
   assertGroupCombatStateBudget(state);
   return state;
 }
@@ -1004,8 +1032,17 @@ function applyAbilityAction(
   const secondaryTargets = ability.secondaryTargetScope
     ? resolveCommittedAbilityTargets(state, actor.characterId, ability.secondaryTargetScope, action.targetId)
     : [];
-  const enemyTargets = unique([...primaryTargets, ...secondaryTargets])
+  const scopedEnemyTargets = unique([...primaryTargets, ...secondaryTargets])
     .filter((targetId) => state.enemies.some((enemy) => enemy.id === targetId));
+  const enemyTargets = scopedEnemyTargets.length > 0
+    ? scopedEnemyTargets
+    : requiresCanonicalEnemyDamageTarget(ability)
+      ? state.enemies
+          .filter((enemy) => enemy.hp > 0)
+          .sort((left, right) => left.order - right.order)
+          .slice(0, 1)
+          .map((enemy) => enemy.id)
+      : [];
   const primaryEnemy = getCanonicalEnemyTarget(state, enemyTargets[0]);
   const defenderState: CombatActorResourceState = primaryEnemy
     ? { hp: primaryEnemy.hp, hpMax: primaryEnemy.hpMax, mana: 0, manaMax: 0 }
@@ -1168,6 +1205,29 @@ function applyAbilityAction(
       : `${actionLabel}: ${resolved.summary.critical ? "критично; " : ""}` +
         `${effects.length > 0 ? effects.join("; ") : "без прямої шкоди"}.`
   );
+}
+
+function requiresCanonicalEnemyDamageTarget(ability: CombatSkillProfile): boolean {
+  const scopes = [ability.primaryTargetScope, ability.secondaryTargetScope]
+    .filter((scope): scope is CombatTargetScope => Boolean(scope));
+  const hasAuthoredDirectDamage = ability.recipe?.includes("direct-damage") ?? false;
+  const hasEnemyScope = scopes.some((scope) =>
+    scope === "single-enemy" ||
+    scope === "all-enemies" ||
+    scope === "lowest-hp-enemy"
+  );
+  if (!hasAuthoredDirectDamage || hasEnemyScope) {
+    return false;
+  }
+  if (
+    !(GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS as readonly string[])
+      .includes(ability.id)
+  ) {
+    throw new Error(
+      `Group combat requires an explicit canonical enemy-damage classification for ${ability.id}.`
+    );
+  }
+  return true;
 }
 
 function presentParticipantActionLabel(
@@ -2364,62 +2424,101 @@ export function buildLeftPassageEncounterLootRewards(
 
   enemies.forEach((enemy, index) => {
     const recipient = eligible[(recipientOffset + index) % eligible.length]!;
-    const monster = enemy.monsterId
-      ? monsters.find((candidate) => candidate.id === enemy.monsterId)
-      : undefined;
-    if (!monster) {
-      return;
-    }
-    const effectiveEnemyLevel = Math.max(1, Math.floor(enemy.level ?? monster.level));
-    const rng = new SeededRandomSource(
-      `${state.production!.encounterSeed}:${state.partySessionId}:loot:${enemy.order}:${enemy.monsterId}:${recipient.characterId}`
+    const frozenEnemy = state.production!.rewards.lootSnapshot.enemies.find(
+      (candidate) => candidate.enemyId === enemy.id
     );
-    const loot = rollMonsterLoot({
-      monsterId: monster.id,
-      monsterLoot,
-      items,
-      luck: recipient.stats.luck,
-      dropChanceMultiplier: getLeftPassageEnemyLootDropChanceMultiplier({
-        effectiveEnemyLevel,
-        participantLevel: recipient.level
-      }),
-      rng,
-      character: {
-        level: effectiveEnemyLevel,
-        classId: recipient.classId,
-        raceId: recipient.raceId,
-        ...(recipient.activeCosmeticTitle
-          ? { title: recipient.activeCosmeticTitle }
-          : {})
-      },
-      sourceId: getGroupCombatLootExpansionSource(monster),
-      sourceTags: monster.tags
-    });
-    if (loot.state === "dropped") {
-      addGroupCombatLootReward(rewards, recipient.characterId, loot.item.id, 1);
-    }
-
-    const bandageSlot = rollPostFightBandageSlotReward({
-      bandageQuantity: rollBandageDropQuantity({
-        luck: recipient.stats.luck,
-        rng
-      }),
-      luck: recipient.stats.luck,
-      rng
-    });
-    if (bandageSlot) {
+    const frozenRoll = frozenEnemy?.participantRolls.find(
+      (candidate) => candidate.characterId === recipient.characterId
+    );
+    for (const item of frozenRoll?.items ?? []) {
       addGroupCombatLootReward(
         rewards,
         recipient.characterId,
-        bandageSlot.kind === "iskrokamin"
-          ? "item.iskrokamin"
-          : "item.responsible-panic-bandage",
-        bandageSlot.quantity
+        item.itemId,
+        item.quantity
       );
     }
   });
 
   return rewards;
+}
+
+function buildLeftPassageLootVersionOneSnapshot(
+  state: GroupCombatState
+): GroupCombatLootVersionOneSnapshot {
+  if (!state.production) {
+    throw new Error("Production loot snapshot requires frozen encounter metadata.");
+  }
+  const participants = [...state.participants].sort(
+    (left, right) => left.rosterOrder - right.rosterOrder
+  );
+  const enemies = [...state.enemies].sort((left, right) => left.order - right.order);
+  return {
+    version: 1,
+    enemies: enemies.map((enemy) => {
+      const monster = enemy.monsterId
+        ? monsters.find((candidate) => candidate.id === enemy.monsterId)
+        : undefined;
+      if (!monster) {
+        throw new Error(`Production loot snapshot requires authored monster ${enemy.monsterId ?? enemy.id}.`);
+      }
+      const effectiveEnemyLevel = Math.max(1, Math.floor(enemy.level ?? monster.level));
+      return {
+        enemyId: enemy.id,
+        monsterId: monster.id,
+        order: enemy.order,
+        participantRolls: participants.map((participant) => {
+          const rng = new SeededRandomSource(
+            `${state.production!.encounterSeed}:${state.partySessionId}:loot:${enemy.order}:${monster.id}:${participant.characterId}`
+          );
+          const rewards = new Map<string, GroupCombatRewards["items"]>();
+          const loot = rollMonsterLoot({
+            monsterId: monster.id,
+            monsterLoot,
+            items,
+            luck: participant.stats.luck,
+            dropChanceMultiplier: getLeftPassageEnemyLootDropChanceMultiplier({
+              effectiveEnemyLevel,
+              participantLevel: participant.level
+            }),
+            rng,
+            character: {
+              level: effectiveEnemyLevel,
+              classId: participant.classId,
+              raceId: participant.raceId
+            },
+            sourceId: getGroupCombatLootExpansionSource(monster),
+            sourceTags: monster.tags
+          });
+          if (loot.state === "dropped") {
+            addGroupCombatLootReward(rewards, participant.characterId, loot.item.id, 1);
+          }
+          const bandageSlot = rollPostFightBandageSlotReward({
+            bandageQuantity: rollBandageDropQuantity({
+              luck: participant.stats.luck,
+              rng
+            }),
+            luck: participant.stats.luck,
+            rng
+          });
+          if (bandageSlot) {
+            addGroupCombatLootReward(
+              rewards,
+              participant.characterId,
+              bandageSlot.kind === "iskrokamin"
+                ? "item.iskrokamin"
+                : "item.responsible-panic-bandage",
+              bandageSlot.quantity
+            );
+          }
+          return {
+            characterId: participant.characterId,
+            items: rewards.get(participant.characterId) ?? []
+          };
+        })
+      };
+    })
+  };
 }
 
 export function getLeftPassageEnemyLootDropChanceMultiplier(input: {

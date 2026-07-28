@@ -29,6 +29,10 @@ import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../serv
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
 import { presentMonsterBarkBlockquote } from "./monsterBarkPresenter";
+import {
+  getShortMonsterName,
+  presentShortMonsterName
+} from "./monsterNamePresenter";
 import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
@@ -1414,16 +1418,6 @@ function presentRemortMonsterPressureLines(state: CombatState | null | undefined
   return [
     `🧿 <i>${label}:</i> монстр бʼється з поправкою на ремортну памʼять.`
   ];
-}
-
-function presentShortMonsterName(name: string | null | undefined, fallback: string): string {
-  return escapeHtml(getShortMonsterName(name, fallback));
-}
-
-function getShortMonsterName(name: string | null | undefined, fallback: string): string {
-  const plainName = name?.replace(/<[^>]*>/g, "").trim() ?? "";
-
-  return plainName.split(/[\s\-–—]+/u).find(Boolean) ?? fallback;
 }
 
 function getEnemyActionDisplayIndex(entry: NonNullable<CombatTurnSummary["enemyActions"]>[number], actionIndex: number): number {

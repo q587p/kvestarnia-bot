@@ -16,6 +16,7 @@ import {
   presentBattleContributionLine
 } from "./battleContributionPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
+import { getDistinctShortMonsterNames } from "./monsterNamePresenter";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
@@ -33,9 +34,10 @@ export function presentGroupCombat(
       : state.status === "lost"
         ? production ? "🪦 Лівий прохід відбив атаку" : "🪦 Доказову сутичку програно"
         : production ? "🧯 Сутичку безпечно зупинено" : "🧯 Доказову сутичку безпечно зупинено";
+  const shortEnemyNames = getDistinctShortMonsterNames(state.enemies);
   const enemies = state.enemies.map((enemy) => presentBattleCombatantResourceLine({
     icon: enemy.hp > 0 ? "👹" : "☠️",
-    name: enemy.name,
+    name: shortEnemyNames.get(enemy.order) ?? "Монстр",
     hp: enemy.hp,
     hpMax: enemy.hpMax,
     showHpLabel: true
@@ -59,7 +61,7 @@ export function presentGroupCombat(
   const recapRows = state.recap ?? [];
   const recap = recapRows[recapRows.length - 1];
   const recapText = recap
-    ? `\n\n${presentGroupCombatRecapActions(recap).join("\n")}`
+    ? `\n\n${presentGroupCombatRecapActions(recap, session, true).join("\n")}`
     : "";
   const remaining = formatRemainingTurn(session.turnExpiresAt, now);
   const settlement = session.settlementPlan?.participants.find(
@@ -327,6 +329,7 @@ function presentGroupCombatTacticalState(
     const skill = getCombatSkillDisplay(cooldown.id);
     return `🫁 ${skill.icon} ${escapeHtml(skill.name)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`;
   });
+  const shortEnemyNames = getDistinctShortMonsterNames(state.enemies);
   for (const cooldown of Object.values(viewer.combatItems?.cooldowns ?? {})) {
     if (cooldown.remainingTurns <= 0) {
       continue;
@@ -336,12 +339,14 @@ function presentGroupCombatTacticalState(
   }
   for (const enemy of state.enemies) {
     if (enemy.shield?.points) {
-      lines.push(`🫧 ${escapeHtml(enemy.name)} · щит: ${enemy.shield.points}.`);
+      lines.push(
+        `🫧 ${escapeHtml(shortEnemyNames.get(enemy.order) ?? "Монстр")} · щит: ${enemy.shield.points}.`
+      );
     }
     for (const cooldown of Object.values(enemy.abilityCooldowns ?? {})) {
       if (cooldown.remainingTurns > 0) {
         lines.push(
-          `👹 ${escapeHtml(enemy.name)} · ${escapeHtml(getMonsterAbilityLabel(cooldown.id) ?? cooldown.id)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`
+          `👹 ${escapeHtml(shortEnemyNames.get(enemy.order) ?? "Монстр")} · ${escapeHtml(getMonsterAbilityLabel(cooldown.id) ?? cooldown.id)} відсапується: ще ${formatTurns(cooldown.remainingTurns)}.`
         );
       }
     }
@@ -409,14 +414,19 @@ function presentGroupCombatRecapSnapshot(
 }
 
 function presentGroupCombatRecapActions(
-  recap: GroupCombatSessionRecord["state"]["recap"][number]
+  recap: GroupCombatSessionRecord["state"]["recap"][number],
+  session?: GroupCombatSessionRecord,
+  compactEnemyNames = false
 ): string[] {
   const barks = (recap.monsterBarkIds ?? [])
     .map((barkId) => findMonsterBark(barkId))
     .filter((bark) => bark !== null)
     .map((bark) => presentMonsterBarkBlockquote(bark.text));
   const lines = recap.lines.flatMap((line, index) => {
-    const escaped = escapeHtml(line);
+    const visibleLine = compactEnemyNames && session && !line.startsWith("🧾 Знешкоджено:")
+      ? compactGroupCombatEnemyNames(line, session)
+      : line;
+    const escaped = escapeHtml(visibleLine);
     if (!line.startsWith("🧾 Знешкоджено:")) {
       return [escaped];
     }
@@ -429,6 +439,20 @@ function presentGroupCombatRecapActions(
   return barks.length > 0 && lines.length > 0
     ? [...barks, "", ...lines]
     : [...barks, ...lines];
+}
+
+function compactGroupCombatEnemyNames(
+  line: string,
+  session: GroupCombatSessionRecord
+): string {
+  const shortNames = getDistinctShortMonsterNames(session.state.enemies);
+  return [...session.state.enemies]
+    .sort((left, right) => right.name.length - left.name.length)
+    .reduce(
+      (result, enemy) =>
+        result.split(enemy.name).join(shortNames.get(enemy.order) ?? "Монстр"),
+      line
+    );
 }
 
 function formatLevelPoints(count: number): string {
@@ -459,10 +483,16 @@ function presentEffectLines(
     remainingTurns: number;
   }>
 ): string[] {
+  const shortEnemyNames = getDistinctShortMonsterNames(session.state.enemies);
   return effects.map((effect) => {
+    const targetEnemy = effect.targetKind === "enemy"
+      ? session.state.enemies.find((candidate) => candidate.id === effect.targetId)
+      : undefined;
     const target = effect.targetKind === "participant"
       ? session.state.participants.find((candidate) => candidate.characterId === effect.targetId)?.name
-      : session.state.enemies.find((candidate) => candidate.id === effect.targetId)?.name;
+      : targetEnemy
+        ? shortEnemyNames.get(targetEnemy.order)
+        : undefined;
     const label = effect.kind === "guard"
       ? "🛡️ захист"
       : effect.kind === "response-mitigation"
@@ -507,7 +537,10 @@ function presentQueuedAction(
   }
   if (action.action === "attack") {
     const enemy = session.state.enemies.find((candidate) => candidate.id === action.targetId);
-    return enemy ? `вдарити ${escapeHtml(enemy.name)}` : "вдарити ворога";
+    const shortName = enemy
+      ? getDistinctShortMonsterNames(session.state.enemies).get(enemy.order)
+      : undefined;
+    return shortName ? `вдарити ${escapeHtml(shortName)}` : "вдарити ворога";
   }
   if (action.action === "item") {
     return "скористатися бойовим запасом";

@@ -30,10 +30,14 @@ are distributed round-robin from a deterministic offset among eligible manual
 participants, use that recipient's frozen class/race/LUCK profile and can grant
 authored monster loot or eligible Loot Expansion manatky. Each positive
 bandage slot keeps the ordinary `4–6%` LUCK-bounded replacement rule, so it may
-become `Іскрокамінь` instead of a bandage. Replays reuse the immutable terminal
-plan and never reroll. A winning result with no items states explicitly that no
-manatka dropped. Loss XP remains the bounded one-fifth consolation from the
-encounter XP budget and loss gold is zero.
+become `Іскрокамінь` instead of a bandage. Cosmetic titles stay
+presentation-only and enter none of these calculations. `lootVersion: 1`
+freezes each enemy/participant result at encounter start; terminal recipient
+selection and plan rebuilding use only that bounded evidence, so later catalog
+or generic-algorithm changes cannot reroll active or pending settlement. A
+winning result with no items states explicitly that no manatka dropped. Loss
+XP remains the bounded one-fifth consolation from the encounter XP budget and
+loss gold is zero.
 
 GroupCombat persists eight symmetric contribution dimensions for participants
 and monsters: damage, healing, prevented damage, weakened response/control,
@@ -59,6 +63,12 @@ Every other authored monster ability is excluded from the frozen loadout and
 uses a basic attack. A persisted production loadout containing an unsupported
 ID is rejected strictly; no self-only, setup, sustain or non-damaging effect is
 converted into player damage.
+
+The explicit player-side support/direct-damage exceptions are
+`skill.strict-blessing` and `gear.asclepius-instruction`: ally healing and
+party protection retain their authored targets, while direct damage selects
+the first living enemy in frozen order. This changes neither mana, cooldown nor
+critical-fumble rules.
 
 `0.3.16` closes the PartyBoss class/race support parity gap. Existing support
 actions now apply their authored ally scope in group combat: Priest healing can

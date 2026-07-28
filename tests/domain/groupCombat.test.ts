@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildGroupCombatTimeoutAction,
   buildGroupCombatSettlementPlan,
@@ -11,6 +11,7 @@ import {
   filterSupportedGroupCombatMonsterAbilityIds,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
+  GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
@@ -21,7 +22,15 @@ import {
   type GroupCombatActorSnapshot
 } from "../../src/domain/groupCombat/groupCombat";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
-import { monsters } from "../../src/content";
+import { items, monsters } from "../../src/content";
+import { monsterLoot } from "../../src/content/monsterFlavor";
+import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
+import {
+  mantokAbilityGrantDefinitions,
+  type MantokAbilityGrantDefinition
+} from "../../src/content/mantokAbilityGrants";
+import * as lootDomain from "../../src/domain/loot";
+import type { CombatSkillProfile } from "../../src/domain/combat";
 import { deriveMonsterCombatStats } from "../../src/domain/combat/monsterCombatStats";
 import { createMonsterAbilityRuntime } from "../../src/domain/combat/monsterAbilityRuntime";
 import {
@@ -109,22 +118,22 @@ describe("group combat proof reducer", () => {
   });
 
   it("rolls per-enemy authored and expansion manatky, including rare Iskrokamin replacement", () => {
-    const state = leftPassageState(3, true);
-    state.status = "won";
-    state.turn = 5;
-    state.enemies.forEach((enemy) => {
-      enemy.hp = 0;
-    });
-    state.contributions.forEach((contribution) => {
-      contribution.committedActions = 1;
-    });
-    const eligible = state.participants;
     const seen = new Set<string>();
 
     for (let seed = 0; seed < 23; seed += 1) {
-      const candidate = structuredClone(state);
-      candidate.production!.encounterSeed = `loot-contract-${seed}`;
-      for (const rewards of buildLeftPassageEncounterLootRewards(candidate, eligible).values()) {
+      const candidate = leftPassageState(3, true, {}, `loot-contract-${seed}`);
+      candidate.status = "won";
+      candidate.turn = 5;
+      candidate.enemies.forEach((enemy) => {
+        enemy.hp = 0;
+      });
+      candidate.contributions.forEach((contribution) => {
+        contribution.committedActions = 1;
+      });
+      for (const rewards of buildLeftPassageEncounterLootRewards(
+        candidate,
+        candidate.participants
+      ).values()) {
         rewards.forEach((item) => seen.add(item.itemId));
       }
     }
@@ -132,6 +141,87 @@ describe("group combat proof reducer", () => {
     expect(seen).toContain("item.iskrokamin");
     expect([...seen].some((itemId) => itemId.startsWith("item.loot-v1-"))).toBe(true);
     expect([...seen].some((itemId) => itemId !== "item.iskrokamin")).toBe(true);
+  });
+
+  it.each([
+    undefined,
+    "Туманник",
+    "Куплетник",
+    "Начинковий пророк",
+    "Формулярник"
+  ])("keeps cosmetic title %s presentation-only for v1 loot and settlement", (title) => {
+    const baseline = leftPassageState(2, false);
+    const titled = leftPassageState(
+      2,
+      false,
+      title ? { activeCosmeticTitle: title } : {}
+    );
+    for (const state of [baseline, titled]) {
+      state.status = "won";
+      state.turn = 4;
+      state.enemies.forEach((enemy) => {
+        enemy.hp = 0;
+      });
+      state.contributions.forEach((contribution) => {
+        contribution.committedActions = 1;
+      });
+    }
+
+    expect(titled.participants[0]?.activeCosmeticTitle).toBe(title);
+    expect(titled.production?.rewards.lootSnapshot)
+      .toEqual(baseline.production?.rewards.lootSnapshot);
+    expect(buildLeftPassageEncounterLootRewards(titled, titled.participants))
+      .toEqual(buildLeftPassageEncounterLootRewards(baseline, baseline.participants));
+    expect(buildGroupCombatSettlementPlan(titled))
+      .toEqual(buildGroupCombatSettlementPlan(baseline));
+  });
+
+  it("keeps active v1 loot and terminal plans invariant under catalog and generic-algorithm drift", () => {
+    const active = leftPassageState(3, true);
+    const terminal = structuredClone(active);
+    terminal.status = "won";
+    terminal.turn = 5;
+    terminal.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    terminal.contributions.forEach((contribution) => {
+      contribution.committedActions = 1;
+    });
+    const expectedPlan = buildGroupCombatSettlementPlan(terminal);
+    const itemCatalog = [...items];
+    const lootCatalog = structuredClone(monsterLoot);
+    const genericRoll = vi.spyOn(lootDomain, "rollMonsterLoot");
+
+    try {
+      items.splice(0, items.length);
+      for (const key of Object.keys(monsterLoot)) {
+        delete monsterLoot[key];
+      }
+      genericRoll.mockImplementation(() => {
+        throw new Error("future generic loot algorithm must not run");
+      });
+      genericRoll.mockClear();
+
+      const replayedTerminal = structuredClone(active);
+      replayedTerminal.status = "won";
+      replayedTerminal.turn = 5;
+      replayedTerminal.enemies.forEach((enemy) => {
+        enemy.hp = 0;
+      });
+      replayedTerminal.contributions.forEach((contribution) => {
+        contribution.committedActions = 1;
+      });
+      expect(buildGroupCombatSettlementPlan(replayedTerminal)).toEqual(expectedPlan);
+      expect(buildGroupCombatSettlementPlan(terminal)).toEqual(expectedPlan);
+      expect(genericRoll).not.toHaveBeenCalled();
+    } finally {
+      genericRoll.mockRestore();
+      items.splice(0, items.length, ...itemCatalog);
+      for (const key of Object.keys(monsterLoot)) {
+        delete monsterLoot[key];
+      }
+      Object.assign(monsterLoot, lootCatalog);
+    }
   });
 
   it("adds independent enemy opportunities and scales each broad-loot chance by enemy level", () => {
@@ -1321,6 +1411,164 @@ describe("group combat proof reducer", () => {
     expect(resolved.state.recap[0]!.lines.join("\n")).toContain("Благословення перечитало адресата");
   });
 
+  it("explicitly classifies every supported direct-damage profile without an enemy scope", () => {
+    const gearProfiles: CombatSkillProfile[] = [];
+    const gearDefinitions = mantokAbilityGrantDefinitions as unknown as
+      readonly MantokAbilityGrantDefinition[];
+    for (const definition of gearDefinitions) {
+      if (definition.combat) {
+        gearProfiles.push(definition.combat.profile);
+      }
+    }
+    const profiles: CombatSkillProfile[] = [
+      ...classAbilities,
+      ...raceAbilities,
+      ...gearProfiles
+    ];
+    const supportDamageProfiles = profiles
+      .filter((profile) => profile.recipe?.includes("direct-damage"))
+      .filter((profile) => ![
+        profile.primaryTargetScope,
+        profile.secondaryTargetScope
+      ].some((scope) =>
+        scope === "single-enemy" ||
+        scope === "all-enemies" ||
+        scope === "lowest-hp-enemy"
+      ))
+      .map((profile) => profile.id)
+      .sort();
+
+    expect(supportDamageProfiles).toEqual(
+      [...GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS].sort()
+    );
+  });
+
+  it.each([
+    {
+      abilityId: "skill.strict-blessing",
+      actionKey: "class" as const,
+      actor: {
+        classId: "class.priest",
+        mana: 10
+      },
+      manaCost: 4,
+      healAmount: 7
+    },
+    {
+      abilityId: "gear.asclepius-instruction",
+      actionKey: "gear" as const,
+      actor: {
+        classId: "class.warrior",
+        mana: 10,
+        level: 13,
+        gearAbilityIds: ["gear.asclepius-instruction"]
+      },
+      manaCost: 5,
+      healAmount: 4
+    }
+  ])(
+    "$abilityId heals and protects the committed ally while damaging the canonical living enemy",
+    ({ abilityId, actionKey, actor: actorOverrides, manaCost, healAmount }) => {
+      const state = proofState(3);
+      Object.assign(state.participants[0]!, actorOverrides);
+      state.participants[1]!.hp = 5;
+      state.participants[1]!.defense = 100;
+      state.participants[1]!.threat = 1_000;
+      const initialEnemyHp = state.enemies.map((enemy) => enemy.hp);
+      const submitted = [
+        {
+          ...action(
+            state,
+            0,
+            actionKey,
+            "self",
+            state.participants[0]!.characterId
+          ),
+          ...(actionKey === "gear" ? { payloadKey: abilityId } : {})
+        },
+        action(state, 1, "guard", "self", state.participants[1]!.characterId),
+        action(state, 2, "guard", "self", state.participants[2]!.characterId)
+      ];
+
+      const resolved = resolveGroupCombatTurn(state, submitted);
+      const replay = resolveGroupCombatTurn(structuredClone(state), submitted);
+      const actor = resolved.state.participants[0]!;
+      const healedAlly = resolved.state.participants[1]!;
+      const recap = resolved.state.recap[0]!.lines.join("\n");
+
+      expect(replay).toEqual(resolved);
+      expect(healedAlly.hp).toBe(5 + healAmount);
+      expect(resolved.state.enemies[0]!.hp).toBeLessThan(initialEnemyHp[0]!);
+      expect(resolved.state.enemies[1]!.hp).toBe(initialEnemyHp[1]);
+      expect(resolved.state.enemies[2]!.hp).toBe(initialEnemyHp[2]);
+      expect(recap).toMatch(new RegExp(`${abilityId === "skill.strict-blessing"
+        ? "Суворе благословення"
+        : "Інструкція Асклепія"}.*\\d+ шкоди`));
+      expect(actor.mana).toBe(10 - manaCost);
+      expect(actionKey === "class"
+        ? actor.cooldowns?.skill?.id
+        : actor.cooldowns?.abilities?.[abilityId]?.id
+      ).toBe(abilityId);
+      expect(resolved.state.contributions[0]!.guardPrevented).toBeGreaterThan(0);
+      expect(recap).toContain("захист усім союзникам");
+    }
+  );
+
+  it.each([
+    {
+      abilityId: "skill.strict-blessing",
+      actionKey: "class" as const,
+      actor: { classId: "class.priest" },
+      manaCost: 4
+    },
+    {
+      abilityId: "gear.asclepius-instruction",
+      actionKey: "gear" as const,
+      actor: {
+        gearAbilityIds: ["gear.asclepius-instruction"],
+        level: 13
+      },
+      manaCost: 5
+    }
+  ])("$abilityId keeps deterministic fumble resource semantics", ({
+    abilityId,
+    actionKey,
+    actor: actorOverrides,
+    manaCost
+  }) => {
+    const state = proofState(2);
+    Object.assign(state.participants[0]!, actorOverrides);
+    state.participants[0]!.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        [abilityId]: { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 1 }
+      }
+    };
+    const initialEnemyHp = state.enemies.map((enemy) => enemy.hp);
+    const submitted = [
+      {
+        ...action(
+          state,
+          0,
+          actionKey,
+          "self",
+          state.participants[0]!.characterId
+        ),
+        ...(actionKey === "gear" ? { payloadKey: abilityId } : {})
+      },
+      action(state, 1, "guard", "self", state.participants[1]!.characterId)
+    ];
+    const resolved = resolveGroupCombatTurn(state, submitted);
+
+    expect(resolved.state.enemies.map((enemy) => enemy.hp)).toEqual(initialEnemyHp);
+    expect(resolved.state.contributions[0]!.healing).toBe(0);
+    expect(resolved.state.participants[0]!.mana).toBe(10 - manaCost);
+    expect(actionKey === "class"
+      ? resolved.state.participants[0]!.cooldowns?.skill?.id
+      : resolved.state.participants[0]!.cooldowns?.abilities?.[abilityId]?.id
+    ).toBe(abilityId);
+  });
+
   it("strictly rejects malformed and foreign status targets", () => {
     const state = proofState(2);
     expect(() => parseGroupCombatStateStrict({
@@ -1435,6 +1683,15 @@ describe("group combat proof reducer", () => {
       },
       (state) => {
         (state.production!.rewards as { lootVersion: number }).lootVersion = 2;
+      },
+      (state) => {
+        state.production!.rewards.lootSnapshot.enemies[0]!.participantRolls.reverse();
+      },
+      (state) => {
+        state.production!.rewards.lootSnapshot.enemies[0]!.participantRolls[0]!.items = [
+          { itemId: "item.iskrokamin", quantity: 1 },
+          { itemId: "item.iskrokamin", quantity: 2 }
+        ];
       }
     ];
     for (const corrupt of corruptions) {
@@ -1457,10 +1714,18 @@ function proofState(
   });
 }
 
-function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
+function leftPassageState(
+  count: 1 | 2 | 3 = 2,
+  strong = false,
+  participantOverrides: Partial<GroupCombatActorSnapshot> = {},
+  encounterSeed = "seed-23"
+) {
   const participants = Array.from(
     { length: count },
-    (_, index) => participant(index, { level: strong ? 7 : 4 })
+    (_, index) => participant(index, {
+      level: strong ? 7 : 4,
+      ...participantOverrides
+    })
   );
   const enemyCount = strong ? count * 2 : count;
   const enemyPool = [
@@ -1477,7 +1742,7 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
     const stats = deriveMonsterCombatStats({ ...authored, level });
     const abilityIds = filterSupportedGroupCombatMonsterAbilityIds(createMonsterAbilityRuntime({
       monster: stats,
-      seed: `seed-23:party-session:enemy:${index}`
+      seed: `${encounterSeed}:party-session:enemy:${index}`
     })?.loadoutIds ?? []);
     return {
       id: index === 0 ? "primary:encounter-13" : `backup:${index}:${monsterId}`,
@@ -1498,7 +1763,7 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
       baseLevel: monsters.find((monster) => monster.id === enemy.monsterId)?.level ?? enemy.level,
       effectiveLevel: enemy.level
     })),
-    deterministicKey: "seed-23:party-session:rewards"
+    deterministicKey: `${encounterSeed}:party-session:rewards`
   });
   return createLeftPassageGroupCombatState({
     sessionId: "group-session",
@@ -1512,7 +1777,7 @@ function leftPassageState(count: 1 | 2 | 3 = 2, strong = false) {
       locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       encounterId: "encounter-13",
       encounterToken: "encounter-token-13",
-      encounterSeed: "seed-23",
+      encounterSeed,
       initiatingCharacterId: "character-0",
       initiatingRemortCount: 0,
       primaryMonsterId: "monster.deadline-spider",

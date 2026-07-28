@@ -28,6 +28,8 @@ import {
   type GroupCombatState
 } from "../../src/domain/groupCombat/groupCombat";
 import { presentGroupCombat } from "../../src/bot/presenters/groupCombatPresenter";
+import { items } from "../../src/content";
+import { monsterLoot } from "../../src/content/monsterFlavor";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
@@ -1399,6 +1401,107 @@ describe("PrismaGroupCombatRepository integration", () => {
         achievementId: "achievement.left-passage.party-attack.first"
       }
     })).toBe(0);
+  });
+
+  it("restarts and settles a terminal pending loot-v1 plan after unrelated loot catalog drift", async () => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-loot-v1-drift",
+      [12983n, 12984n, 12985n]
+    );
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const expectedPlan = structuredClone(terminal.settlementPlan);
+    const itemCatalog = [...items];
+    const lootCatalog = structuredClone(monsterLoot);
+
+    try {
+      items.splice(0, items.length);
+      for (const key of Object.keys(monsterLoot)) {
+        delete monsterLoot[key];
+      }
+      const restarted = new PrismaGroupCombatRepository(prisma);
+      const reloaded = await restarted.findById(terminal.id);
+
+      expect(reloaded?.settlementPlan).toEqual(expectedPlan);
+      for (const participant of terminal.participants) {
+        await expect(restarted.settleParticipant({
+          sessionId: terminal.id,
+          telegramUserId: participant.telegramUserId,
+          now: new Date(NOW.getTime() + 55_000 + participant.rosterOrder)
+        })).resolves.toMatchObject({
+          state: "settled",
+          receipt: {
+            characterId: participant.characterId,
+            rewards: expectedPlan!.participants.find(
+              (row) => row.characterId === participant.characterId
+            )!.rewards
+          }
+        });
+      }
+    } finally {
+      items.splice(0, items.length, ...itemCatalog);
+      for (const key of Object.keys(monsterLoot)) {
+        delete monsterLoot[key];
+      }
+      Object.assign(monsterLoot, lootCatalog);
+    }
+  });
+
+  it.each([
+    ["forged-item", 12986n],
+    ["changed-recipient", 12988n],
+    ["duplicate-item", 12990n]
+  ] as const)("rejects terminal loot-v1 plan corruption for %s", async (kind, firstId) => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      `left-loot-v1-${kind}`,
+      [firstId, firstId + 1n]
+    );
+    for (const enemy of started.state.production!.rewards.lootSnapshot.enemies) {
+      for (const roll of enemy.participantRolls) {
+        roll.items = [{
+          itemId: "item.iskrokamin",
+          quantity: enemy.order + roll.characterId.length + 1
+        }];
+      }
+    }
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const plan = structuredClone(terminal.settlementPlan)!;
+    if (kind === "forged-item") {
+      plan.participants[0]!.rewards.items = [{
+        itemId: "item.forged-future-reward",
+        quantity: 1
+      }];
+    } else if (kind === "changed-recipient") {
+      [
+        plan.participants[0]!.rewards.items,
+        plan.participants[1]!.rewards.items
+      ] = [
+        plan.participants[1]!.rewards.items,
+        plan.participants[0]!.rewards.items
+      ];
+    } else {
+      plan.participants[0]!.rewards.items = [
+        { itemId: "item.iskrokamin", quantity: 1 },
+        { itemId: "item.iskrokamin", quantity: 2 }
+      ];
+    }
+    await prisma.groupCombatSession.update({
+      where: { id: terminal.id },
+      data: {
+        settlementPlanJson: plan as unknown as Prisma.InputJsonValue,
+        terminalIntegrityCheckedAt: null
+      }
+    });
+
+    await expect(repository.findById(terminal.id)).rejects.toThrow();
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: terminal.participants[0]!.telegramUserId,
+      now: new Date(NOW.getTime() + 56_000)
+    })).resolves.toEqual({ state: "invalid-plan" });
   });
 
   it.each([

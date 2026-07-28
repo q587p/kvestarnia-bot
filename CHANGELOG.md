@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.2] - 12026-07-27 - Left-Passage Party Attack
+## [0.4.2] - 12026-07-28 - Left-Passage Party Attack
 
 ### Added
 - Added the first production-capable `group-combat.v3` consumer for the exact hard `deep-left` pending encounter. The reserved preview remains the primary enemy while a typed `nyz-left-passage-party.v1` `PartySession` recruits an authoritative 1–3-person current-life roster. One enemy per participant is the base; frozen remort, canonical solo Низ pressure or a three-level advantage adds one backup per strong participant, capped at six deterministic enemies.
@@ -36,6 +36,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Clarified the reward result: each enemy contributes its ordinary XP/gold budget before the eligible-manual neutral split; loss XP is the one-fifth consolation. Each enemy now also receives a deterministic ordinary broad-loot roll and bandage slot, so stronger/more numerous enemies can yield authored or Loot Expansion manatky, bandages and the ordinary rare `Іскрокамінь` replacement without rerolling on restart. A winning no-loot card says that no manatka dropped.
 - Removed the proof-only 25-turn forced defeat from production GroupCombat. A left-passage fight now continues while both sides are alive and retains a rolling 25-turn journal; only a fully defeated party loses. Enemies alive at the exchange start keep one final basic response after participant damage defeats them, but cannot use a posthumous special.
 - Made production settlement level-monotonic so XP settlement cannot lower a level raised after combat start, including local dev-grant QA.
+- Kept active cosmetic titles presentation-only in GroupCombat rewards. Loot v1 now freezes the bounded result for every canonical enemy/participant pair at encounter start, and terminal settlement rebuilds from that evidence instead of mutable loot catalogs or the generic loot algorithm; forged item, recipient and duplicate-item plan changes still fail closed.
+- Preserved the authored direct-damage component of `skill.strict-blessing` and `gear.asclepius-instruction`: their lowest-HP ally healing and all-ally protection remain unchanged while damage deterministically selects the first living enemy in frozen order, with the existing mana, cooldown and fumble rules.
+- Matched ordinary combat's compact monster naming on live GroupCombat HP, effect, action and exact-target controls. First-word collisions receive deterministic frozen-order suffixes, while introductions, defeat notices, journals and statistics retain full authored names.
 
 ### Verification and rollout boundary
 - Focused domain, repository, service, scheduler, delivery, achievement-catalog regression and integration coverage exercises the real left-passage presence preview, nearby discovery/readiness, wrong legacy location, deterministic 1×1 through 3×6 enemies, monster specials/full journal, frozen-life pressure, manual/timeout eligibility, transactional partial failure, strict v3 corruption, quarantine race fences, v1/v2 repair, terminal settlement replay, achievement deferral and rollout isolation. Full gate and simulator evidence is recorded in the owning draft PR.
