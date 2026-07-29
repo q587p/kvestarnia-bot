@@ -251,24 +251,45 @@ async function deliverParticipantExitNavigation(input: {
               actor.characterId === participant!.characterId &&
               actor.fledAtTurn !== undefined
           );
-          const sent = await input.api.sendMessage(
-            Number(participant.telegramUserId),
-            fled
-              ? "🏃 Ви відступили з бою. Головне меню знову на місці."
-              : "🏁 Бій завершено. Головне меню знову на місці.",
-            {
-              reply_markup: buildMainMenuKeyboard({
-                ...(navigation.locationId
-                  ? { locationId: navigation.locationId }
-                  : {}),
-                ...(navigation.questMarkers
-                  ? {
-                      questMarkers: navigation.questMarkers
-                    }
-                  : {})
-              })
-            }
+          const renewed =
+            await input.service.renewParticipantFleeExitDeliveryClaim({
+              sessionId: current.id,
+              telegramUserId: participant.telegramUserId,
+              claimToken,
+              claimedAt: serviceTime(input.service)
+            });
+          if (!renewed) {
+            return false;
+          }
+          const controller = new AbortController();
+          const timeout = setTimeout(
+            () => controller.abort(),
+            TELEGRAM_PUBLICATION_IO_TIMEOUT_MS
           );
+          let sent: Awaited<ReturnType<Api["sendMessage"]>>;
+          try {
+            sent = await input.api.sendMessage(
+              Number(participant.telegramUserId),
+              fled
+                ? "🏃 Ви відступили з бою. Головне меню знову на місці."
+                : "🏁 Бій завершено. Головне меню знову на місці.",
+              {
+                reply_markup: buildMainMenuKeyboard({
+                  ...(navigation.locationId
+                    ? { locationId: navigation.locationId }
+                    : {}),
+                  ...(navigation.questMarkers
+                    ? {
+                        questMarkers: navigation.questMarkers
+                      }
+                    : {})
+                })
+              },
+              controller.signal as Parameters<Api["sendMessage"]>[3]
+            );
+          } finally {
+            clearTimeout(timeout);
+          }
           exitMessageId = sent.message_id;
         } catch (error) {
           await input.service.releaseParticipantFleeExitDeliveryClaim({

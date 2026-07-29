@@ -266,6 +266,13 @@ export interface GroupCombatSettlementTestHooks {
     sessionId?: string;
     partyInviteToken?: string;
   }): void | Promise<void>;
+  afterActionPersisted?(input: {
+    sessionId: string;
+    actorCharacterId: string;
+    turn: number;
+    writeState: "queued" | "replaced" | "duplicate";
+    readyToResolve: boolean;
+  }): void | Promise<void>;
   afterStage?(input: {
     stage: GroupCombatSettlementStage;
     sessionId: string;
@@ -895,224 +902,377 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       operation: "action",
       partyInviteToken: input.partyInviteToken
     });
-    const publicationWaitStartedAt = Date.now();
     let mutationAttempt = 0;
+    let persisted:
+      | {
+          kind: "persisted";
+          sessionId: string;
+          session: GroupCombatSessionRecord | null;
+          actorCharacterId: string;
+          writeState: "queued" | "replaced" | "duplicate";
+          readyToResolve: boolean;
+        }
+      | { kind: "result"; result: GroupCombatActionResult }
+      | null = null;
     while (mutationAttempt < MAX_MUTATION_ATTEMPTS) {
       try {
-        return await this.prisma.$transaction(async (tx) => {
-      const actor = await tx.character.findFirst({
-        where: { user: { telegramUserId: input.telegramUserId } },
-        select: { id: true }
-      });
-      if (!actor) {
-        return { state: "no-character" } as const;
-      }
-      const row = await tx.groupCombatSession.findFirst({
-        where: {
-          partySession: { inviteToken: input.partyInviteToken },
-          repairState: null
-        },
-        include: sessionInclude
-      });
-      if (!row) {
-        return { state: "not-found" } as const;
-      }
-      if (!row.participants.some((participant) => participant.characterId === actor.id)) {
-        return { state: "not-participant" } as const;
-      }
-      let state: GroupCombatState;
-      try {
-        state = parseRowState(row);
-        if (state.status === "active") {
-          await validateActiveOwnership(tx, row);
-        }
-      } catch (error) {
-        if (!(error instanceof GroupCombatStateValidationError)) {
-          throw error;
-        }
-        return actionResultAfterRepair(await repairMalformedSession(tx, row, input.now));
-      }
-      if (state.status !== "active") {
-        const session = await loadSession(tx, row.id);
-        return session ? { state: "terminal", session } : { state: "not-found" };
-      }
-      const action: GroupCombatAction = {
-        actorCharacterId: actor.id,
-        turn: input.turn,
-        action: input.action,
-        targetKind: input.targetKind,
-        targetId: input.targetId,
-        ...(input.payloadKey ? { payloadKey: input.payloadKey } : {}),
-        origin: "manual"
-      };
-      const validation = validateGroupCombatAction(state, action);
-      if (validation !== "ok") {
-        return { state: validation };
-      }
-
-      const existingAction = await tx.groupCombatAction.findUnique({
-        where: {
-          sessionId_turn_actorCharacterId: {
-            sessionId: row.id,
-            turn: input.turn,
-            actorCharacterId: actor.id
+        persisted = await this.prisma.$transaction(async (tx) => {
+          const actor = await tx.character.findFirst({
+            where: { user: { telegramUserId: input.telegramUserId } },
+            select: { id: true }
+          });
+          if (!actor) {
+            return {
+              kind: "result",
+              result: { state: "no-character" }
+            } as const;
           }
-        }
-      });
-      const writeState: "queued" | "replaced" | "duplicate" = existingAction
-        ? existingAction.actionKey === input.action &&
-          existingAction.targetKind === input.targetKind &&
-          existingAction.targetId === input.targetId
-          && existingAction.payloadKey === (input.payloadKey ?? null)
-          ? "duplicate"
-          : "replaced"
-        : "queued";
-      if (writeState === "duplicate") {
-        const session = await loadSession(tx, row.id);
-        return session ? { state: "duplicate", session } : { state: "not-found" };
-      }
-      const claimedRow = await claimActiveSessionMutation(tx, row);
-      if (writeState === "queued") {
-        await tx.groupCombatAction.create({
-          data: {
-            sessionId: row.id,
+          const row = await tx.groupCombatSession.findFirst({
+            where: {
+              partySession: { inviteToken: input.partyInviteToken },
+              repairState: null
+            },
+            include: sessionInclude
+          });
+          if (!row) {
+            return {
+              kind: "result",
+              result: { state: "not-found" }
+            } as const;
+          }
+          if (
+            !row.participants.some(
+              (participant) => participant.characterId === actor.id
+            )
+          ) {
+            return {
+              kind: "result",
+              result: { state: "not-participant" }
+            } as const;
+          }
+          let state: GroupCombatState;
+          try {
+            state = parseRowState(row);
+            if (state.status === "active") {
+              await validateActiveOwnership(tx, row);
+            }
+          } catch (error) {
+            if (!(error instanceof GroupCombatStateValidationError)) {
+              throw error;
+            }
+            return {
+              kind: "result",
+              result: actionResultAfterRepair(
+                await repairMalformedSession(tx, row, input.now)
+              )
+            } as const;
+          }
+          if (state.status !== "active") {
+            const session = await loadSession(tx, row.id);
+            return {
+              kind: "result",
+              result: session
+                ? { state: "terminal", session }
+                : { state: "not-found" }
+            } as const;
+          }
+          const action: GroupCombatAction = {
             actorCharacterId: actor.id,
             turn: input.turn,
-            actionKey: input.action,
+            action: input.action,
             targetKind: input.targetKind,
             targetId: input.targetId,
-            payloadKey: input.payloadKey ?? null,
-            origin: "manual",
-            submittedAt: input.now
+            ...(input.payloadKey ? { payloadKey: input.payloadKey } : {}),
+            origin: "manual"
+          };
+          const validation = validateGroupCombatAction(state, action);
+          if (validation !== "ok") {
+            return {
+              kind: "result",
+              result: { state: validation }
+            } as const;
           }
-        });
-      } else if (writeState === "replaced") {
-        const replaced = await tx.groupCombatAction.updateMany({
-          where: {
-            id: existingAction!.id,
-            actionKey: existingAction!.actionKey,
-            targetKind: existingAction!.targetKind,
-            targetId: existingAction!.targetId,
-            payloadKey: existingAction!.payloadKey,
-            submittedAt: existingAction!.submittedAt,
-            session: { repairState: null }
-          },
-          data: {
-            actionKey: input.action,
-            targetKind: input.targetKind,
-            targetId: input.targetId,
-            payloadKey: input.payloadKey ?? null,
-            origin: "manual",
-            submittedAt: input.now
+          const existingAction = await tx.groupCombatAction.findUnique({
+            where: {
+              sessionId_turn_actorCharacterId: {
+                sessionId: row.id,
+                turn: input.turn,
+                actorCharacterId: actor.id
+              }
+            }
+          });
+          const writeState: "queued" | "replaced" | "duplicate" =
+            existingAction
+              ? existingAction.actionKey === input.action &&
+                existingAction.targetKind === input.targetKind &&
+                existingAction.targetId === input.targetId &&
+                existingAction.payloadKey === (input.payloadKey ?? null)
+                ? "duplicate"
+                : "replaced"
+              : "queued";
+          let claimedRow = row;
+          if (writeState !== "duplicate") {
+            claimedRow = await claimActiveSessionMutation(tx, row);
           }
-        });
-        if (replaced.count !== 1) {
-          throw new GroupCombatMutationConflict();
-        }
-      }
-      const result = await resolveIfReady(
-        tx,
-        claimedRow,
-        state,
-        input.now,
-        input.nextTurnExpiresAt,
-        uiPublicationTime(input.now, publicationWaitStartedAt),
-        this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
-      );
-      if (result) {
-        return result;
-      }
-      const delivery = await tx.groupCombatSession.updateMany({
-          where: {
-            id: claimedRow.id,
-            status: "active",
-            turn: claimedRow.turn,
-            version: claimedRow.version,
-            repairState: null
-          },
-          data: {
-            deliveryRevision: { increment: 1 },
-            deliveryPending: true,
-            deliveryAttemptedAt: null
+          if (writeState === "queued") {
+            await tx.groupCombatAction.create({
+              data: {
+                sessionId: row.id,
+                actorCharacterId: actor.id,
+                turn: input.turn,
+                actionKey: input.action,
+                targetKind: input.targetKind,
+                targetId: input.targetId,
+                payloadKey: input.payloadKey ?? null,
+                origin: "manual",
+                submittedAt: input.now
+              }
+            });
+          } else if (writeState === "replaced") {
+            const replaced = await tx.groupCombatAction.updateMany({
+              where: {
+                id: existingAction!.id,
+                actionKey: existingAction!.actionKey,
+                targetKind: existingAction!.targetKind,
+                targetId: existingAction!.targetId,
+                payloadKey: existingAction!.payloadKey,
+                submittedAt: existingAction!.submittedAt,
+                session: { repairState: null }
+              },
+              data: {
+                actionKey: input.action,
+                targetKind: input.targetKind,
+                targetId: input.targetId,
+                payloadKey: input.payloadKey ?? null,
+                origin: "manual",
+                submittedAt: input.now
+              }
+            });
+            if (replaced.count !== 1) {
+              throw new GroupCombatMutationConflict();
+            }
           }
+          const actionRows = await tx.groupCombatAction.findMany({
+            where: { sessionId: row.id, turn: row.turn },
+            orderBy: [{ submittedAt: "asc" }, { id: "asc" }]
+          });
+          let actions: GroupCombatQueuedActionRecord[];
+          try {
+            actions = validatePersistedActions(state, actionRows);
+          } catch (error) {
+            if (!(error instanceof GroupCombatStateValidationError)) {
+              throw error;
+            }
+            return {
+              kind: "result",
+              result: actionResultAfterRepair(
+                await repairMalformedSession(tx, row, input.now)
+              )
+            } as const;
+          }
+          const livingCount = state.participants.filter(
+            (participant) =>
+              participant.hp > 0 && participant.fledAtTurn === undefined
+          ).length;
+          const readyToResolve = actions.length >= livingCount;
+          if (!readyToResolve && writeState !== "duplicate") {
+            const delivery = await tx.groupCombatSession.updateMany({
+              where: {
+                id: claimedRow.id,
+                status: "active",
+                turn: claimedRow.turn,
+                version: claimedRow.version,
+                repairState: null
+              },
+              data: {
+                deliveryRevision: { increment: 1 },
+                deliveryPending: true,
+                deliveryAttemptedAt: null
+              }
+            });
+            if (delivery.count !== 1) {
+              throw new GroupCombatMutationConflict();
+            }
+          }
+          const session = readyToResolve
+            ? null
+            : await loadSession(tx, row.id);
+          if (!readyToResolve && !session) {
+            return {
+              kind: "result",
+              result: { state: "not-found" }
+            } as const;
+          }
+          return {
+            kind: "persisted",
+            sessionId: row.id,
+            session,
+            actorCharacterId: actor.id,
+            writeState,
+            readyToResolve
+          } as const;
         });
-      if (delivery.count !== 1) {
-        throw new GroupCombatMutationConflict();
-      }
-      const session = await loadSession(tx, row.id);
-      return session ? { state: writeState, session } : { state: "not-found" };
-        });
+        break;
       } catch (error) {
         if (error instanceof GroupCombatInventoryDrift) {
-          return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+          return invalidateInventoryDrift(
+            this.prisma,
+            error.sessionId,
+            input.now
+          );
         }
-        if (isUniqueConflict(error)) {
-          const conflict = await this.classifyConcurrentAction(input);
-          if (conflict) {
-            return conflict;
-          }
-          mutationAttempt += 1;
-          continue;
-        }
-        if (error instanceof GroupCombatUiPublicationBusy) {
-          await waitForUiPublicationRetry();
-          continue;
-        }
-        if (error instanceof GroupCombatMutationConflict || isTransactionWriteConflict(error)) {
+        if (
+          error instanceof GroupCombatMutationConflict ||
+          isUniqueConflict(error) ||
+          isTransactionWriteConflict(error)
+        ) {
           mutationAttempt += 1;
           continue;
         }
         throw error;
       }
     }
-    const current = await this.findByPartyInviteToken(input.partyInviteToken);
+    if (!persisted) {
+      const current = await this.findByPartyInviteToken(input.partyInviteToken);
+      if (!current) {
+        return { state: "not-found" };
+      }
+      return current.status === "active"
+        ? { state: "stale" }
+        : { state: "terminal", session: current };
+    }
+    if (persisted.kind === "result") {
+      return persisted.result;
+    }
+    await this.settlementTestHooks?.afterActionPersisted?.({
+      sessionId: persisted.sessionId,
+      actorCharacterId: persisted.actorCharacterId,
+      turn: input.turn,
+      writeState: persisted.writeState,
+      readyToResolve: persisted.readyToResolve
+    });
+    if (!persisted.readyToResolve) {
+      if (!persisted.session) {
+        return { state: "not-found" };
+      }
+      return {
+        state: persisted.writeState,
+        session: persisted.session
+      };
+    }
+    return this.resolvePersistedReadyTurn({
+      sessionId: persisted.sessionId,
+      turn: input.turn,
+      now: input.now,
+      nextTurnExpiresAt: input.nextTurnExpiresAt,
+      writeState: persisted.writeState
+    });
+  }
+
+  private async resolvePersistedReadyTurn(input: {
+    sessionId: string;
+    turn: number;
+    now: Date;
+    nextTurnExpiresAt: Date;
+    writeState: "queued" | "replaced" | "duplicate";
+  }): Promise<GroupCombatActionResult> {
+    const publicationWaitStartedAt = Date.now();
+    let mutationAttempt = 0;
+    let publicationBusyAttempt = 0;
+    while (
+      mutationAttempt < MAX_MUTATION_ATTEMPTS &&
+      publicationBusyAttempt < MAX_MUTATION_ATTEMPTS
+    ) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const row = await tx.groupCombatSession.findFirst({
+            where: { id: input.sessionId, repairState: null },
+            include: sessionInclude
+          });
+          if (!row) {
+            return { state: "not-found" } as const;
+          }
+          let state: GroupCombatState;
+          try {
+            state = parseRowState(row);
+            if (state.status === "active") {
+              await validateActiveOwnership(tx, row);
+            }
+          } catch (error) {
+            if (!(error instanceof GroupCombatStateValidationError)) {
+              throw error;
+            }
+            return actionResultAfterRepair(
+              await repairMalformedSession(tx, row, input.now)
+            );
+          }
+          if (state.status !== "active") {
+            const session = await loadSession(tx, row.id);
+            return session
+              ? { state: "terminal", session }
+              : { state: "not-found" };
+          }
+          if (row.turn !== input.turn) {
+            const session = await loadSession(tx, row.id);
+            return session
+              ? { state: "resolved", session }
+              : { state: "not-found" };
+          }
+          const claimedRow = await claimActiveSessionMutation(tx, row);
+          const result = await resolveIfReady(
+            tx,
+            claimedRow,
+            state,
+            input.now,
+            input.nextTurnExpiresAt,
+            uiPublicationTime(input.now, publicationWaitStartedAt),
+            this.settlementTestHooks?.afterStage?.bind(
+              this.settlementTestHooks
+            )
+          );
+          if (result) {
+            return result;
+          }
+          const session = await loadSession(tx, row.id);
+          return session
+            ? { state: input.writeState, session }
+            : { state: "not-found" };
+        });
+      } catch (error) {
+        if (error instanceof GroupCombatInventoryDrift) {
+          return invalidateInventoryDrift(
+            this.prisma,
+            error.sessionId,
+            input.now
+          );
+        }
+        if (error instanceof GroupCombatUiPublicationBusy) {
+          publicationBusyAttempt += 1;
+          await waitForUiPublicationRetry();
+          continue;
+        }
+        if (
+          error instanceof GroupCombatMutationConflict ||
+          isUniqueConflict(error) ||
+          isTransactionWriteConflict(error)
+        ) {
+          mutationAttempt += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
+    const current = await loadSession(this.prisma, input.sessionId);
     if (!current) {
       return { state: "not-found" };
     }
-    return current.status === "active" ? { state: "stale" } : { state: "terminal", session: current };
-  }
-
-  private async classifyConcurrentAction(input: {
-    telegramUserId: bigint;
-    partyInviteToken: string;
-    turn: number;
-    action: GroupCombatAction["action"];
-    targetKind: GroupCombatAction["targetKind"];
-    targetId: string;
-    payloadKey?: string;
-  }): Promise<GroupCombatActionResult | null> {
-    const session = await this.findByPartyInviteToken(input.partyInviteToken);
-    if (!session) {
-      return { state: "not-found" };
+    if (current.status !== "active") {
+      return { state: "terminal", session: current };
     }
-    if (session.status !== "active") {
-      return { state: "terminal", session };
+    if (current.turn !== input.turn) {
+      return { state: "resolved", session: current };
     }
-    if (session.turn !== input.turn) {
-      return { state: "stale" };
-    }
-    const actor = session.participants.find((participant) => participant.telegramUserId === input.telegramUserId);
-    if (!actor) {
-      return { state: "not-participant" };
-    }
-    const winner = await this.prisma.groupCombatAction.findUnique({
-      where: {
-        sessionId_turn_actorCharacterId: {
-          sessionId: session.id,
-          turn: input.turn,
-          actorCharacterId: actor.characterId
-        }
-      }
-    });
-    if (!winner) {
-      return null;
-    }
-    return winner.actionKey === input.action &&
-      winner.targetKind === input.targetKind &&
-      winner.targetId === input.targetId &&
-      winner.payloadKey === (input.payloadKey ?? null)
-      ? { state: "duplicate", session }
-      : null;
+    return { state: input.writeState, session: current };
   }
 
   async resolveTimedOutSession(input: {
@@ -1126,7 +1286,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     });
     const publicationWaitStartedAt = Date.now();
     let mutationAttempt = 0;
-    while (mutationAttempt < MAX_MUTATION_ATTEMPTS) {
+    let publicationBusyAttempt = 0;
+    while (
+      mutationAttempt < MAX_MUTATION_ATTEMPTS &&
+      publicationBusyAttempt < MAX_MUTATION_ATTEMPTS
+    ) {
       try {
         return await this.prisma.$transaction(async (tx) => {
         const row = await tx.groupCombatSession.findFirst({
@@ -1212,6 +1376,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
         }
         if (error instanceof GroupCombatUiPublicationBusy) {
+          publicationBusyAttempt += 1;
           await waitForUiPublicationRetry();
           continue;
         }
@@ -1224,7 +1389,15 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     }
     const current = await loadSession(this.prisma, input.sessionId);
     return current
-      ? { state: current.status === "active" ? "stale" : "terminal", session: current }
+      ? {
+          state:
+            current.status === "active" && publicationBusyAttempt > 0
+              ? "queued"
+              : current.status === "active"
+                ? "stale"
+                : "terminal",
+          session: current
+        }
       : { state: "not-found" };
   }
 
@@ -2243,6 +2416,49 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         }
       });
       return true;
+    });
+  }
+
+  async renewParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          settlementStatus: "completed",
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: { id: true, characterId: true }
+      });
+      if (!participant) {
+        return false;
+      }
+      const renewed = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          settlementStatus: "completed",
+          exitDeliveryState: "claimed",
+          exitDeliveryClaimToken: input.claimToken,
+          session: { repairState: null },
+          character: {
+            activeCombatLease: {
+              is: {
+                kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+                referenceId: `${input.sessionId}:${participant.characterId}`
+              }
+            }
+          }
+        },
+        data: { exitDeliveryClaimedAt: input.claimedAt }
+      });
+      return renewed.count === 1;
     });
   }
 

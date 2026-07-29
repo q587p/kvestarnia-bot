@@ -413,6 +413,20 @@ bounded optimistic-conflict retries; elapsed wall time permits restart
 takeover of a dead claim without changing canonical gameplay timestamps.
 Telegram has no request idempotency key, so acceptance immediately before an
 abort/network failure remains an honest external at-least-once ambiguity.
+The separately persisted exit-navigation claim follows the same I/O rule for
+the main-menu reply keyboard: current presence/quest markers are advisory until
+an atomic pre-send renewal validates the exact claim token and exit-navigation
+lease, and the send aborts at 13 seconds. A lost owner sends nothing; ordinary
+failure releases to pending, while an acknowledgement-ambiguous live claim is
+retained for stale recovery. Terminal result cards contain only inline
+Journal/Statistics controls and never replace a newer reply keyboard.
+Manual action acceptance and turn resolution are separate durable boundaries.
+The first transaction validates and commits the queued/replaced action row.
+Only then may a bounded resolver claim navigation fences and apply the turn.
+Process death or a live UI fence therefore leaves a canonical action that a
+duplicate submission, due timeout or another worker can adopt exactly once;
+the local caller may return its accepted action state after bounded contention
+instead of waiting indefinitely or reporting a false stale turn.
 
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).

@@ -277,6 +277,13 @@ export interface GroupCombatRepository {
     claimToken: string;
   }): Promise<boolean>;
 
+  renewParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean>;
+
   markParticipantFleeExitMenuDelivered(input: {
     sessionId: string;
     telegramUserId: bigint;

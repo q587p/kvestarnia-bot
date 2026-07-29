@@ -188,6 +188,7 @@ describe("group-combat canonical participant delivery", () => {
       expect(participantSends[0]?.text).toContain("Головне меню");
       expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(true);
       expect(participantSends[1]?.text).toContain("Доказову сутичку виграно");
+      expect(hasReplyKeyboard(participantSends[1]?.replyMarkup)).toBe(false);
       expect(inlineButtonLabels(participantSends[1]?.replyMarkup)).toEqual([
         "📜 Журнал",
         "📊 Статистика"
@@ -362,6 +363,213 @@ describe("group-combat canonical participant delivery", () => {
     )).toHaveLength(2);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
   });
+
+  it.each([
+    { label: "successful flee", terminal: false },
+    { label: "terminal settlement", terminal: true }
+  ])(
+    "aborts a delayed $label main-menu send before its exit claim can expire",
+    async ({ terminal }) => {
+      vi.useFakeTimers();
+      try {
+        const session = makeSession({
+          turn: 3,
+          deliveryRevision: 3,
+          deliveredRevision: 3
+        });
+        session.participants = session.participants.slice(0, 1);
+        session.participants[0]!.exitDeliveryState = "pending";
+        if (terminal) {
+          session.status = "won";
+          session.state.status = "won";
+          session.state.enemies.forEach((enemy) => {
+            enemy.hp = 0;
+          });
+        } else {
+          session.state.participants[0]!.fleeAttempts = 1;
+          session.state.participants[0]!.fledAtTurn = 2;
+        }
+        const service = mutableCardService(session);
+        const releaseClaim = vi.fn((
+          input: Parameters<
+            GroupCombatService["releaseParticipantFleeExitDeliveryClaim"]
+          >[0]
+        ) => service.releaseParticipantFleeExitDeliveryClaim(input));
+        const sendStarted = deferred<void>();
+        let observedSignal: AbortSignal | undefined;
+        const sendMessage = vi.fn((
+          _chatId: number,
+          text: string,
+          _options: unknown,
+          signal?: AbortSignal
+        ) => {
+          if (
+            text.includes("Ви відступили з бою") ||
+            text.includes("Бій завершено")
+          ) {
+            observedSignal = signal;
+            sendStarted.resolve();
+            return new Promise((_resolve, reject) => {
+              signal?.addEventListener(
+                "abort",
+                () => reject(new Error("exit publication aborted")),
+                { once: true }
+              );
+            });
+          }
+          return Promise.resolve({ message_id: 700 });
+        });
+
+        const delivery = deliverGroupCombatCards({
+          sendMessage,
+          editMessageText: vi.fn(),
+          deleteMessage: vi.fn()
+        } as unknown as Api, {
+          ...service,
+          releaseParticipantFleeExitDeliveryClaim: releaseClaim,
+          finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
+        } as unknown as GroupCombatService, session);
+
+        await sendStarted.promise;
+        await vi.advanceTimersByTimeAsync(13_000);
+        await expect(delivery).resolves.toBe(0);
+
+        expect(observedSignal?.aborted).toBe(true);
+        expect(sendMessage).toHaveBeenCalledTimes(1);
+        expect(releaseClaim).toHaveBeenCalledTimes(1);
+        expect(session.participants[0]!.exitDeliveryState).toBe("pending");
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it("publishes no exit menu when ownership is lost while navigation markers resolve", async () => {
+    const session = makeSession({
+      turn: 3,
+      deliveryRevision: 3,
+      deliveredRevision: 3
+    });
+    session.participants = session.participants.slice(0, 1);
+    session.participants[0]!.exitDeliveryState = "pending";
+    session.state.participants[0]!.fleeAttempts = 1;
+    session.state.participants[0]!.fledAtTurn = 2;
+    const service = mutableCardService(session);
+    const sendMessage = vi.fn();
+    const releaseClaim = vi.fn((
+      input: Parameters<
+        GroupCombatService["releaseParticipantFleeExitDeliveryClaim"]
+      >[0]
+    ) => service.releaseParticipantFleeExitDeliveryClaim(input));
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText: vi.fn(),
+      deleteMessage: vi.fn()
+    } as unknown as Api, {
+      ...service,
+      releaseParticipantFleeExitDeliveryClaim: releaseClaim,
+      renewParticipantFleeExitDeliveryClaim: vi.fn().mockResolvedValue(false),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
+    } as unknown as GroupCombatService, session)).resolves.toBe(0);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(releaseClaim).not.toHaveBeenCalled();
+    expect(session.participants[0]!.exitDeliveryState).toBe("claimed");
+  });
+
+  it.each([
+    { label: "successful flee", terminal: false },
+    { label: "terminal settlement", terminal: true }
+  ])(
+    "keeps a reclaimed $label menu and newer combat keyboard after an older process finally rejects",
+    async ({ terminal }) => {
+      vi.useFakeTimers();
+      try {
+        const session = makeSession({
+          turn: 3,
+          deliveryRevision: 3,
+          deliveredRevision: 3
+        });
+        session.participants = session.participants.slice(0, 1);
+        session.participants[0]!.exitDeliveryState = "pending";
+        if (terminal) {
+          session.status = "won";
+          session.state.status = "won";
+          session.state.enemies.forEach((enemy) => {
+            enemy.hp = 0;
+          });
+        } else {
+          session.state.participants[0]!.fleeAttempts = 1;
+          session.state.participants[0]!.fledAtTurn = 2;
+        }
+        let currentTime = new Date("2026-07-29T10:00:00.000Z");
+        const service = mutableCardService(session);
+        const published: string[] = [];
+        const oldSendStarted = deferred<void>();
+        const rejectOldSend = deferred<void>();
+        let menuAttempt = 0;
+        const sendMessage = vi.fn((
+          _chatId: number,
+          text: string,
+          _options: unknown,
+          signal?: AbortSignal
+        ) => {
+          const isMenu =
+            text.includes("Ви відступили з бою") ||
+            text.includes("Бій завершено");
+          if (isMenu && menuAttempt++ === 0) {
+            oldSendStarted.resolve();
+            return rejectOldSend.promise.then(() => {
+              expect(signal?.aborted).toBe(true);
+              throw new Error("old process observes its aborted request");
+            });
+          }
+          published.push(isMenu ? "reclaimed-menu" : "terminal-card");
+          return Promise.resolve({ message_id: 900 + published.length });
+        });
+        const api = {
+          sendMessage,
+          editMessageText: vi.fn().mockResolvedValue(true),
+          deleteMessage: vi.fn().mockResolvedValue(true)
+        } as unknown as Api;
+
+        vi.resetModules();
+        const firstProcess = await import(
+          "../../src/bot/groupCombatCardDelivery"
+        );
+        const firstDelivery = firstProcess.deliverGroupCombatCards(api, {
+          ...service,
+          currentTime: () => currentTime,
+          finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
+        } as unknown as GroupCombatService, session);
+        await oldSendStarted.promise;
+        await vi.advanceTimersByTimeAsync(13_000);
+
+        currentTime = new Date(currentTime.getTime() + 23_001);
+        vi.resetModules();
+        const restartedProcess = await import(
+          "../../src/bot/groupCombatCardDelivery"
+        );
+        await expect(restartedProcess.deliverGroupCombatCards(api, {
+          ...service,
+          currentTime: () => currentTime,
+          finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+        } as unknown as GroupCombatService, session)).resolves.toBe(1);
+        published.push("newer-combat-keyboard");
+
+        rejectOldSend.resolve();
+        await expect(firstDelivery).resolves.toBe(0);
+
+        expect(published.at(-1)).toBe("newer-combat-keyboard");
+        expect(published.filter((entry) => entry === "reclaimed-menu"))
+          .toHaveLength(1);
+        expect(session.participants[0]!.exitDeliveryState).toBe("completed");
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
 
   it("retries acknowledgement on one live claim without resending the menu", async () => {
     const session = makeSession({
@@ -1603,6 +1811,23 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.exitDeliveryState = "pending";
       participant.exitDeliveryClaimToken = null;
       participant.exitDeliveryClaimedAt = null;
+      return Promise.resolve(true);
+    }),
+    renewParticipantFleeExitDeliveryClaim: vi.fn().mockImplementation((input: {
+      telegramUserId: bigint;
+      claimToken: string;
+      claimedAt: Date;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) =>
+          candidate.telegramUserId === input.telegramUserId &&
+          candidate.exitDeliveryState === "claimed" &&
+          candidate.exitDeliveryClaimToken === input.claimToken
+      );
+      if (!participant) {
+        return Promise.resolve(false);
+      }
+      participant.exitDeliveryClaimedAt = input.claimedAt;
       return Promise.resolve(true);
     }),
     markParticipantFleeExitMenuDelivered: vi.fn().mockImplementation((input: {

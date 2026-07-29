@@ -455,6 +455,15 @@ export class GroupCombatService {
     return this.repository.releaseParticipantFleeExitDeliveryClaim(input);
   }
 
+  renewParticipantFleeExitDeliveryClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean> {
+    return this.repository.renewParticipantFleeExitDeliveryClaim(input);
+  }
+
   markParticipantFleeExitMenuDelivered(input: {
     sessionId: string;
     telegramUserId: bigint;
