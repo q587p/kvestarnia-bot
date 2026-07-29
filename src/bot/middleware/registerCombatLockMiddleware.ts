@@ -152,6 +152,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
     return (
       !data.startsWith("v1:fight:turn:") &&
       !data.startsWith("v1:fight:item:") &&
+      !data.startsWith("v1:fight:items:") &&
       !data.startsWith("v1:fight:gear:") &&
       !data.startsWith("v1:spar:turn:") &&
       !data.startsWith("v1:party:ba:") &&
