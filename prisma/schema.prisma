@@ -83,6 +83,7 @@ model Character {
   partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
   groupCombatParticipants GroupCombatParticipant[]
   groupCombatActions GroupCombatAction[]
+  groupCombatUiPublicationClaim GroupCombatUiPublicationClaim?
   activeCombatLease ActiveCombatLease?
   hpRecoveryNotification HpRecoveryNotification?
   name      String
@@ -307,6 +308,20 @@ model ActiveCombatLease {
 
   @@index([kind, referenceId])
   @@map("active_combat_leases")
+}
+
+model GroupCombatUiPublicationClaim {
+  characterId String   @id @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  sessionId   String   @map("session_id")
+  session     GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  claimToken  String   @map("claim_token")
+  claimedAt   DateTime @map("claimed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@map("group_combat_ui_publication_claims")
 }
 
 model HpRecoveryNotification {
@@ -1213,6 +1228,7 @@ model GroupCombatSession {
   participants   GroupCombatParticipant[]
   actions        GroupCombatAction[]
   passageEncounter PendingPassageEncounter?
+  uiPublicationClaims GroupCombatUiPublicationClaim[]
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])
@@ -1238,6 +1254,8 @@ model GroupCombatParticipant {
   messageId        Int?               @map("message_id")
   referenceVersion Int                @default(0) @map("reference_version")
   deliveredRevision Int               @default(0) @map("delivered_revision")
+  replyKeyboardFingerprint String?     @map("reply_keyboard_fingerprint")
+  replyKeyboardGeneration Int          @default(0) @map("reply_keyboard_generation")
   exitDeliveryState String            @default("none") @map("exit_delivery_state")
   exitDeliveryClaimToken String?       @map("exit_delivery_claim_token")
   exitDeliveryClaimedAt DateTime?      @map("exit_delivery_claimed_at")

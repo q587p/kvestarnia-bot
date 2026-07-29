@@ -30,5 +30,6 @@ location in a later versioned task.
 ## Non-goals
 
 - Do not implement Ярус II inside `0.4.2`.
-- Do not assign this backlog to `0.4.3` or displace the verified roadmap.
+- Do not assign this backlog to a numbered `0.4.x` slot or displace the verified
+  roadmap.
 - Do not promise a date, reward table or production availability.

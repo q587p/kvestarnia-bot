@@ -809,6 +809,363 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).toBe(1);
   });
 
+  it("durably fences active UI publication across restart, stale claim, settlement and newer combat ownership", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-publication-fence",
+      [11963n]
+    );
+    const participant = session.participants[0]!;
+    const fingerprint = "[[\"⚔️ Атакувати\"],[\"🔎 Оновити\"]]";
+    const claimedAt = new Date(NOW.getTime() + 100);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "ui-publication-first",
+      claimedAt,
+      staleBefore: new Date(claimedAt.getTime() - 23_000)
+    })).resolves.toEqual({
+      state: "claimed",
+      publishReplyKeyboard: true,
+      keyboardGeneration: 0
+    });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    await expect(restarted.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "ui-publication-restarted",
+      claimedAt: new Date(claimedAt.getTime() + 1),
+      staleBefore: new Date(claimedAt.getTime() - 23_000)
+    })).resolves.toEqual({ state: "busy" });
+    await expect(prisma.activeCombatLease.create({
+      data: {
+        id: "left-ui-publication-newer-solo",
+        characterId: participant.characterId,
+        kind: "solo-combat",
+        referenceId: "newer-solo"
+      }
+    })).rejects.toMatchObject({ code: "P2002" });
+
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "ui-publication-first"
+    })).resolves.toBe("acknowledged");
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, characterId: participant.characterId },
+      select: {
+        replyKeyboardFingerprint: true,
+        replyKeyboardGeneration: true
+      }
+    })).resolves.toEqual({
+      replyKeyboardFingerprint: fingerprint,
+      replyKeyboardGeneration: 1
+    });
+
+    const secondClaimedAt = new Date(claimedAt.getTime() + 10);
+    await expect(restarted.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "ui-publication-stale",
+      claimedAt: secondClaimedAt,
+      staleBefore: new Date(secondClaimedAt.getTime() - 23_000)
+    })).resolves.toEqual({
+      state: "claimed",
+      publishReplyKeyboard: false,
+      keyboardGeneration: 1
+    });
+    const otherSession = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-publication-foreign-stale-claim",
+      [21964n]
+    );
+    await prisma.groupCombatUiPublicationClaim.update({
+      where: { characterId: participant.characterId },
+      data: { sessionId: otherSession.id }
+    });
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "ui-publication-takeover",
+      claimedAt: new Date(secondClaimedAt.getTime() + 23_001),
+      staleBefore: new Date(secondClaimedAt.getTime() + 1)
+    })).resolves.toEqual({
+      state: "claimed",
+      publishReplyKeyboard: false,
+      keyboardGeneration: 1
+    });
+
+    const terminal = await terminalizeProductionSession(prisma, session);
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(secondClaimedAt.getTime() + 23)
+    })).rejects.toThrow();
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: terminal.id, characterId: participant.characterId },
+      select: {
+        settlementStatus: true,
+        settlementAttempts: true,
+        settlementReceiptJson: true
+      }
+    })).resolves.toEqual({
+      settlementStatus: "pending",
+      settlementAttempts: 0,
+      settlementReceiptJson: null
+    });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat",
+      referenceId: terminal.id
+    });
+    await expect(prisma.groupCombatUiPublicationClaim.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      sessionId: terminal.id,
+      claimToken: "ui-publication-takeover"
+    });
+
+    await expect(repository.releaseParticipantUiPublicationClaim({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken: "ui-publication-takeover"
+    })).resolves.toBe(true);
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(secondClaimedAt.getTime() + 24)
+    })).resolves.toMatchObject({ state: "settled" });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toBeNull();
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "left-ui-publication-newer-solo",
+        characterId: participant.characterId,
+        kind: "solo-combat",
+        referenceId: "newer-solo"
+      }
+    });
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: terminal.deliveryRevision,
+      keyboardFingerprint: "stale-group-keyboard",
+      claimToken: "stale-group-worker",
+      claimedAt: new Date(secondClaimedAt.getTime() + 25),
+      staleBefore: new Date(secondClaimedAt.getTime() - 22_975)
+    })).resolves.toEqual({ state: "not-found" });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      kind: "solo-combat",
+      referenceId: "newer-solo"
+    });
+    await expect(prisma.groupCombatUiPublicationClaim.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toBeNull();
+  });
+
+  it("makes a live active-publication claim win before a terminal turn and lets the terminal retry publish last", async () => {
+    let session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-terminal-barrier",
+      [11964n],
+      {
+        beforeStart: async ([characterId]) => {
+          await prisma.character.update({
+            where: { id: characterId! },
+            data: {
+              hpCurrent: 587,
+              hpMax: 587,
+              statsJson: {
+                strength: 93,
+                dexterity: 23,
+                intelligence: 7,
+                charisma: 7,
+                luck: 5
+              }
+            }
+          });
+        }
+      }
+    );
+    const participant = session.participants[0]!;
+    let nextWouldBeTerminal = false;
+    for (let attempt = 0; attempt < 23 && !nextWouldBeTerminal; attempt += 1) {
+      const enemy = session.state.enemies.find((candidate) => candidate.hp > 0)!;
+      const action = {
+        actorCharacterId: participant.characterId,
+        turn: session.turn,
+        action: "attack" as const,
+        targetKind: "enemy" as const,
+        targetId: enemy.id,
+        origin: "manual" as const
+      };
+      nextWouldBeTerminal =
+        resolveGroupCombatTurn(session.state, [action]).state.status !== "active";
+      if (!nextWouldBeTerminal) {
+        const progressed = await repository.submitActionForTelegramUser({
+          telegramUserId: participant.telegramUserId,
+          partyInviteToken: session.partyInviteToken,
+          turn: session.turn,
+          action: action.action,
+          targetKind: action.targetKind,
+          targetId: action.targetId,
+          now: new Date(NOW.getTime() + attempt + 1),
+          nextTurnExpiresAt: new Date(NOW.getTime() + attempt + 23_001)
+        });
+        if (!("session" in progressed)) {
+          throw new Error("Expected the setup turn to resolve.");
+        }
+        session = progressed.session;
+      }
+    }
+    expect(nextWouldBeTerminal).toBe(true);
+    const enemy = session.state.enemies.find((candidate) => candidate.hp > 0)!;
+    const claimedAt = new Date(NOW.getTime() + 100);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: "terminal-barrier-keyboard",
+      claimToken: "terminal-barrier-active",
+      claimedAt,
+      staleBefore: new Date(claimedAt.getTime() - 23_000)
+    })).resolves.toMatchObject({ state: "claimed" });
+
+    const terminalAttempt = repository.submitActionForTelegramUser({
+      telegramUserId: participant.telegramUserId,
+      partyInviteToken: session.partyInviteToken,
+      turn: session.turn,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: enemy.id,
+      now: new Date(claimedAt.getTime() + 1),
+      nextTurnExpiresAt: new Date(claimedAt.getTime() + 23_001)
+    });
+    await new Promise((resolve) => setTimeout(resolve, 42));
+    await expect(repository.releaseParticipantUiPublicationClaim({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken: "terminal-barrier-active"
+    })).resolves.toBe(true);
+    const terminal = await terminalAttempt;
+    expect(terminal).toMatchObject({ state: "terminal", session: { status: "won" } });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat",
+      referenceId: session.id
+    });
+    await expect(prisma.groupCombatUiPublicationClaim.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      sessionId: session.id,
+      claimToken: `navigation:${session.id}`
+    });
+  });
+
+  it("does not let an old state read overwrite a newer acknowledged turn keyboard", async () => {
+    const oldRead = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-newer-turn-barrier",
+      [11965n]
+    );
+    const participant = oldRead.participants[0]!;
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: participant.telegramUserId,
+      partyInviteToken: oldRead.partyInviteToken,
+      turn: oldRead.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: participant.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_001)
+    });
+    if (!("session" in resolved) || resolved.session.status !== "active") {
+      throw new Error("Expected the newer turn to remain active.");
+    }
+    const newer = resolved.session;
+    expect(newer.deliveryRevision).toBeGreaterThan(oldRead.deliveryRevision);
+
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: newer.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      keyboardFingerprint: "newer-turn-keyboard",
+      claimToken: "newer-turn-worker",
+      claimedAt: new Date(NOW.getTime() + 2),
+      staleBefore: new Date(NOW.getTime() - 22_998)
+    })).resolves.toMatchObject({
+      state: "claimed",
+      publishReplyKeyboard: true
+    });
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: newer.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      keyboardFingerprint: "newer-turn-keyboard",
+      claimToken: "newer-turn-worker"
+    })).resolves.toBe("acknowledged");
+
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: oldRead.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: oldRead.deliveryRevision,
+      keyboardFingerprint: "old-turn-keyboard",
+      claimToken: "old-paused-worker",
+      claimedAt: new Date(NOW.getTime() + 3),
+      staleBefore: new Date(NOW.getTime() - 22_997)
+    })).resolves.toEqual({ state: "stale" });
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: newer.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      keyboardFingerprint: "newer-turn-keyboard",
+      claimToken: "old-paused-worker",
+      claimedAt: new Date(NOW.getTime() + 4),
+      staleBefore: new Date(NOW.getTime() - 22_996)
+    })).resolves.toEqual({
+      state: "claimed",
+      publishReplyKeyboard: false,
+      keyboardGeneration: 1
+    });
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: newer.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      keyboardFingerprint: "newer-turn-keyboard",
+      claimToken: "old-paused-worker"
+    })).resolves.toBe("acknowledged");
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: newer.id, characterId: participant.characterId },
+      select: {
+        replyKeyboardFingerprint: true,
+        replyKeyboardGeneration: true
+      }
+    })).resolves.toEqual({
+      replyKeyboardFingerprint: "newer-turn-keyboard",
+      replyKeyboardGeneration: 1
+    });
+  });
+
   it.each([
     ["validated", 12101n],
     ["claimed", 12111n],
@@ -2385,6 +2742,26 @@ describe("PrismaGroupCombatRepository integration", () => {
     const remaining = session.participants.slice(1);
     let current = session;
     for (let attempt = 1; attempt <= 7; attempt += 1) {
+      const predicted = resolveGroupCombatTurn(current.state, [
+        {
+          actorCharacterId: escapee.characterId,
+          turn: current.turn,
+          action: "flee",
+          targetKind: "self",
+          targetId: escapee.characterId,
+          origin: "manual"
+        },
+        ...remaining.map((participant) => ({
+          actorCharacterId: participant.characterId,
+          turn: current.turn,
+          action: "guard" as const,
+          targetKind: "self" as const,
+          targetId: participant.characterId,
+          origin: "manual" as const
+        }))
+      ]);
+      const willEscape =
+        predicted.state.participants[0]!.fledAtTurn !== undefined;
       const submitFlee = () => repository.submitActionForTelegramUser({
         telegramUserId: escapee.telegramUserId,
         partyInviteToken: current.partyInviteToken,
@@ -2400,9 +2777,25 @@ describe("PrismaGroupCombatRepository integration", () => {
         "duplicate",
         "queued"
       ]);
+      const activeClaimToken = `flee-active-publication-${attempt}`;
+      if (willEscape) {
+        const queuedCurrent = await repository.findById(current.id);
+        if (!queuedCurrent) {
+          throw new Error("Expected the queued flee session to remain readable.");
+        }
+        await expect(repository.claimParticipantUiPublication({
+          sessionId: current.id,
+          telegramUserId: escapee.telegramUserId,
+          expectedDeliveryRevision: queuedCurrent.deliveryRevision,
+          keyboardFingerprint: `flee-keyboard-${attempt}`,
+          claimToken: activeClaimToken,
+          claimedAt: new Date(NOW.getTime() + attempt * 10 + 1),
+          staleBefore: new Date(NOW.getTime() + attempt * 10 - 22_999)
+        })).resolves.toMatchObject({ state: "claimed" });
+      }
       let resolved: Awaited<ReturnType<typeof repository.submitActionForTelegramUser>> | null = null;
-      for (const participant of remaining) {
-        resolved = await repository.submitActionForTelegramUser({
+      for (const [remainingIndex, participant] of remaining.entries()) {
+        const resolvingAttempt = repository.submitActionForTelegramUser({
           telegramUserId: participant.telegramUserId,
           partyInviteToken: current.partyInviteToken,
           turn: current.turn,
@@ -2412,6 +2805,15 @@ describe("PrismaGroupCombatRepository integration", () => {
           now: new Date(NOW.getTime() + attempt * 10 + participant.rosterOrder),
           nextTurnExpiresAt: new Date(NOW.getTime() + attempt * 10 + 23_000)
         });
+        if (willEscape && remainingIndex === remaining.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 42));
+          await expect(repository.releaseParticipantUiPublicationClaim({
+            sessionId: current.id,
+            telegramUserId: escapee.telegramUserId,
+            claimToken: activeClaimToken
+          })).resolves.toBe(true);
+        }
+        resolved = await resolvingAttempt;
       }
       if (!resolved || !("session" in resolved)) {
         throw new Error("Expected the production flee turn to resolve.");

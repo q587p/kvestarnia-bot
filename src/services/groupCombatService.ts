@@ -388,6 +388,36 @@ export class GroupCombatService {
     return this.repository.markParticipantCardDelivered(input);
   }
 
+  claimParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }) {
+    return this.repository.claimParticipantUiPublication(input);
+  }
+
+  acknowledgeParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+  }) {
+    return this.repository.acknowledgeParticipantUiPublication(input);
+  }
+
+  releaseParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    return this.repository.releaseParticipantUiPublicationClaim(input);
+  }
+
   async claimParticipantFleeExitDelivery(input: {
     sessionId: string;
     telegramUserId: bigint;

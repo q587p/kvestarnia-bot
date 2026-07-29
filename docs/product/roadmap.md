@@ -121,46 +121,52 @@ bounded журнал і підсумки
   дуелей і Big Barrel/raid після окремого cross-mode contract review. Це не
   розширює `0.4.2` і не починає `0.4.3`.
 
-### 0.4.3 — Guild foundation
+### 0.4.3 — Consumable manatky
+
+Спершу затвердити exact ids/effects для трьох-чотирьох existing stack-ів.
+Current `ItemUseOrder` є HP-heal-specific, тож v1 або лишається HP-only, або
+явно додає одну typed effect family. Legacy `effect_id` не активується
+автоматично; точний allowlist лишається обовʼязковим activation gate.
+
+### 0.4.4 — Guild foundation
 
 Малий соціяльний shell, який не чекає готового guild boss: унікальна
 нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
 leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
 `PartySession`; вона не володіє combat state.
 
-### 0.4.4 — Guild weekly goal
+### 0.4.5 — Guild weekly goal
 
 Одна тижнева групова мета, що використовує звичайні PartySession +
 GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
 втрачають базову solo/party progression.
 
-### 0.4.5 — Старий жертовник
+### 0.4.6 — Старий жертовник
 
 Gold-only MVP із `Благоволінням` і обрядом Жерця. Перед реалізацією один
 канонічний blessing-aware summary contract має довести, що заявлений stat bonus
 справді однаково діє або чесно не діє у solo, duel, PartyBoss і GroupCombat.
 Манатки й окрема локація до цього slice не входять.
 
-### 0.4.6 — Greeting buff
+### 0.4.7 — Greeting buff
 
 Одна тепла дія `👋 Привітатися` з одним bounded target status і `93`-хвилинним
 actor-target wait. До коду треба обрати рівно один ефект і його stacking/time
 policy проти напоїв, `Ситого`, Натхнення та благословення; XP/gold bonus не є
 рекомендованим MVP.
 
-### 0.4.7 — Їжа Шинку
+### 0.4.8 — Їжа Шинку
 
 Один активний food buff, до трьох авторських страв, явна покупка/заміна й
 канонічне споживання/expiry. Це їжа, зʼїдена зараз, без coffee cooldown state,
 five-buff stacking-а та carried items. До runtime треба затвердити exact
 ids/prices/effects/modes, interaction matrix і окремий food-owned status.
 
-### 0.4.8–0.4.9 — Consumable manatky
+### 0.4.9 — Shynok take-away consumables
 
-Спершу затвердити exact ids/effects для трьох-чотирьох existing stack-ів. Current
-`ItemUseOrder` є HP-heal-specific, тож v1 або лишається HP-only, або явно додає
-одну typed effect family. Потім — окремий replay-safe take-away shelf. Не
-інтерпретувати legacy `effect_id` автоматично.
+Окремий replay-safe take-away shelf використовує лише вже затверджений
+`0.4.3` allowlist. Він не розширює typed effect family і не змішує carried
+манатки з їжею, випитою або зʼїденою одразу.
 
 ### 0.4.10–0.4.11 — Resale і Korchmar recycling
 
@@ -218,6 +224,7 @@ Admin allowlist із раннього roadmap не є автоматичною �
 - fuller Big Barrel rewards та перенесення на generic runtime;
 - сезони, guild wars, crafting, web/Mini App.
 
-Нумеровані `0.4.5`–`0.4.11` tasks активують bounded частини старих drafts.
+Нумеровані `0.4.3` і `0.4.6`–`0.4.11` tasks активують bounded частини старих
+drafts.
 Решту ідей треба активувати новим versioned task після даних, а не запускати
 старий `0.2.x-*` draft verbatim.

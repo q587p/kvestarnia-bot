@@ -21,6 +21,8 @@ export interface GroupCombatParticipantRecord {
   messageId: number | null;
   referenceVersion: number;
   deliveredRevision: number;
+  replyKeyboardFingerprint: string | null;
+  replyKeyboardGeneration: number;
   exitDeliveryState: "none" | "pending" | "claimed" | "menu-delivered" | "completed" | "superseded";
   exitDeliveryClaimToken: string | null;
   exitDeliveryClaimedAt: Date | null;
@@ -293,6 +295,37 @@ export interface GroupCombatRepository {
       messageId: number;
       deliveryRevision: number;
     };
+  }): Promise<boolean>;
+
+  claimParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }): Promise<
+    | {
+        state: "claimed";
+        publishReplyKeyboard: boolean;
+        keyboardGeneration: number;
+      }
+    | { state: "busy" | "stale" | "superseded" | "not-found" }
+  >;
+
+  acknowledgeParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+  }): Promise<"acknowledged" | "stale" | "not-owner">;
+
+  releaseParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
   }): Promise<boolean>;
 
   finalizeDeliveryAttempt(input: {

@@ -57,6 +57,12 @@ describe("group combat presenter", () => {
       messageId: 13 + actor.rosterOrder,
       referenceVersion: 1,
       deliveredRevision: 0,
+      replyKeyboardFingerprint: null,
+      replyKeyboardGeneration: 0,
+      exitDeliveryState: "none" as const,
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: null,
       settlementStatus: "pending" as const,
       settlementAttempts: 0,
       settlementReceipt: null,
@@ -338,6 +344,27 @@ describe("group combat presenter", () => {
     expect(rows).toEqual([]);
     expect(replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat())
       .toContain("🛡️ Захиститися");
+  });
+
+  it("describes a queued flee as one participant's personal attempt", () => {
+    const session = createSession(2);
+    session.queuedActions = [{
+      turn: session.turn,
+      actorCharacterId: session.participants[0]!.characterId,
+      action: "flee",
+      targetKind: "self",
+      targetId: session.participants[0]!.characterId,
+      origin: "manual"
+    }];
+
+    const text = presentGroupCombat(
+      session,
+      session.participants[0]!.characterId,
+      NOW
+    );
+
+    expect(text).toContain("вибір записано: спробувати відступити самому");
+    expect(text).not.toContain("відступити всією ватагою");
   });
 
   it("renders authoritative remaining time close to timeout instead of resetting the turn", () => {
@@ -757,6 +784,12 @@ function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
     messageId: 13 + actor.rosterOrder,
     referenceVersion: 1,
     deliveredRevision: 0,
+    replyKeyboardFingerprint: null,
+    replyKeyboardGeneration: 0,
+    exitDeliveryState: "none" as const,
+    exitDeliveryClaimToken: null,
+    exitDeliveryClaimedAt: null,
+    exitDeliveryMessageId: null,
     settlementStatus: "pending" as const,
     settlementAttempts: 0,
     settlementReceipt: null,

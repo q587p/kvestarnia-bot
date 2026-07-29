@@ -6,8 +6,7 @@ import type {
   GroupCombatSettlementNotice
 } from "../db/repositories/groupCombatRepository";
 import {
-  GROUP_COMBAT_PRODUCTION_RULES_VERSION,
-  isActiveGroupCombatParticipant
+  GROUP_COMBAT_PRODUCTION_RULES_VERSION
 } from "../domain/groupCombat/groupCombat";
 import type { GroupCombatService } from "../services/groupCombatService";
 import {
@@ -29,6 +28,7 @@ import { presentAchievementUnlockNotification } from "./presenters/achievementPr
 const HTML_MESSAGE_OPTIONS = { parse_mode: "HTML" as const };
 const MAX_CONVERGENCE_EDITS = 4;
 const FLEE_EXIT_DELIVERY_CLAIM_MS = 23_000;
+const UI_PUBLICATION_CLAIM_MS = 23_000;
 const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const deliveryTails = new Map<string, Promise<void>>();
 
@@ -38,12 +38,7 @@ type ReplyKeyboardOptions = NonNullable<Parameters<Api["sendMessage"]>[2]>;
 
 export interface GroupCombatDeliveryTransport {
   editMessage(reference: GroupCombatMessageReference, text: string, options: MessageOptions): Promise<void>;
-  sendInertMessage(chatId: bigint, text: string, options: MessageOptions): Promise<number | null>;
-  sendReplyKeyboard?(
-    chatId: bigint,
-    text: string,
-    options: ReplyKeyboardOptions
-  ): Promise<void>;
+  sendInertMessage(chatId: bigint, text: string, options: ReplyKeyboardOptions): Promise<number | null>;
   deleteMessage(reference: GroupCombatMessageReference): Promise<void>;
 }
 
@@ -108,7 +103,10 @@ export async function deliverGroupCombatStartIntro(
 export async function deliverGroupCombatCards(
   api: Api,
   service: GroupCombatService,
-  session: GroupCombatSessionRecord
+  session: GroupCombatSessionRecord,
+  options: {
+    forceReplacementCharacterId?: string;
+  } = {}
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
   const transport = apiTransport(api);
@@ -167,6 +165,7 @@ export async function deliverGroupCombatCards(
       now: () => serviceTime(service),
       ...((authoritative.status === "active" &&
         participant.deliveredRevision === 0) ||
+        options.forceReplacementCharacterId === participant.characterId ||
         (authoritative.status === "active" && participantFledThisTurn) ||
         (authoritative.status !== "active" &&
           participant.deliveredRevision < authoritative.deliveryRevision)
@@ -195,7 +194,7 @@ async function deliverParticipantExitNavigation(input: {
   transport: GroupCombatDeliveryTransport;
 }): Promise<boolean> {
   return withParticipantDeliveryLock(
-    `${input.sessionId}:${input.participantCharacterId}:flee-exit`,
+    input.participantCharacterId,
     async () => {
       let current = await loadAuthoritativeSession(input.service, input.sessionId);
       let participant = findParticipant(current, input.participantCharacterId);
@@ -424,45 +423,6 @@ function isCompletedExitDelivery(
   return state === "completed" || state === "superseded";
 }
 
-export async function deliverGroupCombatBattleKeyboard(
-  api: Api,
-  session: GroupCombatSessionRecord,
-  participantCharacterId: string
-): Promise<void> {
-  const participant = session.participants.find(
-    (candidate) => candidate.characterId === participantCharacterId
-  );
-  if (!participant) {
-    return;
-  }
-  const presentation = battleKeyboardPresentation(session, participantCharacterId);
-  await api.sendMessage(
-    Number(participant.telegramUserId),
-    presentation.text,
-    presentation.options
-  );
-}
-
-function battleKeyboardPresentation(
-  session: GroupCombatSessionRecord,
-  participantCharacterId: string
-): { text: string; options: ReplyKeyboardOptions } {
-  const actor = session.state.participants.find(
-    (candidate) => candidate.characterId === participantCharacterId
-  );
-  return {
-    text: actor && isActiveGroupCombatParticipant(actor)
-      ? "⚔️ Бойова клавіатура готова."
-      : "💫 Ви непритомні й цього ходу не дієте. Можна стежити за боєм.",
-    options: {
-      reply_markup: buildGroupCombatReplyKeyboard(
-        session,
-        participantCharacterId
-      )
-    }
-  };
-}
-
 function replyKeyboardFingerprint(
   session: GroupCombatSessionRecord,
   participantCharacterId: string
@@ -526,7 +486,7 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   publishReplyKeyboard?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
-  return withParticipantDeliveryLock(`${input.sessionId}:${input.participantCharacterId}`, () => (
+  return withParticipantDeliveryLock(input.participantCharacterId, () => (
     deliverCanonicalGroupCombatParticipantStateLocked(input)
   ));
 }
@@ -541,19 +501,52 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   publishReplyKeyboard?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
-  const sendReplyKeyboard =
-    input.transport.sendReplyKeyboard?.bind(input.transport);
-  if (
-    input.publishReplyKeyboard === false ||
-    !sendReplyKeyboard
-  ) {
-    return deliverCanonicalGroupCombatParticipantCardLocked(input);
+  const claimUi = (
+    input.service as Partial<GroupCombatService>
+  ).claimParticipantUiPublication;
+  const acknowledgeUi = (
+    input.service as Partial<GroupCombatService>
+  ).acknowledgeParticipantUiPublication;
+  const releaseUi = (
+    input.service as Partial<GroupCombatService>
+  ).releaseParticipantUiPublicationClaim;
+  if (!claimUi || !acknowledgeUi || !releaseUi) {
+    const current = await loadAuthoritativeSession(input.service, input.sessionId);
+    const participant = findParticipant(current, input.participantCharacterId);
+    if (!current || !participant || current.status !== "active") {
+      return deliverCanonicalGroupCombatParticipantCardLocked(input);
+    }
+    const fingerprint = replyKeyboardFingerprint(
+      current,
+      participant.characterId
+    );
+    const publishReplyKeyboard =
+      input.publishReplyKeyboard !== false &&
+      participant.replyKeyboardFingerprint !== fingerprint;
+    const result = await deliverCanonicalGroupCombatParticipantCardLocked({
+      ...input,
+      forceReplacement:
+        input.forceReplacement === true || publishReplyKeyboard,
+      ...(publishReplyKeyboard
+        ? {
+            replyKeyboard: buildGroupCombatReplyKeyboard(
+              current,
+              participant.characterId
+            )
+          }
+        : {})
+    });
+    if (isDelivered(result)) {
+      participant.replyKeyboardFingerprint = fingerprint;
+      participant.replyKeyboardGeneration =
+        (participant.replyKeyboardGeneration ?? 0) +
+        (publishReplyKeyboard ? 1 : 0);
+    }
+    return result;
   }
-  let result: GroupCombatParticipantDeliveryResult = {
-    state: "missing-participant",
-    reference: null
-  };
-  let forceReplacement = input.forceReplacement === true;
+
+  const claimToken = randomUUID();
+  let ownsClaim = false;
   for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
     const current = await loadAuthoritativeSession(input.service, input.sessionId);
     const participant = findParticipant(current, input.participantCharacterId);
@@ -562,45 +555,109 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
       !participant ||
       exitDeliveryStateOf(participant) !== "none"
     ) {
-      return result;
+      return { state: "missing-participant", reference: null };
     }
-    const shouldPublishKeyboard = current.status === "active";
-    const deliveredKeyboard = shouldPublishKeyboard
-      ? replyKeyboardFingerprint(current, participant.characterId)
-      : null;
-    if (shouldPublishKeyboard) {
-      const presentation = battleKeyboardPresentation(
-        current,
-        participant.characterId
-      );
-      await sendReplyKeyboard(
-        participant.telegramUserId,
-        presentation.text,
-        presentation.options
-      );
-    }
-    result = await deliverCanonicalGroupCombatParticipantCardLocked({
-      ...input,
-      forceRefresh: input.forceRefresh === true || attempt > 0,
-      forceReplacement
+    const keyboardFingerprint = replyKeyboardFingerprint(
+      current,
+      participant.characterId
+    );
+    const now = input.now?.() ?? new Date();
+    const claim = await claimUi.call(input.service, {
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: current.deliveryRevision,
+      keyboardFingerprint,
+      claimToken,
+      claimedAt: now,
+      staleBefore: new Date(now.getTime() - UI_PUBLICATION_CLAIM_MS)
     });
-    if (!shouldPublishKeyboard) {
-      return result;
+    if (claim.state === "stale") {
+      continue;
     }
-    const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-    const latestParticipant = findParticipant(latest, input.participantCharacterId);
+    if (claim.state === "not-found" || claim.state === "superseded") {
+      return { state: "missing-participant", reference: null };
+    }
+    if (claim.state === "busy") {
+      return {
+        state: "retryable-edit-failure",
+        reference: privateReference(participant)
+      };
+    }
+    if (claim.state !== "claimed") {
+      return { state: "retryable-edit-failure", reference: null };
+    }
+    ownsClaim = true;
+    const publishReplyKeyboard =
+      input.publishReplyKeyboard !== false && claim.publishReplyKeyboard;
+    let result: GroupCombatParticipantDeliveryResult;
+    try {
+      result = await deliverCanonicalGroupCombatParticipantCardLocked({
+        ...input,
+        forceRefresh: input.forceRefresh === true || attempt > 0,
+        forceReplacement:
+          input.forceReplacement === true || publishReplyKeyboard,
+        ...(publishReplyKeyboard
+          ? {
+              replyKeyboard: buildGroupCombatReplyKeyboard(
+                current,
+                participant.characterId
+              )
+            }
+          : {})
+      });
+    } catch (error) {
+      await releaseUi.call(input.service, {
+        sessionId: current.id,
+        telegramUserId: participant.telegramUserId,
+        claimToken
+      }).catch(() => false);
+      ownsClaim = false;
+      throw error;
+    }
     if (
-      !latest ||
-      !latestParticipant ||
-      latest.status !== "active" ||
-      exitDeliveryStateOf(latestParticipant) !== "none" ||
-      replyKeyboardFingerprint(latest, latestParticipant.characterId) === deliveredKeyboard
+      result.state === "send-failed" ||
+      result.state === "activation-failed" ||
+      result.state === "retryable-edit-failure"
     ) {
+      await releaseUi.call(input.service, {
+        sessionId: current.id,
+        telegramUserId: participant.telegramUserId,
+        claimToken
+      }).catch(() => false);
+      ownsClaim = false;
       return result;
     }
-    forceReplacement = true;
+    const acknowledged = await acknowledgeUi.call(input.service, {
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: current.deliveryRevision,
+      keyboardFingerprint,
+      claimToken
+    });
+    if (acknowledged === "acknowledged") {
+      ownsClaim = false;
+      return result;
+    }
+    if (acknowledged === "not-owner") {
+      ownsClaim = false;
+      return {
+        state: "candidate-lost",
+        reference: result.reference
+      };
+    }
   }
-  return result;
+  if (ownsClaim) {
+    const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+    const participant = findParticipant(latest, input.participantCharacterId);
+    if (participant) {
+      await releaseUi.call(input.service, {
+        sessionId: input.sessionId,
+        telegramUserId: participant.telegramUserId,
+        claimToken
+      }).catch(() => false);
+    }
+  }
+  return { state: "retryable-edit-failure", reference: null };
 }
 
 async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
@@ -611,6 +668,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
+  replyKeyboard?: ReturnType<typeof buildGroupCombatReplyKeyboard>;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
@@ -663,7 +721,12 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   const candidateMessageId = await input.transport.sendInertMessage(
     participant.telegramUserId,
     candidateCard.text,
-    { ...candidateCard.options, reply_markup: { inline_keyboard: [] } }
+    input.replyKeyboard
+      ? {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: input.replyKeyboard
+        }
+      : { ...candidateCard.options, reply_markup: { inline_keyboard: [] } }
   );
   if (!candidateMessageId) {
     return { state: "send-failed", reference: null };
@@ -913,17 +976,6 @@ function apiTransport(api: Api): GroupCombatDeliveryTransport {
       const sent = await api.sendMessage(Number(chatId), text, options);
       return sent.message_id ?? null;
     },
-    ...(typeof api.sendMessage === "function"
-      ? {
-          sendReplyKeyboard: async (
-            chatId: bigint,
-            text: string,
-            options: ReplyKeyboardOptions
-          ) => {
-            await api.sendMessage(Number(chatId), text, options);
-          }
-        }
-      : {}),
     deleteMessage: async (reference) => {
       await api.deleteMessage(Number(reference.chatId), reference.messageId);
     }

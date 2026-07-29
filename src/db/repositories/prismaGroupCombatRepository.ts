@@ -86,14 +86,18 @@ import {
 } from "../../services/presenceService";
 
 type TxClient = Prisma.TransactionClient;
-const MAX_MUTATION_ATTEMPTS = 4;
+const MAX_MUTATION_ATTEMPTS = 13;
+const UI_PUBLICATION_RETRY_DELAY_MS = 23;
 const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 1;
 const GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND = "group-combat-exit-navigation";
+const GROUP_COMBAT_UI_PUBLICATION_CLAIM_MS = 23_000;
+const GROUP_COMBAT_NAVIGATION_FENCE_PREFIX = "navigation:";
 
 class GroupCombatMutationConflict extends Error {}
+class GroupCombatUiPublicationBusy extends GroupCombatMutationConflict {}
 class GroupCombatInventoryDrift extends Error {
   constructor(readonly sessionId: string) {
     super("Committed group-combat item is no longer owned.");
@@ -1046,6 +1050,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
           continue;
         }
+        if (error instanceof GroupCombatUiPublicationBusy) {
+          await waitForUiPublicationRetry();
+          continue;
+        }
         if (error instanceof GroupCombatMutationConflict || isTransactionWriteConflict(error)) {
           continue;
         }
@@ -1194,6 +1202,10 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       } catch (error) {
         if (error instanceof GroupCombatInventoryDrift) {
           return invalidateInventoryDrift(this.prisma, error.sessionId, input.now);
+        }
+        if (error instanceof GroupCombatUiPublicationBusy) {
+          await waitForUiPublicationRetry();
+          continue;
         }
         if (error instanceof GroupCombatMutationConflict || isUniqueConflict(error) || isTransactionWriteConflict(error)) {
           continue;
@@ -1832,6 +1844,196 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       data: { deliveredRevision: input.expectedDeliveryRevision }
     });
     return updated.count === 1;
+  }
+
+  async claimParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+    claimedAt: Date;
+    staleBefore: Date;
+  }): Promise<
+    | {
+        state: "claimed";
+        publishReplyKeyboard: boolean;
+        keyboardGeneration: number;
+      }
+    | { state: "busy" | "stale" | "superseded" | "not-found" }
+  > {
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "none",
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: {
+          id: true,
+          replyKeyboardFingerprint: true,
+          replyKeyboardGeneration: true,
+          characterId: true,
+          character: { select: { activeCombatLease: true } },
+          session: { select: { status: true, deliveryRevision: true } }
+        }
+      });
+      if (!participant) {
+        return { state: "not-found" as const };
+      }
+      if (
+        participant.session.status !== "active" ||
+        participant.character.activeCombatLease?.kind !== GROUP_COMBAT_LEASE_KIND ||
+        participant.character.activeCombatLease.referenceId !== input.sessionId
+      ) {
+        return { state: "superseded" as const };
+      }
+      if (participant.session.deliveryRevision !== input.expectedDeliveryRevision) {
+        return { state: "stale" as const };
+      }
+      const claimed = await tx.groupCombatUiPublicationClaim.updateMany({
+        where: {
+          characterId: participant.characterId,
+          OR: [
+            {
+              sessionId: input.sessionId,
+              claimToken: input.claimToken
+            },
+            { claimedAt: { lte: input.staleBefore } }
+          ]
+        },
+        data: {
+          sessionId: input.sessionId,
+          claimToken: input.claimToken,
+          claimedAt: input.claimedAt
+        }
+      });
+      if (claimed.count === 0) {
+        try {
+          await tx.groupCombatUiPublicationClaim.create({
+            data: {
+              characterId: participant.characterId,
+              sessionId: input.sessionId,
+              claimToken: input.claimToken,
+              claimedAt: input.claimedAt
+            }
+          });
+        } catch (error) {
+          if (isUniqueConflict(error)) {
+            return { state: "busy" as const };
+          }
+          throw error;
+        }
+      }
+      return {
+        state: "claimed" as const,
+        publishReplyKeyboard:
+          participant.replyKeyboardFingerprint !== input.keyboardFingerprint,
+        keyboardGeneration: participant.replyKeyboardGeneration
+      };
+    });
+  }
+
+  async acknowledgeParticipantUiPublication(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    keyboardFingerprint: string;
+    claimToken: string;
+  }): Promise<"acknowledged" | "stale" | "not-owner"> {
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "none",
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: {
+          id: true,
+          characterId: true,
+          replyKeyboardFingerprint: true,
+          session: { select: { status: true, deliveryRevision: true } },
+          character: { select: { activeCombatLease: true } }
+        }
+      });
+      const lease = participant?.character.activeCombatLease;
+      const claim = participant
+        ? await tx.groupCombatUiPublicationClaim.findUnique({
+            where: { characterId: participant.characterId }
+          })
+        : null;
+      if (
+        !participant ||
+        !lease ||
+        lease.kind !== GROUP_COMBAT_LEASE_KIND ||
+        lease.referenceId !== input.sessionId ||
+        claim?.sessionId !== input.sessionId ||
+        claim.claimToken !== input.claimToken
+      ) {
+        return "not-owner";
+      }
+      if (
+        participant.session.status !== "active" ||
+        participant.session.deliveryRevision !== input.expectedDeliveryRevision
+      ) {
+        return "stale";
+      }
+      const participantUpdated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          exitDeliveryState: "none",
+          session: {
+            status: "active",
+            deliveryRevision: input.expectedDeliveryRevision,
+            repairState: null
+          }
+        },
+        data: {
+          replyKeyboardFingerprint: input.keyboardFingerprint,
+          ...(participant.replyKeyboardFingerprint === input.keyboardFingerprint
+            ? {}
+            : { replyKeyboardGeneration: { increment: 1 } })
+        }
+      });
+      if (participantUpdated.count !== 1) {
+        return "stale";
+      }
+      const released = await tx.groupCombatUiPublicationClaim.deleteMany({
+        where: {
+          characterId: participant.characterId,
+          sessionId: input.sessionId,
+          claimToken: input.claimToken
+        }
+      });
+      return released.count === 1 ? "acknowledged" : "not-owner";
+    });
+  }
+
+  async releaseParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+  }): Promise<boolean> {
+    const participant = await this.prisma.groupCombatParticipant.findFirst({
+      where: {
+        sessionId: input.sessionId,
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      select: { characterId: true }
+    });
+    if (!participant) {
+      return false;
+    }
+    const released = await this.prisma.groupCombatUiPublicationClaim.deleteMany({
+      where: {
+        characterId: participant.characterId,
+        sessionId: input.sessionId,
+        claimToken: input.claimToken
+      }
+    });
+    return released.count === 1;
   }
 
   async claimParticipantFleeExitDelivery(input: {
@@ -2529,6 +2731,21 @@ async function resolveIfReady(
       participant.fledAtTurn !== undefined &&
       !previouslyFled.has(participant.characterId)
   );
+  if (terminal || newlyFled.length > 0) {
+    await claimParticipantNavigationFences(
+      tx,
+      row.id,
+      [
+        ...(terminal
+          ? state.participants
+              .filter((participant) => participant.fledAtTurn === undefined)
+              .map((participant) => participant.characterId)
+          : []),
+        ...newlyFled.map((participant) => participant.characterId)
+      ],
+      now
+    );
+  }
   await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
   await markCommittedItemActions(
     tx,
@@ -2986,6 +3203,78 @@ async function releaseAllGroupCombatLeases(tx: TxClient, sessionId: string, now:
   }
 }
 
+async function requireIdleParticipantUiPublications(
+  tx: TxClient,
+  characterIds: readonly string[],
+  now: Date
+): Promise<void> {
+  const uniqueCharacterIds = [...new Set(characterIds)];
+  if (uniqueCharacterIds.length === 0) {
+    return;
+  }
+  const staleBefore = new Date(
+    now.getTime() - GROUP_COMBAT_UI_PUBLICATION_CLAIM_MS
+  );
+  await tx.groupCombatUiPublicationClaim.deleteMany({
+    where: {
+      characterId: { in: uniqueCharacterIds },
+      claimedAt: { lte: staleBefore }
+    }
+  });
+  const liveClaim = await tx.groupCombatUiPublicationClaim.findFirst({
+    where: {
+      characterId: { in: uniqueCharacterIds }
+    },
+    select: { characterId: true }
+  });
+  if (liveClaim) {
+    throw new GroupCombatUiPublicationBusy();
+  }
+}
+
+async function claimParticipantNavigationFences(
+  tx: TxClient,
+  sessionId: string,
+  characterIds: readonly string[],
+  now: Date
+): Promise<void> {
+  const uniqueCharacterIds = [...new Set(characterIds)];
+  if (uniqueCharacterIds.length === 0) {
+    return;
+  }
+  const staleBefore = new Date(
+    now.getTime() - GROUP_COMBAT_UI_PUBLICATION_CLAIM_MS
+  );
+  await tx.groupCombatUiPublicationClaim.deleteMany({
+    where: {
+      characterId: { in: uniqueCharacterIds },
+      claimedAt: { lte: staleBefore }
+    }
+  });
+  const fenceToken = `${GROUP_COMBAT_NAVIGATION_FENCE_PREFIX}${sessionId}`;
+  try {
+    await tx.groupCombatUiPublicationClaim.createMany({
+      data: uniqueCharacterIds.map((characterId) => ({
+        characterId,
+        sessionId,
+        claimToken: fenceToken,
+        claimedAt: now
+      }))
+    });
+  } catch (error) {
+    if (!isUniqueConflict(error)) {
+      throw error;
+    }
+    throw new GroupCombatUiPublicationBusy();
+  }
+}
+
+function waitForUiPublicationRetry(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, UI_PUBLICATION_RETRY_DELAY_MS);
+  });
+}
+
 async function commitSuccessfulGroupCombatFlee(
   tx: TxClient,
   row: SessionRow,
@@ -3117,6 +3406,30 @@ async function releaseGroupCombatLease(
   lease: Prisma.ActiveCombatLeaseGetPayload<Record<string, never>>,
   now: Date
 ): Promise<void> {
+  const currentClaim = await tx.groupCombatUiPublicationClaim.findUnique({
+    where: { characterId: lease.characterId }
+  });
+  if (
+    currentClaim &&
+    (
+      currentClaim.sessionId !== lease.referenceId ||
+      currentClaim.claimToken !==
+        `${GROUP_COMBAT_NAVIGATION_FENCE_PREFIX}${lease.referenceId}`
+    )
+  ) {
+    await requireIdleParticipantUiPublications(tx, [lease.characterId], now);
+  }
+  const releasableLease = await tx.activeCombatLease.findUnique({
+    where: { id: lease.id }
+  });
+  if (
+    !releasableLease ||
+    releasableLease.characterId !== lease.characterId ||
+    releasableLease.kind !== lease.kind ||
+    releasableLease.referenceId !== lease.referenceId
+  ) {
+    throw new GroupCombatMutationConflict();
+  }
   const participant = await tx.groupCombatParticipant.findFirst({
     where: { sessionId: lease.referenceId, characterId: lease.characterId },
     select: { snapshotJson: true }
@@ -3126,10 +3439,17 @@ async function releaseGroupCombatLease(
   const inspiration = parseBardInspirationCombatState(payload?.inspiration);
   await releaseCombatLeaseWithTimedStatuses({
     tx,
-    lease,
+    lease: releasableLease,
     releasedAt: now,
     ...(sated ? { sated } : {}),
     ...(inspiration ? { inspiration } : {})
+  });
+  await tx.groupCombatUiPublicationClaim.deleteMany({
+    where: {
+      characterId: lease.characterId,
+      sessionId: lease.referenceId,
+      claimToken: `${GROUP_COMBAT_NAVIGATION_FENCE_PREFIX}${lease.referenceId}`
+    }
   });
 }
 
@@ -3410,6 +3730,8 @@ function mapSession(
       messageId: participant.messageId,
       referenceVersion: participant.referenceVersion,
       deliveredRevision: participant.deliveredRevision,
+      replyKeyboardFingerprint: participant.replyKeyboardFingerprint,
+      replyKeyboardGeneration: participant.replyKeyboardGeneration,
       exitDeliveryState: parseGroupCombatExitDeliveryState(
         participant.exitDeliveryState
       ),

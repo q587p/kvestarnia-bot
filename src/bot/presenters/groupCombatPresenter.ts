@@ -547,7 +547,7 @@ function presentQueuedAction(
     return "захиститися";
   }
   if (action.action === "flee") {
-    return "відступити всією ватагою";
+    return "спробувати відступити самому";
   }
   if (action.action === "attack") {
     const enemy = session.state.enemies.find((candidate) => candidate.id === action.targetId);

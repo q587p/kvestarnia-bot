@@ -9,6 +9,7 @@ import {
 } from "../../src/bot/groupCombatCardDelivery";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
+import { buildGroupCombatReplyKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group-combat canonical participant delivery", () => {
   it("delivers standard level and achievement notices as separate messages after settlement", async () => {
@@ -269,7 +270,9 @@ describe("group-combat canonical participant delivery", () => {
     expect(exitCall?.[0]).toBe(1001);
     expect(hasReplyKeyboard(readReplyMarkup(exitCall?.[2] as unknown))).toBe(true);
     expect(sendMessage.mock.calls.some((call) =>
-      call[0] === 1002 && String(call[1]).includes("Бойова клавіатура")
+      call[0] === 1002 &&
+      String(call[1]).includes("<b>Бій</b>:") &&
+      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
     )).toBe(true);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
     expect(session.participants[0]!.messageId).toBeNull();
@@ -630,7 +633,6 @@ describe("group-combat canonical participant delivery", () => {
     const firstEditStarted = deferred<void>();
     const releaseFirstEdit = deferred<void>();
     const edits: string[] = [];
-    const replyKeyboards: string[][] = [];
     let editCount = 0;
     const editMessage = vi.fn(async (
       _reference: Parameters<GroupCombatDeliveryTransport["editMessage"]>[0],
@@ -656,15 +658,6 @@ describe("group-combat canonical participant delivery", () => {
     const transport: GroupCombatDeliveryTransport = {
       editMessage,
       sendInertMessage,
-      sendReplyKeyboard: (_chatId, _text, options) => {
-        const markup = options.reply_markup as {
-          keyboard?: Array<Array<{ text: string }>>;
-        };
-        replyKeyboards.push(
-          markup.keyboard?.flat().map((button) => button.text) ?? []
-        );
-        return Promise.resolve();
-      },
       deleteMessage: () => Promise.resolve()
     };
     const service = {
@@ -694,8 +687,6 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits.slice(edits.findIndex((text) => text.includes("<b>Бій</b>: 2 хід")))).not.toEqual(
       expect.arrayContaining([expect.stringContaining("<b>Бій</b>: 1 хід")])
     );
-    expect(replyKeyboards[0]).toContain("🪓 Силовий замах");
-    expect(replyKeyboards.at(-1)).not.toContain("🪓 Силовий замах");
     expect(sendInertMessage).not.toHaveBeenCalled();
   });
 
@@ -705,15 +696,14 @@ describe("group-combat canonical participant delivery", () => {
     const replyKeyboards: string[][] = [];
     const transport: GroupCombatDeliveryTransport = {
       editMessage: () => Promise.resolve(),
-      sendInertMessage: () => Promise.resolve(null),
-      sendReplyKeyboard: (_chatId, _text, options) => {
+      sendInertMessage: (_chatId, _text, options) => {
         const markup = options.reply_markup as {
           keyboard?: Array<Array<{ text: string }>>;
         };
         replyKeyboards.push(
           markup.keyboard?.flat().map((button) => button.text) ?? []
         );
-        return Promise.resolve();
+        return Promise.resolve(93);
       },
       deleteMessage: () => Promise.resolve()
     };
@@ -724,9 +714,51 @@ describe("group-combat canonical participant delivery", () => {
       participantCharacterId: "character-1",
       transport,
       forceRefresh: true
-    })).resolves.toMatchObject({ state: "edited" });
+    })).resolves.toMatchObject({ state: "activated" });
 
     expect(replyKeyboards).toEqual([["🔎 Оновити"]]);
+  });
+
+  it("releases the durable UI claim when Telegram rejects the canonical active card", async () => {
+    const session = makeSession();
+    const releaseParticipantUiPublicationClaim = vi.fn<(
+      input: {
+        sessionId: string;
+        telegramUserId: bigint;
+        claimToken: string;
+      }
+    ) => Promise<boolean>>().mockResolvedValue(true);
+    const service = {
+      ...mutableCardService(session),
+      claimParticipantUiPublication: vi.fn().mockResolvedValue({
+        state: "claimed",
+        publishReplyKeyboard: true,
+        keyboardGeneration: 0
+      }),
+      acknowledgeParticipantUiPublication: vi.fn(),
+      releaseParticipantUiPublicationClaim
+    } as unknown as GroupCombatService;
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: () => Promise.resolve(),
+      sendInertMessage: () => Promise.reject(new Error("telegram unavailable")),
+      deleteMessage: () => Promise.resolve()
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true
+    })).rejects.toThrow("telegram unavailable");
+
+    expect(releaseParticipantUiPublicationClaim).toHaveBeenCalledOnce();
+    const releasedClaim = releaseParticipantUiPublicationClaim.mock.calls[0]?.[0];
+    expect(releasedClaim).toMatchObject({
+      sessionId: session.id,
+      telegramUserId: 1001n
+    });
+    expect(typeof releasedClaim?.claimToken).toBe("string");
   });
 
   it("publishes each participant's current controls after a resolved turn changes availability", async () => {
@@ -779,6 +811,69 @@ describe("group-combat canonical participant delivery", () => {
     expect(replyKeyboards.get(1002)).not.toContain("🪓 Силовий замах");
   });
 
+  it("edits unchanged generations and sends exactly one actor card plus one changed ally keyboard-card", async () => {
+    const session = makeSession({
+      turn: 2,
+      deliveryRevision: 2,
+      deliveredRevision: 1
+    });
+    session.participants[1]!.deliveredRevision = 1;
+    session.state.participants.forEach((participant) => {
+      participant.classId = "class.warrior";
+    });
+    for (const participant of session.participants) {
+      participant.replyKeyboardFingerprint = JSON.stringify(
+        buildGroupCombatReplyKeyboard(
+          session,
+          participant.characterId
+        ).keyboard
+      );
+      participant.replyKeyboardGeneration = 1;
+    }
+    session.state.participants[1]!.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 2
+        }
+      }
+    };
+    const sends: Array<{ chatId: number; hasReplyKeyboard: boolean }> = [];
+    let nextMessageId = 93;
+    const sendMessage = vi.fn((
+      chatId: number,
+      _text: string,
+      options?: { reply_markup?: { keyboard?: unknown } }
+    ) => {
+      sends.push({
+        chatId,
+        hasReplyKeyboard: Boolean(options?.reply_markup?.keyboard)
+      });
+      return Promise.resolve({ message_id: nextMessageId++ });
+    });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session, {
+      forceReplacementCharacterId: "character-1"
+    })).resolves.toBe(2);
+
+    expect(sends).toEqual([
+      { chatId: 1001, hasReplyKeyboard: false },
+      { chatId: 1002, hasReplyKeyboard: true }
+    ]);
+    expect(editMessageText.mock.calls.filter((call) => call[0] === 1001))
+      .toHaveLength(2);
+    expect(editMessageText.mock.calls.filter((call) => call[0] === 1002))
+      .toHaveLength(2);
+  });
+
   it("keeps a losing repair candidate inert when candidate deletion fails", async () => {
     const withoutReference = makeSession({ chatId: null, messageId: null, referenceVersion: 0 });
     const winner = makeSession({ chatId: 1001n, messageId: 77, referenceVersion: 1 });
@@ -818,7 +913,8 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(result.state).toBe("edited");
-    expect(sentOptions).toEqual([expect.objectContaining({ reply_markup: { inline_keyboard: [] } })]);
+    expect(sentOptions).toHaveLength(1);
+    expect(hasReplyKeyboard(readReplyMarkup(sentOptions[0]))).toBe(true);
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 31 });
     expect(edits).toEqual([77]);
     expect(edits).not.toContain(31);
@@ -829,7 +925,17 @@ describe("group-combat canonical participant delivery", () => {
     const oldReference = { chatId: 1001n, messageId: 21 };
     const edits: Array<{ messageId: number; buttons: string[] }> = [];
     const deleteMessage = vi.fn().mockResolvedValue(undefined);
-    const sendInertMessage = vi.fn().mockResolvedValue(93);
+    const sentOptions: Array<
+      Parameters<GroupCombatDeliveryTransport["sendInertMessage"]>[2]
+    > = [];
+    const sendInertMessage = vi.fn((
+      _chatId: bigint,
+      _text: string,
+      options: Parameters<GroupCombatDeliveryTransport["sendInertMessage"]>[2]
+    ) => {
+      sentOptions.push(options);
+      return Promise.resolve(93);
+    });
     const transport: GroupCombatDeliveryTransport = {
       editMessage: (reference, _text, options) => {
         edits.push({
@@ -852,11 +958,8 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(result).toMatchObject({ state: "activated", reference: { chatId: 1001n, messageId: 93 } });
-    expect(sendInertMessage).toHaveBeenCalledWith(
-      1001n,
-      expect.any(String),
-      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
-    );
+    expect(sendInertMessage).toHaveBeenCalledOnce();
+    expect(hasReplyKeyboard(readReplyMarkup(sentOptions[0]))).toBe(true);
     expect(edits).toHaveLength(2);
     expect(edits[0]).toEqual({ messageId: 21, buttons: [] });
     expect(edits[1]?.messageId).toBe(93);
@@ -1258,6 +1361,8 @@ function participantRecord(
     messageId: overrides.messageId === undefined ? 21 + rosterOrder : overrides.messageId,
     referenceVersion: overrides.referenceVersion ?? 1,
     deliveredRevision: overrides.deliveredRevision ?? 0,
+    replyKeyboardFingerprint: null,
+    replyKeyboardGeneration: 0,
     exitDeliveryState: overrides.exitDeliveryState ?? "none",
     exitDeliveryClaimToken: null,
     exitDeliveryClaimedAt: null,

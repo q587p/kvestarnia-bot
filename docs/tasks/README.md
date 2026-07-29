@@ -33,20 +33,21 @@ The current repository release is `0.4.2`:
 Its production-capable left-passage entry remains default-off; manual Telegram
 QA, production enablement, merge and deployment remain unproven.
 
-[`0.4.3-guild-foundation.md`](0.4.3-guild-foundation.md) is the next planned
-version.
+[`0.4.3-consumable-manatka-uses.md`](0.4.3-consumable-manatka-uses.md) is the
+next planned version. Its exact item/effect allowlist remains an activation gate,
+not an implemented catalog.
 
 ## Accepted 0.4.x planning
 
 After `0.4.2`, use these accepted task contracts in order unless a later
 product decision changes the sequence:
 
-- [`0.4.3-guild-foundation.md`](0.4.3-guild-foundation.md)
-- [`0.4.4-guild-weekly-goal.md`](0.4.4-guild-weekly-goal.md)
-- [`0.4.5-old-altar-blessings-mvp.md`](0.4.5-old-altar-blessings-mvp.md)
-- [`0.4.6-nearby-greeting-buff.md`](0.4.6-nearby-greeting-buff.md)
-- [`0.4.7-shynok-food-buffs-mvp.md`](0.4.7-shynok-food-buffs-mvp.md)
-- [`0.4.8-consumable-manatka-uses.md`](0.4.8-consumable-manatka-uses.md)
+- [`0.4.3-consumable-manatka-uses.md`](0.4.3-consumable-manatka-uses.md)
+- [`0.4.4-guild-foundation.md`](0.4.4-guild-foundation.md)
+- [`0.4.5-guild-weekly-goal.md`](0.4.5-guild-weekly-goal.md)
+- [`0.4.6-old-altar-blessings-mvp.md`](0.4.6-old-altar-blessings-mvp.md)
+- [`0.4.7-nearby-greeting-buff.md`](0.4.7-nearby-greeting-buff.md)
+- [`0.4.8-shynok-food-buffs-mvp.md`](0.4.8-shynok-food-buffs-mvp.md)
 - [`0.4.9-shynok-takeaway-consumables.md`](0.4.9-shynok-takeaway-consumables.md)
 - [`0.4.10-shynok-resale-listings.md`](0.4.10-shynok-resale-listings.md)
 - [`0.4.11-korchmar-recycling.md`](0.4.11-korchmar-recycling.md)

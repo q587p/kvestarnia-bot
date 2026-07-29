@@ -456,6 +456,8 @@ export async function handleGroupCombatCallback(
     return;
   }
   let settlementNotices: GroupCombatSettlementNotice[] | undefined;
+  let actionResult: Awaited<ReturnType<GroupCombatService["submitAction"]>> | null =
+    null;
   if (callback.type === "action") {
     const target = resolveTarget(
       session,
@@ -478,6 +480,7 @@ export async function handleGroupCombatCallback(
       targetId: target.id,
       ...(target.payloadKey ? { payloadKey: target.payloadKey } : {})
     });
+    actionResult = result;
     if ("session" in result) {
       session = result.session;
     } else {
@@ -492,16 +495,32 @@ export async function handleGroupCombatCallback(
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
-  if (callback.type === "action" && session.status === "active") {
-    await deliverGroupCombatParticipantCard(
-      ctx.api,
-      service,
-      session.id,
-      viewer.characterId,
-      { forceRefresh: true, forceReplacement: true }
-    );
+  if (callback.type === "action") {
+    if (
+      actionResult &&
+      "session" in actionResult &&
+      (actionResult.state === "resolved" || actionResult.state === "terminal")
+    ) {
+      await deliverGroupCombatCards(
+        ctx.api,
+        service,
+        session,
+        session.status === "active"
+          ? { forceReplacementCharacterId: viewer.characterId }
+          : {}
+      );
+    } else {
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+    }
+  } else {
+    await deliverGroupCombatCards(ctx.api, service, session);
   }
-  await deliverGroupCombatCards(ctx.api, service, session);
   if (settlementNotices) {
     await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices);
   }
@@ -681,7 +700,12 @@ async function submitGroupCombatReplyAction(
   const session = "session" in result
     ? result.session
     : await service.findByToken(initialSession.partyInviteToken) ?? initialSession;
-  if (!("session" in result)) {
+  if (
+    !("session" in result) ||
+    result.state === "queued" ||
+    result.state === "replaced" ||
+    result.state === "duplicate"
+  ) {
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,
@@ -690,16 +714,14 @@ async function submitGroupCombatReplyAction(
       { forceRefresh: true, forceReplacement: true }
     );
   } else {
-    await deliverGroupCombatCards(ctx.api, service, session);
-    if (session.status === "active") {
-      await deliverGroupCombatParticipantCard(
-        ctx.api,
-        service,
-        session.id,
-        viewerCharacterId,
-        { forceRefresh: true, forceReplacement: true }
-      );
-    }
+    await deliverGroupCombatCards(
+      ctx.api,
+      service,
+      session,
+      session.status === "active"
+        ? { forceReplacementCharacterId: viewerCharacterId }
+        : {}
+    );
   }
   if ("settlementNotices" in result && result.settlementNotices) {
     await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices);

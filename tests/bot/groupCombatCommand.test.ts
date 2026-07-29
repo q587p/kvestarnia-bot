@@ -273,9 +273,8 @@ describe("group combat bot flow", () => {
       targetKind: "enemy",
       targetId: "enemy-1"
     });
-    expect(sentTexts).toHaveLength(2);
-    expect(sentTexts[0]).toContain("Бойова клавіатура");
-    expect(sentTexts[1]).toContain("<b>Бій</b>:");
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]).toContain("<b>Бій</b>:");
     expect(sentTexts.join("\n")).not.toContain("Ця дія зараз недоступна");
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
@@ -384,8 +383,7 @@ describe("group combat bot flow", () => {
       targetKind: "enemy",
       targetId: "enemy-1"
     }));
-    expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(2);
-    expect(sentTexts.slice(sendsAfterFirstPress)[0]).toContain("Бойова клавіатура");
+    expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(1);
     expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
     expect(sentTexts.join("\n")).not.toContain("Оберіть точну ціль");
     expect(replyKeyboards.at(-1)).not.toContain("🪓 Силовий замах");
@@ -460,7 +458,7 @@ describe("group combat bot flow", () => {
       targetKind: "self",
       targetId: "character-1"
     });
-    expect(sentTexts).toHaveLength(4);
+    expect(sentTexts).toHaveLength(1);
     expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
     expect(session.participants[0]).toMatchObject({
       messageId: 31,
@@ -582,11 +580,12 @@ describe("group combat bot flow", () => {
     );
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
-    expect(sendMessage).toHaveBeenCalledTimes(4);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бойова клавіатура готова");
-    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Бойова клавіатура готова");
-    expect(String(sendMessage.mock.calls[2]?.[1])).not.toContain("<b>Хто проти кого:</b>");
-    expect(String(sendMessage.mock.calls[3]?.[1])).not.toContain("<i>Порада дня:");
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("<b>Бій</b>:");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("<b>Бій</b>:");
+    expect(sendMessage.mock.calls.every((call) =>
+      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
+    )).toBe(true);
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(2);
@@ -922,8 +921,7 @@ describe("group combat bot flow", () => {
     } as unknown as GroupCombatService);
 
     expect(sent).toEqual([
-      { messageId: 31, buttons: undefined },
-      { messageId: 31, buttons: [] }
+      { messageId: 31, buttons: undefined }
     ]);
     expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
       expectedReferenceVersion: 1,
@@ -1020,7 +1018,9 @@ describe("group combat bot flow", () => {
     delivery.editMessageText.mockRejectedValue(
       new Error("Bad Request: message to edit not found")
     );
-    const compareAndSetParticipantCard = vi.fn().mockResolvedValue(true);
+    const compareAndSetParticipantCard = vi.fn<(
+      input: Parameters<GroupCombatService["compareAndSetParticipantCard"]>[0]
+    ) => Promise<boolean>>().mockResolvedValue(true);
 
     const delivered = await deliverGroupCombatCards(delivery.api, {
       findById: vi.fn().mockResolvedValue(session),
@@ -1030,12 +1030,21 @@ describe("group combat bot flow", () => {
     } as unknown as GroupCombatService, session);
 
     expect(delivered).toBe(2);
-    expect(delivery.sendMessage).toHaveBeenCalledTimes(4);
+    expect(delivery.sendMessage).toHaveBeenCalledTimes(2);
     expect(compareAndSetParticipantCard).toHaveBeenCalledTimes(2);
-    expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
-      expectedReferenceVersion: 1,
-      messageId: 33
-    }));
+    expect(compareAndSetParticipantCard.mock.calls.map((call) => call[0]))
+      .toEqual([
+        expect.objectContaining({
+          telegramUserId: 1001n,
+          expectedReferenceVersion: 1,
+          messageId: 31
+        }),
+        expect.objectContaining({
+          telegramUserId: 1002n,
+          expectedReferenceVersion: 1,
+          messageId: 32
+        })
+      ]);
   });
 
   it("starts from a supergroup but publishes participant cards only to private DMs", async () => {
@@ -1091,14 +1100,12 @@ describe("group combat bot flow", () => {
     expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
     expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
-      .toEqual([1001, 1002, 1001, 1002]);
+      .toEqual([1001, 1002]);
     const sendCalls = apiCalls.filter((call) => call.method === "sendMessage");
     expect(readReplyKeyboard(sendCalls[0]?.replyMarkup))
       .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[0]!.characterId).keyboard);
     expect(readReplyKeyboard(sendCalls[1]?.replyMarkup))
       .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[1]!.characterId).keyboard);
-    expect(sendCalls[2]?.replyMarkup).toEqual({ inline_keyboard: [] });
-    expect(sendCalls[3]?.replyMarkup).toEqual({ inline_keyboard: [] });
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
   });
 
@@ -1253,6 +1260,12 @@ function participantRecord(
     messageId,
     referenceVersion: 1,
     deliveredRevision,
+    replyKeyboardFingerprint: null,
+    replyKeyboardGeneration: 0,
+    exitDeliveryState: "none" as const,
+    exitDeliveryClaimToken: null,
+    exitDeliveryClaimedAt: null,
+    exitDeliveryMessageId: null,
     settlementStatus: "pending" as const,
     settlementAttempts: 0,
     settlementReceipt: null,

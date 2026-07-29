@@ -148,7 +148,16 @@ describe("group combat timeout scheduler", () => {
       session
     });
     const editMessageText = vi.fn().mockResolvedValue(true);
-    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const sendMessage = vi.fn((
+      chatId: number,
+      text: string,
+      options?: { reply_markup?: unknown }
+    ) => {
+      void chatId;
+      void text;
+      void options;
+      return Promise.resolve({ message_id: 93 });
+    });
     const releaseParticipantCard = vi.fn((input: {
       telegramUserId: bigint;
       expectedReferenceVersion: number;
@@ -208,9 +217,10 @@ describe("group combat timeout scheduler", () => {
 
     await expect(scheduler.tick()).resolves.toBe(1);
     expect(startDueLeftPassage).toHaveBeenCalledWith(session.partyInviteToken);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бойова клавіатура");
-    expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2]?.reply_markup))
+      .toContain("\"keyboard\"");
     expect(editMessageText).toHaveBeenCalledTimes(2);
     expect(String(editMessageText.mock.calls[0]?.[2])).toContain("Бій починається. Корчма відкриває журнал ходів");
     expect(String(editMessageText.mock.calls[1]?.[2])).not.toContain("Бій починається. Корчма відкриває журнал ходів");
