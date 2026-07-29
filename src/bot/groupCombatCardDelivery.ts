@@ -177,9 +177,7 @@ export async function deliverGroupCombatCards(
       participantCharacterId: participant.characterId,
       transport,
       now: () => serviceTime(service),
-      ...((authoritative.status === "active" &&
-        participant.deliveredRevision === 0) ||
-        options.forceReplacementCharacterId === participant.characterId ||
+      ...(options.forceReplacementCharacterId === participant.characterId ||
         (authoritative.status === "active" && participantFledThisTurn) ||
         (authoritative.status !== "active" &&
           participant.deliveredRevision < authoritative.deliveryRevision)
@@ -787,7 +785,10 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     telegramUserId: participant.telegramUserId,
     expectedReferenceVersion: participant.referenceVersion,
     chatId: candidate.chatId,
-    messageId: candidate.messageId
+    messageId: candidate.messageId,
+    publishedKeyboardFingerprint: input.replyKeyboard
+      ? JSON.stringify(input.replyKeyboard.keyboard)
+      : null
   });
   if (!claimed) {
     await input.transport.deleteMessage(candidate).catch(() => undefined);

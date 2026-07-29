@@ -1048,6 +1048,28 @@ describe("PrismaGroupCombatRepository integration", () => {
       publishReplyKeyboard: true,
       keyboardGeneration: 0
     });
+    await expect(repository.compareAndSetParticipantCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: participant.telegramUserId,
+      messageId: 93,
+      publishedKeyboardFingerprint: fingerprint
+    })).resolves.toBe(true);
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, characterId: participant.characterId },
+      select: {
+        messageId: true,
+        deliveredRevision: true,
+        replyKeyboardFingerprint: true,
+        replyKeyboardGeneration: true
+      }
+    })).resolves.toEqual({
+      messageId: 93,
+      deliveredRevision: 0,
+      replyKeyboardFingerprint: fingerprint,
+      replyKeyboardGeneration: 1
+    });
     await expect(repository.acknowledgeParticipantUiPublication({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,

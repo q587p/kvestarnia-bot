@@ -1933,6 +1933,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
+    publishedKeyboardFingerprint?: string | null;
   }): Promise<boolean> {
     if (input.chatId !== input.telegramUserId) {
       return false;
@@ -1950,7 +1951,13 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           chatId: input.chatId,
           messageId: input.messageId,
           referenceVersion: { increment: 1 },
-          deliveredRevision: 0
+          deliveredRevision: 0,
+          ...(input.publishedKeyboardFingerprint
+            ? {
+                replyKeyboardFingerprint: input.publishedKeyboardFingerprint,
+                replyKeyboardGeneration: { increment: 1 }
+              }
+            : {})
         }
       });
       if (updated.count === 1) {

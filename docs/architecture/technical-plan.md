@@ -406,8 +406,13 @@ session/revision/token is atomically renewed before every Telegram
 `sendMessage`, `editMessageText` and `deleteMessage`; each request is aborted at
 13 seconds, below the 23-second stale boundary, and ownership loss suppresses
 all later calls in that replacement. Only a reply keyboard actually attached
-to the private canonical card advances its fingerprint/generation. A
-supergroup/no-keyboard delivery acknowledges only the card. Terminal, flee and
+to a successfully sent private candidate may advance its
+fingerprint/generation, and candidate-reference adoption records that
+fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
+therefore edits the adopted canonical card instead of sending another
+countdown copy. A supergroup/no-keyboard delivery acknowledges only the card.
+The one-use reply button is rendered only when canonical validation finds at
+least one useful owned item. Terminal, flee and
 timeout mutations wait for a live publication fence without consuming their
 bounded optimistic-conflict retries; elapsed wall time permits restart
 takeover of a dead claim without changing canonical gameplay timestamps.

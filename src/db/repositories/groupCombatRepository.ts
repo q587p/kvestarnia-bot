@@ -241,6 +241,7 @@ export interface GroupCombatRepository {
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
+    publishedKeyboardFingerprint?: string | null;
   }): Promise<boolean>;
 
   releaseParticipantCard(input: {

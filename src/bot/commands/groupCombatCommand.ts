@@ -227,7 +227,7 @@ export function registerGroupCombatReplyKeyboard(
       await ctx.reply(
         hasAvailableItems
           ? "🎒 Оберіть одноразову манатку."
-          : "🎒 Корисних одноразових манаток для цього ходу немає.",
+          : "🎒 Зараз немає корисних одноразових манаток.",
         { reply_markup: keyboard }
       );
       return;
@@ -385,7 +385,7 @@ export async function handleGroupCombatCallback(
     const hasAvailableItems = keyboard.inline_keyboard.length > 1;
     await safeAnswerCallbackQuery(
       ctx,
-      hasAvailableItems ? undefined : { text: "Немає корисних одноразових манаток для цього ходу." }
+      hasAvailableItems ? undefined : { text: "Зараз немає корисних одноразових манаток." }
     );
     await safeEditMessageText(
       ctx,

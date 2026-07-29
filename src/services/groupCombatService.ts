@@ -363,6 +363,7 @@ export class GroupCombatService {
     expectedReferenceVersion: number;
     chatId: bigint;
     messageId: number;
+    publishedKeyboardFingerprint?: string | null;
   }): Promise<boolean> {
     return this.repository.compareAndSetParticipantCard(input);
   }

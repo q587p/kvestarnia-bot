@@ -749,6 +749,26 @@ describe("group combat bot flow", () => {
       "⚕️ Польова аптечка"
     );
     expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain("↩️ До бою");
+
+    viewer.combatItemQuantities = {};
+    answerCallbackQuery.mockClear();
+    editMessageText.mockClear();
+    await handleGroupCombatCallback(ctx, {
+      type: "items",
+      token: session.partyInviteToken,
+      turn: 1
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      submitAction
+    } as unknown as GroupCombatService);
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Зараз немає корисних одноразових манаток."
+    });
+    expect(String(editMessageText.mock.calls[0]?.[0]))
+      .toContain("зараз немає корисних предметів.");
+    expect(String(editMessageText.mock.calls[0]?.[0]))
+      .not.toContain("для цього ходу");
   });
 
   it("opens terminal contribution statistics without mutating combat", async () => {

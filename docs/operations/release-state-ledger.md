@@ -29,6 +29,12 @@ availability remain separate evidence.
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.2 left-passage party attack | no; draft PR `#187` | no; branch keeps additive migration identity `20260724233000_left_passage_party_attack` with party origin, passage reservation, durable v3 operator marker/reason and a dedicated per-participant GroupCombat UI-publication claim table; rollback requires flag-off, healthy drain, explicit quarantine disposition and pre-migration restore | no target evidence; repository default off | exact focused/full counts are recorded in the task, QA and PR; exact-preview presence/effective-resource entry, 1–3 participant / 1–6 enemy deterministic scaling, generation-aware canonical reply-keyboard/card convergence with frozen stale-label validation, durable flee/terminal/newer-combat navigation ordering, KO observation, ordinary persistent-fight one-use-menu routing through the fight handler, post-victory nearby/deep-link join refusal, no artificial production turn defeat, rolling journal/final responses, monotonic level settlement, per-enemy ordinary-PvE XP/gold and authored/Loot Expansion/bandage/Iskrokamin rolls, remarks/eight symmetric contributions, exact receipt settlement/retry/level notices, action/timeout/settlement/delivery quarantine barriers, deferred-achievement absence and v1/v2 compatibility covered | manual three-account Telegram QA pending on final exact head; local two-account recovery diagnosis is not a full pass | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
 
+The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
+currently legal and records a successfully attached reply-keyboard fingerprint
+in the same CAS that adopts its canonical card, preventing scheduler countdown
+copies after a later acknowledgement failure. This remains automated repository
+evidence only until the final-head Telegram matrix is rerun.
+
 Replace `unknown` with evidence; do not replace it with an assumption.
 
 ## Closeout evidence

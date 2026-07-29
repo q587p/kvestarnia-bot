@@ -133,7 +133,6 @@ describe("group combat presenter", () => {
     expect(replyLabels).toEqual([
       "⚔️ Атакувати",
       "🛡️ Захиститися",
-      "🎒 Разові",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
@@ -320,6 +319,26 @@ describe("group combat presenter", () => {
     expect(itemLabels).not.toContain("🩹 Щільний бинт");
     expect(itemLabels).not.toContain("⚕️ Польова аптечка");
     expect(itemLabels).toContain("↩️ До бою");
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    ).flat()).toContain("🎒 Разові");
+
+    viewer.combatItems = {
+      cooldowns: {
+        "item.responsible-panic-bandage": {
+          itemId: "item.responsible-panic-bandage",
+          remainingTurns: 5
+        },
+        "item.dense-bandage": { itemId: "item.dense-bandage", remainingTurns: 5 }
+      },
+      uses: {
+        "item.field-kit": { itemId: "item.field-kit", count: 1 }
+      }
+    };
+    delete viewer.combatItemQuantities["item.responsible-panic-bandage"];
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    ).flat()).not.toContain("🎒 Разові");
   });
 
   it("keeps action controls available so a queued choice can be changed", () => {

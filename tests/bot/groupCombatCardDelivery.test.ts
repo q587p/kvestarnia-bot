@@ -1108,6 +1108,37 @@ describe("group-combat canonical participant delivery", () => {
     expect(release).not.toHaveBeenCalled();
   });
 
+  it("redraws an adopted canonical card instead of sending a new card on every scheduler retry", async () => {
+    const session = makeSession({ deliveredRevision: 0 });
+    session.participants[1]!.deliveredRevision = session.deliveryRevision;
+    for (const participant of session.participants) {
+      participant.replyKeyboardFingerprint = JSON.stringify(
+        buildGroupCombatReplyKeyboard(session, participant.characterId).keyboard
+      );
+      participant.replyKeyboardGeneration = 1;
+    }
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session)).resolves.toBe(2);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(session.participants[0]).toMatchObject({
+      messageId: 21,
+      referenceVersion: 1,
+      deliveredRevision: session.deliveryRevision,
+      replyKeyboardGeneration: 1
+    });
+  });
+
   it("publishes each participant's current controls after a resolved turn changes availability", async () => {
     const session = makeSession({
       turn: 2,
@@ -1743,6 +1774,7 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       expectedReferenceVersion: number;
       chatId: bigint;
       messageId: number;
+      publishedKeyboardFingerprint?: string | null;
     }) => {
       const participant = session.participants.find(
         (candidate) => candidate.telegramUserId === input.telegramUserId
@@ -1754,6 +1786,10 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.messageId = input.messageId;
       participant.referenceVersion += 1;
       participant.deliveredRevision = 0;
+      if (input.publishedKeyboardFingerprint) {
+        participant.replyKeyboardFingerprint = input.publishedKeyboardFingerprint;
+        participant.replyKeyboardGeneration += 1;
+      }
       return Promise.resolve(true);
     }),
     markParticipantCardDelivered: vi.fn().mockImplementation((input: {

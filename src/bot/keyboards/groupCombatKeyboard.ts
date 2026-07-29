@@ -53,9 +53,15 @@ export function buildGroupCombatReplyKeyboard(
   if (abilityLabels.length === 0) {
     keyboard.row();
   }
+  keyboard.text(groupCombatReplyButtons.guard);
+  if (
+    session &&
+    viewerCharacterId &&
+    listAvailableGroupCombatItems(session, viewerCharacterId).length > 0
+  ) {
+    keyboard.text(groupCombatReplyButtons.items);
+  }
   return keyboard
-    .text(groupCombatReplyButtons.guard)
-    .text(groupCombatReplyButtons.items)
     .row()
     .text(groupCombatReplyButtons.flee)
     .text(groupCombatReplyButtons.refresh)
