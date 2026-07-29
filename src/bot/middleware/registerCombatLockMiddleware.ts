@@ -37,10 +37,7 @@ import {
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
-import {
-  deliverGroupCombatBattleKeyboard,
-  deliverGroupCombatParticipantCard
-} from "../groupCombatCardDelivery";
+import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -439,9 +436,6 @@ async function redirectGroupCombatLockIfNeeded(
       show_alert: true
     });
   }
-  if (isPrivate) {
-    await deliverGroupCombatBattleKeyboard(ctx.api, active, viewer.characterId);
-  }
   await deliverGroupCombatParticipantCard(
     ctx.api,
     services.groupCombat!,
@@ -449,7 +443,8 @@ async function redirectGroupCombatLockIfNeeded(
     viewer.characterId,
     {
       forceRefresh: true,
-      forceReplacement: isPrivate && Boolean(ctx.message)
+      forceReplacement: isPrivate && Boolean(ctx.message),
+      publishReplyKeyboard: isPrivate
     }
   );
   if (!isPrivate && !ctx.callbackQuery) {

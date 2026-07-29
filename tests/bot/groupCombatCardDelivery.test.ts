@@ -263,10 +263,14 @@ describe("group-combat canonical participant delivery", () => {
     expect(sendMessage.mock.calls.filter((call) =>
       String(call[1]).includes("Ви відступили з бою")
     )).toHaveLength(1);
-    expect(sendMessage.mock.calls[0]?.[0]).toBe(1001);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Ви відступили з бою");
-    expect(hasReplyKeyboard(readReplyMarkup(sendMessage.mock.calls[0]?.[2] as unknown))).toBe(true);
-    expect(sendMessage.mock.calls.some((call) => call[0] === 1002)).toBe(false);
+    const exitCall = sendMessage.mock.calls.find((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    );
+    expect(exitCall?.[0]).toBe(1001);
+    expect(hasReplyKeyboard(readReplyMarkup(exitCall?.[2] as unknown))).toBe(true);
+    expect(sendMessage.mock.calls.some((call) =>
+      call[0] === 1002 && String(call[1]).includes("Бойова клавіатура")
+    )).toBe(true);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
     expect(session.participants[0]!.messageId).toBeNull();
   });
@@ -280,9 +284,10 @@ describe("group-combat canonical participant delivery", () => {
     session.participants[1]!.deliveredRevision = 2;
     session.state.participants[0]!.fleeAttempts = 1;
     session.state.participants[0]!.fledAtTurn = 1;
-    const sendMessage = vi.fn()
-      .mockResolvedValueOnce({ message_id: 90 })
-      .mockResolvedValueOnce({ message_id: 91 });
+    let nextMessageId = 90;
+    const sendMessage = vi.fn(() =>
+      Promise.resolve({ message_id: nextMessageId++ })
+    );
     const service = mutableCardService(session);
 
     await expect(deliverGroupCombatCards({
@@ -296,7 +301,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Ви відступили з бою");
     expect(session.participants[0]!.exitDeliveryState).toBe("none");
-    expect(session.participants[0]!.messageId).toBe(91);
+    expect(session.participants[0]!.messageId).toBe(92);
   });
 
   it("retries a failed flee menu after several later party turns", async () => {
@@ -309,9 +314,19 @@ describe("group-combat canonical participant delivery", () => {
     session.participants[1]!.deliveredRevision = 2;
     session.state.participants[0]!.fleeAttempts = 1;
     session.state.participants[0]!.fledAtTurn = 1;
-    const sendMessage = vi.fn()
-      .mockRejectedValueOnce(new Error("Telegram unavailable"))
-      .mockResolvedValue({ message_id: 93 });
+    let exitAttempts = 0;
+    const sendMessage = vi.fn((
+      _chatId: number,
+      text: string
+    ) => {
+      if (
+        String(text).includes("Ви відступили з бою") &&
+        exitAttempts++ === 0
+      ) {
+        return Promise.reject(new Error("Telegram unavailable"));
+      }
+      return Promise.resolve({ message_id: 93 });
+    });
     const editMessageText = vi.fn().mockResolvedValue(true);
     const service = mutableCardService(session);
 
@@ -339,7 +354,9 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session);
 
-    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls.filter((call) =>
+      String(call[1]).includes("Ви відступили з бою")
+    )).toHaveLength(2);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
   });
 
@@ -599,10 +616,21 @@ describe("group-combat canonical participant delivery", () => {
   it("converges an old-turn delivery to the newer authoritative turn before releasing its participant lock", async () => {
     const turnOne = makeSession({ turn: 1, version: 1 });
     const turnTwo = makeSession({ turn: 2, version: 2 });
+    turnOne.state.participants[0]!.classId = "class.warrior";
+    turnTwo.state.participants[0]!.classId = "class.warrior";
+    turnTwo.state.participants[0]!.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 2
+        }
+      }
+    };
     let authoritative = turnOne;
     const firstEditStarted = deferred<void>();
     const releaseFirstEdit = deferred<void>();
     const edits: string[] = [];
+    const replyKeyboards: string[][] = [];
     let editCount = 0;
     const editMessage = vi.fn(async (
       _reference: Parameters<GroupCombatDeliveryTransport["editMessage"]>[0],
@@ -628,6 +656,15 @@ describe("group-combat canonical participant delivery", () => {
     const transport: GroupCombatDeliveryTransport = {
       editMessage,
       sendInertMessage,
+      sendReplyKeyboard: (_chatId, _text, options) => {
+        const markup = options.reply_markup as {
+          keyboard?: Array<Array<{ text: string }>>;
+        };
+        replyKeyboards.push(
+          markup.keyboard?.flat().map((button) => button.text) ?? []
+        );
+        return Promise.resolve();
+      },
       deleteMessage: () => Promise.resolve()
     };
     const service = {
@@ -657,7 +694,89 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits.slice(edits.findIndex((text) => text.includes("<b>Бій</b>: 2 хід")))).not.toEqual(
       expect.arrayContaining([expect.stringContaining("<b>Бій</b>: 1 хід")])
     );
+    expect(replyKeyboards[0]).toContain("🪓 Силовий замах");
+    expect(replyKeyboards.at(-1)).not.toContain("🪓 Силовий замах");
     expect(sendInertMessage).not.toHaveBeenCalled();
+  });
+
+  it("publishes only observer controls when authoritative delivery sees a knocked-out participant", async () => {
+    const session = makeSession();
+    session.state.participants[0]!.hp = 0;
+    const replyKeyboards: string[][] = [];
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: () => Promise.resolve(),
+      sendInertMessage: () => Promise.resolve(null),
+      sendReplyKeyboard: (_chatId, _text, options) => {
+        const markup = options.reply_markup as {
+          keyboard?: Array<Array<{ text: string }>>;
+        };
+        replyKeyboards.push(
+          markup.keyboard?.flat().map((button) => button.text) ?? []
+        );
+        return Promise.resolve();
+      },
+      deleteMessage: () => Promise.resolve()
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service: mutableCardService(session),
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true
+    })).resolves.toMatchObject({ state: "edited" });
+
+    expect(replyKeyboards).toEqual([["🔎 Оновити"]]);
+  });
+
+  it("publishes each participant's current controls after a resolved turn changes availability", async () => {
+    const session = makeSession({
+      turn: 2,
+      deliveryRevision: 2,
+      deliveredRevision: 1
+    });
+    session.participants[1]!.deliveredRevision = 1;
+    session.state.participants.forEach((participant) => {
+      participant.classId = "class.warrior";
+    });
+    session.state.participants[1]!.cooldowns = {
+      abilities: {
+        "skill.forceful-strike": {
+          id: "skill.forceful-strike",
+          remainingTurns: 2
+        }
+      }
+    };
+    const replyKeyboards = new Map<number, string[]>();
+    const sendMessage = vi.fn((
+      chatId: number,
+      _text: string,
+      options?: {
+        reply_markup?: {
+          keyboard?: Array<Array<{ text: string }>>;
+        };
+      }
+    ) => {
+      if (options?.reply_markup?.keyboard) {
+        replyKeyboards.set(
+          chatId,
+          options.reply_markup.keyboard.flat().map((button) => button.text)
+        );
+      }
+      return Promise.resolve({ message_id: 93 });
+    });
+
+    await expect(deliverGroupCombatCards({
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session)).resolves.toBe(2);
+
+    expect(replyKeyboards.get(1001)).toContain("🪓 Силовий замах");
+    expect(replyKeyboards.get(1002)).not.toContain("🪓 Силовий замах");
   });
 
   it("keeps a losing repair candidate inert when candidate deletion fails", async () => {

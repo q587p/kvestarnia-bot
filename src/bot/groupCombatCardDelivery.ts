@@ -34,10 +34,16 @@ const deliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
 type MessageOptions = NonNullable<Parameters<Api["editMessageText"]>[3]>;
+type ReplyKeyboardOptions = NonNullable<Parameters<Api["sendMessage"]>[2]>;
 
 export interface GroupCombatDeliveryTransport {
   editMessage(reference: GroupCombatMessageReference, text: string, options: MessageOptions): Promise<void>;
   sendInertMessage(chatId: bigint, text: string, options: MessageOptions): Promise<number | null>;
+  sendReplyKeyboard?(
+    chatId: bigint,
+    text: string,
+    options: ReplyKeyboardOptions
+  ): Promise<void>;
   deleteMessage(reference: GroupCombatMessageReference): Promise<void>;
 }
 
@@ -135,18 +141,6 @@ export async function deliverGroupCombatCards(
       return false;
     }
     if (
-      authoritative.status === "active" &&
-      actor &&
-      isActiveGroupCombatParticipant(actor) &&
-      participant.deliveredRevision === 0
-    ) {
-      await deliverGroupCombatBattleKeyboard(
-        api,
-        authoritative,
-        participant.characterId
-      );
-    }
-    if (
       authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
       (authoritative.status !== "active" || participantFledThisTurn) &&
       participant.deliveredRevision < authoritative.deliveryRevision
@@ -177,7 +171,8 @@ export async function deliverGroupCombatCards(
         (authoritative.status !== "active" &&
           participant.deliveredRevision < authoritative.deliveryRevision)
         ? { forceReplacement: true }
-        : {})
+        : {}),
+      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
     });
   }));
   const latest = await loadAuthoritativeSession(service, authoritative.id);
@@ -440,20 +435,40 @@ export async function deliverGroupCombatBattleKeyboard(
   if (!participant) {
     return;
   }
+  const presentation = battleKeyboardPresentation(session, participantCharacterId);
+  await api.sendMessage(
+    Number(participant.telegramUserId),
+    presentation.text,
+    presentation.options
+  );
+}
+
+function battleKeyboardPresentation(
+  session: GroupCombatSessionRecord,
+  participantCharacterId: string
+): { text: string; options: ReplyKeyboardOptions } {
   const actor = session.state.participants.find(
     (candidate) => candidate.characterId === participantCharacterId
   );
-  await api.sendMessage(
-    Number(participant.telegramUserId),
-    actor && isActiveGroupCombatParticipant(actor)
+  return {
+    text: actor && isActiveGroupCombatParticipant(actor)
       ? "⚔️ Бойова клавіатура готова."
       : "💫 Ви непритомні й цього ходу не дієте. Можна стежити за боєм.",
-    {
+    options: {
       reply_markup: buildGroupCombatReplyKeyboard(
         session,
         participantCharacterId
       )
     }
+  };
+}
+
+function replyKeyboardFingerprint(
+  session: GroupCombatSessionRecord,
+  participantCharacterId: string
+): string {
+  return JSON.stringify(
+    buildGroupCombatReplyKeyboard(session, participantCharacterId).keyboard
   );
 }
 
@@ -481,7 +496,11 @@ export function deliverGroupCombatParticipantCard(
   service: GroupCombatService,
   sessionId: string,
   participantCharacterId: string,
-  options: { forceRefresh?: boolean; forceReplacement?: boolean } = {}
+  options: {
+    forceRefresh?: boolean;
+    forceReplacement?: boolean;
+    publishReplyKeyboard?: boolean;
+  } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
   return deliverCanonicalGroupCombatParticipantCard({
     service,
@@ -490,7 +509,10 @@ export function deliverGroupCombatParticipantCard(
     transport: apiTransport(api),
     now: () => serviceTime(service),
     ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
-    ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement })
+    ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
+    ...(options.publishReplyKeyboard === undefined
+      ? {}
+      : { publishReplyKeyboard: options.publishReplyKeyboard })
   });
 }
 
@@ -501,11 +523,84 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   transport: GroupCombatDeliveryTransport;
   forceRefresh?: boolean;
   forceReplacement?: boolean;
+  publishReplyKeyboard?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   return withParticipantDeliveryLock(`${input.sessionId}:${input.participantCharacterId}`, () => (
-    deliverCanonicalGroupCombatParticipantCardLocked(input)
+    deliverCanonicalGroupCombatParticipantStateLocked(input)
   ));
+}
+
+async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
+  service: GroupCombatService;
+  sessionId: string;
+  participantCharacterId: string;
+  transport: GroupCombatDeliveryTransport;
+  forceRefresh?: boolean;
+  forceReplacement?: boolean;
+  publishReplyKeyboard?: boolean;
+  now?: () => Date;
+}): Promise<GroupCombatParticipantDeliveryResult> {
+  const sendReplyKeyboard =
+    input.transport.sendReplyKeyboard?.bind(input.transport);
+  if (
+    input.publishReplyKeyboard === false ||
+    !sendReplyKeyboard
+  ) {
+    return deliverCanonicalGroupCombatParticipantCardLocked(input);
+  }
+  let result: GroupCombatParticipantDeliveryResult = {
+    state: "missing-participant",
+    reference: null
+  };
+  let forceReplacement = input.forceReplacement === true;
+  for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
+    const current = await loadAuthoritativeSession(input.service, input.sessionId);
+    const participant = findParticipant(current, input.participantCharacterId);
+    if (
+      !current ||
+      !participant ||
+      exitDeliveryStateOf(participant) !== "none"
+    ) {
+      return result;
+    }
+    const shouldPublishKeyboard = current.status === "active";
+    const deliveredKeyboard = shouldPublishKeyboard
+      ? replyKeyboardFingerprint(current, participant.characterId)
+      : null;
+    if (shouldPublishKeyboard) {
+      const presentation = battleKeyboardPresentation(
+        current,
+        participant.characterId
+      );
+      await sendReplyKeyboard(
+        participant.telegramUserId,
+        presentation.text,
+        presentation.options
+      );
+    }
+    result = await deliverCanonicalGroupCombatParticipantCardLocked({
+      ...input,
+      forceRefresh: input.forceRefresh === true || attempt > 0,
+      forceReplacement
+    });
+    if (!shouldPublishKeyboard) {
+      return result;
+    }
+    const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+    const latestParticipant = findParticipant(latest, input.participantCharacterId);
+    if (
+      !latest ||
+      !latestParticipant ||
+      latest.status !== "active" ||
+      exitDeliveryStateOf(latestParticipant) !== "none" ||
+      replyKeyboardFingerprint(latest, latestParticipant.characterId) === deliveredKeyboard
+    ) {
+      return result;
+    }
+    forceReplacement = true;
+  }
+  return result;
 }
 
 async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
@@ -515,6 +610,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   transport: GroupCombatDeliveryTransport;
   forceRefresh?: boolean;
   forceReplacement?: boolean;
+  publishReplyKeyboard?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
@@ -817,6 +913,17 @@ function apiTransport(api: Api): GroupCombatDeliveryTransport {
       const sent = await api.sendMessage(Number(chatId), text, options);
       return sent.message_id ?? null;
     },
+    ...(typeof api.sendMessage === "function"
+      ? {
+          sendReplyKeyboard: async (
+            chatId: bigint,
+            text: string,
+            options: ReplyKeyboardOptions
+          ) => {
+            await api.sendMessage(Number(chatId), text, options);
+          }
+        }
+      : {}),
     deleteMessage: async (reference) => {
       await api.deleteMessage(Number(reference.chatId), reference.messageId);
     }

@@ -9,6 +9,7 @@ import {
   buildGroupCombatKeyboard,
   buildGroupCombatReplyKeyboard,
   buildGroupCombatStatisticsKeyboard,
+  parseGroupCombatReplyAbility,
   parseGroupCombatReplyButton
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 import {
@@ -175,6 +176,11 @@ describe("group combat presenter", () => {
 
     expect(labels()).toContain("🪓 Силовий замах");
     expect(labels()).not.toContain("📝 Правка на полях");
+    expect(parseGroupCombatReplyAbility(
+      session,
+      viewer.characterId,
+      "📝 Правка на полях"
+    )).toMatchObject({ action: "race", optionIndex: 0 });
 
     viewer.cooldowns = undefined;
     viewer.mana = 0;
@@ -183,6 +189,14 @@ describe("group combat presenter", () => {
 
     viewer.mana = 1;
     expect(labels()).toContain("📝 Правка на полях");
+
+    viewer.hp = 0;
+    expect(labels()).toEqual(["🔎 Оновити"]);
+    expect(parseGroupCombatReplyAbility(
+      session,
+      viewer.characterId,
+      "📝 Правка на полях"
+    )).toMatchObject({ action: "race", optionIndex: 0 });
   });
 
   it("gives a knocked-out participant only a refresh control while the group fight continues", () => {

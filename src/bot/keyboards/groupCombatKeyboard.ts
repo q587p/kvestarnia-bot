@@ -74,10 +74,23 @@ export function listGroupCombatReplyAbilities(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string
 ): GroupCombatReplyAbility[] {
+  return listFrozenGroupCombatReplyAbilities(session, viewerCharacterId)
+    .filter((ability) => listGroupCombatAbilityActionButtons(
+      session,
+      viewerCharacterId,
+      ability.action,
+      ability.optionIndex
+    ).length > 0);
+}
+
+export function listFrozenGroupCombatReplyAbilities(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string
+): GroupCombatReplyAbility[] {
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
   );
-  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+  if (!viewer) {
     return [];
   }
   const abilities: GroupCombatReplyAbility[] = [];
@@ -90,13 +103,6 @@ export function listGroupCombatReplyAbilities(
     const label = profile?.ability.label;
     if (
       label &&
-      listGroupCombatAbilityActionButtons(
-        session,
-        viewerCharacterId,
-        action,
-        optionIndex,
-        payloadKey
-      ).length > 0 &&
       !abilities.some((ability) => ability.label === label)
     ) {
       abilities.push({ action, label, optionIndex });
@@ -118,7 +124,7 @@ export function parseGroupCombatReplyAbility(
   if (!text) {
     return null;
   }
-  return listGroupCombatReplyAbilities(session, viewerCharacterId)
+  return listFrozenGroupCombatReplyAbilities(session, viewerCharacterId)
     .find((ability) => ability.label === text) ?? null;
 }
 

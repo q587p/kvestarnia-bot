@@ -273,9 +273,10 @@ describe("group combat bot flow", () => {
       targetKind: "enemy",
       targetId: "enemy-1"
     });
-    expect(sentTexts).toHaveLength(1);
-    expect(sentTexts[0]).toContain("<b>Бій</b>:");
-    expect(sentTexts[0]).not.toContain("Ця дія зараз недоступна");
+    expect(sentTexts).toHaveLength(2);
+    expect(sentTexts[0]).toContain("Бойова клавіатура");
+    expect(sentTexts[1]).toContain("<b>Бій</b>:");
+    expect(sentTexts.join("\n")).not.toContain("Ця дія зараз недоступна");
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
@@ -320,6 +321,108 @@ describe("group combat bot flow", () => {
     });
   });
 
+  it("routes an immediate duplicate frozen ability press through canonical validation and redraws once", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const actor = session.state.participants[0]!;
+    actor.classId = "class.warrior";
+    actor.raceId = "race.dwarf";
+    session.state.enemies[1]!.hp = 0;
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
+    const replyKeyboards: string[][] = [];
+    const submitAction = vi.fn()
+      .mockImplementationOnce(() => {
+        actor.cooldowns = {
+          abilities: {
+            "skill.forceful-strike": {
+              id: "skill.forceful-strike",
+              remainingTurns: 2
+            }
+          }
+        };
+        return Promise.resolve({ state: "queued", session });
+      })
+      .mockResolvedValueOnce({ state: "action-unavailable" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+        const labels = replyKeyboardLabels(payload.reply_markup);
+        if (labels.length > 0) {
+          replyKeyboards.push(labels);
+        }
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? {
+              message_id: sentTexts.length + 30,
+              date: 1,
+              chat: { id: 1001, type: "private" }
+            }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
+    const sendsAfterFirstPress = sentTexts.length;
+    await bot.handleUpdate({ ...textUpdate("🪓 Силовий замах"), update_id: 2 });
+
+    expect(submitAction).toHaveBeenCalledTimes(2);
+    expect(submitAction).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      action: "class",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    }));
+    expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(2);
+    expect(sentTexts.slice(sendsAfterFirstPress)[0]).toContain("Бойова клавіатура");
+    expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
+    expect(sentTexts.join("\n")).not.toContain("Оберіть точну ціль");
+    expect(replyKeyboards.at(-1)).not.toContain("🪓 Силовий замах");
+  });
+
+  it("delegates a stale GroupCombat reply label when no matching group fight remains", async () => {
+    const bot = testBot();
+    const sentTexts: string[] = [];
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(null)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+    bot.on("message:text", async (ctx) => {
+      await ctx.reply("⚔️ Новіший бій лишається канонічним.", {
+        reply_markup: {
+          keyboard: [[{ text: "⚔️ Дія нового бою" }]],
+          resize_keyboard: true
+        }
+      });
+    });
+
+    await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
+
+    expect(sentTexts).toEqual(["⚔️ Новіший бій лишається канонічним."]);
+  });
+
   it("submits an individual flee attempt from the compact battle reply keyboard", async () => {
     const bot = testBot();
     const session = makeSession();
@@ -357,8 +460,8 @@ describe("group combat bot flow", () => {
       targetKind: "self",
       targetId: "character-1"
     });
-    expect(sentTexts).toHaveLength(1);
-    expect(sentTexts[0]).toContain("<b>Бій</b>:");
+    expect(sentTexts).toHaveLength(4);
+    expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
     expect(session.participants[0]).toMatchObject({
       messageId: 31,
       deliveredRevision: session.deliveryRevision
@@ -818,7 +921,10 @@ describe("group combat bot flow", () => {
       releaseParticipantCard: vi.fn().mockResolvedValue(false)
     } as unknown as GroupCombatService);
 
-    expect(sent).toEqual([{ messageId: 31, buttons: [] }]);
+    expect(sent).toEqual([
+      { messageId: 31, buttons: undefined },
+      { messageId: 31, buttons: [] }
+    ]);
     expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
       expectedReferenceVersion: 1,
       chatId: 1001n,
@@ -1276,4 +1382,30 @@ function readReplyKeyboard(value: unknown): unknown {
   return value && typeof value === "object" && "keyboard" in value
     ? value.keyboard
     : undefined;
+}
+
+function replyKeyboardLabels(value: unknown): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const keyboard = (value as Record<string, unknown>)["keyboard"];
+  if (!Array.isArray(keyboard)) {
+    return [];
+  }
+  const labels: string[] = [];
+  for (const row of keyboard as unknown[]) {
+    if (!Array.isArray(row)) {
+      continue;
+    }
+    for (const button of row as unknown[]) {
+      if (!button || typeof button !== "object") {
+        continue;
+      }
+      const text = (button as Record<string, unknown>)["text"];
+      if (typeof text === "string") {
+        labels.push(text);
+      }
+    }
+  }
+  return labels;
 }

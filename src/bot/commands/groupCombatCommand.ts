@@ -4,6 +4,8 @@ import type { GroupCombatService } from "../../services/groupCombatService";
 import {
   getGroupCombatActionProfile,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  validateGroupCombatAction,
+  type GroupCombatAction,
   type GroupCombatActionKey
 } from "../../domain/groupCombat/groupCombat";
 import {
@@ -21,7 +23,6 @@ import {
   parseGroupCombatReplyAbility,
   parseGroupCombatReplyButton
 } from "../keyboards/groupCombatKeyboard";
-import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
 import {
   presentGroupCombatItems,
@@ -106,13 +107,7 @@ export function registerGroupCombatReplyKeyboard(
     }
     const session = await service.findActiveForTelegramUser(telegramUserId);
     if (!session) {
-      if (!replyAction) {
-        await next();
-        return;
-      }
-      await ctx.reply("🏁 Цей бій уже завершено. Головне меню повернуто.", {
-        reply_markup: buildMainMenuKeyboard()
-      });
+      await next();
       return;
     }
     const viewer = session.participants.find(
@@ -155,11 +150,35 @@ export function registerGroupCombatReplyKeyboard(
               .filter(({ participant }) => participant.hp > 0)
               .map(({ targetIndex }) => targetIndex)
           : [actor?.rosterOrder ?? 0];
-      if (targetIndexes.length === 1) {
+      const availableTargetIndexes = actor
+        ? targetIndexes.filter((targetIndex) => {
+            const target = resolveTarget(
+              session,
+              viewer.characterId,
+              replyAbility.action,
+              replyAbility.optionIndex,
+              targetIndex
+            );
+            if (!target) {
+              return false;
+            }
+            const candidate: GroupCombatAction = {
+              actorCharacterId: viewer.characterId,
+              turn: session.turn,
+              action: replyAbility.action,
+              targetKind: target.kind,
+              targetId: target.id,
+              ...(target.payloadKey ? { payloadKey: target.payloadKey } : {}),
+              origin: "manual"
+            };
+            return validateGroupCombatAction(session.state, candidate) === "ok";
+          })
+        : [];
+      if (availableTargetIndexes.length <= 1) {
         await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
           action: replyAbility.action,
           optionIndex: replyAbility.optionIndex,
-          targetIndex: targetIndexes[0]!
+          targetIndex: availableTargetIndexes[0] ?? targetIndexes[0] ?? 0
         });
         return;
       }
