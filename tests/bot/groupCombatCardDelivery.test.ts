@@ -735,6 +735,7 @@ describe("group-combat canonical participant delivery", () => {
         publishReplyKeyboard: true,
         keyboardGeneration: 0
       }),
+      renewParticipantUiPublicationClaim: vi.fn().mockResolvedValue(true),
       acknowledgeParticipantUiPublication: vi.fn(),
       releaseParticipantUiPublicationClaim
     } as unknown as GroupCombatService;
@@ -759,6 +760,144 @@ describe("group-combat canonical participant delivery", () => {
       telegramUserId: 1001n
     });
     expect(typeof releasedClaim?.claimToken).toBe("string");
+  });
+
+  it.each(["send", "edit", "delete"] as const)(
+    "bounds a delayed Telegram %s operation before its durable claim can expire",
+    async (operation) => {
+      vi.useFakeTimers();
+      try {
+        const session = makeSession();
+        if (operation === "send") {
+          session.participants[0]!.chatId = null;
+          session.participants[0]!.messageId = null;
+        }
+        const service = claimedUiService(session);
+        let observedSignal: AbortSignal | undefined;
+        const operationStarted = deferred<void>();
+        const waitForAbort = (signal?: AbortSignal): Promise<never> => {
+          observedSignal = signal;
+          operationStarted.resolve();
+          return new Promise((_resolve, reject) => {
+            signal?.addEventListener(
+              "abort",
+              () => reject(new Error("telegram publication aborted")),
+              { once: true }
+            );
+          });
+        };
+        let editCount = 0;
+        const transport: GroupCombatDeliveryTransport = {
+          editMessage: (_reference, _text, _options, signal) => {
+            editCount += 1;
+            if (
+              operation === "edit" ||
+              (operation === "delete" && editCount > 0)
+            ) {
+              return operation === "edit"
+                ? waitForAbort(signal)
+                : Promise.resolve();
+            }
+            return Promise.resolve();
+          },
+          sendInertMessage: (_chatId, _text, _options, signal) =>
+            operation === "send"
+              ? waitForAbort(signal)
+              : Promise.resolve(93),
+          deleteMessage: (_reference, signal) =>
+            operation === "delete"
+              ? waitForAbort(signal)
+              : Promise.resolve()
+        };
+
+        const delivery = deliverCanonicalGroupCombatParticipantCard({
+          service,
+          sessionId: session.id,
+          participantCharacterId: "character-1",
+          transport,
+          forceRefresh: true,
+          ...(operation === "edit"
+            ? { publishReplyKeyboard: false }
+            : operation === "delete"
+              ? { forceReplacement: true }
+              : {})
+        });
+        const outcome = delivery.then(
+          (result) => ({ result }),
+          (error: unknown) => ({ error })
+        );
+        await operationStarted.promise;
+        await vi.advanceTimersByTimeAsync(13_000);
+
+        if (operation === "delete") {
+          await expect(outcome).resolves.toMatchObject({
+            result: { state: "activated" }
+          });
+        } else if (operation === "edit") {
+          await expect(outcome).resolves.toMatchObject({
+            result: { state: "retryable-edit-failure" }
+          });
+        } else {
+          const settled = await outcome;
+          expect("error" in settled).toBe(true);
+          if (!("error" in settled) || !(settled.error instanceof Error)) {
+            throw new Error("Expected the delayed Telegram send to abort.");
+          }
+          expect(settled.error.message).toBe("telegram publication aborted");
+        }
+        expect(observedSignal?.aborted).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it("stops a replacement before the next Telegram call after durable ownership is lost", async () => {
+    const session = makeSession();
+    let renewals = 0;
+    const service = claimedUiService(session, {
+      renew: () => Promise.resolve((renewals += 1) === 1)
+    });
+    const editMessage = vi.fn().mockResolvedValue(undefined);
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage,
+      sendInertMessage: vi.fn().mockResolvedValue(93),
+      deleteMessage: vi.fn().mockResolvedValue(undefined)
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    })).resolves.toMatchObject({ state: "retryable-edit-failure" });
+
+    expect(editMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ambiguous publication claim for restart retry when acknowledgement fails", async () => {
+    const session = makeSession();
+    const release = vi.fn().mockResolvedValue(true);
+    const service = claimedUiService(session, {
+      acknowledge: () => Promise.reject(new Error("database unavailable")),
+      release
+    });
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: vi.fn().mockResolvedValue(undefined),
+      sendInertMessage: vi.fn().mockResolvedValue(93),
+      deleteMessage: vi.fn().mockResolvedValue(undefined)
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceReplacement: true
+    })).rejects.toThrow("database unavailable");
+
+    expect(release).not.toHaveBeenCalled();
   });
 
   it("publishes each participant's current controls after a resolved turn changes availability", async () => {
@@ -1512,6 +1651,30 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       participant.referenceVersion += 1;
       return Promise.resolve(true);
     })
+  } as unknown as GroupCombatService;
+}
+
+function claimedUiService(
+  session: GroupCombatSessionRecord,
+  overrides: {
+    renew?: () => Promise<boolean>;
+    acknowledge?: () => Promise<"acknowledged" | "stale" | "not-owner">;
+    release?: ReturnType<typeof vi.fn>;
+  } = {}
+): GroupCombatService {
+  return {
+    ...mutableCardService(session),
+    claimParticipantUiPublication: vi.fn().mockResolvedValue({
+      state: "claimed",
+      publishReplyKeyboard: true,
+      keyboardGeneration: 0
+    }),
+    renewParticipantUiPublicationClaim:
+      overrides.renew ?? vi.fn().mockResolvedValue(true),
+    acknowledgeParticipantUiPublication:
+      overrides.acknowledge ?? vi.fn().mockResolvedValue("acknowledged"),
+    releaseParticipantUiPublicationClaim:
+      overrides.release ?? vi.fn().mockResolvedValue(true)
   } as unknown as GroupCombatService;
 }
 

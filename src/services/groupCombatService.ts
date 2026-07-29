@@ -404,10 +404,20 @@ export class GroupCombatService {
     sessionId: string;
     telegramUserId: bigint;
     expectedDeliveryRevision: number;
-    keyboardFingerprint: string;
+    publishedKeyboardFingerprint: string | null;
     claimToken: string;
   }) {
     return this.repository.acknowledgeParticipantUiPublication(input);
+  }
+
+  renewParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean> {
+    return this.repository.renewParticipantUiPublicationClaim(input);
   }
 
   releaseParticipantUiPublicationClaim(input: {

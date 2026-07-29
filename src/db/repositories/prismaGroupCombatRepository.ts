@@ -895,7 +895,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       operation: "action",
       partyInviteToken: input.partyInviteToken
     });
-    for (let attempt = 0; attempt < MAX_MUTATION_ATTEMPTS; attempt += 1) {
+    const publicationWaitStartedAt = Date.now();
+    let mutationAttempt = 0;
+    while (mutationAttempt < MAX_MUTATION_ATTEMPTS) {
       try {
         return await this.prisma.$transaction(async (tx) => {
       const actor = await tx.character.findFirst({
@@ -1014,6 +1016,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         state,
         input.now,
         input.nextTurnExpiresAt,
+        uiPublicationTime(input.now, publicationWaitStartedAt),
         this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
       );
       if (result) {
@@ -1048,6 +1051,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           if (conflict) {
             return conflict;
           }
+          mutationAttempt += 1;
           continue;
         }
         if (error instanceof GroupCombatUiPublicationBusy) {
@@ -1055,6 +1059,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           continue;
         }
         if (error instanceof GroupCombatMutationConflict || isTransactionWriteConflict(error)) {
+          mutationAttempt += 1;
           continue;
         }
         throw error;
@@ -1119,7 +1124,9 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       operation: "timeout",
       sessionId: input.sessionId
     });
-    for (let attempt = 0; attempt < MAX_MUTATION_ATTEMPTS; attempt += 1) {
+    const publicationWaitStartedAt = Date.now();
+    let mutationAttempt = 0;
+    while (mutationAttempt < MAX_MUTATION_ATTEMPTS) {
       try {
         return await this.prisma.$transaction(async (tx) => {
         const row = await tx.groupCombatSession.findFirst({
@@ -1192,6 +1199,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           state,
           input.now,
           input.nextTurnExpiresAt,
+          uiPublicationTime(input.now, publicationWaitStartedAt),
           this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
         );
         if (!result) {
@@ -1208,6 +1216,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           continue;
         }
         if (error instanceof GroupCombatMutationConflict || isUniqueConflict(error) || isTransactionWriteConflict(error)) {
+          mutationAttempt += 1;
           continue;
         }
         throw error;
@@ -1939,7 +1948,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     sessionId: string;
     telegramUserId: bigint;
     expectedDeliveryRevision: number;
-    keyboardFingerprint: string;
+    publishedKeyboardFingerprint: string | null;
     claimToken: string;
   }): Promise<"acknowledged" | "stale" | "not-owner"> {
     return this.prisma.$transaction(async (tx) => {
@@ -1980,25 +1989,28 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       ) {
         return "stale";
       }
-      const participantUpdated = await tx.groupCombatParticipant.updateMany({
-        where: {
-          id: participant.id,
-          exitDeliveryState: "none",
-          session: {
-            status: "active",
-            deliveryRevision: input.expectedDeliveryRevision,
-            repairState: null
+      if (input.publishedKeyboardFingerprint !== null) {
+        const participantUpdated = await tx.groupCombatParticipant.updateMany({
+          where: {
+            id: participant.id,
+            exitDeliveryState: "none",
+            session: {
+              status: "active",
+              deliveryRevision: input.expectedDeliveryRevision,
+              repairState: null
+            }
+          },
+          data: {
+            replyKeyboardFingerprint: input.publishedKeyboardFingerprint,
+            ...(participant.replyKeyboardFingerprint ===
+            input.publishedKeyboardFingerprint
+              ? {}
+              : { replyKeyboardGeneration: { increment: 1 } })
           }
-        },
-        data: {
-          replyKeyboardFingerprint: input.keyboardFingerprint,
-          ...(participant.replyKeyboardFingerprint === input.keyboardFingerprint
-            ? {}
-            : { replyKeyboardGeneration: { increment: 1 } })
+        });
+        if (participantUpdated.count !== 1) {
+          return "stale";
         }
-      });
-      if (participantUpdated.count !== 1) {
-        return "stale";
       }
       const released = await tx.groupCombatUiPublicationClaim.deleteMany({
         where: {
@@ -2009,6 +2021,37 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       });
       return released.count === 1 ? "acknowledged" : "not-owner";
     });
+  }
+
+  async renewParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean> {
+    const renewed = await this.prisma.groupCombatUiPublicationClaim.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        claimToken: input.claimToken,
+        session: {
+          status: "active",
+          deliveryRevision: input.expectedDeliveryRevision,
+          repairState: null
+        },
+        character: {
+          user: { telegramUserId: input.telegramUserId },
+          activeCombatLease: {
+            is: {
+              kind: GROUP_COMBAT_LEASE_KIND,
+              referenceId: input.sessionId
+            }
+          }
+        }
+      },
+      data: { claimedAt: input.claimedAt }
+    });
+    return renewed.count === 1;
   }
 
   async releaseParticipantUiPublicationClaim(input: {
@@ -2689,6 +2732,7 @@ async function resolveIfReady(
   state: GroupCombatState,
   now: Date,
   nextTurnExpiresAt: Date,
+  uiPublicationNow: Date,
   afterStage?: GroupCombatSettlementTestHooks["afterStage"]
 ): Promise<GroupCombatActionResult | null> {
   const livingCount = state.participants.filter(
@@ -2743,7 +2787,7 @@ async function resolveIfReady(
           : []),
         ...newlyFled.map((participant) => participant.characterId)
       ],
-      now
+      uiPublicationNow
     );
   }
   await consumeCommittedItems(tx, row.id, resolution.committedConsumables);
@@ -3273,6 +3317,10 @@ function waitForUiPublicationRetry(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, UI_PUBLICATION_RETRY_DELAY_MS);
   });
+}
+
+function uiPublicationTime(base: Date, startedAtMs: number): Date {
+  return new Date(base.getTime() + Math.max(0, Date.now() - startedAtMs));
 }
 
 async function commitSuccessfulGroupCombatFlee(

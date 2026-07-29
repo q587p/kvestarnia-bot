@@ -29,6 +29,7 @@ const HTML_MESSAGE_OPTIONS = { parse_mode: "HTML" as const };
 const MAX_CONVERGENCE_EDITS = 4;
 const FLEE_EXIT_DELIVERY_CLAIM_MS = 23_000;
 const UI_PUBLICATION_CLAIM_MS = 23_000;
+const TELEGRAM_PUBLICATION_IO_TIMEOUT_MS = 13_000;
 const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const deliveryTails = new Map<string, Promise<void>>();
 
@@ -37,9 +38,22 @@ type MessageOptions = NonNullable<Parameters<Api["editMessageText"]>[3]>;
 type ReplyKeyboardOptions = NonNullable<Parameters<Api["sendMessage"]>[2]>;
 
 export interface GroupCombatDeliveryTransport {
-  editMessage(reference: GroupCombatMessageReference, text: string, options: MessageOptions): Promise<void>;
-  sendInertMessage(chatId: bigint, text: string, options: ReplyKeyboardOptions): Promise<number | null>;
-  deleteMessage(reference: GroupCombatMessageReference): Promise<void>;
+  editMessage(
+    reference: GroupCombatMessageReference,
+    text: string,
+    options: MessageOptions,
+    signal?: AbortSignal
+  ): Promise<void>;
+  sendInertMessage(
+    chatId: bigint,
+    text: string,
+    options: ReplyKeyboardOptions,
+    signal?: AbortSignal
+  ): Promise<number | null>;
+  deleteMessage(
+    reference: GroupCombatMessageReference,
+    signal?: AbortSignal
+  ): Promise<void>;
 }
 
 export type GroupCombatParticipantDeliveryResult =
@@ -510,7 +524,10 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   const releaseUi = (
     input.service as Partial<GroupCombatService>
   ).releaseParticipantUiPublicationClaim;
-  if (!claimUi || !acknowledgeUi || !releaseUi) {
+  const renewUi = (
+    input.service as Partial<GroupCombatService>
+  ).renewParticipantUiPublicationClaim;
+  if (!claimUi || !acknowledgeUi || !renewUi || !releaseUi) {
     const current = await loadAuthoritativeSession(input.service, input.sessionId);
     const participant = findParticipant(current, input.participantCharacterId);
     if (!current || !participant || current.status !== "active") {
@@ -589,10 +606,20 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     ownsClaim = true;
     const publishReplyKeyboard =
       input.publishReplyKeyboard !== false && claim.publishReplyKeyboard;
+    const ownedTransport = uiPublicationOwnedTransport({
+      service: input.service,
+      transport: input.transport,
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: current.deliveryRevision,
+      claimToken,
+      ...(input.now ? { now: input.now } : {})
+    });
     let result: GroupCombatParticipantDeliveryResult;
     try {
       result = await deliverCanonicalGroupCombatParticipantCardLocked({
         ...input,
+        transport: ownedTransport,
         forceRefresh: input.forceRefresh === true || attempt > 0,
         forceReplacement:
           input.forceReplacement === true || publishReplyKeyboard,
@@ -631,7 +658,9 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
       sessionId: current.id,
       telegramUserId: participant.telegramUserId,
       expectedDeliveryRevision: current.deliveryRevision,
-      keyboardFingerprint,
+      publishedKeyboardFingerprint: publishReplyKeyboard
+        ? keyboardFingerprint
+        : null,
       claimToken
     });
     if (acknowledged === "acknowledged") {
@@ -969,17 +998,102 @@ function buildCard(session: GroupCombatSessionRecord, participantCharacterId: st
 
 function apiTransport(api: Api): GroupCombatDeliveryTransport {
   return {
-    editMessage: async (reference, text, options) => {
-      await api.editMessageText(Number(reference.chatId), reference.messageId, text, options);
+    editMessage: async (reference, text, options, signal) => {
+      if (signal) {
+        await api.editMessageText(
+          Number(reference.chatId),
+          reference.messageId,
+          text,
+          options,
+          signal as Parameters<Api["editMessageText"]>[4]
+        );
+      } else {
+        await api.editMessageText(
+          Number(reference.chatId),
+          reference.messageId,
+          text,
+          options
+        );
+      }
     },
-    sendInertMessage: async (chatId, text, options) => {
-      const sent = await api.sendMessage(Number(chatId), text, options);
+    sendInertMessage: async (chatId, text, options, signal) => {
+      const sent = signal
+        ? await api.sendMessage(
+            Number(chatId),
+            text,
+            options,
+            signal as Parameters<Api["sendMessage"]>[3]
+          )
+        : await api.sendMessage(Number(chatId), text, options);
       return sent.message_id ?? null;
     },
-    deleteMessage: async (reference) => {
-      await api.deleteMessage(Number(reference.chatId), reference.messageId);
+    deleteMessage: async (reference, signal) => {
+      if (signal) {
+        await api.deleteMessage(
+          Number(reference.chatId),
+          reference.messageId,
+          signal as Parameters<Api["deleteMessage"]>[2]
+        );
+      } else {
+        await api.deleteMessage(Number(reference.chatId), reference.messageId);
+      }
     }
   };
+}
+
+function uiPublicationOwnedTransport(input: {
+  service: GroupCombatService;
+  transport: GroupCombatDeliveryTransport;
+  sessionId: string;
+  telegramUserId: bigint;
+  expectedDeliveryRevision: number;
+  claimToken: string;
+  now?: () => Date;
+}): GroupCombatDeliveryTransport {
+  const runOwned = async <T>(
+    operation: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> => {
+    const claimedAt = input.now?.() ?? new Date();
+    const renewed = await input.service.renewParticipantUiPublicationClaim({
+      sessionId: input.sessionId,
+      telegramUserId: input.telegramUserId,
+      expectedDeliveryRevision: input.expectedDeliveryRevision,
+      claimToken: input.claimToken,
+      claimedAt
+    });
+    if (!renewed) {
+      throw new GroupCombatUiPublicationOwnershipLost();
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      TELEGRAM_PUBLICATION_IO_TIMEOUT_MS
+    );
+    try {
+      return await operation(controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+  return {
+    editMessage: (reference, text, options) =>
+      runOwned((signal) =>
+        input.transport.editMessage(reference, text, options, signal)
+      ),
+    sendInertMessage: (chatId, text, options) =>
+      runOwned((signal) =>
+        input.transport.sendInertMessage(chatId, text, options, signal)
+      ),
+    deleteMessage: (reference) =>
+      runOwned((signal) => input.transport.deleteMessage(reference, signal))
+  };
+}
+
+class GroupCombatUiPublicationOwnershipLost extends Error {
+  constructor() {
+    super("Group-combat UI publication ownership was lost.");
+    this.name = "GroupCombatUiPublicationOwnershipLost";
+  }
 }
 
 function isDelivered(result: GroupCombatParticipantDeliveryResult): boolean {

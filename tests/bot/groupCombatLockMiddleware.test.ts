@@ -45,6 +45,12 @@ describe("group-combat lock middleware", () => {
     expect(calls.sends[0]?.text).toContain("особистій розмові");
     expect(calls.sends[0]?.text).not.toContain("Лідерка");
     expect(calls.sends[0]?.replyMarkup).toBeUndefined();
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    const privateCards = calls.sends.filter((call) => call.chatId === 1001);
+    expect(privateCards).toHaveLength(1);
+    expect(readReplyKeyboard(privateCards[0]?.replyMarkup)).toBeDefined();
   });
 });
 
@@ -52,6 +58,7 @@ function services(
   session: GroupCombatSessionRecord,
   markParticipantCardDelivered: ReturnType<typeof vi.fn>
 ): BotServices {
+  let uiClaimToken: string | null = null;
   return {
     groupCombat: {
       findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
@@ -70,7 +77,56 @@ function services(
         return Promise.resolve(true);
       }),
       releaseParticipantCard: vi.fn().mockResolvedValue(true),
-      markParticipantCardDelivered
+      markParticipantCardDelivered,
+      claimParticipantUiPublication: vi.fn().mockImplementation((input: {
+        keyboardFingerprint: string;
+        claimToken: string;
+      }) => {
+        if (uiClaimToken && uiClaimToken !== input.claimToken) {
+          return Promise.resolve({ state: "busy" });
+        }
+        uiClaimToken = input.claimToken;
+        const participant = session.participants[0]!;
+        return Promise.resolve({
+          state: "claimed",
+          publishReplyKeyboard:
+            participant.replyKeyboardFingerprint !== input.keyboardFingerprint,
+          keyboardGeneration: participant.replyKeyboardGeneration ?? 0
+        });
+      }),
+      renewParticipantUiPublicationClaim: vi.fn().mockImplementation((input: {
+        claimToken: string;
+      }) => Promise.resolve(uiClaimToken === input.claimToken)),
+      acknowledgeParticipantUiPublication: vi.fn().mockImplementation((input: {
+        claimToken: string;
+        publishedKeyboardFingerprint: string | null;
+      }) => {
+        if (uiClaimToken !== input.claimToken) {
+          return Promise.resolve("not-owner");
+        }
+        const participant = session.participants[0]!;
+        if (
+          input.publishedKeyboardFingerprint !== null &&
+          participant.replyKeyboardFingerprint !==
+            input.publishedKeyboardFingerprint
+        ) {
+          participant.replyKeyboardFingerprint =
+            input.publishedKeyboardFingerprint;
+          participant.replyKeyboardGeneration =
+            (participant.replyKeyboardGeneration ?? 0) + 1;
+        }
+        uiClaimToken = null;
+        return Promise.resolve("acknowledged");
+      }),
+      releaseParticipantUiPublicationClaim: vi.fn().mockImplementation((input: {
+        claimToken: string;
+      }) => {
+        if (uiClaimToken !== input.claimToken) {
+          return Promise.resolve(false);
+        }
+        uiClaimToken = null;
+        return Promise.resolve(true);
+      })
     } as unknown as GroupCombatService
   } as unknown as BotServices;
 }
@@ -162,7 +218,13 @@ function activeSession(): GroupCombatSessionRecord {
       chatId: participant.telegramUserId,
       messageId: 21 + index,
       referenceVersion: 1,
-      deliveredRevision: 1
+      deliveredRevision: 1,
+      replyKeyboardFingerprint: null,
+      replyKeyboardGeneration: 0,
+      exitDeliveryState: "none" as const,
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: null
     })),
     queuedActions: [],
     state: {

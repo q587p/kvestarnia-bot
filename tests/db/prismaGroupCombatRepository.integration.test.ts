@@ -22,6 +22,7 @@ import { createGroupCombatTimeoutScheduler } from "../../src/bot/groupCombatTime
 import {
   buildGroupCombatSettlementPlan,
   buildGroupCombatProductionV1Evidence,
+  buildGroupCombatTimeoutAction,
   buildLeftPassageEncounterRewardBudget,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
@@ -856,7 +857,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,
       expectedDeliveryRevision: session.deliveryRevision,
-      keyboardFingerprint: fingerprint,
+      publishedKeyboardFingerprint: fingerprint,
       claimToken: "ui-publication-first"
     })).resolves.toBe("acknowledged");
     await expect(prisma.groupCombatParticipant.findFirstOrThrow({
@@ -980,6 +981,96 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toBeNull();
   });
 
+  it("acknowledges only a reply keyboard that was actually published", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-keyboard-ack",
+      [11966n]
+    );
+    const participant = session.participants[0]!;
+    const fingerprint = "[[\"⚔️ Атакувати\"],[\"🔎 Оновити\"]]";
+    const claimedAt = new Date(NOW.getTime() + 100);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "no-keyboard-publication",
+      claimedAt,
+      staleBefore: new Date(claimedAt.getTime() - 23_000)
+    })).resolves.toMatchObject({
+      state: "claimed",
+      publishReplyKeyboard: true
+    });
+    await expect(repository.renewParticipantUiPublicationClaim({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      claimToken: "no-keyboard-publication",
+      claimedAt: new Date(claimedAt.getTime() + 13_000)
+    })).resolves.toBe(true);
+    await expect(repository.renewParticipantUiPublicationClaim({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      claimToken: "stale-worker",
+      claimedAt: new Date(claimedAt.getTime() + 13_001)
+    })).resolves.toBe(false);
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      publishedKeyboardFingerprint: null,
+      claimToken: "no-keyboard-publication"
+    })).resolves.toBe("acknowledged");
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, characterId: participant.characterId },
+      select: {
+        replyKeyboardFingerprint: true,
+        replyKeyboardGeneration: true
+      }
+    })).resolves.toEqual({
+      replyKeyboardFingerprint: null,
+      replyKeyboardGeneration: 0
+    });
+
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "private-keyboard-publication",
+      claimedAt: new Date(claimedAt.getTime() + 13_002),
+      staleBefore: new Date(claimedAt.getTime() - 9_998)
+    })).resolves.toMatchObject({
+      state: "claimed",
+      publishReplyKeyboard: true,
+      keyboardGeneration: 0
+    });
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      publishedKeyboardFingerprint: fingerprint,
+      claimToken: "private-keyboard-publication"
+    })).resolves.toBe("acknowledged");
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, characterId: participant.characterId },
+      select: {
+        replyKeyboardFingerprint: true,
+        replyKeyboardGeneration: true
+      }
+    })).resolves.toEqual({
+      replyKeyboardFingerprint: fingerprint,
+      replyKeyboardGeneration: 1
+    });
+    await prisma.activeCombatLease.deleteMany({
+      where: { referenceId: session.id }
+    });
+    await prisma.groupCombatSession.delete({ where: { id: session.id } });
+  });
+
   it("makes a live active-publication claim win before a terminal turn and lets the terminal retry publish last", async () => {
     let session = await startLeftPassageProduction(
       prisma,
@@ -1059,7 +1150,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       now: new Date(claimedAt.getTime() + 1),
       nextTurnExpiresAt: new Date(claimedAt.getTime() + 23_001)
     });
-    await new Promise((resolve) => setTimeout(resolve, 42));
+    await new Promise((resolve) => setTimeout(resolve, 350));
     await expect(repository.releaseParticipantUiPublicationClaim({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,
@@ -1079,6 +1170,70 @@ describe("PrismaGroupCombatRepository integration", () => {
       sessionId: session.id,
       claimToken: `navigation:${session.id}`
     });
+  });
+
+  it("recovers a terminal timeout after restart when the dead publisher claim becomes stale", async () => {
+    let session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-timeout-restart",
+      [11967n]
+    );
+    let terminalNext = false;
+    for (let attempt = 0; attempt < 23 && !terminalNext; attempt += 1) {
+      const action = buildGroupCombatTimeoutAction(
+        session.state,
+        session.participants[0]!.characterId
+      );
+      terminalNext =
+        resolveGroupCombatTurn(session.state, [action]).state.status !== "active";
+      if (!terminalNext) {
+        const progressed = await repository.resolveTimedOutSession({
+          sessionId: session.id,
+          now: session.turnExpiresAt,
+          nextTurnExpiresAt: new Date(session.turnExpiresAt.getTime() + 23_000)
+        });
+        if (!("session" in progressed)) {
+          throw new Error("Expected the timeout setup turn to resolve.");
+        }
+        session = progressed.session;
+      }
+    }
+    expect(terminalNext).toBe(true);
+    const participant = session.participants[0]!;
+    const deadClaimedAt = new Date(session.turnExpiresAt.getTime() - 22_700);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: "timeout-dead-worker",
+      claimToken: "timeout-dead-worker",
+      claimedAt: deadClaimedAt,
+      staleBefore: new Date(deadClaimedAt.getTime() - 23_000)
+    })).resolves.toMatchObject({ state: "claimed" });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    const resolved = await restarted.resolveTimedOutSession({
+      sessionId: session.id,
+      now: session.turnExpiresAt,
+      nextTurnExpiresAt: new Date(session.turnExpiresAt.getTime() + 23_000)
+    });
+
+    expect(resolved.state).toBe("terminal");
+    if (!("session" in resolved)) {
+      throw new Error("Expected the restarted timeout to return its terminal session.");
+    }
+    expect(resolved.session.status).not.toBe("active");
+    await expect(prisma.groupCombatUiPublicationClaim.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      sessionId: session.id,
+      claimToken: `navigation:${session.id}`
+    });
+    await prisma.activeCombatLease.deleteMany({
+      where: { referenceId: session.id }
+    });
+    await prisma.groupCombatSession.delete({ where: { id: session.id } });
   });
 
   it("does not let an old state read overwrite a newer acknowledged turn keyboard", async () => {
@@ -1121,7 +1276,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       sessionId: newer.id,
       telegramUserId: participant.telegramUserId,
       expectedDeliveryRevision: newer.deliveryRevision,
-      keyboardFingerprint: "newer-turn-keyboard",
+      publishedKeyboardFingerprint: "newer-turn-keyboard",
       claimToken: "newer-turn-worker"
     })).resolves.toBe("acknowledged");
 
@@ -1151,7 +1306,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       sessionId: newer.id,
       telegramUserId: participant.telegramUserId,
       expectedDeliveryRevision: newer.deliveryRevision,
-      keyboardFingerprint: "newer-turn-keyboard",
+      publishedKeyboardFingerprint: "newer-turn-keyboard",
       claimToken: "old-paused-worker"
     })).resolves.toBe("acknowledged");
     await expect(prisma.groupCombatParticipant.findFirstOrThrow({
@@ -2806,7 +2961,7 @@ describe("PrismaGroupCombatRepository integration", () => {
           nextTurnExpiresAt: new Date(NOW.getTime() + attempt * 10 + 23_000)
         });
         if (willEscape && remainingIndex === remaining.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 42));
+          await new Promise((resolve) => setTimeout(resolve, 350));
           await expect(repository.releaseParticipantUiPublicationClaim({
             sessionId: current.id,
             telegramUserId: escapee.telegramUserId,

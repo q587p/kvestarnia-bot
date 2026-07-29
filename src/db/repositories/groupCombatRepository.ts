@@ -318,9 +318,17 @@ export interface GroupCombatRepository {
     sessionId: string;
     telegramUserId: bigint;
     expectedDeliveryRevision: number;
-    keyboardFingerprint: string;
+    publishedKeyboardFingerprint: string | null;
     claimToken: string;
   }): Promise<"acknowledged" | "stale" | "not-owner">;
+
+  renewParticipantUiPublicationClaim(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    claimToken: string;
+    claimedAt: Date;
+  }): Promise<boolean>;
 
   releaseParticipantUiPublicationClaim(input: {
     sessionId: string;

@@ -400,6 +400,19 @@ reclaim because `sendMessage` has no idempotency key. Delivery resolves current
 navigation before restoring a reply keyboard; current presence/quest markers
 build a free player's menu, and a newer combat durably supersedes the old
 delivery instead of overwriting its battle UI.
+Active GroupCombat card/reply-keyboard replacement uses the same per-character
+durable publication owner as terminal/flee navigation fences. The exact
+session/revision/token is atomically renewed before every Telegram
+`sendMessage`, `editMessageText` and `deleteMessage`; each request is aborted at
+13 seconds, below the 23-second stale boundary, and ownership loss suppresses
+all later calls in that replacement. Only a reply keyboard actually attached
+to the private canonical card advances its fingerprint/generation. A
+supergroup/no-keyboard delivery acknowledges only the card. Terminal, flee and
+timeout mutations wait for a live publication fence without consuming their
+bounded optimistic-conflict retries; elapsed wall time permits restart
+takeover of a dead claim without changing canonical gameplay timestamps.
+Telegram has no request idempotency key, so acceptance immediately before an
+abort/network failure remains an honest external at-least-once ambiguity.
 
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
