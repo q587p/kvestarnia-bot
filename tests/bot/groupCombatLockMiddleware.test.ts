@@ -8,6 +8,10 @@ import type { GroupCombatService } from "../../src/services/groupCombatService";
 describe("group-combat lock middleware", () => {
   it("resends a private command redirect as the sole latest canonical card", async () => {
     const session = activeSession();
+    session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
+      buildExpectedReplyKeyboard()
+    );
+    session.participants[0]!.replyKeyboardGeneration = 1;
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
@@ -267,4 +271,12 @@ function readReplyKeyboard(value: unknown): unknown {
   return value && typeof value === "object" && "keyboard" in value
     ? value.keyboard
     : undefined;
+}
+
+function buildExpectedReplyKeyboard(): Array<Array<{ text: string }>> {
+  return [
+    [{ text: "⚔️ Атакувати" }],
+    [{ text: "🛡️ Захиститися" }],
+    [{ text: "🏃 Відступити" }, { text: "🔎 Оновити" }]
+  ];
 }

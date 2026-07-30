@@ -2614,10 +2614,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return actor?.fledAtTurn !== undefined
             ? exitComplete
             : (
-                (state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
-                  state.status === "active" ||
-                  exitComplete) &&
-                participant.deliveredRevision >= input.expectedDeliveryRevision
+                exitComplete ||
+                (
+                  (state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
+                    state.status === "active") &&
+                  participant.deliveredRevision >= input.expectedDeliveryRevision
+                )
               );
         }
       );

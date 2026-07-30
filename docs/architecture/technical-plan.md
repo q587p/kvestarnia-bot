@@ -411,6 +411,11 @@ fingerprint/generation, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
 therefore edits the adopted canonical card instead of sending another
 countdown copy. A supergroup/no-keyboard delivery acknowledges only the card.
+An explicitly fresh private actor card requested by combat-lock recovery,
+refresh or a handled reply action attaches the current reply keyboard even when
+the stored fingerprint already matches. Completed exit navigation retires
+terminal delivery work independently of an obsolete legacy card revision, so a
+finished row cannot remain in the five-second delivery queue.
 The one-use reply button is rendered only when canonical validation finds at
 least one useful owned item. Terminal, flee and
 timeout mutations wait for a live publication fence without consuming their

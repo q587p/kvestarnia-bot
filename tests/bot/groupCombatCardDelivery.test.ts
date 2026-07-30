@@ -1189,7 +1189,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(replyKeyboards.get(1002)).not.toContain("🪓 Силовий замах");
   });
 
-  it("edits unchanged generations and sends exactly one actor card plus one changed ally keyboard-card", async () => {
+  it("publishes one actor keyboard-card plus one changed ally keyboard-card", async () => {
     const session = makeSession({
       turn: 2,
       deliveryRevision: 2,
@@ -1243,7 +1243,7 @@ describe("group-combat canonical participant delivery", () => {
     })).resolves.toBe(2);
 
     expect(sends).toEqual([
-      { chatId: 1001, hasReplyKeyboard: false },
+      { chatId: 1001, hasReplyKeyboard: true },
       { chatId: 1002, hasReplyKeyboard: true }
     ]);
     expect(editMessageText.mock.calls.filter((call) => call[0] === 1001))

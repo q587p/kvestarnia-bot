@@ -3972,7 +3972,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
-  it("settles a normal victory with no economy writes and releases every lock", async () => {
+  it("settles a normal victory, releases every lock and clears completed legacy delivery churn", async () => {
     await seedParty(prisma, "group-win", [1271n, 1272n]);
     const before = await resourceSnapshot(prisma, [1271n, 1272n]);
     const started = await repository.startProofForTelegramUser({
@@ -4088,16 +4088,13 @@ describe("PrismaGroupCombatRepository integration", () => {
       messageId: participant.messageId,
       referenceVersion: participant.referenceVersion
     }))).toEqual(canonicalReferences);
-    for (const participant of committed.participants) {
-      await expect(restarted.markParticipantCardDelivered({
-        sessionId: committed.id,
-        telegramUserId: participant.telegramUserId,
-        expectedDeliveryRevision: committed.deliveryRevision,
-        expectedReferenceVersion: participant.referenceVersion,
-        chatId: participant.chatId!,
-        messageId: participant.messageId!
-      })).resolves.toBe(true);
-    }
+    await prisma.groupCombatParticipant.updateMany({
+      where: { sessionId: committed.id },
+      data: {
+        exitDeliveryState: "completed",
+        deliveredRevision: committed.deliveryRevision - 1
+      }
+    });
     await expect(restarted.finalizeDeliveryAttempt({
       sessionId: committed.id,
       expectedDeliveryRevision: committed.deliveryRevision,

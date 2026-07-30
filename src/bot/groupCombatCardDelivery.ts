@@ -558,7 +558,10 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     );
     const publishReplyKeyboard =
       input.publishReplyKeyboard !== false &&
-      participant.replyKeyboardFingerprint !== fingerprint;
+      (
+        participant.replyKeyboardFingerprint !== fingerprint ||
+        input.forceReplacement === true
+      );
     const result = await deliverCanonicalGroupCombatParticipantCardLocked({
       ...input,
       forceReplacement:
@@ -624,7 +627,8 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     }
     ownsClaim = true;
     const publishReplyKeyboard =
-      input.publishReplyKeyboard !== false && claim.publishReplyKeyboard;
+      input.publishReplyKeyboard !== false &&
+      (claim.publishReplyKeyboard || input.forceReplacement === true);
     const ownedTransport = uiPublicationOwnedTransport({
       service: input.service,
       transport: input.transport,
