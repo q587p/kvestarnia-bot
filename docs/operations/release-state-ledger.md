@@ -34,7 +34,11 @@ currently legal and records a successfully attached reply-keyboard fingerprint
 in the same CAS that adopts its canonical card, preventing scheduler countdown
 copies after a later acknowledgement failure. Losing sent candidates receive
 bounded deletion retry and otherwise become only a compact inert superseded
-note, not a second battle card. Explicit refresh also persists a participant
+note. Active and terminal replacement compact the previous canonical message
+before its best-effort delete, so delete refusal cannot leave a second full
+battle card or terminal result; a failed fresh terminal send restores the prior
+result.
+Explicit refresh also persists a participant
 keyboard request before delivery; a busy/restarted claim stays in the bounded
 queue until the private keyboard is acknowledged. This remains automated
 repository evidence only until the final-head Telegram matrix is rerun.

@@ -343,24 +343,19 @@ async function deliverParticipantExitNavigation(input: {
         return false;
       }
       const reference = privateReference(participant);
+      const card = buildCard(
+        current,
+        participant.characterId,
+        serviceTime(input.service)
+      );
+      let previousState: "inert" | "missing" | "failed" = "missing";
       if (reference) {
-        const card = buildCard(
-          current,
-          participant.characterId,
-          serviceTime(input.service)
+        previousState = await makePreviousReferenceInert(
+          input.transport,
+          reference
         );
-        try {
-          await input.transport.editMessage(reference, card.text, {
-            ...card.options,
-            reply_markup: { inline_keyboard: [] }
-          });
-        } catch (error) {
-          if (
-            !isMessageNotModifiedError(error) &&
-            !isMessageUnavailableForEditError(error)
-          ) {
-            return false;
-          }
+        if (previousState === "failed") {
+          return false;
         }
       }
       const actor = current.state.participants.find(
@@ -371,17 +366,23 @@ async function deliverParticipantExitNavigation(input: {
         actor?.fledAtTurn === undefined;
       let terminalCardReference: GroupCombatMessageReference | null = null;
       if (shouldPublishTerminalCard) {
-        const card = buildCard(
-          current,
-          participant.characterId,
-          serviceTime(input.service)
-        );
-        const messageId = await input.transport.sendInertMessage(
-          participant.telegramUserId,
-          card.text,
-          card.options
-        );
+        let messageId: number | null;
+        try {
+          messageId = await input.transport.sendInertMessage(
+            participant.telegramUserId,
+            card.text,
+            card.options
+          );
+        } catch (error) {
+          if (reference && previousState === "inert") {
+            await restoreReferenceCard(input.transport, reference, card);
+          }
+          throw error;
+        }
         if (messageId === null) {
+          if (reference && previousState === "inert") {
+            await restoreReferenceCard(input.transport, reference, card);
+          }
           return false;
         }
         terminalCardReference = {
@@ -421,14 +422,32 @@ async function deliverParticipantExitNavigation(input: {
           ) {
             await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
           }
+          if (reference && previousState === "inert") {
+            await input.transport.deleteMessage(reference).catch(() => undefined);
+          }
           return true;
         }
         if (terminalCardReference && latestParticipant) {
-          await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
+          await retireLosingCandidate(input.transport, terminalCardReference);
+        }
+        const latestReference = latestParticipant
+          ? privateReference(latestParticipant)
+          : null;
+        if (
+          shouldPublishTerminalCard &&
+          reference &&
+          previousState === "inert" &&
+          latestReference &&
+          sameReference(latestReference, reference)
+        ) {
+          await restoreReferenceCard(input.transport, reference, card);
         }
         return false;
       }
       if (completed) {
+        if (reference && previousState === "inert") {
+          await input.transport.deleteMessage(reference).catch(() => undefined);
+        }
         return true;
       }
       const latest = await loadAuthoritativeSession(input.service, input.sessionId);
@@ -445,7 +464,25 @@ async function deliverParticipantExitNavigation(input: {
           latestParticipant.messageId !== terminalCardReference.messageId
         )
       ) {
-        await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
+        await retireLosingCandidate(input.transport, terminalCardReference);
+      }
+      if (completedElsewhere) {
+        if (reference && previousState === "inert") {
+          await input.transport.deleteMessage(reference).catch(() => undefined);
+        }
+      } else {
+        const latestReference = latestParticipant
+          ? privateReference(latestParticipant)
+          : null;
+        if (
+          shouldPublishTerminalCard &&
+          reference &&
+          previousState === "inert" &&
+          latestReference &&
+          sameReference(latestReference, reference)
+        ) {
+          await restoreReferenceCard(input.transport, reference, card);
+        }
       }
       return completedElsewhere;
     }
@@ -841,7 +878,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     return { state: "candidate-lost", reference: canonicalReference };
   }
   const previousState = replacedReference && !sameReference(replacedReference, candidate)
-    ? await makePreviousReferenceInert(input.transport, replacedReference, candidateCard)
+    ? await makePreviousReferenceInert(input.transport, replacedReference)
     : "missing";
   if (previousState === "failed" && replacedReference) {
     return restorePreviousReference(input, freshParticipant, candidate, replacedReference);
@@ -901,12 +938,11 @@ function exitDeliveryStateOf(
 
 async function makePreviousReferenceInert(
   transport: GroupCombatDeliveryTransport,
-  reference: GroupCombatMessageReference,
-  card: ReturnType<typeof buildCard>
+  reference: GroupCombatMessageReference
 ): Promise<"inert" | "missing" | "failed"> {
   try {
-    await transport.editMessage(reference, card.text, {
-      ...card.options,
+    await transport.editMessage(reference, SUPERSEDED_CANDIDATE_TEXT, {
+      ...HTML_MESSAGE_OPTIONS,
       reply_markup: { inline_keyboard: [] }
     });
     return "inert";
@@ -1110,6 +1146,17 @@ function apiTransport(api: Api): GroupCombatDeliveryTransport {
       }
     }
   };
+}
+
+async function restoreReferenceCard(
+  transport: GroupCombatDeliveryTransport,
+  reference: GroupCombatMessageReference,
+  card: ReturnType<typeof buildCard>
+): Promise<void> {
+  await transport.editMessage(reference, card.text, {
+    ...card.options,
+    reply_markup: { inline_keyboard: [] }
+  }).catch(() => undefined);
 }
 
 function uiPublicationOwnedTransport(input: {

@@ -412,8 +412,11 @@ fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
 therefore edits the adopted canonical card instead of sending another
 countdown copy. A candidate that loses the durable reference CAS receives three
 bounded deletion attempts; permanent Telegram refusal redraws only that losing
-message as a compact inert superseded note instead of preserving a second full
-battle card. A supergroup/no-keyboard delivery acknowledges only the card.
+message as a compact inert superseded note. Active and terminal replacement
+compact the previous canonical message before the best-effort delete, so delete
+refusal cannot preserve a second full battle card or terminal result beside the
+winner. A failed fresh terminal send restores the prior result. A
+supergroup/no-keyboard delivery acknowledges only the card.
 An explicitly fresh private actor card requested by combat-lock recovery,
 refresh or a handled reply action attaches the current reply keyboard even when
 the stored fingerprint already matches. Explicit `🔎 Оновити` first clears that
