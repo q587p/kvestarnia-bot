@@ -344,6 +344,11 @@ export interface GroupCombatRepository {
     claimToken: string;
   }): Promise<boolean>;
 
+  requestParticipantUiRefresh(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<boolean>;
+
   finalizeDeliveryAttempt(input: {
     sessionId: string;
     expectedDeliveryRevision: number;

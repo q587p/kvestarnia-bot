@@ -429,6 +429,13 @@ export class GroupCombatService {
     return this.repository.releaseParticipantUiPublicationClaim(input);
   }
 
+  requestParticipantUiRefresh(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<boolean> {
+    return this.repository.requestParticipantUiRefresh(input);
+  }
+
   async claimParticipantFleeExitDelivery(input: {
     sessionId: string;
     telegramUserId: bigint;

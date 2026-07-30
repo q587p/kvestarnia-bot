@@ -410,10 +410,17 @@ to a successfully sent private candidate may advance its
 fingerprint/generation, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
 therefore edits the adopted canonical card instead of sending another
-countdown copy. A supergroup/no-keyboard delivery acknowledges only the card.
+countdown copy. A candidate that loses the durable reference CAS receives three
+bounded deletion attempts; permanent Telegram refusal redraws only that losing
+message as a compact inert superseded note instead of preserving a second full
+battle card. A supergroup/no-keyboard delivery acknowledges only the card.
 An explicitly fresh private actor card requested by combat-lock recovery,
 refresh or a handled reply action attaches the current reply keyboard even when
-the stored fingerprint already matches. Completed exit navigation retires
+the stored fingerprint already matches. Explicit `🔎 Оновити` first clears that
+participant's acknowledged fingerprint and marks session delivery pending in
+one transaction. A busy claim or process loss therefore remains scheduler
+retryable, and active delivery cannot clear the pending row until a real private
+reply keyboard has been acknowledged. Completed exit navigation retires
 terminal delivery work independently of an obsolete legacy card revision, so a
 finished row cannot remain in the five-second delivery queue.
 The one-use reply button is rendered only when canonical validation finds at

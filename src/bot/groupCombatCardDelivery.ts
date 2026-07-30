@@ -31,6 +31,8 @@ const FLEE_EXIT_DELIVERY_CLAIM_MS = 23_000;
 const UI_PUBLICATION_CLAIM_MS = 23_000;
 const TELEGRAM_PUBLICATION_IO_TIMEOUT_MS = 13_000;
 const FLEE_EXIT_ACK_ATTEMPTS = 3;
+const LOSING_CANDIDATE_DELETE_ATTEMPTS = 3;
+const SUPERSEDED_CANDIDATE_TEXT = "♻️ Цю бойову картку замінено актуальною нижче.";
 const deliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
@@ -784,18 +786,39 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     return { state: "send-failed", reference: null };
   }
   const candidate = { chatId: participant.telegramUserId, messageId: candidateMessageId };
-  const claimed = await input.service.compareAndSetParticipantCard({
-    sessionId: current.id,
-    telegramUserId: participant.telegramUserId,
-    expectedReferenceVersion: participant.referenceVersion,
-    chatId: candidate.chatId,
-    messageId: candidate.messageId,
-    publishedKeyboardFingerprint: input.replyKeyboard
-      ? JSON.stringify(input.replyKeyboard.keyboard)
-      : null
-  });
+  let claimed: boolean;
+  try {
+    claimed = await input.service.compareAndSetParticipantCard({
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: candidate.chatId,
+      messageId: candidate.messageId,
+      publishedKeyboardFingerprint: input.replyKeyboard
+        ? JSON.stringify(input.replyKeyboard.keyboard)
+        : null
+    });
+  } catch (error) {
+    const afterFailure = await loadAuthoritativeSession(
+      input.service,
+      input.sessionId
+    );
+    const afterFailureParticipant = findParticipant(
+      afterFailure,
+      input.participantCharacterId
+    );
+    const afterFailureReference = afterFailureParticipant
+      ? privateReference(afterFailureParticipant)
+      : null;
+    if (afterFailureReference && sameReference(afterFailureReference, candidate)) {
+      claimed = true;
+    } else {
+      await retireLosingCandidate(input.transport, candidate);
+      throw error;
+    }
+  }
   if (!claimed) {
-    await input.transport.deleteMessage(candidate).catch(() => undefined);
+    await retireLosingCandidate(input.transport, candidate);
     const winner = await loadAuthoritativeSession(input.service, input.sessionId);
     const winnerParticipant = findParticipant(winner, input.participantCharacterId);
     const winnerReference = winnerParticipant ? privateReference(winnerParticipant) : null;
@@ -846,6 +869,28 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     messageId: candidate.messageId
   });
   return { state: "activation-failed", reference: null };
+}
+
+async function retireLosingCandidate(
+  transport: GroupCombatDeliveryTransport,
+  candidate: GroupCombatMessageReference
+): Promise<void> {
+  for (
+    let attempt = 0;
+    attempt < LOSING_CANDIDATE_DELETE_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      await transport.deleteMessage(candidate);
+      return;
+    } catch {
+      // Retry a transient Bot API rejection before falling back to an inert note.
+    }
+  }
+  await transport.editMessage(candidate, SUPERSEDED_CANDIDATE_TEXT, {
+    ...HTML_MESSAGE_OPTIONS,
+    reply_markup: { inline_keyboard: [] }
+  }).catch(() => undefined);
 }
 
 function exitDeliveryStateOf(

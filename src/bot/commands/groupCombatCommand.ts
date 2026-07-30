@@ -192,6 +192,14 @@ export function registerGroupCombatReplyKeyboard(
       return;
     }
     if (replyAction === "refresh") {
+      const refreshRequested = await service.requestParticipantUiRefresh({
+        sessionId: session.id,
+        telegramUserId
+      });
+      if (!refreshRequested) {
+        await next();
+        return;
+      }
       await deliverGroupCombatParticipantCard(
         ctx.api,
         service,

@@ -2259,6 +2259,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return released.count === 1;
   }
 
+  async requestParticipantUiRefresh(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+  }): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.updateMany({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "none",
+          session: { status: "active", repairState: null },
+          character: {
+            user: { telegramUserId: input.telegramUserId },
+            activeCombatLease: {
+              is: {
+                kind: GROUP_COMBAT_LEASE_KIND,
+                referenceId: input.sessionId
+              }
+            }
+          }
+        },
+        data: { replyKeyboardFingerprint: null }
+      });
+      if (participant.count !== 1) {
+        return false;
+      }
+      const session = await tx.groupCombatSession.updateMany({
+        where: {
+          id: input.sessionId,
+          status: "active",
+          repairState: null
+        },
+        data: {
+          deliveryPending: true,
+          deliveryAttemptedAt: null
+        }
+      });
+      return session.count === 1;
+    });
+  }
+
   async claimParticipantFleeExitDelivery(input: {
     sessionId: string;
     telegramUserId: bigint;
@@ -2587,6 +2627,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             select: {
               characterId: true,
               deliveredRevision: true,
+              replyKeyboardFingerprint: true,
               exitDeliveryState: true
             }
           }
@@ -2618,7 +2659,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
                 (
                   (state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
                     state.status === "active") &&
-                  participant.deliveredRevision >= input.expectedDeliveryRevision
+                  participant.deliveredRevision >= input.expectedDeliveryRevision &&
+                  (
+                    state.status !== "active" ||
+                    participant.replyKeyboardFingerprint !== null
+                  )
                 )
               );
         }

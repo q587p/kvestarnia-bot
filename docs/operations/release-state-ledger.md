@@ -32,8 +32,12 @@ availability remain separate evidence.
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint
 in the same CAS that adopts its canonical card, preventing scheduler countdown
-copies after a later acknowledgement failure. This remains automated repository
-evidence only until the final-head Telegram matrix is rerun.
+copies after a later acknowledgement failure. Losing sent candidates receive
+bounded deletion retry and otherwise become only a compact inert superseded
+note, not a second battle card. Explicit refresh also persists a participant
+keyboard request before delivery; a busy/restarted claim stays in the bounded
+queue until the private keyboard is acknowledged. This remains automated
+repository evidence only until the final-head Telegram matrix is rerun.
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

@@ -433,7 +433,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(started.session.state.enemies).toHaveLength(2);
     expect(started.session.state.enemies[0]?.monsterId).toBe("monster.deadline-spider");
     expect(started.session.state.enemies.flatMap((enemy) => enemy.abilityIds ?? []).every(
-      (abilityId) => (GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS as readonly string[]).includes(abilityId)
+      (abilityId) => GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS.includes(abilityId)
     )).toBe(true);
     const productionStateBytes = Buffer.byteLength(JSON.stringify(started.session.state), "utf8");
     console.log("Left-passage production state bytes", productionStateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
@@ -1087,6 +1087,92 @@ describe("PrismaGroupCombatRepository integration", () => {
       replyKeyboardFingerprint: fingerprint,
       replyKeyboardGeneration: 1
     });
+    await prisma.activeCombatLease.deleteMany({
+      where: { referenceId: session.id }
+    });
+    await prisma.groupCombatSession.delete({ where: { id: session.id } });
+  });
+
+  it("keeps an explicit participant refresh pending until a reply keyboard is durably acknowledged", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-ui-explicit-refresh",
+      [91967n]
+    );
+    const participant = session.participants[0]!;
+    const fingerprint = "[[\"⚔️ Атакувати\"],[\"🔎 Оновити\"]]";
+    const claimedAt = new Date(NOW.getTime() + 100);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "explicit-refresh-first",
+      claimedAt,
+      staleBefore: new Date(claimedAt.getTime() - 23_000)
+    })).resolves.toMatchObject({ state: "claimed", publishReplyKeyboard: true });
+    await expect(repository.compareAndSetParticipantCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedReferenceVersion: participant.referenceVersion,
+      chatId: participant.telegramUserId,
+      messageId: 93,
+      publishedKeyboardFingerprint: fingerprint
+    })).resolves.toBe(true);
+    const claimed = (await repository.findById(session.id))!.participants[0]!;
+    await expect(repository.markParticipantCardDelivered({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      expectedReferenceVersion: claimed.referenceVersion,
+      chatId: claimed.chatId!,
+      messageId: claimed.messageId!
+    })).resolves.toBe(true);
+    await expect(repository.acknowledgeParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      publishedKeyboardFingerprint: fingerprint,
+      claimToken: "explicit-refresh-first"
+    })).resolves.toBe("acknowledged");
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: session.id,
+      expectedDeliveryRevision: session.deliveryRevision,
+      attemptedAt: new Date(claimedAt.getTime() + 1)
+    })).resolves.toBe(true);
+    expect(await repository.listPendingDeliverySessionIds(93)).not.toContain(session.id);
+
+    await expect(repository.requestParticipantUiRefresh({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId
+    })).resolves.toBe(true);
+    await expect(prisma.groupCombatParticipant.findFirstOrThrow({
+      where: { sessionId: session.id, characterId: participant.characterId },
+      select: { replyKeyboardFingerprint: true }
+    })).resolves.toEqual({ replyKeyboardFingerprint: null });
+    expect(await repository.listPendingDeliverySessionIds(93)).toContain(session.id);
+
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: session.id,
+      expectedDeliveryRevision: session.deliveryRevision,
+      attemptedAt: new Date(claimedAt.getTime() + 2)
+    })).resolves.toBe(true);
+    expect(await repository.listPendingDeliverySessionIds(93)).toContain(session.id);
+    await expect(repository.claimParticipantUiPublication({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      keyboardFingerprint: fingerprint,
+      claimToken: "explicit-refresh-retry",
+      claimedAt: new Date(claimedAt.getTime() + 3),
+      staleBefore: new Date(claimedAt.getTime() - 22_997)
+    })).resolves.toMatchObject({ state: "claimed", publishReplyKeyboard: true });
+    await expect(repository.releaseParticipantUiPublicationClaim({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken: "explicit-refresh-retry"
+    })).resolves.toBe(true);
     await prisma.activeCombatLease.deleteMany({
       where: { referenceId: session.id }
     });

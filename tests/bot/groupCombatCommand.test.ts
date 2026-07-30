@@ -283,6 +283,57 @@ describe("group combat bot flow", () => {
     });
   });
 
+  it("durably requests refresh before publishing one fresh card with the reply keyboard", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const delivery = cardDeliveryHarness(session);
+    const order: string[] = [];
+    const requestParticipantUiRefresh = vi.fn(() => {
+      order.push("request");
+      session.deliveryPending = true;
+      session.participants[0]!.replyKeyboardFingerprint = null;
+      return Promise.resolve(true);
+    });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      requestParticipantUiRefresh,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered
+    } as unknown as GroupCombatService;
+    const sentReplyKeyboards: string[][] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        order.push("send");
+        sentReplyKeyboards.push(replyKeyboardLabels(payload.reply_markup));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🔎 Оновити"));
+
+    expect(requestParticipantUiRefresh).toHaveBeenCalledWith({
+      sessionId: session.id,
+      telegramUserId: 1001n
+    });
+    expect(order[0]).toBe("request");
+    expect(order.filter((entry) => entry === "send")).toHaveLength(1);
+    expect(sentReplyKeyboards).toHaveLength(1);
+    expect(sentReplyKeyboards[0]).toContain("🔎 Оновити");
+    expect(sentReplyKeyboards[0]).toContain("⚔️ Атакувати");
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
+  });
+
   it("submits a concrete one-target ability directly without opening an ability submenu", async () => {
     const bot = testBot();
     const session = makeSession();

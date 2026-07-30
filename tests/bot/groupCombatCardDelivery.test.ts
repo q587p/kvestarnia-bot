@@ -970,6 +970,61 @@ describe("group-combat canonical participant delivery", () => {
     expect(typeof releasedClaim?.claimToken).toBe("string");
   });
 
+  it("publishes one refreshed keyboard after a busy durable claim becomes available", async () => {
+    const session = makeSession();
+    session.deliveryPending = true;
+    session.participants[0]!.replyKeyboardFingerprint = null;
+    const claimParticipantUiPublication = vi.fn()
+      .mockResolvedValueOnce({ state: "busy" })
+      .mockResolvedValueOnce({
+        state: "claimed",
+        publishReplyKeyboard: true,
+        keyboardGeneration: 1
+      });
+    const service = {
+      ...mutableCardService(session),
+      claimParticipantUiPublication,
+      renewParticipantUiPublicationClaim: vi.fn().mockResolvedValue(true),
+      acknowledgeParticipantUiPublication: vi.fn().mockResolvedValue("acknowledged"),
+      releaseParticipantUiPublicationClaim: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    const sentKeyboards: string[][] = [];
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage: () => Promise.resolve(),
+      sendInertMessage: (_chatId, _text, options) => {
+        const markup = options.reply_markup as {
+          keyboard?: Array<Array<{ text: string }>>;
+        };
+        sentKeyboards.push(
+          markup.keyboard?.flat().map((button) => button.text) ?? []
+        );
+        return Promise.resolve(93);
+      },
+      deleteMessage: () => Promise.resolve()
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true,
+      forceReplacement: true
+    })).resolves.toMatchObject({ state: "retryable-edit-failure" });
+    expect(sentKeyboards).toHaveLength(0);
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport,
+      forceRefresh: true
+    })).resolves.toMatchObject({ state: "activated" });
+    expect(sentKeyboards).toHaveLength(1);
+    expect(sentKeyboards[0]).toContain("🔎 Оновити");
+    expect(sentKeyboards[0]).toContain("⚔️ Атакувати");
+  });
+
   it.each(["send", "edit", "delete"] as const)(
     "bounds a delayed Telegram %s operation before its durable claim can expire",
     async (operation) => {
@@ -1252,13 +1307,13 @@ describe("group-combat canonical participant delivery", () => {
       .toHaveLength(2);
   });
 
-  it("keeps a losing repair candidate inert when candidate deletion fails", async () => {
+  it("replaces a losing repair candidate with a compact inert note when deletion keeps failing", async () => {
     const withoutReference = makeSession({ chatId: null, messageId: null, referenceVersion: 0 });
     const winner = makeSession({ chatId: 1001n, messageId: 77, referenceVersion: 1 });
     const findById = vi.fn()
       .mockResolvedValueOnce(withoutReference)
       .mockResolvedValue(winner);
-    const edits: number[] = [];
+    const edits: Array<{ messageId: number; text: string }> = [];
     const sentOptions: unknown[] = [];
     const deleteMessage = vi.fn((
       _reference: Parameters<GroupCombatDeliveryTransport["deleteMessage"]>[0]
@@ -1267,8 +1322,8 @@ describe("group-combat canonical participant delivery", () => {
       return Promise.reject(new Error("Telegram delete failed"));
     });
     const transport: GroupCombatDeliveryTransport = {
-      editMessage: (reference) => {
-        edits.push(reference.messageId);
+      editMessage: (reference, text) => {
+        edits.push({ messageId: reference.messageId, text });
         return Promise.resolve();
       },
       sendInertMessage: (_chatId, _text, options) => {
@@ -1293,9 +1348,81 @@ describe("group-combat canonical participant delivery", () => {
     expect(result.state).toBe("edited");
     expect(sentOptions).toHaveLength(1);
     expect(hasReplyKeyboard(readReplyMarkup(sentOptions[0]))).toBe(true);
+    expect(deleteMessage).toHaveBeenCalledTimes(3);
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 31 });
-    expect(edits).toEqual([77]);
-    expect(edits).not.toContain(31);
+    expect(edits[0]).toEqual({
+      messageId: 31,
+      text: "♻️ Цю бойову картку замінено актуальною нижче."
+    });
+    expect(edits[1]?.messageId).toBe(77);
+    expect(edits[1]?.text).toContain("<b>Бій</b>:");
+    expect(edits[0]?.text).not.toContain("<b>Бій</b>:");
+  });
+
+  it("retries deletion of a losing candidate instead of leaving a duplicate battle card", async () => {
+    const withoutReference = makeSession({ chatId: null, messageId: null, referenceVersion: 0 });
+    const winner = makeSession({ chatId: 1001n, messageId: 77, referenceVersion: 1 });
+    const findById = vi.fn()
+      .mockResolvedValueOnce(withoutReference)
+      .mockResolvedValue(winner);
+    const deleteMessage = vi.fn()
+      .mockRejectedValueOnce(new Error("transient Telegram delete failure"))
+      .mockResolvedValue(undefined);
+    const editMessage = vi.fn().mockResolvedValue(undefined);
+    const transport: GroupCombatDeliveryTransport = {
+      editMessage,
+      sendInertMessage: () => Promise.resolve(31),
+      deleteMessage
+    };
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service: {
+        findById,
+        compareAndSetParticipantCard: vi.fn().mockResolvedValue(false),
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService,
+      sessionId: withoutReference.id,
+      participantCharacterId: "character-1",
+      transport
+    })).resolves.toMatchObject({
+      state: "edited",
+      reference: { chatId: 1001n, messageId: 77 }
+    });
+
+    expect(deleteMessage).toHaveBeenCalledTimes(2);
+    expect(editMessage).toHaveBeenCalledOnce();
+    expect(editMessage).toHaveBeenCalledWith(
+      { chatId: 1001n, messageId: 77 },
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+
+  it("retires a sent candidate when its durable card claim fails before commit", async () => {
+    const session = makeSession({ chatId: null, messageId: null, referenceVersion: 0 });
+    const deleteMessage = vi.fn().mockResolvedValue(undefined);
+
+    await expect(deliverCanonicalGroupCombatParticipantCard({
+      service: {
+        findById: vi.fn().mockResolvedValue(session),
+        compareAndSetParticipantCard: vi.fn()
+          .mockRejectedValue(new Error("durable card claim failed")),
+        markParticipantCardDelivered: vi.fn()
+      } as unknown as GroupCombatService,
+      sessionId: session.id,
+      participantCharacterId: "character-1",
+      transport: {
+        editMessage: vi.fn(),
+        sendInertMessage: vi.fn().mockResolvedValue(31),
+        deleteMessage
+      }
+    })).rejects.toThrow("durable card claim failed");
+
+    expect(deleteMessage).toHaveBeenCalledOnce();
+    expect(deleteMessage).toHaveBeenCalledWith({
+      chatId: 1001n,
+      messageId: 31
+    });
   });
 
   it("promotes a replacement card to the latest message and retires the previous canonical reference", async () => {
