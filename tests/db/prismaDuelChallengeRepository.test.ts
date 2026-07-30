@@ -4,6 +4,28 @@ import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaD
 import type { DuelChallengeRecord, DuelResultPayload } from "../../src/db/repositories/duelChallengeRepository";
 
 describe("PrismaDuelChallengeRepository", () => {
+  it("loads an active turn duel only by the lease session and participant", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const repository = new PrismaDuelChallengeRepository({
+      duelCombatSession: { findFirst }
+    } as unknown as ConstructorParameters<typeof PrismaDuelChallengeRepository>[0]);
+
+    await expect(repository.findActiveTurnBasedByIdForCharacterId(
+      "duel-session-13",
+      "character-42"
+    )).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: "duel-session-13",
+        status: "active",
+        OR: [
+          { challengerCharacterId: "character-42" },
+          { targetCharacterId: "character-42" }
+        ]
+      }
+    }));
+  });
+
   it("loses Quick resolution when a challenger combat lease wins after the challenge read", async () => {
     const pending = {
       ...makeResolvedChallenge("quick-race", null),

@@ -15,6 +15,7 @@ import type {
   CharacterRecord,
   CharacterRepository
 } from "../db/repositories/characterRepository";
+import type { ActiveCombatLeaseRecord } from "../db/repositories/combatLeaseReadRepository";
 import type { DailyActionRepository, RewardLevelChange } from "../db/repositories/dailyActionRepository";
 import type {
   DueSoloCombatSessionRecord,
@@ -76,6 +77,7 @@ import {
   type DrinkCombatModifiers,
   type MonsterCombatStats
 } from "../domain/combat";
+import { SOLO_COMBAT_LEASE_KIND } from "../domain/combat/combatLeaseRegistry";
 import {
   buildBaselinePersistentFightWinXp,
   buildPersistentFightWinGold
@@ -1290,7 +1292,11 @@ export class FightService {
 
   async getFightOverviewForTelegramUser(
     telegramUserId: bigint,
-    options: { character?: CharacterRecord; questProgress?: ThirteenSmallProblemsProgress } = {}
+    options: {
+      character?: CharacterRecord;
+      questProgress?: ThirteenSmallProblemsProgress;
+      authoritativeLease?: ActiveCombatLeaseRecord | null;
+    } = {}
   ): Promise<FightLookupResult> {
     const character = options.character ?? await this.characters.findByTelegramUserId(telegramUserId);
 
@@ -1316,10 +1322,16 @@ export class FightService {
 
     const questProgress = options.questProgress ??
       await this.getThirteenSmallProblemsProgress(telegramUserId);
-    const leasedSession = await this.findLeasedSoloCombatSessionForTelegramUser(
-      telegramUserId,
-      character.id
-    );
+    const leasedSession = "authoritativeLease" in options
+      ? await this.findSoloCombatSessionFromAuthoritativeLease(
+          telegramUserId,
+          character.id,
+          options.authoritativeLease ?? null
+        )
+      : await this.findLeasedSoloCombatSessionForTelegramUser(
+          telegramUserId,
+          character.id
+        );
     const resourceAware = await this.summarizeCharacterWithEquipmentResult(telegramUserId, character, {
       syncResources: leasedSession.state === "none"
     });
@@ -4035,6 +4047,56 @@ export class FightService {
     return attempts >= 1
       ? { state: "none" }
       : this.findLeasedSoloCombatSessionForTelegramUser(telegramUserId, characterId, attempts + 1);
+  }
+
+  private async findSoloCombatSessionFromAuthoritativeLease(
+    telegramUserId: bigint,
+    characterId: string,
+    lease: ActiveCombatLeaseRecord | null
+  ): Promise<LeasedSoloCombatSessionLookup> {
+    if (!lease) {
+      return { state: "none" };
+    }
+
+    if (lease.characterId !== characterId || lease.kind !== SOLO_COMBAT_LEASE_KIND) {
+      return {
+        state: "unsupported",
+        kind: lease.kind,
+        referenceId: lease.referenceId
+      };
+    }
+
+    const session = await this.combatSessions?.findByIdForTelegramUserId(
+      telegramUserId,
+      lease.referenceId
+    );
+
+    if (!session) {
+      await this.combatSessions?.releaseLeaseBySessionId?.(
+        lease.referenceId,
+        this.clock()
+      );
+      return { state: "none" };
+    }
+
+    if (
+      session.state?.settlement?.status === "completed" ||
+      session.state?.settlement?.status === "forfeited-by-remort"
+    ) {
+      await this.combatSessions?.releaseLeaseBySessionId?.(
+        session.id,
+        this.clock()
+      );
+      return { state: "none" };
+    }
+
+    return {
+      state: "session",
+      session: await this.adoptLegacyLeasedSettlementIfNeeded(
+        telegramUserId,
+        session
+      )
+    };
   }
 
   private async adoptLegacyLeasedSettlementIfNeeded(

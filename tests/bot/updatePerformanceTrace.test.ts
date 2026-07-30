@@ -61,6 +61,8 @@ describe("update performance tracing", () => {
       "combatLockMs",
       "ackMs",
       "firstPresentationMs",
+      "interactiveMs",
+      "postPresentationMs",
       "totalMs"
     ]) {
       expect(typeof payload[key]).toBe("number");
@@ -74,6 +76,10 @@ describe("update performance tracing", () => {
         expect(value).toBeGreaterThanOrEqual(0);
       }
     }
+    expect(payload.interactiveMs).toBe(payload.firstPresentationMs);
+    expect(
+      Number(payload.interactiveMs) + Number(payload.postPresentationMs)
+    ).toBeCloseTo(Number(payload.totalMs), 0);
   });
 
   it("emits one sanitized terminal record and classifies a pre-route failure as middleware", async () => {

@@ -38,6 +38,13 @@ import {
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
 import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
+import type { ActiveCombatLeaseRecord } from "../../db/repositories/combatLeaseReadRepository";
+import {
+  GROUP_COMBAT_LEASE_KIND,
+  PARTY_BOSS_LEASE_KIND,
+  SOLO_COMBAT_LEASE_KIND,
+  TURN_BASED_DUEL_LEASE_KIND
+} from "../../domain/combat/combatLeaseRegistry";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -64,11 +71,20 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
         return;
       }
 
-      if (
-        isRestartOrRemortRoute(ctx) &&
-        await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services)
-      ) {
-        return;
+      if (isRestartOrRemortRoute(ctx)) {
+        const lease = await getAuthoritativeCombatLease(telegramUserId, services);
+        if (
+          (!services.combatLeases || lease?.kind === TURN_BASED_DUEL_LEASE_KIND) &&
+          await redirectTurnBasedDuelLockIfNeeded(
+            ctx,
+            telegramUserId,
+            services,
+            { refreshPresence: true },
+            lease ?? undefined
+          )
+        ) {
+          return;
+        }
       }
 
       const parsedDuelCallback = parseDuelCallbackData(callbackData);
@@ -84,8 +100,16 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
         cardRoute?.state === "resolved" && cardRoute.sourceIsCanonical;
 
       const duelRouteToken = getDuelRouteToken(ctx);
-      const precheckedActiveDuel = duelRouteToken
-        ? await getActiveTurnBasedDuel(telegramUserId, services)
+      const duelRouteLease = duelRouteToken
+        ? await getAuthoritativeCombatLease(telegramUserId, services)
+        : undefined;
+      const precheckedActiveDuel = duelRouteToken &&
+        (!services.combatLeases || duelRouteLease?.kind === TURN_BASED_DUEL_LEASE_KIND)
+        ? await getActiveTurnBasedDuel(
+            telegramUserId,
+            services,
+            duelRouteLease ?? undefined
+          )
         : undefined;
       if (duelRouteToken && precheckedActiveDuel?.challenge.inviteToken === duelRouteToken) {
         if (
@@ -273,13 +297,19 @@ function getDuelRouteToken(ctx: Context): string | null {
 
 async function getActiveTurnBasedDuel(
   telegramUserId: bigint,
-  services: BotServices
+  services: BotServices,
+  authoritativeLease?: ActiveCombatLeaseRecord
 ): Promise<Extract<DuelChallengeView, { state: "active" }> | null> {
   if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
     return null;
   }
 
-  return services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+  return authoritativeLease
+    ? services.duel.getActiveTurnBasedByIdForCharacterId(
+        authoritativeLease.referenceId,
+        authoritativeLease.characterId
+      )
+    : services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
 }
 
 function isRestartOrRemortRoute(ctx: Context): boolean {
@@ -312,6 +342,60 @@ async function redirectCombatLockIfNeeded(
     activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
   } = { refreshPresence: true }
 ): Promise<boolean> {
+  if (services.combatLeases) {
+    const lease = await getAuthoritativeCombatLease(telegramUserId, services);
+
+    if (lease?.kind === TURN_BASED_DUEL_LEASE_KIND) {
+      return redirectTurnBasedDuelLockIfNeeded(
+        ctx,
+        telegramUserId,
+        services,
+        options,
+        lease
+      );
+    }
+
+    if (lease?.kind === PARTY_BOSS_LEASE_KIND) {
+      return redirectPartyBossLockIfNeeded(
+        ctx,
+        telegramUserId,
+        services,
+        options,
+        lease
+      );
+    }
+
+    if (lease?.kind === GROUP_COMBAT_LEASE_KIND) {
+      return redirectGroupCombatLockIfNeeded(
+        ctx,
+        telegramUserId,
+        services,
+        lease
+      );
+    }
+
+    if (lease?.kind === SOLO_COMBAT_LEASE_KIND) {
+      return redirectFightLockIfNeeded(
+        ctx,
+        telegramUserId,
+        services,
+        options,
+        lease
+      );
+    }
+
+    if (!lease) {
+      if (
+        typeof services.fight.getFightOverviewForTelegramUser !== "function" ||
+        !(await isStarterFightPresenceActive(services.presence, telegramUserId))
+      ) {
+        return false;
+      }
+    }
+
+    return redirectFightLockIfNeeded(ctx, telegramUserId, services, options, null);
+  }
+
   if (await redirectTurnBasedDuelLockIfNeeded(ctx, telegramUserId, services, options)) {
     return true;
   }
@@ -324,13 +408,42 @@ async function redirectCombatLockIfNeeded(
     return true;
   }
 
+  return redirectFightLockIfNeeded(ctx, telegramUserId, services, options);
+}
+
+async function getAuthoritativeCombatLease(
+  telegramUserId: bigint,
+  services: BotServices
+): Promise<ActiveCombatLeaseRecord | null> {
+  if (!services.combatLeases) {
+    return null;
+  }
+
+  return memoizeUpdateRead(
+    `active-combat-lease:${telegramUserId}`,
+    () => services.combatLeases!.findActiveForTelegramUser(telegramUserId)
+  );
+}
+
+async function redirectFightLockIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices,
+  options: {
+    refreshPresence: boolean;
+    preserveCallbackSource?: boolean;
+  },
+  authoritativeLease?: ActiveCombatLeaseRecord | null
+): Promise<boolean> {
   if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return false;
   }
 
   const lock = await memoizeUpdateRead(
     `fight-overview:${telegramUserId}`,
-    () => services.fight.getFightOverviewForTelegramUser(telegramUserId)
+    () => services.fight.getFightOverviewForTelegramUser(telegramUserId, {
+      ...(authoritativeLease === undefined ? {} : { authoritativeLease })
+    })
   );
 
   if (lock.state === "persistent-active") {
@@ -418,9 +531,12 @@ async function redirectCombatLockIfNeeded(
 async function redirectGroupCombatLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
-  services: BotServices
+  services: BotServices,
+  authoritativeLease?: ActiveCombatLeaseRecord
 ): Promise<boolean> {
-  const active = await services.groupCombat?.findActiveForTelegramUser(telegramUserId);
+  const active = authoritativeLease
+    ? await services.groupCombat?.findById(authoritativeLease.referenceId)
+    : await services.groupCombat?.findActiveForTelegramUser(telegramUserId);
   if (!active) {
     return false;
   }
@@ -458,13 +574,19 @@ async function redirectPartyBossLockIfNeeded(
   ctx: Context,
   telegramUserId: bigint,
   services: BotServices,
-  options: { refreshPresence: boolean; preserveCallbackSource?: boolean } = { refreshPresence: true }
+  options: { refreshPresence: boolean; preserveCallbackSource?: boolean } = { refreshPresence: true },
+  authoritativeLease?: ActiveCombatLeaseRecord
 ): Promise<boolean> {
   if (!services.partyBoss || typeof services.partyBoss.getActiveForTelegramUser !== "function") {
     return false;
   }
 
-  const active = await services.partyBoss.getActiveForTelegramUser(telegramUserId);
+  const active = authoritativeLease
+    ? await services.partyBoss.getActiveByPartySessionIdForCharacterId(
+        authoritativeLease.referenceId,
+        authoritativeLease.characterId
+      )
+    : await services.partyBoss.getActiveForTelegramUser(telegramUserId);
   if (!active) {
     return false;
   }
@@ -517,7 +639,8 @@ async function redirectTurnBasedDuelLockIfNeeded(
   options: {
     refreshPresence: boolean;
     activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
-  } = { refreshPresence: true }
+  } = { refreshPresence: true },
+  authoritativeLease?: ActiveCombatLeaseRecord
 ): Promise<boolean> {
   if (!services.duel || typeof services.duel.getActiveTurnBasedForTelegramUser !== "function") {
     return false;
@@ -525,7 +648,12 @@ async function redirectTurnBasedDuelLockIfNeeded(
 
   const activeDuel = "activeDuel" in options
     ? options.activeDuel
-    : await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
+    : authoritativeLease
+      ? await services.duel.getActiveTurnBasedByIdForCharacterId(
+          authoritativeLease.referenceId,
+          authoritativeLease.characterId
+        )
+      : await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
 
   if (!activeDuel) {
     return false;

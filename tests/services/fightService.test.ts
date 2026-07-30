@@ -496,6 +496,43 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("uses a supplied authoritative solo lease without rereading combat ownership", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const session = sessions.addSession(makeActivePersistentSession({
+      id: "solo-session-13",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    }));
+    const leaseRead = vi.fn().mockRejectedValue(new Error("lease must not be reread"));
+    sessions.findLeasedByCharacterId = leaseRead;
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId, {
+      authoritativeLease: {
+        characterId: "character-42",
+        kind: "solo-combat",
+        referenceId: session.id
+      }
+    });
+
+    expect(overview).toMatchObject({
+      state: "persistent-active",
+      session: {
+        id: session.id
+      }
+    });
+    expect(leaseRead).not.toHaveBeenCalled();
+  });
+
   it("reports a recovery notice when fight overview fills HP", async () => {
     const marker = new Date("2026-06-12T10:10:00.000Z");
     const characters = new FakeCharacterRepository();

@@ -190,6 +190,10 @@ export interface PartyBossRepository {
   ): Promise<PartyBossActionResult>;
 
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<PartyBossSessionRecord | null>;
+  findActiveByPartySessionIdForCharacterId(
+    partySessionId: string,
+    characterId: string
+  ): Promise<PartyBossSessionRecord | null>;
   findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null>;
   findJournalPageByPartyInviteToken?(
     partyInviteToken: string,

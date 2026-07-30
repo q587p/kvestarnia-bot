@@ -1004,6 +1004,29 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
     return session ? this.mapSession(session) : null;
   }
 
+  async findActiveByPartySessionIdForCharacterId(
+    partySessionId: string,
+    characterId: string
+  ): Promise<PartyBossSessionRecord | null> {
+    const session = await this.prisma.partyBossSession.findFirst({
+      where: {
+        partySessionId,
+        status: "active",
+        partySession: {
+          participants: {
+            some: {
+              characterId,
+              status: "joined"
+            }
+          }
+        }
+      },
+      include: partyBossInclude
+    });
+
+    return session ? this.mapSession(session) : null;
+  }
+
   async findByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null> {
     const session = await findByInviteToken(this.prisma, partyInviteToken);
     return session ? this.mapSession(session) : null;

@@ -6,6 +6,60 @@ import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCo
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 
 describe("group-combat lock middleware", () => {
+  it.each([
+    ["turn-based-duel", "duel"],
+    ["party-boss", "partyBoss"],
+    ["group-combat", "groupCombat"],
+    ["solo-combat", "fight"]
+  ] as const)("loads only the authoritative %s owner", async (kind, expectedOwner) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const lease = {
+      characterId: "character-1",
+      kind,
+      referenceId: `${kind}-13`
+    };
+    const findLease = vi.fn().mockResolvedValue(lease);
+    const duelExact = vi.fn().mockResolvedValue(null);
+    const partyBossExact = vi.fn().mockResolvedValue(null);
+    const groupCombatExact = vi.fn().mockResolvedValue(null);
+    const fightOverview = vi.fn().mockResolvedValue({ state: "no-character" });
+    const serviceSet = {
+      combatLeases: {
+        findActiveForTelegramUser: findLease
+      },
+      duel: {
+        getActiveTurnBasedByIdForCharacterId: duelExact,
+        getActiveTurnBasedForTelegramUser: vi.fn()
+      },
+      partyBoss: {
+        getActiveByPartySessionIdForCharacterId: partyBossExact,
+        getActiveForTelegramUser: vi.fn()
+      },
+      groupCombat: {
+        findById: groupCombatExact,
+        findActiveForTelegramUser: vi.fn()
+      },
+      fight: {
+        getFightOverviewForTelegramUser: fightOverview
+      }
+    } as unknown as BotServices;
+    registerCombatLockMiddleware(bot, serviceSet);
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    expect(findLease).toHaveBeenCalledTimes(1);
+    expect(duelExact).toHaveBeenCalledTimes(expectedOwner === "duel" ? 1 : 0);
+    expect(partyBossExact).toHaveBeenCalledTimes(expectedOwner === "partyBoss" ? 1 : 0);
+    expect(groupCombatExact).toHaveBeenCalledTimes(expectedOwner === "groupCombat" ? 1 : 0);
+    expect(fightOverview).toHaveBeenCalledTimes(expectedOwner === "fight" ? 1 : 0);
+    if (expectedOwner === "fight") {
+      expect(fightOverview).toHaveBeenCalledWith(1001n, {
+        authoritativeLease: lease
+      });
+    }
+  });
+
   it("resends a private command redirect as the sole latest canonical card", async () => {
     const session = activeSession();
     session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
@@ -15,7 +69,8 @@ describe("group-combat lock middleware", () => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
-    registerCombatLockMiddleware(bot, services(session, markParticipantCardDelivered));
+    const serviceSet = services(session, markParticipantCardDelivered);
+    registerCombatLockMiddleware(bot, serviceSet);
 
     await bot.handleUpdate(commandUpdate("private"));
 
@@ -33,6 +88,12 @@ describe("group-combat lock middleware", () => {
       messageId: 93,
       expectedDeliveryRevision: session.deliveryRevision
     }));
+    expect(serviceSet.testSpies.findLease).toHaveBeenCalledTimes(1);
+    expect(serviceSet.testSpies.findGroupById).toHaveBeenCalledWith(session.id);
+    expect(serviceSet.testSpies.findGroupByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findDuelByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findPartyBossByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findFightOverview).not.toHaveBeenCalled();
   });
 
   it("keeps participant text and mutating buttons out of a supergroup redirect", async () => {
@@ -61,12 +122,51 @@ describe("group-combat lock middleware", () => {
 function services(
   session: GroupCombatSessionRecord,
   markParticipantCardDelivered: ReturnType<typeof vi.fn>
-): BotServices {
+): BotServices & {
+  testSpies: {
+    findLease: ReturnType<typeof vi.fn>;
+    findGroupById: ReturnType<typeof vi.fn>;
+    findGroupByUser: ReturnType<typeof vi.fn>;
+    findDuelByUser: ReturnType<typeof vi.fn>;
+    findPartyBossByUser: ReturnType<typeof vi.fn>;
+    findFightOverview: ReturnType<typeof vi.fn>;
+  };
+} {
   let uiClaimToken: string | null = null;
+  const findLease = vi.fn().mockResolvedValue({
+    characterId: "character-1",
+    kind: "group-combat",
+    referenceId: session.id
+  });
+  const findGroupById = vi.fn().mockResolvedValue(session);
+  const findGroupByUser = vi.fn().mockResolvedValue(session);
+  const findDuelByUser = vi.fn();
+  const findPartyBossByUser = vi.fn();
+  const findFightOverview = vi.fn();
   return {
+    testSpies: {
+      findLease,
+      findGroupById,
+      findGroupByUser,
+      findDuelByUser,
+      findPartyBossByUser,
+      findFightOverview
+    },
+    combatLeases: {
+      findActiveForTelegramUser: findLease
+    },
+    duel: {
+      getActiveTurnBasedForTelegramUser: findDuelByUser
+    },
+    partyBoss: {
+      getActiveForTelegramUser: findPartyBossByUser
+    },
+    fight: {
+      getFightOverviewForTelegramUser: findFightOverview
+    },
     groupCombat: {
-      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
-      findById: vi.fn().mockResolvedValue(session),
+      findActiveForTelegramUser: findGroupByUser,
+      findById: findGroupById,
       currentTime: () => new Date("2026-07-22T10:00:00.000Z"),
       compareAndSetParticipantCard: vi.fn().mockImplementation((input: {
         telegramUserId: bigint;
@@ -132,7 +232,16 @@ function services(
         return Promise.resolve(true);
       })
     } as unknown as GroupCombatService
-  } as unknown as BotServices;
+  } as unknown as BotServices & {
+    testSpies: {
+      findLease: ReturnType<typeof vi.fn>;
+      findGroupById: ReturnType<typeof vi.fn>;
+      findGroupByUser: ReturnType<typeof vi.fn>;
+      findDuelByUser: ReturnType<typeof vi.fn>;
+      findPartyBossByUser: ReturnType<typeof vi.fn>;
+      findFightOverview: ReturnType<typeof vi.fn>;
+    };
+  };
 }
 
 function testBot(middleware: Parameters<Bot["api"]["config"]["use"]>[0]): Bot {

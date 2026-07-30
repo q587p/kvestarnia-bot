@@ -30,6 +30,10 @@ export interface HotPathTimingInput {
   ackMs?: number | null;
   firstPresentationMs?: number | null;
   firstPresentationMethod?: CallbackPresentationMethod | null;
+  /** Time until the actor receives the first authoritative presentation (or callback acknowledgement). */
+  interactiveMs?: number | null;
+  /** Remaining handler work after the first authoritative presentation or acknowledgement. */
+  postPresentationMs?: number | null;
   totalMs: number;
   thresholdMs?: number;
   outcome?: "success" | "error";
@@ -47,6 +51,13 @@ export type PerformanceErrorCategory =
 
 export type PerformanceErrorComponent = "db" | "compute" | "telegram" | "middleware" | "handler";
 export type CallbackPresentationMethod = "edit" | "send";
+export type PerformanceEvidenceKind =
+  | "slow-interactive"
+  | "slow-post-presentation"
+  | "slow-both"
+  | "slow-total"
+  | "random-sample"
+  | "terminal-error";
 
 export type QuestMarkerPerformanceSource =
   | "adventure"
@@ -132,15 +143,14 @@ export function logAggregatedPerformanceTiming(input: HotPathTimingInput): void 
 
 function emitPerformanceTiming(input: HotPathTimingInput): void {
   const thresholdMs = input.thresholdMs ?? getSlowPerfThresholdMs();
-  const totalMs = input.totalMs;
-  const slow = totalMs >= thresholdMs;
+  const slow = input.totalMs >= thresholdMs;
   const failed = input.outcome === "error" || input.errorCategory != null;
 
   if (!failed && !slow && !shouldSamplePerfTiming()) {
     return;
   }
 
-  const evidenceKind = failed ? "terminal-error" : slow ? "slow-tail" : "random-sample";
+  const evidenceKind = classifyPerformanceEvidence(input, thresholdMs);
   const payload = sanitizePerfTimingPayload(input, thresholdMs, evidenceKind);
   const log = failed ? console.error : slow ? console.warn : console.info;
 
@@ -281,12 +291,7 @@ export function shouldLogPerfTiming(input: HotPathTimingInput, randomValue = Mat
 export function sanitizePerfTimingPayload(
   input: HotPathTimingInput,
   thresholdMs = input.thresholdMs ?? getSlowPerfThresholdMs(),
-  evidenceKind: "slow-tail" | "random-sample" | "terminal-error" =
-    input.outcome === "error" || input.errorCategory != null
-      ? "terminal-error"
-      : input.totalMs >= thresholdMs
-        ? "slow-tail"
-        : "random-sample"
+  evidenceKind: PerformanceEvidenceKind = classifyPerformanceEvidence(input, thresholdMs)
 ): Record<string, string | number | null | boolean> {
   const renderGitCommit = getSafeRenderMetadata("RENDER_GIT_COMMIT", /^[a-f0-9]{7,40}$/i);
   const renderInstanceId = getSafeRenderMetadata("RENDER_INSTANCE_ID", /^[A-Za-z0-9._-]{1,100}$/);
@@ -321,12 +326,24 @@ export function sanitizePerfTimingPayload(
     combatLockMs: sanitizeBoundedNumber(input.combatLockMs, MAX_QUEST_MARKER_SOURCE_MS),
     presenceMs: sanitizeBoundedNumber(input.presenceMs, MAX_QUEST_MARKER_SOURCE_MS),
     ackMs: sanitizeBoundedNumber(input.ackMs, MAX_QUEST_MARKER_SOURCE_MS),
-    firstPresentationMs: sanitizeBoundedNumber(input.firstPresentationMs, MAX_QUEST_MARKER_SOURCE_MS)
+    firstPresentationMs: sanitizeBoundedNumber(input.firstPresentationMs, MAX_QUEST_MARKER_SOURCE_MS),
+    interactiveMs: sanitizeBoundedNumber(input.interactiveMs, MAX_QUEST_MARKER_SOURCE_MS),
+    postPresentationMs: sanitizeBoundedNumber(input.postPresentationMs, MAX_QUEST_MARKER_SOURCE_MS)
   };
+  const interactiveSlow =
+    input.interactiveMs != null &&
+    Number.isFinite(input.interactiveMs) &&
+    input.interactiveMs >= thresholdMs;
+  const postPresentationSlow =
+    input.postPresentationMs != null &&
+    Number.isFinite(input.postPresentationMs) &&
+    input.postPresentationMs >= thresholdMs;
 
   return {
     route: input.route,
     slow: input.totalMs >= thresholdMs,
+    ...(input.interactiveMs == null ? {} : { interactiveSlow }),
+    ...(input.postPresentationMs == null ? {} : { postPresentationSlow }),
     outcome: input.outcome ?? (input.errorCategory != null ? "error" : "success"),
     evidenceKind,
     sampleRate: getPerfSampleRate(),
@@ -369,6 +386,38 @@ export function sanitizePerfTimingPayload(
       : {}),
     totalMs: roundMs(input.totalMs)
   };
+}
+
+function classifyPerformanceEvidence(
+  input: HotPathTimingInput,
+  thresholdMs: number
+): PerformanceEvidenceKind {
+  if (input.outcome === "error" || input.errorCategory != null) {
+    return "terminal-error";
+  }
+
+  const interactiveSlow =
+    input.interactiveMs != null &&
+    Number.isFinite(input.interactiveMs) &&
+    input.interactiveMs >= thresholdMs;
+  const postPresentationSlow =
+    input.postPresentationMs != null &&
+    Number.isFinite(input.postPresentationMs) &&
+    input.postPresentationMs >= thresholdMs;
+
+  if (interactiveSlow && postPresentationSlow) {
+    return "slow-both";
+  }
+  if (interactiveSlow) {
+    return "slow-interactive";
+  }
+  if (postPresentationSlow) {
+    return "slow-post-presentation";
+  }
+  if (input.totalMs >= thresholdMs) {
+    return "slow-total";
+  }
+  return "random-sample";
 }
 
 export function createFightTurnDbAttribution(now: () => number = hotPathNow) {

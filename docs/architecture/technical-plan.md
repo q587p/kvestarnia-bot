@@ -448,6 +448,17 @@ duplicate submission, due timeout or another worker can adopt exactly once;
 the local caller may return its accepted action state after bounded contention
 instead of waiting indefinitely or reporting a false stale turn.
 
+Generic navigation combat-lock routing resolves ownership from one narrow
+`activeCombatLease` read keyed by Telegram user, then loads only the exact
+`referenceId + characterId` owner for solo combat, turn-based duel, Party Boss
+or GroupCombat. It does not probe unrelated combat services in sequence. Solo
+Fight overview accepts that authoritative lease as input and therefore does not
+repeat the ownership read. Callback performance telemetry keeps the full
+handler `totalMs` but also records time through the first actor-visible
+presentation/acknowledgement as `interactiveMs` and the remaining handler work
+as `postPresentationMs`; those phases apply equally to solo, party and other
+callback routes without triggering additional participant delivery.
+
 The immutable production-v1 catalog freezes all 132 canonical authored monster
 abilities. GroupCombat derives deterministic target, damage, support and
 control behavior from their common ability recipes rather than maintaining a

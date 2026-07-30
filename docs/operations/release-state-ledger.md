@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-07-30)
+## Current repository baseline (repository evidence, 12026-07-31)
 
 The current branch prepares package `0.4.2`. Merge, deployment and target
 availability remain separate evidence.
@@ -42,6 +42,10 @@ Explicit refresh also persists a participant
 keyboard request before delivery; a busy/restarted claim stays in the bounded
 queue until the private keyboard is acknowledged. This remains automated
 repository evidence only until the final-head Telegram matrix is rerun.
+Generic navigation combat-lock recovery now reads one authoritative
+`activeCombatLease`, loads only that exact owner and reuses the same lease for
+solo overview. Privacy-safe callback evidence separates actor-visible latency
+from post-presentation work without increasing participant fan-out.
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

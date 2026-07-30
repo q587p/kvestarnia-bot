@@ -11,6 +11,7 @@ import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import { ClassNoncombatService } from "../services/classNoncombatService";
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
+import { CombatLeaseReadService } from "../services/combatLeaseReadService";
 import { DeployNotificationService } from "../services/deployNotificationService";
 import { DevGrantService } from "../services/devGrantService";
 import { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
@@ -163,6 +164,7 @@ export function createServices(
       achievements,
       repositories.equipment
     ),
+    combatLeases: new CombatLeaseReadService(repositories.combatLeaseReads),
     dailyKorchmaRound: new DailyKorchmaRoundService(
       repositories.characters,
       repositories.dailyActions,

@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.2] - 12026-07-30 - Left-Passage Party Attack
+## [0.4.2] - 12026-07-31 - Left-Passage Party Attack
 
 ### Added
 - Added the first production-capable `group-combat.v3` consumer for the exact hard `deep-left` pending encounter. The reserved preview remains the primary enemy while a typed `nyz-left-passage-party.v1` `PartySession` recruits an authoritative 1–3-person current-life roster. One enemy per participant is the base; frozen remort, canonical solo Низ pressure or a three-level advantage adds one backup per strong participant, capped at six deterministic enemies.
@@ -19,6 +19,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added one `🎒 Одноразові манатки` button and a filtered, non-consuming submenu to ordinary persistent fights, matching the compact GroupCombat item flow instead of expanding every item on the main keyboard.
 
 ### Fixed
+- Collapsed generic combat-lock routing onto one authoritative `activeCombatLease` read. The middleware dispatches only to the exact `referenceId + characterId` owner for solo combat, turn-based duel, Party Boss or GroupCombat instead of probing every combat service; solo overview reuses that lease without rereading ownership. Callback performance evidence now separates actor-visible `interactiveMs` from `postPresentationMs`, while retaining the full `totalMs`, so slow Telegram presentation and later handler work can be diagnosed independently across party and solo callbacks.
 - Routed the ordinary persistent-fight `🎒 Одноразові манатки` menu callback through the fight handler instead of letting the generic combat lock replace it with the current-fight redirect card. Opening the filtered submenu still consumes neither an item nor a turn.
 - Kept the exact left-passage preview eligible for party reservation even though opening it records the canonical `adventure.solo-fight` presence marker. Other adventures, raids and owned combat leases still block entry with a specific explanation. Join/start resource validation and exact settlement now use the participant's canonical effective level/equipment maxima instead of rejecting or truncating valid level-scaled HP/mana against raw base columns.
 - Separated runtime servicing from fresh entry. `LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false` blocks new invitations and starts by default while active combat timeout, repair, delivery and settlement continue; expired recruiting parties release their reservation even after the flag is turned off.
