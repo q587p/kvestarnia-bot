@@ -49,28 +49,22 @@ Rewards are not damage-weighted. The eight contribution dimensions are
 descriptive only: damage, healing, prevented damage, control, damage taken,
 committed/actions, special actions and guarded turns.
 
-## Supported monster-special contract
+## Monster-special contract
 
-Production `group-combat.v3` freezes only the following authored abilities:
+Production `group-combat.v3` freezes the complete canonical 132-ability monster
+catalog in its code-owned immutable production-v1 resolver. GroupCombat does
+not maintain a shorter feature-specific allowlist: every ability that can be
+selected by a canonical monster profile keeps its authored target scope,
+damage, healing, shield, buff, debuff, cooldown and once-per-fight evidence.
+This includes self and ally support, all-monster protection, all-player
+pressure and single-player attacks such as both `monster.ledger-charge` and
+`monster.ledger-audit`.
 
-- `monster.royal-scurry`: self-only evasion and damage-reduction buff;
-- `monster.cabbage-plate`: self heal and shield;
-- `monster.compound-interest`: self heal and outgoing-damage buff;
-- `monster.common-group-rally`, `monster.approved-dam` and
-  `monster.classified-rustle`: all-living-monster shields and/or defensive
-  buffs;
-- `monster.return-to-staff`: lowest-HP other-monster heal plus bleed cleanse,
-  or the authored self-shield fallback when no ally remains;
-- `monster.smoke-without-approval`: deterministic damage and accuracy penalty
-  against every living player;
-- `monster.preapproved-bite`: deterministic single-player damage and burn.
-
-Targets, healing, shields, buffs, debuffs, cooldowns and once-per-fight state
-keep their authored meaning. Unsupported authored abilities are not frozen and
-therefore resolve as a basic attack; they are never reinterpreted as direct
-player damage. A persisted production loadout containing an unsupported
-ability is rejected strictly instead of being replayed under different
-semantics.
+The common ability recipe determines which deterministic GroupCombat damage,
+support and control components apply. Unknown ids, malformed frozen
+definitions and persisted state that does not match the frozen effect values
+are rejected strictly instead of being replayed as a basic attack or under
+different semantics.
 
 Two player support profiles have an authored direct-damage component without
 an enemy target scope: `skill.strict-blessing` and
@@ -93,7 +87,8 @@ last-25-turn journal so serialized state stays bounded.
 six support profiles and 13/25-turn scenarios with deterministic replay, legal
 targets, committed-action accounting and authored cooldown reuse. Its maximum
 serialized proof state remained bounded. Production 1×1 through 3×6 coverage
-separately verifies the immutable scaling formula, supported ability filtering,
+separately verifies the immutable scaling formula, full canonical ability
+catalog parity,
 authored targets/effects, the two support-scope/direct-damage profiles,
 cooldown/fumble replay, cosmetic-title invariance, frozen loot-v1
 catalog/algorithm drift and strict restart validation.

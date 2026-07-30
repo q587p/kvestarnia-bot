@@ -85,6 +85,9 @@ const expansionSources = catalog.lootExpansion.sources as unknown as readonly Ex
 const defaultRarityWeights = catalog.lootExpansion
   .rarityWeightsDefault as unknown as Record<GroupCombatProductionV1Rarity, number>;
 const supportedAbilityIds = new Set(Object.keys(abilitiesById));
+export const GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS = Object.freeze(
+  [...supportedAbilityIds].sort()
+);
 
 const CLASS_ID_ALIASES: Readonly<Record<string, string>> = {
   warrior: "warrior",

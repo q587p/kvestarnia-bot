@@ -31,6 +31,9 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
 import { findMonsterBark } from "../../content/monsterBarks";
 import {
+  compileMonsterAbilityRecipe
+} from "../combat/monsterAbilityRuntime";
+import {
   findMonsterAbility,
   type MonsterAbilityDefinition
 } from "../../content/monsterAbilities";
@@ -233,6 +236,7 @@ const statusSchema = z.object({
     "bleed",
     "monster-accuracy-penalty",
     "monster-burn",
+    "monster-incoming-damage",
     "monster-damage-reduction",
     "monster-evasion",
     "monster-outgoing-damage"
@@ -282,6 +286,7 @@ const recapSchema = z.object({
         "bleed",
         "monster-accuracy-penalty",
         "monster-burn",
+        "monster-incoming-damage",
         "monster-damage-reduction",
         "monster-evasion",
         "monster-outgoing-damage"
@@ -963,22 +968,52 @@ function isCanonicalMonsterStatus(
   }
   const parameters = ability.parameters;
   if (status.kind === "monster-accuracy-penalty") {
-    return ability.id === "monster.smoke-without-approval" &&
-      status.value === Math.floor(Number(parameters.accuracyPenaltyPp ?? 0)) &&
+    const recipe = compileMonsterAbilityRecipe(ability);
+    const penalty = Math.max(
+      ability.id === "monster.smoke-without-approval"
+        ? numberParameter(parameters.accuracyPenaltyPp)
+        : 0,
+      numberParameter(parameters.targetAccuracyPenaltyPp),
+      numberParameter(parameters.accuracyAndEvasionPenaltyPp)
+    );
+    return (recipe.heroEffects.includes("accuracy") ||
+      ability.id === "monster.smoke-without-approval") &&
+      status.value === Math.floor(Math.min(35, penalty)) &&
       status.remainingTurns <= Math.floor(Number(parameters.durationTargetActivations ?? 1));
   }
   if (status.kind === "monster-burn") {
-    return ability.id === "monster.preapproved-bite" &&
+    const recipe = compileMonsterAbilityRecipe(ability);
+    const fraction = Math.max(
+      numberParameter(parameters.burnDamageMultiplier),
+      numberParameter(parameters.bleedDamageMultiplier)
+    );
+    return (recipe.heroEffects.includes("burn") || recipe.heroEffects.includes("bleed")) &&
       status.value === Math.max(
         1,
-        Math.floor(source.attack * Number(parameters.burnDamageMultiplier ?? 0))
+        Math.floor(source.attack * Math.min(0.35, fraction))
       ) &&
-      status.remainingTurns <= Math.floor(Number(parameters.burnTicks ?? 1));
+      status.remainingTurns <= Math.max(
+        1,
+        Math.floor(numberParameter(parameters.durationTargetActivations)),
+        Math.floor(numberParameter(parameters.burnTicks)),
+        Math.floor(numberParameter(parameters.bleedTicks))
+      );
+  }
+  if (status.kind === "monster-incoming-damage") {
+    const recipe = compileMonsterAbilityRecipe(ability);
+    return recipe.heroEffects.includes("mark") &&
+      status.value === Math.floor(
+        Math.min(1.75, numberParameter(parameters.markIncomingDamageMultiplier)) * 10_000
+      ) &&
+      status.remainingTurns <= Math.floor(
+        Number(parameters.durationTargetActivations ?? 1)
+      );
   }
   if (status.kind === "monster-outgoing-damage") {
-    return ability.id === "monster.compound-interest" &&
-      status.targetId === source.id &&
-      status.value === Math.floor(Number(parameters.outgoingDamageMultiplier ?? 1) * 10_000) &&
+    const recipe = compileMonsterAbilityRecipe(ability);
+    const outgoing = numberParameter(parameters.outgoingDamageMultiplier);
+    return recipe.monsterEffects.includes("outgoing-damage") &&
+      status.value === Math.floor(Math.min(1.35, outgoing) * 10_000) &&
       status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
   }
   if (status.kind === "monster-damage-reduction") {
@@ -987,8 +1022,8 @@ function isCanonicalMonsterStatus(
       parameters.selfDamageReduction ??
       0
     );
-    return reduction > 0 &&
-      (ability.id !== "monster.royal-scurry" || status.targetId === source.id) &&
+    return compileMonsterAbilityRecipe(ability).monsterEffects.includes("incoming-damage") &&
+      reduction > 0 &&
       status.value === Math.floor(reduction * 10_000) &&
       status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
   }
@@ -998,8 +1033,8 @@ function isCanonicalMonsterStatus(
       parameters.selfEvasionBonusPp ??
       0
     );
-    return evasion > 0 &&
-      (ability.id !== "monster.royal-scurry" || status.targetId === source.id) &&
+    return compileMonsterAbilityRecipe(ability).monsterEffects.includes("evasion") &&
+      evasion > 0 &&
       status.value === Math.floor(evasion) &&
       status.remainingTurns <= Math.floor(Number(parameters.durationOwnActivations ?? 1));
   }
@@ -1024,16 +1059,21 @@ function isCanonicalEnemyShield(
   ) {
     return false;
   }
-  const fraction = ability.id === "monster.return-to-staff"
-    ? Number(ability.parameters.soloFallbackShieldMaxHpFraction ?? 0)
-    : Number(ability.parameters.shieldMaxHpFraction ?? 0);
+  const fraction = Math.max(
+    numberParameter(ability.parameters.shieldMaxHpFraction),
+    numberParameter(ability.parameters.fallbackShieldMaxHpFraction),
+    numberParameter(ability.parameters.soloFallbackShieldMaxHpFraction)
+  );
+  const mayTargetAllies =
+    ability.targetScopes.includes("all-allies") ||
+    ability.targetScopes.includes("lowest-hp-ally");
   return fraction > 0 &&
-    (
-      ability.id === "monster.common-group-rally" ||
-      ability.id === "monster.approved-dam" ||
-      target.id === source.id
-    ) &&
+    (target.id === source.id || mayTargetAllies) &&
     shield.points <= Math.max(1, Math.floor(target.hpMax * Math.min(0.4, fraction)));
+}
+
+function numberParameter(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function findValidationMonsterAbility(

@@ -438,6 +438,12 @@ duplicate submission, due timeout or another worker can adopt exactly once;
 the local caller may return its accepted action state after bounded contention
 instead of waiting indefinitely or reporting a false stale turn.
 
+The immutable production-v1 catalog freezes all 132 canonical authored monster
+abilities. GroupCombat derives deterministic target, damage, support and
+control behavior from their common ability recipes rather than maintaining a
+separate short allowlist; unknown ids, malformed definitions and effect
+snapshots that disagree with the frozen catalog fail strict validation.
+
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
 

@@ -14,6 +14,8 @@ import {
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
+  GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
+  isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
   selectGroupCombatLootVersionOneCandidate,
@@ -27,12 +29,16 @@ import { items, monsters } from "../../src/content";
 import { monsterLoot } from "../../src/content/monsterFlavor";
 import { lootExpansionV1Data } from "../../src/content/lootExpansionV1Data";
 import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
+import { monsterAbilities } from "../../src/content/monsterAbilities";
 import {
   mantokAbilityGrantDefinitions,
   type MantokAbilityGrantDefinition
 } from "../../src/content/mantokAbilityGrants";
 import * as lootDomain from "../../src/domain/loot";
 import type { CombatSkillProfile } from "../../src/domain/combat";
+import {
+  GROUP_COMBAT_PRODUCTION_V1_CATALOG
+} from "../../src/domain/groupCombat/groupCombatProductionV1Catalog";
 import {
   deriveGroupCombatProductionV1MonsterStats,
   findGroupCombatProductionV1Monster,
@@ -948,6 +954,115 @@ describe("group combat proof reducer", () => {
     expect(parseGroupCombatStateStrict(resolved.state)).toEqual(resolved.state);
   });
 
+  it("uses both authored ledger-boar specials instead of stripping them from GroupCombat", () => {
+    expect(resolveGroupCombatProductionV1MonsterAbilities({
+      monsterId: "monster.ledger-boar",
+      effectiveLevel: 8
+    }).map((ability) => ability.id)).toEqual([
+      "monster.ledger-charge",
+      "monster.ledger-audit"
+    ]);
+
+    const chargeState = proofState(2);
+    chargeState.enemies[0]!.abilityIds = ["monster.ledger-charge"];
+    chargeState.enemies[1]!.hp = 0;
+    chargeState.participants[0]!.hp = chargeState.participants[0]!.hpMax = 93;
+    const charged = resolveGroupCombatTurn(chargeState, chargeState.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(chargeState, participant.characterId)
+    ));
+    expect(charged.state.recap[0]!.lines.join("\n")).toContain("🐗 Прибутково-видатковий таран");
+    expect(charged.state.enemyContributions?.[0]).toEqual(expect.objectContaining({
+      specialActions: 1
+    }));
+    expect(charged.state.enemyContributions?.[0]?.damage).toBeGreaterThan(0);
+
+    const auditState = proofState(2);
+    auditState.enemies[0]!.abilityIds = ["monster.ledger-audit"];
+    auditState.enemies[1]!.hp = 0;
+    auditState.participants[0]!.mana = 10;
+    auditState.participants[0]!.hp = auditState.participants[0]!.hpMax = 93;
+    const audited = resolveGroupCombatTurn(auditState, auditState.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(auditState, participant.characterId)
+    ));
+    expect(audited.state.participants[0]!.mana).toBe(9);
+    expect(audited.state.statuses).toContainEqual(expect.objectContaining({
+      kind: "monster-incoming-damage",
+      sourceAbilityId: "monster.ledger-audit",
+      targetId: auditState.participants[0]!.characterId,
+      value: 11_500,
+      remainingTurns: 2
+    }));
+    expect(audited.state.recap[0]!.lines.join("\n")).toContain("📒 Звірка копит");
+    expect(audited.state.enemyContributions?.[0]).toEqual(expect.objectContaining({
+      control: 1,
+      specialActions: 1
+    }));
+    expect(parseGroupCombatStateStrict(audited.state)).toEqual(audited.state);
+  });
+
+  it("admits every canonical authored monster ability instead of maintaining a short GroupCombat allowlist", () => {
+    expect(GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS).toHaveLength(monsterAbilities.length);
+    expect(new Set(GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS)).toEqual(
+      new Set(monsterAbilities.map((ability) => ability.id))
+    );
+    expect(Object.values(GROUP_COMBAT_PRODUCTION_V1_CATALOG.abilities)).toEqual(
+      monsterAbilities
+    );
+    expect(monsterAbilities.every((ability) =>
+      isSupportedGroupCombatMonsterAbility(ability.id)
+    )).toBe(true);
+
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.sauce-spit"];
+    state.enemies[1]!.hp = 0;
+    state.participants.forEach((participant) => {
+      participant.hp = participant.hpMax = 93;
+    });
+    const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
+      buildGroupCombatTimeoutAction(state, participant.characterId)
+    ));
+
+    expect(resolved.state.recap[0]!.lines.join("\n")).toContain("🌯 Соусний плювок");
+    expect(resolved.state.enemyContributions?.[0]?.specialActions).toBe(1);
+    expect(resolved.state.enemyContributions?.[0]?.damage).toBeGreaterThan(0);
+  });
+
+  it("executes every canonical authored monster ability as a named special", () => {
+    for (const ability of monsterAbilities) {
+      const state = proofState(2);
+      state.enemies[0]!.abilityIds = [ability.id];
+      state.enemies[0]!.hp = Math.max(1, Math.floor(state.enemies[0]!.hpMax / 2));
+      state.enemies[1]!.hp = Math.max(1, Math.floor(state.enemies[1]!.hpMax / 2));
+      state.participants.forEach((participant) => {
+        participant.hpMax = 186;
+        participant.hp = 93;
+        participant.manaMax = 186;
+        participant.mana = 93;
+      });
+      const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(state, participant.characterId)
+      ));
+
+      expect(
+        resolved.state.enemyContributions?.[0]?.specialActions,
+        ability.id
+      ).toBe(1);
+      expect(
+        resolved.state.recap[0]!.lines.join("\n"),
+        ability.id
+      ).toContain(ability.label);
+      let parsed;
+      try {
+        parsed = parseGroupCombatStateStrict(resolved.state);
+      } catch (error) {
+        throw new Error(
+          `${ability.id}: ${String(error)}; statuses=${JSON.stringify(resolved.state.statuses)}`
+        );
+      }
+      expect(parsed, ability.id).toEqual(resolved.state);
+    }
+  });
+
   it("preserves self-only defense without turning it into player damage", () => {
     const state = proofState(2);
     state.enemies[0]!.abilityIds = ["monster.royal-scurry"];
@@ -1026,7 +1141,7 @@ describe("group combat proof reducer", () => {
     );
   });
 
-  it("falls back to a basic attack for an unsupported authored status ability", () => {
+  it("executes a formerly filtered authored status ability as a special", () => {
     const state = proofState(2);
     state.enemies[0]!.abilityIds = ["monster.asset-freeze"];
     const resolved = resolveGroupCombatTurn(state, state.participants.map((participant) =>
@@ -1035,10 +1150,11 @@ describe("group combat proof reducer", () => {
 
     expect(resolved.state.enemyContributions?.[0]).toEqual(expect.objectContaining({
       actions: 1,
-      specialActions: 0
+      specialActions: 1
     }));
-    expect(resolved.state.enemies[0]!.abilityCooldowns).toBeUndefined();
-    expect(resolved.state.recap[0]!.lines.join("\n")).not.toContain("Заморозити активи");
+    expect(resolved.state.enemies[0]!.abilityCooldowns?.["monster.asset-freeze"])
+      .toEqual(expect.objectContaining({ remainingTurns: 4 }));
+    expect(resolved.state.recap[0]!.lines.join("\n")).toContain("Заморозити активи");
   });
 
   it("heals self and allies and buffs all monsters with exact supported scopes", () => {

@@ -486,6 +486,7 @@ function presentEffectLines(
       | "bleed"
       | "monster-accuracy-penalty"
       | "monster-burn"
+      | "monster-incoming-damage"
       | "monster-damage-reduction"
       | "monster-evasion"
       | "monster-outgoing-damage";
@@ -516,11 +517,13 @@ function presentEffectLines(
               ? "🌫️ збита влучність"
               : effect.kind === "monster-burn"
                 ? "🔥 горіння"
-                : effect.kind === "monster-damage-reduction"
-                  ? "🧱 укріплення"
-                  : effect.kind === "monster-evasion"
-                    ? "🪽 ухилення"
-                    : "📈 посилена шкода";
+                : effect.kind === "monster-incoming-damage"
+                  ? "📒 звірено шкоду"
+                  : effect.kind === "monster-damage-reduction"
+                    ? "🧱 укріплення"
+                    : effect.kind === "monster-evasion"
+                      ? "🪽 ухилення"
+                      : "📈 посилена шкода";
     return `${label} · ${escapeHtml(target ?? effect.targetId)}: ще ${formatTurns(effect.remainingTurns)}.`;
   });
 }

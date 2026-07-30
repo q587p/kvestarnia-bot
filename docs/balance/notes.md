@@ -94,24 +94,13 @@ If nobody remains, the encounter is a loss. Timeout-generated guards never
 attempt escape. Chronicle related-character ids and participant count include
 only the eligible manual roster, never escapees or timeout-only passengers.
 
-Monster specials are allowlisted only when GroupCombat implements the authored
-target and effect exactly:
-
-- `royal-scurry`: self evasion plus self damage reduction;
-- `cabbage-plate`: self heal plus self shield;
-- `compound-interest`: self heal plus temporary outgoing-damage buff;
-- `common-group-rally`: shields and damage reduction for all living monsters;
-- `approved-dam`: stronger shields and damage reduction for all living monsters;
-- `classified-rustle`: evasion and damage reduction for all living monsters;
-- `return-to-staff`: heal and cleanse the lowest-HP living ally, or use the
-  authored solo self-shield fallback;
-- `smoke-without-approval`: damage and accuracy penalty to every living player;
-- `preapproved-bite`: damage and burn to one player.
-
-Every other authored monster ability is excluded from the frozen loadout and
-uses a basic attack. A persisted production loadout containing an unsupported
-ID is rejected strictly; no self-only, setup, sustain or non-damaging effect is
-converted into player damage.
+GroupCombat freezes the complete canonical 132-ability monster catalog in the
+production-v1 resolver. It has no separate short allowlist: canonical
+self-only, setup, sustain, direct-damage and control abilities retain their
+authored target scope and deterministic recipe components, including both
+ledger-boar specials. Unknown ids, malformed definitions and effect values
+that do not match the frozen catalog fail strict validation rather than
+silently becoming a basic attack or unrelated player damage.
 
 The explicit player-side support/direct-damage exceptions are
 `skill.strict-blessing` and `gear.asclepius-instruction`: ally healing and

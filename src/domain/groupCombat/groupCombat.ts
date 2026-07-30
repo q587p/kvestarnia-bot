@@ -23,7 +23,10 @@ import {
 import { monsters } from "../../content/monsters";
 import { rollFleeSuccess, rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
-import { monsterAbilityAsCombatSkill } from "../combat/monsterAbilityRuntime";
+import {
+  compileMonsterAbilityRecipe,
+  monsterAbilityAsCombatSkill
+} from "../combat/monsterAbilityRuntime";
 import { SeededRandomSource } from "../../shared/random";
 import {
   buildBaselinePersistentFightWinXp,
@@ -37,6 +40,7 @@ import {
   deriveGroupCombatProductionV1MonsterStats,
   findGroupCombatProductionV1Monster,
   getGroupCombatProductionV1LootCandidates,
+  GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS,
   resolveGroupCombatProductionV1MonsterAbilities,
   type GroupCombatProductionV1LootCandidate,
   type GroupCombatProductionV1Rarity
@@ -63,17 +67,8 @@ export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
   "item.dense-bandage",
   "item.field-kit"
 ] as const;
-export const GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS = [
-  "monster.royal-scurry",
-  "monster.smoke-without-approval",
-  "monster.preapproved-bite",
-  "monster.cabbage-plate",
-  "monster.compound-interest",
-  "monster.common-group-rally",
-  "monster.approved-dam",
-  "monster.classified-rustle",
-  "monster.return-to-staff"
-] as const;
+export const GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS =
+  GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS;
 export const GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS = [
   "skill.strict-blessing",
   "gear.asclepius-instruction"
@@ -92,6 +87,7 @@ export type GroupCombatStatusKind =
   | "bleed"
   | "monster-accuracy-penalty"
   | "monster-burn"
+  | "monster-incoming-damage"
   | "monster-damage-reduction"
   | "monster-evasion"
   | "monster-outgoing-damage";
@@ -934,7 +930,8 @@ export function resolveGroupCombatTurn(
       status.kind === "bleed" ||
       status.targetKind === "enemy" ||
       status.kind === "monster-accuracy-penalty" ||
-      status.kind === "monster-burn"
+      status.kind === "monster-burn" ||
+      status.kind === "monster-incoming-damage"
         ? status
         : { ...status, remainingTurns: status.remainingTurns - 1 }
     )
@@ -1105,10 +1102,10 @@ export function buildGroupCombatFleeExitReceipt(
 
 export function isSupportedGroupCombatMonsterAbility(
   abilityId: string | undefined
-): abilityId is (typeof GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS)[number] {
+): abilityId is string {
   return Boolean(
     abilityId &&
-    (GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS as readonly string[]).includes(abilityId)
+    GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS.includes(abilityId)
   );
 }
 
@@ -1609,6 +1606,11 @@ function applyGroupCombatEnemyDamage(
 ): number {
     const targetContribution = getContribution(state, target.characterId);
     let damage = Math.max(0, rawDamage);
+    damage = Math.floor(
+      damage *
+      multiplyGroupCombatStatusValues(state, target.characterId, "monster-incoming-damage") /
+      10_000
+    );
     const protections = state.statuses
       .filter((status) =>
         status.targetKind === "participant" &&
@@ -1849,6 +1851,55 @@ function executeGroupCombatEnemyAbility(
     );
     return true;
   }
+  if (ability.id === "monster.ledger-charge") {
+    const target = chooseEnemyTarget(state);
+    if (!target) {
+      return false;
+    }
+    const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    contribution.damage += damage;
+    lines.push(
+      damage > 0
+        ? `${enemy.name} застосовує ${ability.label} проти ${target.name}: ${damage} шкоди.`
+        : `${enemy.name} застосовує ${ability.label}, але ${target.name} уникає шкоди.`
+    );
+    return true;
+  }
+  if (ability.id === "monster.ledger-audit") {
+    const target = chooseEnemyTarget(state);
+    if (!target) {
+      return false;
+    }
+    const manaDrain = Math.min(
+      target.mana,
+      Math.max(0, Math.floor(Number(ability.parameters.manaDrain ?? 0)))
+    );
+    target.mana -= manaDrain;
+    const duration = positiveInteger(
+      Number(ability.parameters.durationTargetActivations ?? 1)
+    );
+    addOrRefreshMonsterStatus(state, {
+      id: `${state.turn}:${enemy.id}:${target.characterId}:incoming-damage`,
+      kind: "monster-incoming-damage",
+      sourceEnemyId: enemy.id,
+      sourceAbilityId: ability.id,
+      targetKind: "participant",
+      targetId: target.characterId,
+      value: Math.floor(
+        Number(ability.parameters.markIncomingDamageMultiplier ?? 1) * 10_000
+      ),
+      remainingTurns: duration,
+      appliedTurn: state.turn
+    });
+    contribution.control += 1;
+    lines.push(
+      `${enemy.name} застосовує ${ability.label} проти ${target.name}: ` +
+      `${manaDrain > 0 ? `мана -${manaDrain}; ` : ""}` +
+      `отримана шкода посилена на ${duration} дії.`
+    );
+    return true;
+  }
   if (ability.id === "monster.royal-scurry") {
     applyEnemyDefenseEffects(state, enemy, enemy, ability);
     contribution.guardedTurns += 1;
@@ -1921,7 +1972,289 @@ function executeGroupCombatEnemyAbility(
     lines.push(`${enemy.name} застосовує ${ability.label} до ${ally.name}: +${healed} HP.`);
     return true;
   }
-  return false;
+  return executeGenericGroupCombatEnemyAbility(state, enemy, ability, lines);
+}
+
+function executeGenericGroupCombatEnemyAbility(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition,
+  lines: string[]
+): boolean {
+  const recipe = compileMonsterAbilityRecipe(ability);
+  const contribution = getEnemyContribution(state, enemy.id);
+  const participantTargets = resolveMonsterAbilityParticipantTargets(state, ability);
+  const enemyTargets = resolveMonsterAbilityEnemyTargets(state, enemy, ability);
+  const effects: string[] = [];
+  let applied = false;
+
+  if (recipe.directDamage && participantTargets.length > 0) {
+    let totalDamage = 0;
+    for (const target of participantTargets) {
+      const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
+      totalDamage += applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    }
+    contribution.damage += totalDamage;
+    effects.push(
+      participantTargets.length > 1
+        ? `${totalDamage} шкоди всій ватазі`
+        : `${totalDamage} шкоди ${participantTargets[0]!.name}`
+    );
+    applied = true;
+  }
+
+  const manaDrain = Math.max(0, Math.floor(abilityNumber(ability, "manaDrain")));
+  if (manaDrain > 0) {
+    let drained = 0;
+    for (const target of participantTargets) {
+      const amount = Math.min(target.mana, manaDrain);
+      target.mana -= amount;
+      drained += amount;
+    }
+    if (drained > 0) {
+      effects.push(`мана -${drained}`);
+      contribution.control += participantTargets.length;
+      applied = true;
+    }
+  }
+
+  const markMultiplier = abilityNumber(ability, "markIncomingDamageMultiplier");
+  if (markMultiplier > 1) {
+    const duration = monsterAbilityTargetDuration(ability);
+    for (const target of participantTargets) {
+      addOrRefreshMonsterStatus(state, {
+        id: `${state.turn}:${enemy.id}:${target.characterId}:incoming-damage`,
+        kind: "monster-incoming-damage",
+        sourceEnemyId: enemy.id,
+        sourceAbilityId: ability.id,
+        targetKind: "participant",
+        targetId: target.characterId,
+        value: Math.floor(Math.min(1.75, markMultiplier) * 10_000),
+        remainingTurns: duration,
+        appliedTurn: state.turn
+      });
+    }
+    effects.push("наступна отримана шкода посилена");
+    contribution.control += participantTargets.length;
+    applied = true;
+  }
+
+  const accuracyPenalty = Math.max(
+    abilityNumber(ability, "targetAccuracyPenaltyPp"),
+    abilityNumber(ability, "accuracyAndEvasionPenaltyPp")
+  );
+  if (recipe.heroEffects.includes("accuracy") && accuracyPenalty > 0) {
+    const duration = monsterAbilityTargetDuration(ability);
+    for (const target of participantTargets) {
+      addOrRefreshMonsterStatus(state, {
+        id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
+        kind: "monster-accuracy-penalty",
+        sourceEnemyId: enemy.id,
+        sourceAbilityId: ability.id,
+        targetKind: "participant",
+        targetId: target.characterId,
+        value: Math.floor(Math.min(35, accuracyPenalty)),
+        remainingTurns: duration,
+        appliedTurn: state.turn
+      });
+    }
+    effects.push("влучність ватаги послаблена");
+    contribution.control += participantTargets.length;
+    applied = true;
+  }
+
+  const ongoingDamageFraction = Math.max(
+    abilityNumber(ability, "burnDamageMultiplier"),
+    abilityNumber(ability, "bleedDamageMultiplier")
+  );
+  if (ongoingDamageFraction > 0) {
+    const duration = Math.max(
+      monsterAbilityTargetDuration(ability),
+      Math.floor(abilityNumber(ability, "burnTicks")),
+      Math.floor(abilityNumber(ability, "bleedTicks"))
+    );
+    for (const target of participantTargets) {
+      addOrRefreshMonsterStatus(state, {
+        id: `${state.turn}:${enemy.id}:${target.characterId}:ongoing-damage`,
+        kind: "monster-burn",
+        sourceEnemyId: enemy.id,
+        sourceAbilityId: ability.id,
+        targetKind: "participant",
+        targetId: target.characterId,
+        value: Math.max(1, Math.floor(enemy.attack * Math.min(0.35, ongoingDamageFraction))),
+        remainingTurns: duration,
+        appliedTurn: state.turn
+      });
+    }
+    effects.push("тривала шкода");
+    contribution.control += participantTargets.length;
+    applied = true;
+  }
+
+  const healFraction = Math.max(
+    abilityNumber(ability, "selfHealMaxHpFraction"),
+    abilityNumber(ability, "healTargetMaxHpFraction")
+  );
+  if (healFraction > 0) {
+    let healed = 0;
+    for (const target of enemyTargets) {
+      healed += healEnemy(
+        target,
+        Math.max(1, Math.floor(target.hpMax * Math.min(0.4, healFraction)))
+      );
+    }
+    if (healed > 0) {
+      contribution.healing += healed;
+      effects.push(`монстри відновили ${healed} HP`);
+      applied = true;
+    }
+  }
+
+  const shieldFraction = Math.max(
+    abilityNumber(ability, "shieldMaxHpFraction"),
+    abilityNumber(ability, "fallbackShieldMaxHpFraction"),
+    abilityNumber(ability, "soloFallbackShieldMaxHpFraction")
+  );
+  if (shieldFraction > 0) {
+    for (const target of enemyTargets) {
+      applyEnemyShield(state, enemy, target, ability, shieldFraction);
+    }
+    effects.push(enemyTargets.length > 1 ? "щит усім монстрам" : "щит");
+    applied = true;
+  }
+
+  const reduction = Math.max(
+    abilityNumber(ability, "damageReduction"),
+    abilityNumber(ability, "selfDamageReduction")
+  );
+  const evasion = Math.max(
+    abilityNumber(ability, "evasionBonusPp"),
+    abilityNumber(ability, "selfEvasionBonusPp")
+  );
+  if (reduction > 0 || evasion > 0) {
+    for (const target of enemyTargets) {
+      applyEnemyDefenseEffects(state, enemy, target, ability);
+    }
+    effects.push("захист монстрів посилено");
+    applied = true;
+  }
+
+  const outgoing = abilityNumber(ability, "outgoingDamageMultiplier");
+  if (outgoing > 1) {
+    for (const target of enemyTargets) {
+      addEnemyBuffStatus(
+        state,
+        enemy,
+        target,
+        ability.id,
+        "monster-outgoing-damage",
+        Math.floor(Math.min(1.35, outgoing) * 10_000),
+        monsterAbilityOwnDuration(ability)
+      );
+    }
+    effects.push("відповідь монстрів посилено");
+    applied = true;
+  }
+
+  if (ability.parameters.cleanseNegativeEffects) {
+    const targetIds = new Set(enemyTargets.map((target) => target.id));
+    const before = state.statuses.length;
+    state.statuses = state.statuses.filter((status) =>
+      !(status.targetKind === "enemy" && targetIds.has(status.targetId) && status.kind === "bleed")
+    );
+    if (state.statuses.length < before) {
+      effects.push("послаблення знято");
+      contribution.control += before - state.statuses.length;
+      applied = true;
+    }
+  }
+
+  if (ability.parameters.removePositiveEffects) {
+    const targetIds = new Set(participantTargets.map((target) => target.characterId));
+    const before = state.statuses.length;
+    state.statuses = state.statuses.filter((status) =>
+      !(
+        status.targetKind === "participant" &&
+        targetIds.has(status.targetId) &&
+        (status.kind === "guard" || status.kind === "response-mitigation" || status.kind === "counter")
+      )
+    );
+    if (state.statuses.length < before) {
+      effects.push("захист ватаги збито");
+      contribution.control += before - state.statuses.length;
+      applied = true;
+    }
+  }
+
+  const otherControl =
+    recipe.heroEffects.length > 0 ||
+    recipe.monsterEffects.length > 0 ||
+    recipe.immediate.cooldownPressure ||
+    recipe.immediate.reapplyExpired;
+  if (!applied && otherControl) {
+    effects.push("бойовий ефект накладено");
+    contribution.control += Math.max(1, participantTargets.length);
+    applied = true;
+  }
+
+  if (!applied) {
+    return false;
+  }
+  lines.push(
+    `${enemy.name} застосовує ${ability.label}` +
+    `${effects.length > 0 ? `: ${effects.join("; ")}` : ""}.`
+  );
+  return true;
+}
+
+function resolveMonsterAbilityParticipantTargets(
+  state: GroupCombatState,
+  ability: MonsterAbilityDefinition
+): GroupCombatActorSnapshot[] {
+  const living = livingParticipants(state);
+  if (ability.targetScopes.includes("all-enemies")) {
+    return living;
+  }
+  if (ability.targetScopes.includes("lowest-hp-enemy")) {
+    return living.length > 0
+      ? [living.reduce((lowest, candidate) =>
+          compareHpRatio(candidate, lowest, "rosterOrder") < 0 ? candidate : lowest
+        )]
+      : [];
+  }
+  const target = chooseEnemyTarget(state);
+  return target ? [target] : [];
+}
+
+function resolveMonsterAbilityEnemyTargets(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition
+): GroupCombatEnemyState[] {
+  if (ability.targetScopes.includes("all-allies")) {
+    return livingEnemies(state);
+  }
+  if (ability.targetScopes.includes("lowest-hp-ally")) {
+    const ally = lowestHpEnemyAlly(state, enemy.id);
+    return [ally ?? enemy];
+  }
+  return [enemy];
+}
+
+function abilityNumber(
+  ability: MonsterAbilityDefinition,
+  key: keyof MonsterAbilityDefinition["parameters"]
+): number {
+  const value = ability.parameters[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function monsterAbilityTargetDuration(ability: MonsterAbilityDefinition): number {
+  return positiveInteger(abilityNumber(ability, "durationTargetActivations") || 1);
+}
+
+function monsterAbilityOwnDuration(ability: MonsterAbilityDefinition): number {
+  return positiveInteger(abilityNumber(ability, "durationOwnActivations") || 1);
 }
 
 function rollGroupCombatEnemyAbilityDamage(
@@ -1984,7 +2317,9 @@ function canUseGroupCombatEnemyAbility(
 ): boolean {
   if (
     ability.id === "monster.smoke-without-approval" ||
-    ability.id === "monster.preapproved-bite"
+    ability.id === "monster.preapproved-bite" ||
+    ability.id === "monster.ledger-charge" ||
+    ability.id === "monster.ledger-audit"
   ) {
     return livingParticipants(state).length > 0;
   }
@@ -2014,7 +2349,13 @@ function canUseGroupCombatEnemyAbility(
           )
       : (enemy.shield?.points ?? 0) <= 0;
   }
-  return false;
+  const recipe = compileMonsterAbilityRecipe(ability);
+  return livingParticipants(state).length > 0 && (
+    recipe.directDamage ||
+    recipe.heroEffects.length > 0 ||
+    recipe.monsterEffects.length > 0 ||
+    Object.values(recipe.immediate).some(Boolean)
+  );
 }
 
 function livingParticipants(state: GroupCombatState): GroupCombatActorSnapshot[] {
@@ -2211,7 +2552,11 @@ function tickParticipantMonsterEffects(
     .map((status) =>
       status.targetKind === "participant" &&
       status.targetId === characterId &&
-      (status.kind === "monster-accuracy-penalty" || status.kind === "monster-burn")
+      (
+        status.kind === "monster-accuracy-penalty" ||
+        status.kind === "monster-burn" ||
+        status.kind === "monster-incoming-damage"
+      )
         ? { ...status, remainingTurns: status.remainingTurns - 1 }
         : status
     )
