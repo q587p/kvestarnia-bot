@@ -217,13 +217,17 @@ describe("group combat timeout scheduler", () => {
 
     await expect(scheduler.tick()).resolves.toBe(1);
     expect(startDueLeftPassage).toHaveBeenCalledWith(session.partyInviteToken);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(String(sendMessage.mock.calls[0]?.[1])).not.toContain("<b>Хто проти кого:</b>");
-    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2]?.reply_markup))
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1]))
+      .toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(sendMessage.mock.calls[0]?.[2]).not.toHaveProperty("reply_markup");
+    expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
       .toContain("\"keyboard\"");
     expect(editMessageText).toHaveBeenCalledTimes(2);
-    expect(String(editMessageText.mock.calls[0]?.[2])).toContain("Бій починається. Корчма відкриває журнал ходів");
-    expect(String(editMessageText.mock.calls[1]?.[2])).not.toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(String(editMessageText.mock.calls[0]?.[2]))
+      .toBe("♻️ Цю бойову картку замінено актуальною нижче.");
+    expect(String(editMessageText.mock.calls[1]?.[2])).toContain("<b>Бій</b>:");
   });
 
   it("waits for an in-flight pass during shutdown", async () => {

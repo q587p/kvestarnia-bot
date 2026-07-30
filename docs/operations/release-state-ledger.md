@@ -46,6 +46,12 @@ Generic navigation combat-lock recovery now reads one authoritative
 `activeCombatLease`, loads only that exact owner and reuses the same lease for
 solo overview. Privacy-safe callback evidence separates actor-visible latency
 from post-presentation work without increasing participant fan-out.
+The production opening message no longer mutates the canonical participant
+reference, closing the initial-delivery/scheduler orphan race. Unchanged active
+redraws omit inline reply markup and preserve the existing persistent keyboard
+without another participant send; changed controls and explicit refresh still
+use one fresh keyboard-card. This remains automated evidence until final-head
+three-account Telegram QA.
 
 Replace `unknown` with evidence; do not replace it with an assumption.
 

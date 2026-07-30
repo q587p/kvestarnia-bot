@@ -65,7 +65,7 @@ export type GroupCombatParticipantDeliveryResult =
 
 export async function deliverGroupCombatStartIntro(
   api: Api,
-  service: GroupCombatService,
+  _service: GroupCombatService,
   session: GroupCombatSessionRecord
 ): Promise<number> {
   if (
@@ -78,40 +78,8 @@ export async function deliverGroupCombatStartIntro(
   }
   const text = presentGroupCombatIntro(session);
   const results = await Promise.allSettled(session.participants.map(async (participant) => {
-    const reference = privateReference(participant);
-    if (!reference) {
-      await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
-      return true;
-    }
-    try {
-      await api.editMessageText(Number(reference.chatId), reference.messageId, text, {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: { inline_keyboard: [] }
-      });
-    } catch (error) {
-      if (!isMessageUnavailableForEditError(error)) {
-        return false;
-      }
-      const releasedUnavailable = await service.releaseParticipantCard({
-        sessionId: session.id,
-        telegramUserId: participant.telegramUserId,
-        expectedReferenceVersion: participant.referenceVersion,
-        chatId: reference.chatId,
-        messageId: reference.messageId
-      });
-      if (!releasedUnavailable) {
-        return false;
-      }
-      await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
-      return true;
-    }
-    return service.releaseParticipantCard({
-      sessionId: session.id,
-      telegramUserId: participant.telegramUserId,
-      expectedReferenceVersion: participant.referenceVersion,
-      chatId: reference.chatId,
-      messageId: reference.messageId
-    });
+    await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
+    return true;
   }));
   return results.filter((result) => result.status === "fulfilled" && result.value).length;
 }
@@ -615,10 +583,14 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         : {})
     });
     if (isDelivered(result)) {
-      participant.replyKeyboardFingerprint = fingerprint;
-      participant.replyKeyboardGeneration =
-        (participant.replyKeyboardGeneration ?? 0) +
-        (publishReplyKeyboard ? 1 : 0);
+      if (
+        publishReplyKeyboard &&
+        participant.replyKeyboardFingerprint !== fingerprint
+      ) {
+        participant.replyKeyboardFingerprint = fingerprint;
+        participant.replyKeyboardGeneration =
+          (participant.replyKeyboardGeneration ?? 0) + 1;
+      }
     }
     return result;
   }
@@ -774,6 +746,9 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 
   let reference = privateReference(participant);
   const replacedReference = input.forceReplacement === true ? reference : null;
+  const replacedReferenceWasDelivered = Boolean(
+    replacedReference && participant.deliveredRevision > 0
+  );
   if (
     reference &&
     input.forceReplacement === true &&
@@ -817,7 +792,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: input.replyKeyboard
         }
-      : { ...candidateCard.options, reply_markup: { inline_keyboard: [] } }
+      : candidateCard.options
   );
   if (!candidateMessageId) {
     return { state: "send-failed", reference: null };
@@ -878,7 +853,11 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
     return { state: "candidate-lost", reference: canonicalReference };
   }
   const previousState = replacedReference && !sameReference(replacedReference, candidate)
-    ? await makePreviousReferenceInert(input.transport, replacedReference)
+    ? await makePreviousReferenceInert(
+        input.transport,
+        replacedReference,
+        fresh.status !== "active" || !replacedReferenceWasDelivered
+      )
     : "missing";
   if (previousState === "failed" && replacedReference) {
     return restorePreviousReference(input, freshParticipant, candidate, replacedReference);
@@ -938,13 +917,20 @@ function exitDeliveryStateOf(
 
 async function makePreviousReferenceInert(
   transport: GroupCombatDeliveryTransport,
-  reference: GroupCombatMessageReference
+  reference: GroupCombatMessageReference,
+  clearInlineKeyboard = true
 ): Promise<"inert" | "missing" | "failed"> {
   try {
-    await transport.editMessage(reference, SUPERSEDED_CANDIDATE_TEXT, {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: { inline_keyboard: [] }
-    });
+    await transport.editMessage(
+      reference,
+      SUPERSEDED_CANDIDATE_TEXT,
+      clearInlineKeyboard
+        ? {
+            ...HTML_MESSAGE_OPTIONS,
+            reply_markup: { inline_keyboard: [] }
+          }
+        : HTML_MESSAGE_OPTIONS
+    );
     return "inert";
   } catch (error) {
     if (isMessageNotModifiedError(error)) {
@@ -1094,12 +1080,12 @@ function sameReference(left: GroupCombatMessageReference, right: GroupCombatMess
 }
 
 function buildCard(session: GroupCombatSessionRecord, participantCharacterId: string, now: Date) {
+  const keyboard = buildGroupCombatKeyboard(session, participantCharacterId);
   return {
     text: presentGroupCombat(session, participantCharacterId, now),
-    options: {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildGroupCombatKeyboard(session, participantCharacterId)
-    }
+    options: session.status === "active" && keyboard.inline_keyboard.length === 0
+      ? { ...HTML_MESSAGE_OPTIONS }
+      : { ...HTML_MESSAGE_OPTIONS, reply_markup: keyboard }
   };
 }
 

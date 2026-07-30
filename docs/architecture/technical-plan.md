@@ -417,6 +417,14 @@ compact the previous canonical message before the best-effort delete, so delete
 refusal cannot preserve a second full battle card or terminal result beside the
 winner. A failed fresh terminal send restores the prior result. A
 supergroup/no-keyboard delivery acknowledges only the card.
+The production intro is an independent send and never rewrites or releases the
+canonical participant reference. This removes the start/scheduler race where
+intro cleanup could orphan a card already adopted by active delivery. Active
+cards have no inline controls, so unchanged card edits and compaction of an
+already-delivered active reference omit `reply_markup` instead of submitting an
+empty inline keyboard that can hide the persistent reply keyboard. The
+fingerprint therefore still avoids unchanged party-wide sends; changed controls
+or explicit private recovery publish one fresh keyboard-card.
 An explicitly fresh private actor card requested by combat-lock recovery,
 refresh or a handled reply action attaches the current reply keyboard even when
 the stored fingerprint already matches. Explicit `🔎 Оновити` first clears that

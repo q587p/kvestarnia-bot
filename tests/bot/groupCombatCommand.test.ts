@@ -631,16 +631,21 @@ describe("group combat bot flow", () => {
     );
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("<b>Бій</b>:");
-    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("<b>Бій</b>:");
-    expect(sendMessage.mock.calls.every((call) =>
+    expect(sendMessage).toHaveBeenCalledTimes(4);
+    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
+      String(call[1]).includes("Бій починається. Корчма відкриває журнал ходів") &&
+      !(call[2] as { reply_markup?: unknown } | undefined)?.reply_markup
+    )).toBe(true);
+    expect(sendMessage.mock.calls.slice(2).every((call) =>
+      String(call[1]).includes("<b>Бій</b>:") &&
       Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
     )).toBe(true);
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
-    expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(2);
-    expect(editedTexts.filter((text) => text.includes("<i>Порада дня:"))).toHaveLength(2);
+    expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);
+    expect(editedTexts.filter((text) =>
+      text === "♻️ Цю бойову картку замінено актуальною нижче."
+    )).toHaveLength(2);
     expect(editedTexts.filter((text) => text.includes("⚔️ <b>Бій</b>:"))).toHaveLength(2);
   });
 
@@ -1004,13 +1009,13 @@ describe("group combat bot flow", () => {
       1001,
       21,
       expect.any(String),
-      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+      { parse_mode: "HTML" }
     );
     expect(editMessageText).toHaveBeenNthCalledWith(2, 1001, 31, expect.any(String), expect.any(Object));
     const activatedOptions = editMessageText.mock.calls[1]?.[3] as {
       reply_markup?: { inline_keyboard?: unknown[] };
     } | undefined;
-    expect(activatedOptions?.reply_markup?.inline_keyboard).toEqual([]);
+    expect(activatedOptions?.reply_markup).toBeUndefined();
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,

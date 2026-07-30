@@ -194,6 +194,12 @@ describe("group combat presenter", () => {
 
     viewer.mana = 1;
     expect(labels()).toContain("📝 Правка на полях");
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    )).toContainEqual([
+      "📝 Правка на полях",
+      "🛡️ Захиститися"
+    ]);
 
     viewer.hp = 0;
     expect(labels()).toEqual(["🔎 Оновити"]);

@@ -79,8 +79,8 @@ describe("group-combat lock middleware", () => {
     expect(calls.sends[0]?.text).toContain("<b>Бій</b>");
     expect(readReplyKeyboard(calls.sends[0]?.replyMarkup)).toBeDefined();
     expect(calls.edits).toEqual([
-      expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: { inline_keyboard: [] } }),
-      expect.objectContaining({ chatId: 1001, messageId: 93 })
+      expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: undefined }),
+      expect.objectContaining({ chatId: 1001, messageId: 93, replyMarkup: undefined })
     ]);
     expect(calls.deletes).toEqual([{ chatId: 1001, messageId: 21 }]);
     expect(markParticipantCardDelivered).toHaveBeenCalledWith(expect.objectContaining({

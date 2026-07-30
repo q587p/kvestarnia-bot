@@ -43,26 +43,35 @@ export function buildGroupCombatReplyKeyboard(
       .persistent()
       .placeholder("Стежимо за боєм");
   }
-  const keyboard = new Keyboard().text(groupCombatReplyButtons.attack);
+  const keyboard = new Keyboard();
+  let buttonsInRow = 0;
+  const addButton = (label: string): void => {
+    keyboard.text(label);
+    buttonsInRow += 1;
+    if (buttonsInRow === 2) {
+      keyboard.row();
+      buttonsInRow = 0;
+    }
+  };
+  addButton(groupCombatReplyButtons.attack);
   const abilityLabels = session && viewerCharacterId
     ? listGroupCombatReplyAbilities(session, viewerCharacterId).map(({ label }) => label)
     : [];
   for (const label of abilityLabels) {
-    keyboard.text(label).row();
+    addButton(label);
   }
-  if (abilityLabels.length === 0) {
-    keyboard.row();
-  }
-  keyboard.text(groupCombatReplyButtons.guard);
+  addButton(groupCombatReplyButtons.guard);
   if (
     session &&
     viewerCharacterId &&
     listAvailableGroupCombatItems(session, viewerCharacterId).length > 0
   ) {
-    keyboard.text(groupCombatReplyButtons.items);
+    addButton(groupCombatReplyButtons.items);
+  }
+  if (buttonsInRow > 0) {
+    keyboard.row();
   }
   return keyboard
-    .row()
     .text(groupCombatReplyButtons.flee)
     .text(groupCombatReplyButtons.refresh)
     .resized()
