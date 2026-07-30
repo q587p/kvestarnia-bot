@@ -328,7 +328,7 @@ interface CompiledMonsterAbilityRecipe {
   };
 }
 
-type MonsterAbilityPlanComponentKind =
+export type MonsterAbilityPlanComponentKind =
   | "runtime-effect"
   | "heal"
   | "shield"
@@ -338,7 +338,7 @@ type MonsterAbilityPlanComponentKind =
   | "cooldown-pressure"
   | "reapply-expired";
 
-interface MonsterAbilityPlanComponent {
+export interface MonsterAbilityPlanComponent {
   kind: MonsterAbilityPlanComponentKind;
   sourceParameter: MonsterAbilityParameterKey | `rider:${string}`;
   target: MonsterAbilityEffectTarget;
@@ -387,8 +387,13 @@ export function getMonsterAbilityEffectContract(
   };
 }
 
-interface CompiledMonsterAbilityExecutionPlan {
+export interface CompiledMonsterAbilityExecutionPlan {
   directDamage: boolean;
+  directDamageModifiers: {
+    bonusMultiplierBelowHalfHp: number;
+    bonusMultiplierAgainstDebuffedTarget: number;
+    shieldBreakRetaliationMultiplier: number;
+  };
   selectedRider: string | null;
   components: readonly MonsterAbilityPlanComponent[];
 }
@@ -438,7 +443,7 @@ export function compileMonsterAbilityRecipe(
   };
 }
 
-function compileMonsterAbilityExecutionPlan(input: {
+export function compileMonsterAbilityExecutionPlan(input: {
   ability: MonsterAbilityDefinition;
   state?: CombatState;
   runtime?: MonsterAbilityRuntimeStateV1;
@@ -474,6 +479,7 @@ function compileMonsterAbilityExecutionPlan(input: {
     durationOwnActivations?: number;
     durationTargetActivations?: number;
     charges?: number;
+    trigger?: MonsterAbilityComponentTrigger;
     directHitRequired?: boolean;
     appliedResultKey: string;
   }): void => {
@@ -572,6 +578,21 @@ function compileMonsterAbilityExecutionPlan(input: {
       optional: true,
       onlyEffect: false,
       appliedResultKey: "shield"
+    });
+  }
+  const shieldSurvivalBonus = numberParam(
+    params.nextAttackBonusIfShieldSurvives
+  );
+  if (shieldSurvivalBonus > 0) {
+    addRuntimeEffect({
+      sourceParameter: "nextAttackBonusIfShieldSurvives",
+      target: "monster",
+      effectKind: "next-attack-bonus",
+      value: 1 + Math.min(0.6, Math.max(0.05, shieldSurvivalBonus)),
+      durationOwnActivations: 2,
+      charges: 1,
+      trigger: "on-shield-survived",
+      appliedResultKey: "next-attack-bonus-if-shield-survives"
     });
   }
 
@@ -893,13 +914,29 @@ function compileMonsterAbilityExecutionPlan(input: {
 
   return {
     directDamage,
+    directDamageModifiers: {
+      bonusMultiplierBelowHalfHp: Math.min(
+        0.75,
+        Math.max(0, numberParam(params.bonusDamageMultiplierBelowHalfHp))
+      ),
+      bonusMultiplierAgainstDebuffedTarget:
+        isTruthyParameter(params.bonusAgainstDebuffedTargets)
+          ? Math.max(0.15, numberParam(params.bonusAgainstDebuffedTargets))
+          : 0,
+      shieldBreakRetaliationMultiplier: Math.max(
+        0,
+        numberParam(params.damageMultiplierWhenShieldBreaks)
+      )
+    },
     selectedRider,
     components: components.map((component) => {
-      const trigger = classifyMonsterAbilityComponentTrigger({
-        ability: input.ability,
-        directDamage,
-        component
-      });
+      const trigger = component.trigger === "on-cast"
+        ? classifyMonsterAbilityComponentTrigger({
+            ability: input.ability,
+            directDamage,
+            component
+          })
+        : component.trigger;
 
       return {
         ...component,
@@ -2134,6 +2171,9 @@ function applyMonsterAbilityPlanComponent(
   component: MonsterAbilityPlanComponent,
   context: { directHitLanded: boolean }
 ): { applied: boolean; text?: string } {
+  if (component.trigger === "on-shield-survived") {
+    return { applied: false };
+  }
   if (component.directHitRequired && !context.directHitLanded) {
     return { applied: false };
   }

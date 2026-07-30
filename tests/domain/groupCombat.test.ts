@@ -15,6 +15,7 @@ import {
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
+  assertGroupCombatMonsterAbilityExecutionContract,
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
@@ -36,9 +37,7 @@ import {
 } from "../../src/content/mantokAbilityGrants";
 import * as lootDomain from "../../src/domain/loot";
 import type { CombatSkillProfile } from "../../src/domain/combat";
-import {
-  GROUP_COMBAT_PRODUCTION_V1_CATALOG
-} from "../../src/domain/groupCombat/groupCombatProductionV1Catalog";
+import { GROUP_COMBAT_PRODUCTION_V1_CATALOG } from "../../src/domain/groupCombat/groupCombatProductionV1Catalog";
 import {
   deriveGroupCombatProductionV1MonsterStats,
   findGroupCombatProductionV1Monster,
@@ -1011,6 +1010,9 @@ describe("group combat proof reducer", () => {
     expect(monsterAbilities.every((ability) =>
       isSupportedGroupCombatMonsterAbility(ability.id)
     )).toBe(true);
+    expect(() =>
+      assertGroupCombatMonsterAbilityExecutionContract(monsterAbilities)
+    ).not.toThrow();
 
     const state = proofState(2);
     state.enemies[0]!.abilityIds = ["monster.sauce-spit"];
@@ -1056,7 +1058,10 @@ describe("group combat proof reducer", () => {
         parsed = parseGroupCombatStateStrict(resolved.state);
       } catch (error) {
         throw new Error(
-          `${ability.id}: ${String(error)}; statuses=${JSON.stringify(resolved.state.statuses)}`
+          `${ability.id}: ${String(error)}; statuses=${JSON.stringify(resolved.state.statuses)}; ` +
+          `abilityEffects=${JSON.stringify(resolved.state.abilityEffects)}; ` +
+          `expired=${JSON.stringify(resolved.state.expiredAbilityEffects)}; ` +
+          `enemies=${JSON.stringify(resolved.state.enemies)}`
         );
       }
       expect(parsed, ability.id).toEqual(resolved.state);
@@ -1155,6 +1160,174 @@ describe("group combat proof reducer", () => {
     expect(resolved.state.enemies[0]!.abilityCooldowns?.["monster.asset-freeze"])
       .toEqual(expect.objectContaining({ remainingTurns: 4 }));
     expect(resolved.state.recap[0]!.lines.join("\n")).toContain("Заморозити активи");
+  });
+
+  it("persists typed state deltas for the deep-review monster effect families", () => {
+    const cases = [
+      ["monster.stamp-denied", ["ability-lock"]],
+      ["monster.asset-freeze", ["mana-cost-pressure"]],
+      ["monster.audit-formula", ["mark"]],
+      ["monster.inventory-prophecy", ["repeat-penalty", "evasion", "counter"]],
+      ["monster.title-tax", ["outgoing-damage"]],
+      ["monster.false-exit", ["flee", "confusion"]],
+      ["monster.transparent-report", ["reflect"]]
+    ] as const;
+
+    for (const [abilityId, expectedKinds] of cases) {
+      const state = proofState(2);
+      state.enemies[0]!.abilityIds = [abilityId];
+      state.enemies[1]!.hp = 0;
+      state.participants.forEach((participant) => {
+        participant.hp = participant.hpMax = 186;
+        participant.mana = participant.manaMax = 93;
+      });
+      const resolved = resolveGroupCombatTurn(
+        state,
+        state.participants.map((participant) =>
+          buildGroupCombatTimeoutAction(state, participant.characterId)
+        )
+      );
+      const kinds = new Set(
+        (resolved.state.abilityEffects ?? [])
+          .filter((effect) => effect.sourceAbilityId === abilityId)
+          .map((effect) => effect.kind)
+      );
+      for (const kind of expectedKinds) {
+        expect(kinds.has(kind), `${abilityId}:${kind}`).toBe(true);
+      }
+      expect(parseGroupCombatStateStrict(resolved.state)).toEqual(resolved.state);
+    }
+  });
+
+  it("extends the real longest cooldown for reschedule", () => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.reschedule"];
+    state.enemies[1]!.hp = 0;
+    state.participants[0]!.cooldowns = {
+      abilities: {
+        "class.test": { id: "class.test", remainingTurns: 4 },
+        "race.test": { id: "race.test", remainingTurns: 2 }
+      }
+    };
+    const resolved = resolveGroupCombatTurn(
+      state,
+      state.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(state, participant.characterId)
+      )
+    );
+
+    expect(
+      resolved.state.participants[0]!.cooldowns?.abilities?.["class.test"]
+        ?.remainingTurns
+    ).toBe(4);
+  });
+
+  it("round-trips active monster effects on restart and rejects semantic corruption", () => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.audit-formula"];
+    state.enemies[1]!.hp = 0;
+    const resolved = resolveGroupCombatTurn(
+      state,
+      state.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(state, participant.characterId)
+      )
+    ).state;
+    const restarted = parseGroupCombatStateStrict(
+      JSON.parse(JSON.stringify(resolved))
+    );
+    expect(restarted).toEqual(resolved);
+
+    const corrupted = structuredClone(resolved);
+    corrupted.abilityEffects![0]!.value += 0.01;
+    expect(() => parseGroupCombatStateStrict(corrupted)).toThrow(
+      GroupCombatStateValidationError
+    );
+  });
+
+  it("enforces class locks and mana pressure during canonical action validation", () => {
+    for (const [abilityId, expected] of [
+      ["monster.stamp-denied", "class-lock"],
+      ["monster.asset-freeze", "mana-pressure"]
+    ] as const) {
+      const state = proofState(2);
+      state.enemies[0]!.abilityIds = [abilityId];
+      state.enemies[1]!.hp = 0;
+      const resolved = resolveGroupCombatTurn(
+        state,
+        state.participants.map((participant) =>
+          buildGroupCombatTimeoutAction(state, participant.characterId)
+        )
+      ).state;
+      const actor = resolved.participants[0]!;
+      if (expected === "mana-pressure") {
+        const manaCost = classAbilities.find(
+          (ability) => ability.classId === actor.classId
+        )!.manaCost;
+        actor.mana = manaCost;
+      }
+      expect(
+        validateGroupCombatAction(
+          resolved,
+          action(
+            resolved,
+            0,
+            "class",
+            "enemy",
+            resolved.enemies[0]!.id
+          )
+        )
+      ).toBe("action-unavailable");
+    }
+  });
+
+  it("selects exactly one fire-safety-cycle rider per eligible activation", () => {
+    let state = proofState(2);
+    state.enemies[0]!.abilityIds = ["monster.fire-safety-cycle"];
+    state.enemies[1]!.hp = 0;
+    state.participants.forEach((participant) => {
+      participant.hp = participant.hpMax = 587;
+    });
+    const resolveCycle = () => {
+      const next = resolveGroupCombatTurn(
+        state,
+        state.participants.map((participant) =>
+          buildGroupCombatTimeoutAction(state, participant.characterId)
+        )
+      ).state;
+      return next;
+    };
+
+    state = resolveCycle();
+    expect(
+      state.recap.at(-1)!.lines.join("\n").match(/Вогонь, гасіння, акт/g)
+    ).toHaveLength(1);
+    expect(
+      state.expiredAbilityEffects?.some((effect) =>
+        effect.sourceAbilityId === "monster.fire-safety-cycle" &&
+        effect.kind === "burn"
+      ) ??
+      state.abilityEffects?.some((effect) =>
+        effect.sourceAbilityId === "monster.fire-safety-cycle" &&
+        effect.kind === "burn"
+      )
+    ).toBe(true);
+
+    state.turn = 4;
+    delete state.enemies[0]!.abilityCooldowns;
+    state = resolveCycle();
+    expect(state.enemies[0]!.shield?.sourceAbilityId).toBe(
+      "monster.fire-safety-cycle"
+    );
+
+    state.turn = 7;
+    delete state.enemies[0]!.abilityCooldowns;
+    state = resolveCycle();
+    expect(
+      state.abilityEffects?.filter((effect) =>
+        effect.sourceAbilityId === "monster.fire-safety-cycle" &&
+        effect.kind === "outgoing-damage"
+      )
+    ).toHaveLength(2);
   });
 
   it("heals self and allies and buffs all monsters with exact supported scopes", () => {

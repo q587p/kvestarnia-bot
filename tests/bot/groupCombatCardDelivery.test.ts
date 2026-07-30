@@ -245,8 +245,8 @@ describe("group-combat canonical participant delivery", () => {
       expect.objectContaining({ chatId: 1001, messageId: 21, labels: [] }),
       expect.objectContaining({ chatId: 1002, messageId: 22, labels: [] })
     ]));
-    expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
-    expect(deleteMessage).toHaveBeenCalledWith(1002, 22);
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
+    expect(deleteMessage).toHaveBeenCalledWith(1002, 22, expect.any(AbortSignal));
   });
 
   it("cannot leave the previous full terminal result when Telegram refuses its deletion", async () => {
@@ -296,7 +296,7 @@ describe("group-combat canonical participant delivery", () => {
     });
     expect(edits.find((entry) => entry.messageId === 21)?.text)
       .not.toContain("Доказову сутичку програно");
-    expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 91,
@@ -381,7 +381,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Доказову сутичку виграно");
-    expect(deleteMessage).not.toHaveBeenCalled();
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
     expect(session.participants[0]!.exitDeliveryState).toBe("menu-delivered");
   });
 
@@ -2147,21 +2147,33 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         (
           participant.exitDeliveryState !== "pending" &&
           (
-            participant.exitDeliveryState !== "claimed" ||
-            !participant.exitDeliveryClaimedAt ||
-            participant.exitDeliveryClaimedAt > input.staleBefore
+            (
+              participant.exitDeliveryState !== "claimed" &&
+              participant.exitDeliveryState !== "menu-delivered"
+            ) ||
+            (
+              participant.exitDeliveryClaimToken !== null &&
+              (
+                !participant.exitDeliveryClaimedAt ||
+                participant.exitDeliveryClaimedAt > input.staleBefore
+              )
+            )
           )
         )
       ) {
         return Promise.resolve(false);
       }
-      participant.exitDeliveryState = "claimed";
+      const menuDelivered = participant.exitDeliveryState === "menu-delivered";
+      if (!menuDelivered) {
+        participant.exitDeliveryState = "claimed";
+      }
       participant.exitDeliveryClaimToken = input.claimToken;
       participant.exitDeliveryClaimedAt = input.claimedAt;
       return Promise.resolve({
         state: "claimed",
-      locationId: "korchma.hall",
-      questMarkers: null
+        locationId: "korchma.hall",
+        questMarkers: null,
+        menuDelivered
       });
     }),
     releaseParticipantFleeExitDeliveryClaim: vi.fn().mockImplementation((input: {
@@ -2176,7 +2188,10 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       if (!participant) {
         return Promise.resolve(false);
       }
-      participant.exitDeliveryState = "pending";
+      if (participant.exitDeliveryState === "claimed") {
+        participant.exitDeliveryState = "pending";
+        participant.exitDeliveryMessageId = null;
+      }
       participant.exitDeliveryClaimToken = null;
       participant.exitDeliveryClaimedAt = null;
       return Promise.resolve(true);
@@ -2189,7 +2204,10 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       const participant = session.participants.find(
         (candidate) =>
           candidate.telegramUserId === input.telegramUserId &&
-          candidate.exitDeliveryState === "claimed" &&
+          (
+            candidate.exitDeliveryState === "claimed" ||
+            candidate.exitDeliveryState === "menu-delivered"
+          ) &&
           candidate.exitDeliveryClaimToken === input.claimToken
       );
       if (!participant) {
@@ -2212,15 +2230,14 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         return Promise.resolve(false);
       }
       participant.exitDeliveryState = "menu-delivered";
-      participant.exitDeliveryClaimToken = null;
-      participant.exitDeliveryClaimedAt = null;
       participant.exitDeliveryMessageId = input.messageId;
       return Promise.resolve(true);
     }),
-    completeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+    adoptParticipantFleeExitTerminalCard: vi.fn().mockImplementation((input: {
       telegramUserId: bigint;
+      claimToken: string;
       expectedReferenceVersion: number;
-      terminalCard?: {
+      terminalCard: {
         chatId: bigint;
         messageId: number;
         deliveryRevision: number;
@@ -2229,17 +2246,41 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
       const participant = session.participants.find(
         (candidate) =>
           candidate.telegramUserId === input.telegramUserId &&
+          candidate.exitDeliveryState === "menu-delivered" &&
+          candidate.exitDeliveryClaimToken === input.claimToken &&
+          candidate.referenceVersion === input.expectedReferenceVersion
+      );
+      if (!participant) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.terminalCard.chatId;
+      participant.messageId = input.terminalCard.messageId;
+      participant.deliveredRevision = input.terminalCard.deliveryRevision;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    }),
+    completeParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+      telegramUserId: bigint;
+      claimToken: string;
+      expectedReferenceVersion: number;
+      retainReference: boolean;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) =>
+          candidate.telegramUserId === input.telegramUserId &&
           candidate.referenceVersion === input.expectedReferenceVersion &&
-          candidate.exitDeliveryState === "menu-delivered"
+          candidate.exitDeliveryState === "menu-delivered" &&
+          candidate.exitDeliveryClaimToken === input.claimToken
       );
       if (!participant) {
         return Promise.resolve(false);
       }
       participant.exitDeliveryState = "completed";
-      participant.chatId = input.terminalCard?.chatId ?? null;
-      participant.messageId = input.terminalCard?.messageId ?? null;
-      if (input.terminalCard) {
-        participant.deliveredRevision = input.terminalCard.deliveryRevision;
+      participant.exitDeliveryClaimToken = null;
+      participant.exitDeliveryClaimedAt = null;
+      if (!input.retainReference) {
+        participant.chatId = null;
+        participant.messageId = null;
       }
       participant.referenceVersion += 1;
       return Promise.resolve(true);

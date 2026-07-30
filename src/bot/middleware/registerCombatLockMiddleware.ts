@@ -73,14 +73,36 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
 
       if (isRestartOrRemortRoute(ctx)) {
         const lease = await getAuthoritativeCombatLease(telegramUserId, services);
-        if (
-          (!services.combatLeases || lease?.kind === TURN_BASED_DUEL_LEASE_KIND) &&
+        if (services.combatLeases && lease) {
+          if (lease.kind === TURN_BASED_DUEL_LEASE_KIND) {
+            if (await redirectTurnBasedDuelLockIfNeeded(
+              ctx,
+              telegramUserId,
+              services,
+              { refreshPresence: true },
+              lease
+            )) {
+              return;
+            }
+            await handleInconsistentAuthoritativeCombatLease(ctx);
+            return;
+          }
+          if (!(await isAuthoritativeCombatLeaseOwnerConsistent(
+            telegramUserId,
+            services,
+            lease
+          ))) {
+            await handleInconsistentAuthoritativeCombatLease(ctx);
+            return;
+          }
+        } else if (
+          !services.combatLeases &&
           await redirectTurnBasedDuelLockIfNeeded(
             ctx,
             telegramUserId,
             services,
             { refreshPresence: true },
-            lease ?? undefined
+            undefined
           )
         ) {
           return;
@@ -346,42 +368,46 @@ async function redirectCombatLockIfNeeded(
     const lease = await getAuthoritativeCombatLease(telegramUserId, services);
 
     if (lease?.kind === TURN_BASED_DUEL_LEASE_KIND) {
-      return redirectTurnBasedDuelLockIfNeeded(
+      const handled = await redirectTurnBasedDuelLockIfNeeded(
         ctx,
         telegramUserId,
         services,
         options,
         lease
       );
+      return handled || handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
     if (lease?.kind === PARTY_BOSS_LEASE_KIND) {
-      return redirectPartyBossLockIfNeeded(
+      const handled = await redirectPartyBossLockIfNeeded(
         ctx,
         telegramUserId,
         services,
         options,
         lease
       );
+      return handled || handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
     if (lease?.kind === GROUP_COMBAT_LEASE_KIND) {
-      return redirectGroupCombatLockIfNeeded(
+      const handled = await redirectGroupCombatLockIfNeeded(
         ctx,
         telegramUserId,
         services,
         lease
       );
+      return handled || handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
     if (lease?.kind === SOLO_COMBAT_LEASE_KIND) {
-      return redirectFightLockIfNeeded(
+      const handled = await redirectFightLockIfNeeded(
         ctx,
         telegramUserId,
         services,
         options,
         lease
       );
+      return handled || handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
     if (!lease) {
@@ -391,6 +417,10 @@ async function redirectCombatLockIfNeeded(
       ) {
         return false;
       }
+    }
+
+    if (lease) {
+      return handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
     return redirectFightLockIfNeeded(ctx, telegramUserId, services, options, null);
@@ -535,7 +565,7 @@ async function redirectGroupCombatLockIfNeeded(
   authoritativeLease?: ActiveCombatLeaseRecord
 ): Promise<boolean> {
   const active = authoritativeLease
-    ? await services.groupCombat?.findById(authoritativeLease.referenceId)
+    ? await getExactGroupCombatOwner(telegramUserId, services, authoritativeLease)
     : await services.groupCombat?.findActiveForTelegramUser(telegramUserId);
   if (!active) {
     return false;
@@ -582,10 +612,7 @@ async function redirectPartyBossLockIfNeeded(
   }
 
   const active = authoritativeLease
-    ? await services.partyBoss.getActiveByPartySessionIdForCharacterId(
-        authoritativeLease.referenceId,
-        authoritativeLease.characterId
-      )
+    ? await getExactPartyBossOwner(telegramUserId, services, authoritativeLease)
     : await services.partyBoss.getActiveForTelegramUser(telegramUserId);
   if (!active) {
     return false;
@@ -649,10 +676,7 @@ async function redirectTurnBasedDuelLockIfNeeded(
   const activeDuel = "activeDuel" in options
     ? options.activeDuel
     : authoritativeLease
-      ? await services.duel.getActiveTurnBasedByIdForCharacterId(
-          authoritativeLease.referenceId,
-          authoritativeLease.characterId
-        )
+      ? await getExactTurnBasedDuelOwner(services, authoritativeLease)
       : await services.duel.getActiveTurnBasedForTelegramUser(telegramUserId);
 
   if (!activeDuel) {
@@ -679,6 +703,143 @@ async function redirectTurnBasedDuelLockIfNeeded(
     }
   );
 
+  return true;
+}
+
+async function isAuthoritativeCombatLeaseOwnerConsistent(
+  telegramUserId: bigint,
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+): Promise<boolean> {
+  if (lease.kind === SOLO_COMBAT_LEASE_KIND) {
+    if (typeof services.fight.getFightOverviewForTelegramUser !== "function") {
+      return false;
+    }
+    const lock = await memoizeUpdateRead(
+      `fight-overview:${telegramUserId}`,
+      () => services.fight.getFightOverviewForTelegramUser(telegramUserId, {
+        authoritativeLease: lease
+      })
+    );
+    return (
+      (lock.state === "persistent-active" || lock.state === "training-active") &&
+      lock.session.id === lease.referenceId
+    );
+  }
+  if (lease.kind === TURN_BASED_DUEL_LEASE_KIND) {
+    return Boolean(await getExactTurnBasedDuelOwner(services, lease));
+  }
+  if (lease.kind === PARTY_BOSS_LEASE_KIND) {
+    return Boolean(await getExactPartyBossOwner(telegramUserId, services, lease));
+  }
+  if (lease.kind === GROUP_COMBAT_LEASE_KIND) {
+    return Boolean(await getExactGroupCombatOwner(telegramUserId, services, lease));
+  }
+  return false;
+}
+
+async function getExactTurnBasedDuelOwner(
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+): Promise<Extract<DuelChallengeView, { state: "active" }> | null> {
+  if (
+    !services.duel ||
+    typeof services.duel.getActiveTurnBasedByIdForCharacterId !== "function"
+  ) {
+    return null;
+  }
+  const active = await memoizeUpdateRead(
+    `turn-duel-owner:${lease.referenceId}:${lease.characterId}`,
+    () => services.duel!.getActiveTurnBasedByIdForCharacterId(
+      lease.referenceId,
+      lease.characterId
+    )
+  );
+  if (
+    !active ||
+    active.session.id !== lease.referenceId ||
+    (
+      active.session.challengerCharacterId !== lease.characterId &&
+      active.session.targetCharacterId !== lease.characterId
+    )
+  ) {
+    return null;
+  }
+  return active;
+}
+
+async function getExactPartyBossOwner(
+  telegramUserId: bigint,
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+) {
+  if (
+    !services.partyBoss ||
+    typeof services.partyBoss.getActiveByPartySessionIdForCharacterId !== "function"
+  ) {
+    return null;
+  }
+  const active = await memoizeUpdateRead(
+    `party-boss-owner:${lease.referenceId}:${lease.characterId}`,
+    () => services.partyBoss!.getActiveByPartySessionIdForCharacterId(
+      lease.referenceId,
+      lease.characterId
+    )
+  );
+  if (
+    !active ||
+    active.status !== "active" ||
+    active.partySessionId !== lease.referenceId ||
+    !active.participants.some(
+      (participant) =>
+        participant.id === lease.characterId &&
+        participant.telegramUserId === telegramUserId
+    )
+  ) {
+    return null;
+  }
+  return active;
+}
+
+async function getExactGroupCombatOwner(
+  telegramUserId: bigint,
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+) {
+  if (!services.groupCombat || typeof services.groupCombat.findById !== "function") {
+    return null;
+  }
+  const active = await memoizeUpdateRead(
+    `group-combat-owner:${lease.referenceId}:${lease.characterId}`,
+    () => services.groupCombat!.findById(lease.referenceId)
+  );
+  if (
+    !active ||
+    active.status !== "active" ||
+    !active.participants.some(
+      (participant) =>
+        participant.characterId === lease.characterId &&
+        participant.telegramUserId === telegramUserId
+    )
+  ) {
+    return null;
+  }
+  return active;
+}
+
+async function handleInconsistentAuthoritativeCombatLease(
+  ctx: Context
+): Promise<true> {
+  const text =
+    "⚠️ Бойовий запис не збігається з активною сутичкою. Корчма нічого не змінює; спробуйте ще раз трохи згодом.";
+  if (ctx.callbackQuery) {
+    await safeAnswerCallbackQuery(ctx, {
+      text,
+      show_alert: true
+    });
+  } else {
+    await ctx.reply(text);
+  }
   return true;
 }
 

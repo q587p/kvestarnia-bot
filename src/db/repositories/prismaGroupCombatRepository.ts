@@ -2306,7 +2306,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     claimedAt: Date;
     staleBefore: Date;
   }): Promise<
-    | { state: "claimed"; locationId: string | null }
+    | { state: "claimed"; locationId: string | null; menuDelivered: boolean }
     | { state: "busy" | "superseded" | "not-found" }
   > {
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -2316,13 +2316,14 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             where: {
               sessionId: input.sessionId,
               settlementStatus: "completed",
-              exitDeliveryState: { in: ["pending", "claimed"] },
+              exitDeliveryState: { in: ["pending", "claimed", "menu-delivered"] },
               session: { repairState: null },
               character: { user: { telegramUserId: input.telegramUserId } }
             },
             select: {
               id: true,
               characterId: true,
+              exitDeliveryState: true,
               character: {
                 select: {
                   activeCombatLease: true,
@@ -2344,7 +2345,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               where: {
                 id: participant.id,
                 settlementStatus: "completed",
-                exitDeliveryState: { in: ["pending", "claimed"] },
+                exitDeliveryState: { in: ["pending", "claimed", "menu-delivered"] },
                 session: { repairState: null },
                 character: { activeCombatLease: { is: { id: lease.id } } }
               },
@@ -2383,14 +2384,25 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
                 {
                   exitDeliveryState: "claimed",
                   exitDeliveryClaimedAt: { lte: input.staleBefore }
+                },
+                {
+                  exitDeliveryState: "menu-delivered",
+                  OR: [
+                    { exitDeliveryClaimToken: null },
+                    { exitDeliveryClaimedAt: { lte: input.staleBefore } }
+                  ]
                 }
               ]
             },
             data: {
-              exitDeliveryState: "claimed",
               exitDeliveryClaimToken: input.claimToken,
               exitDeliveryClaimedAt: input.claimedAt,
-              exitDeliveryMessageId: null
+              ...(participant.exitDeliveryState === "menu-delivered"
+                ? {}
+                : {
+                    exitDeliveryState: "claimed",
+                    exitDeliveryMessageId: null
+                  })
             }
           });
           if (claimed.count !== 1) {
@@ -2407,7 +2419,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           }
           return {
             state: "claimed" as const,
-            locationId: participant.character.user.lastSeenLocationId
+            locationId: participant.character.user.lastSeenLocationId,
+            menuDelivered: participant.exitDeliveryState === "menu-delivered"
           };
         });
       } catch (error) {
@@ -2428,12 +2441,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       const participant = await tx.groupCombatParticipant.findFirst({
         where: {
           sessionId: input.sessionId,
-          exitDeliveryState: "claimed",
+          exitDeliveryState: { in: ["claimed", "menu-delivered"] },
           exitDeliveryClaimToken: input.claimToken,
           session: { repairState: null },
           character: { user: { telegramUserId: input.telegramUserId } }
         },
-        select: { id: true, characterId: true }
+        select: { id: true, characterId: true, exitDeliveryState: true }
       });
       if (!participant) {
         return false;
@@ -2441,27 +2454,33 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       const updated = await tx.groupCombatParticipant.updateMany({
         where: {
           id: participant.id,
-          exitDeliveryState: "claimed",
+          exitDeliveryState: participant.exitDeliveryState,
           exitDeliveryClaimToken: input.claimToken,
           session: { repairState: null }
         },
         data: {
-          exitDeliveryState: "pending",
+          ...(participant.exitDeliveryState === "claimed"
+            ? {
+                exitDeliveryState: "pending",
+                exitDeliveryMessageId: null
+              }
+            : {}),
           exitDeliveryClaimToken: null,
-          exitDeliveryClaimedAt: null,
-          exitDeliveryMessageId: null
+          exitDeliveryClaimedAt: null
         }
       });
       if (updated.count !== 1) {
         return false;
       }
-      await tx.activeCombatLease.deleteMany({
-        where: {
-          characterId: participant.characterId,
-          kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
-          referenceId: `${input.sessionId}:${participant.characterId}`
-        }
-      });
+      if (participant.exitDeliveryState === "claimed") {
+        await tx.activeCombatLease.deleteMany({
+          where: {
+            characterId: participant.characterId,
+            kind: GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+            referenceId: `${input.sessionId}:${participant.characterId}`
+          }
+        });
+      }
       return true;
     });
   }
@@ -2477,7 +2496,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           sessionId: input.sessionId,
           settlementStatus: "completed",
-          exitDeliveryState: "claimed",
+          exitDeliveryState: { in: ["claimed", "menu-delivered"] },
           exitDeliveryClaimToken: input.claimToken,
           session: { repairState: null },
           character: { user: { telegramUserId: input.telegramUserId } }
@@ -2491,7 +2510,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         where: {
           id: participant.id,
           settlementStatus: "completed",
-          exitDeliveryState: "claimed",
+          exitDeliveryState: { in: ["claimed", "menu-delivered"] },
           exitDeliveryClaimToken: input.claimToken,
           session: { repairState: null },
           character: {
@@ -2541,9 +2560,69 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         },
         data: {
           exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: input.claimToken,
+          exitDeliveryMessageId: input.messageId
+        }
+      });
+      if (updated.count !== 1) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  async completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
+    retainReference: boolean;
+  }): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: input.claimToken,
+          referenceVersion: input.expectedReferenceVersion,
+          chatId: input.chatId,
+          messageId: input.messageId,
+          session: { repairState: null },
+          character: { user: { telegramUserId: input.telegramUserId } }
+        },
+        select: {
+          id: true,
+          characterId: true,
+          character: { select: { activeCombatLease: true } }
+        }
+      });
+      if (
+        !participant ||
+        participant.character.activeCombatLease?.kind !==
+          GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND ||
+        participant.character.activeCombatLease.referenceId !==
+          `${input.sessionId}:${participant.characterId}`
+      ) {
+        return false;
+      }
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: input.claimToken,
+          referenceVersion: input.expectedReferenceVersion,
+          chatId: input.chatId,
+          messageId: input.messageId,
+          session: { repairState: null }
+        },
+        data: {
+          exitDeliveryState: "completed",
           exitDeliveryClaimToken: null,
           exitDeliveryClaimedAt: null,
-          exitDeliveryMessageId: input.messageId
+          ...(input.retainReference ? {} : { chatId: null, messageId: null }),
+          referenceVersion: { increment: 1 }
         }
       });
       if (updated.count !== 1) {
@@ -2560,50 +2639,69 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     });
   }
 
-  async completeParticipantFleeExitDelivery(input: {
+  async adoptParticipantFleeExitTerminalCard(input: {
     sessionId: string;
     telegramUserId: bigint;
+    claimToken: string;
     expectedReferenceVersion: number;
     chatId: bigint | null;
     messageId: number | null;
-    terminalCard?: {
+    terminalCard: {
       chatId: bigint;
       messageId: number;
       deliveryRevision: number;
     };
   }): Promise<boolean> {
-    const terminalCard = input.terminalCard ?? null;
-    const updated = await this.prisma.groupCombatParticipant.updateMany({
-      where: {
-        sessionId: input.sessionId,
-        exitDeliveryState: "menu-delivered",
-        referenceVersion: input.expectedReferenceVersion,
-        chatId: input.chatId,
-        messageId: input.messageId,
-        session: {
-          repairState: null,
-          ...(terminalCard
-            ? {
-                status: { not: "active" },
-                deliveryRevision: terminalCard.deliveryRevision
-              }
-            : {})
+    return this.prisma.$transaction(async (tx) => {
+      const participant = await tx.groupCombatParticipant.findFirst({
+        where: {
+          sessionId: input.sessionId,
+          exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: input.claimToken,
+          referenceVersion: input.expectedReferenceVersion,
+          chatId: input.chatId,
+          messageId: input.messageId,
+          session: {
+            status: { not: "active" },
+            repairState: null,
+            deliveryRevision: input.terminalCard.deliveryRevision
+          },
+          character: { user: { telegramUserId: input.telegramUserId } }
         },
-        character: { user: { telegramUserId: input.telegramUserId } }
-      },
-      data: {
-        exitDeliveryState: "completed",
-        exitDeliveryClaimToken: null,
-        exitDeliveryClaimedAt: null,
-        chatId: terminalCard ? terminalCard.chatId : null,
-        messageId: terminalCard ? terminalCard.messageId : null,
-        ...(terminalCard
-          ? { deliveredRevision: terminalCard.deliveryRevision }
-          : {}),
-        referenceVersion: { increment: 1 }
+        select: {
+          id: true,
+          characterId: true,
+          character: { select: { activeCombatLease: true } }
+        }
+      });
+      if (
+        !participant ||
+        participant.character.activeCombatLease?.kind !==
+          GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND ||
+        participant.character.activeCombatLease.referenceId !==
+          `${input.sessionId}:${participant.characterId}`
+      ) {
+        return false;
       }
+      const updated = await tx.groupCombatParticipant.updateMany({
+        where: {
+          id: participant.id,
+          exitDeliveryState: "menu-delivered",
+          exitDeliveryClaimToken: input.claimToken,
+          referenceVersion: input.expectedReferenceVersion,
+          chatId: input.chatId,
+          messageId: input.messageId,
+          session: { repairState: null }
+        },
+        data: {
+          chatId: input.terminalCard.chatId,
+          messageId: input.terminalCard.messageId,
+          deliveredRevision: input.terminalCard.deliveryRevision,
+          referenceVersion: { increment: 1 }
+        }
+      });
+      return updated.count === 1;
     });
-    return updated.count === 1;
   }
 
   async finalizeDeliveryAttempt(input: {

@@ -1,5 +1,4 @@
 import type { PrismaClient } from "@prisma/client";
-import { isCombatLeaseKind } from "../../domain/combat/combatLeaseRegistry";
 import type {
   ActiveCombatLeaseRecord,
   CombatLeaseReadRepository
@@ -28,10 +27,6 @@ export class PrismaCombatLeaseReadRepository implements CombatLeaseReadRepositor
 
     if (!lease) {
       return null;
-    }
-
-    if (!isCombatLeaseKind(lease.kind)) {
-      throw new Error(`Unsupported active combat lease kind: ${lease.kind}`);
     }
 
     return {

@@ -446,7 +446,13 @@ the main-menu reply keyboard: current presence/quest markers are advisory until
 an atomic pre-send renewal validates the exact claim token and exit-navigation
 lease, and the send aborts at 13 seconds. A lost owner sends nothing; ordinary
 failure releases to pending, while an acknowledgement-ambiguous live claim is
-retained for stale recovery. Terminal result cards contain only inline
+retained for stale recovery. After the main menu is acknowledged, terminal
+delivery retains that exact claim and navigation lease through old-card
+compaction, fresh terminal-card send, canonical-reference adoption and losing
+candidate cleanup. The final completion CAS validates the same token/reference
+and releases the navigation lease last. Process death after adoption is
+restart-recoverable, while stale takeover cannot let an older worker publish
+after a newer combat. Terminal result cards contain only inline
 Journal/Statistics controls and never replace a newer reply keyboard.
 Manual action acceptance and turn resolution are separate durable boundaries.
 The first transaction validates and commits the queued/replaced action row.
@@ -459,7 +465,9 @@ instead of waiting indefinitely or reporting a false stale turn.
 Generic navigation combat-lock routing resolves ownership from one narrow
 `activeCombatLease` read keyed by Telegram user, then loads only the exact
 `referenceId + characterId` owner for solo combat, turn-based duel, Party Boss
-or GroupCombat. It does not probe unrelated combat services in sequence. Solo
+or GroupCombat. A missing, terminal, quarantined, wrong-participant or unknown
+lease owner fails closed with one recovery notice; the middleware neither
+falls through to navigation nor probes unrelated combat services. Solo
 Fight overview accepts that authoritative lease as input and therefore does not
 repeat the ownership read. Callback performance telemetry keeps the full
 handler `totalMs` but also records time through the first actor-visible
@@ -468,10 +476,16 @@ as `postPresentationMs`; those phases apply equally to solo, party and other
 callback routes without triggering additional participant delivery.
 
 The immutable production-v1 catalog freezes all 132 canonical authored monster
-abilities. GroupCombat derives deterministic target, damage, support and
-control behavior from their common ability recipes rather than maintaining a
-separate short allowlist; unknown ids, malformed definitions and effect
-snapshots that disagree with the frozen catalog fail strict validation.
+abilities. GroupCombat compiles every authored recipe into typed immediate and
+persisted components, including targeting, damage modifiers, healing, shields,
+mana drain, cleanse/removal/reapply, locks, pressure, counters, reflection,
+damage-over-time, evasion/accuracy, marks, cooldown changes and conditional
+follow-up damage. Persisted effects retain their source ability, exact target,
+trigger, duration and charges, and strict restart validation rederives those
+semantics from the frozen catalog. There is no separate short allowlist or
+label-only fallback; unknown ids, unsupported components, malformed definitions
+and snapshots that disagree with the frozen recipe fail before production
+encounter start or on load.
 
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).

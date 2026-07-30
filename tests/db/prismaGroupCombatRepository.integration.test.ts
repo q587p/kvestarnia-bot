@@ -3196,17 +3196,23 @@ describe("PrismaGroupCombatRepository integration", () => {
       [58725n, 58726n]
     );
     const participant = session.participants[0]!;
+    const claimToken = "terminal-result-claim";
     await prisma.groupCombatParticipant.updateMany({
       where: {
         sessionId: session.id,
         characterId: participant.characterId
       },
-      data: { exitDeliveryState: "menu-delivered" }
+      data: {
+        exitDeliveryState: "menu-delivered",
+        exitDeliveryClaimToken: claimToken,
+        exitDeliveryClaimedAt: NOW
+      }
     });
 
-    await expect(repository.completeParticipantFleeExitDelivery({
+    await expect(repository.adoptParticipantFleeExitTerminalCard({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,
+      claimToken,
       expectedReferenceVersion: participant.referenceVersion,
       chatId: participant.chatId,
       messageId: participant.messageId,
@@ -3221,9 +3227,24 @@ describe("PrismaGroupCombatRepository integration", () => {
       where: { id: session.id },
       data: { status: "won" }
     });
-    await expect(repository.completeParticipantFleeExitDelivery({
+    await prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: session.id,
+        characterId: participant.characterId
+      },
+      data: { settlementStatus: "completed" }
+    });
+    await prisma.activeCombatLease.update({
+      where: { characterId: participant.characterId },
+      data: {
+        kind: "group-combat-exit-navigation",
+        referenceId: `${session.id}:${participant.characterId}`
+      }
+    });
+    await expect(repository.adoptParticipantFleeExitTerminalCard({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,
+      claimToken,
       expectedReferenceVersion: participant.referenceVersion,
       chatId: participant.chatId,
       messageId: participant.messageId,
@@ -3232,6 +3253,15 @@ describe("PrismaGroupCombatRepository integration", () => {
         messageId: 93,
         deliveryRevision: session.deliveryRevision
       }
+    })).resolves.toBe(true);
+    await expect(repository.completeParticipantFleeExitDelivery({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken,
+      expectedReferenceVersion: participant.referenceVersion + 1,
+      chatId: participant.telegramUserId,
+      messageId: 93,
+      retainReference: true
     })).resolves.toBe(true);
 
     await expect(prisma.groupCombatParticipant.findFirstOrThrow({
@@ -3250,7 +3280,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       exitDeliveryState: "completed",
       chatId: participant.telegramUserId,
       messageId: 93,
-      referenceVersion: participant.referenceVersion + 1,
+      referenceVersion: participant.referenceVersion + 2,
       deliveredRevision: session.deliveryRevision
     });
   });
@@ -3444,7 +3474,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       : "flee-delivery-b";
     expect(deliveryClaims.find((claim) => claim.state === "claimed")).toEqual({
       state: "claimed",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      menuDelivered: false
     });
     const navigationGuard = await prisma.activeCombatLease.findUniqueOrThrow({
       where: { characterId: escapee.characterId }
@@ -3489,7 +3520,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       })
     ).resolves.toEqual({
       state: "claimed",
-      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      menuDelivered: false
     });
     expect(originalWinningClaim).toMatch(/^flee-delivery-[ab]$/);
     const winningClaim = "flee-delivery-restarted";
@@ -3525,9 +3557,36 @@ describe("PrismaGroupCombatRepository integration", () => {
     ).resolves.toBe(true);
     await expect(prisma.activeCombatLease.findUnique({
       where: { characterId: escapee.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat-exit-navigation",
+      referenceId: `${current.id}:${escapee.characterId}`
+    });
+    for (const kind of ["solo-combat", "group-combat"] as const) {
+      await expect(prisma.activeCombatLease.create({
+        data: {
+          id: `left-durable-flee-delivery-blocked-after-menu-${kind}`,
+          characterId: escapee.characterId,
+          kind,
+          referenceId: `newer-${kind}-ui`
+        }
+      })).rejects.toMatchObject({ code: "P2002" });
+    }
+    await expect(
+      restartedDeliveryRepository.completeParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: escapee.telegramUserId,
+        claimToken: winningClaim,
+        expectedReferenceVersion: exitRow.referenceVersion,
+        chatId: exitRow.chatId,
+        messageId: exitRow.messageId,
+        retainReference: false
+      })
+    ).resolves.toBe(true);
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: escapee.characterId }
     })).resolves.toBeNull();
     for (const kind of ["solo-combat", "group-combat"] as const) {
-      const leaseId = `left-durable-flee-delivery-after-ack-${kind}`;
+      const leaseId = `left-durable-flee-delivery-after-complete-${kind}`;
       await expect(prisma.activeCombatLease.create({
         data: {
           id: leaseId,
@@ -3538,15 +3597,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       })).resolves.toMatchObject({ id: leaseId });
       await prisma.activeCombatLease.delete({ where: { id: leaseId } });
     }
-    await expect(
-      restartedDeliveryRepository.completeParticipantFleeExitDelivery({
-        sessionId: current.id,
-        telegramUserId: escapee.telegramUserId,
-        expectedReferenceVersion: exitRow.referenceVersion,
-        chatId: exitRow.chatId,
-        messageId: exitRow.messageId
-      })
-    ).resolves.toBe(true);
     await expect(prisma.groupCombatParticipant.findUniqueOrThrow({
       where: { id: exitRow.id },
       select: {

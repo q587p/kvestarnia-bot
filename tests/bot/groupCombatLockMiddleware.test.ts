@@ -14,6 +14,7 @@ describe("group-combat lock middleware", () => {
   ] as const)("loads only the authoritative %s owner", async (kind, expectedOwner) => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
     const lease = {
       characterId: "character-1",
       kind,
@@ -24,27 +25,31 @@ describe("group-combat lock middleware", () => {
     const partyBossExact = vi.fn().mockResolvedValue(null);
     const groupCombatExact = vi.fn().mockResolvedValue(null);
     const fightOverview = vi.fn().mockResolvedValue({ state: "no-character" });
+    const duelBroad = vi.fn();
+    const partyBossBroad = vi.fn();
+    const groupCombatBroad = vi.fn();
     const serviceSet = {
       combatLeases: {
         findActiveForTelegramUser: findLease
       },
       duel: {
         getActiveTurnBasedByIdForCharacterId: duelExact,
-        getActiveTurnBasedForTelegramUser: vi.fn()
+        getActiveTurnBasedForTelegramUser: duelBroad
       },
       partyBoss: {
         getActiveByPartySessionIdForCharacterId: partyBossExact,
-        getActiveForTelegramUser: vi.fn()
+        getActiveForTelegramUser: partyBossBroad
       },
       groupCombat: {
         findById: groupCombatExact,
-        findActiveForTelegramUser: vi.fn()
+        findActiveForTelegramUser: groupCombatBroad
       },
       fight: {
         getFightOverviewForTelegramUser: fightOverview
       }
     } as unknown as BotServices;
     registerCombatLockMiddleware(bot, serviceSet);
+    bot.on("message", downstream);
 
     await bot.handleUpdate(commandUpdate("private"));
 
@@ -58,6 +63,55 @@ describe("group-combat lock middleware", () => {
         authoritativeLease: lease
       });
     }
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+    expect(calls.sends[0]?.chatId).toBe(1001);
+    expect(calls.sends[0]?.text).toContain("не збігається");
+    expect(duelBroad).not.toHaveBeenCalled();
+    expect(partyBossBroad).not.toHaveBeenCalled();
+    expect(groupCombatBroad).not.toHaveBeenCalled();
+  });
+
+  it("handles an unknown authoritative owner without probing or falling through", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const unrelated = vi.fn(() => {
+      throw new Error("unrelated combat repository was probed");
+    });
+    registerCombatLockMiddleware(bot, {
+      combatLeases: {
+        findActiveForTelegramUser: vi.fn().mockResolvedValue({
+          characterId: "character-1",
+          kind: "future-combat",
+          referenceId: "future-13"
+        })
+      },
+      duel: {
+        getActiveTurnBasedByIdForCharacterId: unrelated,
+        getActiveTurnBasedForTelegramUser: unrelated
+      },
+      partyBoss: {
+        getActiveByPartySessionIdForCharacterId: unrelated,
+        getActiveForTelegramUser: unrelated
+      },
+      groupCombat: {
+        findById: unrelated,
+        findActiveForTelegramUser: unrelated
+      },
+      fight: {
+        getFightOverviewForTelegramUser: unrelated
+      }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(commandUpdate("private"));
+    await bot.handleUpdate({ ...commandUpdate("private"), update_id: 13 });
+
+    expect(unrelated).not.toHaveBeenCalled();
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(2);
+    expect(calls.sends.every((call) => call.text.includes("не збігається"))).toBe(true);
   });
 
   it("resends a private command redirect as the sole latest canonical card", async () => {

@@ -35,7 +35,7 @@ describe("PrismaCombatLeaseReadRepository", () => {
     });
   });
 
-  it("returns no owner without a lease and fails closed for an unknown owner", async () => {
+  it("returns no owner without a lease and preserves an unknown owner for fail-closed routing", async () => {
     const findFirst = vi.fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
@@ -48,7 +48,10 @@ describe("PrismaCombatLeaseReadRepository", () => {
     } as unknown as PrismaClient);
 
     await expect(repository.findActiveByTelegramUserId(42n)).resolves.toBeNull();
-    await expect(repository.findActiveByTelegramUserId(42n))
-      .rejects.toThrow("Unsupported active combat lease kind: future-combat");
+    await expect(repository.findActiveByTelegramUserId(42n)).resolves.toEqual({
+      characterId: "character-42",
+      kind: "future-combat",
+      referenceId: "future-13"
+    });
   });
 });

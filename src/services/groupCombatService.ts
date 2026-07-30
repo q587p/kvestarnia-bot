@@ -26,7 +26,12 @@ export interface GroupCombatRepairWork {
 }
 
 export type GroupCombatExitNavigation =
-  | { state: "claimed"; locationId: string | null; questMarkers: unknown }
+  | {
+      state: "claimed";
+      locationId: string | null;
+      questMarkers: unknown;
+      menuDelivered: boolean;
+    }
   | { state: "busy" }
   | { state: "superseded" }
   | { state: "not-found" };
@@ -481,17 +486,30 @@ export class GroupCombatService {
     return this.repository.markParticipantFleeExitMenuDelivered(input);
   }
 
-  completeParticipantFleeExitDelivery(input: {
+  adoptParticipantFleeExitTerminalCard(input: {
     sessionId: string;
     telegramUserId: bigint;
+    claimToken: string;
     expectedReferenceVersion: number;
     chatId: bigint | null;
     messageId: number | null;
-    terminalCard?: {
+    terminalCard: {
       chatId: bigint;
       messageId: number;
       deliveryRevision: number;
     };
+  }): Promise<boolean> {
+    return this.repository.adoptParticipantFleeExitTerminalCard(input);
+  }
+
+  completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
+    retainReference: boolean;
   }): Promise<boolean> {
     return this.repository.completeParticipantFleeExitDelivery(input);
   }

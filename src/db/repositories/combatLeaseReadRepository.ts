@@ -1,8 +1,6 @@
-import type { CombatLeaseKind } from "../../domain/combat/combatLeaseRegistry";
-
 export interface ActiveCombatLeaseRecord {
   characterId: string;
-  kind: CombatLeaseKind;
+  kind: string;
   referenceId: string;
 }
 

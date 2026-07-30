@@ -186,86 +186,78 @@ async function deliverParticipantExitNavigation(input: {
       if (isCompletedExitDelivery(participant.exitDeliveryState)) {
         return true;
       }
-      if (
-        participant.exitDeliveryState === "pending" ||
-        participant.exitDeliveryState === "claimed"
-      ) {
-        const now = serviceTime(input.service);
-        const claimToken = randomUUID();
-        const navigation = await input.service.claimParticipantFleeExitDelivery({
-          sessionId: current.id,
-          telegramUserId: participant.telegramUserId,
-          claimToken,
-          claimedAt: now,
-          staleBefore: new Date(now.getTime() - FLEE_EXIT_DELIVERY_CLAIM_MS)
-        });
-        if (navigation.state === "superseded") {
-          return true;
-        }
-        if (navigation.state === "not-found" || navigation.state === "busy") {
-          const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-          const latestParticipant = findParticipant(latest, input.participantCharacterId);
-          return latestParticipant
-            ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
-            : false;
-        }
-        if (navigation.state !== "claimed") {
-          return false;
-        }
-        let exitMessageId: number;
+      const now = serviceTime(input.service);
+      const claimToken = randomUUID();
+      const navigation = await input.service.claimParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: participant.telegramUserId,
+        claimToken,
+        claimedAt: now,
+        staleBefore: new Date(now.getTime() - FLEE_EXIT_DELIVERY_CLAIM_MS)
+      });
+      if (navigation.state === "superseded") {
+        return true;
+      }
+      if (navigation.state === "not-found" || navigation.state === "busy") {
+        const latest = await loadAuthoritativeSession(input.service, input.sessionId);
+        const latestParticipant = findParticipant(latest, input.participantCharacterId);
+        return latestParticipant
+          ? isCompletedExitDelivery(latestParticipant.exitDeliveryState)
+          : false;
+      }
+      if (navigation.state !== "claimed") {
+        return false;
+      }
+      const ownedTransport = exitPublicationOwnedTransport({
+        service: input.service,
+        transport: input.transport,
+        sessionId: current.id,
+        telegramUserId: participant.telegramUserId,
+        claimToken,
+        now: () => serviceTime(input.service)
+      });
+      const releaseClaim = () =>
+        input.service.releaseParticipantFleeExitDeliveryClaim({
+          sessionId: current!.id,
+          telegramUserId: participant!.telegramUserId,
+          claimToken
+        }).catch(() => false);
+      if (!navigation.menuDelivered) {
+        let exitMessageId: number | null;
         try {
           const fled = current.state.participants.some(
             (actor) =>
               actor.characterId === participant!.characterId &&
               actor.fledAtTurn !== undefined
           );
-          const renewed =
-            await input.service.renewParticipantFleeExitDeliveryClaim({
+          exitMessageId = await ownedTransport.sendInertMessage(
+            participant.telegramUserId,
+            fled
+              ? "🏃 Ви відступили з бою. Головне меню знову на місці."
+              : "🏁 Бій завершено. Головне меню знову на місці.",
+            {
+              reply_markup: buildMainMenuKeyboard({
+                ...(navigation.locationId
+                  ? { locationId: navigation.locationId }
+                  : {}),
+                ...(navigation.questMarkers
+                  ? { questMarkers: navigation.questMarkers }
+                  : {})
+              })
+            }
+          );
+        } catch (error) {
+          if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
+            await input.service.releaseParticipantFleeExitDeliveryClaim({
               sessionId: current.id,
               telegramUserId: participant.telegramUserId,
-              claimToken,
-              claimedAt: serviceTime(input.service)
-            });
-          if (!renewed) {
-            return false;
+              claimToken
+            }).catch(() => false);
           }
-          const controller = new AbortController();
-          const timeout = setTimeout(
-            () => controller.abort(),
-            TELEGRAM_PUBLICATION_IO_TIMEOUT_MS
-          );
-          let sent: Awaited<ReturnType<Api["sendMessage"]>>;
-          try {
-            sent = await input.api.sendMessage(
-              Number(participant.telegramUserId),
-              fled
-                ? "🏃 Ви відступили з бою. Головне меню знову на місці."
-                : "🏁 Бій завершено. Головне меню знову на місці.",
-              {
-                reply_markup: buildMainMenuKeyboard({
-                  ...(navigation.locationId
-                    ? { locationId: navigation.locationId }
-                    : {}),
-                  ...(navigation.questMarkers
-                    ? {
-                        questMarkers: navigation.questMarkers
-                      }
-                    : {})
-                })
-              },
-              controller.signal as Parameters<Api["sendMessage"]>[3]
-            );
-          } finally {
-            clearTimeout(timeout);
-          }
-          exitMessageId = sent.message_id;
-        } catch (error) {
-          await input.service.releaseParticipantFleeExitDeliveryClaim({
-            sessionId: current.id,
-            telegramUserId: participant.telegramUserId,
-            claimToken
-          }).catch(() => false);
-          throw error;
+          return false;
+        }
+        if (exitMessageId === null) {
+          return false;
         }
         let acknowledged = false;
         for (
@@ -290,10 +282,8 @@ async function deliverParticipantExitNavigation(input: {
           participant = findParticipant(current, input.participantCharacterId);
           if (
             !participant ||
-            (
-              participant.exitDeliveryState !== "menu-delivered" &&
-              participant.exitDeliveryState !== "completed"
-            )
+            participant.exitDeliveryClaimToken !== claimToken ||
+            participant.exitDeliveryState !== "menu-delivered"
           ) {
             return false;
           }
@@ -301,158 +291,132 @@ async function deliverParticipantExitNavigation(input: {
       }
       current = await loadAuthoritativeSession(input.service, input.sessionId);
       participant = findParticipant(current, input.participantCharacterId);
-      if (!current || !participant) {
+      if (
+        !current ||
+        !participant ||
+        participant.exitDeliveryState !== "menu-delivered" ||
+        participant.exitDeliveryClaimToken !== claimToken
+      ) {
         return false;
       }
-      if (isCompletedExitDelivery(participant.exitDeliveryState)) {
-        return true;
-      }
-      if (participant.exitDeliveryState !== "menu-delivered") {
-        return false;
-      }
-      const reference = privateReference(participant);
       const card = buildCard(
         current,
         participant.characterId,
         serviceTime(input.service)
       );
-      let previousState: "inert" | "missing" | "failed" = "missing";
-      if (reference) {
-        previousState = await makePreviousReferenceInert(
-          input.transport,
-          reference
-        );
-        if (previousState === "failed") {
-          return false;
-        }
-      }
+      const participantCharacterId = participant.characterId;
       const actor = current.state.participants.find(
-        (candidate) => candidate.characterId === participant.characterId
+        (candidate) => candidate.characterId === participantCharacterId
       );
       const shouldPublishTerminalCard =
         current.status !== "active" &&
         actor?.fledAtTurn === undefined;
-      let terminalCardReference: GroupCombatMessageReference | null = null;
-      if (shouldPublishTerminalCard) {
-        let messageId: number | null;
-        try {
-          messageId = await input.transport.sendInertMessage(
-            participant.telegramUserId,
-            card.text,
-            card.options
+      const existingReference = privateReference(participant);
+      const terminalAlreadyAdopted = Boolean(
+        shouldPublishTerminalCard &&
+        existingReference &&
+        participant.deliveredRevision >= current.deliveryRevision
+      );
+      let canonicalReference = existingReference;
+      if (!terminalAlreadyAdopted) {
+        let previousState: "inert" | "missing" | "failed" = "missing";
+        if (existingReference) {
+          previousState = await makePreviousReferenceInert(
+            ownedTransport,
+            existingReference,
+            true,
+            true
           );
-        } catch (error) {
-          if (reference && previousState === "inert") {
-            await restoreReferenceCard(input.transport, reference, card);
+          if (previousState === "failed") {
+            await releaseClaim();
+            return false;
           }
-          throw error;
         }
-        if (messageId === null) {
-          if (reference && previousState === "inert") {
-            await restoreReferenceCard(input.transport, reference, card);
+        if (shouldPublishTerminalCard) {
+          let messageId: number | null;
+          try {
+            messageId = await ownedTransport.sendInertMessage(
+              participant.telegramUserId,
+              card.text,
+              card.options
+            );
+          } catch (error) {
+            if (existingReference && previousState === "inert") {
+              await restoreReferenceCard(
+                ownedTransport,
+                existingReference,
+                card
+              ).catch(() => undefined);
+            }
+            if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
+              await releaseClaim();
+            }
+            return false;
           }
+          if (messageId === null) {
+            return false;
+          }
+          const candidate = {
+            chatId: participant.telegramUserId,
+            messageId
+          };
+          const adopted =
+            await input.service.adoptParticipantFleeExitTerminalCard({
+              sessionId: current.id,
+              telegramUserId: participant.telegramUserId,
+              claimToken,
+              expectedReferenceVersion: participant.referenceVersion,
+              chatId: existingReference?.chatId ?? null,
+              messageId: existingReference?.messageId ?? null,
+              terminalCard: {
+                ...candidate,
+                deliveryRevision: current.deliveryRevision
+              }
+            });
+          if (!adopted) {
+            await retireLosingCandidate(ownedTransport, candidate);
+            if (existingReference && previousState === "inert") {
+              await restoreReferenceCard(
+                ownedTransport,
+                existingReference,
+                card
+              ).catch(() => undefined);
+            }
+            await releaseClaim();
+            return false;
+          }
+          canonicalReference = candidate;
+        } else {
+          canonicalReference = null;
+        }
+        if (existingReference && previousState === "inert") {
+          await deleteReferenceBestEffort(ownedTransport, existingReference);
+        }
+        current = await loadAuthoritativeSession(input.service, input.sessionId);
+        participant = findParticipant(current, input.participantCharacterId);
+        if (
+          !current ||
+          !participant ||
+          participant.exitDeliveryState !== "menu-delivered" ||
+          participant.exitDeliveryClaimToken !== claimToken
+        ) {
           return false;
         }
-        terminalCardReference = {
-          chatId: participant.telegramUserId,
-          messageId
-        };
+        canonicalReference = privateReference(participant);
       }
-      let completed = false;
-      try {
-        completed =
-          await input.service.completeParticipantFleeExitDelivery({
-            sessionId: current.id,
-            telegramUserId: participant.telegramUserId,
-            expectedReferenceVersion: participant.referenceVersion,
-            chatId: reference?.chatId ?? null,
-            messageId: reference?.messageId ?? null,
-            ...(terminalCardReference
-              ? {
-                  terminalCard: {
-                    chatId: terminalCardReference.chatId,
-                    messageId: terminalCardReference.messageId,
-                    deliveryRevision: current.deliveryRevision
-                  }
-                }
-              : {})
-          });
-      } catch {
-        const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-        const latestParticipant = findParticipant(latest, input.participantCharacterId);
-        if (latestParticipant?.exitDeliveryState === "completed") {
-          if (
-            terminalCardReference &&
-            (
-              latestParticipant.chatId !== terminalCardReference.chatId ||
-              latestParticipant.messageId !== terminalCardReference.messageId
-            )
-          ) {
-            await input.transport.deleteMessage(terminalCardReference).catch(() => undefined);
-          }
-          if (reference && previousState === "inert") {
-            await input.transport.deleteMessage(reference).catch(() => undefined);
-          }
-          return true;
-        }
-        if (terminalCardReference && latestParticipant) {
-          await retireLosingCandidate(input.transport, terminalCardReference);
-        }
-        const latestReference = latestParticipant
-          ? privateReference(latestParticipant)
-          : null;
-        if (
-          shouldPublishTerminalCard &&
-          reference &&
-          previousState === "inert" &&
-          latestReference &&
-          sameReference(latestReference, reference)
-        ) {
-          await restoreReferenceCard(input.transport, reference, card);
-        }
-        return false;
+      const completed = await input.service.completeParticipantFleeExitDelivery({
+        sessionId: current.id,
+        telegramUserId: participant.telegramUserId,
+        claimToken,
+        expectedReferenceVersion: participant.referenceVersion,
+        chatId: canonicalReference?.chatId ?? null,
+        messageId: canonicalReference?.messageId ?? null,
+        retainReference: shouldPublishTerminalCard
+      });
+      if (!completed) {
+        await releaseClaim();
       }
-      if (completed) {
-        if (reference && previousState === "inert") {
-          await input.transport.deleteMessage(reference).catch(() => undefined);
-        }
-        return true;
-      }
-      const latest = await loadAuthoritativeSession(input.service, input.sessionId);
-      const latestParticipant = findParticipant(
-        latest,
-        input.participantCharacterId
-      );
-      const completedElsewhere = latestParticipant?.exitDeliveryState === "completed";
-      if (
-        terminalCardReference &&
-        (
-          !completedElsewhere ||
-          latestParticipant.chatId !== terminalCardReference.chatId ||
-          latestParticipant.messageId !== terminalCardReference.messageId
-        )
-      ) {
-        await retireLosingCandidate(input.transport, terminalCardReference);
-      }
-      if (completedElsewhere) {
-        if (reference && previousState === "inert") {
-          await input.transport.deleteMessage(reference).catch(() => undefined);
-        }
-      } else {
-        const latestReference = latestParticipant
-          ? privateReference(latestParticipant)
-          : null;
-        if (
-          shouldPublishTerminalCard &&
-          reference &&
-          previousState === "inert" &&
-          latestReference &&
-          sameReference(latestReference, reference)
-        ) {
-          await restoreReferenceCard(input.transport, reference, card);
-        }
-      }
-      return completedElsewhere;
+      return completed;
     }
   );
 }
@@ -909,6 +873,26 @@ async function retireLosingCandidate(
   }).catch(() => undefined);
 }
 
+async function deleteReferenceBestEffort(
+  transport: GroupCombatDeliveryTransport,
+  reference: GroupCombatMessageReference
+): Promise<void> {
+  for (
+    let attempt = 0;
+    attempt < LOSING_CANDIDATE_DELETE_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      await transport.deleteMessage(reference);
+      return;
+    } catch (error) {
+      if (error instanceof GroupCombatUiPublicationOwnershipLost) {
+        return;
+      }
+    }
+  }
+}
+
 function exitDeliveryStateOf(
   participant: Pick<GroupCombatParticipantRecord, "exitDeliveryState">
 ): GroupCombatParticipantRecord["exitDeliveryState"] {
@@ -918,7 +902,8 @@ function exitDeliveryStateOf(
 async function makePreviousReferenceInert(
   transport: GroupCombatDeliveryTransport,
   reference: GroupCombatMessageReference,
-  clearInlineKeyboard = true
+  clearInlineKeyboard = true,
+  rethrowOwnershipLoss = false
 ): Promise<"inert" | "missing" | "failed"> {
   try {
     await transport.editMessage(
@@ -933,6 +918,12 @@ async function makePreviousReferenceInert(
     );
     return "inert";
   } catch (error) {
+    if (
+      rethrowOwnershipLoss &&
+      error instanceof GroupCombatUiPublicationOwnershipLost
+    ) {
+      throw error;
+    }
     if (isMessageNotModifiedError(error)) {
       return "inert";
     }
@@ -1165,6 +1156,52 @@ function uiPublicationOwnedTransport(input: {
       claimToken: input.claimToken,
       claimedAt
     });
+    if (!renewed) {
+      throw new GroupCombatUiPublicationOwnershipLost();
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      TELEGRAM_PUBLICATION_IO_TIMEOUT_MS
+    );
+    try {
+      return await operation(controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+  return {
+    editMessage: (reference, text, options) =>
+      runOwned((signal) =>
+        input.transport.editMessage(reference, text, options, signal)
+      ),
+    sendInertMessage: (chatId, text, options) =>
+      runOwned((signal) =>
+        input.transport.sendInertMessage(chatId, text, options, signal)
+      ),
+    deleteMessage: (reference) =>
+      runOwned((signal) => input.transport.deleteMessage(reference, signal))
+  };
+}
+
+function exitPublicationOwnedTransport(input: {
+  service: GroupCombatService;
+  transport: GroupCombatDeliveryTransport;
+  sessionId: string;
+  telegramUserId: bigint;
+  claimToken: string;
+  now?: () => Date;
+}): GroupCombatDeliveryTransport {
+  const runOwned = async <T>(
+    operation: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> => {
+    const renewed =
+      await input.service.renewParticipantFleeExitDeliveryClaim({
+        sessionId: input.sessionId,
+        telegramUserId: input.telegramUserId,
+        claimToken: input.claimToken,
+        claimedAt: input.now?.() ?? new Date()
+      });
     if (!renewed) {
       throw new GroupCombatUiPublicationOwnershipLost();
     }

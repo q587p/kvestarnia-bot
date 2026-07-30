@@ -18,6 +18,7 @@ import {
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatLootVersionOneRoll,
   type GroupCombatResult,
+  type GroupCombatMonsterAbilityEffect,
   type GroupCombatSettlementPlan,
   type GroupCombatSettlementReceipt,
   type GroupCombatState,
@@ -31,8 +32,12 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../services/presenceService";
 import { findMonsterBark } from "../../content/monsterBarks";
 import {
-  compileMonsterAbilityRecipe
+  compileMonsterAbilityExecutionPlan,
+  compileMonsterAbilityRecipe,
+  getMonsterAbilityEffectContract,
+  type MonsterAbilityRuntimeStateV1
 } from "../combat/monsterAbilityRuntime";
+import type { CombatState } from "../combat/combatState";
 import {
   findMonsterAbility,
   type MonsterAbilityDefinition
@@ -132,7 +137,8 @@ const actorSchema = z.object({
   fleeAttempts: positiveInteger.max(7).optional(),
   fledAtTurn: positiveInteger.optional(),
   cooldowns: cooldownsSchema.optional(),
-  playerAbilityFumbles: fumblesSchema.optional()
+  playerAbilityFumbles: fumblesSchema.optional(),
+  lastActionKey: z.enum(["attack", "guard", "class", "race", "gear", "item", "flee"]).optional()
 }).strict().refine((value) => value.hp <= value.hpMax && value.mana <= value.manaMax, {
   message: "Participant resources exceed frozen maxima."
 }).refine(
@@ -183,6 +189,10 @@ const enemySchema = z.object({
     remainingTurns: positiveInteger.max(13)
   }).strict()).optional(),
   usedOnceAbilityIds: z.array(z.string().min(1)).max(13).optional(),
+  abilityOwnActionCount: nonNegativeInteger.optional(),
+  lastActionKind: z.enum(["attack", "ability"]).optional(),
+  lastAbilityId: z.string().min(1).optional(),
+  lastDirectParticipantDamage: nonNegativeInteger.optional(),
   shield: z.object({
     sourceAbilityId: z.string().min(1),
     sourceEnemyId: z.string().min(1),
@@ -249,6 +259,52 @@ const statusSchema = z.object({
   value: positiveInteger,
   remainingTurns: positiveInteger.max(13),
   appliedTurn: positiveInteger.optional()
+}).strict();
+
+const monsterAbilityEffectKindSchema = z.enum([
+  "accuracy",
+  "evasion",
+  "outgoing-damage",
+  "incoming-damage",
+  "mark",
+  "burn",
+  "bleed",
+  "ability-lock",
+  "mana-cost-pressure",
+  "reflect",
+  "status-resistance",
+  "flee",
+  "crit",
+  "slow",
+  "confusion",
+  "cooldown-pressure",
+  "next-attack-bonus",
+  "counter",
+  "repeat-penalty"
+]);
+
+const monsterAbilityEffectSchema = z.object({
+  id: z.string().min(1).max(587),
+  sourceEnemyId: z.string().min(1),
+  sourceAbilityId: z.string().min(1),
+  targetKind: z.enum(["participant", "enemy"]),
+  targetId: z.string().min(1),
+  kind: monsterAbilityEffectKindSchema,
+  value: z.number().finite().nonnegative(),
+  polarity: z.enum(["beneficial", "harmful", "neutral"]),
+  removable: z.boolean(),
+  trigger: z.enum([
+    "on-cast",
+    "on-landed-direct-hit",
+    "on-shield-survived",
+    "on-hero-damaged-monster",
+    "on-monster-own-activation",
+    "on-hero-target-activation"
+  ]),
+  triggerId: z.string().min(1).optional(),
+  remainingSourceActivations: positiveInteger.max(13).optional(),
+  remainingTargetActivations: positiveInteger.max(13).optional(),
+  charges: positiveInteger.max(13).optional()
 }).strict();
 
 const recapSchema = z.object({
@@ -431,6 +487,8 @@ const stateSchema = z.object({
     .optional(),
   enemyBarks: z.record(z.string().min(1), combatBarkStateSchema).optional(),
   statuses: z.array(statusSchema).max(93),
+  abilityEffects: z.array(monsterAbilityEffectSchema).max(93).optional(),
+  expiredAbilityEffects: z.array(monsterAbilityEffectSchema).max(6).optional(),
   recap: z.array(recapSchema).max(GROUP_COMBAT_RECAP_LIMIT),
   production: productionSchema.optional()
 }).strict().superRefine((state, context) => {
@@ -482,6 +540,7 @@ const stateSchema = z.object({
   requireUnique(state.enemies.map((row) => row.order), context, "enemy order");
   requireUnique(state.contributions.map((row) => row.characterId), context, "contribution character ids");
   requireUnique(state.statuses.map((row) => row.id), context, "status ids");
+  requireUnique((state.abilityEffects ?? []).map((row) => row.id), context, "monster ability effect ids");
 
   const participantIds = [...state.participants.map((row) => row.characterId)].sort();
   const contributionIds = [...state.contributions.map((row) => row.characterId)].sort();
@@ -598,6 +657,22 @@ const stateSchema = z.object({
       status.kind === "monster-outgoing-damage";
     if (!legalTarget || enemyTargetKind !== (status.targetKind === "enemy")) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Status target or kind is invalid." });
+    }
+  }
+  for (const effect of [
+    ...(state.abilityEffects ?? []),
+    ...(state.expiredAbilityEffects ?? [])
+  ]) {
+    if (
+      !isCanonicalMonsterAbilityEffect(
+        state as unknown as GroupCombatState,
+        effect as GroupCombatMonsterAbilityEffect
+      )
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Monster ability effect is not canonical."
+      });
     }
   }
   if (state.participants.some((participant) =>
@@ -937,6 +1012,81 @@ type MonsterValidationState = {
     };
   } | undefined;
 };
+
+function isCanonicalMonsterAbilityEffect(
+  state: GroupCombatState,
+  effect: GroupCombatMonsterAbilityEffect
+): boolean {
+  const source = state.enemies.find((enemy) => enemy.id === effect.sourceEnemyId);
+  const ability = source
+    ? findValidationMonsterAbility(state, source.id, effect.sourceAbilityId)
+    : null;
+  if (
+    !source ||
+    !ability ||
+    !(source.abilityIds ?? []).includes(ability.id) ||
+    !isSupportedGroupCombatMonsterAbility(ability.id) ||
+    (
+      effect.targetKind === "participant"
+        ? !state.participants.some((participant) => participant.characterId === effect.targetId)
+        : !state.enemies.some((enemy) => enemy.id === effect.targetId)
+    )
+  ) {
+    return false;
+  }
+  const target = effect.targetKind === "participant" ? "hero" : "monster";
+  const contract = getMonsterAbilityEffectContract({
+    sourceAbilityId: ability.id,
+    sourceActor: "monster",
+    target,
+    kind: effect.kind,
+    value: effect.value
+  });
+  if (
+    contract.polarity !== effect.polarity ||
+    contract.removable !== effect.removable
+  ) {
+    return false;
+  }
+  for (let turn = 1; turn <= 6; turn += 1) {
+    for (let ownActionCount = 1; ownActionCount <= 6; ownActionCount += 1) {
+      const plan = compileMonsterAbilityExecutionPlan({
+        ability,
+        state: { turn } as CombatState,
+        runtime: {
+          ownActionCount,
+          lastDirectHeroDamage: source.lastDirectParticipantDamage
+        } as MonsterAbilityRuntimeStateV1
+      });
+      const component = plan.components.find((candidate) =>
+        candidate.kind === "runtime-effect" &&
+        candidate.target === target &&
+        candidate.effectKind === effect.kind &&
+        (
+          candidate.value === effect.value ||
+          (
+            effect.kind === "next-attack-bonus" &&
+            effect.value >= 1 &&
+            effect.value <= 1.75
+          )
+        ) &&
+        candidate.trigger === effect.trigger &&
+        candidate.triggerId === effect.triggerId
+      );
+      if (
+        component &&
+        (effect.remainingSourceActivations ?? 0) <=
+          (component.durationOwnActivations ?? effect.remainingSourceActivations ?? 0) &&
+        (effect.remainingTargetActivations ?? 0) <=
+          (component.durationTargetActivations ?? effect.remainingTargetActivations ?? 0) &&
+        (effect.charges ?? 0) <= (component.charges ?? effect.charges ?? 0)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 type MonsterValidationStatus = {
   kind: GroupCombatStatusKind;

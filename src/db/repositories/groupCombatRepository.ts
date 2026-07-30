@@ -268,7 +268,7 @@ export interface GroupCombatRepository {
     claimedAt: Date;
     staleBefore: Date;
   }): Promise<
-    | { state: "claimed"; locationId: string | null }
+    | { state: "claimed"; locationId: string | null; menuDelivered: boolean }
     | { state: "busy" | "superseded" | "not-found" }
   >;
 
@@ -292,17 +292,28 @@ export interface GroupCombatRepository {
     messageId: number;
   }): Promise<boolean>;
 
-  completeParticipantFleeExitDelivery(input: {
+  adoptParticipantFleeExitTerminalCard(input: {
     sessionId: string;
     telegramUserId: bigint;
+    claimToken: string;
     expectedReferenceVersion: number;
     chatId: bigint | null;
     messageId: number | null;
-    terminalCard?: {
+    terminalCard: {
       chatId: bigint;
       messageId: number;
       deliveryRevision: number;
     };
+  }): Promise<boolean>;
+
+  completeParticipantFleeExitDelivery(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    claimToken: string;
+    expectedReferenceVersion: number;
+    chatId: bigint | null;
+    messageId: number | null;
+    retainReference: boolean;
   }): Promise<boolean>;
 
   claimParticipantUiPublication(input: {
