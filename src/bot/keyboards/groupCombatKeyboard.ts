@@ -77,7 +77,6 @@ export function buildGroupCombatReplyKeyboard(
   }
   return keyboard
     .text(groupCombatReplyButtons.flee)
-    .row()
     .text(groupCombatReplyButtons.refresh)
     .resized()
     .persistent()

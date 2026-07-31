@@ -141,8 +141,7 @@ describe("group combat presenter", () => {
       ["🗡️ Комірний 1", "🗡️ Комірний 2"],
       ["🗡️ Комірний 3"],
       ["🛡 Захищатися"],
-      ["🏃 Відступити"],
-      ["🔎 Оновити"]
+      ["🏃 Відступити", "🔎 Оновити"]
     ]);
     expect(replyLabels).toEqual([
       "🗡️ Вдарити",
@@ -168,9 +167,11 @@ describe("group combat presenter", () => {
       .map((row) => row.map((button) => button.text))).toEqual([
       ["🗡️ Вдарити", "🛡 Захищатися"],
       ["🪓 Силовий замах", "📝 Правка на полях"],
-      ["🏃 Відступити"],
-      ["🔎 Оновити"]
+      ["🏃 Відступити", "🔎 Оновити"]
     ]);
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    ).at(-1)).toEqual(["🏃 Відступити", "🔎 Оновити"]);
   });
 
   it("shows every frozen ability directly and narrows a selected ability to targets only", () => {

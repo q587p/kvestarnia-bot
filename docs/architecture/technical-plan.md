@@ -409,17 +409,20 @@ all later calls in that replacement. Every active canonical card send/edit
 carries its authoritative non-empty inline controls. Ordinary persistent combat,
 Training Doppelgänger, Party Boss and GroupCombat use one shared action-grid
 template and canonical labels; GroupCombat diverges only for explicit living-
-enemy target buttons and its final network-refresh row. Only an inline control set
+enemy target buttons and its final paired retreat/refresh row. Only an inline control set
 actually attached to a private canonical candidate may advance the legacy
 fingerprint/generation fields, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
 therefore edits the adopted canonical card instead of sending another countdown
 copy. A candidate that loses the durable reference CAS receives three
 bounded deletion attempts; permanent Telegram refusal redraws only that losing
-message as a compact inert superseded note. Active and terminal replacement
-compact the previous canonical message before the best-effort delete, so delete
+message as a compact inert superseded note. Active replacement compacts the
+previous canonical message before the best-effort delete. Terminal publication
+sends the result itself with the persistent main keyboard, edits that same
+message to attach Journal/Statistics, then compacts the previous card, so delete
 refusal cannot preserve a second full battle card or terminal result beside the
-winner. A failed fresh terminal send restores the prior result. A
+winner. A failed terminal inline edit retries the same acknowledged result
+without resending it. A
 supergroup notice never acknowledges a private control generation.
 The production intro remains a separate message, but the first authoritative
 keyboard-generation owner serializes it inside the same durable participant
@@ -453,14 +456,14 @@ the main-menu reply keyboard: current presence/quest markers are advisory until
 an atomic pre-send renewal validates the exact claim token and exit-navigation
 lease, and the send aborts at 13 seconds. A lost owner sends nothing; ordinary
 failure releases to pending, while an acknowledgement-ambiguous live claim is
-retained for stale recovery. After the main menu is acknowledged, terminal
-delivery retains that exact claim and navigation lease through old-card
-compaction, fresh terminal-card send, canonical-reference adoption and losing
-candidate cleanup. The final completion CAS validates the same token/reference
-and releases the navigation lease last. Process death after adoption is
-restart-recoverable, while stale takeover cannot let an older worker publish
-after a newer combat. Terminal result cards contain only inline
-Journal/Statistics controls and never replace a newer reply keyboard.
+retained for stale recovery. For terminal settlement, the one bottom-most
+result message itself restores that main keyboard, is acknowledged, then is
+edited in place to attach Journal/Statistics controls. Delivery retains the
+exact claim and navigation lease through that edit, old-card compaction,
+canonical-reference adoption and losing-candidate cleanup. The final completion
+CAS validates the same token/reference and releases the navigation lease last.
+Process death after adoption is restart-recoverable, while stale takeover cannot
+let an older worker publish after a newer combat.
 Strict repair treats `menu-delivered` as canonical both between retries with no
 owner and while its exact token/timestamp still owns the final CAS. Generic
 combat-lock routing recognizes that temporary exit-navigation lease, resumes

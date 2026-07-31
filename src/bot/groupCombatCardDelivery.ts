@@ -100,14 +100,12 @@ export async function deliverGroupCombatCards(
     }
     if (
       authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      (authoritative.status !== "active" || participantFledThisTurn) &&
+      participantFledThisTurn &&
       participant.deliveredRevision < authoritative.deliveryRevision
     ) {
       await api.sendMessage(
         Number(participant.telegramUserId),
-        participantFledThisTurn
-          ? "🏃 Ви відступили з бою. Головне меню знову на місці."
-          : "🏁 Бій завершено. Головне меню знову на місці.",
+        "🏃 Ви відступили з бою. Головне меню знову на місці.",
         {
           reply_markup: buildMainMenuKeyboard({
             ...(authoritative.state.production?.locationId
@@ -221,21 +219,23 @@ async function deliverParticipantExitNavigation(input: {
               actor.characterId === participant!.characterId &&
               actor.fledAtTurn !== undefined
           );
+          const terminalCard = current.status !== "active" && !fled
+            ? buildCard(current, participant.characterId, serviceTime(input.service))
+            : null;
+          const mainMenuKeyboard = buildMainMenuKeyboard({
+            ...(navigation.locationId
+              ? { locationId: navigation.locationId }
+              : {}),
+            ...(navigation.questMarkers
+              ? { questMarkers: navigation.questMarkers }
+              : {})
+          });
           exitMessageId = await ownedTransport.sendInertMessage(
             participant.telegramUserId,
-            fled
-              ? "🏃 Ви відступили з бою. Головне меню знову на місці."
-              : "🏁 Бій завершено. Головне меню знову на місці.",
-            {
-              reply_markup: buildMainMenuKeyboard({
-                ...(navigation.locationId
-                  ? { locationId: navigation.locationId }
-                  : {}),
-                ...(navigation.questMarkers
-                  ? { questMarkers: navigation.questMarkers }
-                  : {})
-              })
-            }
+            terminalCard?.text ?? "🏃 Ви відступили з бою. Головне меню знову на місці.",
+            terminalCard
+              ? { ...terminalCard.options, reply_markup: mainMenuKeyboard }
+              : { reply_markup: mainMenuKeyboard }
           );
         } catch (error) {
           if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
@@ -303,6 +303,12 @@ async function deliverParticipantExitNavigation(input: {
         current.status !== "active" &&
         actor?.fledAtTurn === undefined;
       const existingReference = privateReference(participant);
+      const exitMessageReference = participant.exitDeliveryMessageId
+        ? {
+            chatId: participant.telegramUserId,
+            messageId: participant.exitDeliveryMessageId
+          }
+        : null;
       const terminalAlreadyAdopted = Boolean(
         shouldPublishTerminalCard &&
         existingReference &&
@@ -311,7 +317,28 @@ async function deliverParticipantExitNavigation(input: {
       let canonicalReference = existingReference;
       if (!terminalAlreadyAdopted) {
         let previousState: "inert" | "missing" | "failed" = "missing";
-        if (existingReference) {
+        if (shouldPublishTerminalCard) {
+          if (!exitMessageReference) {
+            await releaseClaim();
+            return false;
+          }
+          try {
+            await ownedTransport.editMessage(
+              exitMessageReference,
+              card.text,
+              card.options
+            );
+          } catch (error) {
+            if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
+              await releaseClaim();
+            }
+            return false;
+          }
+        }
+        if (
+          existingReference &&
+          (!exitMessageReference || !sameReference(existingReference, exitMessageReference))
+        ) {
           previousState = await makePreviousReferenceInert(
             ownedTransport,
             existingReference,
@@ -324,33 +351,7 @@ async function deliverParticipantExitNavigation(input: {
           }
         }
         if (shouldPublishTerminalCard) {
-          let messageId: number | null;
-          try {
-            messageId = await ownedTransport.sendInertMessage(
-              participant.telegramUserId,
-              card.text,
-              card.options
-            );
-          } catch (error) {
-            if (existingReference && previousState === "inert") {
-              await restoreReferenceCard(
-                ownedTransport,
-                existingReference,
-                card
-              ).catch(() => undefined);
-            }
-            if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
-              await releaseClaim();
-            }
-            return false;
-          }
-          if (messageId === null) {
-            return false;
-          }
-          const candidate = {
-            chatId: participant.telegramUserId,
-            messageId
-          };
+          const candidate = exitMessageReference!;
           const adopted =
             await input.service.adoptParticipantFleeExitTerminalCard({
               sessionId: current.id,

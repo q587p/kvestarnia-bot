@@ -36,8 +36,8 @@ copies after a later acknowledgement failure. Losing sent candidates receive
 bounded deletion retry and otherwise become only a compact inert superseded
 note. Active and terminal replacement compact the previous canonical message
 before its best-effort delete, so delete refusal cannot leave a second full
-battle card or terminal result; a failed fresh terminal send restores the prior
-result.
+battle card or terminal result; a failed terminal inline-control edit keeps the
+acknowledged result and retries that same message without another send.
 Explicit refresh also persists a participant
 keyboard request before delivery; a busy/restarted claim stays in the bounded
 queue until the private keyboard is acknowledged. This remains automated

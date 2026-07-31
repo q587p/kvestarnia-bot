@@ -41,11 +41,16 @@ export function buildCombatActionKeyboard(
 
   appendPairedRows(keyboard, layout.abilityButtons ?? []);
   appendFullRow(keyboard, layout.itemsButton);
-  appendFullRow(keyboard, layout.fleeButton);
   for (const button of layout.utilityButtons ?? []) {
     appendFullRow(keyboard, button);
   }
-  appendFullRow(keyboard, layout.refreshButton, false);
+  if (layout.fleeButton && layout.refreshButton) {
+    appendButton(keyboard, layout.fleeButton);
+    appendButton(keyboard, layout.refreshButton);
+  } else {
+    appendFullRow(keyboard, layout.fleeButton);
+    appendFullRow(keyboard, layout.refreshButton, false);
+  }
 
   while (keyboard.inline_keyboard.at(-1)?.length === 0) {
     keyboard.inline_keyboard.pop();

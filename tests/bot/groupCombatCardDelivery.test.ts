@@ -216,7 +216,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(sends.every((text) => !text.includes("Бій починається."))).toBe(true);
   });
 
-  it("restores the main reply keyboard before publishing a fresh terminal Journal/Statistics card", async () => {
+  it("publishes one terminal result that restores the main keyboard before attaching Journal/Statistics", async () => {
     const session = makeSession();
     session.status = "won";
     session.state.status = "won";
@@ -279,18 +279,20 @@ describe("group-combat canonical participant delivery", () => {
       const participantSends = sends.filter(
         (entry) => entry.chatId === Number(participant.telegramUserId)
       );
-      expect(participantSends).toHaveLength(2);
-      expect(participantSends[0]?.text).toContain("Головне меню");
+      expect(participantSends).toHaveLength(1);
+      expect(participantSends[0]?.text).toContain("Доказову сутичку виграно");
+      expect(participantSends[0]?.text).not.toContain("Головне меню знову на місці");
       expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(true);
-      expect(participantSends[1]?.text).toContain("Доказову сутичку виграно");
-      expect(hasReplyKeyboard(participantSends[1]?.replyMarkup)).toBe(false);
-      expect(inlineButtonLabels(participantSends[1]?.replyMarkup)).toEqual([
+      expect(edits.find((entry) =>
+        entry.chatId === Number(participant.telegramUserId) &&
+        entry.messageId === participantSends[0]?.messageId
+      )?.labels).toEqual([
         "📜 Журнал",
         "📊 Статистика"
       ]);
       expect(participant.exitDeliveryState).toBe("completed");
       expect(participant.chatId).toBe(participant.telegramUserId);
-      expect(participant.messageId).toBe(participantSends[1]?.messageId);
+      expect(participant.messageId).toBe(participantSends[0]?.messageId);
       expect(participant.deliveredRevision).toBe(session.deliveryRevision);
     }
     expect(edits.filter((entry) =>
@@ -341,9 +343,9 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session)).resolves.toBe(1);
 
-    expect(sends).toHaveLength(2);
-    expect(sends[0]?.text).toContain("Головне меню");
-    expect(sends[1]?.text).toContain("Доказову сутичку програно");
+    expect(sends).toHaveLength(1);
+    expect(sends[0]?.text).toContain("Доказову сутичку програно");
+    expect(sends[0]?.text).not.toContain("Головне меню знову на місці");
     expect(edits).toContainEqual({
       messageId: 21,
       text: "♻️ Цю бойову картку замінено актуальною нижче."
@@ -353,12 +355,12 @@ describe("group-combat canonical participant delivery", () => {
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
-      messageId: 91,
+      messageId: 90,
       exitDeliveryState: "completed"
     });
   });
 
-  it("restores the previous terminal result when the fresh bottom-most send fails", async () => {
+  it("retries the same terminal result when attaching its inline controls fails", async () => {
     const session = makeSession();
     session.status = "lost";
     session.state.status = "lost";
@@ -367,37 +369,51 @@ describe("group-combat canonical participant delivery", () => {
     session.state.participants = session.state.participants.slice(0, 1);
     session.state.participants[0]!.hp = 0;
     const edits: Array<{ messageId: number; text: string }> = [];
-    const sendMessage = vi.fn()
-      .mockResolvedValueOnce({ message_id: 90 })
-      .mockRejectedValueOnce(new Error("Telegram terminal send failed"));
-
-    await expect(deliverGroupCombatCards({
-      sendMessage,
-      editMessageText: vi.fn((
-        _chatId: number,
-        messageId: number,
-        text: string
-      ) => {
-        edits.push({ messageId, text });
-        return Promise.resolve(true);
-      }),
-      deleteMessage: vi.fn()
-    } as unknown as Api, {
-      ...mutableCardService(session),
-      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
-    } as unknown as GroupCombatService, session)).resolves.toBe(0);
-
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(edits[0]).toEqual({
-      messageId: 21,
-      text: "♻️ Цю бойову картку замінено актуальною нижче."
+    const sendMessage = vi.fn().mockResolvedValueOnce({ message_id: 90 });
+    let candidateEditFailed = false;
+    const editMessageText = vi.fn((
+      _chatId: number,
+      messageId: number,
+      text: string
+    ) => {
+      if (messageId === 90 && !candidateEditFailed) {
+        candidateEditFailed = true;
+        return Promise.reject(new Error("Telegram terminal edit failed"));
+      }
+      edits.push({ messageId, text });
+      return Promise.resolve(true);
     });
-    expect(edits.at(-1)?.messageId).toBe(21);
-    expect(edits.at(-1)?.text).toContain("Доказову сутичку програно");
+    const service = mutableCardService(session);
+    const api = {
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn()
+    } as unknown as Api;
+    const deliveryService = {
+      ...service,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
+    } as unknown as GroupCombatService;
+
+    await expect(deliverGroupCombatCards(api, deliveryService, session)).resolves.toBe(0);
+
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Доказову сутичку програно");
+    expect(edits).toHaveLength(0);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 21,
       exitDeliveryState: "menu-delivered"
+    });
+
+    await expect(deliverGroupCombatCards(api, deliveryService, session)).resolves.toBe(1);
+
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(edits.find((entry) => entry.messageId === 90)?.text)
+      .toContain("Доказову сутичку програно");
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 90,
+      exitDeliveryState: "completed"
     });
   });
 
@@ -433,8 +449,8 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
     } as unknown as GroupCombatService, session)).resolves.toBe(0);
 
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Доказову сутичку виграно");
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Доказову сутичку виграно");
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
     expect(session.participants[0]!.exitDeliveryState).toBe("menu-delivered");
   });
@@ -606,7 +622,7 @@ describe("group-combat canonical participant delivery", () => {
         ) => {
           if (
             text.includes("Ви відступили з бою") ||
-            text.includes("Бій завершено")
+            text.includes("Доказову сутичку")
           ) {
             observedSignal = signal;
             sendStarted.resolve();
@@ -718,7 +734,7 @@ describe("group-combat canonical participant delivery", () => {
         ) => {
           const isMenu =
             text.includes("Ви відступили з бою") ||
-            text.includes("Бій завершено");
+            text.includes("Доказову сутичку");
           if (isMenu && menuAttempt++ === 0) {
             oldSendStarted.resolve();
             return rejectOldSend.promise.then(() => {
