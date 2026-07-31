@@ -38,6 +38,9 @@ import { items, monsters } from "../../src/content";
 import { monsterAbilities } from "../../src/content/monsterAbilities";
 import { monsterCombatProfiles } from "../../src/content/monsterCombatProfiles";
 import { monsterLoot } from "../../src/content/monsterFlavor";
+import { startCombat } from "../../src/domain/combat";
+import { deriveGroupCombatProductionV1MonsterStats } from "../../src/domain/groupCombat/groupCombatProductionV1Resolver";
+import { mapSoloCombatSessionRecord } from "../../src/db/repositories/prismaSoloCombatSessionRepository";
 
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
@@ -162,6 +165,131 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.activeCombatLease.count({
       where: { characterId: { in: ["group-busy-user-0-character", "group-busy-user-1-character"] } }
     })).toBe(1);
+  });
+
+  it("reserves a wounded consumed deep-left monster and freezes its surviving HP", async () => {
+    const token = "left-wounded-party";
+    const telegramUserId = 11871n;
+    await seedParty(prisma, token, [telegramUserId]);
+    await prisma.partyParticipant.deleteMany({ where: { session: { inviteToken: token } } });
+    await prisma.partySession.delete({ where: { inviteToken: token } });
+    const characterId = `${token}-user-0-character`;
+    await prisma.user.update({
+      where: { telegramUserId },
+      data: {
+        lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT,
+        currentRaidId: null
+      }
+    });
+    const woundedState = {
+      ...startCombat({
+        id: "left-wounded-solo",
+        hero: {
+          hpMax: 28,
+          manaMax: 14,
+          strength: 8,
+          dexterity: 8,
+          intelligence: 8,
+          charisma: 8,
+          luck: 8
+        },
+        monster: {
+          monsterId: "monster.deadline-spider",
+          level: 4,
+          hpMax: 22,
+          attack: 5,
+          armor: 1,
+          resist: 1,
+          dexterity: 6,
+          tags: []
+        }
+      }),
+      status: "lost" as const,
+      completedAt: NOW.toISOString(),
+      life: { characterId, remortCount: 0 },
+      hero: { hp: 0, hpMax: 28, mana: 14, manaMax: 14 },
+      monster: {
+        id: "monster.deadline-spider",
+        level: 4,
+        hp: 7,
+        hpMax: 22,
+        attack: 5,
+        armor: 1,
+        resist: 1,
+        dexterity: 6,
+        tags: []
+      }
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "left-wounded-solo",
+        characterId,
+        monsterId: "monster.deadline-spider",
+        stateJson: woundedState as unknown as Prisma.InputJsonValue,
+        status: "lost",
+        turn: 3,
+        expiresAt: new Date(NOW.getTime() + 10 * 60_000)
+      }
+    });
+    await prisma.pendingPassageEncounter.create({
+      data: {
+        id: "left-wounded-encounter",
+        token: "left-wounded-preview",
+        characterId,
+        originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        passage: "deep-left",
+        difficulty: "hard",
+        monsterId: "monster.deadline-spider",
+        baseMonsterLevel: 2,
+        effectiveMonsterLevel: 4,
+        rulesVersion: "nyz-passage-preview-v1",
+        seedHash: "left-wounded-seed",
+        status: "consumed",
+        combatSessionId: "left-wounded-solo",
+        consumedAt: NOW,
+        expiresAt: new Date(NOW.getTime() + 10 * 60_000)
+      }
+    });
+    expect(mapSoloCombatSessionRecord(await prisma.soloCombatSession.findUnique({
+      where: { id: "left-wounded-solo" }
+    }))?.state).not.toBeNull();
+
+    const created = await repository.createLeftPassagePartyForTelegramUser({
+      telegramUserId,
+      encounterToken: "left-wounded-preview",
+      inviteToken: "left-wounded-party-invite",
+      originKind: "nyz-left-passage-party.v1",
+      locationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now: NOW,
+      joinUntilAt: new Date(NOW.getTime() + 3 * 60_000)
+    });
+    expect(created.state).toBe("created");
+    if (!("session" in created)) {
+      throw new Error("Expected the wounded encounter reservation.");
+    }
+    const reservation = await prisma.pendingPassageEncounter.findUnique({
+      where: { token: "left-wounded-preview" }
+    });
+    expect(reservation).toMatchObject({ status: "reserved", reservedMonsterHp: 7 });
+
+    const started = await repository.startLeftPassageForTelegramUser({
+      telegramUserId,
+      partyInviteToken: "left-wounded-party-invite",
+      now: NOW,
+      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(started.state).toBe("started");
+    if ("session" in started) {
+      expect(started.session.state.enemies[0]?.hp).toBe(7);
+      expect(started.session.state.production?.primaryStartingHp).toBe(7);
+      await prisma.activeCombatLease.deleteMany({ where: { referenceId: started.session.id } });
+      await prisma.groupCombatSession.delete({ where: { id: started.session.id } });
+    }
+    await prisma.partySession.delete({ where: { inviteToken: "left-wounded-party-invite" } });
+    await prisma.pendingPassageEncounter.delete({ where: { token: "left-wounded-preview" } });
+    await prisma.soloCombatSession.delete({ where: { id: "left-wounded-solo" } });
+    await prisma.user.delete({ where: { telegramUserId } });
   });
 
   it("accepts preview presence and effective resources, then settles the exact 2x2 reservation once", async () => {
@@ -5992,6 +6120,10 @@ async function startLeftPassageProduction(
       status: "reserved",
       reservationOrigin: "nyz-left-passage-party.v1",
       reservationRemortCount: options.remortCount ?? 0,
+      reservedMonsterHp: deriveGroupCombatProductionV1MonsterStats({
+        monsterId: "monster.deadline-spider",
+        effectiveLevel: 4
+      })!.hpMax,
       reservedPartySessionId: partyId,
       reservedAt: NOW,
       expiresAt: new Date(NOW.getTime() + 10 * 60_000)

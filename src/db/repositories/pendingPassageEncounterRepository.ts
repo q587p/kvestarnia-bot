@@ -22,6 +22,7 @@ export interface PendingPassageEncounterRecord {
   combatSessionId: string | null;
   reservationOrigin: string | null;
   reservationRemortCount: number | null;
+  reservedMonsterHp: number | null;
   reservedPartySessionId: string | null;
   reservedPartyInviteToken: string | null;
   groupCombatSessionId: string | null;

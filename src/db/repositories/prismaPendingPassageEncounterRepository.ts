@@ -456,6 +456,7 @@ function mapPending(record: PrismaPendingPassageEncounterRecord): PendingPassage
     combatSessionId: record.combatSessionId,
     reservationOrigin: record.reservationOrigin,
     reservationRemortCount: record.reservationRemortCount,
+    reservedMonsterHp: record.reservedMonsterHp,
     reservedPartySessionId: record.reservedPartySessionId,
     reservedPartyInviteToken: null,
     groupCombatSessionId: record.groupCombatSessionId,

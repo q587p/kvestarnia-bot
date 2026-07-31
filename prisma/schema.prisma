@@ -178,6 +178,7 @@ model PendingPassageEncounter {
   combatSessionId       String?   @map("combat_session_id")
   reservationOrigin     String?   @map("reservation_origin")
   reservationRemortCount Int?     @map("reservation_remort_count")
+  reservedMonsterHp     Int?      @map("reserved_monster_hp")
   reservedPartySessionId String?  @unique @map("reserved_party_session_id")
   reservedPartySession  PartySession? @relation(fields: [reservedPartySessionId], references: [id], onDelete: SetNull)
   groupCombatSessionId  String?   @unique @map("group_combat_session_id")

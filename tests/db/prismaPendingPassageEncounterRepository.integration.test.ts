@@ -392,6 +392,7 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       combat_session_id TEXT,
       reservation_origin TEXT,
       reservation_remort_count INTEGER,
+      reserved_monster_hp INTEGER,
       reserved_party_session_id TEXT UNIQUE,
       group_combat_session_id TEXT UNIQUE,
       reserved_at DATETIME,

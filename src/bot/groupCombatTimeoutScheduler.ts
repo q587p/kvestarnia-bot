@@ -24,7 +24,6 @@ export function createGroupCombatTimeoutScheduler(
     }
     const operation = (async () => {
       const started: GroupCombatSessionRecord[] = [];
-      const freshlyStartedSessionIds = new Set<string>();
       const dueParties = service.areDevHelpersEnabled()
         ? await options.partySessions?.listDueRecruitingGroupCombatProof() ?? []
         : [];
@@ -35,9 +34,6 @@ export function createGroupCombatTimeoutScheduler(
           );
           if ("session" in result) {
             started.push(result.session);
-            if (result.state === "started") {
-              freshlyStartedSessionIds.add(result.session.id);
-            }
           } else if (
             result.partyVersion !== undefined &&
             (
@@ -68,9 +64,6 @@ export function createGroupCombatTimeoutScheduler(
           );
           if ("session" in result) {
             started.push(result.session);
-            if (result.state === "started") {
-              freshlyStartedSessionIds.add(result.session.id);
-            }
           } else if (
             result.partyVersion !== undefined &&
             (
@@ -107,9 +100,7 @@ export function createGroupCombatTimeoutScheduler(
         [...started, ...resolved.map((entry) => entry.session), ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
-        await deliverGroupCombatCards(bot.api, service, session, {
-          publishStartIntro: freshlyStartedSessionIds.has(session.id)
-        });
+        await deliverGroupCombatCards(bot.api, service, session);
         const notices = resolved.find((entry) => entry.session.id === session.id)?.settlementNotices ?? [];
         if (notices.length > 0) {
           await deliverGroupCombatSettlementNotifications(bot.api, notices);

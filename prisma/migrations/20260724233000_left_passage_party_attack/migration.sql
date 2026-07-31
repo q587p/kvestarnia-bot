@@ -21,6 +21,7 @@ ON "group_combat_ui_publication_claims"("session_id");
 
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_origin" TEXT;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reservation_remort_count" INTEGER;
+ALTER TABLE "pending_passage_encounters" ADD COLUMN "reserved_monster_hp" INTEGER;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reserved_party_session_id" TEXT REFERENCES "party_sessions" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "group_combat_session_id" TEXT REFERENCES "group_combat_sessions" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "pending_passage_encounters" ADD COLUMN "reserved_at" DATETIME;

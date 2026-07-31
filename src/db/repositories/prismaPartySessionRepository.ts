@@ -1832,6 +1832,7 @@ async function releasePendingPassageReservationTx(
 
   const sameLife = encounter.reservationRemortCount === encounter.character._count.remorts;
   const reusable = sameLife && encounter.expiresAt > now;
+  const reusableStatus = encounter.combatSessionId ? "consumed" : "pending";
   await tx.pendingPassageEncounter.updateMany({
     where: {
       id: encounter.id,
@@ -1840,10 +1841,11 @@ async function releasePendingPassageReservationTx(
       reservedPartySessionId: partySessionId
     },
     data: {
-      status: reusable ? "pending" : "expired",
-      activeKey: reusable ? encounter.activeKey : null,
+      status: reusable ? reusableStatus : "expired",
+      activeKey: reusable && reusableStatus === "pending" ? encounter.activeKey : null,
       reservationOrigin: null,
       reservationRemortCount: null,
+      reservedMonsterHp: null,
       reservedPartySessionId: null,
       reservedAt: null,
       ...(!reusable ? { cancelledAt: now } : {}),

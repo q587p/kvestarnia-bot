@@ -91,9 +91,7 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
 
-    await expect(deliverGroupCombatCards(api, service, session, {
-      publishStartIntro: true
-    })).resolves.toBe(2);
+    await expect(deliverGroupCombatCards(api, service, session)).resolves.toBe(2);
 
     for (const chatId of [1001, 1002]) {
       const participantSends = sends.filter((entry) => entry.chatId === chatId);
@@ -102,10 +100,39 @@ describe("group-combat canonical participant delivery", () => {
         "Бій починається. Корчма відкриває журнал ходів"
       );
       expect(participantSends[0]?.text).toContain("<i>Порада дня:");
-      expect(participantSends[0]?.hasKeyboard).toBe(false);
+      expect(participantSends[0]?.hasKeyboard).toBe(true);
       expect(participantSends[1]?.text).toContain("<b>Бій</b>: 1 хід");
       expect(participantSends[1]?.hasKeyboard).toBe(true);
     }
+  });
+
+  it("keeps an active battle keyboard on the intro when the first canonical-card send fails", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.contributions = session.state.contributions.slice(0, 1);
+    const sendMessage = vi.fn()
+      .mockResolvedValueOnce({ message_id: 90 })
+      .mockRejectedValueOnce(new Error("card rejected"));
+    const api = {
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
+    const service = {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    await expect(deliverGroupCombatCards(api, service, session)).resolves.toBe(0);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Бій починається.");
+    expect((sendMessage.mock.calls[0]?.[2] as {
+      reply_markup?: { keyboard?: unknown };
+    })?.reply_markup?.keyboard).toBeDefined();
   });
 
   it("does not let a retried starter publish an intro after an acknowledged canonical keyboard", async () => {
@@ -130,11 +157,12 @@ describe("group-combat canonical participant delivery", () => {
       deleteMessage: vi.fn().mockResolvedValue(true)
     } as unknown as Api;
 
-    await deliverGroupCombatCards(api, service, session, { publishStartIntro: true });
-    await deliverGroupCombatCards(api, service, session, { publishStartIntro: true });
+    await deliverGroupCombatCards(api, service, session);
+    await deliverGroupCombatCards(api, service, session);
 
     expect(sends.filter((entry) => entry.text.includes("Бій починається.")))
       .toHaveLength(2);
+    expect(sends.every((entry) => entry.hasKeyboard)).toBe(true);
     for (const chatId of [1001, 1002]) {
       const participantSends = sends.filter((entry) => entry.chatId === chatId);
       expect(participantSends.at(-1)?.text).toContain("<b>Бій</b>: 1 хід");
@@ -161,11 +189,11 @@ describe("group-combat canonical participant delivery", () => {
     await deliverGroupCombatCards(api, {
       ...mutableCardService(proof),
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
-    } as unknown as GroupCombatService, proof, { publishStartIntro: true });
+    } as unknown as GroupCombatService, proof);
     await deliverGroupCombatCards(api, {
       ...mutableCardService(productionReplay),
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
-    } as unknown as GroupCombatService, productionReplay, { publishStartIntro: true });
+    } as unknown as GroupCombatService, productionReplay);
     expect(sends.every((text) => !text.includes("Бій починається."))).toBe(true);
   });
 

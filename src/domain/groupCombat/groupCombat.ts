@@ -282,6 +282,7 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
   primaryMonsterId: string;
   primaryBaseMonsterLevel: number;
   primaryEffectiveMonsterLevel: number;
+  primaryStartingHp: number;
   threat: {
     participants: GroupCombatThreatParticipantSnapshot[];
     sourceCharacterId: string;

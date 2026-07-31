@@ -894,7 +894,13 @@ export class FightService {
       difficulty: difficulty.id,
       originLocationId,
       encounterToken: encounter.token,
-      partyInvitationAvailable: encounter.status === "pending",
+      partyInvitationAvailable:
+        encounter.status === "pending" ||
+        Boolean(
+          recoveredEncounter &&
+          encounter.passage === "deep-left" &&
+          encounter.difficulty === "hard"
+        ),
       ...(encounter.status === "reserved" && encounter.reservedPartyInviteToken
         ? { reservedPartyInviteToken: encounter.reservedPartyInviteToken }
         : {}),
@@ -4434,6 +4440,7 @@ export class FightService {
         combatSessionId: null,
         reservationOrigin: null,
         reservationRemortCount: null,
+        reservedMonsterHp: null,
         reservedPartySessionId: null,
         reservedPartyInviteToken: null,
         groupCombatSessionId: null,

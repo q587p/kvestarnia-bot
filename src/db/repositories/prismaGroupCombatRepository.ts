@@ -46,6 +46,8 @@ import {
 } from "../../domain/groupCombat/groupCombatProductionV1Resolver";
 import { decideThreatEscalation } from "../../domain/combat/threatEscalation";
 import type { ThreatEscalationDecision } from "../../domain/combat/threatEscalation";
+import { normalizeCombatEnemies } from "../../domain/combat";
+import { HP_BASE_FULL_REGEN_SECONDS } from "../../domain/resources/resourceRegeneration";
 import { getLevelForXp } from "../../domain/progression/level";
 import { recordLevelMilestones } from "./levelMilestoneRepository";
 import {
@@ -81,7 +83,10 @@ import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
 import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 import { freezeVarenykSatedFromCooldown, releaseCombatLeaseWithTimedStatuses } from "./prismaVarenykSated";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
-import type { SoloCombatSessionCompletionRecord } from "./soloCombatSessionRepository";
+import type {
+  SoloCombatSessionCompletionRecord,
+  SoloCombatSessionRecord
+} from "./soloCombatSessionRepository";
 import { PrismaPartySessionRepository } from "./prismaPartySessionRepository";
 import {
   PRESENCE_ADVENTURE_SOLO_FIGHT,
@@ -202,6 +207,7 @@ const sessionInclude = {
       effectiveMonsterLevel: true,
       seedHash: true,
       reservationRemortCount: true,
+      reservedMonsterHp: true,
       reservedPartySessionId: true,
       groupCombatSessionId: true
     }
@@ -365,7 +371,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           return { state: "already-created", inviteToken: reservedParty.inviteToken };
         }
       }
-      if (encounter.status !== "pending") {
+      if (encounter.status !== "pending" && encounter.status !== "consumed") {
         return { state: "invalid-preview" };
       }
       if (character.hpCurrent <= 0) {
@@ -415,6 +421,37 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         return { state: "invalid-resources", resources: invalidResources };
       }
 
+      const primaryStats = deriveGroupCombatProductionV1MonsterStats({
+        monsterId: encounter.monsterId,
+        effectiveLevel: encounter.effectiveMonsterLevel
+      });
+      if (!primaryStats) {
+        return { state: "invalid-preview" };
+      }
+      let reservedMonsterHp = primaryStats.hpMax;
+      if (encounter.status === "consumed") {
+        if (!encounter.combatSessionId) {
+          return { state: "invalid-preview" };
+        }
+        const soloRow = await tx.soloCombatSession.findUnique({
+          where: { id: encounter.combatSessionId }
+        });
+        const solo = mapSoloCombatSessionRecord(soloRow);
+        const survivingHp = solo
+          ? recoverSinglePassageMonsterHp({
+              session: solo,
+              characterId: character.id,
+              remortCount: character._count.remorts,
+              monsterId: encounter.monsterId,
+              now: input.now
+            })
+          : null;
+        if (survivingHp === null) {
+          return { state: "invalid-preview" };
+        }
+        reservedMonsterHp = Math.min(primaryStats.hpMax, survivingHp);
+      }
+
       const partyId = randomUUID();
       await tx.partySession.create({
         data: {
@@ -456,7 +493,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       const reserved = await tx.pendingPassageEncounter.updateMany({
         where: {
           id: encounter.id,
-          status: "pending",
+          status: encounter.status,
           version: encounter.version,
           activeKey: encounter.activeKey,
           expiresAt: { gt: input.now }
@@ -465,6 +502,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           status: "reserved",
           reservationOrigin: input.originKind,
           reservationRemortCount: character._count.remorts,
+          reservedMonsterHp,
           reservedPartySessionId: partyId,
           reservedAt: input.now,
           version: { increment: 1 }
@@ -704,6 +742,8 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             reservation.rulesVersion !== LEFT_PASSAGE_PREVIEW_RULES_VERSION ||
             reservation.expiresAt <= input.now ||
             reservation.reservationRemortCount === null ||
+            reservation.reservedMonsterHp === null ||
+            reservation.reservedMonsterHp <= 0 ||
             reservation.character._count.remorts !== reservation.reservationRemortCount
           )
         ) {
@@ -2909,7 +2949,7 @@ async function buildLeftPassageState(input: {
     name: primaryBase.name,
     order: 0,
     level: input.reservation.effectiveMonsterLevel,
-    hp: primaryStats.hpMax,
+    hp: Math.min(primaryStats.hpMax, input.reservation.reservedMonsterHp!),
     hpMax: primaryStats.hpMax,
     attack: primaryStats.attack,
     defense: Math.max(primaryStats.armor, primaryStats.resist),
@@ -3017,6 +3057,7 @@ async function buildLeftPassageState(input: {
       primaryMonsterId: input.reservation.monsterId,
       primaryBaseMonsterLevel: input.reservation.baseMonsterLevel,
       primaryEffectiveMonsterLevel: input.reservation.effectiveMonsterLevel,
+      primaryStartingHp: input.reservation.reservedMonsterHp!,
       threat: {
         participants: threatParticipants.map((entry) => ({
           characterId: entry.characterId,
@@ -3593,6 +3634,47 @@ async function validateActiveOwnership(tx: TxClient, row: SessionRow): Promise<v
   ))) {
     throw new GroupCombatStateValidationError("Group-combat lease belongs to a participant who already fled.");
   }
+}
+
+function recoverSinglePassageMonsterHp(input: {
+  session: SoloCombatSessionRecord;
+  characterId: string;
+  remortCount: number;
+  monsterId: string;
+  now: Date;
+}): number | null {
+  const { session, characterId, remortCount, monsterId, now } = input;
+  const state = session.state;
+  if (
+    session.characterId !== characterId ||
+    session.monsterId !== monsterId ||
+    !state ||
+    state.status === "active" ||
+    state.status === "won" ||
+    (state.life
+      ? state.life.remortCount !== remortCount ||
+        (state.life.characterId !== undefined && state.life.characterId !== characterId)
+      : remortCount !== 0)
+  ) {
+    return null;
+  }
+  const enemies = normalizeCombatEnemies(state);
+  if (enemies.length !== 1 || enemies[0]?.hp === undefined) {
+    return null;
+  }
+  const enemy = enemies[0];
+  const hpMax = Math.max(1, Math.floor(enemy.hpMax));
+  const hpAtEnd = Math.min(hpMax, Math.max(0, Math.floor(enemy.hp)));
+  if (hpAtEnd <= 0) {
+    return null;
+  }
+  const completedAt = state.completedAt ? new Date(state.completedAt) : session.updatedAt;
+  const markerMs = Number.isFinite(completedAt.getTime())
+    ? completedAt.getTime()
+    : session.updatedAt.getTime();
+  const elapsedSeconds = Math.max(0, (now.getTime() - markerMs) / 1000);
+  const restored = Math.floor(elapsedSeconds * (hpMax / HP_BASE_FULL_REGEN_SECONDS));
+  return Math.min(hpMax, hpAtEnd + restored);
 }
 
 function validatePersistedActions(
@@ -4248,6 +4330,7 @@ function parseRowStateCore(row: SessionRow): GroupCombatState {
       encounter.monsterId !== production.primaryMonsterId ||
       encounter.baseMonsterLevel !== production.primaryBaseMonsterLevel ||
       encounter.effectiveMonsterLevel !== production.primaryEffectiveMonsterLevel ||
+      encounter.reservedMonsterHp !== production.primaryStartingHp ||
       encounter.seedHash !== production.encounterSeed ||
       encounter.reservationRemortCount !== production.initiatingRemortCount ||
       encounter.reservedPartySessionId !== row.partySessionId ||

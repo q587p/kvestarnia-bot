@@ -227,7 +227,8 @@ describe("group combat timeout scheduler", () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(String(sendMessage.mock.calls[0]?.[1]))
       .toContain("Бій починається. Корчма відкриває журнал ходів");
-    expect(sendMessage.mock.calls[0]?.[2]).not.toHaveProperty("reply_markup");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2]?.reply_markup))
+      .toContain("\"keyboard\"");
     expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<b>Хто проти кого:</b>");
     expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
       .toContain("\"keyboard\"");

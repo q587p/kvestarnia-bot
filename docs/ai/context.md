@@ -29,7 +29,7 @@
   Live cards and journal pages preserve the participant/enemy action exchange before rendering each defeated-enemy notice as a closing paragraph. Current production query observations/budgets are `35/35` manual start, `34/34`
   due start, `25/25` queue, `39/42` single resolve, `50` concurrent-pair aggregate, `41` production start, `1/1` due/delivery/pending-settlement scans, `6/6` idle repair and `30/38` participant-settlement events (the cap covers up to twelve aggregated per-enemy item grants);
   state/card/callback caps are `65,536`/`4,096`/`64` UTF-8 bytes; measured
-  proof/presenter maxima are `20,306` state, `1,523` terminal-card fixture and `46` GroupCombat action callback; across 42 deterministic reachable 3×6 rosters, the rolling production journal worst case measured `64,007` with 10 active plus 6 retained expired effects and `1,529` bytes of headroom, while initial 3×6 state/card measured `15,711`/`536`. The 24-case
+  proof/presenter maxima are `20,306` state, `1,523` terminal-card fixture and `46` GroupCombat action callback; across 42 deterministic reachable 3×6 rosters, the rolling production journal worst case measured `64,030` with 10 active plus 6 retained expired effects and `1,506` bytes of headroom, while initial 3×6 state/card measured `15,734`/`536`. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
   Generated eight-segment v2 card and v3 reply-menu action callbacks route through combat-lock/social
@@ -41,6 +41,8 @@
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
+
+- Current `0.4.2` follow-up invariant: a same-life single-enemy terminal survivor may be reserved with its regenerated HP frozen relationally and in v3 state; cancellation restores the consumed solo-recovery trail. The first authoritative keyboard-generation owner publishes the separate intro and canonical card under one durable claim, and both private messages carry the current reply keyboard. Active combat therefore remains actionable regardless of which message Telegram leaves visually last.
 
 ## Workflow
 
@@ -222,8 +224,7 @@
 
 ## Key docs
 
-- `docs/tasks/0.4.2-left-passage-party-attack.md` — current repository release
-  contract; production enablement, deployment and manual QA remain unproven.
+- `docs/tasks/0.4.2-left-passage-party-attack.md` — current repository release contract; production enablement, deployment and manual QA remain unproven.
 - `docs/tasks/0.4.3-consumable-manatka-uses.md` — next planned version contract;
   exact-item activation gate still pending.
 - `docs/tasks/0.3.17-callback-read-path-collapse.md` — previous release contract

@@ -417,12 +417,13 @@ compact the previous canonical message before the best-effort delete, so delete
 refusal cannot preserve a second full battle card or terminal result beside the
 winner. A failed fresh terminal send restores the prior result. A
 supergroup/no-keyboard delivery acknowledges only the card.
-The production intro remains a separate message but is serialized inside the
-same durable participant publication claim immediately before the
-keyboard-bearing canonical card. It never rewrites or releases the canonical
+The production intro remains a separate message, but the first authoritative
+keyboard-generation owner serializes it inside the same durable participant
+publication claim immediately before the canonical card. Both private sends
+carry the current reply keyboard. It never rewrites or releases the canonical
 participant reference, and a starter/scheduler retry cannot publish it after
-an acknowledged card. This removes the start/scheduler race where the plain
-intro could arrive last and hide the persistent keyboard. Active
+an acknowledged card. This removes the start/scheduler race where an intro
+could arrive last and hide the persistent keyboard. Active
 cards have no inline controls, so unchanged card edits and compaction of an
 already-delivered active reference omit `reply_markup` instead of submitting an
 empty inline keyboard that can hide the persistent reply keyboard. The

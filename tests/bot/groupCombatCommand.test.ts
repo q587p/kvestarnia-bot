@@ -634,7 +634,7 @@ describe("group combat bot flow", () => {
     expect(sendMessage).toHaveBeenCalledTimes(4);
     expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
       String(call[1]).includes("Бій починається. Корчма відкриває журнал ходів") &&
-      !(call[2] as { reply_markup?: unknown } | undefined)?.reply_markup
+      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
     )).toBe(true);
     expect(sendMessage.mock.calls.slice(2).every((call) =>
       String(call[1]).includes("<b>Бій</b>:") &&

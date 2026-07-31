@@ -482,6 +482,7 @@ const productionSchema = z.object({
   primaryMonsterId: z.string().min(1),
   primaryBaseMonsterLevel: positiveInteger.max(23),
   primaryEffectiveMonsterLevel: positiveInteger.max(23),
+  primaryStartingHp: positiveInteger,
   threat: z.object({
     participants: z.array(z.object({
       characterId: z.string().min(1),
@@ -833,6 +834,15 @@ const stateSchema = z.object({
       state.enemies[0]?.level !== state.production.primaryEffectiveMonsterLevel
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Reserved primary enemy identity changed." });
+    }
+    if (
+      state.production.primaryStartingHp >
+      (state.production.canonicalV1.enemies[0]?.hpMax ?? 0)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Reserved primary enemy HP exceeds its canonical maximum."
+      });
     }
     const expectedEnemyCount =
       state.participants.length >= 1 &&

@@ -2838,6 +2838,7 @@ function leftPassageState(
       primaryMonsterId: "monster.deadline-spider",
       primaryBaseMonsterLevel: 2,
       primaryEffectiveMonsterLevel: 4,
+      primaryStartingHp: enemies[0]!.hp,
       threat: {
         participants: participants.map((entry) => ({
           characterId: entry.characterId,

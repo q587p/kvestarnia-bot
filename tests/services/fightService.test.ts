@@ -1910,7 +1910,7 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
-  it("keeps a wounded consumed passage monster recoverable until it heals", async () => {
+  it("keeps a wounded deep-left monster recoverable for solo or party attack until it heals", async () => {
     let now = fixedClock();
     const clock = () => now;
     const characters = new FakeCharacterRepository();
@@ -1927,8 +1927,8 @@ describe("FightService", () => {
       pendingPassageEncounters: pending
     });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
-      difficulty: "normal",
-      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     });
     if (preview.state !== "persistent-preview") {
       throw new Error("Expected preview");
@@ -1958,8 +1958,8 @@ describe("FightService", () => {
 
     now = addSeconds(fixedClock(), PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS / 2);
     const woundedPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
-      difficulty: "normal",
-      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     });
 
     expect(woundedPreview.state).toBe("persistent-preview");
@@ -1972,7 +1972,7 @@ describe("FightService", () => {
       current: woundedHp + Math.floor(started.session.state.monster.hpMax / 2),
       max: started.session.state.monster.hpMax
     });
-    expect(woundedPreview.partyInvitationAvailable).toBe(false);
+    expect(woundedPreview.partyInvitationAvailable).toBe(true);
 
     const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,

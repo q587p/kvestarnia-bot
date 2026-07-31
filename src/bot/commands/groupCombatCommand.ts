@@ -339,9 +339,7 @@ export async function handleGroupCombatCallback(
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
-    await deliverGroupCombatCards(ctx.api, service, result.session, {
-      publishStartIntro: result.state === "started"
-    });
+    await deliverGroupCombatCards(ctx.api, service, result.session);
     return;
   }
   let session = await service.findByToken(callback.token);

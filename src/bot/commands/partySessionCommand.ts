@@ -654,9 +654,7 @@ export async function handlePartySessionCallback(
             ? "Усі готові. Ватага рушає в атаку."
             : "Бій уже почався."
         });
-        await deliverGroupCombatCards(ctx.api, groupCombat, started.session, {
-          publishStartIntro: started.state === "started"
-        });
+        await deliverGroupCombatCards(ctx.api, groupCombat, started.session);
         return;
       }
     }

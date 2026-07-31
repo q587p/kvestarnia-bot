@@ -704,6 +704,7 @@ function productionTerminalSession(): GroupCombatSessionRecord {
     primaryMonsterId: "monster.deadline-spider",
     primaryBaseMonsterLevel: 2,
     primaryEffectiveMonsterLevel: 5,
+    primaryStartingHp: session.state.enemies[0]!.hp,
     threat: {
       participants: session.state.participants.map((participant) => ({
         characterId: participant.characterId,

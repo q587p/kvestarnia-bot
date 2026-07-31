@@ -69,7 +69,6 @@ export async function deliverGroupCombatCards(
   session: GroupCombatSessionRecord,
   options: {
     forceReplacementCharacterId?: string;
-    publishStartIntro?: boolean;
   } = {}
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
@@ -133,8 +132,7 @@ export async function deliverGroupCombatCards(
           participant.deliveredRevision < authoritative.deliveryRevision)
         ? { forceReplacement: true }
         : {}),
-      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {}),
-      ...(options.publishStartIntro === true ? { publishStartIntro: true } : {})
+      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
     });
   }));
   const latest = await loadAuthoritativeSession(service, authoritative.id);
@@ -460,7 +458,6 @@ export function deliverGroupCombatParticipantCard(
     forceRefresh?: boolean;
     forceReplacement?: boolean;
     publishReplyKeyboard?: boolean;
-    publishStartIntro?: boolean;
   } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
   return deliverCanonicalGroupCombatParticipantCard({
@@ -473,10 +470,7 @@ export function deliverGroupCombatParticipantCard(
     ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
     ...(options.publishReplyKeyboard === undefined
       ? {}
-      : { publishReplyKeyboard: options.publishReplyKeyboard }),
-    ...(options.publishStartIntro === undefined
-      ? {}
-      : { publishStartIntro: options.publishStartIntro })
+      : { publishReplyKeyboard: options.publishReplyKeyboard })
   });
 }
 
@@ -488,7 +482,6 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
-  publishStartIntro?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   return withParticipantDeliveryLock(input.participantCharacterId, () => (
@@ -504,7 +497,6 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
-  publishStartIntro?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   const claimUi = (
@@ -535,24 +527,21 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         participant.replyKeyboardFingerprint !== fingerprint ||
         input.forceReplacement === true
       );
+    const replyKeyboard = publishReplyKeyboard
+      ? buildGroupCombatReplyKeyboard(current, participant.characterId)
+      : undefined;
     await publishGroupCombatStartIntroIfNeeded({
       session: current,
       participant,
       transport: input.transport,
-      enabled: input.publishStartIntro === true
+      enabled: publishReplyKeyboard && participant.replyKeyboardGeneration === 0,
+      ...(replyKeyboard ? { replyKeyboard } : {})
     });
     const result = await deliverCanonicalGroupCombatParticipantCardLocked({
       ...input,
       forceReplacement:
         input.forceReplacement === true || publishReplyKeyboard,
-      ...(publishReplyKeyboard
-        ? {
-            replyKeyboard: buildGroupCombatReplyKeyboard(
-              current,
-              participant.characterId
-            )
-          }
-        : {})
+      ...(replyKeyboard ? { replyKeyboard } : {})
     });
     if (isDelivered(result)) {
       if (
@@ -612,6 +601,9 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     const publishReplyKeyboard =
       input.publishReplyKeyboard !== false &&
       (claim.publishReplyKeyboard || input.forceReplacement === true);
+    const replyKeyboard = publishReplyKeyboard
+      ? buildGroupCombatReplyKeyboard(current, participant.characterId)
+      : undefined;
     const ownedTransport = uiPublicationOwnedTransport({
       service: input.service,
       transport: input.transport,
@@ -627,7 +619,8 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         session: current,
         participant,
         transport: ownedTransport,
-        enabled: input.publishStartIntro === true
+        enabled: publishReplyKeyboard && claim.keyboardGeneration === 0,
+        ...(replyKeyboard ? { replyKeyboard } : {})
       });
       result = await deliverCanonicalGroupCombatParticipantCardLocked({
         ...input,
@@ -635,14 +628,7 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         forceRefresh: input.forceRefresh === true || attempt > 0,
         forceReplacement:
           input.forceReplacement === true || publishReplyKeyboard,
-        ...(publishReplyKeyboard
-          ? {
-              replyKeyboard: buildGroupCombatReplyKeyboard(
-                current,
-                participant.characterId
-              )
-            }
-          : {})
+        ...(replyKeyboard ? { replyKeyboard } : {})
       });
     } catch (error) {
       await releaseUi.call(input.service, {
@@ -1089,6 +1075,7 @@ async function publishGroupCombatStartIntroIfNeeded(input: {
   participant: GroupCombatParticipantRecord;
   transport: GroupCombatDeliveryTransport;
   enabled: boolean;
+  replyKeyboard?: ReturnType<typeof buildGroupCombatReplyKeyboard>;
 }): Promise<void> {
   if (
     !input.enabled ||
@@ -1107,7 +1094,9 @@ async function publishGroupCombatStartIntroIfNeeded(input: {
     await input.transport.sendInertMessage(
       input.participant.telegramUserId,
       presentGroupCombatIntro(input.session),
-      HTML_MESSAGE_OPTIONS
+      input.replyKeyboard
+        ? { ...HTML_MESSAGE_OPTIONS, reply_markup: input.replyKeyboard }
+        : HTML_MESSAGE_OPTIONS
     );
   } catch (error) {
     if (error instanceof GroupCombatUiPublicationOwnershipLost) {
