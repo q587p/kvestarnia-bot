@@ -46,7 +46,7 @@ const NOW = new Date("2026-07-22T10:00:00.000Z");
 const QUERY_EVENT_BARRIER_PREFIX = "group_combat_query_budget_barrier";
 const QUERY_BUDGETS = {
   start: 35,
-  dueStart: 34,
+  dueStart: 35,
   queue: 25,
   singleResolve: 42,
   dueScan: 1,
@@ -6720,6 +6720,13 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE character_equipment (
       id TEXT PRIMARY KEY, character_id TEXT NOT NULL, slot TEXT NOT NULL, item_id TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE character_drink_states (
+      id TEXT PRIMARY KEY, activation_id TEXT NOT NULL UNIQUE, character_id TEXT NOT NULL UNIQUE,
+      remort_count INTEGER NOT NULL DEFAULT 0, drink_key TEXT NOT NULL, phase TEXT NOT NULL,
+      started_at DATETIME NOT NULL, expires_at DATETIME NOT NULL, source_type TEXT NOT NULL,
+      source_id TEXT, metadata_json JSONB, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE character_items (
       id TEXT PRIMARY KEY, character_id TEXT NOT NULL, item_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0,

@@ -518,6 +518,7 @@ const productionSchema = z.object({
     winXpTotal: nonNegativeInteger,
     winGoldTotal: nonNegativeInteger,
     lossXpTotal: nonNegativeInteger,
+    lossPolicy: z.literal("defeated-enemies-half-xp.v1").optional(),
     lootVersion: z.literal(1),
     lootSnapshot: lootVersionOneSnapshotSchema
   }).strict(),

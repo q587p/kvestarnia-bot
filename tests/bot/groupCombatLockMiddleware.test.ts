@@ -236,8 +236,10 @@ describe("group-combat lock middleware", () => {
     expect(downstream).toHaveBeenCalledOnce();
     expect(participant.exitDeliveryState).toBe("completed");
     expect(calls.sends.some((call) => call.text.includes("не збігається"))).toBe(false);
-    expect(calls.sends.some((call) => call.text.includes("Головне меню знову на місці")))
+    expect(calls.sends.some((call) => call.text.includes("Ватага продовжує бій без вас")))
       .toBe(true);
+    expect(calls.sends.some((call) => call.text.includes("Головне меню знову на місці")))
+      .toBe(false);
   });
 });
 

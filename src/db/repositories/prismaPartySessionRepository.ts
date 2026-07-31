@@ -113,7 +113,8 @@ const partyCharacterInclude = {
     select: {
       remorts: true
     }
-  }
+  },
+  drinkState: true
 } satisfies Prisma.CharacterInclude;
 
 const personalProtocolCharacterInclude = {
@@ -2039,17 +2040,21 @@ async function getLeftPassageJoinIneligibleReason(
   if (existing && existing.remortCount !== character._count.remorts) {
     return { reason: "stale-life" };
   }
-  if (character.hpCurrent <= 0) {
-    return { reason: "dead" };
-  }
   if (hasInvalidEffectiveResources(character)) {
     return { reason: "invalid-resources" };
   }
-  const [activeLease, activeSearch, leftPassageRest] = await Promise.all([
-    tx.activeCombatLease.findUnique({
-      where: { characterId: character.id },
-      select: { id: true }
-    }),
+  const activeLease = await tx.activeCombatLease.findUnique({
+    where: { characterId: character.id },
+    select: { id: true }
+  });
+  if (activeLease) {
+    return { reason: "active-combat" };
+  }
+  await materializeLeftPassageJoinResources(tx, character, now);
+  if (character.hpCurrent <= 0) {
+    return { reason: "dead" };
+  }
+  const [activeSearch, leftPassageRest] = await Promise.all([
     tx.passageSearchAction.findFirst({
       where: {
         characterId: character.id,
@@ -2068,9 +2073,6 @@ async function getLeftPassageJoinIneligibleReason(
       select: { availableAt: true }
     })
   ]);
-  if (activeLease) {
-    return { reason: "active-combat" };
-  }
   if (activeSearch) {
     return { reason: "active-search", availableAt: activeSearch.endsAt };
   }
@@ -2078,6 +2080,75 @@ async function getLeftPassageJoinIneligibleReason(
     return { reason: "left-passage-rest", availableAt: leftPassageRest.availableAt };
   }
   return null;
+}
+
+async function materializeLeftPassageJoinResources(
+  tx: TxClient,
+  character: CharacterRow,
+  now: Date
+): Promise<void> {
+  const attunementPayloads = await findCurrentEquipmentAttunementPayloads(tx, character);
+  const equippedItems = character.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads: attunementPayloads, now })) {
+      return [];
+    }
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = summarizeCharacter(mapCharacter(character), {
+    equippedItems,
+    remortCount: character._count.remorts
+  });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: character.hpRegenAt,
+      manaRegenAt: character.manaRegenAt
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now,
+    multiplierWindows: buildShynokRecoveryWindows(mapPartyDrinkState(character.drinkState))
+  });
+  if (!regeneration.changed) {
+    return;
+  }
+  const updated = await tx.character.updateMany({
+    where: {
+      id: character.id,
+      hpCurrent: character.hpCurrent,
+      manaCurrent: character.manaCurrent,
+      hpRegenAt: character.hpRegenAt,
+      manaRegenAt: character.manaRegenAt
+    },
+    data: {
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
+      hpRegenAt: regeneration.resources.hpRegenAt,
+      manaRegenAt: regeneration.resources.manaRegenAt
+    }
+  });
+  if (updated.count === 1) {
+    character.hpCurrent = regeneration.resources.hpCurrent;
+    character.manaCurrent = regeneration.resources.manaCurrent;
+    character.hpRegenAt = regeneration.resources.hpRegenAt;
+    character.manaRegenAt = regeneration.resources.manaRegenAt;
+    return;
+  }
+  const latest = await tx.character.findUnique({
+    where: { id: character.id },
+    include: partyCharacterInclude
+  });
+  if (latest) {
+    Object.assign(character, latest);
+  }
 }
 
 function hasInvalidEffectiveResources(character: CharacterRow): boolean {
@@ -3100,7 +3171,7 @@ async function findCurrentEquipmentAttunementPayloads(
 }
 
 function mapPartyDrinkState(
-  record: PersonalProtocolCharacterRow["drinkState"]
+  record: CharacterRow["drinkState"]
 ): Parameters<typeof buildShynokRecoveryWindows>[0] {
   if (!record || !isShynokDrinkKey(record.drinkKey)) {
     return null;

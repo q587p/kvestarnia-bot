@@ -17,6 +17,7 @@ import {
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_LOSS_REWARD_POLICY,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_RULES_VERSION,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
@@ -3097,6 +3098,7 @@ async function buildLeftPassageState(input: {
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
+        lossPolicy: GROUP_COMBAT_LOSS_REWARD_POLICY,
         lootVersion: 1
       }
     }

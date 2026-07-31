@@ -19,6 +19,7 @@ import {
 } from "./battleContributionPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
 import { getDistinctShortMonsterNames } from "./monsterNamePresenter";
+import { presentBattleObserverNotice } from "./battleObserverPresenter";
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
@@ -74,6 +75,8 @@ export function presentGroupCombat(
   const ending = state.status === "active"
     ? viewer?.fledAtTurn !== undefined
       ? "\n\n🏃 Ви відступили. Ватага продовжує бій без вас."
+      : viewer && !isActiveGroupCombatParticipant(viewer)
+        ? `\n\n${presentBattleObserverNotice(production ? "бою" : "тестового бою")}`
       : queued
       ? `\n\n✅ <b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, вибір записано: ${presentQueuedAction(
           session,
@@ -195,7 +198,14 @@ function presentProductionSettlement(
       : "🪦 Ватага відступила. Лівий прохід лишив за собою останнє слово.",
   ];
   if (rewards.xp === 0 && rewards.gold === 0 && rewards.items.length === 0) {
-    lines.push("", "⏳ Винагороди немає: цього разу ви не обрали жодної дії вручну.");
+    const manualParticipation = settlement.manualParticipation ??
+      settlement.contribution.committedActions > 0;
+    lines.push(
+      "",
+      manualParticipation
+        ? "🧾 Ручну участь записано, але після нейтрального поділу цього разу ваш рядок — 0 XP."
+        : "⏳ Винагороди немає: цього разу ви не обрали жодної дії вручну."
+    );
   } else {
     lines.push("", presentRewardBlock({
       xp: rewards.xp,

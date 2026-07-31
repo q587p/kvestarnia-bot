@@ -400,6 +400,13 @@ reclaim because `sendMessage` has no idempotency key. Delivery resolves current
 navigation before restoring a reply keyboard; current presence/quest markers
 build a free player's menu, and a newer combat durably supersedes the old
 delivery instead of overwriting its battle UI.
+Fresh production encounters freeze `defeated-enemies-half-xp.v1`: a loss keeps
+the bounded consolation and adds half ordinary persistent-PvE XP, rounded up,
+for each defeated enemy before the manual-participant split. Old rows without
+the marker retain their original replay semantics; loss gold and loot remain
+zero. Party join eligibility materializes canonical passive regeneration before
+classifying a lease-free character as knocked out, but an owned active-combat
+lease wins first and forbids mid-combat resource mutation.
 Active GroupCombat card/control replacement uses the same per-character
 durable publication owner as terminal/flee navigation fences. The exact
 session/revision/token is atomically renewed before every Telegram
@@ -409,7 +416,10 @@ all later calls in that replacement. Every active canonical card send/edit
 carries its authoritative non-empty inline controls. Ordinary persistent combat,
 Training Doppelgänger, Party Boss and GroupCombat use one shared action-grid
 template and canonical labels; GroupCombat diverges only for explicit living-
-enemy target buttons and its final paired retreat/refresh row. Only an inline control set
+enemy target buttons and its final paired retreat/refresh row. With an odd
+multi-enemy target count, the final target shares the remaining primary row
+with guard. A knocked-out participant receives shared observer copy without an
+action prompt or timer and only `🔎 Оновити`. Only an inline control set
 actually attached to a private canonical candidate may advance the legacy
 fingerprint/generation fields, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
@@ -418,11 +428,13 @@ copy. A candidate that loses the durable reference CAS receives three
 bounded deletion attempts; permanent Telegram refusal redraws only that losing
 message as a compact inert superseded note. Active replacement compacts the
 previous canonical message before the best-effort delete. Terminal publication
-sends the result itself with the persistent main keyboard, edits that same
-message to attach Journal/Statistics, then compacts the previous card, so delete
-refusal cannot preserve a second full battle card or terminal result beside the
-winner. A failed terminal inline edit retries the same acknowledged result
-without resending it. A
+sends the result with Journal/Statistics inline controls immediately and leaves
+the persistent main reply keyboard established by the intro untouched, then
+compacts the previous card. A legacy result carrying a reply keyboard cannot be
+edited by Telegram; restart recovery deletes it and sends one inline replacement
+before adoption. If Telegram permanently refuses that deletion, the delivered
+result is retained and gameplay ownership is released rather than fencing every
+quest/location route forever. A
 supergroup notice never acknowledges a private control generation.
 The production intro remains a separate message, but the first authoritative
 keyboard-generation owner serializes it inside the same durable participant
@@ -457,9 +469,9 @@ an atomic pre-send renewal validates the exact claim token and exit-navigation
 lease, and the send aborts at 13 seconds. A lost owner sends nothing; ordinary
 failure releases to pending, while an acknowledgement-ambiguous live claim is
 retained for stale recovery. For terminal settlement, the one bottom-most
-result message itself restores that main keyboard, is acknowledged, then is
-edited in place to attach Journal/Statistics controls. Delivery retains the
-exact claim and navigation lease through that edit, old-card compaction,
+result carries Journal/Statistics on its initial send while the persistent main
+keyboard remains visible. Delivery retains the exact claim and navigation lease
+through legacy replacement, old-card compaction,
 canonical-reference adoption and losing-candidate cleanup. The final completion
 CAS validates the same token/reference and releases the navigation lease last.
 Process death after adoption is restart-recoverable, while stale takeover cannot

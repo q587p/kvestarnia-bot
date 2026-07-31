@@ -50,9 +50,13 @@ algorithm, so later content or algorithm drift cannot reroll or invalidate
 legitimate active or pending settlement. Coherent evidence/output mutations,
 changed item ids, quantities, recipients, duplicates, enemy stats, abilities
 or reward inputs fail closed instead of becoming new expected rewards. A
-winning result with no items states explicitly that no manatka dropped. Loss
-XP remains the bounded one-fifth consolation from the encounter XP budget and
-loss gold is zero.
+winning result with no items states explicitly that no manatka dropped. A new
+GroupCombat production loss keeps the bounded one-fifth consolation and adds
+half the ordinary persistent-PvE XP budget, rounded up, for each enemy already
+defeated; the combined XP-only total is split among eligible manual
+participants. Loss gold and loot remain zero. The frozen
+`defeated-enemies-half-xp.v1` marker preserves old active/terminal rows under
+their original replay semantics.
 
 GroupCombat persists eight symmetric contribution dimensions for participants
 and monsters: damage, healing, prevented damage, weakened response/control,

@@ -57,6 +57,7 @@ import {
 
 export const GROUP_COMBAT_RULES_VERSION = "group-combat.v2";
 export const GROUP_COMBAT_PRODUCTION_RULES_VERSION = "group-combat.v3";
+export const GROUP_COMBAT_LOSS_REWARD_POLICY = "defeated-enemies-half-xp.v1";
 export const GROUP_COMBAT_PROOF_ENCOUNTER_KEY = "proof-cellar-many";
 export const GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY = "nyz-left-passage-party.v1";
 export const LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY =
@@ -309,6 +310,7 @@ export interface GroupCombatLeftPassageDifficultySnapshot {
     winXpTotal: number;
     winGoldTotal: number;
     lossXpTotal: number;
+    lossPolicy?: typeof GROUP_COMBAT_LOSS_REWARD_POLICY;
     lootVersion: 1;
     lootSnapshot: GroupCombatLootVersionOneSnapshot;
   };
@@ -4265,7 +4267,7 @@ function buildLeftPassageParticipantRewards(
   const xpTotal = state.status === "won"
     ? production.rewards.winXpTotal
     : state.status === "lost"
-      ? production.rewards.lossXpTotal
+      ? buildLeftPassageLossXpTotal(state)
       : 0;
   const goldTotal = state.status === "won" ? production.rewards.winGoldTotal : 0;
   return {
@@ -4273,6 +4275,35 @@ function buildLeftPassageParticipantRewards(
     gold: splitNeutral(goldTotal, orderedEligible.length, index),
     items: itemRewards.map((item) => ({ ...item }))
   };
+}
+
+function buildLeftPassageLossXpTotal(state: GroupCombatState): number {
+  const production = state.production;
+  if (!production || production.rewards.lossPolicy !== GROUP_COMBAT_LOSS_REWARD_POLICY) {
+    return production?.rewards.lossXpTotal ?? 0;
+  }
+  const defeatedEnemyIds = new Set(
+    state.enemies.filter((enemy) => enemy.hp <= 0).map((enemy) => enemy.id)
+  );
+  if (defeatedEnemyIds.size === 0) {
+    return production.rewards.lossXpTotal;
+  }
+  const characterLevel = Math.max(
+    1,
+    ...state.participants.map((participant) => Math.max(1, Math.floor(participant.level)))
+  );
+  const defeatedEnemyXp = production.canonicalV1.enemies.reduce((sum, enemy) => {
+    if (!defeatedEnemyIds.has(enemy.enemyId)) {
+      return sum;
+    }
+    const normalXp = buildBaselinePersistentFightWinXp({
+      characterLevel,
+      baseMonsterLevel: Math.max(1, Math.floor(enemy.baseRewardLevel)),
+      effectiveMonsterLevel: Math.max(1, Math.floor(enemy.level))
+    });
+    return sum + Math.max(1, Math.ceil(normalXp / 2));
+  }, 0);
+  return production.rewards.lossXpTotal + defeatedEnemyXp;
 }
 
 export function buildLeftPassageEncounterLootRewards(

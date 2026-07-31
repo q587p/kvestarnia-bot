@@ -139,8 +139,7 @@ describe("group combat presenter", () => {
     ]);
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
       ["🗡️ Комірний 1", "🗡️ Комірний 2"],
-      ["🗡️ Комірний 3"],
-      ["🛡 Захищатися"],
+      ["🗡️ Комірний 3", "🛡 Захищатися"],
       ["🏃 Відступити", "🔎 Оновити"]
     ]);
     expect(replyLabels).toEqual([
@@ -249,7 +248,13 @@ describe("group combat presenter", () => {
 
   it("gives a knocked-out participant only a refresh control while the group fight continues", () => {
     const session = createSession(2);
+    session.state.rulesVersion = "group-combat.v3";
     session.state.participants[0]!.hp = 0;
+    const text = presentGroupCombat(
+      session,
+      session.participants[0]!.characterId,
+      NOW
+    );
 
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(
@@ -257,6 +262,10 @@ describe("group combat presenter", () => {
         session.participants[0]!.characterId
       ).keyboard
     ).flat()).toEqual(["🔎 Оновити"]);
+    expect(text).toContain("Ви вибиті з бою. Картка лишається для спостереження й оновлення.");
+    expect(text).not.toContain("що робимо?");
+    expect(text).not.toContain("Оберіть точну ціль");
+    expect(text).not.toContain("Потім Корчма поставить вас у захист");
   });
 
   it("uses one plain attack button when only one monster remains", () => {
@@ -709,6 +718,18 @@ describe("group combat presenter", () => {
     expect(text).toContain("🎉 Ватага перемогла.");
     expect(text).toContain("Винагороди немає: цього разу ви не обрали жодної дії вручну.");
     expect(text).not.toContain("Винагорода за бій:");
+  });
+
+  it("does not call a zero-share manual participant timeout-only", () => {
+    const session = productionTerminalSession();
+    const viewer = session.participants[0]!;
+    session.settlementPlan!.participants[0]!.rewards = { xp: 0, gold: 0, items: [] };
+
+    const text = presentGroupCombat(session, viewer.characterId, NOW);
+
+    expect(text).toContain("Ручну участь записано");
+    expect(text).toContain("ваш рядок — 0 XP");
+    expect(text).not.toContain("ви не обрали жодної дії вручну");
   });
 });
 

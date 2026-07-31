@@ -34,6 +34,8 @@ export function buildCombatActionKeyboard(
     appendButton(keyboard, soleAttack);
     appendButton(keyboard, layout.defendButton);
     keyboard.row();
+  } else if (attacks.length > 1 && attacks.length % 2 === 1 && layout.defendButton) {
+    appendPairedRows(keyboard, [...attacks, layout.defendButton]);
   } else {
     appendPairedRows(keyboard, attacks);
     appendFullRow(keyboard, layout.defendButton);

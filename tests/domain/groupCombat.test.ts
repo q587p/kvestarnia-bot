@@ -14,6 +14,7 @@ import {
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
+  GROUP_COMBAT_LOSS_REWARD_POLICY,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
@@ -61,6 +62,7 @@ import {
   getCombatLeaseOwnerDescriptor,
   GROUP_COMBAT_LEASE_KIND
 } from "../../src/domain/combat/combatLeaseRegistry";
+import { buildBaselinePersistentFightWinXp } from "../../src/domain/combat/combatRewards";
 
 describe("group combat proof reducer", () => {
   it("keeps the tier-two discovery window deterministic inside 13–23 minutes", () => {
@@ -657,6 +659,38 @@ describe("group combat proof reducer", () => {
       "item.responsible-panic-bandage": 1
     });
     expect(resolved.committedConsumables).toEqual([]);
+  });
+
+  it("awards half ordinary XP for each defeated enemy when the party still loses", () => {
+    const state = leftPassageState(3);
+    state.status = "lost";
+    state.enemies[0]!.hp = 0;
+    state.participants.forEach((participant) => { participant.hp = 0; });
+    state.contributions.forEach((contribution) => { contribution.committedActions = 1; });
+
+    const plan = buildGroupCombatSettlementPlan(state)!;
+    const frozenEnemy = state.production!.canonicalV1.enemies.find(
+      (enemy) => enemy.enemyId === state.enemies[0]!.id
+    )!;
+    const characterLevel = Math.max(...state.participants.map((participant) => participant.level));
+    const expectedPartialXp = Math.ceil(buildBaselinePersistentFightWinXp({
+      characterLevel,
+      baseMonsterLevel: frozenEnemy.baseRewardLevel,
+      effectiveMonsterLevel: frozenEnemy.level
+    }) / 2);
+
+    expect(state.production!.rewards.lossPolicy).toBe(GROUP_COMBAT_LOSS_REWARD_POLICY);
+    const lossXp = plan.participants.reduce(
+      (sum, participant) => sum + participant.rewards.xp,
+      0
+    );
+    expect(lossXp).toBe(state.production!.rewards.lossXpTotal + expectedPartialXp);
+    expect(lossXp).toBeLessThan(state.production!.rewards.winXpTotal);
+    expect(plan.participants.every((participant) =>
+      buildGroupCombatSettlementReceipt(plan, participant.characterId)?.manualParticipation
+    )).toBe(true);
+    expect(plan.participants.every((participant) => participant.rewards.gold === 0)).toBe(true);
+    expect(plan.participants.every((participant) => participant.rewards.items.length === 0)).toBe(true);
   });
 
   it("records each enemy defeat in the resolving turn instead of only at combat end", () => {
@@ -2879,6 +2913,7 @@ function leftPassageState(
         winXpTotal: rewardBudget.winXpTotal,
         winGoldTotal: rewardBudget.winGoldTotal,
         lossXpTotal: rewardBudget.lossXpTotal,
+        lossPolicy: GROUP_COMBAT_LOSS_REWARD_POLICY,
         lootVersion: 1
       }
     }

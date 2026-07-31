@@ -1754,6 +1754,86 @@ describe("PrismaPartySessionRepository integration", () => {
     await expectNoMembership(prisma, "party-nearby-left-rest", 4027n);
   });
 
+  it("materializes canonical passive recovery before left-passage join eligibility", async () => {
+    const token = "party-nearby-left-recovered";
+    await seedCharacter(prisma, "left-recovered-leader-user", 4028n, "Ватажок відновлених");
+    await seedCharacter(prisma, "left-recovered-nearby-user", 4029n, "Відновлена поруч", {
+      hpCurrent: 0,
+      hpRegenAt: new Date(now().getTime() - 20 * 60_000)
+    });
+    await seedCharacter(prisma, "left-recovered-link-user", 4030n, "Відновлена за лінком", {
+      hpCurrent: 0,
+      hpRegenAt: new Date(now().getTime() - 20 * 60_000)
+    });
+    await prisma.user.updateMany({
+      where: {
+        id: { in: [
+          "left-recovered-leader-user",
+          "left-recovered-nearby-user",
+          "left-recovered-link-user"
+        ] }
+      },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    for (const userId of ["left-recovered-nearby-user", "left-recovered-link-user"]) {
+      await prisma.characterEquipment.create({
+        data: {
+          id: `${userId}-recovery-chest`,
+          characterId: `${userId}-character`,
+          slot: "chest",
+          itemId: "item.apron-of-foam-resistance"
+        }
+      });
+    }
+    await repository.createForTelegramUser(4028n, {
+      ...partyInput(token),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.joinByTokenForTelegramUser(4029n, token, joinInput("nearby")))
+      .resolves.toMatchObject({ state: "joined" });
+    await expect(repository.joinByTokenForTelegramUser(4030n, token, joinInput("deep-link")))
+      .resolves.toMatchObject({ state: "joined" });
+    await expect(prisma.character.findMany({
+      where: { id: { in: [
+        "left-recovered-nearby-user-character",
+        "left-recovered-link-user-character"
+      ] } },
+      orderBy: { id: "asc" },
+      select: { hpCurrent: true, hpMax: true }
+    })).resolves.toEqual([
+      { hpCurrent: 22, hpMax: 20 },
+      { hpCurrent: 22, hpMax: 20 }
+    ]);
+  });
+
+  it("still blocks a genuinely unconscious left-passage joiner after canonical recovery", async () => {
+    const token = "party-nearby-left-unconscious";
+    await seedCharacter(prisma, "left-unconscious-leader-user", 4031n, "Ватажок непритомних");
+    await seedCharacter(prisma, "left-unconscious-joiner-user", 4032n, "Ще непритомна", {
+      hpCurrent: 0,
+      hpRegenAt: now()
+    });
+    await prisma.user.updateMany({
+      where: { id: { in: ["left-unconscious-leader-user", "left-unconscious-joiner-user"] } },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    await repository.createForTelegramUser(4031n, {
+      ...partyInput(token),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.joinByTokenForTelegramUser(4032n, token, joinInput("nearby")))
+      .resolves.toMatchObject({ state: "ineligible", reason: "dead" });
+    await expectNoMembership(prisma, token, 4032n);
+  });
+
   it("replays expired state for stale leave and cancel buttons", async () => {
     await seedCharacter(prisma, "leader-nine-user", 9001n, "Протермінована");
     await repository.createForTelegramUser(9001n, {
@@ -1954,6 +2034,9 @@ async function seedCharacter(
     level?: number;
     remortCount?: number;
     classId?: string;
+    hpCurrent?: number;
+    hpMax?: number;
+    hpRegenAt?: Date | null;
     manaCurrent?: number;
     manaRegenAt?: Date | null;
     statsJson?: Record<string, number>;
@@ -1971,6 +2054,9 @@ async function seedCharacter(
           raceId: "human",
           classId: options.classId ?? "warrior",
           level: options.level ?? 1,
+          hpCurrent: options.hpCurrent ?? 20,
+          hpMax: options.hpMax ?? 20,
+          hpRegenAt: options.hpRegenAt,
           manaCurrent: options.manaCurrent ?? 10,
           manaMax: Math.max(10, options.manaCurrent ?? 10),
           manaRegenAt: options.manaRegenAt,

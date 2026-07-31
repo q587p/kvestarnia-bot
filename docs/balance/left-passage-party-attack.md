@@ -29,6 +29,13 @@ an earlier roster actor or a start-of-turn effect ends the fight before that
 action executes; skipped actions spend no mana, items or cooldowns. Timeout
 auto-guards do not qualify.
 
+A production defeat keeps the bounded one-fifth consolation and adds half of
+the ordinary persistent-PvE XP budget, rounded up, for every enemy actually
+defeated before the party falls. The combined XP-only total is split through
+the same manual-participant rule. Defeat grants no gold or loot. New encounters
+freeze `defeated-enemies-half-xp.v1`; older active or terminal rows without that
+policy retain their original replay result.
+
 Every enemy also gets one deterministic ordinary broad-loot roll and one
 ordinary post-fight bandage slot. The broad-loot multiplier is
 `clamp(1 + 0.05 × (effectiveEnemyLevel - recipientLevel), 0.75, 1.5)`;

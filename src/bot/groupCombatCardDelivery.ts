@@ -105,7 +105,7 @@ export async function deliverGroupCombatCards(
     ) {
       await api.sendMessage(
         Number(participant.telegramUserId),
-        "🏃 Ви відступили з бою. Головне меню знову на місці.",
+        "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
         {
           reply_markup: buildMainMenuKeyboard({
             ...(authoritative.state.production?.locationId
@@ -211,6 +211,7 @@ async function deliverParticipantExitNavigation(input: {
           telegramUserId: participant!.telegramUserId,
           claimToken
         }).catch(() => false);
+      let terminalControlsPublished = false;
       if (!navigation.menuDelivered) {
         let exitMessageId: number | null;
         try {
@@ -232,11 +233,12 @@ async function deliverParticipantExitNavigation(input: {
           });
           exitMessageId = await ownedTransport.sendInertMessage(
             participant.telegramUserId,
-            terminalCard?.text ?? "🏃 Ви відступили з бою. Головне меню знову на місці.",
+            terminalCard?.text ?? "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
             terminalCard
-              ? { ...terminalCard.options, reply_markup: mainMenuKeyboard }
+              ? terminalCard.options
               : { reply_markup: mainMenuKeyboard }
           );
+          terminalControlsPublished = terminalCard !== null;
         } catch (error) {
           if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
             await input.service.releaseParticipantFleeExitDeliveryClaim({
@@ -303,7 +305,7 @@ async function deliverParticipantExitNavigation(input: {
         current.status !== "active" &&
         actor?.fledAtTurn === undefined;
       const existingReference = privateReference(participant);
-      const exitMessageReference = participant.exitDeliveryMessageId
+      let exitMessageReference = participant.exitDeliveryMessageId
         ? {
             chatId: participant.telegramUserId,
             messageId: participant.exitDeliveryMessageId
@@ -317,7 +319,7 @@ async function deliverParticipantExitNavigation(input: {
       let canonicalReference = existingReference;
       if (!terminalAlreadyAdopted) {
         let previousState: "inert" | "missing" | "failed" = "missing";
-        if (shouldPublishTerminalCard) {
+        if (shouldPublishTerminalCard && !terminalControlsPublished) {
           if (!exitMessageReference) {
             await releaseClaim();
             return false;
@@ -329,10 +331,40 @@ async function deliverParticipantExitNavigation(input: {
               card.options
             );
           } catch (error) {
-            if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
-              await releaseClaim();
+            if (isMessageNotModifiedError(error)) {
+              // A previous worker may have attached the exact terminal controls
+              // before losing the reference/adoption CAS. Treat Telegram's
+              // unchanged response as publication evidence and finish the
+              // durable adoption instead of retaining the navigation lease.
+            } else if (isMessageUnavailableForEditError(error)) {
+              const deleted = await deleteReferenceBestEffort(
+                ownedTransport,
+                exitMessageReference
+              );
+              if (deleted) {
+                const replacementMessageId = await ownedTransport.sendInertMessage(
+                  participant.telegramUserId,
+                  card.text,
+                  card.options
+                );
+                if (replacementMessageId === null) {
+                  await releaseClaim();
+                  return false;
+                }
+                exitMessageReference = {
+                  chatId: participant.telegramUserId,
+                  messageId: replacementMessageId
+                };
+              }
+              // If Telegram also refuses deletion, retain the already delivered
+              // terminal result and release gameplay ownership. The permanent
+              // external limitation must not hold quests/navigation forever.
+            } else {
+              if (!(error instanceof GroupCombatUiPublicationOwnershipLost)) {
+                await releaseClaim();
+              }
+              return false;
             }
-            return false;
           }
         }
         if (
@@ -853,7 +885,7 @@ async function retireLosingCandidate(
 async function deleteReferenceBestEffort(
   transport: GroupCombatDeliveryTransport,
   reference: GroupCombatMessageReference
-): Promise<void> {
+): Promise<boolean> {
   for (
     let attempt = 0;
     attempt < LOSING_CANDIDATE_DELETE_ATTEMPTS;
@@ -861,13 +893,14 @@ async function deleteReferenceBestEffort(
   ) {
     try {
       await transport.deleteMessage(reference);
-      return;
+      return true;
     } catch (error) {
       if (error instanceof GroupCombatUiPublicationOwnershipLost) {
-        return;
+        return false;
       }
     }
   }
+  return false;
 }
 
 function exitDeliveryStateOf(

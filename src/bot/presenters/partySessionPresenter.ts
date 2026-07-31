@@ -36,6 +36,7 @@ import { presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import { presentBattleObserverNotice } from "./battleObserverPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 import {
   presentActiveVarenykSatedCombatState,
@@ -707,8 +708,8 @@ export function presentPartyBoss(
     lines.push(viewerCanAct
       ? presentPartyBossViewerTurnPrompt(session, viewer)
       : big
-        ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
-        : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
+        ? presentBattleObserverNotice("рейду")
+        : presentBattleObserverNotice("тестового бою"));
   } else if (session.status === "active") {
     lines.push("", `⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить мовчунів у захист.`);
   }

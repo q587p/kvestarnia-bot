@@ -216,7 +216,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(sends.every((text) => !text.includes("Бій починається."))).toBe(true);
   });
 
-  it("publishes one terminal result that restores the main keyboard before attaching Journal/Statistics", async () => {
+  it("publishes one terminal result with Journal/Statistics while leaving the persistent main keyboard untouched", async () => {
     const session = makeSession();
     session.status = "won";
     session.state.status = "won";
@@ -282,14 +282,15 @@ describe("group-combat canonical participant delivery", () => {
       expect(participantSends).toHaveLength(1);
       expect(participantSends[0]?.text).toContain("Доказову сутичку виграно");
       expect(participantSends[0]?.text).not.toContain("Головне меню знову на місці");
-      expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(true);
-      expect(edits.find((entry) =>
-        entry.chatId === Number(participant.telegramUserId) &&
-        entry.messageId === participantSends[0]?.messageId
-      )?.labels).toEqual([
+      expect(hasReplyKeyboard(participantSends[0]?.replyMarkup)).toBe(false);
+      expect(inlineButtonLabels(participantSends[0]?.replyMarkup)).toEqual([
         "📜 Журнал",
         "📊 Статистика"
       ]);
+      expect(edits.some((entry) =>
+        entry.chatId === Number(participant.telegramUserId) &&
+        entry.messageId === participantSends[0]?.messageId
+      )).toBe(false);
       expect(participant.exitDeliveryState).toBe("completed");
       expect(participant.chatId).toBe(participant.telegramUserId);
       expect(participant.messageId).toBe(participantSends[0]?.messageId);
@@ -360,60 +361,94 @@ describe("group-combat canonical participant delivery", () => {
     });
   });
 
-  it("retries the same terminal result when attaching its inline controls fails", async () => {
+  it("replaces one legacy terminal result that Telegram cannot edit and releases navigation", async () => {
     const session = makeSession();
     session.status = "lost";
     session.state.status = "lost";
     session.participants = session.participants.slice(0, 1);
-    session.participants[0]!.exitDeliveryState = "pending";
+    session.participants[0]!.exitDeliveryState = "menu-delivered";
+    session.participants[0]!.exitDeliveryMessageId = 90;
     session.state.participants = session.state.participants.slice(0, 1);
     session.state.participants[0]!.hp = 0;
-    const edits: Array<{ messageId: number; text: string }> = [];
-    const sendMessage = vi.fn().mockResolvedValueOnce({ message_id: 90 });
-    let candidateEditFailed = false;
+    session.state.recap = [{ turn: 1, lines: ["Лідерка атакує Шурхіт: 12 шкоди."] }];
+    const sendMessage = vi.fn().mockResolvedValueOnce({ message_id: 91 });
     const editMessageText = vi.fn((
       _chatId: number,
-      messageId: number,
-      text: string
+      messageId: number
     ) => {
-      if (messageId === 90 && !candidateEditFailed) {
-        candidateEditFailed = true;
-        return Promise.reject(new Error("Telegram terminal edit failed"));
+      if (messageId === 90) {
+        return Promise.reject(new Error("Bad Request: message can't be edited"));
       }
-      edits.push({ messageId, text });
       return Promise.resolve(true);
     });
+    const deleteMessage = vi.fn();
     const service = mutableCardService(session);
     const api = {
       sendMessage,
       editMessageText,
-      deleteMessage: vi.fn()
+      deleteMessage
     } as unknown as Api;
     const deliveryService = {
       ...service,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(false)
     } as unknown as GroupCombatService;
 
-    await expect(deliverGroupCombatCards(api, deliveryService, session)).resolves.toBe(0);
-
-    expect(sendMessage).toHaveBeenCalledOnce();
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Доказову сутичку програно");
-    expect(edits).toHaveLength(0);
-    expect(session.participants[0]).toMatchObject({
-      chatId: 1001n,
-      messageId: 21,
-      exitDeliveryState: "menu-delivered"
-    });
-
     await expect(deliverGroupCombatCards(api, deliveryService, session)).resolves.toBe(1);
 
     expect(sendMessage).toHaveBeenCalledOnce();
-    expect(edits.find((entry) => entry.messageId === 90)?.text)
-      .toContain("Доказову сутичку програно");
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Доказову сутичку програно");
+    const recoveredOptions = sendMessage.mock.calls[0]?.[2] as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> };
+    } | undefined;
+    expect(recoveredOptions?.reply_markup?.inline_keyboard?.flat().map((button) => button.text))
+      .toEqual(["📜 Журнал", "📊 Статистика"]);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
-      messageId: 90,
+      messageId: 91,
       exitDeliveryState: "completed"
+    });
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 90, expect.any(AbortSignal));
+
+    await expect(deliverGroupCombatCards(api, deliveryService, session)).resolves.toBe(1);
+    expect(sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it("releases terminal navigation when Telegram refuses both legacy edit and deletion", async () => {
+    const session = makeSession({ deliveryRevision: 5, deliveredRevision: 4 });
+    session.status = "lost";
+    session.state.status = "lost";
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.participants[0]!.hp = 0;
+    session.state.recap = [{ turn: 4, lines: ["Старий підсумок уже доставлено."] }];
+    const participant = session.participants[0]!;
+    participant.settlementStatus = "completed";
+    participant.exitDeliveryState = "menu-delivered";
+    participant.exitDeliveryMessageId = 90;
+    const sendMessage = vi.fn();
+    const deleteMessage = vi.fn().mockRejectedValue(
+      new Error("Bad Request: message can't be deleted")
+    );
+    const service = mutableCardService(session);
+    const api = {
+      sendMessage,
+      editMessageText: vi.fn().mockRejectedValue(
+        new Error("Bad Request: message can't be edited")
+      ),
+      deleteMessage
+    } as unknown as Api;
+
+    await expect(deliverGroupCombatCards(api, {
+      ...service,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session)).resolves.toBe(1);
+
+    expect(deleteMessage).toHaveBeenCalledTimes(3);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(participant).toMatchObject({
+      exitDeliveryState: "completed",
+      messageId: 90,
+      deliveredRevision: 5
     });
   });
 
@@ -1000,6 +1035,52 @@ describe("group-combat canonical participant delivery", () => {
       String(call[1]).includes("Ви відступили з бою")
     )).toHaveLength(1);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
+  });
+
+  it("finishes a restarted terminal delivery when Telegram already has the exact controls", async () => {
+    const session = makeSession({
+      turn: 4,
+      deliveryRevision: 5,
+      deliveredRevision: 4
+    });
+    session.status = "lost";
+    session.state.status = "lost";
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.participants[0]!.hp = 0;
+    session.state.recap = [{
+      turn: 4,
+      lines: ["Попередній worker уже домалював журнал."]
+    }];
+    const participant = session.participants[0]!;
+    participant.settlementStatus = "completed";
+    participant.exitDeliveryState = "menu-delivered";
+    participant.exitDeliveryClaimToken = null;
+    participant.exitDeliveryClaimedAt = null;
+    participant.exitDeliveryMessageId = 93;
+    const sendMessage = vi.fn();
+    const editMessageText = vi.fn().mockRejectedValue(
+      new Error("Bad Request: message is not modified")
+    );
+    const service = mutableCardService(session);
+    const api = {
+      sendMessage,
+      editMessageText,
+      deleteMessage: vi.fn()
+    } as unknown as Api;
+
+    await deliverGroupCombatCards(api, {
+      ...service,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, session);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(editMessageText.mock.calls[0]?.[1]).toBe(93);
+    expect(editMessageText.mock.calls[1]?.[1]).toBe(21);
+    expect(participant.exitDeliveryState).toBe("completed");
+    expect(participant.deliveredRevision).toBe(5);
+    expect(participant.messageId).toBe(93);
   });
 
   it("converges concurrent post-restart flee delivery and still completes after terminalization", async () => {
