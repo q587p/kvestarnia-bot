@@ -130,21 +130,47 @@ describe("group combat presenter", () => {
     ).flat();
 
     expect(rows.flat().map((button) => button.text)).toEqual([
-      "⚔️ Комірний 1",
-      "⚔️ Комірний 2",
-      "⚔️ Комірний 3",
-      "🛡️ Захиститися",
+      "🗡️ Комірний 1",
+      "🗡️ Комірний 2",
+      "🗡️ Комірний 3",
+      "🛡 Захищатися",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
+    expect(rows.map((row) => row.map((button) => button.text))).toEqual([
+      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
+      ["🗡️ Комірний 3"],
+      ["🛡 Захищатися"],
+      ["🏃 Відступити"],
+      ["🔎 Оновити"]
+    ]);
     expect(replyLabels).toEqual([
-      "⚔️ Атакувати",
-      "🛡️ Захиститися",
+      "🗡️ Вдарити",
+      "🛡 Захищатися",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
     expect(replyLabels).not.toContain("✨ Вміння");
     expect(parseGroupCombatReplyButton("🎒 Манатки")).toBeNull();
+    expect(parseGroupCombatReplyButton("⚔️ Атакувати")).toBe("attack");
+    expect(parseGroupCombatReplyButton("🛡️ Захиститися")).toBe("guard");
+    expect(parseGroupCombatReplyButton("🎒 Разові")).toBe("items");
+  });
+
+  it("matches ordinary combat labels and row order when one enemy remains", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.classId = "class.warrior";
+    viewer.raceId = "race.bisyny";
+    session.state.enemies[1]!.hp = 0;
+
+    expect(buildGroupCombatKeyboard(session, viewer.characterId).inline_keyboard
+      .map((row) => row.map((button) => button.text))).toEqual([
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["🪓 Силовий замах", "📝 Правка на полях"],
+      ["🏃 Відступити"],
+      ["🔎 Оновити"]
+    ]);
   });
 
   it("shows every frozen ability directly and narrows a selected ability to targets only", () => {
@@ -204,9 +230,12 @@ describe("group combat presenter", () => {
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
     )).toContainEqual([
-      "📝 Правка на полях",
-      "🛡️ Захиститися"
+      "🪓 Силовий замах",
+      "📝 Правка на полях"
     ]);
+    expect(replyKeyboardTexts(
+      buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
+    )[0]).toEqual(["🗡️ Вдарити", "🛡 Захищатися"]);
 
     viewer.hp = 0;
     expect(labels()).toEqual(["🔎 Оновити"]);
@@ -239,8 +268,8 @@ describe("group combat presenter", () => {
       "attack"
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("⚔️ Атакувати");
-    expect(labels).not.toContain(`⚔️ ${session.state.enemies[0]!.name}`);
+    expect(labels).toContain("🗡️ Вдарити");
+    expect(labels).not.toContain(`🗡️ ${session.state.enemies[0]!.name}`);
   });
 
   it("uses distinct ordinary-fight short monster names on the live card and target buttons", () => {
@@ -267,8 +296,8 @@ describe("group combat presenter", () => {
     expect(text).toContain("Архівний відповідає Пригодник 1: 3 шкоди.");
     expect(text).toContain("Капустяний відповідає Пригодник 1: 3 шкоди.");
     expect(labels).toEqual([
-      "⚔️ Архівний",
-      "⚔️ Капустяний",
+      "🗡️ Архівний",
+      "🗡️ Капустяний",
       "↩️ До бою"
     ]);
   });
@@ -283,7 +312,7 @@ describe("group combat presenter", () => {
     ).inline_keyboard.flat().map((button) => button.text);
 
     expect(labels).toContain("🔎 Оновити");
-    expect(labels).toContain("🛡️ Захиститися");
+    expect(labels).toContain("🛡 Захищатися");
     expect(labels).not.toContain("📜 Журнал");
     expect(labels).not.toContain("📊 Статистика");
   });
@@ -337,7 +366,7 @@ describe("group combat presenter", () => {
     expect(itemLabels).toContain("↩️ До бою");
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
-    ).flat()).toContain("🎒 Разові");
+    ).flat()).toContain("🎒 Одноразові манатки");
 
     viewer.combatItems = {
       cooldowns: {
@@ -354,7 +383,7 @@ describe("group combat presenter", () => {
     delete viewer.combatItemQuantities["item.responsible-panic-bandage"];
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
-    ).flat()).not.toContain("🎒 Разові");
+    ).flat()).not.toContain("🎒 Одноразові манатки");
   });
 
   it("keeps action controls available so a queued choice can be changed", () => {
@@ -376,10 +405,10 @@ describe("group combat presenter", () => {
 
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
     expect(text).toContain("⏳ На хід є 15 с. Потім Корчма поставить вас у захист.");
-    expect(rows.flat().map((button) => button.text)).toContain("🛡️ Захиститися");
+    expect(rows.flat().map((button) => button.text)).toContain("🛡 Захищатися");
     expect(rows.flat().map((button) => button.text)).toContain("🔎 Оновити");
     expect(replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat())
-      .toContain("🛡️ Захиститися");
+      .toContain("🛡 Захищатися");
   });
 
   it("describes a queued flee as one participant's personal attempt", () => {

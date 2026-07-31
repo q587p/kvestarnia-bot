@@ -94,6 +94,16 @@ describe("party session keyboard", () => {
       "⏱️ Dev: добити хід",
       "🔎 Оновити"
     ]);
+    expect(inlineButtonRows(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true,
+      includeDevTimeout: true
+    }))).toEqual([
+      ["🗡️ Вдарити", "🧱 Захищатися"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
+      ["🎒 Одноразові манатки"],
+      ["⏱️ Dev: добити хід"],
+      ["🔎 Оновити"]
+    ]);
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
       includeCombatItems: true
     }))).toContain("v1:party:bm:partyABC12:1");

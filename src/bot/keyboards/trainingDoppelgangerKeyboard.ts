@@ -14,6 +14,11 @@ import {
   makeTrainingDoppelgangerViewCallbackData
 } from "../callbacks/trainingDoppelgangerCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import {
+  buildCombatActionKeyboard,
+  combatActionButtonLabels,
+  type CombatActionKeyboardButton
+} from "./combatActionKeyboardLayout";
 
 export function buildTrainingDoppelgangerStartKeyboard(
   choices: readonly TrainingDoppelgangerStartChoice[]
@@ -37,34 +42,40 @@ export function buildTrainingDoppelgangerKeyboard(
       classId: character.classId,
       raceId: character.raceId
     });
-    const keyboard = new InlineKeyboard()
-      .text("🗡️ Вдарити", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-      .text("🛡 Захищатися", makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
-      .row();
+    const abilityButtons: CombatActionKeyboardButton[] = [];
 
     if (availability.skill.available) {
-      keyboard.text(
-        getPersistentFightSkillLabel(character),
-        makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-      );
+      abilityButtons.push({
+        label: getPersistentFightSkillLabel(character),
+        callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
+      });
     }
 
     if (availability.race.available) {
       const raceLabel = getPersistentFightRaceAbilityLabel(character);
       if (raceLabel) {
-        keyboard.text(
-          raceLabel,
-          makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "race" })
-        );
+        abilityButtons.push({
+          label: raceLabel,
+          callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "race" })
+        });
       }
     }
 
-    keyboard.row();
-
-    return keyboard.text(
-      "🏃 Відступити",
-      makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "flee" })
-    );
+    return buildCombatActionKeyboard({
+      attackButtons: [{
+        label: combatActionButtonLabels.attack,
+        callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "attack" })
+      }],
+      defendButton: {
+        label: combatActionButtonLabels.defend,
+        callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "defend" })
+      },
+      abilityButtons,
+      fleeButton: {
+        label: combatActionButtonLabels.flee,
+        callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "flee" })
+      }
+    });
   }
 
   const keyboard = new InlineKeyboard();

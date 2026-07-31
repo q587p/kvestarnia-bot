@@ -326,7 +326,7 @@ describe("group combat bot flow", () => {
     expect(order.filter((entry) => entry === "send")).toHaveLength(1);
     expect(sentInlineKeyboards).toHaveLength(1);
     expect(sentInlineKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentInlineKeyboards[0]).toContain("⚔️ Шурхіт");
+    expect(sentInlineKeyboards[0]).toContain("🗡️ Шурхіт");
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
@@ -468,7 +468,7 @@ describe("group combat bot flow", () => {
       });
     });
 
-    await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
+    await bot.handleUpdate(textUpdate("🗡️ Вдарити"));
 
     expect(sentTexts).toEqual(["⚔️ Новіший бій лишається канонічним."]);
   });

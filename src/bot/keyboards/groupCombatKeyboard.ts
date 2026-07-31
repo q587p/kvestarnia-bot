@@ -16,14 +16,25 @@ import {
   makeGroupCombatViewCallbackData
 } from "../callbacks/groupCombatCallbackData";
 import { getDistinctShortMonsterNames } from "../presenters/monsterNamePresenter";
+import {
+  buildCombatActionKeyboard,
+  combatActionButtonLabels,
+  type CombatActionKeyboardButton
+} from "./combatActionKeyboardLayout";
 
 export const groupCombatReplyButtons = {
-  attack: "⚔️ Атакувати",
-  guard: "🛡️ Захиститися",
-  items: "🎒 Разові",
-  flee: "🏃 Відступити",
-  refresh: "🔎 Оновити"
+  attack: combatActionButtonLabels.attack,
+  guard: combatActionButtonLabels.defend,
+  items: combatActionButtonLabels.items,
+  flee: combatActionButtonLabels.flee,
+  refresh: combatActionButtonLabels.refresh
 } as const;
+
+const legacyGroupCombatReplyButtonAliases: Readonly<Record<string, GroupCombatReplyButtonAction>> = {
+  "⚔️ Атакувати": "attack",
+  "🛡️ Захиститися": "guard",
+  "🎒 Разові": "items"
+};
 
 export type GroupCombatReplyButtonAction = keyof typeof groupCombatReplyButtons;
 export type GroupCombatActionMenu = "attack" | "abilities";
@@ -44,36 +55,29 @@ export function buildGroupCombatReplyKeyboard(
       .persistent()
       .placeholder("Стежимо за боєм");
   }
-  const keyboard = new Keyboard();
-  let buttonsInRow = 0;
-  const addButton = (label: string): void => {
-    keyboard.text(label);
-    buttonsInRow += 1;
-    if (buttonsInRow === 2) {
-      keyboard.row();
-      buttonsInRow = 0;
-    }
-  };
-  addButton(groupCombatReplyButtons.attack);
+  const keyboard = new Keyboard()
+    .text(groupCombatReplyButtons.attack)
+    .text(groupCombatReplyButtons.guard)
+    .row();
   const abilityLabels = session && viewerCharacterId
     ? listGroupCombatReplyAbilities(session, viewerCharacterId).map(({ label }) => label)
     : [];
-  for (const label of abilityLabels) {
-    addButton(label);
-  }
-  addButton(groupCombatReplyButtons.guard);
+  abilityLabels.forEach((label, index) => {
+    keyboard.text(label);
+    if (index % 2 === 1 || index === abilityLabels.length - 1) {
+      keyboard.row();
+    }
+  });
   if (
     session &&
     viewerCharacterId &&
     listAvailableGroupCombatItems(session, viewerCharacterId).length > 0
   ) {
-    addButton(groupCombatReplyButtons.items);
-  }
-  if (buttonsInRow > 0) {
-    keyboard.row();
+    keyboard.text(groupCombatReplyButtons.items).row();
   }
   return keyboard
     .text(groupCombatReplyButtons.flee)
+    .row()
     .text(groupCombatReplyButtons.refresh)
     .resized()
     .persistent()
@@ -152,7 +156,9 @@ export function parseGroupCombatReplyButton(
   }
   return (Object.entries(groupCombatReplyButtons) as Array<
     [GroupCombatReplyButtonAction, string]
-  >).find(([, label]) => label === text)?.[0] ?? null;
+  >).find(([, label]) => label === text)?.[0]
+    ?? legacyGroupCombatReplyButtonAliases[text]
+    ?? null;
 }
 
 export function buildGroupCombatAbilityTargetKeyboard(
@@ -191,43 +197,35 @@ export function buildGroupCombatKeyboard(
   if (session.status !== "active") {
     return buildGroupCombatActionMenuKeyboard(session, viewerCharacterId, "attack");
   }
-  const keyboard = new InlineKeyboard();
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
   );
   if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
-    return keyboard.text(
+    return new InlineKeyboard().text(
       groupCombatReplyButtons.refresh,
       makeGroupCombatViewCallbackData(session.partyInviteToken)
     );
   }
 
-  let buttonsInRow = 0;
-  const addActionButton = (label: string, callbackData: string): void => {
-    keyboard.text(label, callbackData);
-    buttonsInRow += 1;
-    if (buttonsInRow === 2) {
-      keyboard.row();
-      buttonsInRow = 0;
-    }
-  };
+  const attackButtons: CombatActionKeyboardButton[] = [];
+  const abilityButtons: CombatActionKeyboardButton[] = [];
   const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
   const shortEnemyNames = getDistinctShortMonsterNames(livingEnemies);
   session.state.enemies.forEach((enemy, targetIndex) => {
     if (enemy.hp <= 0) {
       return;
     }
-    addActionButton(
-      livingEnemies.length === 1
+    attackButtons.push({
+      label: livingEnemies.length === 1
         ? groupCombatReplyButtons.attack
-        : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
-      makeGroupCombatActionCallbackData({
+        : `🗡️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
+      callbackData: makeGroupCombatActionCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
         action: "attack",
         targetIndex
       })
-    );
+    });
   });
   const addAbilityButtons = (
     action: Extract<GroupCombatActionKey, "class" | "race" | "gear">,
@@ -241,7 +239,7 @@ export function buildGroupCombatKeyboard(
       optionIndex,
       payloadKey
     )) {
-      addActionButton(button.label, button.callbackData);
+      abilityButtons.push({ label: button.label, callbackData: button.callbackData });
     }
   };
   addAbilityButtons("class");
@@ -249,41 +247,41 @@ export function buildGroupCombatKeyboard(
   (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) =>
     addAbilityButtons("gear", optionIndex, abilityId)
   );
-  addActionButton(
-    groupCombatReplyButtons.guard,
-    makeGroupCombatActionCallbackData({
+  const defendButton: CombatActionKeyboardButton = {
+    label: groupCombatReplyButtons.guard,
+    callbackData: makeGroupCombatActionCallbackData({
       token: session.partyInviteToken,
       turn: session.turn,
       action: "guard",
       targetIndex: viewer.rosterOrder
     })
-  );
-  if (buttonsInRow > 0) {
-    keyboard.row();
-    buttonsInRow = 0;
-  }
-  if (listAvailableGroupCombatItems(session, viewerCharacterId).length > 0) {
-    keyboard
-      .text(
-        groupCombatReplyButtons.items,
-        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn)
-      )
-      .row();
-  }
-  return keyboard
-    .text(
-      groupCombatReplyButtons.flee,
-      makeGroupCombatActionCallbackData({
+  };
+  const hasItems = listAvailableGroupCombatItems(session, viewerCharacterId).length > 0;
+
+  return buildCombatActionKeyboard({
+    attackButtons,
+    defendButton,
+    abilityButtons,
+    ...(hasItems ? {
+      itemsButton: {
+        label: groupCombatReplyButtons.items,
+        callbackData: makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn)
+      }
+    } : {}),
+    fleeButton: {
+      label: groupCombatReplyButtons.flee,
+      callbackData: makeGroupCombatActionCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
         action: "flee",
         targetIndex: viewer.rosterOrder
       })
-    )
-    .text(
-      groupCombatReplyButtons.refresh,
-      makeGroupCombatViewCallbackData(session.partyInviteToken)
-    );
+    },
+    refreshButton: {
+      label: groupCombatReplyButtons.refresh,
+      callbackData: makeGroupCombatViewCallbackData(session.partyInviteToken)
+    }
+  });
 }
 
 export function buildGroupCombatActionMenuKeyboard(
@@ -334,8 +332,8 @@ export function buildGroupCombatActionMenuKeyboard(
       }
       addActionButton(
         livingEnemies.length === 1
-          ? "⚔️ Атакувати"
-          : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
+          ? combatActionButtonLabels.attack
+          : `🗡️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
         makeGroupCombatActionCallbackData({
           token: session.partyInviteToken,
           turn: session.turn,

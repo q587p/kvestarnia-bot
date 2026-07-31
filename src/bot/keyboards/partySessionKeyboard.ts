@@ -45,7 +45,11 @@ import {
   presentPartyReadinessButton,
   supportsPartyReadiness
 } from "../presenters/partyPreparationPresenter";
-import { appendGearActionButtons } from "./gearActionKeyboard";
+import {
+  buildCombatActionKeyboard,
+  combatActionButtonLabels,
+  type CombatActionKeyboardButton
+} from "./combatActionKeyboardLayout";
 import { addPaginationControls } from "./pagination";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
@@ -199,7 +203,6 @@ export function buildPartyBossKeyboard(
     includeRaidChat?: boolean | undefined;
   } = {}
 ): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
   const viewer = viewerCharacterId
     ? session.state.participants.find((participant) => participant.characterId === viewerCharacterId)
     : null;
@@ -214,17 +217,26 @@ export function buildPartyBossKeyboard(
     ? getActorCombatActionAvailability(viewer.resources, viewer.combatStats)
     : null;
 
+  const attackButtons: CombatActionKeyboardButton[] = [];
+  const abilityButtons: CombatActionKeyboardButton[] = [];
+  let defendButton: CombatActionKeyboardButton | undefined;
+  let itemsButton: CombatActionKeyboardButton | undefined;
+
   if (session.status === "active" && viewerCharacterId && canAct && !lamentLocked) {
-    keyboard
-      .text("🗡️ Вдарити", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack"))
-      .text("🧱 Захищатися", makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend"))
-      .row();
+    attackButtons.push({
+      label: combatActionButtonLabels.attack,
+      callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "attack")
+    });
+    defendButton = {
+      label: "🧱 Захищатися",
+      callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "defend")
+    };
 
     if (getWarriorRaidTauntAvailability(session.state, viewer.characterId).available) {
-      keyboard.text(
-        "🛡️ На мене!",
-        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
-      ).row();
+      abilityButtons.push({
+        label: "🛡️ На мене!",
+        callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "taunt")
+      });
     }
 
     const bardMusicReady = !viewer.bardMusicAvailableAt ||
@@ -234,29 +246,25 @@ export function buildPartyBossKeyboard(
       session.state.bardMusic?.kind === "none" &&
       bardMusicReady
     ) {
-      keyboard.text(
-        "🎻 Заграти журливу баладу",
-        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "lament")
-      ).row();
+      abilityButtons.push({
+        label: "🎻 Заграти журливу баладу",
+        callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "lament")
+      });
     }
 
     if (availability?.skill.available !== false) {
-      keyboard.text(
-        getPartyBossSkillButtonLabel(viewer.combatStats.classId),
-        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill")
-      );
+      abilityButtons.push({
+        label: getPartyBossSkillButtonLabel(viewer.combatStats.classId),
+        callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "skill")
+      });
     }
 
     const raceLabel = getPartyBossRaceAbilityButtonLabel(viewer.combatStats.raceId);
     if (raceLabel && availability?.race.available) {
-      keyboard.text(
-        raceLabel,
-        makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race")
-      );
-    }
-
-    if ((availability?.skill.available !== false) || (raceLabel && availability?.race.available)) {
-      keyboard.row();
+      abilityButtons.push({
+        label: raceLabel,
+        callbackData: makePartyBossActionCallbackData(session.partyInviteToken, session.turn, "race")
+      });
     }
 
     const gearGrants = getCombatMantokAbilityGrantsByIds({
@@ -265,35 +273,55 @@ export function buildPartyBossKeyboard(
     }).filter((grant) =>
       grant.combat && getCombatGearActionAvailabilityForActor(viewer.resources, grant.combat.profile).available
     );
-    appendGearActionButtons(
-      keyboard,
-      gearGrants,
-      (grant) => makePartyBossGearActionCallbackData({
+    abilityButtons.push(...gearGrants.map((grant) => ({
+      label: grant.buttonLabel ?? grant.label,
+      callbackData: makePartyBossGearActionCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
         grantKey: grant.key
       })
-    );
+    })));
 
     if (options.includeCombatItems === true) {
-      keyboard
-        .text("🎒 Одноразові манатки", makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn))
-        .row();
+      itemsButton = {
+        label: combatActionButtonLabels.items,
+        callbackData: makePartyBossItemsMenuCallbackData(session.partyInviteToken, session.turn)
+      };
     }
   }
 
+  const utilityButtons: CombatActionKeyboardButton[] = [];
   if (session.status === "active" && options.includeDevTimeout) {
-    keyboard.text("⏱️ Dev: добити хід", makePartyBossTimeoutCallbackData(session.partyInviteToken)).row();
+    utilityButtons.push({
+      label: "⏱️ Dev: добити хід",
+      callbackData: makePartyBossTimeoutCallbackData(session.partyInviteToken)
+    });
   }
 
   if (session.status !== "active") {
-    keyboard.text("📜 Журнал", makePartyBossJournalCallbackData(session.partyInviteToken)).row();
+    utilityButtons.push({
+      label: "📜 Журнал",
+      callbackData: makePartyBossJournalCallbackData(session.partyInviteToken)
+    });
   }
   if (options.includeRaidChat && viewer) {
-    keyboard.text("💬 Рейд-чат", makePartyRaidChatOpenCallbackData(session.partyInviteToken)).row();
+    utilityButtons.push({
+      label: "💬 Рейд-чат",
+      callbackData: makePartyRaidChatOpenCallbackData(session.partyInviteToken)
+    });
   }
 
-  return keyboard.text("🔎 Оновити", makePartySessionViewCallbackData(session.partyInviteToken));
+  return buildCombatActionKeyboard({
+    attackButtons,
+    defendButton,
+    abilityButtons,
+    itemsButton,
+    utilityButtons,
+    refreshButton: {
+      label: combatActionButtonLabels.refresh,
+      callbackData: makePartySessionViewCallbackData(session.partyInviteToken)
+    }
+  });
 }
 
 export function buildPartyRaidChatKeyboard(input: {

@@ -1213,7 +1213,7 @@ describe("group-combat canonical participant delivery", () => {
     })).resolves.toMatchObject({ state: "activated" });
     expect(sentKeyboards).toHaveLength(1);
     expect(sentKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentKeyboards[0]).toContain("⚔️ Шурхіт");
+    expect(sentKeyboards[0]).toContain("🗡️ Шурхіт");
   });
 
   it.each(["send", "edit", "delete"] as const)(

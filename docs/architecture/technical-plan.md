@@ -406,7 +406,10 @@ session/revision/token is atomically renewed before every Telegram
 `sendMessage`, `editMessageText` and `deleteMessage`; each request is aborted at
 13 seconds, below the 23-second stale boundary, and ownership loss suppresses
 all later calls in that replacement. Every active canonical card send/edit
-carries its authoritative non-empty inline controls. Only an inline control set
+carries its authoritative non-empty inline controls. Ordinary persistent combat,
+Training Doppelgänger, Party Boss and GroupCombat use one shared action-grid
+template and canonical labels; GroupCombat diverges only for explicit living-
+enemy target buttons and its final network-refresh row. Only an inline control set
 actually attached to a private canonical candidate may advance the legacy
 fingerprint/generation fields, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick

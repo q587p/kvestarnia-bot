@@ -53,7 +53,11 @@ import {
   makeSafePassageSearchStartCallbackData
 } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
-import { appendGearActionButtons } from "./gearActionKeyboard";
+import {
+  buildCombatActionKeyboard,
+  combatActionButtonLabels,
+  type CombatActionKeyboardButton
+} from "./combatActionKeyboardLayout";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -88,25 +92,22 @@ export function buildPersistentFightKeyboard(
   const availability = session.state
     ? getCombatActionAvailability(session.state, { classId: character.classId, raceId: character.raceId })
     : null;
-  const keyboard = new InlineKeyboard()
-    .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-    .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
-    .row();
+  const abilityButtons: CombatActionKeyboardButton[] = [];
 
   if (availability?.skill.available !== false) {
-    keyboard.text(
-      getPersistentFightSkillLabel(character),
-      makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-    );
+    abilityButtons.push({
+      label: getPersistentFightSkillLabel(character),
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
+    });
   }
 
   if (availability?.race.available) {
     const raceLabel = getPersistentFightRaceAbilityLabel(character);
     if (raceLabel) {
-      keyboard.text(
-        raceLabel,
-        makeFightTurnCallbackData({ sessionId: session.id, turn, action: "race" })
-      );
+      abilityButtons.push({
+        label: raceLabel,
+        callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "race" })
+      });
     }
   }
 
@@ -119,26 +120,32 @@ export function buildPersistentFightKeyboard(
       )
     : [];
 
-  appendGearActionButtons(
-    keyboard,
-    gearGrants,
-    (grant) => makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
-  );
-  if (gearGrants.length === 0) {
-    keyboard.row();
-  }
+  abilityButtons.push(...gearGrants.map((grant) => ({
+    label: grant.buttonLabel ?? grant.label,
+    callbackData: makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
+  })));
 
-  if (options.includeCombatItems) {
-    keyboard
-      .text(
-        "🎒 Одноразові манатки",
-        makeFightItemsCallbackData({ sessionId: session.id, turn })
-      )
-      .row();
-  }
-
-  return keyboard
-    .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
+  return buildCombatActionKeyboard({
+    attackButtons: [{
+      label: combatActionButtonLabels.attack,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" })
+    }],
+    defendButton: {
+      label: combatActionButtonLabels.defend,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" })
+    },
+    abilityButtons,
+    ...(options.includeCombatItems ? {
+      itemsButton: {
+        label: combatActionButtonLabels.items,
+        callbackData: makeFightItemsCallbackData({ sessionId: session.id, turn })
+      }
+    } : {}),
+    fleeButton: {
+      label: combatActionButtonLabels.flee,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" })
+    }
+  });
 }
 
 export function buildPersistentFightResultKeyboard(
