@@ -14,6 +14,8 @@ import {
   GROUP_COMBAT_TURN_LIMIT,
   buildGroupCombatProductionV1Evidence,
   buildLeftPassageEncounterRewardBudget,
+  deriveGroupCombatLockedAbilityId,
+  expandGroupCombatRecapSnapshot,
   deriveLeftPassageEnemyCount,
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatLootVersionOneRoll,
@@ -304,14 +306,17 @@ const monsterAbilityEffectSchema = z.object({
   triggerId: z.string().min(1).optional(),
   remainingSourceActivations: positiveInteger.max(13).optional(),
   remainingTargetActivations: positiveInteger.max(13).optional(),
-  charges: positiveInteger.max(13).optional()
+  charges: positiveInteger.max(13).optional(),
+  lockSource: z.enum(["class", "race"]).optional(),
+  lockedAbilityId: z.string().min(1).optional(),
+  reapplication: z.object({
+    sourceEnemyId: z.string().min(1),
+    sourceAbilityId: z.string().min(1),
+    turn: positiveInteger
+  }).strict().optional()
 }).strict();
 
-const recapSchema = z.object({
-  turn: positiveInteger,
-  lines: z.array(z.string().min(1).max(587)).max(13),
-  monsterBarkIds: z.array(z.string().min(1)).max(6).optional(),
-  snapshot: z.object({
+const verboseRecapSnapshotSchema = z.object({
     participants: z.array(z.object({
       hp: nonNegativeInteger,
       mana: nonNegativeInteger,
@@ -351,7 +356,54 @@ const recapSchema = z.object({
       targetId: z.string().min(1),
       remainingTurns: positiveInteger.max(13)
     }).strict()).max(93).optional()
-  }).strict().optional()
+  }).strict();
+
+const compactCooldownSchema = z.array(z.tuple([
+  z.string().min(1),
+  positiveInteger.max(13)
+])).max(13).nullable();
+
+const compactRecapSnapshotSchema = z.object({
+  p: z.array(z.tuple([
+    nonNegativeInteger,
+    nonNegativeInteger,
+    compactCooldownSchema,
+    compactCooldownSchema,
+    positiveInteger.max(7).nullable(),
+    positiveInteger.nullable()
+  ])).max(GROUP_COMBAT_PARTICIPANT_LIMIT),
+  e: z.array(z.tuple([
+    nonNegativeInteger,
+    compactCooldownSchema,
+    positiveInteger.nullable()
+  ])).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
+  x: z.array(z.tuple([
+    z.enum([
+      "guard",
+      "response-mitigation",
+      "counter",
+      "bleed",
+      "monster-accuracy-penalty",
+      "monster-burn",
+      "monster-incoming-damage",
+      "monster-damage-reduction",
+      "monster-evasion",
+      "monster-outgoing-damage"
+    ]),
+    z.enum(["participant", "enemy"]),
+    z.string().min(1),
+    positiveInteger.max(13)
+  ])).max(93).optional()
+}).strict();
+
+const recapSchema = z.object({
+  turn: positiveInteger,
+  lines: z.array(z.string().min(1).max(587)).max(13),
+  monsterBarkIds: z.array(z.string().min(1)).max(6).optional(),
+  snapshot: z.union([
+    verboseRecapSnapshotSchema,
+    compactRecapSnapshotSchema
+  ]).optional()
 }).strict();
 
 const threatDecisionSchema = z.object({
@@ -583,23 +635,26 @@ const stateSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Group-combat monster bark evidence is invalid." });
   }
   for (const recap of state.recap) {
+    const snapshot = expandGroupCombatRecapSnapshot(
+      recap.snapshot as GroupCombatState["recap"][number]["snapshot"]
+    );
     if (
       state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      !recap.snapshot
+      !snapshot
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Production recap snapshot is missing." });
       continue;
     }
-    if (!recap.snapshot) {
+    if (!snapshot) {
       continue;
     }
     if (
-      recap.snapshot.participants.length !== state.participants.length ||
-      recap.snapshot.enemies.length !== state.enemies.length
+      snapshot.participants.length !== state.participants.length ||
+      snapshot.enemies.length !== state.enemies.length
     ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap snapshot roster is not canonical." });
     }
-    for (const [index, participant] of recap.snapshot.participants.entries()) {
+    for (const [index, participant] of snapshot.participants.entries()) {
       const current = state.participants[index];
       if (
         !current ||
@@ -609,7 +664,7 @@ const stateSchema = z.object({
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap participant resources exceed frozen maxima." });
       }
     }
-    for (const [index, enemy] of recap.snapshot.enemies.entries()) {
+    for (const [index, enemy] of snapshot.enemies.entries()) {
       const current = state.enemies[index];
       if (
         !current ||
@@ -619,7 +674,7 @@ const stateSchema = z.object({
         context.addIssue({ code: z.ZodIssueCode.custom, message: "Recap enemy resources exceed frozen maxima." });
       }
     }
-    if ((recap.snapshot.effects ?? []).some((effect) =>
+    if ((snapshot.effects ?? []).some((effect) =>
       effect.targetKind === "participant"
         ? !participantIds.includes(effect.targetId)
         : !enemyIds.includes(effect.targetId)
@@ -1075,6 +1130,8 @@ function isCanonicalMonsterAbilityEffect(
       );
       if (
         component &&
+        isCanonicalAbilityLockEvidence(state, effect, component) &&
+        isCanonicalReapplicationEvidence(state, effect) &&
         (effect.remainingSourceActivations ?? 0) <=
           (component.durationOwnActivations ?? effect.remainingSourceActivations ?? 0) &&
         (effect.remainingTargetActivations ?? 0) <=
@@ -1086,6 +1143,71 @@ function isCanonicalMonsterAbilityEffect(
     }
   }
   return false;
+}
+
+function isCanonicalAbilityLockEvidence(
+  state: GroupCombatState,
+  effect: GroupCombatMonsterAbilityEffect,
+  component: ReturnType<typeof compileMonsterAbilityExecutionPlan>["components"][number]
+): boolean {
+  if (effect.kind !== "ability-lock") {
+    return effect.lockSource === undefined && effect.lockedAbilityId === undefined;
+  }
+  if (component.sourceParameter === "lockAbilitySource") {
+    return (
+      component.lockSource !== undefined &&
+      effect.lockSource === component.lockSource &&
+      effect.lockedAbilityId === undefined
+    );
+  }
+  if (component.sourceParameter !== "lockAnyOneAbility" || effect.targetKind !== "participant") {
+    return false;
+  }
+  const actor = state.participants.find(
+    (participant) => participant.characterId === effect.targetId
+  );
+  return (
+    actor !== undefined &&
+    effect.lockSource === undefined &&
+    effect.lockedAbilityId === deriveGroupCombatLockedAbilityId(
+      state,
+      actor,
+      effect.sourceEnemyId,
+      effect.sourceAbilityId
+    )
+  );
+}
+
+function isCanonicalReapplicationEvidence(
+  state: GroupCombatState,
+  effect: GroupCombatMonsterAbilityEffect
+): boolean {
+  if (!effect.reapplication) {
+    return true;
+  }
+  if (effect.reapplication.turn > state.turn) {
+    return false;
+  }
+  const source = state.enemies.find(
+    (enemy) => enemy.id === effect.reapplication!.sourceEnemyId
+  );
+  const ability = source
+    ? findValidationMonsterAbility(
+        state,
+        source.id,
+        effect.reapplication.sourceAbilityId
+      )
+    : null;
+  if (
+    !source ||
+    !ability ||
+    !(source.abilityIds ?? []).includes(ability.id)
+  ) {
+    return false;
+  }
+  return compileMonsterAbilityExecutionPlan({ ability }).components.some(
+    (component) => component.kind === "reapply-expired"
+  );
 }
 
 type MonsterValidationStatus = {

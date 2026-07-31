@@ -27,6 +27,7 @@ import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
 import {
   compileMonsterAbilityExecutionPlan,
   compileMonsterAbilityRecipe,
+  getMonsterAbilityParameterCoverage,
   getMonsterAbilityEffectContract,
   type MonsterAbilityComponentTrigger,
   type MonsterAbilityEffectKind,
@@ -86,6 +87,14 @@ export function assertGroupCombatMonsterAbilityExecutionContract(
   abilities: readonly MonsterAbilityDefinition[] = monsterAbilities
 ): void {
   for (const ability of abilities) {
+    const coverage = getMonsterAbilityParameterCoverage(ability);
+    const authoredParameters = Object.keys(ability.parameters);
+    if (
+      coverage.length !== authoredParameters.length ||
+      new Set(coverage.map((entry) => entry.parameter)).size !== authoredParameters.length
+    ) {
+      throw new Error(`Incomplete GroupCombat monster parameter coverage for ${ability.id}.`);
+    }
     for (let cycle = 1; cycle <= 6; cycle += 1) {
       const plan = compileMonsterAbilityExecutionPlan({
         ability,
@@ -234,6 +243,13 @@ export interface GroupCombatMonsterAbilityEffect {
   remainingSourceActivations?: number;
   remainingTargetActivations?: number;
   charges?: number;
+  lockSource?: "class" | "race";
+  lockedAbilityId?: string;
+  reapplication?: {
+    sourceEnemyId: string;
+    sourceAbilityId: string;
+    turn: number;
+  };
 }
 
 export interface GroupCombatThreatParticipantSnapshot {
@@ -397,30 +413,108 @@ export interface GroupCombatTimedStatus {
   appliedTurn?: number;
 }
 
+export interface GroupCombatRecapSnapshot {
+  participants: Array<{
+    hp: number;
+    mana: number;
+    fleeAttempts?: number;
+    fledAtTurn?: number;
+    cooldowns?: Array<{ id: string; remainingTurns: number }>;
+    itemCooldowns?: Array<{ itemId: string; remainingTurns: number }>;
+  }>;
+  enemies: Array<{
+    hp: number;
+    cooldowns?: Array<{ id: string; remainingTurns: number }>;
+    shieldPoints?: number;
+  }>;
+  effects?: Array<{
+    kind: GroupCombatStatusKind;
+    targetKind: "participant" | "enemy";
+    targetId: string;
+    remainingTurns: number;
+  }>;
+}
+
+export interface GroupCombatCompactRecapSnapshot {
+  p: Array<[
+    hp: number,
+    mana: number,
+    cooldowns: Array<[id: string, remainingTurns: number]> | null,
+    itemCooldowns: Array<[itemId: string, remainingTurns: number]> | null,
+    fleeAttempts: number | null,
+    fledAtTurn: number | null
+  ]>;
+  e: Array<[
+    hp: number,
+    cooldowns: Array<[id: string, remainingTurns: number]> | null,
+    shieldPoints: number | null
+  ]>;
+  x?: Array<[
+    kind: GroupCombatStatusKind,
+    targetKind: "participant" | "enemy",
+    targetId: string,
+    remainingTurns: number
+  ]>;
+}
+
 export interface GroupCombatRecapEntry {
   turn: number;
   lines: string[];
   monsterBarkIds?: string[];
-  snapshot?: {
-    participants: Array<{
-      hp: number;
-      mana: number;
-      fleeAttempts?: number;
-      fledAtTurn?: number;
-      cooldowns?: Array<{ id: string; remainingTurns: number }>;
-      itemCooldowns?: Array<{ itemId: string; remainingTurns: number }>;
-    }>;
-    enemies: Array<{
-      hp: number;
-      cooldowns?: Array<{ id: string; remainingTurns: number }>;
-      shieldPoints?: number;
-    }>;
-    effects?: Array<{
-      kind: GroupCombatStatusKind;
-      targetKind: "participant" | "enemy";
-      targetId: string;
-      remainingTurns: number;
-    }>;
+  snapshot?: GroupCombatRecapSnapshot | GroupCombatCompactRecapSnapshot;
+}
+
+export function expandGroupCombatRecapSnapshot(
+  snapshot: GroupCombatRecapEntry["snapshot"]
+): GroupCombatRecapSnapshot | undefined {
+  if (!snapshot) {
+    return undefined;
+  }
+  if ("participants" in snapshot) {
+    return snapshot;
+  }
+  return {
+    participants: snapshot.p.map(([
+      hp,
+      mana,
+      cooldowns,
+      itemCooldowns,
+      fleeAttempts,
+      fledAtTurn
+    ]) => ({
+      hp,
+      mana,
+      ...(cooldowns
+        ? { cooldowns: cooldowns.map(([id, remainingTurns]) => ({ id, remainingTurns })) }
+        : {}),
+      ...(itemCooldowns
+        ? {
+            itemCooldowns: itemCooldowns.map(([itemId, remainingTurns]) => ({
+              itemId,
+              remainingTurns
+            }))
+          }
+        : {}),
+      ...(fleeAttempts === null ? {} : { fleeAttempts }),
+      ...(fledAtTurn === null ? {} : { fledAtTurn })
+    })),
+    enemies: snapshot.e.map(([hp, cooldowns, shieldPoints]) => ({
+      hp,
+      ...(cooldowns
+        ? { cooldowns: cooldowns.map(([id, remainingTurns]) => ({ id, remainingTurns })) }
+        : {}),
+      ...(shieldPoints === null ? {} : { shieldPoints })
+    })),
+    ...(snapshot.x
+      ? {
+          effects: snapshot.x.map(([kind, targetKind, targetId, remainingTurns]) => ({
+            kind,
+            targetKind,
+            targetId,
+            remainingTurns
+          }))
+        }
+      : {})
   };
 }
 
@@ -913,13 +1007,33 @@ function isGroupCombatAbilityLocked(
   if (locks.length === 0) {
     return false;
   }
+  const profile = getGroupCombatActionProfile(actor, action.action, action.payloadKey);
   return locks.some((effect) =>
-    effect.triggerId?.includes("lockAnyOneAbility") ||
-    (
-      effect.triggerId?.includes("lockAbilitySource") &&
-      action.action === "class"
-    )
+    (effect.lockedAbilityId !== undefined && profile?.ability.id === effect.lockedAbilityId) ||
+    (effect.lockSource !== undefined && action.action === effect.lockSource)
   );
+}
+
+export function deriveGroupCombatLockedAbilityId(
+  state: GroupCombatState,
+  actor: GroupCombatActorSnapshot,
+  sourceEnemyId: string,
+  sourceAbilityId: string
+): string | null {
+  const abilityIds = [
+    getGroupCombatActionProfile(actor, "class")?.ability.id,
+    getGroupCombatActionProfile(actor, "race")?.ability.id,
+    ...[...actor.gearAbilityIds]
+      .sort((left, right) => left.localeCompare(right))
+      .map((abilityId) => getGroupCombatActionProfile(actor, "gear", abilityId)?.ability.id)
+  ].filter((abilityId): abilityId is string => Boolean(abilityId));
+  if (abilityIds.length === 0) {
+    return null;
+  }
+  const rng = new SeededRandomSource(
+    `${state.deterministicSeed}:${sourceEnemyId}:${sourceAbilityId}:${actor.characterId}:ability-lock`
+  );
+  return abilityIds[rng.nextInt(0, abilityIds.length - 1)] ?? null;
 }
 
 function isAbilityAvailableWithMonsterPressure(
@@ -927,14 +1041,26 @@ function isAbilityAvailableWithMonsterPressure(
   actor: GroupCombatActorSnapshot,
   ability: CombatSkillProfile
 ): boolean {
+  return isAbilityAvailable(actor, ability) &&
+    actor.mana >= getEffectiveGroupCombatAbilityManaCost(state, actor, ability);
+}
+
+export function getEffectiveGroupCombatAbilityManaCost(
+  state: GroupCombatState,
+  actor: GroupCombatActorSnapshot,
+  ability: CombatSkillProfile
+): number {
+  const baseCost = Math.max(0, Math.floor(ability.manaCost ?? 0));
+  if (baseCost === 0) {
+    return 0;
+  }
   const pressure = activeAbilityEffects(
     state,
     "participant",
     actor.characterId,
     "mana-cost-pressure"
   ).reduce((sum, effect) => sum + Math.max(0, Math.floor(effect.value)), 0);
-  return isAbilityAvailable(actor, ability) &&
-    actor.mana >= Math.max(0, (ability.manaCost ?? 0) + pressure);
+  return baseCost + pressure;
 }
 
 export function buildGroupCombatTimeoutAction(state: GroupCombatState, characterId: string): GroupCombatAction {
@@ -1287,13 +1413,6 @@ function applyBasicAttack(
     )
   });
   applyActorResourceState(actor, resolved.actorState);
-  const manaPressure = activeAbilityEffects(
-    state,
-    "participant",
-    actor.characterId,
-    "mana-cost-pressure"
-  ).reduce((sum, effect) => sum + Math.max(0, Math.floor(effect.value)), 0);
-  actor.mana = Math.max(0, actor.mana - manaPressure);
   const damage = applyPlayerDamageToEnemy(
     state,
     target,
@@ -1321,29 +1440,21 @@ function applyFleeAction(
     return;
   }
   const attempt = (actor.fleeAttempts ?? 0) + 1;
-  let fled = rollFleeSuccess(
-    actorCombatStats(actor),
-    groupCombatEnemyActorStats(state, primaryEnemy, actor.level, actor.characterId),
-    new SeededRandomSource(
-      `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:flee:${attempt}:${primaryEnemy.order}`
-    ),
-    attempt
-  );
   const fleePenaltyPp = activeAbilityEffects(
     state,
     "participant",
     actor.characterId,
     "flee"
   ).reduce((sum, effect) => sum + Math.max(0, effect.value), 0);
-  if (
-    fled &&
-    fleePenaltyPp > 0 &&
+  const fled = rollFleeSuccess(
+    actorCombatStats(actor),
+    groupCombatEnemyActorStats(state, primaryEnemy, actor.level, actor.characterId),
     new SeededRandomSource(
-      `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:flee-penalty:${attempt}`
-    ).nextFloat() < Math.min(0.95, fleePenaltyPp / 100)
-  ) {
-    fled = false;
-  }
+      `${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:flee:${attempt}:${primaryEnemy.order}`
+    ),
+    attempt,
+    fleePenaltyPp
+  );
   actor.fleeAttempts = attempt;
   tickActorAfterCommittedAction(actor);
   tickGroupCombatItemCooldowns(actor);
@@ -1422,7 +1533,10 @@ function applyAbilityAction(
     fumbleSeed: `${state.sessionId}:${actor.characterId}:${ability.id}`,
     rng: new SeededRandomSource(`${state.deterministicSeed}:${state.turn}:${actor.rosterOrder}:${ability.id}`)
   });
+  const baseManaCost = Math.max(0, Math.floor(ability.manaCost ?? 0));
+  const effectiveManaCost = getEffectiveGroupCombatAbilityManaCost(state, actor, ability);
   applyActorResourceState(actor, resolved.actorState);
+  actor.mana = Math.max(0, actor.mana - Math.max(0, effectiveManaCost - baseManaCost));
 
   if (resolved.summary.fumble) {
     lines.push(`${actor.name}: ${resolved.summary.fumble.line}`);
@@ -1781,7 +1895,7 @@ function applyEnemyPhase(
   }
 }
 
-function applyGroupCombatEnemyDamage(
+export function applyGroupCombatEnemyDamage(
   state: GroupCombatState,
   enemy: GroupCombatEnemyState,
   target: GroupCombatActorSnapshot,
@@ -1815,9 +1929,11 @@ function applyGroupCombatEnemyDamage(
       ) *
       consumeNextAttackBonus(state, enemy.id)
     );
-    damage = Math.floor(
-      damage * consumeMarkMultiplier(state, target.characterId)
-    );
+    if (damage > 0) {
+      damage = Math.floor(
+        damage * consumeMarkMultiplier(state, target.characterId)
+      );
+    }
     damage = Math.floor(
       damage *
       multiplyGroupCombatStatusValues(state, target.characterId, "monster-incoming-damage") /
@@ -2786,18 +2902,17 @@ function applyCompiledGroupCombatAbilityComponents(input: {
             effect.removable
           );
         if (expired) {
-          input.state.abilityEffects ??= [];
-          input.state.abilityEffects.push({
-            ...expired,
-            id: `${input.state.turn}:${input.enemy.id}:${input.ability.id}:reapply:${target.id}`,
-            sourceEnemyId: input.enemy.id,
-            sourceAbilityId: input.ability.id,
-            remainingTargetActivations: Math.max(
-              1,
-              expired.remainingTargetActivations ?? 1
-            )
-          });
-          appliedCount += 1;
+          const restored = restoreCanonicalExpiredGroupCombatAbilityEffect(
+            input.state,
+            expired,
+            input.enemy,
+            input.ability
+          );
+          if (restored) {
+            input.state.abilityEffects ??= [];
+            input.state.abilityEffects.push(restored);
+            appliedCount += 1;
+          }
         }
       }
     }
@@ -2807,6 +2922,72 @@ function applyCompiledGroupCombatAbilityComponents(input: {
     }
   }
   return { effects: [...new Set(effects)], control };
+}
+
+function restoreCanonicalExpiredGroupCombatAbilityEffect(
+  state: GroupCombatState,
+  expired: GroupCombatMonsterAbilityEffect,
+  reapplyingEnemy: GroupCombatEnemyState,
+  reapplyingAbility: MonsterAbilityDefinition
+): GroupCombatMonsterAbilityEffect | null {
+  const semanticSource = state.enemies.find((enemy) => enemy.id === expired.sourceEnemyId);
+  const semanticAbility = semanticSource
+    ? findGroupCombatEnemyAbility(state, semanticSource, expired.sourceAbilityId)
+    : null;
+  if (!semanticSource || !semanticAbility) {
+    return null;
+  }
+  const target = expired.targetKind === "participant" ? "hero" : "monster";
+  let authoredComponent: MonsterAbilityPlanComponent | null = null;
+  for (let turn = 1; turn <= 6 && !authoredComponent; turn += 1) {
+    for (let ownActionCount = 1; ownActionCount <= 6 && !authoredComponent; ownActionCount += 1) {
+      authoredComponent = compileMonsterAbilityExecutionPlan({
+        ability: semanticAbility,
+        state: { turn } as CombatState,
+        runtime: {
+          ownActionCount,
+          lastDirectHeroDamage: semanticSource.lastDirectParticipantDamage
+        } as MonsterAbilityRuntimeStateV1
+      }).components.find((candidate) =>
+        candidate.kind === "runtime-effect" &&
+        candidate.target === target &&
+        candidate.effectKind === expired.kind &&
+        candidate.value === expired.value &&
+        candidate.trigger === expired.trigger &&
+        candidate.triggerId === expired.triggerId
+      ) ?? null;
+    }
+  }
+  if (!authoredComponent) {
+    return null;
+  }
+  return {
+    id: `${state.turn}:${reapplyingEnemy.id}:${reapplyingAbility.id}:reapply:${expired.targetId}`,
+    sourceEnemyId: expired.sourceEnemyId,
+    sourceAbilityId: expired.sourceAbilityId,
+    targetKind: expired.targetKind,
+    targetId: expired.targetId,
+    kind: expired.kind,
+    value: expired.value,
+    polarity: expired.polarity,
+    removable: expired.removable,
+    trigger: expired.trigger,
+    ...(expired.triggerId ? { triggerId: expired.triggerId } : {}),
+    ...(authoredComponent.durationOwnActivations
+      ? { remainingSourceActivations: authoredComponent.durationOwnActivations }
+      : {}),
+    ...(authoredComponent.durationTargetActivations
+      ? { remainingTargetActivations: authoredComponent.durationTargetActivations }
+      : {}),
+    ...(authoredComponent.charges ? { charges: authoredComponent.charges } : {}),
+    ...(expired.lockSource ? { lockSource: expired.lockSource } : {}),
+    ...(expired.lockedAbilityId ? { lockedAbilityId: expired.lockedAbilityId } : {}),
+    reapplication: {
+      sourceEnemyId: reapplyingEnemy.id,
+      sourceAbilityId: reapplyingAbility.id,
+      turn: state.turn
+    }
+  };
 }
 
 function addOrMergeGroupCombatAbilityEffect(
@@ -2830,6 +3011,24 @@ function addOrMergeGroupCombatAbilityEffect(
     kind: component.effectKind,
     value: component.value ?? 0
   });
+  const lockedAbilityId =
+    component.effectKind === "ability-lock" &&
+    component.sourceParameter === "lockAnyOneAbility" &&
+    targetKind === "participant"
+      ? deriveGroupCombatLockedAbilityId(
+          input.state,
+          input.state.participants.find((participant) => participant.characterId === targetId)!,
+          input.enemy.id,
+          input.ability.id
+        )
+      : null;
+  if (
+    component.effectKind === "ability-lock" &&
+    component.sourceParameter === "lockAnyOneAbility" &&
+    !lockedAbilityId
+  ) {
+    return false;
+  }
   const next: GroupCombatMonsterAbilityEffect = {
     id: `${input.state.turn}:${input.enemy.id}:${input.ability.id}:${component.effectKind}:${component.triggerId ?? "effect"}:${targetId}`,
     sourceEnemyId: input.enemy.id,
@@ -2842,6 +3041,8 @@ function addOrMergeGroupCombatAbilityEffect(
     removable: contract.removable,
     trigger: component.trigger,
     ...(component.triggerId ? { triggerId: component.triggerId } : {}),
+    ...(component.lockSource ? { lockSource: component.lockSource } : {}),
+    ...(lockedAbilityId ? { lockedAbilityId } : {}),
     ...(component.durationOwnActivations
       ? { remainingSourceActivations: component.durationOwnActivations }
       : {}),
@@ -4536,7 +4737,7 @@ function appendRecap(
     lines: lines.slice(0, 13),
     ...(monsterBarkIds.length > 0 ? { monsterBarkIds: monsterBarkIds.slice(0, 6) } : {}),
     snapshot: {
-      participants: state.participants.map((participant) => {
+      p: state.participants.map((participant) => {
         const cooldowns = getActiveGroupCombatCooldowns(participant);
         const itemCooldowns = Object.values(participant.combatItems?.cooldowns ?? {})
           .filter((cooldown) => cooldown.remainingTurns > 0)
@@ -4545,31 +4746,56 @@ function appendRecap(
             remainingTurns: cooldown.remainingTurns
           }))
           .sort((left, right) => left.itemId.localeCompare(right.itemId));
-        return {
-          hp: participant.hp,
-          mana: participant.mana,
-          ...(participant.fleeAttempts !== undefined
-            ? { fleeAttempts: participant.fleeAttempts }
-            : {}),
-          ...(participant.fledAtTurn !== undefined
-            ? { fledAtTurn: participant.fledAtTurn }
-            : {}),
-          ...(cooldowns.length > 0 ? { cooldowns } : {}),
-          ...(itemCooldowns.length > 0 ? { itemCooldowns } : {})
-        };
+        return [
+          participant.hp,
+          participant.mana,
+          cooldowns.length > 0
+            ? cooldowns.map((cooldown): [string, number] => [
+                cooldown.id,
+                cooldown.remainingTurns
+              ])
+            : null,
+          itemCooldowns.length > 0
+            ? itemCooldowns.map((cooldown): [string, number] => [
+                cooldown.itemId,
+                cooldown.remainingTurns
+              ])
+            : null,
+          participant.fleeAttempts ?? null,
+          participant.fledAtTurn ?? null
+        ];
       }),
-      enemies: state.enemies.map((enemy) => {
+      e: state.enemies.map((enemy) => {
         const cooldowns = Object.values(enemy.abilityCooldowns ?? {})
           .filter((cooldown) => cooldown.remainingTurns > 0)
           .map((cooldown) => ({ id: cooldown.id, remainingTurns: cooldown.remainingTurns }))
           .sort((left, right) => left.id.localeCompare(right.id));
-        return {
-          hp: enemy.hp,
-          ...(cooldowns.length > 0 ? { cooldowns } : {}),
-          ...(enemy.shield?.points ? { shieldPoints: enemy.shield.points } : {})
-        };
+        return [
+          enemy.hp,
+          cooldowns.length > 0
+            ? cooldowns.map((cooldown): [string, number] => [
+                cooldown.id,
+                cooldown.remainingTurns
+              ])
+            : null,
+          enemy.shield?.points ?? null
+        ];
       }),
-      ...(effects.length > 0 ? { effects } : {})
+      ...(effects.length > 0
+        ? {
+            x: effects.map((effect): [
+              GroupCombatStatusKind,
+              "participant" | "enemy",
+              string,
+              number
+            ] => [
+              effect.kind,
+              effect.targetKind,
+              effect.targetId,
+              effect.remainingTurns
+            ])
+          }
+        : {})
     }
   };
   return [...state.recap, entry].slice(-GROUP_COMBAT_RECAP_LIMIT);

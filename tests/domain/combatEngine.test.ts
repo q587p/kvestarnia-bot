@@ -1592,6 +1592,26 @@ describe("combat domain engine", () => {
     expect(buildFleeSuccessChance(warrior, monster, 5)).toBe(0.93);
     expect(buildFleeSuccessChance(warrior, monster, 6)).toBe(0.965);
     expect(buildFleeSuccessChance(warrior, monster, 7)).toBe(1);
+    expect(buildFleeSuccessChance(warrior, monster, 1, 35)).toBeCloseTo(
+      Math.max(0, baseChance - 0.35)
+    );
+    expect(buildFleeSuccessChance(warrior, monster, 5, 35)).toBeCloseTo(0.58);
+    expect(buildFleeSuccessChance(warrior, monster, 6, 35)).toBeCloseTo(0.615);
+    expect(buildFleeSuccessChance(warrior, monster, 7, 35)).toBe(1);
+    expect(rollFleeSuccess(
+      warrior,
+      monster,
+      new FakeRandomSource([0.581]),
+      5,
+      35
+    )).toBe(false);
+    expect(rollFleeSuccess(
+      warrior,
+      monster,
+      new FakeRandomSource([0.579_999]),
+      5,
+      35
+    )).toBe(true);
 
     let state = startCombat({
       hero: {

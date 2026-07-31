@@ -8,6 +8,9 @@ import {
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
   deriveLeftPassageEnemyCount,
+  deriveGroupCombatLockedAbilityId,
+  getEffectiveGroupCombatAbilityManaCost,
+  getGroupCombatActionProfile,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
@@ -16,6 +19,7 @@ import {
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
   assertGroupCombatMonsterAbilityExecutionContract,
+  applyGroupCombatEnemyDamage,
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
@@ -31,6 +35,7 @@ import { monsterLoot } from "../../src/content/monsterFlavor";
 import { lootExpansionV1Data } from "../../src/content/lootExpansionV1Data";
 import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
 import { monsterAbilities } from "../../src/content/monsterAbilities";
+import { getMonsterAbilityParameterCoverage } from "../../src/domain/combat/monsterAbilityRuntime";
 import {
   mantokAbilityGrantDefinitions,
   type MantokAbilityGrantDefinition
@@ -1013,6 +1018,15 @@ describe("group combat proof reducer", () => {
     expect(() =>
       assertGroupCombatMonsterAbilityExecutionContract(monsterAbilities)
     ).not.toThrow();
+    for (const ability of monsterAbilities) {
+      const coverage = getMonsterAbilityParameterCoverage(ability);
+      expect(coverage.map((entry) => entry.parameter).sort(), ability.id).toEqual(
+        Object.keys(ability.parameters).sort()
+      );
+      expect(new Set(coverage.map((entry) => entry.parameter)).size, ability.id)
+        .toBe(coverage.length);
+      expect(coverage.every((entry) => entry.consumer.length > 0), ability.id).toBe(true);
+    }
 
     const state = proofState(2);
     state.enemies[0]!.abilityIds = ["monster.sauce-spit"];
@@ -1244,41 +1258,447 @@ describe("group combat proof reducer", () => {
     );
   });
 
-  it("enforces class locks and mana pressure during canonical action validation", () => {
-    for (const [abilityId, expected] of [
-      ["monster.stamp-denied", "class-lock"],
-      ["monster.asset-freeze", "mana-pressure"]
-    ] as const) {
-      const state = proofState(2);
-      state.enemies[0]!.abilityIds = [abilityId];
-      state.enemies[1]!.hp = 0;
+  it.each([
+    "monster.reopen-case",
+    "monster.return-to-first-instance",
+    "monster.reactivate-archive",
+    "monster.posthumous-audit",
+    "monster.write-off-and-summon"
+  ])("%s reapplies an expired effect with separate canonical provenance", (reapplyAbilityId) => {
+    let state = proofState(2, { hp: 587, hpMax: 587, defense: 93 });
+    state.participants[1]!.hp = 0;
+    state.enemies[0]!.abilityIds = ["monster.audit-formula"];
+    state.enemies[1]!.hp = 0;
+    state = resolveGroupCombatTurn(state, [
+      buildGroupCombatTimeoutAction(state, state.participants[0]!.characterId)
+    ]).state;
+    expect(state.abilityEffects?.some((effect) =>
+      effect.sourceAbilityId === "monster.audit-formula" &&
+      effect.kind === "mark"
+    )).toBe(true);
+
+    state = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", state.participants[0]!.characterId)
+    ]).state;
+    const expired = state.expiredAbilityEffects?.find((effect) =>
+      effect.sourceAbilityId === "monster.audit-formula" &&
+      effect.kind === "mark"
+    );
+    expect(expired, reapplyAbilityId).toBeDefined();
+
+    state = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", state.participants[0]!.characterId)
+    ]).state;
+    state.enemies[0]!.abilityIds = ["monster.audit-formula", reapplyAbilityId];
+    state.enemies[0]!.abilityCooldowns = {
+      "monster.audit-formula": {
+        id: "monster.audit-formula",
+        remainingTurns: 1
+      }
+    };
+    const beforeReapply = structuredClone(state);
+    const resolved = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", state.participants[0]!.characterId)
+    ]);
+    const repeated = resolveGroupCombatTurn(structuredClone(beforeReapply), [
+      action(
+        beforeReapply,
+        0,
+        "guard",
+        "self",
+        beforeReapply.participants[0]!.characterId
+      )
+    ]);
+    const reapplied = resolved.state.abilityEffects?.find((effect) =>
+      effect.sourceAbilityId === "monster.audit-formula" &&
+      effect.kind === "mark" &&
+      effect.reapplication?.sourceAbilityId === reapplyAbilityId
+    );
+    expect(resolved).toEqual(repeated);
+    expect(
+      reapplied,
+      `${reapplyAbilityId}: ${JSON.stringify(resolved.state.recap.at(-1))}; effects=${JSON.stringify(resolved.state.abilityEffects)}`
+    ).toMatchObject({
+      sourceEnemyId: expired!.sourceEnemyId,
+      sourceAbilityId: expired!.sourceAbilityId,
+      targetKind: expired!.targetKind,
+      targetId: expired!.targetId,
+      kind: expired!.kind,
+      value: expired!.value,
+      polarity: expired!.polarity,
+      removable: expired!.removable,
+      trigger: expired!.trigger,
+      charges: 1,
+      reapplication: {
+        sourceEnemyId: resolved.state.enemies[0]!.id,
+        sourceAbilityId: reapplyAbilityId,
+        turn: beforeReapply.turn
+      }
+    });
+    const restarted = parseGroupCombatStateStrict(
+      JSON.parse(JSON.stringify(resolved.state))
+    );
+    expect(restarted).toEqual(resolved.state);
+    const corrupted = structuredClone(resolved.state);
+    corrupted.abilityEffects!.find((effect) =>
+      effect.reapplication?.sourceAbilityId === reapplyAbilityId
+    )!.reapplication!.sourceAbilityId = "monster.audit-formula";
+    expect(() => parseGroupCombatStateStrict(corrupted)).toThrow(
+      GroupCombatStateValidationError
+    );
+  });
+
+  it("consumes a charged mark only on the first landed incoming hit", () => {
+    const initial = proofState(2, { hp: 93, hpMax: 93, defense: 2 });
+    initial.participants[1]!.hp = 0;
+    initial.enemies[0]!.abilityIds = ["monster.audit-formula"];
+    initial.enemies[1]!.hp = 0;
+    const marked = resolveGroupCombatTurn(initial, [
+      buildGroupCombatTimeoutAction(initial, initial.participants[0]!.characterId)
+    ]).state;
+    expect(marked.abilityEffects?.find((effect) => effect.kind === "mark")?.charges)
+      .toBe(1);
+
+    const missed = structuredClone(marked);
+    expect(applyGroupCombatEnemyDamage(
+      missed,
+      missed.enemies[0]!,
+      missed.participants[0]!,
+      0
+    )).toBe(0);
+    expect(missed.abilityEffects?.find((effect) => effect.kind === "mark"))
+      .toMatchObject({ charges: 1, remainingTargetActivations: 2 });
+    expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(missed))))
+      .toEqual(missed);
+
+    const landedInput = structuredClone(marked);
+    const landed = resolveGroupCombatTurn(landedInput, [
+      action(
+        landedInput,
+        0,
+        "guard",
+        "self",
+        landedInput.participants[0]!.characterId
+      )
+    ]);
+    expect(landed.state.participants[0]!.hp).toBeLessThan(
+      landedInput.participants[0]!.hp
+    );
+    expect(landed.state.contributions[0]!.guardPrevented).toBeGreaterThan(0);
+    expect(landed.state.abilityEffects?.some((effect) => effect.kind === "mark") ?? false)
+      .toBe(false);
+    expect(landed.state.expiredAbilityEffects?.some((effect) =>
+      effect.kind === "mark"
+    )).toBe(true);
+    expect(resolveGroupCombatTurn(
+      parseGroupCombatStateStrict(JSON.parse(JSON.stringify(landedInput))),
+      [action(
+        landedInput,
+        0,
+        "guard",
+        "self",
+        landedInput.participants[0]!.characterId
+      )]
+    )).toEqual(landed);
+  });
+
+  it.each([
+    ["monster.stamp-denied", "class"],
+    ["monster.denied-closure", "race"]
+  ] as const)("locks only the authored $1 ability source for %s", (abilityId, lockedSource) => {
+    const state = proofState(2);
+    state.enemies[0]!.abilityIds = [abilityId];
+    state.enemies[1]!.hp = 0;
+    const resolved = resolveGroupCombatTurn(
+      state,
+      state.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(state, participant.characterId)
+      )
+    ).state;
+    const lock = resolved.abilityEffects?.find((effect) =>
+      effect.sourceAbilityId === abilityId && effect.kind === "ability-lock"
+    );
+    expect(lock?.lockSource).toBe(lockedSource);
+    const actorIndex = resolved.participants.findIndex(
+      (participant) => participant.characterId === lock?.targetId
+    );
+    expect(validateGroupCombatAction(resolved, action(
+      resolved,
+      actorIndex,
+      lockedSource,
+      "enemy",
+      resolved.enemies[0]!.id
+    ))).toBe("action-unavailable");
+    const otherSource = lockedSource === "class" ? "race" : "class";
+    expect(validateGroupCombatAction(resolved, action(
+      resolved,
+      actorIndex,
+      otherSource,
+      "enemy",
+      resolved.enemies[0]!.id
+    ))).toBe("ok");
+    expect(parseGroupCombatStateStrict(resolved)).toEqual(resolved);
+  });
+
+  it("persists and enforces one deterministic any-ability lock", () => {
+    const state = proofState(2);
+    state.participants.forEach((participant) => {
+      participant.gearAbilityIds = ["gear.last-page-rapier"];
+    });
+    state.enemies[0]!.abilityIds = ["monster.chimera-veto"];
+    state.enemies[1]!.hp = 0;
+    const resolved = resolveGroupCombatTurn(
+      state,
+      state.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(state, participant.characterId)
+      )
+    ).state;
+    const lock = resolved.abilityEffects?.find((effect) =>
+      effect.sourceAbilityId === "monster.chimera-veto" &&
+      effect.kind === "ability-lock"
+    );
+    if (!lock) {
+      throw new Error("Expected deterministic any-ability lock");
+    }
+    const actorIndex = resolved.participants.findIndex(
+      (participant) => participant.characterId === lock.targetId
+    );
+    const actor = resolved.participants[actorIndex]!;
+    expect(lock.lockedAbilityId).toBe(deriveGroupCombatLockedAbilityId(
+      resolved,
+      actor,
+      lock.sourceEnemyId,
+      lock.sourceAbilityId
+    ));
+    const actions = [
+      ["class", getGroupCombatActionProfile(actor, "class")?.ability.id],
+      ["race", getGroupCombatActionProfile(actor, "race")?.ability.id],
+      ["gear", "gear.last-page-rapier"]
+    ] as const;
+    for (const [actionKey, abilityId] of actions) {
+      const candidate = {
+        ...action(resolved, actorIndex, actionKey, "enemy", resolved.enemies[0]!.id),
+        ...(actionKey === "gear" ? { payloadKey: abilityId } : {})
+      };
+      expect(validateGroupCombatAction(resolved, candidate), `${actionKey}:${abilityId}`)
+        .toBe(abilityId === lock.lockedAbilityId ? "action-unavailable" : "ok");
+    }
+    expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved)))).toEqual(resolved);
+    const corrupted = structuredClone(resolved);
+    corrupted.abilityEffects!.find((effect) =>
+      effect.sourceAbilityId === "monster.chimera-veto"
+    )!.lockedAbilityId = "ability.noncanonical";
+    expect(() => parseGroupCombatStateStrict(corrupted)).toThrow(
+      GroupCombatStateValidationError
+    );
+  });
+
+  it("charges mana pressure exactly once only for mana-cost abilities", () => {
+    const initial = proofState(2, {
+      classId: "class.mage",
+      raceId: "race.drantohor",
+      mana: 30,
+      manaMax: 30,
+      gearAbilityIds: ["gear.last-page-rapier"]
+    });
+    initial.enemies[0]!.abilityIds = ["monster.asset-freeze"];
+    initial.enemies[1]!.hp = 0;
+    const pressured = resolveGroupCombatTurn(
+      initial,
+      initial.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(initial, participant.characterId)
+      )
+    ).state;
+    const pressure = pressured.abilityEffects?.find((effect) =>
+      effect.kind === "mana-cost-pressure"
+    );
+    if (!pressure) {
+      throw new Error("Expected mana-cost pressure");
+    }
+    const actorIndex = pressured.participants.findIndex(
+      (participant) => participant.characterId === pressure.targetId
+    );
+    const cases = [
+      { actionKey: "class" as const },
+      { actionKey: "race" as const },
+      { actionKey: "gear" as const, payloadKey: "gear.last-page-rapier" }
+    ];
+    for (const entry of cases) {
+      const state = structuredClone(pressured);
+      const candidateActor = state.participants[actorIndex]!;
+      candidateActor.mana = 30;
+      delete candidateActor.cooldowns;
+      const profile = getGroupCombatActionProfile(
+        candidateActor,
+        entry.actionKey,
+        entry.payloadKey
+      )!;
+      const effectiveCost = getEffectiveGroupCombatAbilityManaCost(
+        state,
+        candidateActor,
+        profile.ability
+      );
+      expect(effectiveCost).toBe(profile.ability.manaCost + Math.floor(pressure.value));
+      const chosen: GroupCombatAction = {
+        ...action(
+          state,
+          actorIndex,
+          entry.actionKey,
+          "enemy",
+          state.enemies[0]!.id
+        ),
+        ...(entry.payloadKey ? { payloadKey: entry.payloadKey } : {})
+      };
+      const submitted = state.participants.map((participant, index) =>
+        index === actorIndex
+          ? chosen
+          : action(state, index, "guard", "self", participant.characterId)
+      );
+      const resolved = resolveGroupCombatTurn(state, submitted);
+      expect(resolved.state.participants[actorIndex]!.mana, entry.actionKey)
+        .toBe(30 - effectiveCost);
+      expect(resolveGroupCombatTurn(structuredClone(state), submitted), entry.actionKey)
+        .toEqual(resolved);
+      expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved.state))))
+        .toEqual(resolved.state);
+    }
+
+    const attackState = structuredClone(pressured);
+    attackState.participants[actorIndex]!.mana = 30;
+    const attacked = resolveGroupCombatTurn(
+      attackState,
+      attackState.participants.map((participant, index) =>
+        index === actorIndex
+          ? action(attackState, index, "attack", "enemy", attackState.enemies[0]!.id)
+          : action(attackState, index, "guard", "self", participant.characterId)
+      )
+    );
+    expect(attacked.state.participants[actorIndex]!.mana).toBe(30);
+    for (const actionKey of ["guard", "flee"] as const) {
+      const state = structuredClone(pressured);
+      state.participants[actorIndex]!.mana = 30;
       const resolved = resolveGroupCombatTurn(
         state,
-        state.participants.map((participant) =>
-          buildGroupCombatTimeoutAction(state, participant.characterId)
+        state.participants.map((participant, index) =>
+          index === actorIndex
+            ? action(state, index, actionKey, "self", participant.characterId)
+            : action(state, index, "guard", "self", participant.characterId)
+        )
+      );
+      expect(resolved.state.participants[actorIndex]!.mana, actionKey).toBe(30);
+    }
+    const itemState = structuredClone(pressured);
+    itemState.participants[actorIndex]!.mana = 30;
+    itemState.participants[actorIndex]!.hp -= 1;
+    itemState.participants[actorIndex]!.combatItemQuantities = {
+      "item.responsible-panic-bandage": 1
+    };
+    const itemResult = resolveGroupCombatTurn(
+      itemState,
+      itemState.participants.map((participant, index) =>
+        index === actorIndex
+          ? {
+              ...action(itemState, index, "item", "self", participant.characterId),
+              payloadKey: "item.responsible-panic-bandage"
+            }
+          : action(itemState, index, "guard", "self", participant.characterId)
+      )
+    );
+    expect(itemResult.state.participants[actorIndex]!.mana).toBe(30);
+
+    const insufficient = structuredClone(pressured);
+    const insufficientActor = insufficient.participants[actorIndex]!;
+    const classProfile = getGroupCombatActionProfile(insufficientActor, "class")!;
+    insufficientActor.mana =
+      getEffectiveGroupCombatAbilityManaCost(insufficient, insufficientActor, classProfile.ability) - 1;
+    const unavailable = action(
+      insufficient,
+      actorIndex,
+      "class",
+      "enemy",
+      insufficient.enemies[0]!.id
+    );
+    const beforeUnavailable = structuredClone(insufficient);
+    expect(validateGroupCombatAction(insufficient, unavailable)).toBe("action-unavailable");
+    expect(insufficient).toEqual(beforeUnavailable);
+
+    const fumble = structuredClone(pressured);
+    const fumbleActor = fumble.participants[actorIndex]!;
+    fumbleActor.mana = 30;
+    const fumbleProfile = getGroupCombatActionProfile(fumbleActor, "class")!;
+    fumbleActor.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        [fumbleProfile.ability.id]: {
+          version: 1,
+          cycle: 0,
+          usesInCycle: 0,
+          triggerAt: 1
+        }
+      }
+    };
+    const fumbled = resolveGroupCombatTurn(
+      fumble,
+      fumble.participants.map((participant, index) =>
+        index === actorIndex
+          ? action(fumble, index, "class", "enemy", fumble.enemies[0]!.id)
+          : action(fumble, index, "guard", "self", participant.characterId)
+      )
+    );
+    expect(fumbled.state.participants[actorIndex]!.mana).toBe(
+      30 - getEffectiveGroupCombatAbilityManaCost(fumble, fumbleActor, fumbleProfile.ability)
+    );
+    expect(fumbled.state.recap.at(-1)!.lines.join("\n")).toContain(
+      fumbleProfile.ability.criticalFumbleLine
+    );
+  });
+
+  it.each([1, 5, 6, 7])(
+    "persists canonical false-exit flee evidence for attempt %i",
+    (attempt) => {
+      const initial = proofState(2, { hp: 93, hpMax: 93 });
+      initial.enemies[0]!.abilityIds = ["monster.false-exit"];
+      initial.enemies[1]!.hp = 0;
+      const pressured = resolveGroupCombatTurn(
+        initial,
+        initial.participants.map((participant) =>
+          buildGroupCombatTimeoutAction(initial, participant.characterId)
         )
       ).state;
-      const actor = resolved.participants[0]!;
-      if (expected === "mana-pressure") {
-        const manaCost = classAbilities.find(
-          (ability) => ability.classId === actor.classId
-        )!.manaCost;
-        actor.mana = manaCost;
+      const fleePressure = pressured.abilityEffects?.find(
+        (effect) => effect.kind === "flee"
+      );
+      if (!fleePressure) {
+        throw new Error("Expected flee pressure");
       }
-      expect(
-        validateGroupCombatAction(
-          resolved,
-          action(
-            resolved,
-            0,
-            "class",
-            "enemy",
-            resolved.enemies[0]!.id
-          )
-        )
-      ).toBe("action-unavailable");
+      const actorIndex = pressured.participants.findIndex(
+        (participant) => participant.characterId === fleePressure.targetId
+      );
+      if (attempt > 1) {
+        pressured.participants[actorIndex]!.fleeAttempts = attempt - 1;
+      } else {
+        delete pressured.participants[actorIndex]!.fleeAttempts;
+      }
+      const submitted = pressured.participants.map((participant, index) =>
+        index === actorIndex
+          ? action(pressured, index, "flee", "self", participant.characterId)
+          : action(pressured, index, "guard", "self", participant.characterId)
+      );
+      const resolved = resolveGroupCombatTurn(pressured, submitted);
+      const repeated = resolveGroupCombatTurn(structuredClone(pressured), submitted);
+      const actor = resolved.state.participants[actorIndex]!;
+      expect(resolved).toEqual(repeated);
+      expect(actor.fleeAttempts).toBe(attempt);
+      if (attempt === 7) {
+        expect(actor.fledAtTurn).toBe(pressured.turn);
+        expect(resolved.state.recap.at(-1)!.lines.join("\n")).toContain(
+          `Спроба ${attempt} вдалася`
+        );
+      }
+      expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved.state))))
+        .toEqual(resolved.state);
     }
-  });
+  );
 
   it("selects exactly one fire-safety-cycle rider per eligible activation", () => {
     let state = proofState(2);
@@ -1450,27 +1870,82 @@ describe("group combat proof reducer", () => {
   });
 
   it("keeps the complete twenty-five-turn 3x6 production journal inside the state budget", () => {
-    let state = leftPassageState(3, true);
-    state.participants.forEach((actor) => {
-      actor.hp = 587;
-      actor.hpMax = 587;
-      actor.defense = 93;
-    });
-    for (let turn = 1; turn <= 25 && state.status === "active"; turn += 1) {
-      state = resolveGroupCombatTurn(
+    const measured = Array.from({ length: 42 }, (_, index) => {
+      let state = leftPassageState(3, true, {}, `budget-roster-${index}`);
+      state.participants.forEach((actor) => {
+        actor.hp = 587;
+        actor.hpMax = 587;
+        actor.defense = 93;
+      });
+      for (let turn = 1; turn <= 25 && state.status === "active"; turn += 1) {
+        state = resolveGroupCombatTurn(
+          state,
+          state.participants
+            .filter((actor) => actor.hp > 0)
+            .map((actor) => buildGroupCombatTimeoutAction(state, actor.characterId))
+        ).state;
+      }
+      return {
+        seed: index,
         state,
-        state.participants
-          .filter((actor) => actor.hp > 0)
-          .map((actor) => buildGroupCombatTimeoutAction(state, actor.characterId))
-      ).state;
-    }
-
-    const stateBytes = Buffer.byteLength(JSON.stringify(state), "utf8");
-    console.log("Left-passage 3x6 full-journal state bytes", stateBytes, "/", GROUP_COMBAT_STATE_BYTE_LIMIT);
+        bytes: Buffer.byteLength(JSON.stringify(state), "utf8")
+      };
+    });
+    const worst = measured.reduce((current, candidate) =>
+      candidate.bytes > current.bytes ? candidate : current
+    );
+    const effectHeavy = measured.reduce((current, candidate) => {
+      const evidenceBytes = (entry: typeof candidate) => Buffer.byteLength(
+        JSON.stringify({
+          abilities: entry.state.production?.canonicalV1.enemies.flatMap(
+            (enemy) => enemy.abilities
+          ),
+          active: entry.state.abilityEffects ?? [],
+          expired: entry.state.expiredAbilityEffects ?? []
+        }),
+        "utf8"
+      );
+      return evidenceBytes(candidate) > evidenceBytes(current) ? candidate : current;
+    });
+    const { state } = worst;
+    const stateBytes = worst.bytes;
+    const withoutRecapBytes = Buffer.byteLength(
+      JSON.stringify({ ...state, recap: [] }),
+      "utf8"
+    );
+    console.log(
+      "Left-passage 3x6 full-journal worst state bytes",
+      stateBytes,
+      "/",
+      GROUP_COMBAT_STATE_BYTE_LIMIT,
+      "seed",
+      worst.seed
+    );
+    console.log("Left-passage 3x6 state bytes without recap", withoutRecapBytes);
+    console.log(
+      "Left-passage 3x6 active/expired effects",
+      state.abilityEffects?.length ?? 0,
+      state.expiredAbilityEffects?.length ?? 0
+    );
+    console.log(
+      "Left-passage 3x6 effect-heavy state bytes",
+      effectHeavy.bytes,
+      "seed",
+      effectHeavy.seed,
+      "effects",
+      (effectHeavy.state.abilityEffects?.length ?? 0) +
+        (effectHeavy.state.expiredAbilityEffects?.length ?? 0)
+    );
     expect(state.recap).toHaveLength(25);
     expect(state.recap.every((entry) => entry.snapshot !== undefined)).toBe(true);
     expect(stateBytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
     expect(parseGroupCombatStateStrict(state)).toEqual(state);
+    expect(
+      (effectHeavy.state.abilityEffects?.length ?? 0) +
+        (effectHeavy.state.expiredAbilityEffects?.length ?? 0)
+    ).toBeGreaterThanOrEqual(13);
+    expect(effectHeavy.bytes).toBeLessThanOrEqual(GROUP_COMBAT_STATE_BYTE_LIMIT);
+    expect(parseGroupCombatStateStrict(effectHeavy.state)).toEqual(effectHeavy.state);
   });
 
   it("continues production combat past turn twenty-five with a rolling journal", () => {

@@ -1,5 +1,6 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import {
+  expandGroupCombatRecapSnapshot,
   getGroupCombatActionProfile,
   GROUP_COMBAT_CARD_BYTE_LIMIT,
   isActiveGroupCombatParticipant
@@ -375,7 +376,7 @@ function presentGroupCombatRecapSnapshot(
   actorRows: string[];
   noticeLines: string[];
 } {
-  const snapshot = recap.snapshot;
+  const snapshot = expandGroupCombatRecapSnapshot(recap.snapshot);
   if (!snapshot) {
     return { opponentRows: [], actorRows: [], noticeLines: [] };
   }

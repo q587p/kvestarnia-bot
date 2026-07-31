@@ -487,6 +487,21 @@ label-only fallback; unknown ids, unsupported components, malformed definitions
 and snapshots that disagree with the frozen recipe fail before production
 encounter start or on load.
 
+The compiler also exposes a typed exactly-once consumer map for every
+semantically active authored parameter; catalog coverage must prove the map for
+all 132 abilities rather than merely recognize emitted component kinds.
+Mana-cost pressure is part of one effective ability-cost calculation shared by
+availability, validation and commit, and never applies to attack, guard, flee
+or items. Flee pressure changes the one canonical pre-roll chance without
+overriding the seventh-attempt guarantee. Ability locks persist either the
+authored class/race source or one deterministic frozen ability id. Charged
+marks consume only on the first landed incoming hit. Reapplied expired effects
+continue to validate against their original authored semantic source and store
+the reapplying enemy/ability/turn as separate provenance. Rolling recap writes
+use a compact tuple representation while the parser and presenter continue to
+accept the previous verbose snapshot shape; this preserves all 25 journal
+turns and restart evidence under the unchanged `65,536`-byte state cap.
+
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
 
