@@ -400,42 +400,42 @@ reclaim because `sendMessage` has no idempotency key. Delivery resolves current
 navigation before restoring a reply keyboard; current presence/quest markers
 build a free player's menu, and a newer combat durably supersedes the old
 delivery instead of overwriting its battle UI.
-Active GroupCombat card/reply-keyboard replacement uses the same per-character
+Active GroupCombat card/control replacement uses the same per-character
 durable publication owner as terminal/flee navigation fences. The exact
 session/revision/token is atomically renewed before every Telegram
 `sendMessage`, `editMessageText` and `deleteMessage`; each request is aborted at
 13 seconds, below the 23-second stale boundary, and ownership loss suppresses
-all later calls in that replacement. Only a reply keyboard actually attached
-to a successfully sent private candidate may advance its
-fingerprint/generation, and candidate-reference adoption records that
+all later calls in that replacement. Every active canonical card send/edit
+carries its authoritative non-empty inline controls. Only an inline control set
+actually attached to a private canonical candidate may advance the legacy
+fingerprint/generation fields, and candidate-reference adoption records that
 fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
-therefore edits the adopted canonical card instead of sending another
-countdown copy. A candidate that loses the durable reference CAS receives three
+therefore edits the adopted canonical card instead of sending another countdown
+copy. A candidate that loses the durable reference CAS receives three
 bounded deletion attempts; permanent Telegram refusal redraws only that losing
 message as a compact inert superseded note. Active and terminal replacement
 compact the previous canonical message before the best-effort delete, so delete
 refusal cannot preserve a second full battle card or terminal result beside the
 winner. A failed fresh terminal send restores the prior result. A
-supergroup/no-keyboard delivery acknowledges only the card.
+supergroup notice never acknowledges a private control generation.
 The production intro remains a separate message, but the first authoritative
 keyboard-generation owner serializes it inside the same durable participant
 publication claim immediately before the canonical card. Both private sends
-carry the current reply keyboard. It never rewrites or releases the canonical
-participant reference, and a starter/scheduler retry cannot publish it after
-an acknowledged card. This removes the start/scheduler race where an intro
-could arrive last and hide the persistent keyboard. Active
-cards have no inline controls, so unchanged card edits and compaction of an
-already-delivered active reference omit `reply_markup` instead of submitting an
-empty inline keyboard that can hide the persistent reply keyboard. The
-fingerprint therefore still avoids unchanged party-wide sends; changed controls
-or explicit private recovery publish one fresh keyboard-card.
+use complementary control surfaces: the intro restores the persistent
+location-aware main reply keyboard, and the canonical card carries current
+inline combat actions. The intro never rewrites or releases the canonical
+participant reference, and a starter/scheduler retry cannot publish it after an
+acknowledged card. Active-card edits always include the current inline markup,
+so no send/edit order can make the newest live card inert; the fingerprint still
+avoids unchanged replacement sends, while changed controls or explicit private
+recovery publish one fresh actionable card.
 An explicitly fresh private actor card requested by combat-lock recovery,
-refresh or a handled reply action attaches the current reply keyboard even when
-the stored fingerprint already matches. Explicit `🔎 Оновити` first clears that
+refresh or a handled reply action attaches current inline controls even when the
+stored fingerprint already matches. Explicit `🔎 Оновити` first clears that
 participant's acknowledged fingerprint and marks session delivery pending in
 one transaction. A busy claim or process loss therefore remains scheduler
 retryable, and active delivery cannot clear the pending row until a real private
-reply keyboard has been acknowledged. Completed exit navigation retires
+control generation has been acknowledged. Completed exit navigation retires
 terminal delivery work independently of an obsolete legacy card revision, so a
 finished row cannot remain in the five-second delivery queue.
 The one-use reply button is rendered only when canonical validation finds at

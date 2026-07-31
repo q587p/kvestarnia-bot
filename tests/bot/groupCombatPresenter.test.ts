@@ -116,7 +116,7 @@ describe("group combat presenter", () => {
     expect(Buffer.byteLength(terminalText, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
-  it("keeps the active card clean and exposes only the compact battle reply keyboard", () => {
+  it("keeps every active card actionable with compact inline controls", () => {
     const session = createSession(3);
     session.state.participants[1]!.hp -= 1;
     session.state.participants[2]!.hp -= 1;
@@ -129,7 +129,14 @@ describe("group combat presenter", () => {
       buildGroupCombatReplyKeyboard(session, session.participants[0]!.characterId).keyboard
     ).flat();
 
-    expect(rows).toEqual([]);
+    expect(rows.flat().map((button) => button.text)).toEqual([
+      "⚔️ Комірний 1",
+      "⚔️ Комірний 2",
+      "⚔️ Комірний 3",
+      "🛡️ Захиститися",
+      "🏃 Відступити",
+      "🔎 Оновити"
+    ]);
     expect(replyLabels).toEqual([
       "⚔️ Атакувати",
       "🛡️ Захиститися",
@@ -275,7 +282,10 @@ describe("group combat presenter", () => {
       session.participants[0]!.characterId
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toEqual([]);
+    expect(labels).toContain("🔎 Оновити");
+    expect(labels).toContain("🛡️ Захиститися");
+    expect(labels).not.toContain("📜 Журнал");
+    expect(labels).not.toContain("📊 Статистика");
   });
 
   it("offers authored class support without restoring generic ally support", () => {
@@ -366,7 +376,8 @@ describe("group combat presenter", () => {
 
     expect(text).toContain("вибір записано: захиститися. Можна змінити до розіграшу ходу.");
     expect(text).toContain("⏳ На хід є 15 с. Потім Корчма поставить вас у захист.");
-    expect(rows).toEqual([]);
+    expect(rows.flat().map((button) => button.text)).toContain("🛡️ Захиститися");
+    expect(rows.flat().map((button) => button.text)).toContain("🔎 Оновити");
     expect(replyKeyboardTexts(buildGroupCombatReplyKeyboard().keyboard).flat())
       .toContain("🛡️ Захиститися");
   });

@@ -10,6 +10,7 @@ import {
 } from "../../domain/groupCombat/groupCombat";
 import {
   makeGroupCombatActionCallbackData,
+  makeGroupCombatItemsMenuCallbackData,
   makeGroupCombatJournalCallbackData,
   makeGroupCombatStatisticsCallbackData,
   makeGroupCombatViewCallbackData
@@ -164,7 +165,9 @@ export function buildGroupCombatAbilityTargetKeyboard(
     session,
     viewerCharacterId,
     ability.action,
-    ability.optionIndex
+    ability.optionIndex,
+    undefined,
+    "reply-menu"
   );
   buttons.forEach((button, index) => {
     keyboard.text(button.label, button.callbackData);
@@ -185,10 +188,102 @@ export function buildGroupCombatKeyboard(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string
 ): InlineKeyboard {
-  if (session.status === "active") {
-    return new InlineKeyboard([]);
+  if (session.status !== "active") {
+    return buildGroupCombatActionMenuKeyboard(session, viewerCharacterId, "attack");
   }
-  return buildGroupCombatActionMenuKeyboard(session, viewerCharacterId, "attack");
+  const keyboard = new InlineKeyboard();
+  const viewer = session.state.participants.find(
+    (participant) => participant.characterId === viewerCharacterId
+  );
+  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+    return keyboard.text(
+      groupCombatReplyButtons.refresh,
+      makeGroupCombatViewCallbackData(session.partyInviteToken)
+    );
+  }
+
+  let buttonsInRow = 0;
+  const addActionButton = (label: string, callbackData: string): void => {
+    keyboard.text(label, callbackData);
+    buttonsInRow += 1;
+    if (buttonsInRow === 2) {
+      keyboard.row();
+      buttonsInRow = 0;
+    }
+  };
+  const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
+  const shortEnemyNames = getDistinctShortMonsterNames(livingEnemies);
+  session.state.enemies.forEach((enemy, targetIndex) => {
+    if (enemy.hp <= 0) {
+      return;
+    }
+    addActionButton(
+      livingEnemies.length === 1
+        ? groupCombatReplyButtons.attack
+        : `⚔️ ${shortEnemyNames.get(enemy.order) ?? "Монстр"}`,
+      makeGroupCombatActionCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        action: "attack",
+        targetIndex
+      })
+    );
+  });
+  const addAbilityButtons = (
+    action: Extract<GroupCombatActionKey, "class" | "race" | "gear">,
+    optionIndex = 0,
+    payloadKey?: string
+  ): void => {
+    for (const button of listGroupCombatAbilityActionButtons(
+      session,
+      viewerCharacterId,
+      action,
+      optionIndex,
+      payloadKey
+    )) {
+      addActionButton(button.label, button.callbackData);
+    }
+  };
+  addAbilityButtons("class");
+  addAbilityButtons("race");
+  (viewer.gearAbilityIds ?? []).forEach((abilityId, optionIndex) =>
+    addAbilityButtons("gear", optionIndex, abilityId)
+  );
+  addActionButton(
+    groupCombatReplyButtons.guard,
+    makeGroupCombatActionCallbackData({
+      token: session.partyInviteToken,
+      turn: session.turn,
+      action: "guard",
+      targetIndex: viewer.rosterOrder
+    })
+  );
+  if (buttonsInRow > 0) {
+    keyboard.row();
+    buttonsInRow = 0;
+  }
+  if (listAvailableGroupCombatItems(session, viewerCharacterId).length > 0) {
+    keyboard
+      .text(
+        groupCombatReplyButtons.items,
+        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn)
+      )
+      .row();
+  }
+  return keyboard
+    .text(
+      groupCombatReplyButtons.flee,
+      makeGroupCombatActionCallbackData({
+        token: session.partyInviteToken,
+        turn: session.turn,
+        action: "flee",
+        targetIndex: viewer.rosterOrder
+      })
+    )
+    .text(
+      groupCombatReplyButtons.refresh,
+      makeGroupCombatViewCallbackData(session.partyInviteToken)
+    );
 }
 
 export function buildGroupCombatActionMenuKeyboard(
@@ -280,7 +375,8 @@ function listGroupCombatAbilityActionButtons(
   viewerCharacterId: string,
   action: Extract<GroupCombatActionKey, "class" | "race" | "gear">,
   optionIndex: number,
-  explicitPayloadKey?: string
+  explicitPayloadKey?: string,
+  source?: "reply-menu"
 ): Array<{ label: string; callbackData: string }> {
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
@@ -348,7 +444,7 @@ function listGroupCombatAbilityActionButtons(
         action,
         optionIndex,
         targetIndex: target.targetIndex,
-        source: "reply-menu"
+        ...(source ? { source } : {})
       })
     }];
   });

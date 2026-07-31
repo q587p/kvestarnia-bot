@@ -19,7 +19,7 @@ import type { BotServices } from "../../src/bot/botServices";
 import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
 import {
   buildGroupCombatActionMenuKeyboard,
-  buildGroupCombatReplyKeyboard
+  buildGroupCombatKeyboard
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group combat bot flow", () => {
@@ -301,11 +301,11 @@ describe("group combat bot flow", () => {
       compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
       markParticipantCardDelivered: delivery.markParticipantCardDelivered
     } as unknown as GroupCombatService;
-    const sentReplyKeyboards: string[][] = [];
+    const sentInlineKeyboards: string[][] = [];
     bot.api.config.use((_prev, method, payload) => {
       if (method === "sendMessage") {
         order.push("send");
-        sentReplyKeyboards.push(replyKeyboardLabels(payload.reply_markup));
+        sentInlineKeyboards.push(inlineKeyboardLabels(payload.reply_markup));
       }
       return Promise.resolve({
         ok: true,
@@ -324,9 +324,9 @@ describe("group combat bot flow", () => {
     });
     expect(order[0]).toBe("request");
     expect(order.filter((entry) => entry === "send")).toHaveLength(1);
-    expect(sentReplyKeyboards).toHaveLength(1);
-    expect(sentReplyKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentReplyKeyboards[0]).toContain("⚔️ Атакувати");
+    expect(sentInlineKeyboards).toHaveLength(1);
+    expect(sentInlineKeyboards[0]).toContain("🔎 Оновити");
+    expect(sentInlineKeyboards[0]).toContain("⚔️ Шурхіт");
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
@@ -380,7 +380,7 @@ describe("group combat bot flow", () => {
     session.state.enemies[1]!.hp = 0;
     const delivery = cardDeliveryHarness(session);
     const sentTexts: string[] = [];
-    const replyKeyboards: string[][] = [];
+    const inlineKeyboards: string[][] = [];
     const submitAction = vi.fn()
       .mockImplementationOnce(() => {
         actor.cooldowns = {
@@ -406,9 +406,9 @@ describe("group combat bot flow", () => {
     bot.api.config.use((_prev, method, payload) => {
       if (method === "sendMessage") {
         sentTexts.push(String(payload.text));
-        const labels = replyKeyboardLabels(payload.reply_markup);
+        const labels = inlineKeyboardLabels(payload.reply_markup);
         if (labels.length > 0) {
-          replyKeyboards.push(labels);
+          inlineKeyboards.push(labels);
         }
       }
       return Promise.resolve({
@@ -437,7 +437,8 @@ describe("group combat bot flow", () => {
     expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(1);
     expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
     expect(sentTexts.join("\n")).not.toContain("Оберіть точну ціль");
-    expect(replyKeyboards.at(-1)).not.toContain("🪓 Силовий замах");
+    expect(inlineKeyboards.at(-1)).not.toContain("🪓 Силовий замах → Шурхіт");
+    expect(inlineKeyboards.at(-1)).toContain("🔎 Оновити");
   });
 
   it("delegates a stale GroupCombat reply label when no matching group fight remains", async () => {
@@ -638,7 +639,7 @@ describe("group combat bot flow", () => {
     )).toBe(true);
     expect(sendMessage.mock.calls.slice(2).every((call) =>
       String(call[1]).includes("<b>Бій</b>:") &&
-      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
+      inlineKeyboardLabels((call[2] as { reply_markup?: unknown })?.reply_markup).length > 0
     )).toBe(true);
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
@@ -996,9 +997,10 @@ describe("group combat bot flow", () => {
       releaseParticipantCard: vi.fn().mockResolvedValue(false)
     } as unknown as GroupCombatService);
 
-    expect(sent).toEqual([
-      { messageId: 31, buttons: undefined }
-    ]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.messageId).toBe(31);
+    expect(Array.isArray(sent[0]?.buttons)).toBe(true);
+    expect((sent[0]?.buttons as unknown[]).length).toBeGreaterThan(0);
     expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
       expectedReferenceVersion: 1,
       chatId: 1001n,
@@ -1015,14 +1017,14 @@ describe("group combat bot flow", () => {
     const activatedOptions = editMessageText.mock.calls[1]?.[3] as {
       reply_markup?: { inline_keyboard?: unknown[] };
     } | undefined;
-    expect(activatedOptions?.reply_markup).toBeUndefined();
+    expect(inlineKeyboardLabels(activatedOptions?.reply_markup)).toContain("🔎 Оновити");
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
       deliveredRevision: session.deliveryRevision
     });
-    expect(actionable).toEqual(new Set());
+    expect(actionable).toEqual(new Set([31]));
   });
 
   it("opens, pages, and restores terminal results on the same canonical message", async () => {
@@ -1178,10 +1180,12 @@ describe("group combat bot flow", () => {
     expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
       .toEqual([1001, 1002]);
     const sendCalls = apiCalls.filter((call) => call.method === "sendMessage");
-    expect(readReplyKeyboard(sendCalls[0]?.replyMarkup))
-      .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[0]!.characterId).keyboard);
-    expect(readReplyKeyboard(sendCalls[1]?.replyMarkup))
-      .toEqual(buildGroupCombatReplyKeyboard(session, session.participants[1]!.characterId).keyboard);
+    expect(inlineKeyboardLabels(sendCalls[0]?.replyMarkup))
+      .toEqual(buildGroupCombatKeyboard(session, session.participants[0]!.characterId)
+        .inline_keyboard.flat().map((button) => button.text));
+    expect(inlineKeyboardLabels(sendCalls[1]?.replyMarkup))
+      .toEqual(buildGroupCombatKeyboard(session, session.participants[1]!.characterId)
+        .inline_keyboard.flat().map((button) => button.text));
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
   });
 
@@ -1467,34 +1471,21 @@ function callbackUpdate(data: string) {
   };
 }
 
-function readReplyKeyboard(value: unknown): unknown {
-  return value && typeof value === "object" && "keyboard" in value
-    ? value.keyboard
-    : undefined;
-}
-
-function replyKeyboardLabels(value: unknown): string[] {
+function inlineKeyboardLabels(value: unknown): string[] {
   if (!value || typeof value !== "object") {
     return [];
   }
-  const keyboard = (value as Record<string, unknown>)["keyboard"];
+  const keyboard = (value as Record<string, unknown>)["inline_keyboard"];
   if (!Array.isArray(keyboard)) {
     return [];
   }
-  const labels: string[] = [];
-  for (const row of keyboard as unknown[]) {
-    if (!Array.isArray(row)) {
-      continue;
-    }
-    for (const button of row as unknown[]) {
+  return keyboard.flatMap((row) => Array.isArray(row)
+    ? row.flatMap((button) => {
       if (!button || typeof button !== "object") {
-        continue;
+        return [];
       }
-      const text = (button as Record<string, unknown>)["text"];
-      if (typeof text === "string") {
-        labels.push(text);
-      }
-    }
-  }
-  return labels;
+      const label = (button as Record<string, unknown>)["text"];
+      return typeof label === "string" ? [label] : [];
+    })
+    : []);
 }

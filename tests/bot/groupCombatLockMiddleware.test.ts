@@ -4,6 +4,7 @@ import type { BotServices } from "../../src/bot/botServices";
 import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
+import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group-combat lock middleware", () => {
   it.each([
@@ -117,7 +118,7 @@ describe("group-combat lock middleware", () => {
   it("resends a private command redirect as the sole latest canonical card", async () => {
     const session = activeSession();
     session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
-      buildExpectedReplyKeyboard()
+      buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard
     );
     session.participants[0]!.replyKeyboardGeneration = 1;
     const calls = apiCalls();
@@ -131,11 +132,12 @@ describe("group-combat lock middleware", () => {
     expect(calls.sends).toHaveLength(1);
     expect(calls.sends[0]?.chatId).toBe(1001);
     expect(calls.sends[0]?.text).toContain("<b>Бій</b>");
-    expect(readReplyKeyboard(calls.sends[0]?.replyMarkup)).toBeDefined();
+    expect(inlineKeyboardLabels(calls.sends[0]?.replyMarkup)).toContain("🔎 Оновити");
     expect(calls.edits).toEqual([
       expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: undefined }),
-      expect.objectContaining({ chatId: 1001, messageId: 93, replyMarkup: undefined })
+      expect.objectContaining({ chatId: 1001, messageId: 93 })
     ]);
+    expect(inlineKeyboardLabels(calls.edits[1]?.replyMarkup)).toContain("🔎 Оновити");
     expect(calls.deletes).toEqual([{ chatId: 1001, messageId: 21 }]);
     expect(markParticipantCardDelivered).toHaveBeenCalledWith(expect.objectContaining({
       chatId: 1001n,
@@ -152,6 +154,10 @@ describe("group-combat lock middleware", () => {
 
   it("keeps participant text and mutating buttons out of a supergroup redirect", async () => {
     const session = activeSession();
+    session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
+      buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard
+    );
+    session.participants[0]!.replyKeyboardGeneration = 1;
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     registerCombatLockMiddleware(bot, services(session, vi.fn().mockResolvedValue(true)));
@@ -169,7 +175,7 @@ describe("group-combat lock middleware", () => {
 
     const privateCards = calls.sends.filter((call) => call.chatId === 1001);
     expect(privateCards).toHaveLength(1);
-    expect(readReplyKeyboard(privateCards[0]?.replyMarkup)).toBeDefined();
+    expect(inlineKeyboardLabels(privateCards[0]?.replyMarkup)).toContain("🔎 Оновити");
   });
 
   it("finishes a durable GroupCombat exit-navigation fence and lets navigation continue without mismatch spam", async () => {
@@ -492,16 +498,21 @@ function activeSession(): GroupCombatSessionRecord {
   };
 }
 
-function readReplyKeyboard(value: unknown): unknown {
-  return value && typeof value === "object" && "keyboard" in value
-    ? value.keyboard
-    : undefined;
-}
-
-function buildExpectedReplyKeyboard(): Array<Array<{ text: string }>> {
-  return [
-    [{ text: "⚔️ Атакувати" }],
-    [{ text: "🛡️ Захиститися" }],
-    [{ text: "🏃 Відступити" }, { text: "🔎 Оновити" }]
-  ];
+function inlineKeyboardLabels(value: unknown): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const keyboard = (value as Record<string, unknown>)["inline_keyboard"];
+  if (!Array.isArray(keyboard)) {
+    return [];
+  }
+  return keyboard.flatMap((row) => Array.isArray(row)
+    ? row.flatMap((button) => {
+      if (!button || typeof button !== "object") {
+        return [];
+      }
+      const label = (button as Record<string, unknown>)["text"];
+      return typeof label === "string" ? [label] : [];
+    })
+    : []);
 }

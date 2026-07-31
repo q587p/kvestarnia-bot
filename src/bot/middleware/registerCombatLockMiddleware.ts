@@ -610,11 +610,10 @@ async function redirectGroupCombatLockIfNeeded(
     services.groupCombat!,
     active.id,
     viewer.characterId,
-    {
-      forceRefresh: true,
-      forceReplacement: isPrivate && Boolean(ctx.message),
-      publishReplyKeyboard: isPrivate
-    }
+      {
+        forceRefresh: true,
+        forceReplacement: isPrivate && Boolean(ctx.message)
+      }
   );
   if (!isPrivate && !ctx.callbackQuery) {
     await ctx.reply("⚔️ Доказова сутичка триває в особистій розмові з Квестарнею.");

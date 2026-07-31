@@ -8,7 +8,7 @@ import {
 } from "../../src/bot/groupCombatCardDelivery";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
-import { buildGroupCombatReplyKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
+import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group-combat canonical participant delivery", () => {
   it("delivers standard level and achievement notices as separate messages after settlement", async () => {
@@ -71,15 +71,21 @@ describe("group-combat canonical participant delivery", () => {
     session.state.rulesVersion = "group-combat.v3";
     session.state.encounterKey = "nyz-left-passage-party.v1";
     let nextMessageId = 90;
-    const sends: Array<{ chatId: number; text: string; hasKeyboard: boolean }> = [];
+    const sends: Array<{
+      chatId: number;
+      text: string;
+      hasReplyKeyboard: boolean;
+      inlineLabels: string[];
+    }> = [];
     const api = {
       sendMessage: vi.fn((chatId: number, text: string, options?: {
-        reply_markup?: { keyboard?: unknown };
+        reply_markup?: { keyboard?: unknown; inline_keyboard?: unknown };
       }) => {
         sends.push({
           chatId,
           text,
-          hasKeyboard: Boolean(options?.reply_markup?.keyboard)
+          hasReplyKeyboard: Boolean(options?.reply_markup?.keyboard),
+          inlineLabels: inlineButtonLabels(options?.reply_markup)
         });
         return Promise.resolve({ message_id: nextMessageId++ });
       }),
@@ -100,9 +106,12 @@ describe("group-combat canonical participant delivery", () => {
         "Бій починається. Корчма відкриває журнал ходів"
       );
       expect(participantSends[0]?.text).toContain("<i>Порада дня:");
-      expect(participantSends[0]?.hasKeyboard).toBe(true);
+      expect(participantSends[0]?.hasReplyKeyboard).toBe(true);
+      expect(participantSends[0]?.inlineLabels).toEqual([]);
       expect(participantSends[1]?.text).toContain("<b>Бій</b>: 1 хід");
-      expect(participantSends[1]?.hasKeyboard).toBe(true);
+      expect(participantSends[1]?.hasReplyKeyboard).toBe(false);
+      expect(participantSends[1]?.inlineLabels).toContain("🔎 Оновити");
+      expect(participantSends[1]?.inlineLabels.length).toBeGreaterThan(1);
     }
   });
 
@@ -140,11 +149,21 @@ describe("group-combat canonical participant delivery", () => {
     session.state.rulesVersion = "group-combat.v3";
     session.state.encounterKey = "nyz-left-passage-party.v1";
     let nextMessageId = 90;
-    const sends: Array<{ chatId: number; text: string; hasKeyboard: boolean }> = [];
+    const sends: Array<{
+      chatId: number;
+      text: string;
+      hasReplyKeyboard: boolean;
+      inlineLabels: string[];
+    }> = [];
     const sendMessage = vi.fn((chatId: number, text: string, options?: {
-      reply_markup?: { keyboard?: unknown };
+      reply_markup?: { keyboard?: unknown; inline_keyboard?: unknown };
     }) => {
-      sends.push({ chatId, text, hasKeyboard: Boolean(options?.reply_markup?.keyboard) });
+      sends.push({
+        chatId,
+        text,
+        hasReplyKeyboard: Boolean(options?.reply_markup?.keyboard),
+        inlineLabels: inlineButtonLabels(options?.reply_markup)
+      });
       return Promise.resolve({ message_id: nextMessageId++ });
     });
     const service = {
@@ -162,11 +181,11 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(sends.filter((entry) => entry.text.includes("Бій починається.")))
       .toHaveLength(2);
-    expect(sends.every((entry) => entry.hasKeyboard)).toBe(true);
     for (const chatId of [1001, 1002]) {
       const participantSends = sends.filter((entry) => entry.chatId === chatId);
+      expect(participantSends.filter((entry) => entry.hasReplyKeyboard)).toHaveLength(1);
       expect(participantSends.at(-1)?.text).toContain("<b>Бій</b>: 1 хід");
-      expect(participantSends.at(-1)?.hasKeyboard).toBe(true);
+      expect(participantSends.at(-1)?.inlineLabels).toContain("🔎 Оновити");
     }
   });
 
@@ -455,7 +474,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(sendMessage.mock.calls.some((call) =>
       call[0] === 1002 &&
       String(call[1]).includes("<b>Бій</b>:") &&
-      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
+      inlineButtonLabels(readReplyMarkup(call[2])).includes("🔎 Оновити")
     )).toBe(true);
     expect(session.participants[0]!.exitDeliveryState).toBe("completed");
     expect(session.participants[0]!.messageId).toBeNull();
@@ -1083,16 +1102,11 @@ describe("group-combat canonical participant delivery", () => {
   it("publishes only observer controls when authoritative delivery sees a knocked-out participant", async () => {
     const session = makeSession();
     session.state.participants[0]!.hp = 0;
-    const replyKeyboards: string[][] = [];
+    const inlineKeyboards: string[][] = [];
     const transport: GroupCombatDeliveryTransport = {
       editMessage: () => Promise.resolve(),
       sendInertMessage: (_chatId, _text, options) => {
-        const markup = options.reply_markup as {
-          keyboard?: Array<Array<{ text: string }>>;
-        };
-        replyKeyboards.push(
-          markup.keyboard?.flat().map((button) => button.text) ?? []
-        );
+        inlineKeyboards.push(inlineButtonLabels(options.reply_markup));
         return Promise.resolve(93);
       },
       deleteMessage: () => Promise.resolve()
@@ -1106,7 +1120,7 @@ describe("group-combat canonical participant delivery", () => {
       forceRefresh: true
     })).resolves.toMatchObject({ state: "activated" });
 
-    expect(replyKeyboards).toEqual([["🔎 Оновити"]]);
+    expect(inlineKeyboards).toEqual([["🔎 Оновити"]]);
   });
 
   it("releases the durable UI claim when Telegram rejects the canonical active card", async () => {
@@ -1174,12 +1188,7 @@ describe("group-combat canonical participant delivery", () => {
     const transport: GroupCombatDeliveryTransport = {
       editMessage: () => Promise.resolve(),
       sendInertMessage: (_chatId, _text, options) => {
-        const markup = options.reply_markup as {
-          keyboard?: Array<Array<{ text: string }>>;
-        };
-        sentKeyboards.push(
-          markup.keyboard?.flat().map((button) => button.text) ?? []
-        );
+        sentKeyboards.push(inlineButtonLabels(options.reply_markup));
         return Promise.resolve(93);
       },
       deleteMessage: () => Promise.resolve()
@@ -1204,7 +1213,7 @@ describe("group-combat canonical participant delivery", () => {
     })).resolves.toMatchObject({ state: "activated" });
     expect(sentKeyboards).toHaveLength(1);
     expect(sentKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentKeyboards[0]).toContain("⚔️ Атакувати");
+    expect(sentKeyboards[0]).toContain("⚔️ Шурхіт");
   });
 
   it.each(["send", "edit", "delete"] as const)(
@@ -1350,7 +1359,7 @@ describe("group-combat canonical participant delivery", () => {
     session.participants[1]!.deliveredRevision = session.deliveryRevision;
     for (const participant of session.participants) {
       participant.replyKeyboardFingerprint = JSON.stringify(
-        buildGroupCombatReplyKeyboard(session, participant.characterId).keyboard
+        buildGroupCombatKeyboard(session, participant.characterId).inline_keyboard
       );
       participant.replyKeyboardGeneration = 1;
     }
@@ -1385,11 +1394,10 @@ describe("group-combat canonical participant delivery", () => {
     session.participants[1]!.deliveredRevision = 1;
     for (const participant of session.participants) {
       participant.replyKeyboardFingerprint = JSON.stringify(
-        buildGroupCombatReplyKeyboard(session, participant.characterId).keyboard
+        buildGroupCombatKeyboard(session, participant.characterId).inline_keyboard
       );
       participant.replyKeyboardGeneration = 1;
     }
-    let replyKeyboardVisible = true;
     const sendMessage = vi.fn();
     const activeEditOptions: unknown[] = [];
     const editMessageText = vi.fn((
@@ -1400,9 +1408,6 @@ describe("group-combat canonical participant delivery", () => {
     ) => {
       if (text.includes("<b>Бій</b>: 2 хід")) {
         activeEditOptions.push(options);
-        if (options.reply_markup) {
-          replyKeyboardVisible = false;
-        }
       }
       return Promise.resolve(true);
     });
@@ -1419,9 +1424,9 @@ describe("group-combat canonical participant delivery", () => {
     expect(sendMessage).not.toHaveBeenCalled();
     expect(activeEditOptions).toHaveLength(2);
     for (const options of activeEditOptions) {
-      expect(options).not.toHaveProperty("reply_markup");
+      expect(inlineButtonLabels((options as { reply_markup?: unknown }).reply_markup))
+        .toContain("🔎 Оновити");
     }
-    expect(replyKeyboardVisible).toBe(true);
     expect(session.participants.map((participant) => participant.replyKeyboardGeneration))
       .toEqual([1, 1]);
   });
@@ -1444,20 +1449,20 @@ describe("group-combat canonical participant delivery", () => {
         }
       }
     };
-    const replyKeyboards = new Map<number, string[]>();
+    const inlineKeyboards = new Map<number, string[]>();
     const sendMessage = vi.fn((
       chatId: number,
       _text: string,
       options?: {
         reply_markup?: {
-          keyboard?: Array<Array<{ text: string }>>;
+          inline_keyboard?: Array<Array<{ text: string }>>;
         };
       }
     ) => {
-      if (options?.reply_markup?.keyboard) {
-        replyKeyboards.set(
+      if (options?.reply_markup?.inline_keyboard) {
+        inlineKeyboards.set(
           chatId,
-          options.reply_markup.keyboard.flat().map((button) => button.text)
+          options.reply_markup.inline_keyboard.flat().map((button) => button.text)
         );
       }
       return Promise.resolve({ message_id: 93 });
@@ -1472,8 +1477,8 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session)).resolves.toBe(2);
 
-    expect(replyKeyboards.get(1001)).toContain("🪓 Силовий замах");
-    expect(replyKeyboards.get(1002)).not.toContain("🪓 Силовий замах");
+    expect(inlineKeyboards.get(1001)).toContain("🪓 Силовий замах → Шурхіт");
+    expect(inlineKeyboards.get(1002)).not.toContain("🪓 Силовий замах → Шурхіт");
   });
 
   it("publishes one actor keyboard-card plus one changed ally keyboard-card", async () => {
@@ -1488,7 +1493,7 @@ describe("group-combat canonical participant delivery", () => {
     });
     for (const participant of session.participants) {
       participant.replyKeyboardFingerprint = JSON.stringify(
-        buildGroupCombatReplyKeyboard(session, participant.characterId).keyboard
+        buildGroupCombatKeyboard(session, participant.characterId).inline_keyboard
       );
       participant.replyKeyboardGeneration = 1;
     }
@@ -1500,16 +1505,16 @@ describe("group-combat canonical participant delivery", () => {
         }
       }
     };
-    const sends: Array<{ chatId: number; hasReplyKeyboard: boolean }> = [];
+    const sends: Array<{ chatId: number; inlineLabels: string[] }> = [];
     let nextMessageId = 93;
     const sendMessage = vi.fn((
       chatId: number,
       _text: string,
-      options?: { reply_markup?: { keyboard?: unknown } }
+      options?: { reply_markup?: { inline_keyboard?: Array<Array<{ text: string }>> } }
     ) => {
       sends.push({
         chatId,
-        hasReplyKeyboard: Boolean(options?.reply_markup?.keyboard)
+        inlineLabels: options?.reply_markup?.inline_keyboard?.flat().map((button) => button.text) ?? []
       });
       return Promise.resolve({ message_id: nextMessageId++ });
     });
@@ -1526,10 +1531,9 @@ describe("group-combat canonical participant delivery", () => {
       forceReplacementCharacterId: "character-1"
     })).resolves.toBe(2);
 
-    expect(sends).toEqual([
-      { chatId: 1001, hasReplyKeyboard: true },
-      { chatId: 1002, hasReplyKeyboard: true }
-    ]);
+    expect(sends.map((entry) => entry.chatId)).toEqual([1001, 1002]);
+    expect(sends[0]?.inlineLabels).toContain("🪓 Силовий замах → Шурхіт");
+    expect(sends[1]?.inlineLabels).not.toContain("🪓 Силовий замах → Шурхіт");
     expect(editMessageText.mock.calls.filter((call) => call[0] === 1001))
       .toHaveLength(2);
     expect(editMessageText.mock.calls.filter((call) => call[0] === 1002))
@@ -1576,7 +1580,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(result.state).toBe("edited");
     expect(sentOptions).toHaveLength(1);
-    expect(hasReplyKeyboard(readReplyMarkup(sentOptions[0]))).toBe(true);
+    expect(inlineButtonLabels(readReplyMarkup(sentOptions[0]))).toContain("🔎 Оновити");
     expect(deleteMessage).toHaveBeenCalledTimes(3);
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 31 });
     expect(edits[0]).toEqual({
@@ -1694,7 +1698,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(result).toMatchObject({ state: "activated", reference: { chatId: 1001n, messageId: 93 } });
     expect(sendInertMessage).toHaveBeenCalledOnce();
-    expect(hasReplyKeyboard(readReplyMarkup(sentOptions[0]))).toBe(true);
+    expect(inlineButtonLabels(readReplyMarkup(sentOptions[0]))).toContain("🔎 Оновити");
     expect(edits).toHaveLength(2);
     expect(edits[0]).toEqual({
       messageId: 21,
@@ -1703,7 +1707,7 @@ describe("group-combat canonical participant delivery", () => {
     });
     expect(edits[1]?.messageId).toBe(93);
     expect(edits[1]?.text).toContain("<b>Бій</b>: 1 хід");
-    expect(edits[1]?.buttons).toEqual([]);
+    expect(edits[1]?.buttons).toContain("🔎 Оновити");
     expect(deleteMessage).toHaveBeenCalledWith(oldReference);
   });
 
@@ -1736,7 +1740,7 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(result).toMatchObject({ state: "activated", reference: { messageId: 93 } });
-    expect(actionable).toEqual(new Set());
+    expect(actionable).toEqual(new Set([93]));
     expect(rendered.get(21)).toBe("♻️ Цю бойову картку замінено актуальною нижче.");
     expect(rendered.get(21)).not.toContain("<b>Бій</b>:");
     expect(rendered.get(93)).toContain("<b>Бій</b>: 1 хід");
@@ -1842,7 +1846,7 @@ describe("group-combat canonical participant delivery", () => {
     });
 
     expect(retried).toMatchObject({ state: "edited", reference: { messageId: 93 } });
-    expect(actionable).toEqual(new Set());
+    expect(actionable).toEqual(new Set([93]));
     expect(candidateAttempts).toBe(2);
   });
 
@@ -1884,10 +1888,10 @@ describe("group-combat canonical participant delivery", () => {
     expect(result).toMatchObject({ state: "edited", reference: { messageId: 21 } });
     expect(edits).toEqual([
       { messageId: 21, hasButtons: false },
-      { messageId: 93, hasButtons: false },
-      { messageId: 21, hasButtons: false }
+      { messageId: 93, hasButtons: true },
+      { messageId: 21, hasButtons: true }
     ]);
-    expect(actionable).toEqual(new Set());
+    expect(actionable).toEqual(new Set([21]));
     expect(session.participants[0]).toMatchObject({ chatId: 1001n, messageId: 21 });
   });
 
@@ -1981,8 +1985,8 @@ describe("group-combat canonical participant delivery", () => {
     releaseFirstEdit.resolve();
 
     await expect(delivery).resolves.toMatchObject({ state: "edited" });
-    expect(keyboards[0]).toEqual([]);
-    expect(keyboards.at(-1)).toEqual([]);
+    expect(keyboards[0]).toContain("🔎 Оновити");
+    expect(keyboards.at(-1)).toContain("🔎 Оновити");
     expect(texts.at(-1)).toContain("вибір записано: захиститися");
     expect(afterQueue.version).toBe(beforeQueue.version);
     expect(afterQueue.status).toBe(beforeQueue.status);

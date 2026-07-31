@@ -9,10 +9,7 @@ import {
   GROUP_COMBAT_PRODUCTION_RULES_VERSION
 } from "../domain/groupCombat/groupCombat";
 import type { GroupCombatService } from "../services/groupCombatService";
-import {
-  buildGroupCombatKeyboard,
-  buildGroupCombatReplyKeyboard
-} from "./keyboards/groupCombatKeyboard";
+import { buildGroupCombatKeyboard } from "./keyboards/groupCombatKeyboard";
 import { buildMainMenuKeyboard } from "./keyboards/mainMenuKeyboard";
 import {
   presentGroupCombat,
@@ -421,12 +418,12 @@ function isCompletedExitDelivery(
   return state === "completed" || state === "superseded";
 }
 
-function replyKeyboardFingerprint(
+function inlineControlsFingerprint(
   session: GroupCombatSessionRecord,
   participantCharacterId: string
 ): string {
   return JSON.stringify(
-    buildGroupCombatReplyKeyboard(session, participantCharacterId).keyboard
+    buildGroupCombatKeyboard(session, participantCharacterId).inline_keyboard
   );
 }
 
@@ -517,41 +514,32 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     if (!current || !participant || current.status !== "active") {
       return deliverCanonicalGroupCombatParticipantCardLocked(input);
     }
-    const fingerprint = replyKeyboardFingerprint(
-      current,
-      participant.characterId
-    );
-    const publishReplyKeyboard =
+    const fingerprint = inlineControlsFingerprint(current, participant.characterId);
+    const publishControls =
       input.publishReplyKeyboard !== false &&
       (
         participant.replyKeyboardFingerprint !== fingerprint ||
         input.forceReplacement === true
       );
-    const replyKeyboard = publishReplyKeyboard
-      ? buildGroupCombatReplyKeyboard(current, participant.characterId)
-      : undefined;
     await publishGroupCombatStartIntroIfNeeded({
       session: current,
       participant,
       transport: input.transport,
-      enabled: publishReplyKeyboard && participant.replyKeyboardGeneration === 0,
-      ...(replyKeyboard ? { replyKeyboard } : {})
+      enabled: publishControls && participant.replyKeyboardGeneration === 0
     });
     const result = await deliverCanonicalGroupCombatParticipantCardLocked({
       ...input,
-      forceReplacement:
-        input.forceReplacement === true || publishReplyKeyboard,
-      ...(replyKeyboard ? { replyKeyboard } : {})
+      forceReplacement: input.forceReplacement === true || publishControls,
+      ...(publishControls ? { controlsFingerprint: fingerprint } : {})
     });
-    if (isDelivered(result)) {
-      if (
-        publishReplyKeyboard &&
-        participant.replyKeyboardFingerprint !== fingerprint
-      ) {
-        participant.replyKeyboardFingerprint = fingerprint;
-        participant.replyKeyboardGeneration =
-          (participant.replyKeyboardGeneration ?? 0) + 1;
-      }
+    if (
+      isDelivered(result) &&
+      publishControls &&
+      participant.replyKeyboardFingerprint !== fingerprint
+    ) {
+      participant.replyKeyboardFingerprint = fingerprint;
+      participant.replyKeyboardGeneration =
+        (participant.replyKeyboardGeneration ?? 0) + 1;
     }
     return result;
   }
@@ -568,7 +556,7 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     ) {
       return { state: "missing-participant", reference: null };
     }
-    const keyboardFingerprint = replyKeyboardFingerprint(
+    const keyboardFingerprint = inlineControlsFingerprint(
       current,
       participant.characterId
     );
@@ -598,12 +586,9 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
       return { state: "retryable-edit-failure", reference: null };
     }
     ownsClaim = true;
-    const publishReplyKeyboard =
+    const publishControls =
       input.publishReplyKeyboard !== false &&
       (claim.publishReplyKeyboard || input.forceReplacement === true);
-    const replyKeyboard = publishReplyKeyboard
-      ? buildGroupCombatReplyKeyboard(current, participant.characterId)
-      : undefined;
     const ownedTransport = uiPublicationOwnedTransport({
       service: input.service,
       transport: input.transport,
@@ -619,16 +604,14 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         session: current,
         participant,
         transport: ownedTransport,
-        enabled: publishReplyKeyboard && claim.keyboardGeneration === 0,
-        ...(replyKeyboard ? { replyKeyboard } : {})
+        enabled: publishControls && claim.keyboardGeneration === 0
       });
       result = await deliverCanonicalGroupCombatParticipantCardLocked({
         ...input,
         transport: ownedTransport,
         forceRefresh: input.forceRefresh === true || attempt > 0,
-        forceReplacement:
-          input.forceReplacement === true || publishReplyKeyboard,
-        ...(replyKeyboard ? { replyKeyboard } : {})
+        forceReplacement: input.forceReplacement === true || publishControls,
+        ...(publishControls ? { controlsFingerprint: keyboardFingerprint } : {})
       });
     } catch (error) {
       await releaseUi.call(input.service, {
@@ -656,7 +639,7 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
       sessionId: current.id,
       telegramUserId: participant.telegramUserId,
       expectedDeliveryRevision: current.deliveryRevision,
-      publishedKeyboardFingerprint: publishReplyKeyboard
+      publishedKeyboardFingerprint: publishControls
         ? keyboardFingerprint
         : null,
       claimToken
@@ -695,7 +678,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
-  replyKeyboard?: ReturnType<typeof buildGroupCombatReplyKeyboard>;
+  controlsFingerprint?: string;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
@@ -751,12 +734,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   const candidateMessageId = await input.transport.sendInertMessage(
     participant.telegramUserId,
     candidateCard.text,
-    input.replyKeyboard
-      ? {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: input.replyKeyboard
-        }
-      : candidateCard.options
+    candidateCard.options
   );
   if (!candidateMessageId) {
     return { state: "send-failed", reference: null };
@@ -770,9 +748,7 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
       expectedReferenceVersion: participant.referenceVersion,
       chatId: candidate.chatId,
       messageId: candidate.messageId,
-      publishedKeyboardFingerprint: input.replyKeyboard
-        ? JSON.stringify(input.replyKeyboard.keyboard)
-        : null
+      publishedKeyboardFingerprint: input.controlsFingerprint ?? null
     });
   } catch (error) {
     const afterFailure = await loadAuthoritativeSession(
@@ -1075,7 +1051,6 @@ async function publishGroupCombatStartIntroIfNeeded(input: {
   participant: GroupCombatParticipantRecord;
   transport: GroupCombatDeliveryTransport;
   enabled: boolean;
-  replyKeyboard?: ReturnType<typeof buildGroupCombatReplyKeyboard>;
 }): Promise<void> {
   if (
     !input.enabled ||
@@ -1084,9 +1059,7 @@ async function publishGroupCombatStartIntroIfNeeded(input: {
     input.session.state.status !== "active" ||
     input.session.state.turn !== 1 ||
     input.session.state.recap.length !== 0 ||
-    input.participant.deliveredRevision !== 0 ||
-    input.participant.replyKeyboardFingerprint !== null ||
-    input.participant.replyKeyboardGeneration !== 0
+    input.participant.deliveredRevision !== 0
   ) {
     return;
   }
@@ -1094,9 +1067,14 @@ async function publishGroupCombatStartIntroIfNeeded(input: {
     await input.transport.sendInertMessage(
       input.participant.telegramUserId,
       presentGroupCombatIntro(input.session),
-      input.replyKeyboard
-        ? { ...HTML_MESSAGE_OPTIONS, reply_markup: input.replyKeyboard }
-        : HTML_MESSAGE_OPTIONS
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildMainMenuKeyboard({
+          ...(input.session.state.production?.locationId
+            ? { locationId: input.session.state.production.locationId }
+            : {})
+        })
+      }
     );
   } catch (error) {
     if (error instanceof GroupCombatUiPublicationOwnershipLost) {

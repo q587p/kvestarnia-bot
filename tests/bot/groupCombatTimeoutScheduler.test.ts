@@ -231,7 +231,9 @@ describe("group combat timeout scheduler", () => {
       .toContain("\"keyboard\"");
     expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<b>Хто проти кого:</b>");
     expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
-      .toContain("\"keyboard\"");
+      .toContain("\"inline_keyboard\"");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
+      .toContain("🔎 Оновити");
     expect(editMessageText).toHaveBeenCalledTimes(2);
     expect(String(editMessageText.mock.calls[0]?.[2]))
       .toBe("♻️ Цю бойову картку замінено актуальною нижче.");
