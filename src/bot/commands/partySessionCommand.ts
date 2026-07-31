@@ -1385,10 +1385,22 @@ async function sendCanonicalPartyPreparationCard(
         ? groupSession?.participants.find((participant) => participant.telegramUserId === telegramUserId)
         : null;
       if (groupSession && groupSession.status !== "active" && groupViewer) {
-        await safeEditMessageText(ctx, presentGroupCombat(groupSession, groupViewer.characterId), {
+        const groupOptions = {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildGroupCombatKeyboard(groupSession, groupViewer.characterId)
-        });
+        };
+        if ((options.mode ?? "edit") === "reply") {
+          await ctx.reply(
+            presentGroupCombat(groupSession, groupViewer.characterId),
+            groupOptions
+          );
+        } else {
+          await safeEditMessageText(
+            ctx,
+            presentGroupCombat(groupSession, groupViewer.characterId),
+            groupOptions
+          );
+        }
         return;
       }
       if (canonical.state === "missing") {

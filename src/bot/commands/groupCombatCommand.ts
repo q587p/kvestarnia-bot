@@ -16,6 +16,7 @@ import {
 import {
   buildGroupCombatAbilityTargetKeyboard,
   buildGroupCombatActionMenuKeyboard,
+  buildGroupCombatKeyboard,
   buildGroupCombatItemsKeyboard,
   buildGroupCombatJournalKeyboard,
   buildGroupCombatStatisticsKeyboard,
@@ -24,6 +25,7 @@ import {
 } from "../keyboards/groupCombatKeyboard";
 import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
 import {
+  presentGroupCombat,
   presentGroupCombatItems,
   presentGroupCombatJournal,
   presentGroupCombatStatistics
@@ -447,6 +449,17 @@ export async function handleGroupCombatCallback(
   }
   if (callback.type === "view") {
     await safeAnswerCallbackQuery(ctx);
+    if (session.status !== "active") {
+      await safeEditMessageText(
+        ctx,
+        presentGroupCombat(session, viewer.characterId),
+        {
+          parse_mode: "HTML",
+          reply_markup: buildGroupCombatKeyboard(session, viewer.characterId)
+        }
+      );
+      return;
+    }
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,

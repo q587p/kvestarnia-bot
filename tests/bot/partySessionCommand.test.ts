@@ -1830,6 +1830,46 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("v1:gc:v:partyABC12");
   });
 
+  it("opens a settled GroupCombat result with journal and statistics from a party deep link", async () => {
+    const party = {
+      ...makeSession("completed"),
+      version: 2,
+      activeLeaderKey: null
+    };
+    const groupSession = makeTerminalGroupCombatSession();
+    Object.assign(groupSession.participants[0]!, {
+      settlementStatus: "completed",
+      settledAt: new Date("2026-07-24T10:04:00.000Z"),
+      exitDeliveryState: "completed",
+      exitDeliveryMessageId: 93
+    });
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "stale",
+      session: party
+    });
+    const findByToken = vi.fn().mockResolvedValue(groupSession);
+    const { ctx, reply, editMessageText } = createCallbackContext(42);
+
+    await expect(sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(party, { joinByTokenForTelegramUser }),
+      party.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        groupCombat: {
+          areDevHelpersEnabled: () => true,
+          findByToken
+        }
+      }
+    )).resolves.toBe(true);
+
+    expect(findByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("✅ Доказову сутичку виграно");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📜 Журнал");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📊 Статистика");
+    expect(editMessageText).not.toHaveBeenCalled();
+  });
+
   it("does not expose a terminal GroupCombat result through a public stale party card", async () => {
     const party = {
       ...makeSession("completed"),

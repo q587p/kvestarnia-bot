@@ -9,6 +9,7 @@ import {
   createLeftPassageGroupCombatState,
   deriveLeftPassageEnemyCount,
   deriveGroupCombatLockedAbilityId,
+  expandGroupCombatRecapSnapshot,
   getEffectiveGroupCombatAbilityManaCost,
   getGroupCombatActionProfile,
   getLeftPassageEnemyLootDropChanceMultiplier,
@@ -1143,6 +1144,78 @@ describe("group combat proof reducer", () => {
       specialActions: 1,
       guardedTurns: 1
     }));
+  });
+
+  it("persists and journals authored bleed through its target activations", () => {
+    const initial = proofState(2);
+    initial.enemies[0]!.abilityIds = ["monster.conditional-knife"];
+    initial.enemies[1]!.hp = 0;
+    initial.participants.forEach((participant) => {
+      participant.hp = participant.hpMax = 93;
+    });
+
+    const applied = resolveGroupCombatTurn(
+      initial,
+      initial.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(initial, participant.characterId)
+      )
+    ).state;
+    const bleed = applied.abilityEffects?.find((effect) => effect.kind === "bleed");
+    expect(bleed).toEqual(expect.objectContaining({
+      sourceAbilityId: "monster.conditional-knife",
+      remainingTargetActivations: 2
+    }));
+    expect(expandGroupCombatRecapSnapshot(applied.recap.at(-1)?.snapshot, applied)?.effects)
+      .toContainEqual({
+        kind: "bleed",
+        targetKind: "participant",
+        targetId: bleed!.targetId,
+        remainingTurns: 2
+      });
+
+    const restarted = parseGroupCombatStateStrict(structuredClone(applied));
+    const ticked = resolveGroupCombatTurn(
+      restarted,
+      restarted.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(restarted, participant.characterId)
+      )
+    ).state;
+    expect(ticked.recap.at(-1)?.lines.join("\n"))
+      .toContain(`🩸 ${restarted.participants.find((row) => row.characterId === bleed!.targetId)!.name}: кровотеча, −`);
+    expect(ticked.abilityEffects?.find((effect) => effect.id === bleed!.id))
+      .toEqual(expect.objectContaining({ remainingTargetActivations: 1 }));
+    expect(parseGroupCombatStateStrict(structuredClone(ticked))).toEqual(ticked);
+  });
+
+  it("persists authored enemy evasion in the canonical recap snapshot", () => {
+    const initial = proofState(2);
+    initial.enemies[0]!.abilityIds = ["monster.emergency-dance"];
+    initial.enemies[1]!.hp = 0;
+    initial.participants.forEach((participant) => {
+      participant.hp = participant.hpMax = 93;
+    });
+
+    const resolved = resolveGroupCombatTurn(
+      initial,
+      initial.participants.map((participant) =>
+        buildGroupCombatTimeoutAction(initial, participant.characterId)
+      )
+    ).state;
+    const evasion = resolved.abilityEffects?.find((effect) => effect.kind === "evasion");
+
+    expect(evasion).toEqual(expect.objectContaining({
+      sourceAbilityId: "monster.emergency-dance",
+      targetKind: "enemy",
+      remainingSourceActivations: 2
+    }));
+    expect(expandGroupCombatRecapSnapshot(resolved.recap.at(-1)?.snapshot, resolved)?.effects)
+      .toContainEqual({
+        kind: "evasion",
+        targetKind: "enemy",
+        targetId: evasion!.targetId,
+        remainingTurns: 2
+      });
+    expect(parseGroupCombatStateStrict(structuredClone(resolved))).toEqual(resolved);
   });
 
   it("applies authored damage reduction to later player damage", () => {

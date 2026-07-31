@@ -173,6 +173,21 @@ describe("group combat presenter", () => {
     ).at(-1)).toEqual(["🏃 Відступити", "🔎 Оновити"]);
   });
 
+  it("packs multi-enemy guard and abilities into paired rows", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.classId = "class.mage";
+    viewer.raceId = "race.elf";
+
+    expect(buildGroupCombatKeyboard(session, viewer.characterId).inline_keyboard
+      .map((row) => row.map((button) => button.text))).toEqual([
+      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
+      ["🛡 Захищатися", "🔥 Гаряче закляття"],
+      ["🎯 Ображена точність → Комірний 1", "🎯 Ображена точність → Комірний 2"],
+      ["🏃 Відступити", "🔎 Оновити"]
+    ]);
+  });
+
   it("shows every frozen ability directly and narrows a selected ability to targets only", () => {
     const session = createSession(2);
     session.state.participants[0]!.classId = "class.warrior";
@@ -497,6 +512,19 @@ describe("group combat presenter", () => {
         appliedTurn: session.state.turn
       }
     ];
+    session.state.abilityEffects = [{
+      id: "monster-evasion:enemy-1",
+      sourceEnemyId: session.state.enemies[0]!.id,
+      sourceAbilityId: "monster.emergency-dance",
+      targetKind: "enemy",
+      targetId: session.state.enemies[0]!.id,
+      kind: "evasion",
+      value: 0.2,
+      polarity: "positive",
+      removable: true,
+      trigger: "on-monster-own-activation",
+      remainingSourceActivations: 2
+    }];
 
     const intro = presentGroupCombatIntro(session);
     const first = presentGroupCombat(session, viewer.characterId, NOW);
@@ -518,6 +546,7 @@ describe("group combat presenter", () => {
     expect(first).toContain("🫧 Комірний 1 · щит: 4.");
     expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
     expect(first).toContain("🧱 укріплення · Комірний 1: ще 1 хід.");
+    expect(first).toContain("🪽 ухилення · Комірний 1: ще 2 ходи.");
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
   });
 
@@ -595,12 +624,20 @@ describe("group combat presenter", () => {
               ? [{ id: "monster.deadline-web", remainingTurns: 3 }]
               : []
           })),
-          effects: [{
-            kind: "guard",
-            targetKind: "participant",
-            targetId: session.state.participants[0]!.characterId,
-            remainingTurns: 2
-          }]
+          effects: [
+            {
+              kind: "guard",
+              targetKind: "participant",
+              targetId: session.state.participants[0]!.characterId,
+              remainingTurns: 2
+            },
+            {
+              kind: "evasion",
+              targetKind: "enemy",
+              targetId: session.state.enemies[0]!.id,
+              remainingTurns: 2
+            }
+          ]
         }
       }
     ];
@@ -623,6 +660,7 @@ describe("group combat presenter", () => {
     expect(text).toContain("Силовий замах відсапується: ще 2 ходи.");
     expect(text).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
     expect(text).toContain("🛡️ захист");
+    expect(text).toContain("🪽 ухилення · Комірний 1: ще 2 ходи.");
     expect(resultLabels).toContain("📜 Журнал");
     expect(resultLabels).toContain("📊 Статистика");
     expect(resultLabels).not.toContain("🔎 Оновити");

@@ -38,10 +38,15 @@ export function buildCombatActionKeyboard(
     appendPairedRows(keyboard, [...attacks, layout.defendButton]);
   } else {
     appendPairedRows(keyboard, attacks);
-    appendFullRow(keyboard, layout.defendButton);
+    appendPairedRows(keyboard, [
+      ...(layout.defendButton ? [layout.defendButton] : []),
+      ...(layout.abilityButtons ?? [])
+    ]);
   }
 
-  appendPairedRows(keyboard, layout.abilityButtons ?? []);
+  if (soleAttack || (attacks.length > 1 && attacks.length % 2 === 1)) {
+    appendPairedRows(keyboard, layout.abilityButtons ?? []);
+  }
   appendFullRow(keyboard, layout.itemsButton);
   for (const button of layout.utilityButtons ?? []) {
     appendFullRow(keyboard, button);

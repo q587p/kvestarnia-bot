@@ -3,7 +3,9 @@ import {
   expandGroupCombatRecapSnapshot,
   getGroupCombatActionProfile,
   GROUP_COMBAT_CARD_BYTE_LIMIT,
-  isActiveGroupCombatParticipant
+  isActiveGroupCombatParticipant,
+  listGroupCombatVisibleEffects,
+  type GroupCombatPresentedEffectKind
 } from "../../domain/groupCombat/groupCombat";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -369,12 +371,7 @@ function presentGroupCombatTacticalState(
       }
     }
   }
-  lines.push(...presentEffectLines(session, (state.statuses ?? []).map((status) => ({
-    kind: status.kind,
-    targetKind: status.targetKind,
-    targetId: status.targetId,
-    remainingTurns: status.remainingTurns
-  }))));
+  lines.push(...presentEffectLines(session, listGroupCombatVisibleEffects(state)));
   return lines.length > 0 ? ["", ...lines] : [];
 }
 
@@ -386,7 +383,7 @@ function presentGroupCombatRecapSnapshot(
   actorRows: string[];
   noticeLines: string[];
 } {
-  const snapshot = expandGroupCombatRecapSnapshot(recap.snapshot);
+  const snapshot = expandGroupCombatRecapSnapshot(recap.snapshot, session.state);
   if (!snapshot) {
     return { opponentRows: [], actorRows: [], noticeLines: [] };
   }
@@ -490,17 +487,7 @@ function formatLevelPoints(count: number): string {
 function presentEffectLines(
   session: GroupCombatSessionRecord,
   effects: Array<{
-    kind:
-      | "guard"
-      | "response-mitigation"
-      | "counter"
-      | "bleed"
-      | "monster-accuracy-penalty"
-      | "monster-burn"
-      | "monster-incoming-damage"
-      | "monster-damage-reduction"
-      | "monster-evasion"
-      | "monster-outgoing-damage";
+    kind: GroupCombatPresentedEffectKind;
     targetKind: "participant" | "enemy";
     targetId: string;
     remainingTurns: number;
@@ -516,28 +503,40 @@ function presentEffectLines(
       : targetEnemy
         ? shortEnemyNames.get(targetEnemy.order)
         : undefined;
-    const label = effect.kind === "guard"
-      ? "🛡️ захист"
-      : effect.kind === "response-mitigation"
-        ? "🌀 послаблення відповіді"
-        : effect.kind === "counter"
-          ? "↩️ контрудар"
-          : effect.kind === "bleed"
-            ? "🩸 кровотеча"
-            : effect.kind === "monster-accuracy-penalty"
-              ? "🌫️ збита влучність"
-              : effect.kind === "monster-burn"
-                ? "🔥 горіння"
-                : effect.kind === "monster-incoming-damage"
-                  ? "📒 звірено шкоду"
-                  : effect.kind === "monster-damage-reduction"
-                    ? "🧱 укріплення"
-                    : effect.kind === "monster-evasion"
-                      ? "🪽 ухилення"
-                      : "📈 посилена шкода";
+    const label = GROUP_COMBAT_EFFECT_LABELS[effect.kind];
     return `${label} · ${escapeHtml(target ?? effect.targetId)}: ще ${formatTurns(effect.remainingTurns)}.`;
   });
 }
+
+const GROUP_COMBAT_EFFECT_LABELS: Record<GroupCombatPresentedEffectKind, string> = {
+  guard: "🛡️ захист",
+  "response-mitigation": "🌀 послаблення відповіді",
+  counter: "↩️ контрудар",
+  bleed: "🩸 кровотеча",
+  "monster-accuracy-penalty": "🌫️ збита влучність",
+  "monster-burn": "🔥 горіння",
+  "monster-incoming-damage": "📒 звірено шкоду",
+  "monster-damage-reduction": "🧱 укріплення",
+  "monster-evasion": "🪽 ухилення",
+  "monster-outgoing-damage": "📈 посилена шкода",
+  accuracy: "🎯 влучність",
+  evasion: "🪽 ухилення",
+  "outgoing-damage": "📈 посилена шкода",
+  "incoming-damage": "📒 змінена вхідна шкода",
+  mark: "🔖 мітка",
+  burn: "🔥 горіння",
+  "ability-lock": "🔒 заблоковане вміння",
+  "mana-cost-pressure": "🔮 дорожча мана",
+  reflect: "🪞 відбиття шкоди",
+  "status-resistance": "🧿 стійкість до станів",
+  flee: "🚧 ускладнений відступ",
+  crit: "💢 змінений критичний удар",
+  slow: "🐌 сповільнення",
+  confusion: "🌀 сплутані цілі",
+  "cooldown-pressure": "🫁 довший відсап",
+  "next-attack-bonus": "⏭️ посилена наступна атака",
+  "repeat-penalty": "🔁 штраф за повтор"
+};
 
 function formatTurns(count: number): string {
   const mod10 = count % 10;

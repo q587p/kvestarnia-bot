@@ -174,6 +174,40 @@ export type GroupCombatStatusKind =
   | "monster-damage-reduction"
   | "monster-evasion"
   | "monster-outgoing-damage";
+export type GroupCombatPresentedEffectKind =
+  | GroupCombatStatusKind
+  | MonsterAbilityEffectKind;
+export const GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND = {
+  guard: "g",
+  "response-mitigation": "r",
+  counter: "c",
+  bleed: "b",
+  "monster-accuracy-penalty": "0",
+  "monster-burn": "1",
+  "monster-incoming-damage": "2",
+  "monster-damage-reduction": "3",
+  "monster-evasion": "4",
+  "monster-outgoing-damage": "5",
+  accuracy: "a",
+  evasion: "e",
+  "outgoing-damage": "o",
+  "incoming-damage": "i",
+  mark: "m",
+  burn: "u",
+  "ability-lock": "l",
+  "mana-cost-pressure": "p",
+  reflect: "f",
+  "status-resistance": "s",
+  flee: "x",
+  crit: "q",
+  slow: "w",
+  confusion: "n",
+  "cooldown-pressure": "d",
+  "next-attack-bonus": "z",
+  "repeat-penalty": "y"
+} as const satisfies Record<GroupCombatPresentedEffectKind, string>;
+export type GroupCombatCompactPresentedEffectKind =
+  (typeof GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND)[GroupCombatPresentedEffectKind];
 
 export interface GroupCombatActorSnapshot {
   characterId: string;
@@ -431,7 +465,7 @@ export interface GroupCombatRecapSnapshot {
     shieldPoints?: number;
   }>;
   effects?: Array<{
-    kind: GroupCombatStatusKind;
+    kind: GroupCombatPresentedEffectKind;
     targetKind: "participant" | "enemy";
     targetId: string;
     remainingTurns: number;
@@ -452,10 +486,10 @@ export interface GroupCombatCompactRecapSnapshot {
     cooldowns: Array<[id: string, remainingTurns: number]> | null,
     shieldPoints: number | null
   ]>;
-  x?: Array<[
-    kind: GroupCombatStatusKind,
-    targetKind: "participant" | "enemy",
-    targetId: string,
+  x?: string | Array<[
+    kind: GroupCombatPresentedEffectKind | GroupCombatCompactPresentedEffectKind,
+    targetKind: "participant" | "enemy" | "p" | "e",
+    targetId: string | number,
     remainingTurns: number
   ]>;
 }
@@ -468,7 +502,11 @@ export interface GroupCombatRecapEntry {
 }
 
 export function expandGroupCombatRecapSnapshot(
-  snapshot: GroupCombatRecapEntry["snapshot"]
+  snapshot: GroupCombatRecapEntry["snapshot"],
+  state?: {
+    participants: Array<{ characterId: string }>;
+    enemies: Array<{ id: string }>;
+  }
 ): GroupCombatRecapSnapshot | undefined {
   if (!snapshot) {
     return undefined;
@@ -510,12 +548,25 @@ export function expandGroupCombatRecapSnapshot(
     })),
     ...(snapshot.x
       ? {
-          effects: snapshot.x.map(([kind, targetKind, targetId, remainingTurns]) => ({
-            kind,
-            targetKind,
-            targetId,
-            remainingTurns
-          }))
+          effects: decodeGroupCombatCompactEffects(snapshot.x).flatMap(([kind, storedTargetKind, targetId, remainingTurns]) => {
+            const targetKind = storedTargetKind === "p"
+              ? "participant"
+              : storedTargetKind === "e"
+                ? "enemy"
+                : storedTargetKind;
+            const targetIds = typeof targetId === "number"
+              ? (targetKind === "participant" ? state?.participants : state?.enemies)
+                ?.flatMap((target, index) => (targetId & (1 << index)) !== 0
+                  ? ["characterId" in target ? target.characterId : target.id]
+                  : []) ?? []
+              : [targetId];
+            return targetIds.map((expandedTargetId) => ({
+              kind: expandGroupCombatPresentedEffectKind(kind),
+              targetKind,
+              targetId: expandedTargetId,
+              remainingTurns
+            }));
+          })
         }
       : {})
   };
@@ -3541,10 +3592,13 @@ function applyParticipantMonsterEffects(
     return;
   }
   let totalDamage = 0;
+  let burnDamage = 0;
+  let bleedDamage = 0;
   for (const status of burns) {
     const damage = Math.min(participant.hp, status.value);
     participant.hp -= damage;
     totalDamage += damage;
+    burnDamage += damage;
     if (status.sourceEnemyId) {
       getEnemyContribution(state, status.sourceEnemyId).damage += damage;
     }
@@ -3559,10 +3613,20 @@ function applyParticipantMonsterEffects(
     );
     participant.hp -= damage;
     totalDamage += damage;
+    if (effect.kind === "bleed") {
+      bleedDamage += damage;
+    } else {
+      burnDamage += damage;
+    }
     getEnemyContribution(state, effect.sourceEnemyId).damage += damage;
   }
   getContribution(state, participant.characterId).damageTaken += totalDamage;
-  lines.push(`🔥 ${participant.name} втрачає ${totalDamage} HP.`);
+  if (burnDamage > 0) {
+    lines.push(`🔥 ${participant.name}: горіння, −${burnDamage} HP.`);
+  }
+  if (bleedDamage > 0) {
+    lines.push(`🩸 ${participant.name}: кровотеча, −${bleedDamage} HP.`);
+  }
 }
 
 function tickParticipantMonsterEffects(
@@ -4756,14 +4820,8 @@ function appendRecap(
   lines: string[],
   monsterBarkIds: string[] = []
 ): GroupCombatRecapEntry[] {
-  const effects = state.statuses
-    .filter((status) => status.remainingTurns > 0)
-    .map((status) => ({
-      kind: status.kind,
-      targetKind: status.targetKind,
-      targetId: status.targetId,
-      remainingTurns: status.remainingTurns
-    }));
+  const effects = listGroupCombatVisibleEffects(state);
+  const compactEffects = compactGroupCombatVisibleEffects(state, effects);
   const entry: GroupCombatRecapEntry = {
     turn: state.turn,
     lines: lines.slice(0, 13),
@@ -4813,24 +4871,142 @@ function appendRecap(
           enemy.shield?.points ?? null
         ];
       }),
-      ...(effects.length > 0
-        ? {
-            x: effects.map((effect): [
-              GroupCombatStatusKind,
-              "participant" | "enemy",
-              string,
-              number
-            ] => [
-              effect.kind,
-              effect.targetKind,
-              effect.targetId,
-              effect.remainingTurns
-            ])
-          }
+      ...(compactEffects.length > 0
+        ? { x: encodeGroupCombatCompactEffects(compactEffects) }
         : {})
     }
   };
   return [...state.recap, entry].slice(-GROUP_COMBAT_RECAP_LIMIT);
+}
+
+function compactGroupCombatVisibleEffects(
+  state: GroupCombatState,
+  effects: NonNullable<GroupCombatRecapSnapshot["effects"]>
+): Array<[
+  GroupCombatCompactPresentedEffectKind,
+  "p" | "e",
+  number,
+  number
+]> {
+  const grouped = new Map<string, [
+    GroupCombatCompactPresentedEffectKind,
+    "p" | "e",
+    number,
+    number
+  ]>();
+  for (const effect of effects) {
+    const compactKind = GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND[effect.kind];
+    const compactTargetKind = effect.targetKind === "participant" ? "p" : "e";
+    const targetIndex = effect.targetKind === "participant"
+      ? state.participants.findIndex((participant) => participant.characterId === effect.targetId)
+      : state.enemies.findIndex((enemy) => enemy.id === effect.targetId);
+    if (targetIndex < 0) {
+      continue;
+    }
+    const key = `${compactKind}\0${compactTargetKind}\0${effect.remainingTurns}`;
+    const current = grouped.get(key);
+    const targetMask = 1 << targetIndex;
+    grouped.set(key, current
+      ? [current[0], current[1], current[2] | targetMask, current[3]]
+      : [compactKind, compactTargetKind, targetMask, effect.remainingTurns]);
+  }
+  return [...grouped.values()];
+}
+
+function encodeGroupCombatCompactEffects(
+  effects: ReturnType<typeof compactGroupCombatVisibleEffects>
+): string {
+  const kinds = Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND);
+  const bytes = effects.flatMap(([kind, targetKind, targetMask, remainingTurns]) => {
+    const kindIndex = kinds.indexOf(kind);
+    const packed = (kindIndex << 11) |
+      ((targetKind === "e" ? 1 : 0) << 10) |
+      (targetMask << 4) |
+      remainingTurns;
+    return [(packed >> 8) & 0xff, packed & 0xff];
+  });
+  return Buffer.from(bytes).toString("base64url");
+}
+
+function decodeGroupCombatCompactEffects(
+  effects: NonNullable<GroupCombatCompactRecapSnapshot["x"]>
+): Array<[
+  GroupCombatPresentedEffectKind | GroupCombatCompactPresentedEffectKind,
+  "participant" | "enemy" | "p" | "e",
+  string | number,
+  number
+]> {
+  if (typeof effects !== "string") {
+    return effects;
+  }
+  const kinds = Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND);
+  const bytes = Buffer.from(effects, "base64url");
+  return Array.from({ length: Math.floor(bytes.length / 2) }, (_, index) => {
+    const packed = (bytes[index * 2]! << 8) | bytes[index * 2 + 1]!;
+    return [
+      kinds[(packed >> 11) & 0x1f] as GroupCombatCompactPresentedEffectKind,
+      (packed & 0x400) !== 0 ? "e" : "p",
+      (packed >> 4) & 0x3f,
+      packed & 0x0f
+    ];
+  });
+}
+
+export function listGroupCombatVisibleEffects(
+  state: GroupCombatState
+): NonNullable<GroupCombatRecapSnapshot["effects"]> {
+  const statuses = (state.statuses ?? [])
+    .filter((status) => status.remainingTurns > 0)
+    .map((status) => ({
+      kind: status.kind,
+      targetKind: status.targetKind,
+      targetId: status.targetId,
+      remainingTurns: status.remainingTurns
+    }));
+  const authoredEffects: NonNullable<GroupCombatRecapSnapshot["effects"]> = [];
+  for (const effect of state.abilityEffects ?? []) {
+    const activationDurations = [
+      effect.remainingTargetActivations,
+      effect.remainingSourceActivations
+    ].filter((remaining): remaining is number => remaining !== undefined);
+    const remainingTurns = activationDurations.length > 0
+      ? Math.min(...activationDurations)
+      : undefined;
+    if (!remainingTurns || activationDurations.some((remaining) => remaining <= 0) || effect.charges === 0) {
+      continue;
+    }
+    authoredEffects.push({
+      kind: effect.kind,
+      targetKind: effect.targetKind,
+      targetId: effect.targetId,
+      remainingTurns
+    });
+  }
+  const visibleByTargetAndKind = new Map<
+    string,
+    NonNullable<GroupCombatRecapSnapshot["effects"]>[number]
+  >();
+  for (const effect of [...statuses, ...authoredEffects]) {
+    const key = `${effect.kind}\0${effect.targetKind}\0${effect.targetId}`;
+    const current = visibleByTargetAndKind.get(key);
+    if (!current || effect.remainingTurns > current.remainingTurns) {
+      visibleByTargetAndKind.set(key, effect);
+    }
+  }
+  return [...visibleByTargetAndKind.values()];
+}
+
+function expandGroupCombatPresentedEffectKind(
+  kind: GroupCombatPresentedEffectKind | GroupCombatCompactPresentedEffectKind
+): GroupCombatPresentedEffectKind {
+  if (kind in GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND) {
+    return kind as GroupCombatPresentedEffectKind;
+  }
+  const expanded = (Object.entries(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND) as Array<[
+    GroupCombatPresentedEffectKind,
+    GroupCombatCompactPresentedEffectKind
+  ]>).find(([, compact]) => compact === kind)?.[0];
+  return expanded ?? kind as GroupCombatPresentedEffectKind;
 }
 
 function getActiveGroupCombatCooldowns(

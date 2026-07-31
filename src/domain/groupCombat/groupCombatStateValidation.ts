@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isDeepStrictEqual } from "node:util";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -239,9 +240,7 @@ const combatBarkStateSchema = z.object({
   ownActionCountByMonsterId: z.record(z.string().min(1), nonNegativeInteger)
 }).strict();
 
-const statusSchema = z.object({
-  id: z.string().min(1).max(587),
-  kind: z.enum([
+const groupCombatStatusKindSchema = z.enum([
     "guard",
     "response-mitigation",
     "counter",
@@ -252,7 +251,11 @@ const statusSchema = z.object({
     "monster-damage-reduction",
     "monster-evasion",
     "monster-outgoing-damage"
-  ]),
+  ]);
+
+const statusSchema = z.object({
+  id: z.string().min(1).max(587),
+  kind: groupCombatStatusKindSchema,
   sourceCharacterId: z.string().min(1).optional(),
   sourceEnemyId: z.string().min(1).optional(),
   sourceAbilityId: z.string().min(1).optional(),
@@ -284,6 +287,29 @@ const monsterAbilityEffectKindSchema = z.enum([
   "counter",
   "repeat-penalty"
 ]);
+const presentedEffectKindSchema = z.union([
+  groupCombatStatusKindSchema,
+  monsterAbilityEffectKindSchema
+]);
+const compactPresentedEffectKindSchema = z.enum(
+  Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND) as [string, ...string[]]
+);
+const compactPresentedEffectsSchema = z.string().min(1).max(4_096).refine((value) =>
+  /^[A-Za-z0-9_-]+$/.test(value) && (() => {
+    const bytes = Buffer.from(value, "base64url");
+    const kindCount = Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND).length;
+    return bytes.toString("base64url") === value &&
+      bytes.length > 0 && bytes.length % 2 === 0 &&
+      Array.from({ length: bytes.length / 2 }, (_, index) =>
+        (bytes[index * 2]! << 8) | bytes[index * 2 + 1]!
+      ).every((packed) =>
+        ((packed >> 11) & 0x1f) < kindCount &&
+        ((packed >> 4) & 0x3f) >= 1 &&
+        (packed & 0x0f) >= 1 &&
+        (packed & 0x0f) <= 13
+      );
+  })()
+);
 
 const monsterAbilityEffectSchema = z.object({
   id: z.string().min(1).max(587),
@@ -340,18 +366,7 @@ const verboseRecapSnapshotSchema = z.object({
       shieldPoints: positiveInteger.optional()
     }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
     effects: z.array(z.object({
-      kind: z.enum([
-        "guard",
-        "response-mitigation",
-        "counter",
-        "bleed",
-        "monster-accuracy-penalty",
-        "monster-burn",
-        "monster-incoming-damage",
-        "monster-damage-reduction",
-        "monster-evasion",
-        "monster-outgoing-damage"
-      ]),
+      kind: presentedEffectKindSchema,
       targetKind: z.enum(["participant", "enemy"]),
       targetId: z.string().min(1),
       remainingTurns: positiveInteger.max(13)
@@ -377,23 +392,15 @@ const compactRecapSnapshotSchema = z.object({
     compactCooldownSchema,
     positiveInteger.nullable()
   ])).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
-  x: z.array(z.tuple([
-    z.enum([
-      "guard",
-      "response-mitigation",
-      "counter",
-      "bleed",
-      "monster-accuracy-penalty",
-      "monster-burn",
-      "monster-incoming-damage",
-      "monster-damage-reduction",
-      "monster-evasion",
-      "monster-outgoing-damage"
-    ]),
-    z.enum(["participant", "enemy"]),
-    z.string().min(1),
-    positiveInteger.max(13)
-  ])).max(93).optional()
+  x: z.union([
+    compactPresentedEffectsSchema,
+    z.array(z.tuple([
+      z.union([presentedEffectKindSchema, compactPresentedEffectKindSchema]),
+      z.enum(["participant", "enemy", "p", "e"]),
+      z.union([z.string().min(1), nonNegativeInteger]),
+      positiveInteger.max(13)
+    ])).max(93)
+  ]).optional()
 }).strict();
 
 const recapSchema = z.object({
@@ -638,7 +645,8 @@ const stateSchema = z.object({
   }
   for (const recap of state.recap) {
     const snapshot = expandGroupCombatRecapSnapshot(
-      recap.snapshot as GroupCombatState["recap"][number]["snapshot"]
+      recap.snapshot as GroupCombatState["recap"][number]["snapshot"],
+      state
     );
     if (
       state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&

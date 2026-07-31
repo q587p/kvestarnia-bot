@@ -1035,7 +1035,13 @@ describe("group combat bot flow", () => {
       { turn: 1, lines: ["Лідерка стає в захист."] },
       { turn: 2, lines: ["Друг б’є Шурхіт на 3."] }
     ];
-    session.participants[0]!.deliveredRevision = session.deliveryRevision;
+    Object.assign(session.participants[0]!, {
+      deliveredRevision: session.deliveryRevision,
+      settlementStatus: "completed",
+      settledAt: new Date("2026-07-22T10:01:00.000Z"),
+      exitDeliveryState: "completed",
+      exitDeliveryMessageId: 93
+    });
     const edits: Array<{ text: string; options: string }> = [];
     const editContextMessage = vi.fn((text: string, options?: unknown) => {
       edits.push({ text, options: JSON.stringify(options) });
@@ -1086,7 +1092,8 @@ describe("group combat bot flow", () => {
     expect(edits[2]?.text).toContain("✅ Доказову сутичку виграно");
     expect(edits[2]?.text).not.toContain("Журнал доказової сутички");
     expect(edits[2]?.options).toContain("📜 Журнал");
-    expect(editApiMessage).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(editContextMessage).toHaveBeenCalledTimes(3);
+    expect(editApiMessage).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledTimes(3);
   });
 
