@@ -222,6 +222,9 @@ Admin allowlist із раннього roadmap не є автоматичною �
 - manatka-offerings і можлива окрема root-grove location для Старого жертовника;
 - item instances, двостороння торгівля й ринок;
 - fuller Big Barrel rewards та перенесення на generic runtime;
+- [окрема бойова reply-клавіатура](../backlog/dedicated-combat-reply-keyboard.md)
+  замість основної під час активного бою — лише після доведення durable
+  ordering, restart recovery та відсутности keyboard-less станів;
 - сезони, guild wars, crafting, web/Mini App.
 
 Нумеровані `0.4.3` і `0.4.6`–`0.4.11` tasks активують bounded частини старих

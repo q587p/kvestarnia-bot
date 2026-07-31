@@ -85,7 +85,7 @@
   remains default-off. Operator-required v3 rows are invisible and immutable to
   ordinary reads/mutations; only explicit inspection exposes their raw evidence.
   `0.4.3` next owns bounded consumable-manatka uses, but its exact item/effect allowlist is still an activation gate and no consumable behavior is implemented by `0.4.2`.
-  Independent guild identity follows in `0.4.4`; do not turn `PartyBossSession` into N×M state or imply guild bank/trade/war scope.
+  Independent guild identity follows in `0.4.4`; do not turn `PartyBossSession` into N×M state or imply guild bank/trade/war scope. A dedicated combat reply keyboard that temporarily replaces main navigation is deferred in `docs/backlog/dedicated-combat-reply-keyboard.md`; keep the shipped persistent-main plus inline-control fallback until durable cross-mode publication/recovery is proven.
 
 ## Shipped class support
 

@@ -62,7 +62,9 @@ These are planned contracts, not merged or deployed features.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.
 - Superseded or consumed drafts live in [`archive/`](archive/).
-- Unresolved ideas live in [`../backlog/`](../backlog/).
+- Unresolved ideas live in [`../backlog/`](../backlog/), including the
+  [`dedicated combat reply keyboard`](../backlog/dedicated-combat-reply-keyboard.md)
+  findings captured from 0.4.2 Telegram QA.
 - Closed phases, audits and manual evidence live in
   [`../history/`](../history/).
 
