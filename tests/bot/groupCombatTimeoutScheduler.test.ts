@@ -138,6 +138,13 @@ describe("group combat timeout scheduler", () => {
     session.state.participants = session.state.participants.slice(0, 1);
     session.state.enemies = session.state.enemies.slice(0, 1);
     session.state.contributions = session.state.contributions.slice(0, 1);
+    session.participants[0]!.deliveredRevision = 0;
+    session.participants[0]!.replyKeyboardFingerprint = null;
+    session.participants[0]!.replyKeyboardGeneration = 0;
+    session.participants[0]!.exitDeliveryState = "none";
+    session.participants[0]!.exitDeliveryClaimToken = null;
+    session.participants[0]!.exitDeliveryClaimedAt = null;
+    session.participants[0]!.exitDeliveryMessageId = null;
     const party = {
       inviteToken: session.partyInviteToken,
       version: 7,

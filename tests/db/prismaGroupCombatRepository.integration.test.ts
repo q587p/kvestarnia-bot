@@ -3285,6 +3285,80 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
   });
 
+  it("keeps a claimed terminal menu canonical while repair runs between send and completion", async () => {
+    const started = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-terminal-menu-repair-race",
+      [58727n]
+    );
+    const terminal = await terminalizeProductionSession(prisma, started);
+    const participant = terminal.participants[0]!;
+    const claimToken = "terminal-menu-repair-claim";
+
+    await expect(repository.settleParticipant({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      now: new Date(NOW.getTime() + 1)
+    })).resolves.toMatchObject({ state: "settled" });
+    await expect(repository.claimParticipantFleeExitDelivery({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken,
+      claimedAt: new Date(NOW.getTime() + 2),
+      staleBefore: new Date(NOW.getTime() - 23_000)
+    })).resolves.toMatchObject({ state: "claimed", menuDelivered: false });
+    await expect(repository.markParticipantFleeExitMenuDelivered({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken,
+      messageId: 93
+    })).resolves.toBe(true);
+
+    const beforeRepair = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      select: { status: true, stateJson: true }
+    });
+    expect({
+      row: beforeRepair.status,
+      state: (beforeRepair.stateJson as { status?: unknown }).status
+    }).toEqual({ row: "won", state: "won" });
+
+    await repository.repairInvalidOrOrphaned(
+      new Date(NOW.getTime() + 3),
+      13
+    );
+    await expect(prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: terminal.id },
+      select: { repairState: true, repairReason: true }
+    })).resolves.toEqual({ repairState: null, repairReason: null });
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toMatchObject({
+      kind: "group-combat-exit-navigation",
+      referenceId: `${terminal.id}:${participant.characterId}`
+    });
+
+    const stored = await prisma.groupCombatParticipant.findFirstOrThrow({
+      where: {
+        sessionId: terminal.id,
+        characterId: participant.characterId
+      }
+    });
+    await expect(repository.completeParticipantFleeExitDelivery({
+      sessionId: terminal.id,
+      telegramUserId: participant.telegramUserId,
+      claimToken,
+      expectedReferenceVersion: stored.referenceVersion,
+      chatId: stored.chatId,
+      messageId: stored.messageId,
+      retainReference: true
+    })).resolves.toBe(true);
+    await expect(prisma.activeCombatLease.findUnique({
+      where: { characterId: participant.characterId }
+    })).resolves.toBeNull();
+  });
+
   it("commits one production escape durably while the other two participants continue and settle", async () => {
     const telegramIds = [58731n, 58732n, 58733n];
     const session = await startLeftPassageProduction(

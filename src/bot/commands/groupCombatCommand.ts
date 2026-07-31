@@ -11,8 +11,7 @@ import {
 import {
   deliverGroupCombatCards,
   deliverGroupCombatParticipantCard,
-  deliverGroupCombatSettlementNotifications,
-  deliverGroupCombatStartIntro
+  deliverGroupCombatSettlementNotifications
 } from "../groupCombatCardDelivery";
 import {
   buildGroupCombatAbilityTargetKeyboard,
@@ -340,10 +339,9 @@ export async function handleGroupCombatCallback(
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
-    if (result.state === "started") {
-      await deliverGroupCombatStartIntro(ctx.api, service, result.session);
-    }
-    await deliverGroupCombatCards(ctx.api, service, result.session);
+    await deliverGroupCombatCards(ctx.api, service, result.session, {
+      publishStartIntro: result.state === "started"
+    });
     return;
   }
   let session = await service.findByToken(callback.token);

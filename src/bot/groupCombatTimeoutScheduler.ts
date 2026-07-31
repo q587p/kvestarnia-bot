@@ -4,8 +4,7 @@ import type { GroupCombatService } from "../services/groupCombatService";
 import type { PartySessionService } from "../services/partySessionService";
 import {
   deliverGroupCombatCards,
-  deliverGroupCombatSettlementNotifications,
-  deliverGroupCombatStartIntro
+  deliverGroupCombatSettlementNotifications
 } from "./groupCombatCardDelivery";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
@@ -108,10 +107,9 @@ export function createGroupCombatTimeoutScheduler(
         [...started, ...resolved.map((entry) => entry.session), ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
-        if (freshlyStartedSessionIds.has(session.id)) {
-          await deliverGroupCombatStartIntro(bot.api, service, session);
-        }
-        await deliverGroupCombatCards(bot.api, service, session);
+        await deliverGroupCombatCards(bot.api, service, session, {
+          publishStartIntro: freshlyStartedSessionIds.has(session.id)
+        });
         const notices = resolved.find((entry) => entry.session.id === session.id)?.settlementNotices ?? [];
         if (notices.length > 0) {
           await deliverGroupCombatSettlementNotifications(bot.api, notices);

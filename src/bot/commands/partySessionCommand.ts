@@ -23,10 +23,7 @@ import {
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
 import { buildGroupCombatKeyboard } from "../keyboards/groupCombatKeyboard";
-import {
-  deliverGroupCombatCards,
-  deliverGroupCombatStartIntro
-} from "../groupCombatCardDelivery";
+import { deliverGroupCombatCards } from "../groupCombatCardDelivery";
 import {
   presentPartyCancel,
   presentPartyBoss,
@@ -657,10 +654,9 @@ export async function handlePartySessionCallback(
             ? "Усі готові. Ватага рушає в атаку."
             : "Бій уже почався."
         });
-        if (started.state === "started") {
-          await deliverGroupCombatStartIntro(ctx.api, groupCombat, started.session);
-        }
-        await deliverGroupCombatCards(ctx.api, groupCombat, started.session);
+        await deliverGroupCombatCards(ctx.api, groupCombat, started.session, {
+          publishStartIntro: started.state === "started"
+        });
         return;
       }
     }

@@ -63,33 +63,13 @@ export type GroupCombatParticipantDeliveryResult =
   | { state: "candidate-lost" | "retryable-edit-failure"; reference: GroupCombatMessageReference | null }
   | { state: "missing-participant" | "send-failed" | "activation-failed"; reference: null };
 
-export async function deliverGroupCombatStartIntro(
-  api: Api,
-  _service: GroupCombatService,
-  session: GroupCombatSessionRecord
-): Promise<number> {
-  if (
-    session.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
-    session.state.status !== "active" ||
-    session.state.turn !== 1 ||
-    session.state.recap.length !== 0
-  ) {
-    return 0;
-  }
-  const text = presentGroupCombatIntro(session);
-  const results = await Promise.allSettled(session.participants.map(async (participant) => {
-    await api.sendMessage(Number(participant.telegramUserId), text, HTML_MESSAGE_OPTIONS);
-    return true;
-  }));
-  return results.filter((result) => result.status === "fulfilled" && result.value).length;
-}
-
 export async function deliverGroupCombatCards(
   api: Api,
   service: GroupCombatService,
   session: GroupCombatSessionRecord,
   options: {
     forceReplacementCharacterId?: string;
+    publishStartIntro?: boolean;
   } = {}
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
@@ -153,7 +133,8 @@ export async function deliverGroupCombatCards(
           participant.deliveredRevision < authoritative.deliveryRevision)
         ? { forceReplacement: true }
         : {}),
-      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
+      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {}),
+      ...(options.publishStartIntro === true ? { publishStartIntro: true } : {})
     });
   }));
   const latest = await loadAuthoritativeSession(service, authoritative.id);
@@ -166,6 +147,21 @@ export async function deliverGroupCombatCards(
       ? result.value
       : isDelivered(result.value))
   ).length;
+}
+
+export function deliverGroupCombatParticipantExitNavigation(
+  api: Api,
+  service: GroupCombatService,
+  sessionId: string,
+  participantCharacterId: string
+): Promise<boolean> {
+  return deliverParticipantExitNavigation({
+    api,
+    service,
+    sessionId,
+    participantCharacterId,
+    transport: apiTransport(api)
+  });
 }
 
 async function deliverParticipantExitNavigation(input: {
@@ -464,6 +460,7 @@ export function deliverGroupCombatParticipantCard(
     forceRefresh?: boolean;
     forceReplacement?: boolean;
     publishReplyKeyboard?: boolean;
+    publishStartIntro?: boolean;
   } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
   return deliverCanonicalGroupCombatParticipantCard({
@@ -476,7 +473,10 @@ export function deliverGroupCombatParticipantCard(
     ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
     ...(options.publishReplyKeyboard === undefined
       ? {}
-      : { publishReplyKeyboard: options.publishReplyKeyboard })
+      : { publishReplyKeyboard: options.publishReplyKeyboard }),
+    ...(options.publishStartIntro === undefined
+      ? {}
+      : { publishStartIntro: options.publishStartIntro })
   });
 }
 
@@ -488,6 +488,7 @@ export async function deliverCanonicalGroupCombatParticipantCard(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
+  publishStartIntro?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   return withParticipantDeliveryLock(input.participantCharacterId, () => (
@@ -503,6 +504,7 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   forceRefresh?: boolean;
   forceReplacement?: boolean;
   publishReplyKeyboard?: boolean;
+  publishStartIntro?: boolean;
   now?: () => Date;
 }): Promise<GroupCombatParticipantDeliveryResult> {
   const claimUi = (
@@ -533,6 +535,12 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
         participant.replyKeyboardFingerprint !== fingerprint ||
         input.forceReplacement === true
       );
+    await publishGroupCombatStartIntroIfNeeded({
+      session: current,
+      participant,
+      transport: input.transport,
+      enabled: input.publishStartIntro === true
+    });
     const result = await deliverCanonicalGroupCombatParticipantCardLocked({
       ...input,
       forceReplacement:
@@ -615,6 +623,12 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     });
     let result: GroupCombatParticipantDeliveryResult;
     try {
+      await publishGroupCombatStartIntroIfNeeded({
+        session: current,
+        participant,
+        transport: ownedTransport,
+        enabled: input.publishStartIntro === true
+      });
       result = await deliverCanonicalGroupCombatParticipantCardLocked({
         ...input,
         transport: ownedTransport,
@@ -1068,6 +1082,39 @@ function privateReference(participant: GroupCombatSessionRecord["participants"][
 
 function sameReference(left: GroupCombatMessageReference, right: GroupCombatMessageReference): boolean {
   return left.chatId === right.chatId && left.messageId === right.messageId;
+}
+
+async function publishGroupCombatStartIntroIfNeeded(input: {
+  session: GroupCombatSessionRecord;
+  participant: GroupCombatParticipantRecord;
+  transport: GroupCombatDeliveryTransport;
+  enabled: boolean;
+}): Promise<void> {
+  if (
+    !input.enabled ||
+    input.session.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION ||
+    input.session.status !== "active" ||
+    input.session.state.status !== "active" ||
+    input.session.state.turn !== 1 ||
+    input.session.state.recap.length !== 0 ||
+    input.participant.deliveredRevision !== 0 ||
+    input.participant.replyKeyboardFingerprint !== null ||
+    input.participant.replyKeyboardGeneration !== 0
+  ) {
+    return;
+  }
+  try {
+    await input.transport.sendInertMessage(
+      input.participant.telegramUserId,
+      presentGroupCombatIntro(input.session),
+      HTML_MESSAGE_OPTIONS
+    );
+  } catch (error) {
+    if (error instanceof GroupCombatUiPublicationOwnershipLost) {
+      throw error;
+    }
+    // The combat card and its controls are more important than optional intro copy.
+  }
 }
 
 function buildCard(session: GroupCombatSessionRecord, participantCharacterId: string, now: Date) {

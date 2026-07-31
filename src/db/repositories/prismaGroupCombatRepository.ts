@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { GROUP_COMBAT_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
+import {
+  GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
+  GROUP_COMBAT_LEASE_KIND
+} from "../../domain/combat/combatLeaseRegistry";
 import {
   createLeftPassageGroupCombatState,
   buildGroupCombatFleeExitReceipt,
@@ -92,7 +95,6 @@ const LEFT_PASSAGE_PREVIEW_RULES_VERSION = "nyz-passage-preview-v1";
 const LEFT_PASSAGE_PARTY_ORIGIN_KIND = GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
 const LEFT_PASSAGE_PARTICIPANT_CAP = 3;
 const LEFT_PASSAGE_MINIMUM_PARTICIPANTS = 1;
-const GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND = "group-combat-exit-navigation";
 const GROUP_COMBAT_UI_PUBLICATION_CLAIM_MS = 23_000;
 const GROUP_COMBAT_NAVIGATION_FENCE_PREFIX = "navigation:";
 
@@ -4421,11 +4423,13 @@ function validateSettlementRows(
     const exitState = parseGroupCombatExitDeliveryState(
       participant.exitDeliveryState
     );
+    const hasClaimToken = participant.exitDeliveryClaimToken !== null;
+    const hasClaimTimestamp = participant.exitDeliveryClaimedAt !== null;
     const claimCanonical = exitState === "claimed"
-      ? participant.exitDeliveryClaimToken !== null &&
-        participant.exitDeliveryClaimedAt !== null
-      : participant.exitDeliveryClaimToken === null &&
-        participant.exitDeliveryClaimedAt === null;
+      ? hasClaimToken && hasClaimTimestamp
+      : exitState === "menu-delivered"
+        ? hasClaimToken === hasClaimTimestamp
+        : !hasClaimToken && !hasClaimTimestamp;
     const messageCanonical =
       exitState === "menu-delivered" || exitState === "completed"
         ? participant.exitDeliveryMessageId !== null &&

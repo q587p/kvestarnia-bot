@@ -417,9 +417,12 @@ compact the previous canonical message before the best-effort delete, so delete
 refusal cannot preserve a second full battle card or terminal result beside the
 winner. A failed fresh terminal send restores the prior result. A
 supergroup/no-keyboard delivery acknowledges only the card.
-The production intro is an independent send and never rewrites or releases the
-canonical participant reference. This removes the start/scheduler race where
-intro cleanup could orphan a card already adopted by active delivery. Active
+The production intro remains a separate message but is serialized inside the
+same durable participant publication claim immediately before the
+keyboard-bearing canonical card. It never rewrites or releases the canonical
+participant reference, and a starter/scheduler retry cannot publish it after
+an acknowledged card. This removes the start/scheduler race where the plain
+intro could arrive last and hide the persistent keyboard. Active
 cards have no inline controls, so unchanged card edits and compaction of an
 already-delivered active reference omit `reply_markup` instead of submitting an
 empty inline keyboard that can hide the persistent reply keyboard. The
@@ -454,6 +457,11 @@ and releases the navigation lease last. Process death after adoption is
 restart-recoverable, while stale takeover cannot let an older worker publish
 after a newer combat. Terminal result cards contain only inline
 Journal/Statistics controls and never replace a newer reply keyboard.
+Strict repair treats `menu-delivered` as canonical both between retries with no
+owner and while its exact token/timestamp still owns the final CAS. Generic
+combat-lock routing recognizes that temporary exit-navigation lease, resumes
+only its exact participant/session and lets the pending quest or location route
+continue after completion instead of broadcasting a combat-owner mismatch.
 Manual action acceptance and turn resolution are separate durable boundaries.
 The first transaction validates and commits the queued/replaced action row.
 Only then may a bounded resolver claim navigation fences and apply the turn.

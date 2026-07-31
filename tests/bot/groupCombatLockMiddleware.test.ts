@@ -171,6 +171,68 @@ describe("group-combat lock middleware", () => {
     expect(privateCards).toHaveLength(1);
     expect(readReplyKeyboard(privateCards[0]?.replyMarkup)).toBeDefined();
   });
+
+  it("finishes a durable GroupCombat exit-navigation fence and lets navigation continue without mismatch spam", async () => {
+    const session = activeSession();
+    session.turn = 2;
+    session.state.turn = 2;
+    session.state.participants[0]!.fledAtTurn = 1;
+    session.participants[0]!.settlementStatus = "completed";
+    session.participants[0]!.exitDeliveryState = "pending";
+    const participant = session.participants[0]!;
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const serviceSet = services(session, vi.fn().mockResolvedValue(true));
+    serviceSet.testSpies.findLease.mockResolvedValue({
+      characterId: participant.characterId,
+      kind: "group-combat-exit-navigation",
+      referenceId: `${session.id}:${participant.characterId}`
+    });
+    Object.assign(serviceSet.groupCombat!, {
+      claimParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+        claimToken: string;
+        claimedAt: Date;
+      }) => {
+        participant.exitDeliveryState = "claimed";
+        participant.exitDeliveryClaimToken = input.claimToken;
+        participant.exitDeliveryClaimedAt = input.claimedAt;
+        return Promise.resolve({
+          state: "claimed",
+          locationId: "location.korchma.deep.level1.left",
+          menuDelivered: false
+        });
+      }),
+      renewParticipantFleeExitDeliveryClaim: vi.fn().mockResolvedValue(true),
+      markParticipantFleeExitMenuDelivered: vi.fn().mockImplementation((input: {
+        messageId: number;
+      }) => {
+        participant.exitDeliveryState = "menu-delivered";
+        participant.exitDeliveryMessageId = input.messageId;
+        return Promise.resolve(true);
+      }),
+      completeParticipantFleeExitDelivery: vi.fn().mockImplementation(() => {
+        participant.exitDeliveryState = "completed";
+        participant.exitDeliveryClaimToken = null;
+        participant.exitDeliveryClaimedAt = null;
+        participant.chatId = null;
+        participant.messageId = null;
+        participant.referenceVersion += 1;
+        return Promise.resolve(true);
+      }),
+      releaseParticipantFleeExitDeliveryClaim: vi.fn().mockResolvedValue(true)
+    });
+    registerCombatLockMiddleware(bot, serviceSet);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(participant.exitDeliveryState).toBe("completed");
+    expect(calls.sends.some((call) => call.text.includes("не збігається"))).toBe(false);
+    expect(calls.sends.some((call) => call.text.includes("Головне меню знову на місці")))
+      .toBe(true);
+  });
 });
 
 function services(

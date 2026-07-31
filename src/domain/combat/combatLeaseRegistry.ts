@@ -2,6 +2,8 @@ export const SOLO_COMBAT_LEASE_KIND = "solo-combat";
 export const TURN_BASED_DUEL_LEASE_KIND = "turn-based-duel";
 export const PARTY_BOSS_LEASE_KIND = "party-boss";
 export const GROUP_COMBAT_LEASE_KIND = "group-combat";
+export const GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND =
+  "group-combat-exit-navigation";
 
 export const COMBAT_LEASE_KINDS = [
   SOLO_COMBAT_LEASE_KIND,

@@ -47,7 +47,11 @@ Generic navigation combat-lock recovery now reads one authoritative
 solo overview. Privacy-safe callback evidence separates actor-visible latency
 from post-presentation work without increasing participant fan-out.
 The production opening message no longer mutates the canonical participant
-reference, closing the initial-delivery/scheduler orphan race. Unchanged active
+reference and is serialized immediately before its keyboard-bearing canonical
+card under the same durable claim, closing both the orphan race and the
+plain-intro-last keyboard loss. Healthy claimed `menu-delivered` exit rows stay
+repair-canonical until their final CAS; the exact temporary navigation lease is
+resumed instead of turning every quest/location press into mismatch spam. Unchanged active
 redraws omit inline reply markup and preserve the existing persistent keyboard
 without another participant send; changed controls and explicit refresh still
 use one fresh keyboard-card. This remains automated evidence until final-head

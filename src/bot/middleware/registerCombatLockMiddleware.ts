@@ -37,9 +37,17 @@ import {
   rememberTurnBasedDuelRouteClassification
 } from "../turnBasedDuelRouteClassification";
 import { beginUpdateComponent, memoizeUpdateRead } from "../updatePerformanceTrace";
-import { deliverGroupCombatParticipantCard } from "../groupCombatCardDelivery";
-import type { ActiveCombatLeaseRecord } from "../../db/repositories/combatLeaseReadRepository";
 import {
+  deliverGroupCombatParticipantCard,
+  deliverGroupCombatParticipantExitNavigation
+} from "../groupCombatCardDelivery";
+import type { ActiveCombatLeaseRecord } from "../../db/repositories/combatLeaseReadRepository";
+import type {
+  GroupCombatParticipantRecord,
+  GroupCombatSessionRecord
+} from "../../db/repositories/groupCombatRepository";
+import {
+  GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND,
   GROUP_COMBAT_LEASE_KIND,
   PARTY_BOSS_LEASE_KIND,
   SOLO_COMBAT_LEASE_KIND,
@@ -399,6 +407,20 @@ async function redirectCombatLockIfNeeded(
       return handled || handleInconsistentAuthoritativeCombatLease(ctx);
     }
 
+    if (lease?.kind === GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND) {
+      const handled = await resumeGroupCombatExitNavigationIfNeeded(
+        ctx,
+        telegramUserId,
+        services,
+        lease
+      );
+      return handled === "completed"
+        ? false
+        : handled === "busy"
+          ? true
+          : handleInconsistentAuthoritativeCombatLease(ctx);
+    }
+
     if (lease?.kind === SOLO_COMBAT_LEASE_KIND) {
       const handled = await redirectFightLockIfNeeded(
         ctx,
@@ -735,7 +757,74 @@ async function isAuthoritativeCombatLeaseOwnerConsistent(
   if (lease.kind === GROUP_COMBAT_LEASE_KIND) {
     return Boolean(await getExactGroupCombatOwner(telegramUserId, services, lease));
   }
+  if (lease.kind === GROUP_COMBAT_EXIT_NAVIGATION_LEASE_KIND) {
+    return Boolean(await getExactGroupCombatExitNavigationOwner(
+      telegramUserId,
+      services,
+      lease
+    ));
+  }
   return false;
+}
+
+async function resumeGroupCombatExitNavigationIfNeeded(
+  ctx: Context,
+  telegramUserId: bigint,
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+): Promise<"completed" | "busy" | "inconsistent"> {
+  const owner = await getExactGroupCombatExitNavigationOwner(
+    telegramUserId,
+    services,
+    lease
+  );
+  if (!owner || !services.groupCombat) {
+    return "inconsistent";
+  }
+  await answerCombatLockCallback(ctx);
+  const completed = await deliverGroupCombatParticipantExitNavigation(
+    ctx.api,
+    services.groupCombat,
+    owner.session.id,
+    owner.participant.characterId
+  );
+  return completed ? "completed" : "busy";
+}
+
+async function getExactGroupCombatExitNavigationOwner(
+  telegramUserId: bigint,
+  services: BotServices,
+  lease: ActiveCombatLeaseRecord
+): Promise<{
+  session: GroupCombatSessionRecord;
+  participant: GroupCombatParticipantRecord;
+} | null> {
+  if (!services.groupCombat || typeof services.groupCombat.findById !== "function") {
+    return null;
+  }
+  const suffix = `:${lease.characterId}`;
+  if (!lease.referenceId.endsWith(suffix)) {
+    return null;
+  }
+  const sessionId = lease.referenceId.slice(0, -suffix.length);
+  if (!sessionId) {
+    return null;
+  }
+  const session = await memoizeUpdateRead(
+    `group-combat-exit-owner:${sessionId}:${lease.characterId}`,
+    () => services.groupCombat!.findById(sessionId)
+  );
+  const participant = session?.participants.find((candidate) =>
+    candidate.characterId === lease.characterId &&
+    candidate.telegramUserId === telegramUserId &&
+    candidate.settlementStatus === "completed" &&
+    (
+      candidate.exitDeliveryState === "pending" ||
+      candidate.exitDeliveryState === "claimed" ||
+      candidate.exitDeliveryState === "menu-delivered"
+    )
+  );
+  return session && participant ? { session, participant } : null;
 }
 
 async function getExactTurnBasedDuelOwner(

@@ -4,7 +4,6 @@ import {
   deliverCanonicalGroupCombatParticipantCard,
   deliverGroupCombatCards,
   deliverGroupCombatSettlementNotifications,
-  deliverGroupCombatStartIntro,
   type GroupCombatDeliveryTransport
 } from "../../src/bot/groupCombatCardDelivery";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
@@ -67,85 +66,80 @@ describe("group-combat canonical participant delivery", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("sends a production start intro separately to every participant", async () => {
-    const session = makeSession();
-    session.state.rulesVersion = "group-combat.v3";
-    session.state.encounterKey = "nyz-left-passage-party.v1";
-    const editMessageText = vi.fn();
-    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
-    const releaseParticipantCard = vi.fn();
-
-    await expect(deliverGroupCombatStartIntro({
-      editMessageText,
-      sendMessage
-    } as unknown as Api, {
-      releaseParticipantCard
-    } as unknown as GroupCombatService, session)).resolves.toBe(2);
-
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenNthCalledWith(
-      1,
-      1001,
-      expect.stringContaining("Бій починається. Корчма відкриває журнал ходів"),
-      { parse_mode: "HTML" }
-    );
-    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("<i>Порада дня:");
-    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("<i>Порада дня:");
-    expect(editMessageText).not.toHaveBeenCalled();
-    expect(releaseParticipantCard).not.toHaveBeenCalled();
-    expect(session.participants.map((participant) => participant.messageId)).toEqual([21, 22]);
-  });
-
-  it("cannot release a canonical first-turn card while the separate intro overlaps delivery", async () => {
+  it("orders each production intro before that participant's keyboard-bearing canonical card", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";
     session.state.encounterKey = "nyz-left-passage-party.v1";
     let nextMessageId = 90;
-    const sends: Array<{ chatId: number; messageId: number; text: string; hasKeyboard: boolean }> = [];
-    const sendMessage = vi.fn((
-      chatId: number,
-      text: string,
-      options?: { reply_markup?: { keyboard?: unknown } }
-    ) => {
-      const messageId = nextMessageId++;
-      sends.push({
-        chatId,
-        messageId,
-        text,
-        hasKeyboard: Boolean(options?.reply_markup?.keyboard)
-      });
-      return Promise.resolve({ message_id: messageId });
-    });
-    const editMessageText = vi.fn().mockResolvedValue(true);
-    const deleteMessage = vi.fn().mockResolvedValue(true);
-    const releaseParticipantCard = vi.fn();
+    const sends: Array<{ chatId: number; text: string; hasKeyboard: boolean }> = [];
+    const api = {
+      sendMessage: vi.fn((chatId: number, text: string, options?: {
+        reply_markup?: { keyboard?: unknown };
+      }) => {
+        sends.push({
+          chatId,
+          text,
+          hasKeyboard: Boolean(options?.reply_markup?.keyboard)
+        });
+        return Promise.resolve({ message_id: nextMessageId++ });
+      }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
     const service = {
       ...mutableCardService(session),
-      releaseParticipantCard,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
 
-    await Promise.all([
-      deliverGroupCombatStartIntro(
-        { sendMessage, editMessageText } as unknown as Api,
-        service,
-        session
-      ),
-      deliverGroupCombatCards(
-        { sendMessage, editMessageText, deleteMessage } as unknown as Api,
-        service,
-        session
-      )
-    ]);
+    await expect(deliverGroupCombatCards(api, service, session, {
+      publishStartIntro: true
+    })).resolves.toBe(2);
+
+    for (const chatId of [1001, 1002]) {
+      const participantSends = sends.filter((entry) => entry.chatId === chatId);
+      expect(participantSends).toHaveLength(2);
+      expect(participantSends[0]?.text).toContain(
+        "Бій починається. Корчма відкриває журнал ходів"
+      );
+      expect(participantSends[0]?.text).toContain("<i>Порада дня:");
+      expect(participantSends[0]?.hasKeyboard).toBe(false);
+      expect(participantSends[1]?.text).toContain("<b>Бій</b>: 1 хід");
+      expect(participantSends[1]?.hasKeyboard).toBe(true);
+    }
+  });
+
+  it("does not let a retried starter publish an intro after an acknowledged canonical keyboard", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    let nextMessageId = 90;
+    const sends: Array<{ chatId: number; text: string; hasKeyboard: boolean }> = [];
+    const sendMessage = vi.fn((chatId: number, text: string, options?: {
+      reply_markup?: { keyboard?: unknown };
+    }) => {
+      sends.push({ chatId, text, hasKeyboard: Boolean(options?.reply_markup?.keyboard) });
+      return Promise.resolve({ message_id: nextMessageId++ });
+    });
+    const service = {
+      ...mutableCardService(session),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    const api = {
+      sendMessage,
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
+
+    await deliverGroupCombatCards(api, service, session, { publishStartIntro: true });
+    await deliverGroupCombatCards(api, service, session, { publishStartIntro: true });
 
     expect(sends.filter((entry) => entry.text.includes("Бій починається.")))
       .toHaveLength(2);
-    const battleCards = sends.filter((entry) => entry.text.includes("<b>Бій</b>: 1 хід"));
-    expect(battleCards).toHaveLength(2);
-    expect(battleCards.every((entry) => entry.hasKeyboard)).toBe(true);
-    expect(releaseParticipantCard).not.toHaveBeenCalled();
-    expect(session.participants.map((participant) => participant.messageId))
-      .toEqual(battleCards.map((entry) => entry.messageId));
+    for (const chatId of [1001, 1002]) {
+      const participantSends = sends.filter((entry) => entry.chatId === chatId);
+      expect(participantSends.at(-1)?.text).toContain("<b>Бій</b>: 1 хід");
+      expect(participantSends.at(-1)?.hasKeyboard).toBe(true);
+    }
   });
 
   it("does not resend an intro for proof, replay or later-turn delivery", async () => {
@@ -153,13 +147,26 @@ describe("group-combat canonical participant delivery", () => {
     const productionReplay = makeSession({ turn: 2 });
     productionReplay.state.rulesVersion = "group-combat.v3";
     productionReplay.state.encounterKey = "nyz-left-passage-party.v1";
-    const sendMessage = vi.fn();
-    const api = { sendMessage } as unknown as Api;
+    const sends: string[] = [];
+    let nextMessageId = 90;
+    const api = {
+      sendMessage: vi.fn((_chatId: number, text: string) => {
+        sends.push(text);
+        return Promise.resolve({ message_id: nextMessageId++ });
+      }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
 
-    const service = {} as GroupCombatService;
-    await expect(deliverGroupCombatStartIntro(api, service, proof)).resolves.toBe(0);
-    await expect(deliverGroupCombatStartIntro(api, service, productionReplay)).resolves.toBe(0);
-    expect(sendMessage).not.toHaveBeenCalled();
+    await deliverGroupCombatCards(api, {
+      ...mutableCardService(proof),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, proof, { publishStartIntro: true });
+    await deliverGroupCombatCards(api, {
+      ...mutableCardService(productionReplay),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService, productionReplay, { publishStartIntro: true });
+    expect(sends.every((text) => !text.includes("Бій починається."))).toBe(true);
   });
 
   it("restores the main reply keyboard before publishing a fresh terminal Journal/Statistics card", async () => {
