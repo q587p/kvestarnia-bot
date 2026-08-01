@@ -1641,6 +1641,8 @@ function presentPartyBossItemUnavailableNotice(
   switch (reason) {
     case "full-hp":
       return "Манатка покрутилася в руках і не знайшла синця, який варто драматизувати.";
+    case "full-mana":
+      return "Манатка перевірила запас мани й відмовилася переливати через край.";
     case "not-owned":
       return "Манатки не знайшлося в торбі. Можливо, вона відповідально панікує деінде.";
     case "reserved":
@@ -1837,6 +1839,10 @@ function presentPartyBossActionSupport(
 function presentPartyBossItemHealing(
   action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
 ): string {
+  if (action.manaRestored && action.manaRestored > 0) {
+    return ` Ману відновлено на ${action.manaRestored}.`;
+  }
+
   if (!action.healing || action.healing <= 0) {
     return " Але журнал не знайшов браку HP.";
   }

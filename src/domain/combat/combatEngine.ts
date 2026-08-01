@@ -1,4 +1,5 @@
 import type { RandomSource } from "../../shared/random";
+import type { ItemUseEffectContent } from "../../content/schema";
 import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../itemCraft";
 import { withBardInspirationAccuracy } from "../noncombat/bardSupport";
 import {
@@ -96,15 +97,7 @@ export interface ResolveCombatItemTurnInput {
   rng: RandomSource;
 }
 
-export type CombatItemEffectInput =
-  | {
-      kind: "heal-hp";
-      amount: number;
-    }
-  | {
-      kind: "heal-hp-to-min-percent";
-      percent: number;
-    };
+export type CombatItemEffectInput = ItemUseEffectContent;
 
 export type ResolveCombatTurnResult =
   | {
@@ -127,7 +120,7 @@ export type ResolveCombatItemTurnResult =
     }
   | {
       ok: false;
-      reason: "inactive" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
+      reason: "inactive" | "full-hp" | "full-mana" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
       state: CombatState;
       summary: CombatTurnSummary;
     };
@@ -571,7 +564,7 @@ export function resolveCombatItemTurn(input: ResolveCombatItemTurnInput): Resolv
     };
   }
 
-  if (resolveCombatItemHealing(input.state, input.item) <= 0) {
+  if (!isCombatItemEffectApplicable(input.state, input.item.effect)) {
     const summary = buildSummary({
       action: "item",
       heroOutcome: "item-used",
@@ -585,7 +578,8 @@ export function resolveCombatItemTurn(input: ResolveCombatItemTurnInput): Resolv
 
     return {
       ok: false,
-      reason: "full-hp",
+      reason: input.item.effect.kind === "restore-mana" ? "full-mana" :
+        isRestorativeCombatItemEffect(input.item.effect) ? "full-hp" : "effect-unavailable",
       state: cloneCombatState(input.state),
       summary
     };
@@ -618,20 +612,30 @@ function resolveSingleEnemyCombatItemTurn(
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
   tickCombatItemCooldowns(nextState);
-  const heroHealing = resolveCombatItemHealing(nextState, item);
+  const effect = resolveCombatItemEffect(nextState, item, input.rng);
+  const { heroHealing, heroManaRestored } = effect;
   nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+  nextState.hero.mana = Math.min(nextState.hero.manaMax, nextState.hero.mana + heroManaRestored);
+  if (effect.heroDamage > 0) {
+    nextState.monster.hp = Math.max(0, nextState.monster.hp - effect.heroDamage);
+  }
+  if (effect.cooldownTurnsReduced > 0) {
+    reduceCombatCooldowns(nextState, effect.cooldownTurnsReduced);
+  }
   recordCombatItemUse(nextState, item.id);
 
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   const heroEffectDamage = heroEffect.damage;
-  const monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
+  const hpBeforeResponse = nextState.hero.hp;
+  const monsterResponse = !effect.evadeResponse && nextState.hero.hp > 0 && nextState.monster.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
         input,
         damageReduction: 0
       })
     : { damage: 0 };
-  const monsterDamage = heroEffectDamage + monsterResponse.damage;
+  const guardedDamage = applyPercentageResponseGuard(nextState, hpBeforeResponse, monsterResponse.damage, effect.guardPercent);
+  const monsterDamage = heroEffectDamage + guardedDamage;
   const satedRecovery = applyAfterCommittedHeroAction(input, nextState);
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
@@ -650,13 +654,14 @@ function resolveSingleEnemyCombatItemTurn(
     monsterOutcome: nextState.status === "lost"
       ? "lost"
       : monsterResponse.outcome ?? (monsterDamage > 0 ? "hit" : "miss"),
-    heroDamage: 0,
+    heroDamage: effect.heroDamage,
     monsterDamage,
     heroEffectDamage,
     manaSpent: 0,
     critical: false,
     item,
     heroHealing,
+    heroManaRestored,
     heroHpAfter: nextState.hero.hp,
     ...(satedRecovery ? { satedRecovery } : {}),
     ...(monsterResponse.monsterAction ? { monsterAction: monsterResponse.monsterAction } : {}),
@@ -683,11 +688,35 @@ function resolveMultiEnemyCombatItemTurn(
   const nextState = cloneCombatState(input.state);
   tickSkillCooldown(nextState);
   tickCombatItemCooldowns(nextState);
-  const heroHealing = resolveCombatItemHealing(nextState, item);
+  const effect = resolveCombatItemEffect(nextState, item, input.rng);
+  const { heroHealing, heroManaRestored } = effect;
   nextState.hero.hp = Math.min(nextState.hero.hpMax, nextState.hero.hp + heroHealing);
+  nextState.hero.mana = Math.min(nextState.hero.manaMax, nextState.hero.mana + heroManaRestored);
+  if (effect.heroDamage > 0) {
+    const primary = getPrimaryCombatEnemy(nextState);
+    if (primary) {
+      updateCombatEnemy(nextState, primary.enemyId, {
+        ...primary,
+        hp: Math.max(0, primary.hp - effect.heroDamage)
+      });
+      syncPrimaryCombatEnemy(nextState);
+    }
+  }
+  if (effect.cooldownTurnsReduced > 0) {
+    reduceCombatCooldowns(nextState, effect.cooldownTurnsReduced);
+  }
   recordCombatItemUse(nextState, item.id);
 
-  const activationPhase = resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
+  const hpBeforeResponse = nextState.hero.hp;
+  const activationPhase = effect.evadeResponse
+    ? {
+        heroEffectDamage: applyHeroActivationEffectsForCombatState(nextState).damage,
+        monsterDamage: 0,
+        enemyPhase: { monsterOutcome: "miss" as const, primaryAction: undefined, enemyActions: [], enemyPressureSkips: [] },
+        satedRecovery: applyAfterCommittedHeroAction(input, nextState)
+      }
+    : resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
+  const guardedDamage = applyPercentageResponseGuard(nextState, hpBeforeResponse, activationPhase.monsterDamage, effect.guardPercent);
   const { enemyPhase, heroEffectDamage, satedRecovery } = activationPhase;
   nextState.status = getLivingCombatEnemies(nextState).length === 0
     ? "won"
@@ -700,13 +729,14 @@ function resolveMultiEnemyCombatItemTurn(
     action: "item",
     heroOutcome: "item-used",
     monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
-    heroDamage: 0,
-    monsterDamage: activationPhase.monsterDamage,
+    heroDamage: effect.heroDamage,
+    monsterDamage: guardedDamage,
     heroEffectDamage,
     manaSpent: 0,
     critical: false,
     item,
     heroHealing,
+    heroManaRestored,
     heroHpAfter: nextState.hero.hp,
     ...(satedRecovery ? { satedRecovery } : {}),
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
@@ -727,15 +757,142 @@ export function resolveCombatItemHealing(
   state: CombatState,
   item: ResolveCombatItemTurnInput["item"]
 ): number {
-  switch (item.effect.kind) {
+  return resolveCombatItemRestoration(state, item).heroHealing;
+}
+
+export function resolveCombatItemRestoration(
+  state: CombatState,
+  item: ResolveCombatItemTurnInput["item"],
+  rng?: RandomSource
+): { heroHealing: number; heroManaRestored: number } {
+  const effect = item.effect.kind === "random-resource"
+    ? resolveRandomCombatResourceEffect(item.effect, state, rng)
+    : item.effect;
+  switch (effect.kind) {
     case "heal-hp":
-      return Math.min(Math.max(0, item.effect.amount), Math.max(0, state.hero.hpMax - state.hero.hp));
+      return {
+        heroHealing: Math.min(Math.max(0, effect.amount), Math.max(0, state.hero.hpMax - state.hero.hp)),
+        heroManaRestored: 0
+      };
     case "heal-hp-to-min-percent": {
-      const percent = Math.max(1, Math.min(100, Math.floor(item.effect.percent)));
+      const percent = Math.max(1, Math.min(100, Math.floor(effect.percent)));
       const targetHp = Math.min(state.hero.hpMax, Math.ceil(state.hero.hpMax * percent / 100));
-      return Math.max(0, targetHp - state.hero.hp);
+      return { heroHealing: Math.max(0, targetHp - state.hero.hp), heroManaRestored: 0 };
     }
+    case "restore-mana":
+      return {
+        heroHealing: 0,
+        heroManaRestored: Math.min(Math.max(0, effect.amount), Math.max(0, state.hero.manaMax - state.hero.mana))
+      };
+    case "restore-both":
+      return {
+        heroHealing: Math.min(Math.max(0, effect.hpAmount), Math.max(0, state.hero.hpMax - state.hero.hp)),
+        heroManaRestored: Math.min(Math.max(0, effect.manaAmount), Math.max(0, state.hero.manaMax - state.hero.mana))
+      };
+    case "heal-hp-below-percent":
+      return {
+        heroHealing: state.hero.hp <= Math.floor(state.hero.hpMax * effect.thresholdPercent / 100)
+          ? Math.min(Math.max(0, effect.amount), Math.max(0, state.hero.hpMax - state.hero.hp))
+          : 0,
+        heroManaRestored: 0
+      };
+    default:
+      return { heroHealing: 0, heroManaRestored: 0 };
   }
+}
+
+export function isCombatItemEffectApplicable(state: CombatState, effect: CombatItemEffectInput): boolean {
+  if (effect.kind === "paired-heal" || effect.kind === "party-heal" || effect.kind === "cleanse-negative") {
+    return false;
+  }
+  if (effect.kind === "reduce-cooldowns") {
+    return hasPositiveCombatCooldown(state.cooldowns);
+  }
+  if (effect.kind === "critical-damage" || effect.kind === "guard-response" || effect.kind === "evade-response") {
+    return state.monster.hp > 0;
+  }
+  if (effect.kind === "random-resource") {
+    return state.hero.hp < state.hero.hpMax || state.hero.mana < state.hero.manaMax;
+  }
+  const restoration = resolveCombatItemRestoration(state, { id: "preview", name: "preview", effect });
+  return restoration.heroHealing > 0 || restoration.heroManaRestored > 0;
+}
+
+function isRestorativeCombatItemEffect(effect: CombatItemEffectInput): boolean {
+  return effect.kind === "heal-hp" || effect.kind === "heal-hp-to-min-percent" ||
+    effect.kind === "restore-mana" || effect.kind === "restore-both" ||
+    effect.kind === "random-resource" || effect.kind === "heal-hp-below-percent";
+}
+
+function resolveRandomCombatResourceEffect(
+  effect: Extract<CombatItemEffectInput, { kind: "random-resource" }>,
+  state: CombatState,
+  rng?: RandomSource
+): CombatItemEffectInput {
+  const candidates: CombatItemEffectInput[] = [];
+  if (state.hero.hp < state.hero.hpMax) candidates.push({ kind: "heal-hp", amount: effect.amount });
+  if (state.hero.mana < state.hero.manaMax) candidates.push({ kind: "restore-mana", amount: effect.amount });
+  if (effect.bothAmount !== undefined && (state.hero.hp < state.hero.hpMax || state.hero.mana < state.hero.manaMax)) {
+    candidates.push({ kind: "restore-both", hpAmount: effect.bothAmount, manaAmount: effect.bothAmount });
+  }
+  return candidates[rng?.nextInt(0, candidates.length - 1) ?? 0] ?? { kind: "heal-hp", amount: effect.amount };
+}
+
+function resolveCombatItemEffect(
+  state: CombatState,
+  item: ResolveCombatItemTurnInput["item"],
+  rng: RandomSource
+): {
+  heroHealing: number;
+  heroManaRestored: number;
+  heroDamage: number;
+  evadeResponse: boolean;
+  guardPercent: number;
+  cooldownTurnsReduced: number;
+} {
+  const restoration = resolveCombatItemRestoration(state, item, rng);
+  return {
+    ...restoration,
+    heroDamage: item.effect.kind === "critical-damage"
+      ? Math.min(state.monster.hp, Math.max(0, Math.floor(item.effect.amount)))
+      : 0,
+    evadeResponse: item.effect.kind === "evade-response",
+    guardPercent: item.effect.kind === "guard-response"
+      ? Math.max(0, Math.min(100, Math.floor(item.effect.reductionPercent)))
+      : 0,
+    cooldownTurnsReduced: item.effect.kind === "reduce-cooldowns"
+      ? Math.max(0, Math.floor(item.effect.turns))
+      : 0
+  };
+}
+
+function hasPositiveCombatCooldown(cooldowns: CombatState["cooldowns"]): boolean {
+  return Boolean(cooldowns && (
+    Object.values(cooldowns.abilities ?? {}).some((entry) => entry.remainingTurns > 0) ||
+    (cooldowns.skill?.remainingTurns ?? 0) > 0
+  ));
+}
+
+function reduceCombatCooldowns(state: CombatState, turns: number): void {
+  if (!state.cooldowns || turns <= 0) return;
+  const reduced = cloneCombatCooldowns(state.cooldowns);
+  if (reduced.skill) reduced.skill.remainingTurns = Math.max(0, reduced.skill.remainingTurns - turns);
+  for (const cooldown of Object.values(reduced.abilities ?? {})) {
+    cooldown.remainingTurns = Math.max(0, cooldown.remainingTurns - turns);
+  }
+  setStateCooldowns(state, hasPositiveCombatCooldown(reduced) ? reduced : undefined);
+}
+
+function applyPercentageResponseGuard(
+  state: CombatState,
+  hpBeforeResponse: number,
+  responseDamage: number,
+  guardPercent: number
+): number {
+  if (responseDamage <= 0 || guardPercent <= 0) return responseDamage;
+  const prevented = Math.min(responseDamage, Math.floor(responseDamage * guardPercent / 100));
+  state.hero.hp = Math.min(hpBeforeResponse, state.hero.hp + prevented);
+  return responseDamage - prevented;
 }
 
 export function getCombatItemAvailability(
@@ -2040,6 +2197,7 @@ function buildSummary(input: {
   critical: boolean;
   item?: ResolveCombatItemTurnInput["item"];
   heroHealing?: number;
+  heroManaRestored?: number;
   heroHpAfter?: number;
   skill?: CombatSkillProfile;
   monsterSkill?: CombatSkillProfile;
@@ -2090,6 +2248,7 @@ function buildSummary(input: {
     ...(input.monsterBarkId ? { monsterBarkId: input.monsterBarkId } : {}),
     ...(input.item ? { itemId: input.item.id, itemName: input.item.name } : {}),
     ...(input.heroHealing ? { heroHealing: input.heroHealing } : {}),
+    ...(input.heroManaRestored ? { heroManaRestored: input.heroManaRestored } : {}),
     ...(input.heroHpAfter !== undefined ? { heroHpAfter: input.heroHpAfter } : {}),
     ...(input.enemyResults && input.enemyResults.length > 0 ? { enemyResults: input.enemyResults } : {}),
     ...(input.allyResults && input.allyResults.length > 0 ? { allyResults: input.allyResults } : {}),

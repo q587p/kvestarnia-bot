@@ -12,6 +12,10 @@ import type {
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import { randomBytes } from "node:crypto";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
+import { isMedicalCombatItemId } from "./combatItemUse";
+import type { DailyActionRepository } from "../db/repositories/dailyActionRepository";
+import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
+import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
@@ -43,12 +47,14 @@ export class GroupCombatService {
       enabled: boolean;
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
+      consumableManatkaUsesEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
     private readonly resolveQuestMarkers?: (
       telegramUserId: bigint
-    ) => Promise<unknown>
+    ) => Promise<unknown>,
+    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">
   ) {}
 
   isEnabled(): boolean {
@@ -61,6 +67,24 @@ export class GroupCombatService {
 
   isLeftPassageEntryEnabled(): boolean {
     return this.options.enabled && this.options.leftPassagePartyAttackEnabled === true;
+  }
+
+  areConsumableManatkaUsesEnabled(): boolean {
+    return this.options.consumableManatkaUsesEnabled === true;
+  }
+
+  async getHiddenCombatItemIdsForTelegramUser(telegramUserId: bigint): Promise<ReadonlySet<string>> {
+    if (
+      this.dailyActions &&
+      !(await isQuestConsumableUseUnlocked(
+        this.dailyActions,
+        telegramUserId,
+        CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID
+      ))
+    ) {
+      return new Set([CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID]);
+    }
+    return new Set();
   }
 
   async createLeftPassageParty(input: {
@@ -177,6 +201,22 @@ export class GroupCombatService {
   }): Promise<GroupCombatActionResult> {
     if (!this.options.enabled) {
       return { state: "disabled" };
+    }
+    if (
+      input.action === "item" &&
+      input.payloadKey &&
+      !this.areConsumableManatkaUsesEnabled() &&
+      !isMedicalCombatItemId(input.payloadKey)
+    ) {
+      return { state: "action-unavailable" };
+    }
+    if (
+      input.action === "item" &&
+      input.payloadKey &&
+      this.dailyActions &&
+      !(await isQuestConsumableUseUnlocked(this.dailyActions, input.telegramUserId, input.payloadKey))
+    ) {
+      return { state: "action-unavailable" };
     }
     const now = this.now();
     const result = await this.repository.submitActionForTelegramUser({

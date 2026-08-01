@@ -357,7 +357,7 @@ async function getCombatUseStateForItem(
     | null;
   combatLocked: boolean;
 }> {
-  const combatItem = getCombatUsableItem(item);
+  const combatItem = getCombatUsableItem(item, services.itemUse.areConsumableManatkaUsesEnabled());
   if (!combatItem || typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return { action: null, combatLocked: false };
   }
@@ -429,6 +429,7 @@ async function handleItemUseCallback(
       show_alert:
         result.state === "combat-locked" ||
         result.state === "full-hp" ||
+        result.state === "full-mana" ||
         result.state === "reserved"
     });
     await safeEditMessageText(ctx, presentItemUsePreview(result, { combatUseAvailable }), {
@@ -436,7 +437,7 @@ async function handleItemUseCallback(
       reply_markup:
         result.state === "preview-created" || result.state === "preview-replayed"
           ? buildItemUsePreviewKeyboard(result.order.token)
-          : buildItemUseResultKeyboard(result.state === "full-hp" ? { detailItemId: action.itemId } : {})
+          : buildItemUseResultKeyboard(result.state === "full-hp" || result.state === "full-mana" ? { detailItemId: action.itemId } : {})
     });
     return;
   }
@@ -504,13 +505,14 @@ async function handleItemUseCallback(
               result.state === "stale-selection" ||
               result.state === "combat-locked" ||
               result.state === "full-hp" ||
+              result.state === "full-mana" ||
               result.state === "expired"
           }
   );
   await safeEditMessageText(ctx, presentItemUseConfirm(result, { combatUseAvailable }), {
     ...HTML_MESSAGE_OPTIONS,
     reply_markup: buildItemUseResultKeyboard(
-      result.state === "full-hp"
+      result.state === "full-hp" || result.state === "full-mana"
         ? { detailItemId: result.order.itemId }
         : repeat
     )

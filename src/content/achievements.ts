@@ -829,6 +829,17 @@ export const achievements = [
     trigger: { type: "item.received", itemId: "item.iskrokamin", threshold: 1 }
   },
   {
+    id: "achievement.consumable.first-used",
+    category: "gear",
+    title: "Торба стала легшою не випадково",
+    description: "уперше використати разову манатку й дочекатися її чесно зафіксованого ефекту.",
+    hidden: false,
+    lockedDescription: "уперше використати разову манатку.",
+    sortOrder: 78.18,
+    status: "enabled",
+    trigger: { type: "item.used", threshold: 1 }
+  },
+  {
     id: "achievement.bandage.first-used",
     category: "gear",
     title: "Паніка спрацювала за призначенням",

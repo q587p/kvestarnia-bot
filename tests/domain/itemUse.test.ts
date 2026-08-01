@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateHealingPreview } from "../../src/domain/itemUse";
+import { calculateHealingPreview, calculateItemUsePreview } from "../../src/domain/itemUse";
 
 describe("item use domain", () => {
   it("raises field-kit previews to at least ninety-three percent HP", () => {
@@ -20,6 +20,27 @@ describe("item use domain", () => {
     expect(calculateHealingPreview({ hpCurrent: 93, hpMax: 100, effect })).toMatchObject({
       healAmount: 0,
       hpAfter: 93
+    });
+  });
+
+  it("caps typed mana restoration at the current maximum", () => {
+    expect(calculateItemUsePreview({
+      hpCurrent: 20,
+      hpMax: 30,
+      manaCurrent: 4,
+      manaMax: 10,
+      effect: { kind: "restore-mana", amount: 9 },
+      resolutionSeed: "mana-test"
+    })).toMatchObject({
+      resource: "mana",
+      hpBefore: 20,
+      hpMax: 30,
+      healAmount: 0,
+      hpAfter: 20,
+      manaBefore: 4,
+      manaMax: 10,
+      manaRestoreAmount: 6,
+      manaAfter: 10
     });
   });
 });

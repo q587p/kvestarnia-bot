@@ -6,10 +6,10 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
-  calculatePartyBossCombatItemHealing,
   clonePartyBossState,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
+  isPartyBossCombatItemEffectApplicable,
   getWarriorRaidTauntAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
@@ -31,6 +31,7 @@ import {
   parsePartyBossStatusStrict
 } from "../../domain/partyBoss/partyBossStateValidation";
 import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
+import { itemUseEffectSchema } from "../../content/schema";
 import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
@@ -852,13 +853,21 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         };
       }
 
+      if (!(await isQuestConsumableUnlocked(tx, character.id, item.id))) {
+        return { state: "item-unavailable", reason: "not-usable", session: this.mapSession(session) };
+      }
+
       const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
       if (!itemAvailability.available) {
         return { state: "item-unavailable", reason: itemAvailability.reason, session: this.mapSession(session) };
       }
 
-      if (calculatePartyBossCombatItemHealing(actor.resources, item.effect) <= 0) {
-        return { state: "item-unavailable", reason: "full-hp", session: this.mapSession(session) };
+      if (!isPartyBossCombatItemEffectApplicable(state, actor, item.effect)) {
+        return {
+          state: "item-unavailable",
+          reason: item.effect.kind === "restore-mana" ? "full-mana" : "full-hp",
+          session: this.mapSession(session)
+        };
       }
 
       const lease = await tx.activeCombatLease.findUnique({
@@ -2573,34 +2582,24 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
     return null;
   }
 
-  if (!item.effect || typeof item.effect !== "object" || Array.isArray(item.effect)) {
-    return null;
-  }
+  const effect = itemUseEffectSchema.safeParse(item.effect);
+  return effect.success ? { id: item.id, name: item.name, effect: effect.data } : null;
+}
 
-  const effect = item.effect as { kind?: unknown; amount?: unknown; percent?: unknown };
-  if (effect.kind === "heal-hp" && typeof effect.amount === "number") {
-    return {
-      id: item.id,
-      name: item.name,
-      effect: {
-        kind: "heal-hp",
-        amount: effect.amount
-      }
-    };
-  }
-
-  if (effect.kind === "heal-hp-to-min-percent" && typeof effect.percent === "number") {
-    return {
-      id: item.id,
-      name: item.name,
-      effect: {
-        kind: "heal-hp-to-min-percent",
-        percent: effect.percent
-      }
-    };
-  }
-
-  return null;
+async function isQuestConsumableUnlocked(tx: TxClient, characterId: string, itemId: string): Promise<boolean> {
+  if (itemId !== "item.cellar.foamy-mirage-bottle") return true;
+  const [acquisition, completion] = await Promise.all([
+    tx.dailyAction.findUnique({
+      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.bottle", localDate: "once" } },
+      select: { id: true }
+    }),
+    tx.dailyAction.findUnique({
+      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.completed", localDate: "once" } },
+      select: { resultJson: true }
+    })
+  ]);
+  const result = completion?.resultJson;
+  return !acquisition || Boolean(result && typeof result === "object" && !Array.isArray(result) && result.ending === "keep");
 }
 
 function parseActionGearAbility(value: Prisma.JsonValue): CombatGearAbilityInput | null {

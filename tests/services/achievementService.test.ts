@@ -541,6 +541,7 @@ describe("AchievementService", () => {
       "achievement.bandage.dense-crafted"
     ]);
     expect(useUnlocks.map((unlock) => unlock.id)).toEqual([
+      "achievement.consumable.first-used",
       "achievement.bandage.field-kit-used"
     ]);
   });
@@ -989,6 +990,7 @@ describe("AchievementService", () => {
       "achievement.item.thirteen-owned",
       "achievement.bandage.first-owned",
       "achievement.bandage.ninety-three-owned",
+      "achievement.consumable.first-used",
       "achievement.bandage.first-used",
       "achievement.bandage.four-used",
       "achievement.bandage.dense-used",

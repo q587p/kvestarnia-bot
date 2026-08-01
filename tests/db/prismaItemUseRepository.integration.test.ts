@@ -11,9 +11,10 @@ const telegramUserId = 42n;
 const characterId = "character-42";
 const userId = "user-42";
 const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
+const manaConsumable = items.find((item) => item.id === "item.loot-v1-c014");
 
-if (!bandage) {
-  throw new Error("Bandage content is missing.");
+if (!bandage || !manaConsumable) {
+  throw new Error("Required consumable content is missing.");
 }
 
 describe("PrismaItemUseRepository integration", () => {
@@ -86,6 +87,93 @@ describe("PrismaItemUseRepository integration", () => {
     expect(replay).toMatchObject({ state: "replayed", order: { status: "completed" } });
     await expectBandageQuantity(1);
     await expectCharacterHp(17);
+  });
+
+  it.each([
+    ["item.loot-v1-c001", 7],
+    ["item.loot-v1-c003", 8],
+    ["item.loot-v1-c009", 9]
+  ] as const)("keeps %s at exactly %i HP with one consume and canonical replay", async (itemId, amount) => {
+    const item = items.find((candidate) => candidate.id === itemId)!;
+    await seedCharacter({ hpCurrent: 10, hpMax: 25 });
+    await seedItem(itemId, 1);
+    const token = `use-${itemId}`;
+
+    await expect(repository.createPreviewForTelegramUser(telegramUserId, {
+      item,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(item),
+      token,
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({
+      state: "preview-created",
+      order: { preview: { healAmount: amount, hpAfter: 10 + amount } }
+    });
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token,
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({ state: "used", order: { result: { healAmount: amount } } });
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token,
+      itemContents: items,
+      now: now()
+    })).resolves.toMatchObject({ state: "replayed", order: { result: { healAmount: amount } } });
+    await expectCharacterHp(10 + amount);
+    expect(await prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId, itemId } }
+    })).toBeNull();
+  });
+
+  it("consumes one dual-resource consumable, restores once and replays duplicate confirmation", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 0 });
+    await seedItem(manaConsumable.id, 2);
+    const preview = await repository.createPreviewForTelegramUser(telegramUserId, {
+      item: manaConsumable,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(manaConsumable),
+      token: "use-token-mana",
+      now: now(),
+      expiresAt: future()
+    });
+
+    expect(preview).toMatchObject({
+      state: "preview-created",
+      order: { preview: { resource: "both", healAmount: 9, manaRestoreAmount: 9 } }
+    });
+    const first = await repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-mana",
+      itemContents: items,
+      now: now()
+    });
+    const replay = await repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-mana",
+      itemContents: items,
+      now: now()
+    });
+
+    expect(first).toMatchObject({ state: "used", order: { result: { kind: "restore-both" } } });
+    expect(replay).toMatchObject({ state: "replayed", order: { result: { kind: "restore-both" } } });
+    expect((await prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId, itemId: manaConsumable.id } }
+    }))?.quantity).toBe(1);
+    expect((await prisma.character.findUniqueOrThrow({ where: { id: characterId } })).manaCurrent).toBe(9);
+  });
+
+  it("does not reserve or consume a dual-resource consumable when both resources are full", async () => {
+    await seedCharacter({ hpCurrent: 999, hpMax: 25, manaCurrent: 999 });
+    await seedItem(manaConsumable.id, 1);
+    await expect(repository.createPreviewForTelegramUser(telegramUserId, {
+      item: manaConsumable,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(manaConsumable),
+      token: "use-token-full-mana",
+      now: now(),
+      expiresAt: future()
+    })).resolves.toMatchObject({ state: "full-hp", preview: { resource: "both", healAmount: 0, manaRestoreAmount: 0 } });
+    expect(await prisma.itemUseOrder.count()).toBe(0);
   });
 
   it("previews restore-to-full without consuming bandages", async () => {
@@ -1152,10 +1240,14 @@ describe("PrismaItemUseRepository integration", () => {
   }
 
   async function seedBandages(quantity: number): Promise<void> {
+    await seedItem(bandage.id, quantity);
+  }
+
+  async function seedItem(itemId: string, quantity: number): Promise<void> {
     await prisma.characterItem.create({
       data: {
         characterId,
-        itemId: bandage.id,
+        itemId,
         quantity
       }
     });

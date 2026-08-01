@@ -2812,6 +2812,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const manaSpent = intOrNull(value.manaSpent);
   const heroCounterDamage = intOrNull(value.heroCounterDamage);
   const heroHealing = intOrNull(value.heroHealing);
+  const heroManaRestored = intOrNull(value.heroManaRestored);
   const damageKind = parseDamageKind(value.damageKind);
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
@@ -2864,6 +2865,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
     ...(typeof value.itemName === "string" ? { itemName: value.itemName } : {}),
     ...(heroHealing !== null ? { heroHealing } : {}),
+    ...(heroManaRestored !== null ? { heroManaRestored } : {}),
     ...(enemyResults.length > 0 ? { enemyResults } : {}),
     ...(allyResults.length > 0 ? { allyResults } : {}),
     ...(fumble ? { fumble } : {}),

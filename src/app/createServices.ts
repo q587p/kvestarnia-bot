@@ -91,7 +91,8 @@ export function createServices(
     shynok: repositories.shynok,
     achievements,
     activityEvents: publicActivityEvents,
-    fightingCornerQuest
+    fightingCornerQuest,
+    consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -128,12 +129,14 @@ export function createServices(
     {
       enabled: true,
       devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled,
+      consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
     },
     undefined,
     achievements,
     (telegramUserId) =>
-      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    repositories.dailyActions
   );
 
   const services: ApplicationServices = {
@@ -243,7 +246,7 @@ export function createServices(
       achievements,
       publicActivityEvents
     ),
-    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
+    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements, config.consumableManatkaUsesEnabled),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
@@ -259,8 +262,9 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
+      devHelpersEnabled: nonProduction,
+      consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
+    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions),
     partyRaidChat: new PartyRaidChatService(repositories.partyRaidChat, {
       enabled: partyRaidChatEnabled,
       devHelpersEnabled: nonProduction && partyRaidChatEnabled

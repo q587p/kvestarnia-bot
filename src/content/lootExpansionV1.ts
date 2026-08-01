@@ -1,4 +1,5 @@
 import { classes } from "./classes";
+import { findGeneratedConsumableUseByBaseId } from "./consumableManatkaUses";
 import { activeRaces } from "./races";
 import type { ItemContent, ItemEffectContent } from "./schema";
 import { lootExpansionV1Data as lootExpansionV1RawData } from "./lootExpansionV1Data";
@@ -881,6 +882,7 @@ function buildItemContent(
   minLevel: number,
   priceCoins: number
 ): ItemContent {
+  const consumableUse = findGeneratedConsumableUseByBaseId(base.id);
   const slot = mapLootExpansionSlot(base);
   const equipmentSlot = mapLootExpansionEquipmentSlot(base);
   const effect = mapLootExpansionEffect(base, enhancement, slot);
@@ -889,13 +891,17 @@ function buildItemContent(
   return {
     id: getLootExpansionItemId(base.id, enhancement),
     name: enhancement === 0 ? base.name_uk : `${base.name_uk} +${enhancement}`,
-    description: buildDescription(base, enhancement, minLevel),
+    description: consumableUse?.description ?? buildDescription(base, enhancement, minLevel),
     rarity: getItemUpgradeRarity(mapLootExpansionRarity(base.rarity), enhancement),
     slot,
     ...(equipmentSlot ? { equipmentSlot } : {}),
     goldValue: priceCoins,
     ...(effect ? { effect } : {}),
-    ...(tags ? { tags } : {})
+    ...(consumableUse
+      ? { tags: ["consumable", "one-use"] as ItemContent["tags"], useEffect: consumableUse.useEffect }
+      : tags
+        ? { tags }
+        : {})
   };
 }
 

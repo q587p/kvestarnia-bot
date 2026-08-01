@@ -32,6 +32,7 @@ import {
   type BardInspirationCombatStateV1
 } from "../noncombat/bardSupport";
 import type { BardPerformanceGrade } from "../noncombat/bardPerformance";
+import type { ItemUseEffectContent } from "../../content/schema";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
@@ -154,15 +155,7 @@ export interface PartyBossRoundActionInput {
 export interface PartyBossCombatItemInput {
   id: string;
   name: string;
-  effect:
-    | {
-        kind: "heal-hp";
-        amount: number;
-      }
-    | {
-        kind: "heal-hp-to-min-percent";
-        percent: number;
-      };
+  effect: ItemUseEffectContent;
 }
 
 export interface PartyBossRoundSummary {
@@ -244,6 +237,7 @@ export interface PartyBossParticipantActionSummary {
   itemId?: string;
   itemName?: string;
   healing?: number;
+  manaRestored?: number;
   guard?: number;
   hpAfter?: number;
   supportTargets?: Array<{
@@ -453,6 +447,8 @@ export function resolvePartyBossRound(input: {
   }> = [];
   let bossDamage = 0;
   const counterDamageByCharacterId = new Map<string, number>();
+  const itemEvadeResponseCharacterIds = new Set<string>();
+  const itemGuardPercentByCharacterId = new Map<string, number>();
   const expiredBeforeActions = expireUnableWarriorTaunt(next);
   const tauntRound: PartyBossWarriorTauntRoundSummary = {
     ...(expiredBeforeActions ? { expiredCharacterId: expiredBeforeActions } : {})
@@ -509,14 +505,41 @@ export function resolvePartyBossRound(input: {
       continue;
     }
     if (action === "item" && committed?.item) {
-      const beforeHp = participant.resources.hp;
       const tickedResources = tickActorCooldowns(participant.resources);
       tickPartyBossCombatItemCooldowns(participant);
-      const healing = calculatePartyBossCombatItemHealing(tickedResources, committed.item.effect);
+      const resolvedEffect = resolvePartyBossRandomEffect(
+        committed.item.effect,
+        participant.resources,
+        new SeededRandomSource(`${input.seed}:${next.turn}:${participant.characterId}:${committed.item.id}`)
+      );
+      const { healing, manaRestored } = calculatePartyBossCombatItemRestoration(tickedResources, resolvedEffect);
       participant.resources = {
         ...tickedResources,
-        hp: Math.min(tickedResources.hpMax, tickedResources.hp + healing)
+        hp: Math.min(tickedResources.hpMax, tickedResources.hp + healing),
+        mana: Math.min(tickedResources.manaMax, tickedResources.mana + manaRestored)
       };
+      const supportTargets: NonNullable<PartyBossParticipantActionSummary["supportTargets"]> = [];
+      if (resolvedEffect.kind === "paired-heal") {
+        const ally = getPartyBossSupportTargets(next, participant, "lowest-hp-ally")[0];
+        if (ally) {
+          const allyHealing = applyPartyBossHealing(ally.resources, resolvedEffect.amount);
+          if (allyHealing > 0) supportTargets.push({ characterId: ally.characterId, healing: allyHealing });
+        }
+      }
+      if (resolvedEffect.kind === "party-heal") {
+        for (const target of getPartyBossSupportTargets(next, participant, "all-allies-including-self")) {
+          if (target.characterId === participant.characterId) continue;
+          const targetHealing = applyPartyBossHealing(target.resources, resolvedEffect.amount);
+          if (targetHealing > 0) supportTargets.push({ characterId: target.characterId, healing: targetHealing });
+        }
+      }
+      const itemDamage = resolvedEffect.kind === "critical-damage"
+        ? Math.min(next.boss.hp, Math.max(0, Math.floor(resolvedEffect.amount)))
+        : 0;
+      next.boss.hp = Math.max(0, next.boss.hp - itemDamage);
+      if (resolvedEffect.kind === "evade-response") itemEvadeResponseCharacterIds.add(participant.characterId);
+      if (resolvedEffect.kind === "guard-response") itemGuardPercentByCharacterId.set(participant.characterId, resolvedEffect.reductionPercent);
+      if (resolvedEffect.kind === "reduce-cooldowns") participant.resources = reducePartyBossCooldowns(participant.resources, resolvedEffect.turns);
       recordPartyBossCombatItemUse(participant, committed.item.id);
 
       if (origin === "manual") {
@@ -524,20 +547,25 @@ export function resolvePartyBossRound(input: {
       } else {
         participant.contribution.timeoutActions += 1;
       }
-      participant.contribution.healingDone = (participant.contribution.healingDone ?? 0) + healing;
+      const supportHealing = supportTargets.reduce((sum, target) => sum + (target.healing ?? 0), 0);
+      participant.contribution.healingDone = (participant.contribution.healingDone ?? 0) + healing + supportHealing;
       participant.contribution.itemUses = (participant.contribution.itemUses ?? 0) + 1;
+      participant.contribution.damageDealt += itemDamage;
+      bossDamage += itemDamage;
 
       actionSummaries.push({
         characterId: participant.characterId,
         action,
         origin,
         outcome: "item-used",
-        damage: 0,
+        damage: itemDamage,
         manaSpent: 0,
         itemId: committed.item.id,
         itemName: committed.item.name,
-        healing: participant.resources.hp - beforeHp,
-        hpAfter: participant.resources.hp
+        ...(healing > 0 ? { healing } : {}),
+        ...(manaRestored > 0 ? { manaRestored } : {}),
+        hpAfter: participant.resources.hp,
+        ...(supportTargets.length > 0 ? { supportTargets } : {})
       });
       continue;
     }
@@ -623,7 +651,7 @@ export function resolvePartyBossRound(input: {
     delete tauntRound.bossAttacksRemaining;
   }
   const retaliationResolution = next.boss.hp > 0
-    ? applyBossRetaliation(next, counterDamageByCharacterId)
+    ? applyBossRetaliation(next, counterDamageByCharacterId, itemEvadeResponseCharacterIds, itemGuardPercentByCharacterId)
     : { retaliations: [] };
   if (retaliationResolution.warriorTaunt) {
     if (retaliationResolution.warriorTaunt.expiredCharacterId) {
@@ -795,18 +823,93 @@ export function calculateKharakternykWardMitigation(supportCount: number): numbe
 }
 
 export function calculatePartyBossCombatItemHealing(
-  resources: Pick<CombatActorResourceState, "hp" | "hpMax">,
+  resources: Pick<CombatActorResourceState, "hp" | "hpMax" | "mana" | "manaMax">,
   effect: PartyBossCombatItemInput["effect"]
 ): number {
+  return calculatePartyBossCombatItemRestoration(resources, effect).healing;
+}
+
+export function calculatePartyBossCombatItemRestoration(
+  resources: Pick<CombatActorResourceState, "hp" | "hpMax" | "mana" | "manaMax">,
+  effect: PartyBossCombatItemInput["effect"]
+): { healing: number; manaRestored: number } {
   switch (effect.kind) {
     case "heal-hp":
-      return clamp(Math.floor(effect.amount), 0, Math.max(0, resources.hpMax - resources.hp));
+      return { healing: clamp(Math.floor(effect.amount), 0, Math.max(0, resources.hpMax - resources.hp)), manaRestored: 0 };
     case "heal-hp-to-min-percent": {
       const percent = clamp(Math.floor(effect.percent), 1, 100);
       const targetHp = Math.min(resources.hpMax, Math.ceil(resources.hpMax * percent / 100));
-      return Math.max(0, targetHp - resources.hp);
+      return { healing: Math.max(0, targetHp - resources.hp), manaRestored: 0 };
     }
+    case "restore-mana":
+      return { healing: 0, manaRestored: clamp(Math.floor(effect.amount), 0, Math.max(0, resources.manaMax - resources.mana)) };
+    case "restore-both":
+      return {
+        healing: clamp(Math.floor(effect.hpAmount), 0, Math.max(0, resources.hpMax - resources.hp)),
+        manaRestored: clamp(Math.floor(effect.manaAmount), 0, Math.max(0, resources.manaMax - resources.mana))
+      };
+    case "heal-hp-below-percent":
+      return {
+        healing: resources.hp <= Math.floor(resources.hpMax * effect.thresholdPercent / 100)
+          ? clamp(Math.floor(effect.amount), 0, Math.max(0, resources.hpMax - resources.hp))
+          : 0,
+        manaRestored: 0
+      };
+    case "paired-heal":
+    case "party-heal":
+      return {
+        healing: clamp(Math.floor(effect.amount), 0, Math.max(0, resources.hpMax - resources.hp)),
+        manaRestored: 0
+      };
+    default:
+      return { healing: 0, manaRestored: 0 };
   }
+}
+
+export function isPartyBossCombatItemEffectApplicable(
+  state: PartyBossState,
+  actor: PartyBossParticipantState,
+  effect: ItemUseEffectContent
+): boolean {
+  if (effect.kind === "paired-heal") {
+    return state.participants.some((entry) => entry.characterId !== actor.characterId && entry.status === "active" && entry.resources.hp > 0 && entry.resources.hp < entry.resources.hpMax);
+  }
+  if (effect.kind === "party-heal") {
+    return state.participants.some((entry) => entry.status === "active" && entry.resources.hp > 0 && entry.resources.hp < entry.resources.hpMax);
+  }
+  if (effect.kind === "cleanse-negative") return false;
+  if (effect.kind === "reduce-cooldowns") return hasPartyBossCooldown(actor.resources.cooldowns);
+  if (effect.kind === "critical-damage" || effect.kind === "guard-response" || effect.kind === "evade-response") return state.boss.hp > 0;
+  if (effect.kind === "random-resource") return actor.resources.hp < actor.resources.hpMax || actor.resources.mana < actor.resources.manaMax;
+  const restoration = calculatePartyBossCombatItemRestoration(actor.resources, effect);
+  return restoration.healing > 0 || restoration.manaRestored > 0;
+}
+
+function hasPartyBossCooldown(cooldowns: CombatActorResourceState["cooldowns"]): boolean {
+  return Boolean(cooldowns && (Object.values(cooldowns.abilities ?? {}).some((entry) => entry.remainingTurns > 0) || (cooldowns.skill?.remainingTurns ?? 0) > 0));
+}
+
+function resolvePartyBossRandomEffect(
+  effect: ItemUseEffectContent,
+  resources: CombatActorResourceState,
+  rng: SeededRandomSource
+): ItemUseEffectContent {
+  if (effect.kind !== "random-resource") return effect;
+  const candidates: ItemUseEffectContent[] = [];
+  if (resources.hp < resources.hpMax) candidates.push({ kind: "heal-hp", amount: effect.amount });
+  if (resources.mana < resources.manaMax) candidates.push({ kind: "restore-mana", amount: effect.amount });
+  if (effect.bothAmount !== undefined) candidates.push({ kind: "restore-both", hpAmount: effect.bothAmount, manaAmount: effect.bothAmount });
+  return candidates[rng.nextInt(0, candidates.length - 1)] ?? effect;
+}
+
+function reducePartyBossCooldowns(resources: CombatActorResourceState, turns: number): CombatActorResourceState {
+  if (!resources.cooldowns) return resources;
+  const cooldowns = cloneCombatCooldowns(resources.cooldowns);
+  if (cooldowns.skill) cooldowns.skill.remainingTurns = Math.max(0, cooldowns.skill.remainingTurns - turns);
+  for (const entry of Object.values(cooldowns.abilities ?? {})) entry.remainingTurns = Math.max(0, entry.remainingTurns - turns);
+  return hasPartyBossCooldown(cooldowns)
+    ? { ...resources, cooldowns }
+    : { ...resources, cooldowns: undefined };
 }
 
 export function getPartyBossCombatItemAvailability(
@@ -1058,7 +1161,9 @@ function cloneAbilityCooldowns(
 
 function applyBossRetaliation(
   state: PartyBossState,
-  counterDamageByCharacterId: ReadonlyMap<string, number>
+  counterDamageByCharacterId: ReadonlyMap<string, number>,
+  itemEvadeResponseCharacterIds: ReadonlySet<string> = new Set(),
+  itemGuardPercentByCharacterId: ReadonlyMap<string, number> = new Map()
 ): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
@@ -1109,7 +1214,11 @@ function applyBossRetaliation(
     const wardPrevented = wardCanTrigger
       ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
       : 0;
-    const damageAfterWard = Math.max(0, damageBeforeWard - wardPrevented);
+    const damageAfterWardBase = Math.max(0, damageBeforeWard - wardPrevented);
+    const itemGuardPercent = clamp(Math.floor(itemGuardPercentByCharacterId.get(participant.characterId) ?? 0), 0, 100);
+    const damageAfterWard = itemEvadeResponseCharacterIds.has(participant.characterId)
+      ? 0
+      : Math.max(0, damageAfterWardBase - Math.floor(damageAfterWardBase * itemGuardPercent / 100));
     const signature = personalProtocolCanTrigger
       ? state.personalProtocol!.signatures.find((entry) =>
           entry.characterId === participant.characterId && entry.status === "unspent"

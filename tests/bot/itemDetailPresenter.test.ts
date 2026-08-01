@@ -234,7 +234,7 @@ describe("item detail presenter", () => {
     );
 
     expect(text).toContain("Використання: <b>можна застосувати в бою або поза боєм</b>.");
-    expect(text).toContain("У бою манатка витрачає хід і лікує одразу.");
+    expect(text).toContain("У бою манатка витрачає хід і відновлює HP одразу.");
     expect(text).toContain("Це витратна манатка: її застосовують, а не приміряють.");
     expect(text).not.toContain("смішним трофеєм");
     expect(text).not.toContain("до якої полиці");
@@ -262,8 +262,8 @@ describe("item detail presenter", () => {
       }
     );
 
-    expect(text).toContain("Використання: <b>можна застосувати для лікування</b>.");
-    expect(text).toContain("Попередній перегляд покаже поточне лікування перед витратою.");
+    expect(text).toContain("Використання: <b>можна застосувати, щоб відновити HP</b>.");
+    expect(text).toContain("Попередній перегляд покаже поточний результат перед витратою.");
     expect(text).not.toContain("можна застосувати поза боєм");
   });
 

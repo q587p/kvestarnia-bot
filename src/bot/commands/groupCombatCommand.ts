@@ -227,10 +227,14 @@ export function registerGroupCombatReplyKeyboard(
       return;
     }
     if (replyAction === "items") {
+      const hiddenItemIds = await service.getHiddenCombatItemIdsForTelegramUser(viewer.telegramUserId);
       const keyboard = buildGroupCombatItemsKeyboard(
         session,
         viewer.characterId,
-        "reply-menu"
+        "reply-menu",
+        0,
+        service.areConsumableManatkaUsesEnabled(),
+        hiddenItemIds
       );
       const hasAvailableItems = keyboard.inline_keyboard.length > 1;
       await ctx.reply(
@@ -357,7 +361,7 @@ export async function handleGroupCombatCallback(
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
   if (
     (callback.type === "action" || callback.type === "items") &&
-    !(callback.type === "action" && callback.source === "reply-menu") &&
+    !((callback.type === "action" || callback.type === "items") && callback.source === "reply-menu") &&
     callbackMessageId !== undefined &&
     viewer.messageId !== null &&
     callbackMessageId !== viewer.messageId
@@ -387,7 +391,15 @@ export async function handleGroupCombatCallback(
       );
       return;
     }
-    const keyboard = buildGroupCombatItemsKeyboard(session, viewer.characterId);
+    const hiddenItemIds = await service.getHiddenCombatItemIdsForTelegramUser(viewer.telegramUserId);
+    const keyboard = buildGroupCombatItemsKeyboard(
+      session,
+      viewer.characterId,
+      callback.source,
+      callback.page,
+      service.areConsumableManatkaUsesEnabled(),
+      hiddenItemIds
+    );
     const hasAvailableItems = keyboard.inline_keyboard.length > 1;
     await safeAnswerCallbackQuery(
       ctx,

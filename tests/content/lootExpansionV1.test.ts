@@ -21,6 +21,7 @@ import {
   normalizeLootExpansionTitleIds
 } from "../../src/content/lootExpansionV1";
 import { itemSchema } from "../../src/content/schema";
+import { generatedConsumableUseDefinitions } from "../../src/content/consumableManatkaUses";
 
 const generatedLegGearBaseIds = ["a013", "a014", "a015", "a018"] as const;
 const generatedHeadGearBaseIds = ["a001", "a002", "a003", "a004", "a019", "a020", "a023", "a025"] as const;
@@ -37,6 +38,19 @@ describe("loot expansion v1 content adapter", () => {
     for (const item of lootExpansionV1ItemContents) {
       expect(() => itemSchema.parse(item)).not.toThrow();
       expect(item.id).toMatch(/^item\.loot-v1-[a-z]\d{3}/);
+    }
+  });
+
+  it("activates every generated consumable through the explicit catalog", () => {
+    expect(generatedConsumableUseDefinitions).toHaveLength(15);
+    for (const definition of generatedConsumableUseDefinitions) {
+      const item = lootExpansionV1ItemContents.find((candidate) => candidate.id === definition.itemId);
+      expect(item, definition.itemId).toMatchObject({
+        slot: "consumable",
+        tags: ["consumable", "one-use"],
+        useEffect: definition.useEffect,
+        description: definition.description
+      });
     }
   });
 

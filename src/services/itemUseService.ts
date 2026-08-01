@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import { items } from "../content";
 import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
+import { isMedicalConsumableItemId } from "../content/consumableManatkaUses";
 import {
   createItemUseFingerprint,
-  getItemUseEffect
+  getItemUseEffect,
+  isOutOfCombatItemUseEffect
 } from "../domain/itemUse";
 import type {
   ItemUseCancelRepositoryResult,
@@ -29,11 +31,13 @@ export class ItemUseService {
   constructor(
     private readonly repository: ItemUseRepository,
     private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly consumableManatkaUsesEnabled = false
   ) {}
 
   getAvailability(item: ItemContent): ItemUseAvailability {
-    if (!getItemUseEffect(item)) {
+    const effect = getItemUseEffect(item);
+    if (!effect || !isOutOfCombatItemUseEffect(effect) || !this.isItemEnabled(item.id)) {
       return { state: "not-usable" };
     }
 
@@ -44,7 +48,7 @@ export class ItemUseService {
     telegramUserId: bigint,
     itemId: string
   ): Promise<ItemUsePreviewRepositoryResult> {
-    const item = findUsableItem(itemId);
+    const item = this.findUsableItem(itemId);
     if (!item) {
       return { state: "not-usable" };
     }
@@ -104,7 +108,10 @@ export class ItemUseService {
     telegramUserId: bigint,
     itemId: string
   ): Promise<ItemUseRestoreToFullRepositoryResult> {
-    const item = findUsableItem(itemId);
+    if (itemId !== BANDAGE_ITEM_ID) {
+      return { state: "not-usable" };
+    }
+    const item = this.findUsableItem(itemId);
     if (!item) {
       return { state: "not-usable" };
     }
@@ -120,12 +127,21 @@ export class ItemUseService {
       expiresAt: addMinutes(now, ITEM_USE_TTL_MINUTES)
     });
   }
-}
 
-function findUsableItem(itemId: string): ItemContent | null {
-  const item = findItemContent(itemId);
+  areConsumableManatkaUsesEnabled(): boolean {
+    return this.consumableManatkaUsesEnabled;
+  }
 
-  return item && getItemUseEffect(item) ? item : null;
+  private findUsableItem(itemId: string): ItemContent | null {
+    const item = findItemContent(itemId);
+    const effect = item ? getItemUseEffect(item) : null;
+
+    return item && effect && isOutOfCombatItemUseEffect(effect) && this.isItemEnabled(item.id) ? item : null;
+  }
+
+  private isItemEnabled(itemId: string): boolean {
+    return isMedicalConsumableItemId(itemId) || this.consumableManatkaUsesEnabled;
+  }
 }
 
 function addMinutes(date: Date, minutes: number): Date {

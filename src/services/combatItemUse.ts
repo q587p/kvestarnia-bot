@@ -15,10 +15,10 @@ const MEDICAL_COMBAT_ITEM_IDS = new Set([
   FIELD_KIT_ITEM_ID
 ]);
 
-export function getCombatUsableItem(item: ItemContent): CombatUsableItem | null {
+export function getCombatUsableItem(item: ItemContent, nonMedicalEnabled = true): CombatUsableItem | null {
   const effect = getItemUseEffect(item);
 
-  if (!effect || blocksAccidentalItemUse(item)) {
+  if (!effect || blocksAccidentalItemUse(item) || (!nonMedicalEnabled && !isMedicalCombatItemId(item.id))) {
     return null;
   }
 
@@ -31,10 +31,11 @@ export function getCombatUsableItem(item: ItemContent): CombatUsableItem | null 
 
 export function findCombatUsableItemByKey(
   itemContents: readonly ItemContent[],
-  key: string
+  key: string,
+  nonMedicalEnabled = true
 ): CombatUsableItem | null {
   const matches = itemContents.flatMap((item) => {
-    const combatItem = getCombatUsableItem(item);
+    const combatItem = getCombatUsableItem(item, nonMedicalEnabled);
     return combatItem?.key === key ? [combatItem] : [];
   });
 

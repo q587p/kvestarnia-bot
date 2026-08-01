@@ -57,7 +57,7 @@ import {
   normalizeCombatEnemies,
   recordCombatTimeout,
   resetCombatTimeout,
-  resolveCombatItemHealing,
+  isCombatItemEffectApplicable,
   resolveCombatItemTurn,
   resolveCombatGearTurn,
   resolveCombatTurn,
@@ -127,6 +127,7 @@ import {
 } from "../domain/trainingDoppelganger";
 import {
   BANDAGE_ITEM_ID,
+  CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID,
   enrichRewardItemGrants,
   ISKROKAMIN_ITEM_ID,
   PAN_OF_PERSUASION_ITEM_ID,
@@ -138,6 +139,7 @@ import {
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
 import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
+import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 import {
   buildCompletedProblemQuestBranchProgress,
   buildCompletedProblemQuestProgress,
@@ -388,7 +390,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "item-on-cooldown" | "item-limit-reached";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -596,6 +598,7 @@ export interface FightServiceDependencies {
   achievements?: AchievementService;
   activityEvents?: PublicActivityEventPublisher;
   fightingCornerQuest?: Pick<FightingCornerQuestService, "getForTelegramUser">;
+  consumableManatkaUsesEnabled?: boolean;
 }
 
 export class FightService {
@@ -615,6 +618,7 @@ export class FightService {
   private readonly achievements: AchievementService | undefined;
   private readonly activityEvents: PublicActivityEventPublisher | undefined;
   private readonly fightingCornerQuest: Pick<FightingCornerQuestService, "getForTelegramUser"> | undefined;
+  private readonly consumableManatkaUsesEnabled: boolean;
 
   constructor({
     characters,
@@ -630,7 +634,8 @@ export class FightService {
     shynok,
     achievements,
     activityEvents,
-    fightingCornerQuest
+    fightingCornerQuest,
+    consumableManatkaUsesEnabled = false
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -646,6 +651,7 @@ export class FightService {
     this.achievements = achievements;
     this.activityEvents = activityEvents;
     this.fightingCornerQuest = fightingCornerQuest;
+    this.consumableManatkaUsesEnabled = consumableManatkaUsesEnabled;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -1741,6 +1747,11 @@ export class FightService {
     }
 
     const inventoryItems = await this.inventory?.listByTelegramUserId(telegramUserId);
+    const foamyMirageBottleUnlocked = await isQuestConsumableUseUnlocked(
+      this.dailyActions,
+      telegramUserId,
+      CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID
+    );
     const contentById = new Map(items.map((item) => [item.id, item]));
     const entries = (inventoryItems ?? []).flatMap(
       (inventoryItem): PersistentFightCombatItemMenuEntry[] => {
@@ -1749,16 +1760,13 @@ export class FightService {
         }
 
         const item = contentById.get(inventoryItem.itemId);
-        const combatItem = item ? getCombatUsableItem(item) : null;
+        const combatItem = item ? getCombatUsableItem(item, this.consumableManatkaUsesEnabled) : null;
 
         if (
           !combatItem ||
+          (combatItem.item.id === CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID && !foamyMirageBottleUnlocked) ||
           !getCombatItemAvailability(session.state!, combatItem.item.id).available ||
-          resolveCombatItemHealing(session.state!, {
-            id: combatItem.item.id,
-            name: combatItem.item.name,
-            effect: combatItem.effect
-          }) <= 0
+          !isCombatItemEffectApplicable(session.state!, combatItem.effect)
         ) {
           return [];
         }
@@ -3036,8 +3044,11 @@ export class FightService {
       };
     }
 
-    const combatItem = findCombatUsableItemByKey(items, input.itemKey);
-    if (!combatItem) {
+    const combatItem = findCombatUsableItemByKey(items, input.itemKey, this.consumableManatkaUsesEnabled);
+    if (
+      !combatItem ||
+      !(await isQuestConsumableUseUnlocked(this.dailyActions, telegramUserId, combatItem.item.id))
+    ) {
       return {
         state: "item-unavailable",
         reason: "not-usable",
@@ -3071,10 +3082,10 @@ export class FightService {
     });
 
     if (!resolved.ok) {
-      if (resolved.reason === "full-hp") {
+      if (resolved.reason === "full-hp" || resolved.reason === "full-mana") {
         return {
           state: "item-unavailable",
-          reason: "full-hp",
+          reason: resolved.reason,
           character: characterSummary,
           session: currentSession,
           monster,

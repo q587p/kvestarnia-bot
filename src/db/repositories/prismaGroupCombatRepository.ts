@@ -1019,6 +1019,16 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
                 : { state: "not-found" }
             } as const;
           }
+          if (
+            input.action === "item" &&
+            input.payloadKey &&
+            !(await isQuestConsumableUnlocked(tx, actor.id, input.payloadKey))
+          ) {
+            return {
+              kind: "result",
+              result: { state: "action-unavailable" }
+            } as const;
+          }
           const action: GroupCombatAction = {
             actorCharacterId: actor.id,
             turn: input.turn,
@@ -2825,6 +2835,22 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
   }
 }
 
+async function isQuestConsumableUnlocked(tx: TxClient, characterId: string, itemId: string): Promise<boolean> {
+  if (itemId !== "item.cellar.foamy-mirage-bottle") return true;
+  const [acquisition, completion] = await Promise.all([
+    tx.dailyAction.findUnique({
+      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.bottle", localDate: "once" } },
+      select: { id: true }
+    }),
+    tx.dailyAction.findUnique({
+      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.completed", localDate: "once" } },
+      select: { resultJson: true }
+    })
+  ]);
+  const result = completion?.resultJson;
+  return !acquisition || Boolean(result && typeof result === "object" && !Array.isArray(result) && result.ending === "keep");
+}
+
 async function buildLeftPassageState(input: {
   tx: TxClient;
   sessionId: string;
@@ -4428,7 +4454,7 @@ function collectCommittedItemEvidence(
       action.targetKind !== "self" ||
       action.targetId !== action.actorCharacterId ||
       !action.payloadKey ||
-      !(GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(action.payloadKey)
+      !GROUP_COMBAT_SUPPORTED_ITEM_IDS.includes(action.payloadKey)
     ) {
       throw new GroupCombatStateValidationError(
         "Relational committed item evidence is not canonical."

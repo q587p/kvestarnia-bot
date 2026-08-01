@@ -105,6 +105,52 @@ export const itemUseEffectSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("heal-hp-to-min-percent"),
     percent: z.number().int().min(1).max(100)
+  }).strict(),
+  z.object({
+    kind: z.literal("restore-mana"),
+    amount: z.number().int().min(1).max(42)
+  }).strict(),
+  z.object({
+    kind: z.literal("restore-both"),
+    hpAmount: z.number().int().min(1).max(42),
+    manaAmount: z.number().int().min(1).max(42)
+  }).strict(),
+  z.object({
+    kind: z.literal("random-resource"),
+    amount: z.number().int().min(1).max(42),
+    bothAmount: z.number().int().min(1).max(42).optional()
+  }).strict(),
+  z.object({
+    kind: z.literal("heal-hp-below-percent"),
+    amount: z.number().int().min(1).max(93),
+    thresholdPercent: z.number().int().min(1).max(100)
+  }).strict(),
+  z.object({
+    kind: z.literal("paired-heal"),
+    amount: z.number().int().min(1).max(42)
+  }).strict(),
+  z.object({
+    kind: z.literal("party-heal"),
+    amount: z.number().int().min(1).max(42)
+  }).strict(),
+  z.object({
+    kind: z.literal("guard-response"),
+    reductionPercent: z.number().int().min(1).max(75)
+  }).strict(),
+  z.object({
+    kind: z.literal("evade-response")
+  }).strict(),
+  z.object({
+    kind: z.literal("reduce-cooldowns"),
+    turns: z.number().int().min(1).max(3)
+  }).strict(),
+  z.object({
+    kind: z.literal("cleanse-negative"),
+    count: z.number().int().min(1).max(3)
+  }).strict(),
+  z.object({
+    kind: z.literal("critical-damage"),
+    amount: z.number().int().min(1).max(42)
   }).strict()
 ]);
 

@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.2` left-passage party attack; `0.4.3` наступна |
+| Party Progression | активна | `0.4.3` consumable manatky; `0.4.4` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -119,14 +119,21 @@ bounded журнал і підсумки
   приватних payloads;
 - спільна восьмивимірна статистика внеску для звичайних боїв, тренування,
   дуелей і Big Barrel/raid після окремого cross-mode contract review. Це не
-  розширює `0.4.2` і не починає `0.4.3`.
+  розширює `0.4.2` і не починає `0.4.4`.
 
 ### 0.4.3 — Consumable manatky
 
-Спершу затвердити exact ids/effects для трьох-чотирьох existing stack-ів.
-Current `ItemUseOrder` є HP-heal-specific, тож v1 або лишається HP-only, або
-явно додає одну typed effect family. Legacy `effect_id` не активується
-автоматично; точний allowlist лишається обовʼязковим activation gate.
+Усі двадцять current consumables отримують exhaustive exact-id typed contract:
+три medical supplies зберігають чинну поведінку, дві authored cellar манатки та
+generated `c001`–`c015` активують відповідні immediate self/pair/party,
+resource, cleanse, cooldown, damage і response effects. `c001/c003/c009`
+лікують рівно на 7/8/9 HP у бою та поза ним. Full/inapplicable state не витрачає
+предмет або хід; random outcome freezes once and replays. Quest bottle is
+protected until its `keep` ending, while remort-carried stacks stay usable.
+Source tags/effect ids не вмикають прихованої поведінки. Default-off
+`CONSUMABLE_MANATKA_USES_ENABLED` gates only seventeen nonmedical rows; the
+three medical rows remain live. Existing stacks require no data migration;
+take-away purchase shelf remains separate `0.4.9`.
 
 ### 0.4.4 — Guild foundation
 
@@ -165,7 +172,7 @@ ids/prices/effects/modes, interaction matrix і окремий food-owned status
 ### 0.4.9 — Shynok take-away consumables
 
 Окремий replay-safe take-away shelf використовує лише вже затверджений
-`0.4.3` allowlist. Він не розширює typed effect family і не змішує carried
+`0.4.3` exact catalog. Він не розширює typed effect family і не змішує carried
 манатки з їжею, випитою або зʼїденою одразу.
 
 ### 0.4.10–0.4.11 — Resale і Korchmar recycling

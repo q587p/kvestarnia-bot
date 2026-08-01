@@ -9,7 +9,7 @@ export type GroupCombatCallback =
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
   | { type: "statistics"; token: string }
-  | { type: "items"; token: string; turn: number }
+  | { type: "items"; token: string; turn: number; page: number; source?: "reply-menu" }
   | {
       type: "action";
       token: string;
@@ -47,8 +47,16 @@ export function makeGroupCombatStatisticsCallbackData(token: string): string {
   return `v1:gc:t:${token}`;
 }
 
-export function makeGroupCombatItemsMenuCallbackData(token: string, turn: number): string {
-  return `v2:gc:m:${token}:${Math.max(1, Math.floor(turn)).toString(36)}`;
+export function makeGroupCombatItemsMenuCallbackData(
+  token: string,
+  turn: number,
+  page = 0,
+  source?: "reply-menu"
+): string {
+  if (page <= 0 && !source) {
+    return `v2:gc:m:${token}:${Math.max(1, Math.floor(turn)).toString(36)}`;
+  }
+  return `v4:gc:m:${token}:${Math.max(1, Math.floor(turn)).toString(36)}:${Math.max(0, Math.floor(page)).toString(36)}:${source ? "r" : "c"}`;
 }
 
 export function makeGroupCombatActionCallbackData(input: {
@@ -74,7 +82,7 @@ export function parseGroupCombatCallbackData(
   }
   const parts = data.split(":");
   if (
-    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3") ||
+    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3" && parts[0] !== "v4") ||
     parts[1] !== "gc" ||
     !TOKEN_PATTERN.test(parts[3] ?? "")
   ) {
@@ -102,7 +110,15 @@ export function parseGroupCombatCallbackData(
   }
   if (parts[0] === "v2" && parts[2] === "m" && parts.length === 5) {
     const turn = parseBase36(parts[4]);
-    return turn === null ? err("invalid") : ok({ type: "items", token, turn });
+    return turn === null ? err("invalid") : ok({ type: "items", token, turn, page: 0 });
+  }
+  if (parts[0] === "v4" && parts[2] === "m" && parts.length === 7) {
+    const turn = parseBase36(parts[4]);
+    const page = parseBase36(parts[5], true);
+    const source = parts[6] === "r" ? "reply-menu" as const : parts[6] === "c" ? undefined : null;
+    return turn === null || page === null || source === null
+      ? err("invalid")
+      : ok({ type: "items", token, turn, page, ...(source ? { source } : {}) });
   }
   if ((parts[0] !== "v2" && parts[0] !== "v3") || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");

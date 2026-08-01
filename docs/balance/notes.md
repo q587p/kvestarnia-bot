@@ -14,6 +14,30 @@ MVP має бути веселим, не ідеально збалансован
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../history/phases/phase2/planning/unstable-balance-principles.md).
 
+## 0.4.3 consumable manatka uses
+
+The exhaustive twenty-item catalog preserves the three shipped medical
+budgets: ordinary bandage `7 HP`, dense bandage `42 HP` with its cooldown, and
+Field Kit to a `93%` HP floor with its per-combat limit. The generated common
+heals are deliberately adjacent at `7/8/9 HP`. Higher bounded effects are
+conditional heal `23`, one-time random `13` or `23` HP/mana outcomes,
+independent `9 HP + 9 mana`, paired heal `8` per eligible target and party heal
+`13` per living participant. Combat utility is immediate and action-priced:
+fixed `13` damage receives no critical multiplier, guard reduces only the
+current nearest response by `42%`, evade skips only that response, cleanse
+removes one canonical harmful status and cooldown reduction subtracts one turn
+only from positive owner cooldowns.
+
+No effect changes existing Loot Expansion weights, quantities or acquisition
+sources. Party-wide healing scales with roster size, and generated consumable
+volume scales with broad/multi-enemy loot, so telemetry should compare grants,
+owned stacks, uses, sales, healing contribution and win-rate delta by exact id
+before any weight or purchase change. Preview/combat races, duplicate callbacks
+and reservations against gift/mail/chest/barter/Shynok sale remain the main
+double-spend risks and must resolve through one authoritative decrement. The
+quest bottle stays unavailable while reserved for its current-life ending.
+Take-away purchases remain a separate `0.4.9` economy decision.
+
 ## 0.4.2 left-passage party attack
 
 The encounter budget is built before any participant split. Every frozen enemy

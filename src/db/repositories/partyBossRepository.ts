@@ -97,7 +97,7 @@ export type PartyBossActionResult =
   | { state: "not-found" }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "item-on-cooldown" | "item-limit-reached";
       session?: PartyBossSessionRecord;
     }
   | {

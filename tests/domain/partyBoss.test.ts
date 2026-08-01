@@ -861,6 +861,77 @@ describe("party boss reducer", () => {
     expect(result.state.participants[0]?.contribution.submittedActions).toBe(1);
   });
 
+  it("restores the actor's resources with the explicit dual-resource consumable", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-mana-item",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("character-1", "Перша", { mana: 20, manaCurrent: 2 })]
+    });
+    const result = resolvePartyBossRound({
+      state: { ...state, boss: { ...state.boss, hp: 0, attack: 0 } },
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-mana-item",
+      actions: [{
+        characterId: "character-1",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c014",
+          name: "Насіння Диванного Друїда",
+          effect: { kind: "restore-both", hpAmount: 9, manaAmount: 9 }
+        }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-used",
+      manaRestored: 9
+    });
+    expect(result.state.participants[0]?.resources.mana).toBe(11);
+    expect(result.state.participants[0]?.contribution.healingDone ?? 0).toBe(0);
+  });
+
+  it("heals every living raid participant by thirteen and replays the seeded round exactly", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-raid-salad",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 10 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 20 }),
+        participant("character-3", "Третя", { hp: 50, hpCurrent: 30 })
+      ]
+    });
+    state.boss.attack = 0;
+    const input = {
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-raid-salad",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item" as const,
+          origin: "manual" as const,
+          item: {
+            id: "item.loot-v1-c012",
+            name: "Салат «Олів'є Рейдовий»",
+            effect: { kind: "party-heal" as const, amount: 13 }
+          }
+        },
+        { characterId: "character-2", action: "defend" as const, origin: "manual" as const },
+        { characterId: "character-3", action: "defend" as const, origin: "manual" as const }
+      ]
+    };
+
+    const first = resolvePartyBossRound(structuredClone(input));
+    const replay = resolvePartyBossRound(structuredClone(input));
+    expect(first.state.participants.map((entry) => entry.resources.hp)).toEqual([22, 32, 42]);
+    expect(first.round.actions[0]).toMatchObject({ healing: 13, supportTargets: [
+      { characterId: "character-2", healing: 13 },
+      { characterId: "character-3", healing: 13 }
+    ] });
+    expect(replay).toEqual(first);
+  });
+
   it("applies crafted raid item healing rules and records their battle limits", () => {
     const denseState = createPartyBossState({
       partySessionId: "party-dense-item",

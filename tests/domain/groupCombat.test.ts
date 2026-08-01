@@ -848,6 +848,25 @@ describe("group combat proof reducer", () => {
     );
     expect(itemLine?.split(itemActor.name)).toHaveLength(2);
     expect(itemLine).not.toContain("«");
+
+    const manaState = leftPassageState(1);
+    const manaActor = manaState.participants[0]!;
+    manaActor.mana = 1;
+    manaActor.manaMax = 20;
+    manaActor.combatItemQuantities = { "item.loot-v1-c014": 1 };
+    manaState.enemies[0]!.attack = 1;
+    const manaResult = resolveGroupCombatTurn(manaState, [{
+      ...action(manaState, 0, "item", "self", manaActor.characterId),
+      payloadKey: "item.loot-v1-c014"
+    }]);
+    expect(manaResult.state.participants[0]?.mana).toBe(10);
+    expect(manaResult.state.recap[0]?.lines).toContain(
+      "Пригодник 0 використовує манатку — 🌱 Насіння Диванного Друїда: +0 HP і +9 мани."
+    );
+    expect(manaResult.committedConsumables).toEqual([{
+      characterId: manaActor.characterId,
+      itemId: "item.loot-v1-c014"
+    }]);
   });
 
   it("lets at most one deterministic monster speak in a multi-enemy turn", () => {
@@ -863,6 +882,64 @@ describe("group combat proof reducer", () => {
     expect(replay.state.recap[0]?.monsterBarkIds).toEqual(
       first.state.recap[0]?.monsterBarkIds
     );
+  });
+
+  it("executes paired, raid-wide, cleanse and authored consumable effects deterministically", () => {
+    const pairedState = leftPassageState(2);
+    pairedState.participants[0]!.hp = 20;
+    pairedState.participants[1]!.hp = 10;
+    pairedState.participants[0]!.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    pairedState.enemies.forEach((enemy) => { enemy.attack = 1; });
+    const paired = resolveGroupCombatTurn(pairedState, [{
+      ...action(pairedState, 0, "item", "self", pairedState.participants[0]!.characterId),
+      payloadKey: "item.loot-v1-c002"
+    }, buildGroupCombatTimeoutAction(pairedState, pairedState.participants[1]!.characterId)]);
+    expect(paired.state.contributions.find((entry) => entry.characterId === pairedState.participants[0]!.characterId)?.healing).toBe(16);
+
+    const partyState = leftPassageState(3);
+    partyState.participants.forEach((participant, index) => {
+      participant.hp = 10 + index;
+      participant.combatItemQuantities = index === 0 ? { "item.loot-v1-c012": 1 } : {};
+    });
+    partyState.enemies.forEach((enemy) => { enemy.attack = 1; });
+    const party = resolveGroupCombatTurn(partyState, partyState.participants.map((participant, index) =>
+      index === 0
+        ? { ...action(partyState, 0, "item", "self", participant.characterId), payloadKey: "item.loot-v1-c012" }
+        : buildGroupCombatTimeoutAction(partyState, participant.characterId)
+    ));
+    expect(party.state.contributions.find((entry) => entry.characterId === partyState.participants[0]!.characterId)?.healing).toBe(39);
+
+    const cleanseState = leftPassageState(1);
+    const cleanser = cleanseState.participants[0]!;
+    cleanser.combatItemQuantities = { "item.loot-v1-c004": 1 };
+    cleanseState.statuses.push({
+      id: "harmful-test",
+      kind: "monster-burn",
+      sourceEnemyId: cleanseState.enemies[0]!.id,
+      targetKind: "participant",
+      targetId: cleanser.characterId,
+      value: 3,
+      remainingTurns: 2
+    });
+    cleanseState.enemies[0]!.attack = 1;
+    const cleansed = resolveGroupCombatTurn(cleanseState, [{
+      ...action(cleanseState, 0, "item", "self", cleanser.characterId),
+      payloadKey: "item.loot-v1-c004"
+    }]);
+    expect(cleansed.state.statuses.find((status) => status.id === "harmful-test")).toBeUndefined();
+
+    const evadeState = leftPassageState(1);
+    const evader = evadeState.participants[0]!;
+    evader.combatItemQuantities = { "item.cellar.fancy-cheese": 1 };
+    evadeState.enemies[0]!.attack = 30;
+    const evadeAction = [{
+      ...action(evadeState, 0, "item", "self", evader.characterId),
+      payloadKey: "item.cellar.fancy-cheese"
+    }];
+    const first = resolveGroupCombatTurn(structuredClone(evadeState), evadeAction);
+    const replay = resolveGroupCombatTurn(structuredClone(evadeState), evadeAction);
+    expect(first.state.participants[0]!.hp).toBe(evader.hp);
+    expect(replay).toEqual(first);
   });
 
   it("records accepted manual participation before a start-of-turn bleed win", () => {

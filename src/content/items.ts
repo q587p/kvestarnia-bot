@@ -250,18 +250,27 @@ const authoredItemContents = [
   {
     id: "item.cellar.fancy-cheese",
     name: "Кльовий шмат сиру",
-    description: "Дипломатичний аргумент із запахом, який важко оскаржити без ложки.",
+    description: "У бою відволікає супротивника запахом: його найближча відповідь не влучає.",
     rarity: "uncommon",
     slot: "consumable",
-    goldValue: 420
+    goldValue: 420,
+    tags: ["consumable", "one-use"],
+    useEffect: {
+      kind: "evade-response"
+    }
   },
   {
     id: "item.cellar.foamy-mirage-bottle",
     name: "Пляшка Пінного Міражу",
-    description: "Не стільки стоїть на полиці, скільки тримає полицю в тонусі.",
+    description: "Навмання повертає 13 HP або 13 мани. Результат визначається один раз.",
     rarity: "rare",
+    goldValue: 93,
     slot: "consumable",
-    priceless: true
+    tags: ["consumable", "one-use", "trade-blocked"],
+    useEffect: {
+      kind: "random-resource",
+      amount: 13
+    }
   },
   {
     id: "item.apology.rollback-receipt",

@@ -34,22 +34,26 @@ export function presentItemUsePreview(
     return "Ця манатка вже зайнята іншою дією. Інвентар не витрачатиме її вдруге.";
   }
 
-  if (result.state === "full-hp") {
+  if (result.state === "full-hp" || result.state === "full-mana") {
+    const mana = result.state === "full-mana";
     return [
-      "🩹 Лікування не потрібне",
+      mana ? "🔷 Мана вже повна" : "🩹 Лікування не потрібне",
       "",
-      presentHpNoopLine(result.preview),
-      "Єгер не дозволив витрачати медицину просто для драматичного вигляду."
+      presentResourceNoopLine(result.preview),
+      mana
+        ? "Манатку не витрачено: запас мани не приймає чайові."
+        : "Єгер не дозволив витрачати медицину просто для драматичного вигляду."
     ].join("\n");
   }
 
+  const mana = result.order.preview.resource === "mana";
   return [
-    "🩹 Використати манатку?",
+    mana ? "🔷 Використати манатку?" : "🩹 Використати манатку?",
     "",
     `<b>${escapeHtml(result.order.itemName)}</b> зникне з торби.`,
-    `HP: <b>${result.order.preview.hpBefore}/${result.order.preview.hpMax}</b> → <b>${result.order.preview.hpAfter}/${result.order.preview.hpMax}</b>.`,
+    presentResourceChangeLine(result.order.preview),
     "",
-    "Підтвердження ще раз перевірить торбу й здоров'я."
+    `Підтвердження ще раз перевірить торбу й ${mana ? "ману" : "здоров'я"}.`
   ].join("\n");
 }
 
@@ -81,13 +85,14 @@ export function presentItemUseConfirm(
     return "Торба змінилась до підтвердження. Відкрийте манатку ще раз.";
   }
 
-  if (result.state === "full-hp") {
+  if (result.state === "full-hp" || result.state === "full-mana") {
     const outcome = result.order.result ?? result.order.preview;
+    const mana = result.state === "full-mana";
 
     return [
-      "🩹 Манатку не витрачено",
+      mana ? "🔷 Манатку не витрачено" : "🩹 Манатку не витрачено",
       "",
-      presentHpNoopLine(outcome),
+      presentResourceNoopLine(outcome),
       "Єгер схвалює економію."
     ].join("\n");
   }
@@ -95,13 +100,14 @@ export function presentItemUseConfirm(
   const replay = result.state === "replayed" ? "Результат уже записано раніше." : "Манатку використано.";
   const outcome = result.order.result ?? result.order.preview;
   const restoredToFull = result.order.preview.mode === "restore-to-full";
+  const mana = outcome.resource === "mana";
 
   return [
-    restoredToFull ? "🩹 Відновлення завершено" : "🩹 Манатка спрацювала",
+    restoredToFull ? "🩹 Відновлення завершено" : mana ? "🔷 Манатка спрацювала" : "🩹 Манатка спрацювала",
     "",
     `${replay}`,
     ...(restoredToFull ? [`Використано бинтів: <b>${result.order.quantity}</b>.`] : []),
-    `HP: <b>${outcome.hpBefore}/${outcome.hpMax}</b> → <b>${outcome.hpAfter}/${outcome.hpMax}</b>.`,
+    presentResourceChangeLine(outcome),
     "",
     "Єгер сказав: «Не героїзм, але бухгалтерія виживання схвалила»."
   ].join("\n");
@@ -207,8 +213,23 @@ function presentCombatLockedItemUse(options: CombatLockedItemUseOptions): string
   return "Під час цього бою манатку не можна використати з торби. Завершіть бій або поверніться до бойової картки з доступними діями.";
 }
 
-function presentHpNoopLine(preview: { hpBefore: number; hpMax: number }): string {
+function presentResourceNoopLine(preview: { resource: "hp" | "mana" | "both"; hpBefore: number; hpMax: number; manaBefore?: number; manaMax?: number }): string {
+  if (preview.resource === "both") {
+    return `HP уже повні: <b>${preview.hpBefore}/${preview.hpMax}</b>; мана вже повна: <b>${preview.manaBefore ?? 0}/${preview.manaMax ?? 0}</b>.`;
+  }
+  const label = preview.resource === "mana" ? "Мана" : "HP";
   return preview.hpBefore >= preview.hpMax
-    ? `HP уже повні: <b>${preview.hpBefore}/${preview.hpMax}</b>.`
-    : `HP уже достатньо для цієї манатки: <b>${preview.hpBefore}/${preview.hpMax}</b>.`;
+    ? `${label} уже ${preview.resource === "mana" ? "повна" : "повні"}: <b>${preview.hpBefore}/${preview.hpMax}</b>.`
+    : `${label} уже достатньо для цієї манатки: <b>${preview.hpBefore}/${preview.hpMax}</b>.`;
+}
+
+function presentResourceChangeLine(preview: { resource: "hp" | "mana" | "both"; hpBefore: number; hpMax: number; hpAfter: number; manaBefore?: number; manaMax?: number; manaAfter?: number }): string {
+  if (preview.resource === "both") {
+    return [
+      `HP: <b>${preview.hpBefore}/${preview.hpMax}</b> → <b>${preview.hpAfter}/${preview.hpMax}</b>.`,
+      `Мана: <b>${preview.manaBefore ?? 0}/${preview.manaMax ?? 0}</b> → <b>${preview.manaAfter ?? 0}/${preview.manaMax ?? 0}</b>.`
+    ].join("\n");
+  }
+  const label = preview.resource === "mana" ? "Мана" : "HP";
+  return `${label}: <b>${preview.hpBefore}/${preview.hpMax}</b> → <b>${preview.hpAfter}/${preview.hpMax}</b>.`;
 }

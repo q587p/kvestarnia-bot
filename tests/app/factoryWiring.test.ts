@@ -162,7 +162,8 @@ describe("application factory wiring", () => {
         shynok: repositories.shynok,
         achievements,
         activityEvents: publicActivityEvents,
-        fightingCornerQuest
+        fightingCornerQuest,
+        consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
       });
     `));
     expect(source).toContain(compact(`
@@ -214,7 +215,7 @@ describe("application factory wiring", () => {
       )
     `));
     expect(source).toContain(compact(`
-      itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
+      itemUse: new ItemUseService(repositories.itemUse, undefined, achievements, config.consumableManatkaUsesEnabled)
     `));
     expect(source).toContain(compact(`
       itemUpgrades: new ItemUpgradeService(
@@ -235,8 +236,9 @@ describe("application factory wiring", () => {
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
         enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
-        devHelpersEnabled: nonProduction
-      }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial)
+        devHelpersEnabled: nonProduction,
+        consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
+      }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions)
     `));
     expect(source).toContain(compact(`
       partySessions: new PartySessionService(repositories.partySessions, {

@@ -407,6 +407,9 @@ hard-оказію: мають бути і сольна атака, і збір �
 - left-passage party attack перевіряється за
   [`0.4.2` focused QA](../qa/0.4.2-left-passage-party-attack-qa.md);
   production entry default-off, ручний результат pending.
+- consumable manatka uses перевіряються за
+  [`0.4.3` focused QA](../qa/0.4.3-consumable-manatka-uses-qa.md);
+  сімнадцять нових nonmedical mappings default-off, ручний результат pending.
 
 Індекс поточних feature-specific пакетів:
 [`docs/qa/README.md`](../qa/README.md). Цей компактний smoke не дублює їхні
@@ -415,7 +418,7 @@ hard-оказію: мають бути і сольна атака, і збір �
 ### Поза поточним перевіреним покриттям або ще не shipped
 
 - persistent HP loss і смерть персонажа;
-- решта crafting та consumable-item покриття поза вже описаним Munchkin-обміном;
+- решта crafting та consumable-item покриття поза вже описаними focused пакетами;
 - ґільдії, PvP, player markets і seasons.
 
 Наявність у цьому списку не змінює repository, deployment або rollout state;

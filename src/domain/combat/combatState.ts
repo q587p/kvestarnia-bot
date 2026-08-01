@@ -329,6 +329,7 @@ export interface CombatTurnSummary {
   itemId?: string;
   itemName?: string;
   heroHealing?: number;
+  heroManaRestored?: number;
   heroHpAfter?: number;
   enemyResults?: CombatEnemyAbilityResult[];
   allyResults?: CombatAllyAbilityResult[];

@@ -1,5 +1,6 @@
 import {
   resolveActorCombatAction,
+  tickActorCooldowns,
   type CombatActorResourceState
 } from "../combat/combatEngine";
 import type {
@@ -16,6 +17,10 @@ import {
 } from "../combat/combatActions";
 import type { CharacterStats } from "../characters/starterStats";
 import { mantokAbilityGrantDefinitions } from "../../content/mantokAbilityGrants";
+import {
+  consumableManatkaUseDefinitions,
+  findConsumableManatkaUse
+} from "../../content/consumableManatkaUses";
 import {
   findMonsterAbility,
   monsterAbilities,
@@ -75,11 +80,13 @@ export const GROUP_COMBAT_PARTICIPANT_LIMIT = 3;
 export const GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT = 6;
 export const GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT = 13;
 const GROUP_COMBAT_BASIC_GUARD_SENTINEL = 32_767;
+const GROUP_COMBAT_PERCENT_GUARD_SENTINEL = 100_000;
 export const GROUP_COMBAT_SUPPORTED_ITEM_IDS = [
   "item.responsible-panic-bandage",
   "item.dense-bandage",
-  "item.field-kit"
-] as const;
+  "item.field-kit",
+  ...consumableManatkaUseDefinitions.map((entry) => entry.itemId)
+] as readonly string[];
 export const GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS =
   GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS;
 export const GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS = [
@@ -766,7 +773,7 @@ export interface GroupCombatRewards {
 
 export interface GroupCombatCommittedConsumable {
   characterId: string;
-  itemId: (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number];
+  itemId: string;
 }
 
 export interface GroupCombatResolution {
@@ -1124,7 +1131,7 @@ export function validateGroupCombatAction(
       : isSupportedGroupCombatItem(action.payloadKey) &&
           (actor.combatItemQuantities?.[action.payloadKey] ?? 0) > 0 &&
           isGroupCombatItemAvailable(actor, action.payloadKey) &&
-          canHealWithGroupCombatItem(actor, action.payloadKey)
+          canUseGroupCombatItem(state, actor, action.payloadKey)
         ? "ok"
         : "action-unavailable";
   }
@@ -1327,21 +1334,22 @@ export function resolveGroupCombatTurn(
       const itemId = action.payloadKey as GroupCombatCommittedConsumable["itemId"];
       tickActorAfterCommittedAction(actor);
       tickGroupCombatItemCooldowns(actor);
-      const healed = applyCombatItem(actor, itemId);
+      const restored = applyCombatItem(state, actor, itemId);
       recordGroupCombatItemUse(actor, itemId);
       actor.combatItemQuantities[itemId] = (actor.combatItemQuantities[itemId] ?? 0) - 1;
       if ((actor.combatItemQuantities[itemId] ?? 0) <= 0) {
         delete actor.combatItemQuantities[itemId];
       }
-      contribution.healing += healed;
-      actor.threat += healed * 2;
+      contribution.healing += restored.healing;
+      contribution.damage += restored.damage;
+      actor.threat += restored.healing * 2;
       committedConsumables.push({ characterId: actor.characterId, itemId });
       lines.push(
         `${presentParticipantActionLabel(
           actor,
           "використовує манатку",
-          GROUP_COMBAT_ITEM_NAMES[itemId]
-        )}: +${healed} HP.`
+          getGroupCombatItemPresentation(itemId)?.label ?? itemId
+        )}: ${restored.line}.`
       );
     } else {
       applyAbilityAction(state, actor, action, contribution, lines);
@@ -1489,8 +1497,8 @@ export function assertGroupCombatStateBudget(state: GroupCombatState): void {
 
 export function isSupportedGroupCombatItem(
   itemId: string | undefined
-): itemId is (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number] {
-  return Boolean(itemId && (GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(itemId));
+): itemId is string {
+  return Boolean(itemId && GROUP_COMBAT_SUPPORTED_ITEM_IDS.includes(itemId));
 }
 
 export function isGroupCombatManualRewardParticipant(
@@ -2124,7 +2132,9 @@ export function applyGroupCombatEnemyDamage(
     for (const protection of protections) {
       const prevented = protection.kind === "guard" && protection.value === GROUP_COMBAT_BASIC_GUARD_SENTINEL
         ? Math.max(0, damage - Math.max(1, Math.floor(damage / 2)))
-        : Math.min(damage, protection.value);
+        : protection.kind === "response-mitigation" && protection.value >= GROUP_COMBAT_PERCENT_GUARD_SENTINEL
+          ? Math.min(damage, Math.floor(damage * Math.min(100, protection.value - GROUP_COMBAT_PERCENT_GUARD_SENTINEL) / 100))
+          : Math.min(damage, protection.value);
       damage -= prevented;
       const source = getContribution(state, protection.sourceCharacterId!);
       if (protection.kind === "guard") {
@@ -4266,10 +4276,20 @@ function isGroupCombatItemAvailable(
   return true;
 }
 
-function canHealWithGroupCombatItem(
+function canUseGroupCombatItem(
+  state: GroupCombatState,
   actor: GroupCombatActorSnapshot,
   itemId: GroupCombatCommittedConsumable["itemId"]
 ): boolean {
+  const effect = findConsumableManatkaUse(itemId)?.useEffect;
+  if (effect?.kind === "restore-mana") return actor.mana < actor.manaMax;
+  if (effect?.kind === "restore-both" || effect?.kind === "random-resource") return actor.hp < actor.hpMax || actor.mana < actor.manaMax;
+  if (effect?.kind === "heal-hp-below-percent") return actor.hp <= Math.floor(actor.hpMax * effect.thresholdPercent / 100) && actor.hp < actor.hpMax;
+  if (effect?.kind === "paired-heal") return livingParticipants(state).some((target) => target.characterId !== actor.characterId && target.hp < target.hpMax);
+  if (effect?.kind === "party-heal") return livingParticipants(state).some((target) => target.hp < target.hpMax);
+  if (effect?.kind === "cleanse-negative") return hasParticipantNegativeEffect(state, actor.characterId);
+  if (effect?.kind === "reduce-cooldowns") return getActiveGroupCombatCooldowns(actor).length > 0;
+  if (effect?.kind === "critical-damage" || effect?.kind === "guard-response" || effect?.kind === "evade-response") return livingEnemies(state).length > 0;
   return itemId === "item.field-kit"
     ? actor.hp < Math.ceil(actor.hpMax * 0.93)
     : actor.hp < actor.hpMax;
@@ -4328,14 +4348,118 @@ function tickGroupCombatItemCooldowns(actor: GroupCombatActorSnapshot): void {
 }
 
 function applyCombatItem(
+  state: GroupCombatState,
   actor: GroupCombatActorSnapshot,
   itemId: GroupCombatCommittedConsumable["itemId"]
-): number {
+): { healing: number; manaRestored: number; damage: number; line: string } {
+  const definition = findConsumableManatkaUse(itemId);
+  const effect = definition?.useEffect.kind === "random-resource"
+    ? resolveGroupCombatRandomResourceEffect(
+        definition.useEffect,
+        actor,
+        new SeededRandomSource(`${state.deterministicSeed}:${state.turn}:${actor.characterId}:${itemId}`)
+      )
+    : definition?.useEffect;
+  if (effect?.kind === "restore-mana") {
+    const before = actor.mana;
+    actor.mana = Math.min(actor.manaMax, actor.mana + effect.amount);
+    const manaRestored = actor.mana - before;
+    return { healing: 0, manaRestored, damage: 0, line: `+${manaRestored} мани` };
+  }
+  if (effect?.kind === "restore-both") {
+    const healing = healParticipant(actor, effect.hpAmount);
+    const before = actor.mana;
+    actor.mana = Math.min(actor.manaMax, actor.mana + effect.manaAmount);
+    const manaRestored = actor.mana - before;
+    return { healing, manaRestored, damage: 0, line: `+${healing} HP і +${manaRestored} мани` };
+  }
+  if (effect?.kind === "paired-heal") {
+    const selfHealing = healParticipant(actor, effect.amount);
+    const ally = livingParticipants(state)
+      .filter((target) => target.characterId !== actor.characterId)
+      .sort((left, right) => left.hp / left.hpMax - right.hp / right.hpMax || left.rosterOrder - right.rosterOrder)[0];
+    const allyHealing = ally ? healParticipant(ally, effect.amount) : 0;
+    return { healing: selfHealing + allyHealing, manaRestored: 0, damage: 0, line: `+${selfHealing} HP собі й +${allyHealing} HP союзникові` };
+  }
+  if (effect?.kind === "party-heal") {
+    const healing = livingParticipants(state).reduce((sum, target) => sum + healParticipant(target, effect.amount), 0);
+    return { healing, manaRestored: 0, damage: 0, line: `+${healing} HP ватагою` };
+  }
+  if (effect?.kind === "guard-response" || effect?.kind === "evade-response") {
+    const percent = effect.kind === "evade-response" ? 100 : effect.reductionPercent;
+    addProtectionStatus(state, actor.characterId, actor.characterId, "response-mitigation", GROUP_COMBAT_PERCENT_GUARD_SENTINEL + percent);
+    return { healing: 0, manaRestored: 0, damage: 0, line: effect.kind === "evade-response" ? "найближча відповідь не влучить" : `найближчу відповідь послаблено на ${percent}%` };
+  }
+  if (effect?.kind === "critical-damage") {
+    const target = livingEnemies(state)[0]!;
+    const damage = Math.min(target.hp, Math.max(0, Math.floor(effect.amount)));
+    target.hp -= damage;
+    return { healing: 0, manaRestored: 0, damage, line: `${damage} критичної шкоди` };
+  }
+  if (effect?.kind === "reduce-cooldowns") {
+    reduceGroupCombatCooldowns(actor, effect.turns);
+    return { healing: 0, manaRestored: 0, damage: 0, line: `відкати скорочено на ${effect.turns} хід` };
+  }
+  if (effect?.kind === "cleanse-negative") {
+    const removed = cleanseParticipantNegativeEffects(state, actor.characterId, effect.count);
+    return { healing: 0, manaRestored: 0, damage: 0, line: `знято негативних ефектів: ${removed}` };
+  }
   if (itemId === "item.field-kit") {
     const targetHp = Math.ceil(actor.hpMax * 0.93);
-    return healParticipant(actor, Math.max(0, targetHp - actor.hp));
+    const healing = healParticipant(actor, Math.max(0, targetHp - actor.hp));
+    return { healing, manaRestored: 0, damage: 0, line: `+${healing} HP` };
   }
-  return healParticipant(actor, itemId === "item.dense-bandage" ? 42 : 7);
+  const amount = effect?.kind === "heal-hp" || effect?.kind === "heal-hp-below-percent"
+    ? effect.amount
+    : itemId === "item.dense-bandage"
+      ? 42
+      : 7;
+  const healing = healParticipant(actor, amount);
+  return { healing, manaRestored: 0, damage: 0, line: `+${healing} HP` };
+}
+
+function resolveGroupCombatRandomResourceEffect(
+  effect: Extract<NonNullable<ReturnType<typeof findConsumableManatkaUse>>["useEffect"], { kind: "random-resource" }>,
+  actor: GroupCombatActorSnapshot,
+  rng: SeededRandomSource
+) {
+  const candidates = [] as Array<
+    | { kind: "heal-hp"; amount: number }
+    | { kind: "restore-mana"; amount: number }
+    | { kind: "restore-both"; hpAmount: number; manaAmount: number }
+  >;
+  if (actor.hp < actor.hpMax) candidates.push({ kind: "heal-hp", amount: effect.amount });
+  if (actor.mana < actor.manaMax) candidates.push({ kind: "restore-mana", amount: effect.amount });
+  if (effect.bothAmount !== undefined) candidates.push({ kind: "restore-both", hpAmount: effect.bothAmount, manaAmount: effect.bothAmount });
+  return candidates[rng.nextInt(0, candidates.length - 1)] ?? { kind: "heal-hp" as const, amount: effect.amount };
+}
+
+function hasParticipantNegativeEffect(state: GroupCombatState, characterId: string): boolean {
+  return state.statuses.some((status) => status.targetKind === "participant" && status.targetId === characterId && status.sourceEnemyId !== undefined);
+}
+
+function cleanseParticipantNegativeEffects(state: GroupCombatState, characterId: string, count: number): number {
+  let remaining = Math.max(0, Math.floor(count));
+  const before = state.statuses.length;
+  state.statuses = state.statuses.filter((status) => {
+    const harmful = status.targetKind === "participant" && status.targetId === characterId && status.sourceEnemyId !== undefined;
+    if (harmful && remaining > 0) {
+      remaining -= 1;
+      return false;
+    }
+    return true;
+  });
+  return before - state.statuses.length;
+}
+
+function reduceGroupCombatCooldowns(actor: GroupCombatActorSnapshot, turns: number): void {
+  if (!actor.cooldowns) return;
+  const resources = actorResourceState(actor);
+  for (let index = 0; index < Math.max(0, Math.floor(turns)); index += 1) {
+    const ticked = tickActorCooldowns(resources);
+    resources.cooldowns = ticked.cooldowns;
+  }
+  applyActorResourceState(actor, resources);
 }
 
 function healParticipant(target: GroupCombatActorSnapshot, amount: number): number {
@@ -5297,8 +5421,17 @@ function clampInteger(value: number, minimum: number, maximum: number): number {
 }
 
 const PROOF_ENEMY_NAMES = ["Комірний Шурхіт", "Сходовий Гуп", "Підвальний Перераховувач"] as const;
-const GROUP_COMBAT_ITEM_NAMES: Record<GroupCombatCommittedConsumable["itemId"], string> = {
-  "item.responsible-panic-bandage": "🩹 Бинт відповідальної паніки",
-  "item.dense-bandage": "🩹 Щільний бинт",
-  "item.field-kit": "⚕️ Польова аптечка"
+const GROUP_COMBAT_MEDICAL_ITEM_PRESENTATIONS: Record<string, { label: string }> = {
+  "item.responsible-panic-bandage": { label: "🩹 Бинт відповідальної паніки" },
+  "item.dense-bandage": { label: "🩹 Щільний бинт" },
+  "item.field-kit": { label: "⚕️ Польова аптечка" }
 };
+
+export function getGroupCombatItemPresentation(itemId: string): { label: string } | undefined {
+  const medical = GROUP_COMBAT_MEDICAL_ITEM_PRESENTATIONS[itemId];
+  if (medical) {
+    return medical;
+  }
+  const definition = findConsumableManatkaUse(itemId);
+  return definition ? { label: `${definition.icon} ${definition.name}` } : undefined;
+}

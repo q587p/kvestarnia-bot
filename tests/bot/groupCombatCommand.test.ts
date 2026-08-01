@@ -791,6 +791,8 @@ describe("group combat bot flow", () => {
       turn: 1
     }, {
       findByToken: vi.fn().mockResolvedValue(session),
+      areConsumableManatkaUsesEnabled: vi.fn().mockReturnValue(true),
+      getHiddenCombatItemIdsForTelegramUser: vi.fn().mockResolvedValue(new Set()),
       submitAction
     } as unknown as GroupCombatService);
 
@@ -816,6 +818,8 @@ describe("group combat bot flow", () => {
       turn: 1
     }, {
       findByToken: vi.fn().mockResolvedValue(session),
+      areConsumableManatkaUsesEnabled: vi.fn().mockReturnValue(true),
+      getHiddenCombatItemIdsForTelegramUser: vi.fn().mockResolvedValue(new Set()),
       submitAction
     } as unknown as GroupCombatService);
 
