@@ -1643,6 +1643,10 @@ function presentPartyBossItemUnavailableNotice(
       return "Манатка покрутилася в руках і не знайшла синця, який варто драматизувати.";
     case "full-mana":
       return "Манатка перевірила запас мани й відмовилася переливати через край.";
+    case "full-resources":
+      return "HP і мана вже повні, тому манатка лишилася в торбі.";
+    case "effect-unavailable":
+      return "Манатці зараз нема на що подіяти, тому вона лишилася в торбі.";
     case "not-owned":
       return "Манатки не знайшлося в торбі. Можливо, вона відповідально панікує деінде.";
     case "reserved":
@@ -1766,6 +1770,16 @@ function presentPartyBossActionLine(
       : `${name} застосовує ${itemName}.${healing}`;
   }
 
+  if (action.outcome === "item-not-used") {
+    const itemName = presentPartyBossItemName(action.itemId, action.itemName ?? "манатку");
+    const reason = action.itemUnavailableReason
+      ? presentPartyBossItemUnavailableNotice(action.itemUnavailableReason)
+      : "Манатці вже нема на що подіяти, тому вона лишилася в торбі.";
+    return isViewer
+      ? `Ви не витратили ${itemName}. ${reason}`
+      : `${name} не витрачає ${itemName}. ${reason}`;
+  }
+
   if (action.outcome === "defended") {
     if (action.origin === "timeout") {
       return isViewer
@@ -1839,6 +1853,10 @@ function presentPartyBossActionSupport(
 function presentPartyBossItemHealing(
   action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
 ): string {
+  if (action.healing && action.healing > 0 && action.manaRestored && action.manaRestored > 0) {
+    return ` HP відновлено на ${action.healing}, а ману — на ${action.manaRestored}.`;
+  }
+
   if (action.manaRestored && action.manaRestored > 0) {
     return ` Ману відновлено на ${action.manaRestored}.`;
   }

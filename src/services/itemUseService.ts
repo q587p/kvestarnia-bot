@@ -72,7 +72,8 @@ export class ItemUseService {
     const result = await this.repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: this.now()
+      now: this.now(),
+      allowNonmedicalConsumables: this.consumableManatkaUsesEnabled
     });
 
     if (result.state !== "used") {

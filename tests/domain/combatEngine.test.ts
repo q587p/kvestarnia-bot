@@ -8,6 +8,7 @@ import {
   cloneCombatState,
   getCombatSkillProfile,
   getCombatActionAvailability,
+  getCombatItemInapplicableReason,
   getPrimaryCombatEnemy,
   MONSTER_ABILITY_RUNTIME_RULES_VERSION,
   normalizeCombatEnemies,
@@ -619,7 +620,7 @@ describe("combat domain engine", () => {
       hero: { ...warrior, hpMax: 100 },
       monster,
       rng: new FakeRandomSource([0.99])
-    })).toMatchObject({ ok: false, reason: "full-hp" });
+    })).toMatchObject({ ok: false, reason: "effect-unavailable" });
 
     const cooldownState = startCombat({ hero: warrior, monster });
     cooldownState.cooldowns = { skill: { id: "skill.test", remainingTurns: 3 } };
@@ -631,6 +632,52 @@ describe("combat domain engine", () => {
       rng: new FakeRandomSource([0.99, 0.99])
     });
     expect(cooldown.state.cooldowns?.skill?.remainingTurns).toBe(1);
+  });
+
+  it("returns exact no-op reasons for every inapplicable active-combat item family", () => {
+    const fullState = startCombat({ hero: warrior, monster });
+    fullState.hero.hp = fullState.hero.hpMax;
+    fullState.hero.mana = fullState.hero.manaMax;
+    const noCooldownState = startCombat({ hero: warrior, monster });
+
+    expect(getCombatItemInapplicableReason(fullState, { kind: "heal-hp", amount: 7 })).toBe("full-hp");
+    expect(getCombatItemInapplicableReason(fullState, { kind: "restore-mana", amount: 9 })).toBe("full-mana");
+    expect(getCombatItemInapplicableReason(fullState, {
+      kind: "restore-both",
+      hpAmount: 9,
+      manaAmount: 9
+    })).toBe("full-resources");
+    expect(getCombatItemInapplicableReason(fullState, {
+      kind: "heal-hp-below-percent",
+      amount: 23,
+      thresholdPercent: 50
+    })).toBe("effect-unavailable");
+    expect(getCombatItemInapplicableReason(noCooldownState, {
+      kind: "reduce-cooldowns",
+      turns: 1
+    })).toBe("effect-unavailable");
+    expect(getCombatItemInapplicableReason(noCooldownState, {
+      kind: "party-heal",
+      amount: 13
+    })).toBe("effect-unavailable");
+    expect(getCombatItemInapplicableReason(noCooldownState, {
+      kind: "cleanse-negative",
+      count: 1
+    })).toBe("effect-unavailable");
+
+    const rejected = resolveCombatItemTurn({
+      state: fullState,
+      item: { id: "item.test-full-both", name: "Повний тест", effect: {
+        kind: "restore-both",
+        hpAmount: 9,
+        manaAmount: 9
+      } },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0.99])
+    });
+    expect(rejected).toMatchObject({ ok: false, reason: "full-resources", state: { turn: 1 } });
+    expect(rejected.state).toEqual(fullState);
   });
 
   it("puts dense bandages on a five own-turn combat cooldown after successful use", () => {

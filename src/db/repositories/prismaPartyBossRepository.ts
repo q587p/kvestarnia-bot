@@ -9,7 +9,7 @@ import {
   clonePartyBossState,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
-  isPartyBossCombatItemEffectApplicable,
+  getPartyBossCombatItemInapplicableReason,
   getWarriorRaidTauntAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
@@ -78,6 +78,7 @@ import { SeededRandomSource } from "../../shared/random";
 import { PARTY_BOSS_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 import { PartyBossStateValidationError } from "../../domain/partyBoss/partyBossStateValidation";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -107,6 +108,7 @@ type QueuedPartyBossActionInput = {
   action: PartyBossActionKey;
   origin: "manual";
   item?: PartyBossCombatItemInput;
+  itemCommitAllowed?: boolean;
   gearAbility?: CombatGearAbilityInput;
 };
 
@@ -853,7 +855,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         };
       }
 
-      if (!(await isQuestConsumableUnlocked(tx, character.id, item.id))) {
+      if (!(await isConsumableCommitAllowed(tx, {
+        characterId: character.id,
+        itemId: item.id,
+        allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+      }))) {
         return { state: "item-unavailable", reason: "not-usable", session: this.mapSession(session) };
       }
 
@@ -862,10 +868,11 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return { state: "item-unavailable", reason: itemAvailability.reason, session: this.mapSession(session) };
       }
 
-      if (!isPartyBossCombatItemEffectApplicable(state, actor, item.effect)) {
+      const itemUnavailableReason = getPartyBossCombatItemInapplicableReason(state, actor, item.effect);
+      if (itemUnavailableReason) {
         return {
           state: "item-unavailable",
-          reason: item.effect.kind === "restore-mana" ? "full-mana" : "full-hp",
+          reason: itemUnavailableReason,
           session: this.mapSession(session)
         };
       }
@@ -1234,9 +1241,16 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
-      const actionInputs: QueuedPartyBossActionInput[] = actions.map((entry) => {
+      const actionInputs: QueuedPartyBossActionInput[] = await Promise.all(actions.map(async (entry) => {
         const item = parseActionItem(entry.resultJson);
         const gearAbility = parseActionGearAbility(entry.resultJson);
+        const itemCommitAllowed = item
+          ? await isConsumableCommitAllowed(tx, {
+              characterId: entry.actorCharacterId,
+              itemId: item.id,
+              allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+            })
+          : true;
 
         return {
           id: entry.id,
@@ -1244,9 +1258,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           action: parseActionKey(entry.actionKey),
           origin: "manual" as const,
           ...(item ? { item } : {}),
+          ...(item ? { itemCommitAllowed } : {}),
           ...(gearAbility ? { gearAbility } : {})
         };
-      });
+      }));
       const resolved = resolvePartyBossRound({
         state,
         now: input.now,
@@ -1256,6 +1271,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           action: entry.action,
           origin: entry.origin,
           ...(entry.item ? { item: entry.item } : {}),
+          ...(entry.item ? { itemCommitAllowed: entry.itemCommitAllowed } : {}),
           ...(entry.gearAbility ? { gearAbility: entry.gearAbility } : {})
         }))
       });
@@ -1303,7 +1319,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
 
       for (const action of actionInputs) {
-        if (action.action === "item" && action.item) {
+        const summary = resolved.round.actions.find((entry) => entry.characterId === action.characterId);
+        if (action.action === "item" && action.item && summary?.outcome === "item-used") {
           await consumePartyBossCombatItem(tx, action.characterId, action.item.id);
         }
       }
@@ -1319,7 +1336,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       let achievementEvents: PartyBossAchievementEventRecord[] = actionInputs.flatMap((action) =>
-        action.action === "item" && action.item
+        action.action === "item" && action.item &&
+        resolved.round.actions.find((entry) => entry.characterId === action.characterId)?.outcome === "item-used"
           ? buildPartyBossItemActionAchievementEvents(session, action, action.item, input.now)
           : buildPartyBossGearActionAchievementEvents(
               session,
@@ -2584,22 +2602,6 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
 
   const effect = itemUseEffectSchema.safeParse(item.effect);
   return effect.success ? { id: item.id, name: item.name, effect: effect.data } : null;
-}
-
-async function isQuestConsumableUnlocked(tx: TxClient, characterId: string, itemId: string): Promise<boolean> {
-  if (itemId !== "item.cellar.foamy-mirage-bottle") return true;
-  const [acquisition, completion] = await Promise.all([
-    tx.dailyAction.findUnique({
-      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.bottle", localDate: "once" } },
-      select: { id: true }
-    }),
-    tx.dailyAction.findUnique({
-      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.completed", localDate: "once" } },
-      select: { resultJson: true }
-    })
-  ]);
-  const result = completion?.resultJson;
-  return !acquisition || Boolean(result && typeof result === "object" && !Array.isArray(result) && result.ending === "keep");
 }
 
 function parseActionGearAbility(value: Prisma.JsonValue): CombatGearAbilityInput | null {

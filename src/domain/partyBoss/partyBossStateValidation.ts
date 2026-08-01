@@ -401,6 +401,7 @@ function validateRoundAction(value: unknown, path: string): void {
     "critical-fumble",
     "won",
     "item-used",
+    "item-not-used",
     "taunt-activated",
     "taunt-failed",
     "lament-activated"
@@ -408,12 +409,26 @@ function validateRoundAction(value: unknown, path: string): void {
     fail("round-log", `${path}.outcome is invalid.`);
   }
   ["damage", "manaSpent"].forEach((field) => requireFiniteNonNegative(action[field], `${path}.${field}`));
-  ["healing", "guard", "hpAfter"].forEach((field) => {
+  ["healing", "manaRestored", "guard", "hpAfter"].forEach((field) => {
     if (action[field] !== undefined) requireFiniteNonNegative(action[field], `${path}.${field}`);
   });
-  ["skillId", "itemId", "itemName"].forEach((field) => {
+  ["skillId", "itemId", "itemName", "itemUnavailableReason"].forEach((field) => {
     if (action[field] !== undefined) requireString(action[field], `${path}.${field}`, "round-log");
   });
+  if (
+    action.itemUnavailableReason !== undefined &&
+    ![
+      "not-usable",
+      "full-hp",
+      "full-mana",
+      "full-resources",
+      "effect-unavailable",
+      "item-on-cooldown",
+      "item-limit-reached"
+    ].includes(action.itemUnavailableReason as string)
+  ) {
+    fail("round-log", `${path}.itemUnavailableReason is invalid.`);
+  }
   if (action.supportTargets !== undefined) {
     if (!Array.isArray(action.supportTargets)) fail("round-log", `${path}.supportTargets is invalid.`);
     action.supportTargets.forEach((raw, index) => {

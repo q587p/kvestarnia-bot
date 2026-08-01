@@ -12,7 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Activated an exhaustive exact-id catalog for all twenty current consumables: three existing medical supplies, two authored cellar items and generated Loot Expansion rows `c001`–`c015`. Content validation now rejects an unmapped future `slot: consumable` row instead of inferring behavior from names, tags or `effect_id`.
 - Added explicit immediate typed effects for self, paired and party healing, HP/mana/both-resource restoration, one removable GroupCombat status cleanse, one-turn cooldown reduction, fixed critical damage, current-response guard/evasion and once-resolved bounded resource outcomes. `c001`, `c003` and `c009` heal exactly 7, 8 and 9 HP in and out of combat.
-- Generalized out-of-combat `ItemUseOrder` previews to `item-use-v4` resource snapshots with frozen random outcomes, both-resource application, life/fingerprint/quantity reservations and exact terminal replay. Random outcomes cannot be rerolled by cancel/reopen at an unchanged stack and remort life.
+- Generalized out-of-combat `ItemUseOrder` previews to `item-use-v5` resource snapshots with a frozen typed random branch, exact starting-stack quantity, both-resource application, life/fingerprint reservations and exact terminal replay. Confirm recalculates only the capped delta from the frozen branch; stack drift stales the old preview and cancel/reopen cannot reroll an unchanged stack/remort life.
 - Added a rewardless generic first successful consumable-use achievement and five-row GroupCombat item pagination with stable global option indices.
 
 ### Changed
@@ -22,7 +22,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Updated item descriptions, combat/inventory presentation, `📖 Перекази`, current lore canon, roadmap, compact context and release ledger. Take-away purchases remain planned for `0.4.9`.
 
 ### Fixed
-- Full or inapplicable resource/target states no longer consume a unit or commit a combat turn for the new effects. Duplicate confirm/action callbacks, restart replay, action replacement and timeout adoption retain the existing exact-once transaction/CAS boundaries.
+- Full or inapplicable resource/target states no longer consume a unit. Already-inapplicable callbacks leave the active combat session and turn unchanged; when an earlier Party Boss or GroupCombat actor makes a queued item useless, the later action is journaled without inventory decrement, new item cooldown/limit markers or achievement evidence. Duplicate confirm/action callbacks, restart replay, action replacement and timeout adoption retain the existing exact-once transaction/CAS boundaries.
+- Rechecked the nonmedical flag and current-life quest-bottle eligibility inside every inventory, Solo, Party Boss and GroupCombat commit. Flag-off after preview/queue applies no effect or decrement, medical commits remain live, and completed terminal receipts replay before current eligibility gates.
+- Corrected mana-only and dual-resource inventory cards plus Solo/Party Boss journals to use their stored mana and HP fields, and preserved the typed `heal-hp-to-min-percent` result when replaying completed Field Kit orders.
 
 ## [0.4.2] - 12026-08-01 - Left-Passage Party Attack
 

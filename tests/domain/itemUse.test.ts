@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateHealingPreview, calculateItemUsePreview } from "../../src/domain/itemUse";
+import {
+  calculateHealingPreview,
+  calculateItemUsePreview,
+  recalculateFrozenItemUsePreview
+} from "../../src/domain/itemUse";
 
 describe("item use domain", () => {
   it("raises field-kit previews to at least ninety-three percent HP", () => {
@@ -42,5 +46,34 @@ describe("item use domain", () => {
       manaRestoreAmount: 6,
       manaAfter: 10
     });
+  });
+
+  it("recalculates a random consumable from its frozen branch and stack evidence", () => {
+    const effect = { kind: "random-resource" as const, amount: 23, bothAmount: 13 };
+    const preview = calculateItemUsePreview({
+      hpCurrent: 10,
+      hpMax: 50,
+      manaCurrent: 1,
+      manaMax: 20,
+      effect,
+      resolutionSeed: "frozen-random-branch",
+      startingStackQuantity: 1
+    });
+    const recalculated = recalculateFrozenItemUsePreview({
+      hpCurrent: 20,
+      hpMax: 50,
+      manaCurrent: 5,
+      manaMax: 20,
+      effect,
+      frozen: preview
+    });
+
+    expect(recalculated).toMatchObject({
+      resource: preview.resource,
+      resolvedEffectKind: preview.resolvedEffectKind,
+      startingStackQuantity: 1
+    });
+    expect(recalculated?.healAmount > 0).toBe(preview.resource !== "mana");
+    expect(recalculated?.manaRestoreAmount > 0).toBe(preview.resource !== "hp");
   });
 });

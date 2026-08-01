@@ -942,6 +942,66 @@ describe("group combat proof reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it.each([
+    ["item.loot-v1-c002"],
+    ["item.loot-v1-c012"]
+  ])("keeps %s after an earlier shared-round raid heal makes it useless", (secondItemId) => {
+    const state = leftPassageState(2);
+    const first = state.participants[0]!;
+    const second = state.participants[1]!;
+    first.hp = second.hp = 37;
+    first.hpMax = second.hpMax = 50;
+    first.stats.dexterity = 93;
+    second.stats.dexterity = 1;
+    first.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    second.combatItemQuantities = { [secondItemId]: 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 1; });
+
+    const result = resolveGroupCombatTurn(state, [
+      {
+        ...action(state, 0, "item", "self", first.characterId),
+        payloadKey: "item.loot-v1-c012"
+      },
+      {
+        ...action(state, 1, "item", "self", second.characterId),
+        payloadKey: secondItemId
+      }
+    ]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: first.characterId,
+      itemId: "item.loot-v1-c012"
+    }]);
+    expect(result.state.participants[1]?.combatItemQuantities[secondItemId]).toBe(1);
+    expect(result.state.recap[0]?.lines).toContain(
+      `${second.name} не витрачає манатку — ${secondItemId === "item.loot-v1-c002" ? "🥟 Вареники Парного Бафу" : "🥗 Салат «Олів'є Рейдовий»"}: ефекту вже нема на що подіяти, тож манатка лишається в торбі.`
+    );
+  });
+
+  it("commits both shared-round raid heals while the second still has a useful effect", () => {
+    const state = leftPassageState(2);
+    const first = state.participants[0]!;
+    const second = state.participants[1]!;
+    first.hp = second.hp = 10;
+    first.hpMax = second.hpMax = 50;
+    first.stats.dexterity = 93;
+    second.stats.dexterity = 1;
+    first.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    second.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 1; });
+
+    const result = resolveGroupCombatTurn(state, [first, second].map((participant, index) => ({
+      ...action(state, index, "item", "self", participant.characterId),
+      payloadKey: "item.loot-v1-c012"
+    })));
+
+    expect(result.committedConsumables).toEqual([
+      { characterId: first.characterId, itemId: "item.loot-v1-c012" },
+      { characterId: second.characterId, itemId: "item.loot-v1-c012" }
+    ]);
+    expect(result.state.participants.map((entry) => entry.hp)).toEqual([35, 36]);
+  });
+
   it("records accepted manual participation before a start-of-turn bleed win", () => {
     const state = leftPassageState(3);
     state.enemies.slice(1).forEach((enemy) => {

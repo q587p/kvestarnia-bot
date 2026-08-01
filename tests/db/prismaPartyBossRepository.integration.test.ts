@@ -998,6 +998,172 @@ describe("PrismaPartyBossRepository integration", () => {
     })).resolves.toEqual({ quantity: 1 });
   });
 
+  it.each([
+    ["item.loot-v1-c002", "Вареники Парного Бафу", { kind: "paired-heal" as const, amount: 8 }, 92102n],
+    ["item.loot-v1-c012", "Салат «Олів'є Рейдовий»", { kind: "party-heal" as const, amount: 13 }, 92104n]
+  ])("preserves the second %s stack and evidence after an earlier raid salad fully heals the round", async (
+    secondItemId,
+    secondItemName,
+    secondEffect,
+    joinerTelegramId
+  ) => {
+    const suffix = secondItemId.endsWith("c002") ? "paired" : "salad";
+    const leaderTelegramId = joinerTelegramId - 1n;
+    const leaderUserId = `shared-round-${suffix}-a`;
+    const joinerUserId = `shared-round-${suffix}-z`;
+    const leaderCharacterId = `${leaderUserId}-character`;
+    const joinerCharacterId = `${joinerUserId}-character`;
+    const token = `party-shared-round-${suffix}`;
+    await seedCharacter(prisma, leaderUserId, leaderTelegramId, "Перша Салатниця", {
+      hpCurrent: 10,
+      hpMax: 50,
+      strength: 20,
+      dexterity: 93
+    });
+    await seedCharacter(prisma, joinerUserId, joinerTelegramId, "Друга Салатниця", {
+      hpCurrent: 10,
+      hpMax: 50,
+      strength: 20,
+      dexterity: 1
+    });
+    await prisma.characterItem.createMany({
+      data: [
+        { characterId: leaderCharacterId, itemId: "item.loot-v1-c012", quantity: 1 },
+        { characterId: joinerCharacterId, itemId: secondItemId, quantity: 1 }
+      ]
+    });
+    await partyRepository.createForTelegramUser(leaderTelegramId, partyInput(token));
+    await partyRepository.joinByTokenForTelegramUser(joinerTelegramId, token, joinInput());
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(leaderTelegramId, {
+      partyInviteToken: token,
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    const session = expectPartyBossSession(started);
+    const fullAfterFirst = {
+      ...session.state,
+      boss: { ...session.state.boss, attack: 0 },
+      participants: [...session.state.participants]
+        .sort((left) => left.characterId === leaderCharacterId ? -1 : 1)
+        .map((participant) => ({
+          ...participant,
+          resources: { ...participant.resources, hp: participant.resources.hpMax - 13 }
+        }))
+    };
+    await prisma.partyBossSession.update({
+      where: { id: session.id },
+      data: { stateJson: fullAfterFirst }
+    });
+    const commitInput = { ...resolveInput(), allowNonmedicalConsumables: true };
+
+    await expect(bossRepository.submitItemForTelegramUser(
+      leaderTelegramId,
+      token,
+      1,
+      {
+        id: "item.loot-v1-c012",
+        name: "Салат «Олів'є Рейдовий»",
+        effect: { kind: "party-heal", amount: 13 }
+      },
+      commitInput
+    )).resolves.toMatchObject({ state: "queued" });
+    const resolved = await bossRepository.submitItemForTelegramUser(
+      joinerTelegramId,
+      token,
+      1,
+      { id: secondItemId, name: secondItemName, effect: secondEffect },
+      commitInput
+    );
+    const latest = expectPartyBossSession(resolved);
+    const round = latest.state.roundLog.at(-1)!;
+
+    expect(resolved.state).toBe("resolved");
+    expect(round.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ characterId: leaderCharacterId, outcome: "item-used" }),
+      expect.objectContaining({
+        characterId: joinerCharacterId,
+        outcome: "item-not-used",
+        itemUnavailableReason: "effect-unavailable"
+      })
+    ]));
+    expect(round.actions.find((entry) => entry.characterId === joinerCharacterId)?.healing ?? 0).toBe(0);
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId: joinerCharacterId, itemId: secondItemId } }
+    })).resolves.toMatchObject({ quantity: 1 });
+    await expect(prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: leaderCharacterId, itemId: "item.loot-v1-c012" } }
+    })).resolves.toBeNull();
+    expect(resolved.achievementEvents).toEqual([
+      expect.objectContaining({ characterId: leaderCharacterId, itemId: "item.loot-v1-c012" })
+    ]);
+  });
+
+  it("keeps a queued party-boss nonmedical item when its commit flag turns off", async () => {
+    await seedCharacter(prisma, "party-item-gate-leader", 92105n, "Прапорцева Лідерка", {
+      hpCurrent: 10,
+      hpMax: 50,
+      dexterity: 93
+    });
+    await seedCharacter(prisma, "party-item-gate-joiner", 92106n, "Прапорцевий Свідок", {
+      hpCurrent: 40,
+      hpMax: 50,
+      dexterity: 1
+    });
+    await prisma.characterItem.create({
+      data: {
+        characterId: "party-item-gate-leader-character",
+        itemId: "item.loot-v1-c014",
+        quantity: 1
+      }
+    });
+    await partyRepository.createForTelegramUser(92105n, partyInput("party-item-gate"));
+    await partyRepository.joinByTokenForTelegramUser(92106n, "party-item-gate", joinInput());
+    await bossRepository.startFromRecruitingPartyForTelegramUser(92105n, {
+      partyInviteToken: "party-item-gate",
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    const item = {
+      id: "item.loot-v1-c014",
+      name: "Насіння Диванного Друїда",
+      effect: { kind: "restore-both" as const, hpAmount: 9, manaAmount: 9 }
+    };
+    await expect(bossRepository.submitItemForTelegramUser(
+      92105n,
+      "party-item-gate",
+      1,
+      item,
+      { ...resolveInput(), allowNonmedicalConsumables: true }
+    )).resolves.toMatchObject({ state: "queued" });
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      92106n,
+      "party-item-gate",
+      1,
+      "defend",
+      { ...resolveInput(), allowNonmedicalConsumables: false }
+    );
+    const latest = expectPartyBossSession(resolved);
+
+    expect(latest.state.roundLog.at(-1)?.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        characterId: "party-item-gate-leader-character",
+        outcome: "item-not-used",
+        itemUnavailableReason: "not-usable"
+      })
+    ]));
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "party-item-gate-leader-character",
+          itemId: "item.loot-v1-c014"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+    expect(resolved.achievementEvents).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "item.used", itemId: "item.loot-v1-c014" })
+    ]));
+  });
+
   it("uses the latest queued party-boss choice and does not spend an overwritten item", async () => {
     await seedCharacter(prisma, "replace-item-user", 1171n, "Переобрана", {
       hpCurrent: 10,

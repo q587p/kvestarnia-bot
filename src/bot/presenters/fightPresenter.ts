@@ -401,6 +401,10 @@ export function presentPersistentFightTurn(
           return "HP уже повні. Корчма не дозволила витрачати манатку для красивого жесту.";
         case "full-mana":
           return "Мана вже повна. Корчма не дозволила переливати її через край.";
+        case "full-resources":
+          return "HP і мана вже повні. Манатка лишилася в торбі, а хід — за вами.";
+        case "effect-unavailable":
+          return "Манатці зараз нема на що подіяти. Вона лишилася в торбі, а хід не змінився.";
         case "item-on-cooldown":
           return "Ця манатка ще відсапується після минулого застосування. Корчма показує поточний стан.";
         case "item-limit-reached":
@@ -444,6 +448,10 @@ export function presentPersistentFightItemUnavailableNotice(
       return "Манатка не спрацювала: HP уже повні.";
     case "full-mana":
       return "Манатка не спрацювала: мана вже повна.";
+    case "full-resources":
+      return "Манатка не спрацювала: HP і мана вже повні.";
+    case "effect-unavailable":
+      return "Манатка не спрацювала: зараз для її ефекту немає придатної цілі.";
     case "not-owned":
       return "Манатка не спрацювала: її вже немає в торбі.";
     case "reserved":
@@ -1049,6 +1057,10 @@ function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | 
 }
 
 function presentItemUseHealingSummary(summary: CombatTurnSummary): string {
+  if (summary.heroHealing && summary.heroManaRestored) {
+    return ` HP підросли на ${summary.heroHealing}, а мана — на ${summary.heroManaRestored}.`;
+  }
+
   if (summary.heroManaRestored) {
     return ` Мана підросла на ${summary.heroManaRestored}.`;
   }

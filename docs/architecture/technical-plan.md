@@ -37,7 +37,7 @@ Telegram — лише інтерфейс. Уся ігрова логіка ма�
 `0.2.4` adds item-use persistence through `item_use_orders`. A use order freezes character/remort/item identity, a content fingerprint, preview/result JSON, effect kind, reservation key and terminal timestamps. Preview creates a short-lived pending reservation only for explicit one-use items; confirm re-reads character, combat lease, inventory, equipment, content fingerprint and competing reservations in one transaction, settles passive recovery, consumes one unit, applies capped HP healing and stores the canonical result. Duplicate terminal callbacks replay the stored result. Remort cancels pending/processing use orders.
 
 `0.4.3` extends that boundary to an exhaustive explicit catalog for all twenty
-current `slot: consumable` items. Out-of-combat effects use `item-use-v4` and
+current `slot: consumable` items. Out-of-combat effects use `item-use-v5` and
 store the resolved typed effect, capped resource delta and any one-time random
 outcome in `ItemUseOrder`; solo, Party Boss and GroupCombat uses stay inside
 their existing server-owned action/turn CAS and journal replay. Content

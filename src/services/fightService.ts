@@ -390,7 +390,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "item-on-cooldown" | "item-limit-reached";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -3082,7 +3082,12 @@ export class FightService {
     });
 
     if (!resolved.ok) {
-      if (resolved.reason === "full-hp" || resolved.reason === "full-mana") {
+      if (
+        resolved.reason === "full-hp" ||
+        resolved.reason === "full-mana" ||
+        resolved.reason === "full-resources" ||
+        resolved.reason === "effect-unavailable"
+      ) {
         return {
           state: "item-unavailable",
           reason: resolved.reason,
@@ -3127,6 +3132,7 @@ export class FightService {
       telegramUserId,
       characterId: currentSession.characterId,
       itemId: combatItem.item.id,
+      allowNonmedicalConsumables: this.consumableManatkaUsesEnabled,
       now: this.clock(),
       state: resolvedState,
       status: resolvedState.status,
@@ -3166,7 +3172,7 @@ export class FightService {
       };
     }
 
-    if (itemUpdate.outcome === "not-owned" || itemUpdate.outcome === "reserved") {
+    if (itemUpdate.outcome === "not-owned" || itemUpdate.outcome === "reserved" || itemUpdate.outcome === "not-usable") {
       return {
         state: "item-unavailable",
         reason: itemUpdate.outcome,

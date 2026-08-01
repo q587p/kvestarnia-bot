@@ -884,6 +884,47 @@ describe("party session presenter", () => {
     expect(text).not.toContain("Польова аптечка</b>. HP відновлено на 83.");
   });
 
+  it("renders both resources and a preserved item when the shared round changes applicability", () => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 1,
+        actions: [
+          {
+            characterId: "leader",
+            action: "item",
+            origin: "manual",
+            outcome: "item-used",
+            damage: 0,
+            manaSpent: 0,
+            itemId: "item.loot-v1-c014",
+            itemName: "Насіння Диванного Друїда",
+            healing: 9,
+            manaRestored: 9
+          },
+          {
+            characterId: "striker",
+            action: "item",
+            origin: "manual",
+            outcome: "item-not-used",
+            damage: 0,
+            manaSpent: 0,
+            itemId: "item.loot-v1-c012",
+            itemName: "Салат «Олів'є Рейдовий»",
+            itemUnavailableReason: "full-hp"
+          }
+        ],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [],
+        statusAfter: "active"
+      }]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain("HP відновлено на 9, а ману — на 9.");
+    expect(text).toContain("не витрачає 🩹 <b>Салат «Олів'є Рейдовий»</b>");
+    expect(text).toContain("не знайшла синця");
+  });
+
   it("renders Big Barrel dense bandage item actions with the medical icon", () => {
     const text = presentPartyBoss(makeBigBossSession({
       roundLog: [{

@@ -155,6 +155,84 @@ describe("itemUsePresenter", () => {
     expect(text).toContain("Використано бинтів: <b>2</b>.");
     expect(text).toContain("HP: <b>30/44</b> → <b>44/44</b>.");
   });
+
+  it("uses the typed mana and dual-resource snapshots for previews and replayed results", () => {
+    const manaOrder = {
+      ...makeOrder(),
+      itemId: "item.test-mana",
+      itemName: "Тестова мана",
+      preview: {
+        rulesVersion: ITEM_USE_RULES_VERSION,
+        startingStackQuantity: 1,
+        resolvedEffectKind: "restore-mana" as const,
+        resource: "mana" as const,
+        hpBefore: 11,
+        hpMax: 41,
+        healAmount: 0,
+        hpAfter: 11,
+        manaBefore: 2,
+        manaMax: 10,
+        manaRestoreAmount: 8,
+        manaAfter: 10
+      },
+      result: null,
+      status: "pending" as const
+    };
+    const manaPreview = presentItemUsePreview({
+      state: "preview-created",
+      character: makeCharacter(),
+      order: manaOrder
+    });
+
+    expect(manaPreview).toContain("Мана: <b>2/10</b> → <b>10/10</b>.");
+    expect(manaPreview).not.toContain("HP: <b>11/41</b>");
+
+    const bothOrder = {
+      ...makeOrder(),
+      itemId: "item.test-both",
+      itemName: "Тест обох ресурсів",
+      preview: {
+        rulesVersion: ITEM_USE_RULES_VERSION,
+        startingStackQuantity: 1,
+        resolvedEffectKind: "restore-both" as const,
+        resource: "both" as const,
+        hpBefore: 10,
+        hpMax: 41,
+        healAmount: 9,
+        hpAfter: 19,
+        manaBefore: 1,
+        manaMax: 10,
+        manaRestoreAmount: 9,
+        manaAfter: 10
+      },
+      result: {
+        rulesVersion: ITEM_USE_RULES_VERSION,
+        startingStackQuantity: 1,
+        resolvedEffectKind: "restore-both" as const,
+        resource: "both" as const,
+        kind: "restore-both" as const,
+        itemId: "item.test-both",
+        itemName: "Тест обох ресурсів",
+        hpBefore: 10,
+        hpMax: 41,
+        healAmount: 9,
+        hpAfter: 19,
+        manaBefore: 1,
+        manaMax: 10,
+        manaRestoreAmount: 9,
+        manaAfter: 10
+      }
+    };
+    const replay = presentItemUseConfirm({
+      state: "replayed",
+      character: makeCharacter(),
+      order: bothOrder
+    });
+
+    expect(replay).toContain("HP: <b>10/41</b> → <b>19/41</b>.");
+    expect(replay).toContain("Мана: <b>1/10</b> → <b>10/10</b>.");
+    expect(replay).toContain("Результат уже записано раніше.");
+  });
 });
 
 function makeCharacter(): CharacterRecord {

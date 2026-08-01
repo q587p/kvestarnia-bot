@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import type { ItemContent, ItemUseEffectContent } from "../content/schema";
 
-export const ITEM_USE_RULES_VERSION = "item-use-v4";
+export const ITEM_USE_RULES_VERSION = "item-use-v5";
 
 export interface ItemUsePreviewSnapshot {
   rulesVersion: typeof ITEM_USE_RULES_VERSION;
+  startingStackQuantity: number;
+  resolvedEffectKind: ItemUseEffectContent["kind"];
   resource: "hp" | "mana" | "both";
   hpBefore: number;
   hpMax: number;
@@ -73,7 +75,8 @@ export function calculateHealingPreview(input: {
     manaCurrent: 0,
     manaMax: 1,
     effect: input.effect,
-    resolutionSeed: "legacy-healing-preview"
+    resolutionSeed: "legacy-healing-preview",
+    startingStackQuantity: 1
   });
 }
 
@@ -84,6 +87,7 @@ export function calculateItemUsePreview(input: {
   manaMax: number;
   effect: ItemUseEffectContent;
   resolutionSeed: string;
+  startingStackQuantity?: number;
 }): ItemUsePreviewSnapshot {
   const hpMax = Math.max(1, Math.floor(input.hpMax));
   const hpBefore = Math.min(hpMax, Math.max(0, Math.floor(input.hpCurrent)));
@@ -109,6 +113,8 @@ export function calculateItemUsePreview(input: {
 
   return {
     rulesVersion: ITEM_USE_RULES_VERSION,
+    startingStackQuantity: Math.max(0, Math.floor(input.startingStackQuantity ?? 0)),
+    resolvedEffectKind: resolved.kind,
     resource,
     hpBefore,
     hpMax,
@@ -119,6 +125,30 @@ export function calculateItemUsePreview(input: {
     manaRestoreAmount,
     manaAfter: Math.min(manaMax, manaBefore + manaRestoreAmount)
   };
+}
+
+export function recalculateFrozenItemUsePreview(input: {
+  hpCurrent: number;
+  hpMax: number;
+  manaCurrent: number;
+  manaMax: number;
+  effect: ItemUseEffectContent;
+  frozen: Pick<ItemUsePreviewSnapshot, "resource" | "resolvedEffectKind" | "startingStackQuantity">;
+}): ItemUsePreviewSnapshot | null {
+  const resolved = resolveFrozenOutOfCombatEffect(input.effect, input.frozen);
+  if (!resolved) {
+    return null;
+  }
+
+  return calculateItemUsePreview({
+    hpCurrent: input.hpCurrent,
+    hpMax: input.hpMax,
+    manaCurrent: input.manaCurrent,
+    manaMax: input.manaMax,
+    effect: resolved,
+    resolutionSeed: "frozen-item-use-branch",
+    startingStackQuantity: input.frozen.startingStackQuantity
+  });
 }
 
 export function getItemUsePreviewAppliedAmount(
@@ -153,6 +183,31 @@ function resolveOutOfCombatEffect(
   }
   const byte = createHash("sha256").update(resolutionSeed).digest()[0] ?? 0;
   return choices[byte % choices.length]!;
+}
+
+function resolveFrozenOutOfCombatEffect(
+  effect: ItemUseEffectContent,
+  frozen: Pick<ItemUsePreviewSnapshot, "resource" | "resolvedEffectKind">
+): ItemUseEffectContent | null {
+  if (effect.kind !== "random-resource") {
+    return frozen.resolvedEffectKind === effect.kind ? effect : null;
+  }
+
+  if (frozen.resolvedEffectKind === "heal-hp" && frozen.resource === "hp") {
+    return { kind: "heal-hp", amount: effect.amount };
+  }
+  if (frozen.resolvedEffectKind === "restore-mana" && frozen.resource === "mana") {
+    return { kind: "restore-mana", amount: effect.amount };
+  }
+  if (
+    frozen.resolvedEffectKind === "restore-both" &&
+    frozen.resource === "both" &&
+    effect.bothAmount !== undefined
+  ) {
+    return { kind: "restore-both", hpAmount: effect.bothAmount, manaAmount: effect.bothAmount };
+  }
+
+  return null;
 }
 
 function calculateHealAmount(input: {

@@ -117,7 +117,8 @@ export class PartyBossService {
     const now = this.clock();
     const result = await this.sessions.submitActionForTelegramUser(telegramUserId, partyInviteToken, turn, action, {
       now,
-      nextTurnExpiresAt: nextTurnDeadline(now)
+      nextTurnExpiresAt: nextTurnDeadline(now),
+      allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
     });
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
@@ -142,7 +143,8 @@ export class PartyBossService {
       {
         activationId: randomUUID(),
         now,
-        nextTurnExpiresAt: nextTurnDeadline(now)
+        nextTurnExpiresAt: nextTurnDeadline(now),
+        allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
       }
     );
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
@@ -192,7 +194,8 @@ export class PartyBossService {
       "gear",
       {
         now,
-        nextTurnExpiresAt: nextTurnDeadline(now)
+        nextTurnExpiresAt: nextTurnDeadline(now),
+        allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
       },
       {
         gearAbility: {
@@ -225,10 +228,9 @@ export class PartyBossService {
     }
 
     const now = this.clock();
-    const combatItem = findCombatUsableItemByKey(items, itemKey, this.options.consumableManatkaUsesEnabled === true);
+    const combatItem = findCombatUsableItemByKey(items, itemKey, true);
     if (
-      !combatItem ||
-      (this.dailyActions && !(await isQuestConsumableUseUnlocked(this.dailyActions, telegramUserId, combatItem.item.id)))
+      !combatItem
     ) {
       const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
       return {
@@ -248,7 +250,8 @@ export class PartyBossService {
       },
       {
         now,
-        nextTurnExpiresAt: nextTurnDeadline(now)
+        nextTurnExpiresAt: nextTurnDeadline(now),
+        allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
       }
     );
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
@@ -366,7 +369,8 @@ export class PartyBossService {
     const now = this.clock();
     const result = await this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
-      nextTurnExpiresAt: nextTurnDeadline(now)
+      nextTurnExpiresAt: nextTurnDeadline(now),
+      allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
     }, "due");
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);
@@ -383,7 +387,8 @@ export class PartyBossService {
     const now = this.clock();
     const result = await this.sessions.resolveTimedOutByToken(partyInviteToken, {
       now,
-      nextTurnExpiresAt: nextTurnDeadline(now)
+      nextTurnExpiresAt: nextTurnDeadline(now),
+      allowNonmedicalConsumables: this.options.consumableManatkaUsesEnabled === true
     }, "force-dev");
     const achievementUnlocksByCharacterId = await this.trackAchievementEvents(result);
     await this.trackBarrelBeerTutorialProgress(result);

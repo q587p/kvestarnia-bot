@@ -2991,6 +2991,50 @@ describe("FightService", () => {
     }
   });
 
+  it.each([
+    ["item.loot-v1-c010", "effect-unavailable", "full-hp"],
+    ["item.loot-v1-c005", "effect-unavailable", "default"],
+    ["item.loot-v1-c002", "effect-unavailable", "default"],
+    ["item.loot-v1-c004", "effect-unavailable", "default"],
+    ["item.loot-v1-c001", "full-hp", "full-hp"],
+    ["item.loot-v1-c014", "full-resources", "full-resources"]
+  ] as const)("keeps an inapplicable active fight unchanged for %s", async (itemId, reason, resourceState) => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set(itemId, 1);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99]),
+      consumableManatkaUsesEnabled: true
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") return;
+    if (resourceState === "full-hp" || resourceState === "full-resources") {
+      sessions.setHeroHp(started.session.id, 999);
+    }
+    if (resourceState === "full-resources") {
+      sessions.setHeroMana(started.session.id, 999);
+    }
+    const before = sessions.getById(started.session.id);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey(itemId)
+    });
+
+    expect(result).toMatchObject({ state: "item-unavailable", reason });
+    expect(sessions.getById(started.session.id)).toEqual(before);
+    expect(sessions.combatItemStacks.get(itemId)).toBe(1);
+    expect(sessions.consumedCombatItems).toEqual([]);
+  });
+
   it("lists only currently useful one-use manatky for the ordinary fight submenu", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

@@ -932,6 +932,91 @@ describe("party boss reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it.each([
+    ["item.loot-v1-c002", "Вареники Парного Бафу", { kind: "paired-heal" as const, amount: 8 }],
+    ["item.loot-v1-c012", "Салат «Олів'є Рейдовий»", { kind: "party-heal" as const, amount: 13 }]
+  ])("does not spend %s after an earlier raid salad fully heals the shared round", (itemId, name, effect) => {
+    const state = createPartyBossState({
+      partySessionId: `party-shared-full-${itemId}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 37, dexterity: 93 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 37, dexterity: 1 })
+      ]
+    });
+    state.boss.attack = 0;
+    state.participants.forEach((entry) => {
+      entry.resources.hp = entry.resources.hpMax - 13;
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-shared-full-${itemId}`,
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.loot-v1-c012",
+            name: "Салат «Олів'є Рейдовий»",
+            effect: { kind: "party-heal", amount: 13 }
+          }
+        },
+        {
+          characterId: "character-2",
+          action: "item",
+          origin: "manual",
+          item: { id: itemId, name, effect }
+        }
+      ]
+    });
+
+    expect(result.state.participants.map((entry) => entry.resources.hp)).toEqual(
+      result.state.participants.map((entry) => entry.resources.hpMax - 1)
+    );
+    expect(result.round.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ characterId: "character-1", outcome: "item-used" }),
+      expect.objectContaining({
+        characterId: "character-2",
+        outcome: "item-not-used",
+        itemUnavailableReason: "effect-unavailable"
+      })
+    ]));
+    expect(result.state.participants[1]?.combatItems?.uses?.[itemId]).toBeUndefined();
+  });
+
+  it("still spends the second raid salad when the earlier heal leaves useful recovery", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-shared-partial",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 10, dexterity: 93 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 10, dexterity: 1 })
+      ]
+    });
+    state.boss.attack = 0;
+    const salad = {
+      id: "item.loot-v1-c012",
+      name: "Салат «Олів'є Рейдовий»",
+      effect: { kind: "party-heal" as const, amount: 13 }
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-shared-partial",
+      actions: [
+        { characterId: "character-1", action: "item", origin: "manual", item: salad },
+        { characterId: "character-2", action: "item", origin: "manual", item: salad }
+      ]
+    });
+
+    expect(result.state.participants.map((entry) => entry.resources.hp)).toEqual([35, 35]);
+    expect(result.round.actions.map((entry) => entry.outcome)).toEqual(["item-used", "item-used"]);
+  });
+
   it("applies crafted raid item healing rules and records their battle limits", () => {
     const denseState = createPartyBossState({
       partySessionId: "party-dense-item",

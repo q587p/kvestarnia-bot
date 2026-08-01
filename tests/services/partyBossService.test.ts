@@ -174,6 +174,7 @@ describe("PartyBossService achievements", () => {
         }
       },
       {
+        allowNonmedicalConsumables: false,
         now: occurredAt,
         nextTurnExpiresAt: new Date("2026-07-01T19:00:23.000Z")
       }
@@ -205,6 +206,7 @@ describe("PartyBossService achievements", () => {
     expect(call?.[2]).toBe(1);
     expect(call?.[3]).toBe("gear");
     expect(call?.[4]).toEqual({
+      allowNonmedicalConsumables: false,
       now: occurredAt,
       nextTurnExpiresAt: new Date("2026-07-01T19:00:23.000Z")
     });

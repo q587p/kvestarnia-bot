@@ -2793,6 +2793,72 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toMatchObject({ quantity: 1 });
   });
 
+  it("rejects a queued nonmedical solo item at commit when the consumable flag turns off", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-combat-item-flag-off",
+      characterId: "character-combat-item-flag-off",
+      telegramUserId: 9412n
+    });
+    const state = makeCombatState("combat-item-flag-off", "monster.deadline-spider");
+    state.hero.hp = 10;
+    state.hero.mana = 1;
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "combat-item-flag-off",
+        characterId: "character-combat-item-flag-off",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-combat-item-flag-off",
+        characterId: "character-combat-item-flag-off",
+        kind: "solo-combat",
+        referenceId: "combat-item-flag-off"
+      }
+    });
+    await prisma.characterItem.create({
+      data: {
+        id: "stack-combat-item-flag-off",
+        characterId: "character-combat-item-flag-off",
+        itemId: "item.loot-v1-c014",
+        quantity: 1
+      }
+    });
+
+    await expect(repository.applyCombatItemTurnById("combat-item-flag-off", 1, {
+      telegramUserId: 9412n,
+      characterId: "character-combat-item-flag-off",
+      itemId: "item.loot-v1-c014",
+      allowNonmedicalConsumables: false,
+      now: new Date("2026-06-24T14:00:00.000Z"),
+      state: {
+        ...state,
+        turn: 2,
+        hero: { ...state.hero, hp: 19, mana: 10 }
+      },
+      status: "active",
+      expiresAt: new Date("2026-06-24T14:23:00.000Z")
+    })).resolves.toMatchObject({ outcome: "not-usable", session: null });
+    const unchangedSession = await prisma.soloCombatSession.findUniqueOrThrow({
+      where: { id: "combat-item-flag-off" }
+    });
+    expect(unchangedSession.turn).toBe(1);
+    expect(unchangedSession.stateJson).toMatchObject({ turn: 1 });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: "character-combat-item-flag-off",
+          itemId: "item.loot-v1-c014"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+  });
+
   it("lets combat item use replace the player's own active item-use preview", async () => {
     await seedCharacter(prisma, {
       userId: "user-combat-item-own-use-preview",

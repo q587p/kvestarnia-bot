@@ -89,6 +89,7 @@ import type {
   SoloCombatSessionRecord
 } from "./soloCombatSessionRepository";
 import { PrismaPartySessionRepository } from "./prismaPartySessionRepository";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 import {
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
@@ -940,6 +941,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
+    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult> {
     await this.settlementTestHooks?.beforeRuntimeRead?.({
       operation: "action",
@@ -1022,7 +1024,11 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           if (
             input.action === "item" &&
             input.payloadKey &&
-            !(await isQuestConsumableUnlocked(tx, actor.id, input.payloadKey))
+            !(await isConsumableCommitAllowed(tx, {
+              characterId: actor.id,
+              itemId: input.payloadKey,
+              allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+            }))
           ) {
             return {
               kind: "result",
@@ -1218,6 +1224,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       turn: input.turn,
       now: input.now,
       nextTurnExpiresAt: input.nextTurnExpiresAt,
+      allowNonmedicalConsumables: input.allowNonmedicalConsumables === true,
       writeState: persisted.writeState
     });
   }
@@ -1227,6 +1234,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     turn: number;
     now: Date;
     nextTurnExpiresAt: Date;
+    allowNonmedicalConsumables?: boolean;
     writeState: "queued" | "replaced" | "duplicate";
   }): Promise<GroupCombatActionResult> {
     const publicationWaitStartedAt = Date.now();
@@ -1279,6 +1287,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             input.now,
             input.nextTurnExpiresAt,
             uiPublicationTime(input.now, publicationWaitStartedAt),
+            input.allowNonmedicalConsumables === true,
             this.settlementTestHooks?.afterStage?.bind(
               this.settlementTestHooks
             )
@@ -1332,6 +1341,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     sessionId: string;
     now: Date;
     nextTurnExpiresAt: Date;
+    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult> {
     await this.settlementTestHooks?.beforeRuntimeRead?.({
       operation: "timeout",
@@ -1417,6 +1427,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           input.now,
           input.nextTurnExpiresAt,
           uiPublicationTime(input.now, publicationWaitStartedAt),
+          input.allowNonmedicalConsumables === true,
           this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
         );
         if (!result) {
@@ -2835,22 +2846,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
   }
 }
 
-async function isQuestConsumableUnlocked(tx: TxClient, characterId: string, itemId: string): Promise<boolean> {
-  if (itemId !== "item.cellar.foamy-mirage-bottle") return true;
-  const [acquisition, completion] = await Promise.all([
-    tx.dailyAction.findUnique({
-      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.bottle", localDate: "once" } },
-      select: { id: true }
-    }),
-    tx.dailyAction.findUnique({
-      where: { characterId_key_localDate: { characterId, key: "cellar.grownup.completed", localDate: "once" } },
-      select: { resultJson: true }
-    })
-  ]);
-  const result = completion?.resultJson;
-  return !acquisition || Boolean(result && typeof result === "object" && !Array.isArray(result) && result.ending === "keep");
-}
-
 async function buildLeftPassageState(input: {
   tx: TxClient;
   sessionId: string;
@@ -3172,6 +3167,7 @@ async function resolveIfReady(
   now: Date,
   nextTurnExpiresAt: Date,
   uiPublicationNow: Date,
+  allowNonmedicalConsumables: boolean,
   afterStage?: GroupCombatSettlementTestHooks["afterStage"]
 ): Promise<GroupCombatActionResult | null> {
   const livingCount = state.participants.filter(
@@ -3202,7 +3198,24 @@ async function resolveIfReady(
   if (actions.length !== livingCount || actionIds.size !== livingCount || [...livingIds].some((id) => !actionIds.has(id))) {
     return actionResultAfterRepair(await repairMalformedSession(tx, row, now));
   }
-  const resolution = resolveGroupCombatTurn(state, actions);
+  const blockedConsumables: GroupCombatCommittedConsumable[] = [];
+  for (const action of actions) {
+    if (
+      action.action === "item" &&
+      action.payloadKey &&
+      !(await isConsumableCommitAllowed(tx, {
+        characterId: action.actorCharacterId,
+        itemId: action.payloadKey,
+        allowNonmedicalConsumables
+      }))
+    ) {
+      blockedConsumables.push({
+        characterId: action.actorCharacterId,
+        itemId: action.payloadKey
+      });
+    }
+  }
+  const resolution = resolveGroupCombatTurn(state, actions, { blockedConsumables });
   const terminal = resolution.result !== null;
   const previouslyFled = new Set(
     state.participants

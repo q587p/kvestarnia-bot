@@ -1,5 +1,5 @@
 import { Prisma, type Character, type CharacterDrinkState, type CharacterItem, type ItemUseOrder, type PrismaClient } from "@prisma/client";
-import type { ItemContent } from "../../content/schema";
+import type { ItemContent, ItemUseEffectContent } from "../../content/schema";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import {
   blocksAccidentalItemUse,
@@ -8,7 +8,8 @@ import {
   getItemUsePreviewAppliedAmount,
   getItemUseEffect,
   isOutOfCombatItemUseEffect,
-  ITEM_USE_RULES_VERSION
+  ITEM_USE_RULES_VERSION,
+  recalculateFrozenItemUsePreview
 } from "../../domain/itemUse";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { buildShynokRecoveryWindows, isShynokDrinkKey } from "../../domain/shynokDrinks";
@@ -28,6 +29,7 @@ import {
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -166,7 +168,8 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           input.itemContents,
           input.now,
           effect,
-          createStableRandomResolutionSeed(character.id, input.item.id, getIncludedRemortCount(character), stack.quantity)
+          createStableRandomResolutionSeed(character.id, input.item.id, getIncludedRemortCount(character), stack.quantity),
+          stack.quantity
         );
         if (getItemUsePreviewAppliedAmount(preview) <= 0) {
           return {
@@ -222,6 +225,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       token: string;
       itemContents: readonly ItemContent[];
       now: Date;
+      allowNonmedicalConsumables?: boolean;
     }
   ): Promise<ItemUseConfirmRepositoryResult> {
     try {
@@ -236,13 +240,17 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return { state: "invalid-token" };
         }
 
-        if (!(await isQuestConsumableUnlocked(tx, character.id, order.itemId))) {
-          return await staleTerminalConfirm(tx, order, input.now, character);
-        }
-
         const terminal = await replayTerminalConfirm(tx, order, character);
         if (terminal) {
           return terminal;
+        }
+
+        if (!(await isConsumableCommitAllowed(tx, {
+          characterId: character.id,
+          itemId: order.itemId,
+          allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+        }))) {
+          return await staleTerminalConfirm(tx, order, input.now, character);
         }
 
         if (order.expiresAt <= input.now) {
@@ -295,6 +303,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (
           !stack ||
           stack.quantity < order.quantity ||
+          (!isRestoreToFullOrder(order) && stack.quantity !== order.preview.startingStackQuantity) ||
           equippedItemIds.includes(order.itemId) ||
           reservedItemIds.includes(order.itemId)
         ) {
@@ -325,14 +334,21 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         const restorePreview = isRestoreToFullOrder(order)
           ? buildRestoreToFullPreview(character, input.itemContents, input.now, restoreEffect!)
           : null;
-        const preview = restorePreview?.preview ?? calculateItemUsePreview({
+        const preview = restorePreview?.preview ?? recalculateFrozenItemUsePreview({
           hpCurrent: settlement.resources.hpCurrent,
           hpMax: settlement.resources.hpMax,
           manaCurrent: settlement.resources.manaCurrent,
           manaMax: settlement.resources.manaMax,
           effect,
-          resolutionSeed: createStableRandomResolutionSeed(character.id, order.itemId, order.remortCount, stack.quantity)
+          frozen: {
+            resource: order.preview.resource,
+            resolvedEffectKind: order.preview.resolvedEffectKind as ItemUseEffectContent["kind"],
+            startingStackQuantity: order.preview.startingStackQuantity ?? 0
+          }
         });
+        if (!preview) {
+          return await staleTerminalConfirm(tx, order, input.now, character);
+        }
         if (getItemUsePreviewAppliedAmount(preview) <= 0) {
           const fullState = getFullState(preview);
           await tx.character.update({
@@ -850,6 +866,9 @@ async function validatePendingPreviewRefresh(
   if (
     getIncludedRemortCount(character) !== order.remortCount ||
     order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
+    !Number.isInteger(order.preview.startingStackQuantity) ||
+    (order.preview.startingStackQuantity ?? 0) < 1 ||
+    typeof order.preview.resolvedEffectKind !== "string" ||
     order.quantity !== 1 ||
     input.item.id !== order.itemId
   ) {
@@ -879,7 +898,7 @@ async function validatePendingPreviewRefresh(
     getReservedItemIds(tx, character.id, input.now, order.id)
   ]);
   const stack = items.find((item) => item.itemId === order.itemId);
-  if (!stack || stack.quantity < 1) {
+  if (!stack || stack.quantity < 1 || stack.quantity !== order.preview.startingStackQuantity) {
     return { state: "not-owned" };
   }
 
@@ -887,13 +906,22 @@ async function validatePendingPreviewRefresh(
     return { state: "reserved" };
   }
 
-  const preview = buildPreview(
-    character,
-    input.itemContents,
-    input.now,
-    input.effect,
-    createStableRandomResolutionSeed(character.id, order.itemId, order.remortCount, stack.quantity)
-  );
+  const settlement = getRegeneratedResources(character, input.itemContents, input.now);
+  const preview = recalculateFrozenItemUsePreview({
+    hpCurrent: settlement.resources.hpCurrent,
+    hpMax: settlement.resources.hpMax,
+    manaCurrent: settlement.resources.manaCurrent,
+    manaMax: settlement.resources.manaMax,
+    effect: input.effect,
+    frozen: {
+      resource: order.preview.resource,
+      resolvedEffectKind: order.preview.resolvedEffectKind,
+      startingStackQuantity: order.preview.startingStackQuantity ?? 0
+    }
+  });
+  if (!preview) {
+    return { state: "not-usable" };
+  }
   return getItemUsePreviewAppliedAmount(preview) <= 0
     ? { state: getFullState(preview), preview }
     : { state: "valid", preview };
@@ -1117,7 +1145,8 @@ function buildPreview(
   itemContents: readonly ItemContent[],
   now: Date,
   effect: NonNullable<ReturnType<typeof getItemUseEffect>>,
-  resolutionSeed: string
+  resolutionSeed: string,
+  startingStackQuantity: number
 ): ItemUsePreview {
   const settlement = getRegeneratedResources(character, itemContents, now);
 
@@ -1127,7 +1156,8 @@ function buildPreview(
     manaCurrent: settlement.resources.manaCurrent,
     manaMax: settlement.resources.manaMax,
     effect,
-    resolutionSeed
+    resolutionSeed,
+    startingStackQuantity
   });
 }
 
@@ -1152,6 +1182,8 @@ function buildRestoreToFullPreview(
   return {
     preview: {
       rulesVersion: ITEM_USE_RULES_VERSION,
+      startingStackQuantity: 0,
+      resolvedEffectKind: effect.kind,
       mode: "restore-to-full",
       resource: "hp",
       hpBefore,
@@ -1328,17 +1360,17 @@ async function staleTerminalConfirm(
   now: Date,
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>
 ): Promise<ItemUseConfirmRepositoryResult> {
-  if (!isRestoreToFullOrder(order)) {
+  if (!isRestoreToFullOrder(order) && order.status !== "pending") {
     return { state: "stale-selection", order };
   }
 
   const stale = await setTerminalOrder(tx, order.id, "expired", now, {
     ...order.preview,
     kind: "expired",
-      itemId: order.itemId,
-      itemName: order.itemName
-  }, "processing");
-  const terminal = stale.changed || stale.order.status !== "pending"
+    itemId: order.itemId,
+    itemName: order.itemName
+  }, isRestoreToFullOrder(order) ? "processing" : "pending");
+  const terminal = stale.changed || stale.order.status !== "pending" || !isRestoreToFullOrder(order)
     ? stale
     : await setTerminalOrder(tx, order.id, "expired", now, {
         ...order.preview,
@@ -1487,6 +1519,8 @@ function parsePreview(value: unknown): ItemUsePreview {
   return {
     rulesVersion: typeof value.rulesVersion === "string" ? value.rulesVersion : ITEM_USE_RULES_VERSION,
     ...(value.mode === "restore-to-full" ? { mode: "restore-to-full" as const } : {}),
+    startingStackQuantity: numberOrZero(value.startingStackQuantity),
+    ...(isItemUseEffectKind(value.resolvedEffectKind) ? { resolvedEffectKind: value.resolvedEffectKind } : {}),
     resource: value.resource === "mana" ? "mana" : value.resource === "both" ? "both" : "hp",
     hpBefore: numberOrZero(value.hpBefore),
     hpMax: Math.max(1, numberOrZero(value.hpMax)),
@@ -1506,6 +1540,7 @@ function parseResult(value: unknown): ItemUseResult | null {
 
   const preview = parsePreview(value);
   const kind = value.kind === "heal-hp" ||
+    value.kind === "heal-hp-to-min-percent" ||
     value.kind === "restore-mana" ||
     value.kind === "restore-both" ||
     value.kind === "random-resource" ||
@@ -1596,6 +1631,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function isItemUseEffectKind(value: unknown): value is ItemUseEffectContent["kind"] {
+  return typeof value === "string" && [
+    "heal-hp",
+    "heal-hp-to-min-percent",
+    "restore-mana",
+    "restore-both",
+    "random-resource",
+    "heal-hp-below-percent",
+    "paired-heal",
+    "party-heal",
+    "guard-response",
+    "evade-response",
+    "reduce-cooldowns",
+    "cleanse-negative",
+    "critical-damage"
+  ].includes(value);
 }
 
 function createReservationKey(characterId: string, itemId: string): string {

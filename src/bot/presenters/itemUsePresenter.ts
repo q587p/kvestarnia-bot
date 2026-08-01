@@ -218,9 +218,11 @@ function presentResourceNoopLine(preview: { resource: "hp" | "mana" | "both"; hp
     return `HP уже повні: <b>${preview.hpBefore}/${preview.hpMax}</b>; мана вже повна: <b>${preview.manaBefore ?? 0}/${preview.manaMax ?? 0}</b>.`;
   }
   const label = preview.resource === "mana" ? "Мана" : "HP";
-  return preview.hpBefore >= preview.hpMax
-    ? `${label} уже ${preview.resource === "mana" ? "повна" : "повні"}: <b>${preview.hpBefore}/${preview.hpMax}</b>.`
-    : `${label} уже достатньо для цієї манатки: <b>${preview.hpBefore}/${preview.hpMax}</b>.`;
+  const before = preview.resource === "mana" ? preview.manaBefore ?? 0 : preview.hpBefore;
+  const max = preview.resource === "mana" ? preview.manaMax ?? 0 : preview.hpMax;
+  return before >= max
+    ? `${label} уже ${preview.resource === "mana" ? "повна" : "повні"}: <b>${before}/${max}</b>.`
+    : `${label} уже достатньо для цієї манатки: <b>${before}/${max}</b>.`;
 }
 
 function presentResourceChangeLine(preview: { resource: "hp" | "mana" | "both"; hpBefore: number; hpMax: number; hpAfter: number; manaBefore?: number; manaMax?: number; manaAfter?: number }): string {
@@ -231,5 +233,8 @@ function presentResourceChangeLine(preview: { resource: "hp" | "mana" | "both"; 
     ].join("\n");
   }
   const label = preview.resource === "mana" ? "Мана" : "HP";
-  return `${label}: <b>${preview.hpBefore}/${preview.hpMax}</b> → <b>${preview.hpAfter}/${preview.hpMax}</b>.`;
+  const before = preview.resource === "mana" ? preview.manaBefore ?? 0 : preview.hpBefore;
+  const max = preview.resource === "mana" ? preview.manaMax ?? 0 : preview.hpMax;
+  const after = preview.resource === "mana" ? preview.manaAfter ?? 0 : preview.hpAfter;
+  return `${label}: <b>${before}/${max}</b> → <b>${after}/${max}</b>.`;
 }

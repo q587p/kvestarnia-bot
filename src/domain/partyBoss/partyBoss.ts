@@ -149,6 +149,7 @@ export interface PartyBossRoundActionInput {
   action: PartyBossActionKey;
   origin?: "manual" | "timeout";
   item?: PartyBossCombatItemInput;
+  itemCommitAllowed?: boolean;
   gearAbility?: CombatGearAbilityInput;
 }
 
@@ -230,12 +231,13 @@ export interface PartyBossParticipantActionSummary {
   characterId: string;
   action: PartyBossActionKey;
   origin: "manual" | "timeout";
-  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used" | "taunt-activated" | "taunt-failed" | "lament-activated";
+  outcome: ActorCombatActionSummary["actorOutcome"] | "item-used" | "item-not-used" | "taunt-activated" | "taunt-failed" | "lament-activated";
   damage: number;
   manaSpent: number;
   skillId?: string;
   itemId?: string;
   itemName?: string;
+  itemUnavailableReason?: "not-usable" | "full-hp" | "full-mana" | "full-resources" | "effect-unavailable";
   healing?: number;
   manaRestored?: number;
   guard?: number;
@@ -507,6 +509,30 @@ export function resolvePartyBossRound(input: {
     if (action === "item" && committed?.item) {
       const tickedResources = tickActorCooldowns(participant.resources);
       tickPartyBossCombatItemCooldowns(participant);
+      const itemUnavailableReason = committed.itemCommitAllowed === false
+        ? "not-usable"
+        : getPartyBossCombatItemInapplicableReason(next, participant, committed.item.effect);
+      if (itemUnavailableReason) {
+        participant.resources = tickedResources;
+        if (origin === "manual") {
+          participant.contribution.submittedActions += 1;
+        } else {
+          participant.contribution.timeoutActions += 1;
+        }
+        actionSummaries.push({
+          characterId: participant.characterId,
+          action,
+          origin,
+          outcome: "item-not-used",
+          damage: 0,
+          manaSpent: 0,
+          itemId: committed.item.id,
+          itemName: committed.item.name,
+          itemUnavailableReason,
+          hpAfter: participant.resources.hp
+        });
+        continue;
+      }
       const resolvedEffect = resolvePartyBossRandomEffect(
         committed.item.effect,
         participant.resources,
@@ -883,6 +909,41 @@ export function isPartyBossCombatItemEffectApplicable(
   if (effect.kind === "random-resource") return actor.resources.hp < actor.resources.hpMax || actor.resources.mana < actor.resources.manaMax;
   const restoration = calculatePartyBossCombatItemRestoration(actor.resources, effect);
   return restoration.healing > 0 || restoration.manaRestored > 0;
+}
+
+export function getPartyBossCombatItemInapplicableReason(
+  state: PartyBossState,
+  actor: PartyBossParticipantState,
+  effect: ItemUseEffectContent
+): "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" | null {
+  if (isPartyBossCombatItemEffectApplicable(state, actor, effect)) {
+    return null;
+  }
+  if (effect.kind === "restore-mana") {
+    return "full-mana";
+  }
+  if (effect.kind === "restore-both" || effect.kind === "random-resource") {
+    return actor.resources.hp >= actor.resources.hpMax && actor.resources.mana >= actor.resources.manaMax
+      ? "full-resources"
+      : "effect-unavailable";
+  }
+  if (effect.kind === "heal-hp-below-percent") {
+    return actor.resources.hp > Math.floor(actor.resources.hpMax * effect.thresholdPercent / 100)
+      ? "effect-unavailable"
+      : "full-hp";
+  }
+  if (
+    effect.kind === "paired-heal" ||
+    effect.kind === "party-heal" ||
+    effect.kind === "cleanse-negative" ||
+    effect.kind === "reduce-cooldowns" ||
+    effect.kind === "critical-damage" ||
+    effect.kind === "guard-response" ||
+    effect.kind === "evade-response"
+  ) {
+    return "effect-unavailable";
+  }
+  return "full-hp";
 }
 
 function hasPartyBossCooldown(cooldowns: CombatActorResourceState["cooldowns"]): boolean {

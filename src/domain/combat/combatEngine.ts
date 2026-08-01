@@ -120,7 +120,7 @@ export type ResolveCombatItemTurnResult =
     }
   | {
       ok: false;
-      reason: "inactive" | "full-hp" | "full-mana" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
+      reason: "inactive" | "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
       state: CombatState;
       summary: CombatTurnSummary;
     };
@@ -578,8 +578,7 @@ export function resolveCombatItemTurn(input: ResolveCombatItemTurnInput): Resolv
 
     return {
       ok: false,
-      reason: input.item.effect.kind === "restore-mana" ? "full-mana" :
-        isRestorativeCombatItemEffect(input.item.effect) ? "full-hp" : "effect-unavailable",
+      reason: getCombatItemInapplicableReason(input.state, input.item.effect),
       state: cloneCombatState(input.state),
       summary
     };
@@ -816,6 +815,26 @@ export function isCombatItemEffectApplicable(state: CombatState, effect: CombatI
   }
   const restoration = resolveCombatItemRestoration(state, { id: "preview", name: "preview", effect });
   return restoration.heroHealing > 0 || restoration.heroManaRestored > 0;
+}
+
+export function getCombatItemInapplicableReason(
+  state: CombatState,
+  effect: CombatItemEffectInput
+): "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" {
+  if (effect.kind === "restore-mana") {
+    return "full-mana";
+  }
+  if (effect.kind === "restore-both" || effect.kind === "random-resource") {
+    return state.hero.hp >= state.hero.hpMax && state.hero.mana >= state.hero.manaMax
+      ? "full-resources"
+      : "effect-unavailable";
+  }
+  if (effect.kind === "heal-hp-below-percent") {
+    return state.hero.hp > Math.floor(state.hero.hpMax * effect.thresholdPercent / 100)
+      ? "effect-unavailable"
+      : "full-hp";
+  }
+  return isRestorativeCombatItemEffect(effect) ? "full-hp" : "effect-unavailable";
 }
 
 function isRestorativeCombatItemEffect(effect: CombatItemEffectInput): boolean {

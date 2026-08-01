@@ -1,4 +1,4 @@
-import type { ItemContent } from "../../content/schema";
+import type { ItemContent, ItemUseEffectContent } from "../../content/schema";
 import type { CharacterRecord } from "./characterRepository";
 
 export type ItemUseOrderStatus = "pending" | "processing" | "completed" | "cancelled" | "expired";
@@ -6,6 +6,8 @@ export type ItemUseOrderStatus = "pending" | "processing" | "completed" | "cance
 export interface ItemUsePreview {
   rulesVersion: string;
   mode?: "restore-to-full";
+  startingStackQuantity?: number;
+  resolvedEffectKind?: ItemUseEffectContent["kind"];
   resource: "hp" | "mana" | "both";
   hpBefore: number;
   hpMax: number;
@@ -123,6 +125,7 @@ export interface ItemUseRepository {
       token: string;
       itemContents: readonly ItemContent[];
       now: Date;
+      allowNonmedicalConsumables?: boolean;
     }
   ): Promise<ItemUseConfirmRepositoryResult>;
 

@@ -12,8 +12,11 @@ const characterId = "character-42";
 const userId = "user-42";
 const bandage = items.find((item) => item.id === "item.responsible-panic-bandage");
 const manaConsumable = items.find((item) => item.id === "item.loot-v1-c014");
+const randomConsumable = items.find((item) => item.id === "item.loot-v1-c015");
+const fieldKit = items.find((item) => item.id === "item.field-kit");
+const questBottle = items.find((item) => item.id === "item.cellar.foamy-mirage-bottle");
 
-if (!bandage || !manaConsumable) {
+if (!bandage || !manaConsumable || !randomConsumable || !fieldKit || !questBottle) {
   throw new Error("Required consumable content is missing.");
 }
 
@@ -37,6 +40,7 @@ describe("PrismaItemUseRepository integration", () => {
 
   beforeEach(async () => {
     await prisma.itemUseOrder.deleteMany();
+    await prisma.dailyAction.deleteMany();
     await prisma.characterDrinkState.deleteMany();
     await prisma.itemTransfer.deleteMany();
     await prisma.korchmaMantokSale.deleteMany();
@@ -114,12 +118,14 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: now()
+      now: now(),
+      allowNonmedicalConsumables: true
     })).resolves.toMatchObject({ state: "used", order: { result: { healAmount: amount } } });
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: now()
+      now: now(),
+      allowNonmedicalConsumables: false
     })).resolves.toMatchObject({ state: "replayed", order: { result: { healAmount: amount } } });
     await expectCharacterHp(10 + amount);
     expect(await prisma.characterItem.findUnique({
@@ -146,12 +152,14 @@ describe("PrismaItemUseRepository integration", () => {
     const first = await repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-mana",
       itemContents: items,
-      now: now()
+      now: now(),
+      allowNonmedicalConsumables: true
     });
     const replay = await repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-mana",
       itemContents: items,
-      now: now()
+      now: now(),
+      allowNonmedicalConsumables: false
     });
 
     expect(first).toMatchObject({ state: "used", order: { result: { kind: "restore-both" } } });
@@ -160,6 +168,247 @@ describe("PrismaItemUseRepository integration", () => {
       where: { characterId_itemId: { characterId, itemId: manaConsumable.id } }
     }))?.quantity).toBe(1);
     expect((await prisma.character.findUniqueOrThrow({ where: { id: characterId } })).manaCurrent).toBe(9);
+  });
+
+  it("stales a frozen random preview after a grant and preserves its branch across replay, restart, cancel and reopen", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 0 });
+    await seedItem(randomConsumable.id, 1);
+    const createRandomPreview = (repo: PrismaItemUseRepository, token: string) =>
+      repo.createPreviewForTelegramUser(telegramUserId, {
+        item: randomConsumable,
+        itemContents: items,
+        itemFingerprint: createItemUseFingerprint(randomConsumable),
+        token,
+        now: now(),
+        expiresAt: future()
+      });
+    const initial = await createRandomPreview(repository, "use-token-random-one");
+    expect(initial).toMatchObject({
+      state: "preview-created",
+      order: { preview: { startingStackQuantity: 1 } }
+    });
+    if (!("order" in initial)) throw new Error("Expected frozen random preview.");
+    const frozenBranch = {
+      resource: initial.order.preview.resource,
+      resolvedEffectKind: initial.order.preview.resolvedEffectKind
+    };
+
+    await prisma.characterItem.update({
+      where: { characterId_itemId: { characterId, itemId: randomConsumable.id } },
+      data: { quantity: { increment: 1 } }
+    });
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-random-one",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: true
+    })).resolves.toMatchObject({
+      state: "stale-selection",
+      order: { status: "expired", preview: frozenBranch }
+    });
+    await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "use-token-random-one",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: true
+    })).resolves.toMatchObject({
+      state: "expired",
+      order: { preview: frozenBranch }
+    });
+    await expect(repository.cancelForTelegramUser(telegramUserId, {
+      token: "use-token-random-one",
+      now: now()
+    })).resolves.toMatchObject({ state: "expired", order: { preview: frozenBranch } });
+
+    const reopened = await createRandomPreview(repository, "use-token-random-two");
+    expect(reopened).toMatchObject({
+      state: "preview-created",
+      order: { preview: { startingStackQuantity: 2 } }
+    });
+    if (!("order" in reopened)) throw new Error("Expected reopened random preview.");
+    const reopenedBranch = {
+      resource: reopened.order.preview.resource,
+      resolvedEffectKind: reopened.order.preview.resolvedEffectKind
+    };
+    await expect(createRandomPreview(new PrismaItemUseRepository(prisma), "use-token-random-duplicate"))
+      .resolves.toMatchObject({
+        state: "preview-replayed",
+        order: { token: "use-token-random-two", preview: reopenedBranch }
+      });
+    await repository.cancelForTelegramUser(telegramUserId, { token: "use-token-random-two", now: now() });
+    await expect(createRandomPreview(repository, "use-token-random-three")).resolves.toMatchObject({
+      state: "preview-created",
+      order: { preview: { ...reopenedBranch, startingStackQuantity: 2 } }
+    });
+    expect((await prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: randomConsumable.id } }
+    })).quantity).toBe(2);
+    await expectCharacterHp(10);
+  });
+
+  it("replays a completed Field Kit receipt without degrading its typed result", async () => {
+    await seedCharacter({ hpCurrent: 20, hpMax: 75 });
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-field-kit-completed",
+        token: "use-token-field-kit-completed",
+        characterId,
+        telegramUserId,
+        itemId: fieldKit.id,
+        itemName: fieldKit.name,
+        itemFingerprint: createItemUseFingerprint(fieldKit),
+        quantity: 1,
+        effectKind: "heal-hp-to-min-percent",
+        status: "completed",
+        reservationKey: null,
+        previewJson: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          startingStackQuantity: 1,
+          resolvedEffectKind: "heal-hp-to-min-percent",
+          resource: "hp",
+          hpBefore: 10,
+          hpMax: 93,
+          healAmount: 77,
+          hpAfter: 87,
+          manaBefore: 10,
+          manaMax: 10,
+          manaRestoreAmount: 0,
+          manaAfter: 10
+        },
+        resultJson: {
+          rulesVersion: ITEM_USE_RULES_VERSION,
+          startingStackQuantity: 1,
+          resolvedEffectKind: "heal-hp-to-min-percent",
+          resource: "hp",
+          hpBefore: 10,
+          hpMax: 93,
+          healAmount: 77,
+          hpAfter: 87,
+          manaBefore: 10,
+          manaMax: 10,
+          manaRestoreAmount: 0,
+          manaAfter: 10,
+          kind: "heal-hp-to-min-percent",
+          itemId: fieldKit.id,
+          itemName: fieldKit.name
+        },
+        expiresAt: future(),
+        completedAt: now()
+      }
+    });
+
+    await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "use-token-field-kit-completed",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: false
+    })).resolves.toMatchObject({
+      state: "replayed",
+      order: { result: { kind: "heal-hp-to-min-percent", healAmount: 77 } }
+    });
+  });
+
+  it("blocks a pending nonmedical preview when its flag turns off while medical confirmation still works", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 0 });
+    await seedItem(manaConsumable.id, 1);
+    await repository.createPreviewForTelegramUser(telegramUserId, {
+      item: manaConsumable,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(manaConsumable),
+      token: "use-token-flag-off",
+      now: now(),
+      expiresAt: future()
+    });
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-flag-off",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: false
+    })).resolves.toMatchObject({ state: "stale-selection", order: { status: "expired" } });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: manaConsumable.id } }
+    })).resolves.toMatchObject({ quantity: 1 });
+    await expectCharacterHp(10);
+
+    await seedBandages(1);
+    await createPreview("use-token-medical-flag-off");
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-medical-flag-off",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: false
+    })).resolves.toMatchObject({ state: "used", order: { result: { healAmount: 7 } } });
+  });
+
+  it("blocks a pending pre-keep quest bottle but replays its completed terminal receipt before current gates", async () => {
+    await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 0 });
+    await seedItem(questBottle.id, 1);
+    await repository.createPreviewForTelegramUser(telegramUserId, {
+      item: questBottle,
+      itemContents: items,
+      itemFingerprint: createItemUseFingerprint(questBottle),
+      token: "use-token-bottle-pending",
+      now: now(),
+      expiresAt: future()
+    });
+    await prisma.dailyAction.create({
+      data: {
+        id: "bottle-acquisition-current-life",
+        characterId,
+        key: "cellar.grownup.bottle",
+        localDate: "once",
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: {}
+      }
+    });
+
+    await expect(repository.confirmForTelegramUser(telegramUserId, {
+      token: "use-token-bottle-pending",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: true
+    })).resolves.toMatchObject({ state: "stale-selection", order: { status: "expired" } });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId, itemId: questBottle.id } }
+    })).resolves.toMatchObject({ quantity: 1 });
+
+    const pending = await readUseOrder("use-token-bottle-pending");
+    await prisma.itemUseOrder.create({
+      data: {
+        id: "item-use-bottle-completed",
+        token: "use-token-bottle-completed",
+        characterId,
+        telegramUserId,
+        itemId: questBottle.id,
+        itemName: questBottle.name,
+        itemFingerprint: createItemUseFingerprint(questBottle),
+        quantity: 1,
+        effectKind: "random-resource",
+        status: "completed",
+        reservationKey: null,
+        previewJson: pending.previewJson,
+        resultJson: {
+          ...(pending.previewJson as Record<string, unknown>),
+          kind: "random-resource",
+          itemId: questBottle.id,
+          itemName: questBottle.name
+        },
+        expiresAt: future(),
+        completedAt: now()
+      }
+    });
+    await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
+      token: "use-token-bottle-completed",
+      itemContents: items,
+      now: now(),
+      allowNonmedicalConsumables: false
+    })).resolves.toMatchObject({
+      state: "replayed",
+      order: { status: "completed", result: { kind: "random-resource" } }
+    });
   });
 
   it("does not reserve or consume a dual-resource consumable when both resources are full", async () => {
@@ -627,10 +876,17 @@ describe("PrismaItemUseRepository integration", () => {
         reservationKey: null,
         previewJson: {
           rulesVersion: ITEM_USE_RULES_VERSION,
+          startingStackQuantity: 3,
+          resolvedEffectKind: "heal-hp",
+          resource: "hp",
           hpBefore: 10,
           hpMax: 41,
           healAmount: 7,
-          hpAfter: 17
+          hpAfter: 17,
+          manaBefore: 10,
+          manaMax: 10,
+          manaRestoreAmount: 0,
+          manaAfter: 10
         },
         expiresAt: future(),
         createdAt: new Date("2026-06-25T08:58:00.000Z"),
@@ -652,10 +908,17 @@ describe("PrismaItemUseRepository integration", () => {
         reservationKey: `use:${characterId}:${bandage.id}`,
         previewJson: {
           rulesVersion: ITEM_USE_RULES_VERSION,
+          startingStackQuantity: 3,
+          resolvedEffectKind: "heal-hp",
+          resource: "hp",
           hpBefore: 10,
           hpMax: 41,
           healAmount: 7,
-          hpAfter: 17
+          hpAfter: 17,
+          manaBefore: 10,
+          manaMax: 10,
+          manaRestoreAmount: 0,
+          manaAfter: 10
         },
         expiresAt: future(),
         createdAt: new Date("2026-06-25T08:59:00.000Z"),
@@ -1341,6 +1604,19 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "characters_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
+    `CREATE TABLE "daily_actions" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "key" TEXT NOT NULL,
+      "local_date" TEXT NOT NULL,
+      "reward_xp" INTEGER NOT NULL,
+      "reward_gold" INTEGER NOT NULL,
+      "spent_gold" INTEGER NOT NULL DEFAULT 0,
+      "result_json" JSONB,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "daily_actions_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "daily_actions_character_id_key_local_date_key" ON "daily_actions"("character_id", "key", "local_date")`,
     `CREATE TABLE "character_items" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "character_id" TEXT NOT NULL,

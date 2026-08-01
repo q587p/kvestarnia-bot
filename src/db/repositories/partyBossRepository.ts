@@ -97,7 +97,7 @@ export type PartyBossActionResult =
   | { state: "not-found" }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "item-on-cooldown" | "item-limit-reached";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
       session?: PartyBossSessionRecord;
     }
   | {
@@ -149,6 +149,7 @@ export interface PartyBossStartInput {
 export interface PartyBossResolveInput {
   now: Date;
   nextTurnExpiresAt: Date;
+  allowNonmedicalConsumables?: boolean;
 }
 
 export type PartyBossTimeoutMode = "due" | "force-dev";

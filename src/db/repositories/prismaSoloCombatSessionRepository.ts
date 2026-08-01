@@ -33,6 +33,7 @@ import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupp
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 import {
   freezeVarenykSatedForSoloCombatStart,
   releaseCombatLeaseWithTimedStatuses
@@ -944,6 +945,14 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
       if (!lease || lease.kind !== SOLO_COMBAT_LEASE_KIND || lease.referenceId !== sessionId) {
         return { outcome: "stale-turn", session: null };
+      }
+
+      if (!(await isConsumableCommitAllowed(tx, {
+        characterId: input.characterId,
+        itemId: input.itemId,
+        allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+      }))) {
+        return { outcome: "not-usable", session: null };
       }
 
       await tx.characterItem.updateMany({

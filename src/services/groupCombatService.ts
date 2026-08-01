@@ -12,7 +12,6 @@ import type {
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import { randomBytes } from "node:crypto";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
-import { isMedicalCombatItemId } from "./combatItemUse";
 import type { DailyActionRepository } from "../db/repositories/dailyActionRepository";
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
@@ -185,7 +184,8 @@ export class GroupCombatService {
     const result = await this.repository.resolveTimedOutSession({
       sessionId: session.id,
       now,
-      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
     });
     return this.settleTerminalResult(result);
   }
@@ -202,27 +202,12 @@ export class GroupCombatService {
     if (!this.options.enabled) {
       return { state: "disabled" };
     }
-    if (
-      input.action === "item" &&
-      input.payloadKey &&
-      !this.areConsumableManatkaUsesEnabled() &&
-      !isMedicalCombatItemId(input.payloadKey)
-    ) {
-      return { state: "action-unavailable" };
-    }
-    if (
-      input.action === "item" &&
-      input.payloadKey &&
-      this.dailyActions &&
-      !(await isQuestConsumableUseUnlocked(this.dailyActions, input.telegramUserId, input.payloadKey))
-    ) {
-      return { state: "action-unavailable" };
-    }
     const now = this.now();
     const result = await this.repository.submitActionForTelegramUser({
       ...input,
       now,
-      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
     });
     return this.settleTerminalResult(result);
   }
@@ -259,7 +244,8 @@ export class GroupCombatService {
         const result = await this.repository.resolveTimedOutSession({
           sessionId,
           now,
-          nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+          nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+          allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
         });
         const settled = await this.settleTerminalResult(result);
         if ("session" in settled) {

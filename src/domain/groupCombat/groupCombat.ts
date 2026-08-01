@@ -783,6 +783,10 @@ export interface GroupCombatResolution {
   committedConsumables: GroupCombatCommittedConsumable[];
 }
 
+export interface GroupCombatResolutionOptions {
+  blockedConsumables?: readonly GroupCombatCommittedConsumable[];
+}
+
 export interface GroupCombatActionProfile {
   action: Extract<GroupCombatActionKey, "class" | "race" | "gear">;
   ability: CombatSkillProfile;
@@ -1248,7 +1252,8 @@ export function buildGroupCombatTimeoutAction(state: GroupCombatState, character
 
 export function resolveGroupCombatTurn(
   current: GroupCombatState,
-  submittedActions: readonly GroupCombatAction[]
+  submittedActions: readonly GroupCombatAction[],
+  options: GroupCombatResolutionOptions = {}
 ): GroupCombatResolution {
   if (current.status !== "active") {
     const state = cloneGroupCombatState(current);
@@ -1291,6 +1296,9 @@ export function resolveGroupCombatTurn(
     .map((enemy) => enemy.id);
 
   const committedConsumables: GroupCombatCommittedConsumable[] = [];
+  const blockedConsumables = new Set(
+    (options.blockedConsumables ?? []).map((entry) => `${entry.characterId}\0${entry.itemId}`)
+  );
   for (const actorAtStart of livingActors) {
     if (state.enemies.every((enemy) => enemy.hp <= 0)) {
       break;
@@ -1334,6 +1342,21 @@ export function resolveGroupCombatTurn(
       const itemId = action.payloadKey as GroupCombatCommittedConsumable["itemId"];
       tickActorAfterCommittedAction(actor);
       tickGroupCombatItemCooldowns(actor);
+      if (
+        blockedConsumables.has(`${actor.characterId}\0${itemId}`) ||
+        !canUseGroupCombatItem(state, actor, itemId)
+      ) {
+        lines.push(
+          `${presentParticipantActionLabel(
+            actor,
+            "не витрачає манатку",
+            getGroupCombatItemPresentation(itemId)?.label ?? itemId
+          )}: ефекту вже нема на що подіяти, тож манатка лишається в торбі.`
+        );
+        actor.lastActionKey = action.action;
+        tickParticipantMonsterEffects(state, actor.characterId);
+        continue;
+      }
       const restored = applyCombatItem(state, actor, itemId);
       recordGroupCombatItemUse(actor, itemId);
       actor.combatItemQuantities[itemId] = (actor.combatItemQuantities[itemId] ?? 0) - 1;
@@ -1887,7 +1910,7 @@ function requiresCanonicalEnemyDamageTarget(ability: CombatSkillProfile): boolea
 
 function presentParticipantActionLabel(
   actor: GroupCombatActorSnapshot,
-  action: "застосовує вміння" | "використовує манатку",
+  action: "застосовує вміння" | "використовує манатку" | "не витрачає манатку",
   actionLabel: string
 ): string {
   return `${actor.name} ${action} — ${actionLabel}`;
