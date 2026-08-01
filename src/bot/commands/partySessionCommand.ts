@@ -1050,7 +1050,7 @@ async function handleNearbyOpen(
   const session = await service.getLiveRecruitingByTelegramUser(telegramUserId);
   if (!session) {
     await safeAnswerCallbackQuery(ctx, {
-      text: "Спершу відкрийте живу ватагу через /dev_party.",
+      text: "Живого збору вже немає. Відкрийте актуальну картку місця й зберіть ватагу знову.",
       show_alert: true
     });
     return;
@@ -1077,7 +1077,7 @@ async function handleNearbyInvite(
   const session = await service.getLiveRecruitingByTelegramUser(telegramUserId);
   if (!session) {
     await safeAnswerCallbackQuery(ctx, {
-      text: "Спершу відкрийте живу ватагу через /dev_party.",
+      text: "Живого збору вже немає. Відкрийте актуальну картку місця й зберіть ватагу знову.",
       show_alert: true
     });
     return;

@@ -12,6 +12,7 @@ import {
   presentPartyJoin,
   presentPartyLeave,
   presentPartyInviteShare,
+  presentPartyNearbyInviteNotification,
   presentPartySession,
   presentPartyView,
   presentPartyBoss,
@@ -1573,11 +1574,58 @@ describe("party session presenter", () => {
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
     expect(text).toContain("Стан: атака почнеться, щойно всі будуть готові");
     expect(text).toContain("Лідер може рушити раніше.");
-    expect(text).toContain("Склад ворогів підлаштується під силу ватаги.");
+    expect(text).toContain("Це справжня атака");
+    expect(text).toContain("щойно всі будуть готові, або коли добіжить час збору");
+    expect(text).toContain("Перемога може принести нагороду");
+    expect(text).toContain("склад ворогів підлаштується під силу ватаги");
     expect(text.match(/автоматично/g)).toHaveLength(1);
     expect(text.match(/раніше/g)).toHaveLength(1);
     expect(text).not.toContain("Збір триває рівно три хвилини");
     expect(text).not.toContain("Це справжня атака 1–3 пригодників");
+  });
+
+  it("presents a nearby left-passage invitation as a real rewarded attack", () => {
+    const session = {
+      ...makePartySession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+
+    const text = presentPartyNearbyInviteNotification(
+      session,
+      "https://t.me/kvestarnia_test_bot?start=party_partyBIG12"
+    );
+
+    expect(text).toContain("🤝 <b>Вас кличуть до атаки в лівому проході</b>");
+    expect(text).toContain("Це справжня атака");
+    expect(text).toContain("щойно всі будуть готові, або коли добіжить час збору");
+    expect(text).toContain("Перемога може принести нагороду");
+    expect(text).not.toContain("без боса, нагород і бойового зобовʼязання");
+    expect(text).not.toMatch(/\b(?:золота|XP|досвіду)\b/u);
+  });
+
+  it("uses the left-passage participant cap in a full 3/3 join", () => {
+    const base = makePartySession();
+    const third = makePartyCharacter("scout", "Розвідниця", 587n);
+    const session = {
+      ...base,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1,
+      participants: [
+        ...base.participants,
+        partyParticipant("participant-scout", third, base.createdAt)
+      ]
+    };
+
+    const text = presentPartyJoin({ state: "full", session });
+
+    expect(text).toContain("Учасники: 3/3");
+    expect(text).toContain("Ватага вже повна: 3/3");
+    expect(text).not.toContain("Восьмеро");
   });
 
   it("shows Bureaucramancer protocol signature count without signer names on recruiting cards", () => {
@@ -1688,6 +1736,25 @@ describe("party session presenter", () => {
       expect(text).not.toContain("Строк збору минув");
       expect(text).not.toContain("строк збору");
     }
+  });
+
+  it("keeps a terminal-ineligible left-passage card free of raid-period wording", () => {
+    const session: PartySessionRecord = {
+      ...makePartySession(),
+      status: "ineligible",
+      activeLeaderKey: null,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      participantCap: 3
+    };
+
+    const text = presentPartyJoin({ state: "terminal-ineligible", session });
+
+    expect(text).toContain("один із записів більше не підходить до цього сліду в лівому проході");
+    expect(text).toContain("оглянути прохід і зібрати нову ватагу");
+    expect(text).not.toContain("Бочки");
+    expect(text).not.toContain("бочкового періоду");
+    expect(text).not.toContain("доказова сутичка");
   });
 });
 

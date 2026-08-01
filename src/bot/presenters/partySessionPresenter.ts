@@ -81,7 +81,9 @@ export function presentPartyCreate(
   const notice = result.state === "created"
     ? isBigBarrelParty(result.session)
       ? null
-      : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
+      : isLeftPassageParty(result.session)
+        ? "Запис відкрито. Це збір до справжньої атаки в лівому проході."
+        : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
     : "У вас уже є жива ватага. Показую її канонічну картку.";
 
   return presentPartySession(result.session, {
@@ -127,7 +129,7 @@ export function presentPartyJoin(
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
       viewerCharacterId: options.viewerCharacterId,
-      notice: "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
+      notice: presentPartyFullNotice(result.session)
     });
   }
 
@@ -1292,7 +1294,7 @@ export function presentPartySession(
       : groupCombat
         ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
         : leftPassage
-          ? "Склад ворогів підлаштується під силу ватаги."
+          ? presentLeftPassageRecruitmentContract()
         : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -1305,7 +1307,9 @@ export function presentPartyTerminalIneligible(
 ): string {
   return presentPartySession(session, {
     viewerCharacterId,
-    notice: "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
+    notice: isLeftPassageParty(session)
+      ? "Атака не почалася: один із записів більше не підходить до цього сліду в лівому проході. Пригодники можуть оглянути прохід і зібрати нову ватагу."
+      : "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
   });
 }
 
@@ -1447,6 +1451,24 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
   return session.originLocationId === "barrel.big-brother";
 }
 
+function isLeftPassageParty(session: PartySessionRecord): boolean {
+  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+}
+
+function presentPartyFullNotice(session: PartySessionRecord): string {
+  if (isLeftPassageParty(session)) {
+    return `Ватага вже повна: ${session.participantCap}/${session.participantCap}. Цей слід більше пригодників до атаки не приймає.`;
+  }
+
+  return session.participantCap === 8
+    ? "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
+    : `Ватага вже повна: ${session.participantCap}/${session.participantCap}. Стіл більше записів не приймає.`;
+}
+
+function presentLeftPassageRecruitmentContract(): string {
+  return "Це справжня атака: вона почнеться, щойно всі будуть готові, або коли добіжить час збору. Перемога може принести нагороду, а склад ворогів підлаштується під силу ватаги.";
+}
+
 export function presentPartyNearbyInviteSent(
   result: Extract<PartyViewResult, { state: "ready" }>,
   targetName: string,
@@ -1464,15 +1486,22 @@ export function presentPartyNearbyInviteNotification(
 ): string {
   const leader = session.leader;
   const big = isBigBarrelParty(session);
+  const leftPassage = isLeftPassageParty(session);
   return [
-    big ? "🛢️ <b>Вас кличуть до Старшого Брата Бочки</b>" : "🧭 <b>Вас кличуть у ватагу</b>",
+    big
+      ? "🛢️ <b>Вас кличуть до Старшого Брата Бочки</b>"
+      : leftPassage
+        ? "🤝 <b>Вас кличуть до атаки в лівому проході</b>"
+        : "🧭 <b>Вас кличуть у ватагу</b>",
     "",
     `Кличе: ${presentCharacterDisplayName(toDisplay(leader))}`,
     `Учасники: ${getJoinedParticipants(session).length}/${session.participantCap}`,
     "",
     big
       ? "Це збір до групового рейду: бій почнеться після старту ватаги або коли добіжить час збору."
-      : "Це поки збір тимчасової ватаги: без боса, нагород і бойового зобовʼязання.",
+      : leftPassage
+        ? presentLeftPassageRecruitmentContract()
+        : "Це поки збір тимчасової ватаги: без боса, нагород і бойового зобовʼязання.",
     ...(inviteUrl ? ["", presentPartyInviteLine(session, inviteUrl)] : [])
   ].join("\n");
 }
