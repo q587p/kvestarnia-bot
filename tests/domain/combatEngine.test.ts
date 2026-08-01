@@ -634,6 +634,87 @@ describe("combat domain engine", () => {
     expect(cooldown.state.cooldowns?.skill?.remainingTurns).toBe(1);
   });
 
+  it.each([
+    ["no cooldown", undefined, false],
+    ["cooldown 1", { skill: { id: "skill.test", remainingTurns: 1 } }, false],
+    ["cooldown 2", { skill: { id: "skill.test", remainingTurns: 2 } }, true],
+    ["mixed 1/2", {
+      skill: { id: "skill.test", remainingTurns: 1 },
+      abilities: { "ability.test": { id: "ability.test", remainingTurns: 2 } }
+    }, true]
+  ] as const)("uses c005 only for a post-tick cooldown delta: %s", (_label, cooldowns, expectedUse) => {
+    const state = startCombat({ hero: warrior, monster });
+    if (cooldowns) state.cooldowns = structuredClone(cooldowns);
+    const result = resolveCombatItemTurn({
+      state,
+      item: { id: "item.loot-v1-c005", name: "Кава", effect: { kind: "reduce-cooldowns", turns: 1 } },
+      hero: warrior,
+      monster,
+      rng: new FakeRandomSource([0, 0, 0])
+    });
+
+    expect(result.ok).toBe(expectedUse);
+    if (!expectedUse) {
+      expect(result).toMatchObject({ ok: false, reason: "effect-unavailable", state: { turn: 1 } });
+      expect(result.state).toEqual(state);
+    } else {
+      expect(result.state.turn).toBe(2);
+      expect(result.state.cooldowns).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["item.loot-v1-c006", { kind: "guard-response" as const, reductionPercent: 42 }, "guard"],
+    ["item.loot-v1-c013", { kind: "evade-response" as const }, "evade"],
+    ["item.cellar.fancy-cheese", { kind: "evade-response" as const }, "evade"]
+  ])("applies %s to only the first of two deterministic enemy responses", (itemId, effect, kind) => {
+    const firstMonster = { ...monster, attack: 8 };
+    const backupMonster = { ...secondMonster, attack: 8 };
+    const initial = startCombat({
+      hero: { ...warrior, hpMax: 100 },
+      monster: firstMonster,
+      enemies: [firstMonster, backupMonster]
+    });
+    initial.turn = 2;
+    initial.hero.hp = 80;
+    const baseline = resolveCombatItemTurn({
+      state: structuredClone(initial),
+      item: { id: "item.test-heal", name: "Тест", effect: { kind: "heal-hp", amount: 1 } },
+      hero: { ...warrior, hpMax: 100 },
+      monster: firstMonster,
+      enemies: [firstMonster, backupMonster],
+      rng: new FakeRandomSource(Array(20).fill(0))
+    });
+    const result = resolveCombatItemTurn({
+      state: structuredClone(initial),
+      item: { id: itemId, name: "Манатка відповіді", effect },
+      hero: { ...warrior, hpMax: 100 },
+      monster: firstMonster,
+      enemies: [firstMonster, backupMonster],
+      rng: new FakeRandomSource(Array(20).fill(0))
+    });
+
+    expect(baseline.ok).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(baseline.summary.enemyActions).toHaveLength(2);
+    expect(result.summary.enemyActions).toHaveLength(2);
+    expect(result.summary.itemResponse).toMatchObject({ enemyId: "enemy:1", kind });
+    expect(result.summary.enemyActions?.[1]?.monsterDamage).toBe(
+      baseline.summary.enemyActions?.[1]?.monsterDamage
+    );
+    if (kind === "evade") {
+      expect(result.summary.enemyActions?.[0]?.monsterDamage).toBe(0);
+    } else {
+      expect(result.summary.enemyActions?.[0]?.monsterDamage).toBeLessThan(
+        baseline.summary.enemyActions?.[0]?.monsterDamage ?? 0
+      );
+      expect(result.summary.itemResponse?.preventedDamage).toBeGreaterThan(0);
+    }
+    const replay = parseCombatState(JSON.parse(JSON.stringify(result.state)));
+    expect(replay?.lastTurn?.itemResponse).toEqual(result.summary.itemResponse);
+    expect(replay?.turnLog?.at(-1)?.summary.itemResponse).toEqual(result.summary.itemResponse);
+  });
+
   it("returns exact no-op reasons for every inapplicable active-combat item family", () => {
     const fullState = startCombat({ hero: warrior, monster });
     fullState.hero.hp = fullState.hero.hpMax;

@@ -2793,6 +2793,56 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     })).resolves.toMatchObject({ quantity: 1 });
   });
 
+  it("replays the exact selected solo item response from stored state", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-combat-item-response-replay",
+      characterId: "character-combat-item-response-replay",
+      telegramUserId: 9413n
+    });
+    const state = makeCombatState("combat-item-response-replay", "monster.deadline-spider");
+    const summary = {
+      action: "item" as const,
+      heroOutcome: "item-used" as const,
+      heroDamage: 0,
+      monsterDamage: 7,
+      manaSpent: 0,
+      critical: false,
+      itemId: "item.loot-v1-c006",
+      itemName: "Шкарпетки Героїчного Ухилення",
+      itemResponse: {
+        enemyId: "enemy:1",
+        monsterId: "monster.deadline-spider",
+        monsterName: "Павук Дедлайну",
+        kind: "guard" as const,
+        damageAfter: 7,
+        preventedDamage: 5
+      }
+    };
+    state.lastTurn = summary;
+    state.turnLog = [{
+      turn: 1,
+      summary,
+      hero: { hp: state.hero.hp, mana: state.hero.mana },
+      monster: { hp: state.monster.hp }
+    }];
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "combat-item-response-replay",
+        characterId: "character-combat-item-response-replay",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+
+    const reloaded = await repository.findByIdForTelegramUserId(9413n, "combat-item-response-replay");
+
+    expect(reloaded?.state?.lastTurn?.itemResponse).toEqual(summary.itemResponse);
+    expect(reloaded?.state?.turnLog?.[0]?.summary.itemResponse).toEqual(summary.itemResponse);
+  });
+
   it("rejects a queued nonmedical solo item at commit when the consumable flag turns off", async () => {
     await seedCharacter(prisma, {
       userId: "user-combat-item-flag-off",

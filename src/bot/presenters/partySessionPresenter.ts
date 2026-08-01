@@ -1155,17 +1155,22 @@ function presentBossRetaliationLine(
   const counter = retaliation.counterDamage && retaliation.counterDamage > 0
     ? ` 🧿 Оберіг відповідає на ${retaliation.counterDamage} шкоди.`
     : "";
+  const itemResponse = retaliation.itemResponseKind === "evade"
+    ? " Манатка відводить саме цю відповідь."
+    : retaliation.itemResponseKind === "guard"
+      ? ` Манатка відвертає ${retaliation.itemResponsePreventedDamage ?? 0} шкоди від цієї відповіді.`
+      : "";
   if (retaliation.tauntRedirected && retaliation.tauntOriginalKind === "broad") {
-    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
+    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${itemResponse}${counter}`;
   }
   if (retaliation.tauntRedirected) {
-    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
+    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${itemResponse}${counter}`;
   }
   if ((retaliation.protocolPreventedDamage ?? 0) > 0) {
-    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.${counter}`;
+    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.${itemResponse}${counter}`;
   }
 
-  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.${counter}`;
+  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.${itemResponse}${counter}`;
 }
 
 function presentBureaucramancerProtocolTriggeredLine(

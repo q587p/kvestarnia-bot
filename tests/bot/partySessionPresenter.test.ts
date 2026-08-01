@@ -953,6 +953,31 @@ describe("party session presenter", () => {
     expect(text).toContain("Голова застосовує 🩹 <b>Щільний бинт</b>. HP відновлено на 23.");
   });
 
+  it.each([
+    ["guard", "Манатка відвертає 5 шкоди від цієї відповіді."],
+    ["evade", "Манатка відводить саме цю відповідь."],
+  ] as const)("renders the exact selected boss response for item %s", (kind, expected) => {
+    const text = presentPartyBoss(makeBigBossSession({
+      roundLog: [{
+        turn: 1,
+        actions: [],
+        bossDamage: 0,
+        bossHpAfter: 100,
+        bossRetaliations: [{
+          characterId: "leader",
+          damage: kind === "guard" ? 7 : 0,
+          hpAfter: kind === "guard" ? 53 : 60,
+          itemResponseItemId: kind === "guard" ? "item.loot-v1-c006" : "item.loot-v1-c013",
+          itemResponseKind: kind,
+          itemResponsePreventedDamage: kind === "guard" ? 5 : 12
+        }],
+        statusAfter: "active"
+      }]
+    }), { viewerCharacterId: "leader" });
+
+    expect(text).toContain(expected);
+  });
+
   it("renders every stored Big Barrel buff with cooldowns and effects on journal pages", () => {
     const session = makeBigBossSession({
       turn: 2,

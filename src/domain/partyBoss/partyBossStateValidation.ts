@@ -492,9 +492,13 @@ function validateRetaliation(value: unknown, path: string): void {
   const retaliation = record(value, "round-log", `${path} is invalid.`);
   requireString(retaliation.characterId, `${path}.characterId`, "round-log");
   ["damage", "hpAfter"].forEach((field) => requireFiniteNonNegative(retaliation[field], `${path}.${field}`));
-  ["damageBeforeWard", "wardPreventedDamage", "damageBeforeProtocol", "protocolPreventedDamage", "damageBeforeLament", "lamentPreventedDamage", "counterDamage"].forEach((field) => {
+  ["damageBeforeWard", "wardPreventedDamage", "damageBeforeProtocol", "protocolPreventedDamage", "damageBeforeLament", "lamentPreventedDamage", "itemResponsePreventedDamage", "counterDamage"].forEach((field) => {
     if (retaliation[field] !== undefined) requireFiniteNonNegative(retaliation[field], `${path}.${field}`);
   });
+  if (retaliation.itemResponseItemId !== undefined) requireString(retaliation.itemResponseItemId, `${path}.itemResponseItemId`, "round-log");
+  if (retaliation.itemResponseKind !== undefined && retaliation.itemResponseKind !== "guard" && retaliation.itemResponseKind !== "evade") {
+    fail("round-log", `${path}.itemResponseKind is invalid.`);
+  }
   if (retaliation.tauntRedirected !== undefined && typeof retaliation.tauntRedirected !== "boolean") fail("round-log", `${path}.tauntRedirected is invalid.`);
   if (retaliation.tauntOriginalKind !== undefined && retaliation.tauntOriginalKind !== "focused" && retaliation.tauntOriginalKind !== "broad") fail("round-log", `${path}.tauntOriginalKind is invalid.`);
 }

@@ -998,6 +998,97 @@ describe("PrismaPartyBossRepository integration", () => {
     })).resolves.toEqual({ quantity: 1 });
   });
 
+  it("commits one targeted c006 boss response and replays its exact evidence after restart", async () => {
+    const token = "party-response-c006";
+    const leaderCharacterId = "party-response-c006-leader-character";
+    await seedCharacter(prisma, "party-response-c006-leader", 92107n, "Вартова Відповіді", {
+      hpCurrent: 50,
+      hpMax: 50,
+      strength: 20,
+      dexterity: 93
+    });
+    await seedCharacter(prisma, "party-response-c006-joiner", 92108n, "Свідок Відповіді", {
+      hpCurrent: 50,
+      hpMax: 50,
+      strength: 20,
+      dexterity: 1
+    });
+    await prisma.characterItem.create({
+      data: { characterId: leaderCharacterId, itemId: "item.loot-v1-c006", quantity: 1 }
+    });
+    await partyRepository.createForTelegramUser(92107n, partyInput(token));
+    await partyRepository.joinByTokenForTelegramUser(92108n, token, joinInput());
+    const started = await bossRepository.startFromRecruitingPartyForTelegramUser(92107n, {
+      partyInviteToken: token,
+      now: now(),
+      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+    });
+    const startedSession = expectPartyBossSession(started);
+    await prisma.partyBossSession.update({
+      where: { id: startedSession.id },
+      data: {
+        stateJson: {
+          ...startedSession.state,
+          boss: { ...startedSession.state.boss, attack: 20 }
+        }
+      }
+    });
+    const item = {
+      id: "item.loot-v1-c006",
+      name: "Шкарпетки Героїчного Ухилення",
+      effect: { kind: "guard-response" as const, reductionPercent: 42 }
+    };
+    await expect(bossRepository.submitItemForTelegramUser(
+      92107n,
+      token,
+      1,
+      item,
+      { ...resolveInput(), allowNonmedicalConsumables: true }
+    )).resolves.toMatchObject({ state: "queued" });
+    const resolved = await bossRepository.submitActionForTelegramUser(
+      92108n,
+      token,
+      1,
+      "defend",
+      { ...resolveInput(), allowNonmedicalConsumables: true }
+    );
+    const resolvedSession = expectPartyBossSession(resolved);
+    const storedResponse = resolvedSession.state.roundLog.at(-1)?.bossRetaliations.find(
+      (entry) => entry.characterId === leaderCharacterId
+    );
+
+    expect(resolved.state).toBe("resolved");
+    expect(storedResponse).toMatchObject({
+      itemResponseItemId: "item.loot-v1-c006",
+      itemResponseKind: "guard"
+    });
+    expect(storedResponse?.itemResponsePreventedDamage).toBeGreaterThan(0);
+    await expect(prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: leaderCharacterId, itemId: "item.loot-v1-c006" } }
+    })).resolves.toBeNull();
+    expect(resolved.achievementEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "item.used",
+        characterId: leaderCharacterId,
+        itemId: "item.loot-v1-c006"
+      })
+    ]));
+
+    const restarted = new PrismaPartyBossRepository(prisma);
+    expect((await restarted.findByPartyInviteToken(token))?.state.roundLog.at(-1)?.bossRetaliations.find(
+      (entry) => entry.characterId === leaderCharacterId
+    )).toEqual(storedResponse);
+    const duplicate = await restarted.submitItemForTelegramUser(
+      92107n,
+      token,
+      1,
+      item,
+      { ...resolveInput(), allowNonmedicalConsumables: true }
+    );
+    expect(duplicate.state).toBe("stale");
+    expect(duplicate.achievementEvents).toBeUndefined();
+  });
+
   it.each([
     ["item.loot-v1-c002", "Вареники Парного Бафу", { kind: "paired-heal" as const, amount: 8 }, 92102n],
     ["item.loot-v1-c012", "Салат «Олів'є Рейдовий»", { kind: "party-heal" as const, amount: 13 }, 92104n]

@@ -1167,6 +1167,114 @@ describe("party boss reducer", () => {
     });
   });
 
+  it.each([
+    ["none", undefined, "item-not-used"],
+    ["one", { skill: { id: "skill.test", remainingTurns: 1 } }, "item-not-used"],
+    ["two", { skill: { id: "skill.test", remainingTurns: 2 } }, "item-used"],
+    ["mixed", {
+      skill: { id: "skill.test", remainingTurns: 1 },
+      abilities: { "ability.test": { id: "ability.test", remainingTurns: 2 } }
+    }, "item-used"]
+  ] as const)("uses party-boss c005 only when post-tick cooldown benefit remains: %s", (_label, cooldowns, outcome) => {
+    const state = createPartyBossState({
+      partySessionId: `party-c005-${_label}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("coffee", "Кавоман")]
+    });
+    state.boss.attack = 0;
+    if (cooldowns) state.participants[0]!.resources.cooldowns = structuredClone(cooldowns);
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-c005-${_label}`,
+      actions: [{
+        characterId: "coffee",
+        action: "item",
+        origin: "manual",
+        item: { id: "item.loot-v1-c005", name: "Кава", effect: { kind: "reduce-cooldowns", turns: 1 } }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome,
+      ...(outcome === "item-not-used" ? { itemUnavailableReason: "effect-unavailable" } : {})
+    });
+    expect(result.state.participants[0]?.resources.cooldowns).toBeUndefined();
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(outcome === "item-used" ? 1 : 0);
+  });
+
+  it.each([
+    ["item.loot-v1-c006", { kind: "guard-response" as const, reductionPercent: 42 }, "guard"],
+    ["item.loot-v1-c013", { kind: "evade-response" as const }, "evade"],
+    ["item.cellar.fancy-cheese", { kind: "evade-response" as const }, "evade"]
+  ])("commits targeted party-boss response item %s with exact retaliation evidence", (itemId, effect, kind) => {
+    const state = createPartyBossState({
+      partySessionId: `party-response-${itemId}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("owner", "Власник", { hp: 100 })]
+    });
+    state.boss.attack = 20;
+    const input = {
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-response-${itemId}`,
+      actions: [{
+        characterId: "owner",
+        action: "item" as const,
+        origin: "manual" as const,
+        item: { id: itemId, name: "Манатка відповіді", effect }
+      }]
+    };
+    const first = resolvePartyBossRound(structuredClone(input));
+    const replay = resolvePartyBossRound(structuredClone(input));
+
+    expect(first.round.actions[0]).toMatchObject({ outcome: "item-used" });
+    expect(first.round.bossRetaliations[0]).toMatchObject({
+      characterId: "owner",
+      itemResponseItemId: itemId,
+      itemResponseKind: kind
+    });
+    expect(first.round.bossRetaliations[0]?.itemResponsePreventedDamage).toBeGreaterThan(0);
+    expect(replay).toEqual(first);
+  });
+
+  it.each([
+    ["leader", "item-used", true],
+    ["striker", "item-not-used", false]
+  ] as const)("commits a Big Barrel response item only when %s owns the focused response", (ownerId, outcome, targeted) => {
+    const state = createPartyBossState({
+      partySessionId: `big-response-${ownerId}`,
+      variant: "big-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("leader", "Голова", { hp: 120, level: 8 }),
+        participant("striker", "Шкодійка", { hp: 120, level: 8 })
+      ]
+    });
+    state.boss.attack = 20;
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `big-response-${ownerId}`,
+      actions: ["leader", "striker"].map((characterId) => characterId === ownerId
+        ? {
+            characterId,
+            action: "item" as const,
+            origin: "manual" as const,
+            item: { id: "item.loot-v1-c013", name: "Млинці", effect: { kind: "evade-response" as const } }
+          }
+        : { characterId, action: "defend" as const, origin: "manual" as const })
+    });
+
+    expect(result.round.actions.find((entry) => entry.characterId === ownerId)).toMatchObject({
+      outcome,
+      ...(targeted ? {} : { itemUnavailableReason: "effect-unavailable" })
+    });
+    expect(result.round.bossRetaliations[0]?.characterId).toBe("leader");
+    expect(result.round.bossRetaliations[0]?.itemResponseKind).toBe(targeted ? "evade" : undefined);
+    expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.contribution.itemUses ?? 0).toBe(targeted ? 1 : 0);
+  });
+
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
     let state = createPartyBossState({
       partySessionId: "big-focus",

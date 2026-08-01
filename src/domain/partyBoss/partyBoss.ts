@@ -264,6 +264,9 @@ export interface PartyBossRetaliationSummary {
   protocolPreventedDamage?: number;
   damageBeforeLament?: number;
   lamentPreventedDamage?: number;
+  itemResponseItemId?: string;
+  itemResponseKind?: "guard" | "evade";
+  itemResponsePreventedDamage?: number;
   tauntRedirected?: boolean;
   tauntOriginalKind?: "focused" | "broad";
   counterDamage?: number;
@@ -449,8 +452,12 @@ export function resolvePartyBossRound(input: {
   }> = [];
   let bossDamage = 0;
   const counterDamageByCharacterId = new Map<string, number>();
-  const itemEvadeResponseCharacterIds = new Set<string>();
-  const itemGuardPercentByCharacterId = new Map<string, number>();
+  const pendingItemResponses = new Map<string, {
+    item: PartyBossCombatItemInput;
+    effect: Extract<ItemUseEffectContent, { kind: "guard-response" | "evade-response" }>;
+    participant: PartyBossParticipantState;
+    summary: PartyBossParticipantActionSummary;
+  }>();
   const expiredBeforeActions = expireUnableWarriorTaunt(next);
   const tauntRound: PartyBossWarriorTauntRoundSummary = {
     ...(expiredBeforeActions ? { expiredCharacterId: expiredBeforeActions } : {})
@@ -511,7 +518,11 @@ export function resolvePartyBossRound(input: {
       tickPartyBossCombatItemCooldowns(participant);
       const itemUnavailableReason = committed.itemCommitAllowed === false
         ? "not-usable"
-        : getPartyBossCombatItemInapplicableReason(next, participant, committed.item.effect);
+        : getPartyBossCombatItemInapplicableReason(
+            next,
+            { ...participant, resources: tickedResources },
+            committed.item.effect
+          );
       if (itemUnavailableReason) {
         participant.resources = tickedResources;
         if (origin === "manual") {
@@ -563,10 +574,9 @@ export function resolvePartyBossRound(input: {
         ? Math.min(next.boss.hp, Math.max(0, Math.floor(resolvedEffect.amount)))
         : 0;
       next.boss.hp = Math.max(0, next.boss.hp - itemDamage);
-      if (resolvedEffect.kind === "evade-response") itemEvadeResponseCharacterIds.add(participant.characterId);
-      if (resolvedEffect.kind === "guard-response") itemGuardPercentByCharacterId.set(participant.characterId, resolvedEffect.reductionPercent);
       if (resolvedEffect.kind === "reduce-cooldowns") participant.resources = reducePartyBossCooldowns(participant.resources, resolvedEffect.turns);
-      recordPartyBossCombatItemUse(participant, committed.item.id);
+      const responseItem = resolvedEffect.kind === "guard-response" || resolvedEffect.kind === "evade-response";
+      if (!responseItem) recordPartyBossCombatItemUse(participant, committed.item.id);
 
       if (origin === "manual") {
         participant.contribution.submittedActions += 1;
@@ -575,11 +585,11 @@ export function resolvePartyBossRound(input: {
       }
       const supportHealing = supportTargets.reduce((sum, target) => sum + (target.healing ?? 0), 0);
       participant.contribution.healingDone = (participant.contribution.healingDone ?? 0) + healing + supportHealing;
-      participant.contribution.itemUses = (participant.contribution.itemUses ?? 0) + 1;
+      if (!responseItem) participant.contribution.itemUses = (participant.contribution.itemUses ?? 0) + 1;
       participant.contribution.damageDealt += itemDamage;
       bossDamage += itemDamage;
 
-      actionSummaries.push({
+      const itemSummary: PartyBossParticipantActionSummary = {
         characterId: participant.characterId,
         action,
         origin,
@@ -592,7 +602,16 @@ export function resolvePartyBossRound(input: {
         ...(manaRestored > 0 ? { manaRestored } : {}),
         hpAfter: participant.resources.hp,
         ...(supportTargets.length > 0 ? { supportTargets } : {})
-      });
+      };
+      actionSummaries.push(itemSummary);
+      if (responseItem) {
+        pendingItemResponses.set(participant.characterId, {
+          item: committed.item,
+          effect: resolvedEffect,
+          participant,
+          summary: itemSummary
+        });
+      }
       continue;
     }
 
@@ -676,8 +695,34 @@ export function resolvePartyBossRound(input: {
     tauntRound.expiredCharacterId = expiredAfterVictory;
     delete tauntRound.bossAttacksRemaining;
   }
+  const itemResponseByCharacterId = new Map<string, {
+    itemId: string;
+    kind: "guard" | "evade";
+    percent: number;
+  }>();
+  const retaliationTargets = next.boss.hp > 0
+    ? new Set(isBigBarrelBrotherState(next)
+        ? getPartyBossRetaliationPlan(next).characterIds
+        : next.participants
+          .filter((participant) => participant.status === "active" && participant.resources.hp > 0)
+          .map((participant) => participant.characterId))
+    : new Set<string>();
+  for (const [characterId, pending] of pendingItemResponses) {
+    if (!retaliationTargets.has(characterId)) {
+      pending.summary.outcome = "item-not-used";
+      pending.summary.itemUnavailableReason = "effect-unavailable";
+      continue;
+    }
+    itemResponseByCharacterId.set(characterId, {
+      itemId: pending.item.id,
+      kind: pending.effect.kind === "evade-response" ? "evade" : "guard",
+      percent: pending.effect.kind === "evade-response" ? 100 : pending.effect.reductionPercent
+    });
+    recordPartyBossCombatItemUse(pending.participant, pending.item.id);
+    pending.participant.contribution.itemUses = (pending.participant.contribution.itemUses ?? 0) + 1;
+  }
   const retaliationResolution = next.boss.hp > 0
-    ? applyBossRetaliation(next, counterDamageByCharacterId, itemEvadeResponseCharacterIds, itemGuardPercentByCharacterId)
+    ? applyBossRetaliation(next, counterDamageByCharacterId, itemResponseByCharacterId)
     : { retaliations: [] };
   if (retaliationResolution.warriorTaunt) {
     if (retaliationResolution.warriorTaunt.expiredCharacterId) {
@@ -1223,8 +1268,11 @@ function cloneAbilityCooldowns(
 function applyBossRetaliation(
   state: PartyBossState,
   counterDamageByCharacterId: ReadonlyMap<string, number>,
-  itemEvadeResponseCharacterIds: ReadonlySet<string> = new Set(),
-  itemGuardPercentByCharacterId: ReadonlyMap<string, number> = new Map()
+  itemResponseByCharacterId: ReadonlyMap<string, {
+    itemId: string;
+    kind: "guard" | "evade";
+    percent: number;
+  }> = new Map()
 ): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
@@ -1276,10 +1324,12 @@ function applyBossRetaliation(
       ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
       : 0;
     const damageAfterWardBase = Math.max(0, damageBeforeWard - wardPrevented);
-    const itemGuardPercent = clamp(Math.floor(itemGuardPercentByCharacterId.get(participant.characterId) ?? 0), 0, 100);
-    const damageAfterWard = itemEvadeResponseCharacterIds.has(participant.characterId)
+    const itemResponse = itemResponseByCharacterId.get(participant.characterId);
+    const itemGuardPercent = clamp(Math.floor(itemResponse?.percent ?? 0), 0, 100);
+    const damageAfterWard = itemResponse?.kind === "evade"
       ? 0
       : Math.max(0, damageAfterWardBase - Math.floor(damageAfterWardBase * itemGuardPercent / 100));
+    const itemResponsePrevented = Math.max(0, damageAfterWardBase - damageAfterWard);
     const signature = personalProtocolCanTrigger
       ? state.personalProtocol!.signatures.find((entry) =>
           entry.characterId === participant.characterId && entry.status === "unspent"
@@ -1332,6 +1382,13 @@ function applyBossRetaliation(
       ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
       ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {}),
       ...(lamentPrevented > 0 ? { damageBeforeLament, lamentPreventedDamage: lamentPrevented } : {}),
+      ...(itemResponse
+        ? {
+            itemResponseItemId: itemResponse.itemId,
+            itemResponseKind: itemResponse.kind,
+            itemResponsePreventedDamage: itemResponsePrevented
+          }
+        : {}),
       ...(counterDamage > 0 ? { counterDamage } : {})
     });
   }

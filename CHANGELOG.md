@@ -23,6 +23,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Full or inapplicable resource/target states no longer consume a unit. Already-inapplicable callbacks leave the active combat session and turn unchanged; when an earlier Party Boss or GroupCombat actor makes a queued item useless, the later action is journaled without inventory decrement, new item cooldown/limit markers or achievement evidence. Duplicate confirm/action callbacks, restart replay, action replacement and timeout adoption retain the existing exact-once transaction/CAS boundaries.
+- `c005` now checks cooldown usefulness after the actor's ordinary committed-action tick. A cooldown of exactly one expires naturally without consuming the item or emitting use evidence; solo combat also keeps the same turn, while shared rounds continue normally.
+- `c006`, `c013` and Fancy Cheese now affect exactly the first eligible enemy response in canonical order. Later multi-enemy responses remain normal, the journal stores truthful selected-target damage/prevention for restart replay, and untargeted Party Boss/Big Barrel or GroupCombat owners keep the item without use evidence.
 - Rechecked the nonmedical flag and current-life quest-bottle eligibility inside every inventory, Solo, Party Boss and GroupCombat commit. Flag-off after preview/queue applies no effect or decrement, medical commits remain live, and completed terminal receipts replay before current eligibility gates.
 - Corrected mana-only and dual-resource inventory cards plus Solo/Party Boss journals to use their stored mana and HP fields, and preserved the typed `heal-hp-to-min-percent` result when replaying completed Field Kit orders.
 

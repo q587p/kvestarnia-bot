@@ -3035,6 +3035,43 @@ describe("FightService", () => {
     expect(sessions.consumedCombatItems).toEqual([]);
   });
 
+  it("keeps c005 and the ordinary turn when only a one-turn cooldown remains", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.loot-v1-c005", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>();
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService,
+      consumableManatkaUsesEnabled: true
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") return;
+    sessions.setCooldowns(started.session.id, {
+      skill: { id: "skill.test", remainingTurns: 1 }
+    });
+    const before = sessions.getById(started.session.id);
+
+    const result = await service.resolvePersistentFightItemTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.loot-v1-c005")
+    });
+
+    expect(result).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(sessions.getById(started.session.id)).toEqual(before);
+    expect(sessions.combatItemStacks.get("item.loot-v1-c005")).toBe(1);
+    expect(sessions.consumedCombatItems).toEqual([]);
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
   it("lists only currently useful one-use manatky for the ordinary fight submenu", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });
@@ -8627,6 +8664,22 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
           ...session.state.hero,
           mana
         }
+      }
+    });
+  }
+
+  setCooldowns(sessionId: string, cooldowns: NonNullable<CombatState["cooldowns"]>): void {
+    const session = this.sessions.get(sessionId);
+
+    if (!session?.state) {
+      return;
+    }
+
+    this.sessions.set(sessionId, {
+      ...session,
+      state: {
+        ...session.state,
+        cooldowns: structuredClone(cooldowns)
       }
     });
   }

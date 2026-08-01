@@ -127,8 +127,9 @@ bounded журнал і підсумки
 три medical supplies зберігають чинну поведінку, дві authored cellar манатки та
 generated `c001`–`c015` активують відповідні immediate self/pair/party,
 resource, cleanse, cooldown, damage і response effects. `c001/c003/c009`
-лікують рівно на 7/8/9 HP у бою та поза ним. Full/inapplicable state не витрачає
-предмет або хід; random outcome freezes once and replays. Quest bottle is
+  лікують рівно на 7/8/9 HP у бою та поза ним. Full/inapplicable state не витрачає
+  предмет або хід; cooldown reduction checks after the ordinary action tick,
+  and response guard/evade affects exactly one canonical enemy response. Random outcome freezes once and replays. Quest bottle is
 protected until its `keep` ending, while remort-carried stacks stay usable.
 Source tags/effect ids не вмикають прихованої поведінки. Default-off
 `CONSUMABLE_MANATKA_USES_ENABLED` gates only seventeen nonmedical rows; the

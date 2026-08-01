@@ -1318,6 +1318,7 @@ function presentTurnSummary(
     return withStoredContext([
       ...heading,
       `Ви використали <b>${itemName}</b>.${healing}`,
+      presentCombatItemResponse(summary),
       heroEffectResponse,
       withEnemyPressureSkips(
         enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно.",
@@ -1375,6 +1376,18 @@ function presentTurnSummary(
     heroEffectResponse,
     response
   ].filter(Boolean));
+}
+
+function presentCombatItemResponse(summary: CombatTurnSummary): string {
+  const response = summary.itemResponse;
+  if (!response) {
+    return "";
+  }
+  const enemyName = escapeHtml(getShortMonsterName(response.monsterName, "Монстр"));
+  if (response.kind === "evade") {
+    return `Манатка відвела найближчу відповідь: ${enemyName} не влучає.`;
+  }
+  return `Манатка послабила найближчу відповідь: ${enemyName} завдає ${response.damageAfter} шкоди, ще ${response.preventedDamage ?? 0} відвернуто.`;
 }
 
 function presentEnemyHpRows(

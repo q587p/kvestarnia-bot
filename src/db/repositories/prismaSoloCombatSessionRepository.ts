@@ -2836,6 +2836,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
   const enemyPressureSkips = parseEnemyPressureSkipSummaries(value.enemyPressureSkips);
   const satedRecovery = parseSatedRecovery(value.satedRecovery);
+  const itemResponse = parseCombatItemResponse(value.itemResponse);
 
   if (
     !action ||
@@ -2880,8 +2881,33 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(enemyPressureSkips.length > 0 ? { enemyPressureSkips } : {}),
+    ...(itemResponse ? { itemResponse } : {}),
     ...(debugTrace ? { debugTrace } : {}),
     ...(satedRecovery ? { satedRecovery } : {})
+  };
+}
+
+function parseCombatItemResponse(
+  value: unknown
+): NonNullable<CombatTurnSummary["itemResponse"]> | null {
+  if (!isRecord(value) || typeof value.enemyId !== "string" || typeof value.monsterId !== "string") {
+    return null;
+  }
+  if (value.kind !== "guard" && value.kind !== "evade") {
+    return null;
+  }
+  const damageAfter = intOrNull(value.damageAfter);
+  const preventedDamage = intOrNull(value.preventedDamage);
+  if (damageAfter === null) {
+    return null;
+  }
+  return {
+    enemyId: value.enemyId,
+    monsterId: value.monsterId,
+    ...(typeof value.monsterName === "string" ? { monsterName: value.monsterName } : {}),
+    kind: value.kind,
+    damageAfter,
+    ...(preventedDamage !== null ? { preventedDamage } : {})
   };
 }
 

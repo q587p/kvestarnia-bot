@@ -943,6 +943,107 @@ describe("group combat proof reducer", () => {
   });
 
   it.each([
+    ["one", { skill: { id: "skill.test", remainingTurns: 1 } }, false],
+    ["two", { skill: { id: "skill.test", remainingTurns: 2 } }, true],
+    ["mixed", {
+      skill: { id: "skill.test", remainingTurns: 1 },
+      abilities: { "ability.test": { id: "ability.test", remainingTurns: 2 } }
+    }, true]
+  ] as const)("commits GroupCombat c005 only when post-tick cooldown benefit remains: %s", (_label, cooldowns, committed) => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.combatItemQuantities = { "item.loot-v1-c005": 1 };
+    if (cooldowns) actor.cooldowns = structuredClone(cooldowns);
+    state.enemies[0]!.attack = 1;
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c005"
+    }]);
+
+    expect(result.committedConsumables).toEqual(committed
+      ? [{ characterId: actor.characterId, itemId: "item.loot-v1-c005" }]
+      : []);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c005"]).toBe(committed ? undefined : 1);
+    expect(result.state.participants[0]?.cooldowns).toBeUndefined();
+    expect(result.state.recap[0]?.lines.some((line) => line.includes(
+      committed ? "використовує манатку" : "не витрачає манатку"
+    ))).toBe(true);
+  });
+
+  it("rejects GroupCombat c005 before queueing when no cooldown is active", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.combatItemQuantities = { "item.loot-v1-c005": 1 };
+
+    expect(validateGroupCombatAction(state, {
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c005"
+    })).toBe("action-unavailable");
+  });
+
+  it.each([
+    ["item.loot-v1-c006", "guard"],
+    ["item.loot-v1-c013", "evade"],
+    ["item.cellar.fancy-cheese", "evade"]
+  ] as const)("applies %s to only the first of two GroupCombat responses against its owner", (itemId, kind) => {
+    const initial = proofState(2);
+    const owner = initial.participants[0]!;
+    const inactive = initial.participants[1]!;
+    owner.hp -= 1;
+    owner.threat = 100;
+    inactive.hp = 0;
+    owner.combatItemQuantities = { [itemId]: 1 };
+    initial.enemies.forEach((enemy) => { enemy.attack = 12; });
+    const itemAction = [{
+      ...action(initial, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }];
+    const baselineState = structuredClone(initial);
+    baselineState.participants[0]!.combatItemQuantities = { "item.responsible-panic-bandage": 1 };
+    const baseline = resolveGroupCombatTurn(baselineState, [{
+      ...action(baselineState, 0, "item", "self", owner.characterId),
+      payloadKey: "item.responsible-panic-bandage"
+    }]);
+    const first = resolveGroupCombatTurn(structuredClone(initial), itemAction);
+    const replay = resolveGroupCombatTurn(structuredClone(initial), itemAction);
+    const baselineEnemyDamage = baseline.state.enemyContributions.map((entry) => entry.damage);
+    const itemEnemyDamage = first.state.enemyContributions.map((entry) => entry.damage);
+
+    expect(first.committedConsumables).toEqual([{ characterId: owner.characterId, itemId }]);
+    expect(first.state.participants[0]?.combatItemQuantities[itemId]).toBeUndefined();
+    expect(itemEnemyDamage[1]).toBe(baselineEnemyDamage[1]);
+    if (kind === "evade") {
+      expect(itemEnemyDamage[0]).toBe(0);
+    } else {
+      expect(itemEnemyDamage[0]).toBeLessThan(baselineEnemyDamage[0] ?? 0);
+    }
+    expect(first.state.recap[0]?.lines.some((line) =>
+      line.includes("використовує манатку") && line.includes(first.state.enemies[0]!.name)
+    )).toBe(true);
+    expect(replay).toEqual(first);
+  });
+
+  it("keeps a GroupCombat response item when both enemies target another participant", () => {
+    const state = leftPassageState(2);
+    const owner = state.participants[0]!;
+    const target = state.participants[1]!;
+    owner.threat = 0;
+    target.threat = 1_000;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 12; });
+    const result = resolveGroupCombatTurn(state, [
+      { ...action(state, 0, "item", "self", owner.characterId), payloadKey: "item.loot-v1-c013" },
+      buildGroupCombatTimeoutAction(state, target.characterId)
+    ]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c013"]).toBe(1);
+    expect(result.state.recap[0]?.lines.some((line) =>
+      line.includes("не витрачає манатку") && line.includes("жодна відповідь не цілила")
+    )).toBe(true);
+  });
+
+  it.each([
     ["item.loot-v1-c002"],
     ["item.loot-v1-c012"]
   ])("keeps %s after an earlier shared-round raid heal makes it useless", (secondItemId) => {

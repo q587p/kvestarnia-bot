@@ -776,6 +776,19 @@ export interface GroupCombatCommittedConsumable {
   itemId: string;
 }
 
+interface GroupCombatPendingResponseItem {
+  actor: GroupCombatActorSnapshot;
+  itemId: GroupCombatCommittedConsumable["itemId"];
+  kind: "guard" | "evade";
+  percent: number;
+  lineIndex: number;
+  used: boolean;
+  preventedDamage: number;
+  damageAfter: number;
+  enemyId?: string;
+  enemyName?: string;
+}
+
 export interface GroupCombatResolution {
   state: GroupCombatState;
   result: GroupCombatResult | null;
@@ -1296,6 +1309,7 @@ export function resolveGroupCombatTurn(
     .map((enemy) => enemy.id);
 
   const committedConsumables: GroupCombatCommittedConsumable[] = [];
+  const pendingResponseItems = new Map<string, GroupCombatPendingResponseItem>();
   const blockedConsumables = new Set(
     (options.blockedConsumables ?? []).map((entry) => `${entry.characterId}\0${entry.itemId}`)
   );
@@ -1357,23 +1371,35 @@ export function resolveGroupCombatTurn(
         tickParticipantMonsterEffects(state, actor.characterId);
         continue;
       }
-      const restored = applyCombatItem(state, actor, itemId);
-      recordGroupCombatItemUse(actor, itemId);
-      actor.combatItemQuantities[itemId] = (actor.combatItemQuantities[itemId] ?? 0) - 1;
-      if ((actor.combatItemQuantities[itemId] ?? 0) <= 0) {
-        delete actor.combatItemQuantities[itemId];
-      }
-      contribution.healing += restored.healing;
-      contribution.damage += restored.damage;
-      actor.threat += restored.healing * 2;
-      committedConsumables.push({ characterId: actor.characterId, itemId });
-      lines.push(
-        `${presentParticipantActionLabel(
+      const responseEffect = getGroupCombatResponseItemEffect(itemId);
+      if (responseEffect) {
+        const lineIndex = lines.length;
+        lines.push("");
+        pendingResponseItems.set(actor.characterId, {
           actor,
-          "використовує манатку",
-          getGroupCombatItemPresentation(itemId)?.label ?? itemId
-        )}: ${restored.line}.`
-      );
+          itemId,
+          ...responseEffect,
+          lineIndex,
+          used: false,
+          preventedDamage: 0,
+          damageAfter: 0
+        });
+      } else {
+        const restored = applyCombatItem(state, actor, itemId);
+        recordGroupCombatItemUse(actor, itemId);
+        decrementGroupCombatItemQuantity(actor, itemId);
+        contribution.healing += restored.healing;
+        contribution.damage += restored.damage;
+        actor.threat += restored.healing * 2;
+        committedConsumables.push({ characterId: actor.characterId, itemId });
+        lines.push(
+          `${presentParticipantActionLabel(
+            actor,
+            "використовує манатку",
+            getGroupCombatItemPresentation(itemId)?.label ?? itemId
+          )}: ${restored.line}.`
+        );
+      }
     } else {
       applyAbilityAction(state, actor, action, contribution, lines);
       tickGroupCombatItemCooldowns(actor);
@@ -1383,7 +1409,29 @@ export function resolveGroupCombatTurn(
     tickParticipantMonsterEffects(state, actor.characterId);
   }
 
-  applyEnemyPhase(state, respondingEnemyIds, lines, monsterBarkIds);
+  applyEnemyPhase(state, respondingEnemyIds, lines, monsterBarkIds, pendingResponseItems);
+  for (const pending of pendingResponseItems.values()) {
+    const label = getGroupCombatItemPresentation(pending.itemId)?.label ?? pending.itemId;
+    if (!pending.used) {
+      lines[pending.lineIndex] = `${presentParticipantActionLabel(
+        pending.actor,
+        "не витрачає манатку",
+        label
+      )}: жодна відповідь не цілила у власника, тож манатка лишається в торбі.`;
+      continue;
+    }
+    recordGroupCombatItemUse(pending.actor, pending.itemId);
+    decrementGroupCombatItemQuantity(pending.actor, pending.itemId);
+    committedConsumables.push({ characterId: pending.actor.characterId, itemId: pending.itemId });
+    const response = pending.kind === "evade"
+      ? `${pending.enemyName ?? "Ворог"} не влучає саме цією відповіддю`
+      : `${pending.enemyName ?? "Ворог"}: відвернуто ${pending.preventedDamage} шкоди, пройшло ${pending.damageAfter}`;
+    lines[pending.lineIndex] = `${presentParticipantActionLabel(
+      pending.actor,
+      "використовує манатку",
+      label
+    )}: ${response}.`;
+  }
   pruneExpiredGroupCombatAbilityEffects(state);
   appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   // Match persistent PvE: defeating the final enemy is a win even when the
@@ -1979,7 +2027,8 @@ function applyEnemyPhase(
   state: GroupCombatState,
   respondingEnemyIds: readonly string[],
   lines: string[],
-  monsterBarkIds: string[]
+  monsterBarkIds: string[],
+  pendingResponseItems: Map<string, GroupCombatPendingResponseItem>
 ): void {
   const respondingEnemies = respondingEnemyIds
     .map((enemyId) => state.enemies.find((candidate) => candidate.id === enemyId))
@@ -2055,7 +2104,7 @@ function applyEnemyPhase(
       }
     }
     const special = ability
-      ? executeGroupCombatEnemyAbility(state, enemy, ability, lines)
+      ? executeGroupCombatEnemyAbility(state, enemy, ability, lines, pendingResponseItems)
       : false;
     if (ability && special) {
       enemy.lastActionKind = "ability";
@@ -2087,7 +2136,7 @@ function applyEnemyPhase(
         1,
         Math.floor(Math.max(1, enemy.attack - target.defense) * outgoingDamageBp / 10_000)
       );
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
       enemy.lastDirectParticipantDamage = damage;
       enemyContribution.damage += damage;
       lines.push(
@@ -2104,7 +2153,8 @@ export function applyGroupCombatEnemyDamage(
   state: GroupCombatState,
   enemy: GroupCombatEnemyState,
   target: GroupCombatActorSnapshot,
-  rawDamage: number
+  rawDamage: number,
+  pendingResponseItems?: Map<string, GroupCombatPendingResponseItem>
 ): number {
     const targetContribution = getContribution(state, target.characterId);
     let damage = Math.max(0, rawDamage);
@@ -2165,6 +2215,19 @@ export function applyGroupCombatEnemyDamage(
       } else {
         source.control += prevented;
       }
+    }
+    const itemResponse = pendingResponseItems?.get(target.characterId);
+    if (itemResponse && !itemResponse.used) {
+      const prevented = itemResponse.kind === "evade"
+        ? damage
+        : Math.min(damage, Math.floor(damage * itemResponse.percent / 100));
+      damage -= prevented;
+      itemResponse.used = true;
+      itemResponse.preventedDamage = prevented;
+      itemResponse.damageAfter = damage;
+      itemResponse.enemyId = enemy.id;
+      itemResponse.enemyName = enemy.name;
+      getContribution(state, target.characterId).control += prevented;
     }
     damage = Math.min(target.hp, Math.max(0, damage));
     target.hp -= damage;
@@ -2488,7 +2551,8 @@ function executeGroupCombatEnemyAbility(
   state: GroupCombatState,
   enemy: GroupCombatEnemyState,
   ability: MonsterAbilityDefinition,
-  lines: string[]
+  lines: string[],
+  pendingResponseItems: Map<string, GroupCombatPendingResponseItem>
 ): boolean {
   if (!isSupportedGroupCombatMonsterAbility(ability.id)) {
     return false;
@@ -2499,7 +2563,7 @@ function executeGroupCombatEnemyAbility(
     const targets = livingParticipants(state);
     for (const target of targets) {
       const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
       totalDamage += damage;
       if (rawDamage > 0) {
         addOrRefreshMonsterStatus(state, {
@@ -2528,7 +2592,7 @@ function executeGroupCombatEnemyAbility(
       return false;
     }
     const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
     contribution.damage += damage;
     if (rawDamage > 0) {
       addOrRefreshMonsterStatus(state, {
@@ -2560,7 +2624,7 @@ function executeGroupCombatEnemyAbility(
       return false;
     }
     const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
     contribution.damage += damage;
     lines.push(
       damage > 0
@@ -2675,14 +2739,15 @@ function executeGroupCombatEnemyAbility(
     lines.push(`${enemy.name} застосовує ${ability.label} до ${ally.name}: +${healed} HP.`);
     return true;
   }
-  return executeGenericGroupCombatEnemyAbility(state, enemy, ability, lines);
+  return executeGenericGroupCombatEnemyAbility(state, enemy, ability, lines, pendingResponseItems);
 }
 
 function executeGenericGroupCombatEnemyAbility(
   state: GroupCombatState,
   enemy: GroupCombatEnemyState,
   ability: MonsterAbilityDefinition,
-  lines: string[]
+  lines: string[],
+  pendingResponseItems: Map<string, GroupCombatPendingResponseItem>
 ): boolean {
   const recipe = compileMonsterAbilityRecipe(ability);
   const plan = compileMonsterAbilityExecutionPlan({
@@ -2704,7 +2769,7 @@ function executeGenericGroupCombatEnemyAbility(
     let totalDamage = 0;
     for (const target of participantTargets) {
       const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage);
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
       totalDamage += damage;
       if (damage > 0) {
         directHitParticipantIds.add(target.characterId);
@@ -4316,6 +4381,29 @@ function canUseGroupCombatItem(
   return itemId === "item.field-kit"
     ? actor.hp < Math.ceil(actor.hpMax * 0.93)
     : actor.hp < actor.hpMax;
+}
+
+function getGroupCombatResponseItemEffect(
+  itemId: GroupCombatCommittedConsumable["itemId"]
+): Pick<GroupCombatPendingResponseItem, "kind" | "percent"> | null {
+  const effect = findConsumableManatkaUse(itemId)?.useEffect;
+  if (effect?.kind === "evade-response") {
+    return { kind: "evade", percent: 100 };
+  }
+  if (effect?.kind === "guard-response") {
+    return { kind: "guard", percent: Math.max(0, Math.min(100, Math.floor(effect.reductionPercent))) };
+  }
+  return null;
+}
+
+function decrementGroupCombatItemQuantity(
+  actor: GroupCombatActorSnapshot,
+  itemId: GroupCombatCommittedConsumable["itemId"]
+): void {
+  actor.combatItemQuantities[itemId] = (actor.combatItemQuantities[itemId] ?? 0) - 1;
+  if ((actor.combatItemQuantities[itemId] ?? 0) <= 0) {
+    delete actor.combatItemQuantities[itemId];
+  }
 }
 
 function recordGroupCombatItemUse(

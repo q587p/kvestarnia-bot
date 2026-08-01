@@ -58,6 +58,7 @@ import {
   type CombatEnemyState,
   type CombatEnemyTurnSummary,
   type CombatGuardState,
+  type CombatItemResponseSummary,
   type CombatPlayerAbilityFumbleSummary,
   type CombatState,
   type CombatTurnSummary,
@@ -635,6 +636,17 @@ function resolveSingleEnemyCombatItemTurn(
     : { damage: 0 };
   const guardedDamage = applyPercentageResponseGuard(nextState, hpBeforeResponse, monsterResponse.damage, effect.guardPercent);
   const monsterDamage = heroEffectDamage + guardedDamage;
+  const itemResponse = effect.evadeResponse
+    ? buildCombatItemResponseSummary(input, "enemy:1", "evade", 0)
+    : effect.guardPercent > 0
+      ? buildCombatItemResponseSummary(
+          input,
+          "enemy:1",
+          "guard",
+          guardedDamage,
+          monsterResponse.damage - guardedDamage
+        )
+      : undefined;
   const satedRecovery = applyAfterCommittedHeroAction(input, nextState);
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
@@ -667,6 +679,7 @@ function resolveSingleEnemyCombatItemTurn(
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
+    ...(itemResponse ? { itemResponse } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
     ...(debugTrace ? { debugTrace } : {})
   });
@@ -706,16 +719,18 @@ function resolveMultiEnemyCombatItemTurn(
   }
   recordCombatItemUse(nextState, item.id);
 
-  const hpBeforeResponse = nextState.hero.hp;
-  const activationPhase = effect.evadeResponse
-    ? {
-        heroEffectDamage: applyHeroActivationEffectsForCombatState(nextState).damage,
-        monsterDamage: 0,
-        enemyPhase: { monsterOutcome: "miss" as const, primaryAction: undefined, enemyActions: [], enemyPressureSkips: [] },
-        satedRecovery: applyAfterCommittedHeroAction(input, nextState)
-      }
-    : resolveHeroActivationAndLivingEnemyPhase(nextState, input, 0);
-  const guardedDamage = applyPercentageResponseGuard(nextState, hpBeforeResponse, activationPhase.monsterDamage, effect.guardPercent);
+  const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
+    nextState,
+    input,
+    0,
+    undefined,
+    false,
+    effect.evadeResponse
+      ? { kind: "evade", percent: 100 }
+      : effect.guardPercent > 0
+        ? { kind: "guard", percent: effect.guardPercent }
+        : undefined
+  );
   const { enemyPhase, heroEffectDamage, satedRecovery } = activationPhase;
   nextState.status = getLivingCombatEnemies(nextState).length === 0
     ? "won"
@@ -729,7 +744,7 @@ function resolveMultiEnemyCombatItemTurn(
     heroOutcome: "item-used",
     monsterOutcome: nextState.status === "lost" ? "lost" : enemyPhase.monsterOutcome,
     heroDamage: effect.heroDamage,
-    monsterDamage: guardedDamage,
+    monsterDamage: activationPhase.monsterDamage,
     heroEffectDamage,
     manaSpent: 0,
     critical: false,
@@ -740,7 +755,8 @@ function resolveMultiEnemyCombatItemTurn(
     ...(satedRecovery ? { satedRecovery } : {}),
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
-    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {}),
+    ...(enemyPhase.itemResponse ? { itemResponse: enemyPhase.itemResponse } : {})
   });
   nextState.lastTurn = summary;
   appendCombatTurnLog(nextState, input.state.turn, summary);
@@ -805,7 +821,7 @@ export function isCombatItemEffectApplicable(state: CombatState, effect: CombatI
     return false;
   }
   if (effect.kind === "reduce-cooldowns") {
-    return hasPositiveCombatCooldown(state.cooldowns);
+    return hasCombatCooldownAfterActionTick(state.cooldowns);
   }
   if (effect.kind === "critical-damage" || effect.kind === "guard-response" || effect.kind === "evade-response") {
     return state.monster.hp > 0;
@@ -890,6 +906,32 @@ function hasPositiveCombatCooldown(cooldowns: CombatState["cooldowns"]): boolean
     Object.values(cooldowns.abilities ?? {}).some((entry) => entry.remainingTurns > 0) ||
     (cooldowns.skill?.remainingTurns ?? 0) > 0
   ));
+}
+
+function hasCombatCooldownAfterActionTick(cooldowns: CombatState["cooldowns"]): boolean {
+  return Boolean(cooldowns && (
+    Object.values(cooldowns.abilities ?? {}).some((entry) => entry.remainingTurns > 1) ||
+    (cooldowns.skill?.remainingTurns ?? 0) > 1
+  ));
+}
+
+function buildCombatItemResponseSummary(
+  input: ResolveCombatTurnInput,
+  enemyId: string,
+  kind: CombatItemResponseSummary["kind"],
+  damageAfter: number,
+  preventedDamage?: number
+): CombatItemResponseSummary {
+  const enemy = normalizeCombatEnemies(input.state).find((candidate) => candidate.enemyId === enemyId);
+  const monster = enemy ? findEnemyStats(input, enemy) : input.monster;
+  return {
+    enemyId,
+    monsterId: monster.monsterId,
+    ...(enemy?.name ?? monster.name ? { monsterName: enemy?.name ?? monster.name } : {}),
+    kind,
+    damageAfter,
+    ...(preventedDamage !== undefined ? { preventedDamage: Math.max(0, preventedDamage) } : {})
+  };
 }
 
 function reduceCombatCooldowns(state: CombatState, turns: number): void {
@@ -2225,6 +2267,7 @@ function buildSummary(input: {
   fumble?: CombatPlayerAbilityFumbleSummary;
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatTurnSummary["enemyPressureSkips"];
+  itemResponse?: CombatTurnSummary["itemResponse"];
   satedRecovery?: CombatTurnSummary["satedRecovery"];
   debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
@@ -2276,6 +2319,7 @@ function buildSummary(input: {
     ...(input.enemyPressureSkips && input.enemyPressureSkips.length > 0
       ? { enemyPressureSkips: input.enemyPressureSkips }
       : {}),
+    ...(input.itemResponse ? { itemResponse: input.itemResponse } : {}),
     ...(input.satedRecovery ? { satedRecovery: input.satedRecovery } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };
@@ -2315,7 +2359,8 @@ function resolveHeroActivationAndLivingEnemyPhase(
   input: ResolveCombatTurnInput,
   damageReduction: number,
   participants?: readonly CombatEnemyState[],
-  allowDefeatedEnemyPhase = false
+  allowDefeatedEnemyPhase = false,
+  itemResponseEffect?: { kind: CombatItemResponseSummary["kind"]; percent: number }
 ): {
   heroEffectDamage: number;
   monsterDamage: number;
@@ -2325,7 +2370,7 @@ function resolveHeroActivationAndLivingEnemyPhase(
   const heroEffect = applyHeroActivationEffectsForCombatState(state, participants);
   const heroEffectDamage = heroEffect.damage;
   const enemyPhase = state.hero.hp > 0 && (getLivingCombatEnemies(state).length > 0 || allowDefeatedEnemyPhase)
-    ? resolveLivingEnemyPhase(state, input, damageReduction, participants)
+    ? resolveLivingEnemyPhase(state, input, damageReduction, participants, itemResponseEffect)
     : {
         monsterDamage: 0,
         enemyActions: [],
@@ -2527,7 +2572,8 @@ function resolveLivingEnemyPhase(
   state: CombatState,
   input: ResolveCombatTurnInput,
   damageReduction: number,
-  participants: readonly CombatEnemyState[] = getLivingCombatEnemies(state)
+  participants: readonly CombatEnemyState[] = getLivingCombatEnemies(state),
+  itemResponseEffect?: { kind: CombatItemResponseSummary["kind"]; percent: number }
 ): {
   monsterDamage: number;
   monsterOutcome?: CombatTurnSummary["monsterOutcome"];
@@ -2535,12 +2581,14 @@ function resolveLivingEnemyPhase(
   enemyActions: CombatEnemyTurnSummary[];
   enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]>;
   defendCounter: boolean;
+  itemResponse?: CombatItemResponseSummary;
 } {
   let monsterDamage = 0;
   let monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined;
   let defendCounter = false;
   const enemyActions: CombatEnemyTurnSummary[] = [];
   const enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]> = [];
+  let itemResponse: CombatItemResponseSummary | undefined;
 
   for (const [participantIndex, participant] of participants.entries()) {
     if (state.hero.hp <= 0) {
@@ -2571,6 +2619,21 @@ function resolveLivingEnemyPhase(
       delete state.monsterRuntime;
     }
 
+    if (itemResponseEffect?.kind === "evade" && !itemResponse) {
+      itemResponse = buildCombatItemResponseSummary(input, enemy.enemyId, "evade", 0);
+      monsterOutcome = "miss";
+      enemyActions.push({
+        enemyId: enemy.enemyId,
+        monsterId: enemy.id,
+        ...(enemy.name ? { monsterName: enemy.name } : {}),
+        monsterOutcome,
+        monsterDamage: 0,
+        ...(simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
+      });
+      continue;
+    }
+
+    const hpBeforeResponse = state.hero.hp;
     const response = resolveMonsterResponse({
       state,
       input: {
@@ -2584,23 +2647,35 @@ function resolveLivingEnemyPhase(
       }),
       simultaneousFinalResponse
     });
+    const responseDamage = itemResponseEffect?.kind === "guard" && !itemResponse
+      ? applyPercentageResponseGuard(state, hpBeforeResponse, response.damage, itemResponseEffect.percent)
+      : response.damage;
+    if (itemResponseEffect?.kind === "guard" && !itemResponse) {
+      itemResponse = buildCombatItemResponseSummary(
+        input,
+        enemy.enemyId,
+        "guard",
+        responseDamage,
+        response.damage - responseDamage
+      );
+    }
     const updatedEnemy: CombatEnemyState = {
       ...enemy,
       ...state.monster,
       ...(state.monsterRuntime ? { monsterRuntime: state.monsterRuntime } : {})
     };
     updateCombatEnemy(state, enemy.enemyId, updatedEnemy);
-    monsterDamage += response.damage;
+    monsterDamage += responseDamage;
     monsterOutcome = state.hero.hp <= 0
       ? "lost"
-      : response.outcome ?? (response.damage > 0 ? "hit" : "miss");
+      : response.outcome ?? (responseDamage > 0 ? "hit" : "miss");
     defendCounter = defendCounter || Boolean(response.defendCounter);
     enemyActions.push({
       enemyId: enemy.enemyId,
       monsterId: enemy.id,
       ...(enemy.name ? { monsterName: enemy.name } : {}),
       ...(monsterOutcome ? { monsterOutcome } : {}),
-      monsterDamage: response.damage,
+      monsterDamage: responseDamage,
       ...(response.monsterAction ? { monsterAction: response.monsterAction } : {}),
       ...(response.monsterSkill ? { monsterSkillId: response.monsterSkill.id } : {}),
       ...(response.monsterSkill?.damageKind ? { monsterDamageKind: response.monsterSkill.damageKind } : {}),
@@ -2618,7 +2693,8 @@ function resolveLivingEnemyPhase(
     ...(enemyActions[0] ? { primaryAction: enemyActions[0] } : {}),
     enemyActions,
     enemyPressureSkips,
-    defendCounter
+    defendCounter,
+    ...(itemResponse ? { itemResponse } : {})
   };
 }
 
