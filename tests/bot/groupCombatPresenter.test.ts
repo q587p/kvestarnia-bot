@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
+import {
+  createGroupCombatProofState,
+  GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND
+} from "../../src/domain/groupCombat/groupCombat";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
   buildGroupCombatAbilityTargetKeyboard,
@@ -546,8 +549,71 @@ describe("group combat presenter", () => {
     expect(first).toContain("🫧 Комірний 1 · щит: 4.");
     expect(first).toContain("🛡️ захист · Пригодник 1: ще 2 ходи.");
     expect(first).toContain("🧱 укріплення · Комірний 1: ще 1 хід.");
-    expect(first).toContain("🪽 ухилення · Комірний 1: ще 2 ходи.");
+    expect(first).toContain("🪽 підвищене ухилення · Комірний 1: ще 2 ходи.");
     expect(Buffer.byteLength(first, "utf8")).toBeLessThanOrEqual(4_096);
+  });
+
+  it("renders mechanically truthful effect polarity in active cards and packed history", () => {
+    const session = createSession(2);
+    const participant = session.state.participants[0]!;
+    const enemy = session.state.enemies[0]!;
+    const effects = [
+      ["outgoing-damage", "participant", participant.characterId, "📉 знижена шкода"],
+      ["accuracy", "participant", participant.characterId, "🌫️ знижена влучність"],
+      ["evasion", "participant", participant.characterId, "🪨 знижене ухилення"],
+      ["crit", "participant", participant.characterId, "📉 слабший критичний удар"],
+      ["outgoing-damage", "enemy", enemy.id, "📈 посилена шкода"],
+      ["evasion", "enemy", enemy.id, "🪽 підвищене ухилення"],
+      ["status-resistance", "enemy", enemy.id, "🧿 підвищена стійкість до станів"],
+      ["next-attack-bonus", "enemy", enemy.id, "⏭️ посилена наступна атака"]
+    ] as const;
+    session.state.abilityEffects = effects.map(([kind, targetKind, targetId], index) => ({
+      id: `effect-${index}`,
+      sourceEnemyId: enemy.id,
+      sourceAbilityId: index === 0 ? "monster.title-tax" : "monster.inventory-prophecy",
+      targetKind,
+      targetId,
+      kind,
+      value: targetKind === "participant" ? 0.85 : 1.15,
+      polarity: targetKind === "participant" ? "harmful" as const : "beneficial" as const,
+      removable: true,
+      trigger: "on-cast" as const,
+      remainingTargetActivations: 3
+    }));
+    session.state.recap = [{
+      turn: 1,
+      lines: ["Ефекти звірено."],
+      snapshot: {
+        p: session.state.participants.map((actor) => [
+          actor.hp,
+          actor.mana,
+          null,
+          null,
+          null,
+          null
+        ]),
+        e: session.state.enemies.map((actor) => [actor.hp, null, null]),
+        x: packPresenterEffects(effects.map(([kind, targetKind, targetId]) => [
+          kind,
+          targetKind,
+          targetKind === "participant"
+            ? 1 << session.state.participants.findIndex((actor) => actor.characterId === targetId)
+            : 1 << session.state.enemies.findIndex((actor) => actor.id === targetId),
+          3
+        ]))
+      }
+    }];
+
+    const active = presentGroupCombat(session, participant.characterId, NOW);
+    const historical = presentGroupCombatJournal(session, 0);
+    for (const [, , , expectedLabel] of effects) {
+      expect(active).toContain(`${expectedLabel} ·`);
+      expect(historical).toContain(`${expectedLabel} ·`);
+    }
+    expect(active).toContain(`${participant.name}: ще 3 ходи.`);
+    expect(historical).toContain(`${participant.name}: ще 3 ходи.`);
+    expect(active).toContain("Комірний 1: ще 3 ходи.");
+    expect(historical).toContain("Комірний 1: ще 3 ходи.");
   });
 
   it("explains remort reinforcements and Nyz pressure in the one-time intro", () => {
@@ -591,6 +657,29 @@ describe("group combat presenter", () => {
       expect(card).toContain(
         "🧾 Знешкоджено: Комірний Шурхіт 1.\n\n🧾 Знешкоджено: Комірний Шурхіт 2."
       );
+    }
+  });
+
+  it("keeps reaction causes visible on active, terminal and journal cards", () => {
+    const session = createSession(2);
+    session.state.recap = [{
+      turn: 1,
+      lines: [
+        "↩️ Комірний Шурхіт 1: контрудар по Пригодник 1 — 5 шкоди.",
+        "🪞 Комірний Шурхіт 2: відбиття в Пригодник 1 — 3 шкоди.",
+        "💥 Комірний Шурхіт 1: щит розбито, Пригодник 1 отримує 4 шкоди."
+      ]
+    }];
+    const active = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+    const journal = presentGroupCombatJournal(session, 0);
+    session.state.status = "won";
+    session.status = "won";
+    const terminal = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
+
+    for (const card of [active, journal, terminal]) {
+      expect(card).toContain("контрудар по Пригодник 1 — 5 шкоди");
+      expect(card).toContain("відбиття в Пригодник 1 — 3 шкоди");
+      expect(card).toContain("щит розбито, Пригодник 1 отримує 4 шкоди");
     }
   });
 
@@ -660,7 +749,7 @@ describe("group combat presenter", () => {
     expect(text).toContain("Силовий замах відсапується: ще 2 ходи.");
     expect(text).toContain("Павутина «на вчора» відсапується: ще 3 ходи.");
     expect(text).toContain("🛡️ захист");
-    expect(text).toContain("🪽 ухилення · Комірний 1: ще 2 ходи.");
+    expect(text).toContain("🪽 підвищене ухилення · Комірний 1: ще 2 ходи.");
     expect(resultLabels).toContain("📜 Журнал");
     expect(resultLabels).toContain("📊 Статистика");
     expect(resultLabels).not.toContain("🔎 Оновити");
@@ -940,4 +1029,25 @@ function createSession(participantCount: 2 | 3): GroupCombatSessionRecord {
     participants,
     queuedActions: []
   };
+}
+
+function packPresenterEffects(
+  effects: Array<[
+    keyof typeof GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND,
+    "participant" | "enemy",
+    number,
+    number
+  ]>
+): string {
+  const kinds = Object.keys(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND);
+  const packed = effects.map(([kind, targetKind, targetMask, remainingTurns]) =>
+    (kinds.indexOf(kind) << 11) |
+    ((targetKind === "enemy" ? 1 : 0) << 10) |
+    (targetMask << 4) |
+    remainingTurns
+  ).sort((left, right) => left - right);
+  return Buffer.from(packed.flatMap((entry) => [
+    (entry >> 8) & 0xff,
+    entry & 0xff
+  ])).toString("base64url");
 }

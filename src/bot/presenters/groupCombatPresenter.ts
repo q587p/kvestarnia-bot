@@ -1,5 +1,6 @@
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import {
+  deriveGroupCombatPresentedEffectPolarity,
   expandGroupCombatRecapSnapshot,
   getGroupCombatActionProfile,
   GROUP_COMBAT_CARD_BYTE_LIMIT,
@@ -503,9 +504,38 @@ function presentEffectLines(
       : targetEnemy
         ? shortEnemyNames.get(targetEnemy.order)
         : undefined;
-    const label = GROUP_COMBAT_EFFECT_LABELS[effect.kind];
+    const label = presentGroupCombatEffectLabel(effect.kind, effect.targetKind);
     return `${label} · ${escapeHtml(target ?? effect.targetId)}: ще ${formatTurns(effect.remainingTurns)}.`;
   });
+}
+
+function presentGroupCombatEffectLabel(
+  kind: GroupCombatPresentedEffectKind,
+  targetKind: "participant" | "enemy"
+): string {
+  const polarity = deriveGroupCombatPresentedEffectPolarity(kind, targetKind);
+  if (kind === "accuracy") {
+    return polarity === "beneficial" ? "🎯 підвищена влучність" : "🌫️ знижена влучність";
+  }
+  if (kind === "evasion") {
+    return polarity === "beneficial" ? "🪽 підвищене ухилення" : "🪨 знижене ухилення";
+  }
+  if (kind === "outgoing-damage") {
+    return polarity === "beneficial" ? "📈 посилена шкода" : "📉 знижена шкода";
+  }
+  if (kind === "incoming-damage") {
+    return polarity === "beneficial" ? "🧱 зменшена вхідна шкода" : "📒 збільшена вхідна шкода";
+  }
+  if (kind === "crit") {
+    return polarity === "beneficial" ? "💢 посилений критичний удар" : "📉 слабший критичний удар";
+  }
+  if (kind === "status-resistance") {
+    return polarity === "beneficial" ? "🧿 підвищена стійкість до станів" : "🫧 знижена стійкість до станів";
+  }
+  if (kind === "next-attack-bonus") {
+    return polarity === "beneficial" ? "⏭️ посилена наступна атака" : "⏭️ ослаблена наступна атака";
+  }
+  return GROUP_COMBAT_EFFECT_LABELS[kind];
 }
 
 const GROUP_COMBAT_EFFECT_LABELS: Record<GroupCombatPresentedEffectKind, string> = {

@@ -2,7 +2,6 @@ import { z } from "zod";
 import { isDeepStrictEqual } from "node:util";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
-  GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -15,6 +14,8 @@ import {
   GROUP_COMBAT_TURN_LIMIT,
   buildGroupCombatProductionV1Evidence,
   buildLeftPassageEncounterRewardBudget,
+  assertGroupCombatPackedEffectRoster,
+  decodeGroupCombatPackedEffects,
   deriveGroupCombatLockedAbilityId,
   expandGroupCombatRecapSnapshot,
   deriveLeftPassageEnemyCount,
@@ -291,25 +292,14 @@ const presentedEffectKindSchema = z.union([
   groupCombatStatusKindSchema,
   monsterAbilityEffectKindSchema
 ]);
-const compactPresentedEffectKindSchema = z.enum(
-  Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND) as [string, ...string[]]
-);
-const compactPresentedEffectsSchema = z.string().min(1).max(4_096).refine((value) =>
-  /^[A-Za-z0-9_-]+$/.test(value) && (() => {
-    const bytes = Buffer.from(value, "base64url");
-    const kindCount = Object.values(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND).length;
-    return bytes.toString("base64url") === value &&
-      bytes.length > 0 && bytes.length % 2 === 0 &&
-      Array.from({ length: bytes.length / 2 }, (_, index) =>
-        (bytes[index * 2]! << 8) | bytes[index * 2 + 1]!
-      ).every((packed) =>
-        ((packed >> 11) & 0x1f) < kindCount &&
-        ((packed >> 4) & 0x3f) >= 1 &&
-        (packed & 0x0f) >= 1 &&
-        (packed & 0x0f) <= 13
-      );
-  })()
-);
+const compactPresentedEffectsSchema = z.string().min(1).max(4_096).refine((value) => {
+  try {
+    decodeGroupCombatPackedEffects(value);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 const monsterAbilityEffectSchema = z.object({
   id: z.string().min(1).max(587),
@@ -395,9 +385,9 @@ const compactRecapSnapshotSchema = z.object({
   x: z.union([
     compactPresentedEffectsSchema,
     z.array(z.tuple([
-      z.union([presentedEffectKindSchema, compactPresentedEffectKindSchema]),
-      z.enum(["participant", "enemy", "p", "e"]),
-      z.union([z.string().min(1), nonNegativeInteger]),
+      presentedEffectKindSchema,
+      z.enum(["participant", "enemy"]),
+      z.string().min(1),
       positiveInteger.max(13)
     ])).max(93)
   ]).optional()
@@ -644,10 +634,23 @@ const stateSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: "Group-combat monster bark evidence is invalid." });
   }
   for (const recap of state.recap) {
-    const snapshot = expandGroupCombatRecapSnapshot(
-      recap.snapshot as GroupCombatState["recap"][number]["snapshot"],
-      state
-    );
+    const storedSnapshot = recap.snapshot as GroupCombatState["recap"][number]["snapshot"];
+    if (
+      storedSnapshot &&
+      "p" in storedSnapshot &&
+      typeof storedSnapshot.x === "string"
+    ) {
+      try {
+        assertGroupCombatPackedEffectRoster(storedSnapshot.x, state);
+      } catch {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Packed recap effect roster is not canonical."
+        });
+        continue;
+      }
+    }
+    const snapshot = expandGroupCombatRecapSnapshot(storedSnapshot, state);
     if (
       state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
       !snapshot
@@ -657,6 +660,20 @@ const stateSchema = z.object({
     }
     if (!snapshot) {
       continue;
+    }
+    const recapEffectKeys = new Set<string>();
+    if ((snapshot.effects ?? []).some((effect) => {
+      const key = `${effect.kind}\0${effect.targetKind}\0${effect.targetId}`;
+      if (recapEffectKeys.has(key)) {
+        return true;
+      }
+      recapEffectKeys.add(key);
+      return false;
+    })) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recap effects contain non-canonical duplicates."
+      });
     }
     if (
       snapshot.participants.length !== state.participants.length ||

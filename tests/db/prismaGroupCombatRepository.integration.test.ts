@@ -2030,6 +2030,57 @@ describe("PrismaGroupCombatRepository integration", () => {
     diagnostic.mockRestore();
   });
 
+  it("quarantines an out-of-roster packed v3 recap without releasing participant leases", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-packed-recap-operator-repair",
+      [923401n, 923402n]
+    );
+    const corrupted = structuredClone(session.state);
+    corrupted.recap = [{
+      turn: 1,
+      lines: ["Packed recap corruption fixture."],
+      snapshot: {
+        p: corrupted.participants.map((participant) => [
+          participant.hp,
+          participant.mana,
+          null,
+          null,
+          null,
+          null
+        ]),
+        e: corrupted.enemies.map((enemy) => [enemy.hp, null, null]),
+        // guard, participant side, bit 5, two turns: roster has only two participants
+        x: Buffer.from([0x02, 0x02]).toString("base64url")
+      }
+    }];
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: corrupted as unknown as Prisma.InputJsonValue }
+    });
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const repairAt = new Date(NOW.getTime() + 93_100);
+
+    await expect(repository.repairInvalidOrOrphaned(repairAt, 93))
+      .resolves.toBeGreaterThanOrEqual(1);
+    const repaired = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: session.id }
+    });
+    expect(repaired).toMatchObject({
+      rulesVersion: "group-combat.v3",
+      repairState: "operator-required"
+    });
+    expect(repaired.repairReason).toContain("production state cannot be recovered safely");
+    expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } }))
+      .toBe(2);
+    expect(await repository.inspectOperatorRepair(session.id)).toMatchObject({
+      id: session.id,
+      repairState: "operator-required"
+    });
+    diagnostic.mockRestore();
+  });
+
   it("hard-fences quarantined production state across action, timeout, settlement, delivery, and reads", async () => {
     const session = await startLeftPassageProduction(
       prisma,

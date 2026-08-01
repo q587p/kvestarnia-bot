@@ -7,14 +7,17 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   createLeftPassageGroupCombatState,
+  deriveGroupCombatPresentedEffectPolarity,
   deriveLeftPassageEnemyCount,
   deriveGroupCombatLockedAbilityId,
+  decodeGroupCombatPackedEffects,
   expandGroupCombatRecapSnapshot,
   getEffectiveGroupCombatAbilityManaCost,
   getGroupCombatActionProfile,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
+  GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND,
   GROUP_COMBAT_LOSS_REWARD_POLICY,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
@@ -37,7 +40,11 @@ import { monsterLoot } from "../../src/content/monsterFlavor";
 import { lootExpansionV1Data } from "../../src/content/lootExpansionV1Data";
 import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
 import { monsterAbilities } from "../../src/content/monsterAbilities";
-import { getMonsterAbilityParameterCoverage } from "../../src/domain/combat/monsterAbilityRuntime";
+import {
+  compileMonsterAbilityExecutionPlan,
+  deriveMonsterAbilityEffectPolarity,
+  getMonsterAbilityParameterCoverage
+} from "../../src/domain/combat/monsterAbilityRuntime";
 import {
   mantokAbilityGrantDefinitions,
   type MantokAbilityGrantDefinition
@@ -944,6 +951,42 @@ describe("group combat proof reducer", () => {
     );
   });
 
+  it("uses the documented victory-first rule when a lethal counter kills the last participant", () => {
+    const initial = proofState(2, { hp: 93, hpMax: 93, defense: 0, attack: 93 });
+    initial.participants[1]!.hp = 0;
+    initial.enemies[0]!.abilityIds = ["monster.inventory-prophecy"];
+    initial.enemies[0]!.attack = 12;
+    initial.enemies[0]!.hp = initial.enemies[0]!.hpMax = 93;
+    initial.enemies[1]!.hp = 0;
+    const armed = resolveGroupCombatTurn(initial, [
+      buildGroupCombatTimeoutAction(initial, initial.participants[0]!.characterId)
+    ]).state;
+    const landedInput = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = structuredClone(armed);
+      state.deterministicSeed = deterministicSeed;
+      state.participants[0]!.hp = 5;
+      state.enemies[0]!.hp = 1;
+      return state;
+    }).find((state) => resolveGroupCombatTurn(structuredClone(state), [
+      action(state, 0, "attack", "enemy", state.enemies[0]!.id)
+    ]).state.recap.at(-1)!.lines.some((line) => line.includes("контрудар по")));
+    expect(landedInput).toBeDefined();
+    const beforeParticipantDamage = landedInput!.contributions[0]!.damageTaken;
+    const beforeEnemyDamage = landedInput!.enemyContributions![0]!.damage;
+    const resolved = resolveGroupCombatTurn(landedInput!, [
+      action(landedInput!, 0, "attack", "enemy", landedInput!.enemies[0]!.id)
+    ]);
+
+    expect(resolved.state.status).toBe("won");
+    expect(resolved.result?.outcome).toBe("won");
+    expect(resolved.state.enemies[0]!.hp).toBe(0);
+    expect(resolved.state.participants[0]!.hp).toBe(0);
+    expect(resolved.state.contributions[0]!.damageTaken - beforeParticipantDamage).toBe(5);
+    expect(resolved.state.enemyContributions![0]!.damage - beforeEnemyDamage).toBe(5);
+    expect(resolved.state.recap.at(-1)!.lines.join("\n"))
+      .toContain(`↩️ ${landedInput!.enemies[0]!.name}: контрудар по ${landedInput!.participants[0]!.name} — 5 шкоди.`);
+  });
+
   it("keeps timeout-only participants ineligible after an early terminal action", () => {
     const state = leftPassageState(3);
     state.enemies.slice(1).forEach((enemy) => {
@@ -1318,6 +1361,128 @@ describe("group combat proof reducer", () => {
       }
       expect(parseGroupCombatStateStrict(resolved.state)).toEqual(resolved.state);
     }
+  });
+
+  it("proves target-side recap polarity for every authored runtime effect component", () => {
+    for (const ability of monsterAbilities) {
+      for (const component of compileMonsterAbilityExecutionPlan({ ability }).components) {
+        if (component.kind !== "runtime-effect" || !component.effectKind) {
+          continue;
+        }
+        const runtimePolarity = deriveMonsterAbilityEffectPolarity({
+          target: component.target,
+          kind: component.effectKind,
+          value: component.value ?? 1
+        });
+        const recapPolarity = deriveGroupCombatPresentedEffectPolarity(
+          component.effectKind,
+          component.target === "hero" ? "participant" : "enemy"
+        );
+        expect(
+          recapPolarity,
+          `${ability.id}:${component.sourceParameter}:${component.target}:${component.effectKind}:${component.value}`
+        ).toBe(runtimePolarity);
+      }
+    }
+  });
+
+  it.each([
+    ["monster.salted-oath", 0.25],
+    ["monster.inventory-prophecy", 0.35]
+  ] as const)("keeps %s counter canonical across miss, hit, restart and duplicate resolution", (
+    abilityId,
+    chance
+  ) => {
+    const initial = proofState(2, { hp: 587, hpMax: 587, defense: 0, attack: 3 });
+    initial.participants[1]!.hp = 0;
+    initial.enemies[0]!.abilityIds = [abilityId];
+    initial.enemies[0]!.attack = 12;
+    initial.enemies[0]!.hp = initial.enemies[0]!.hpMax = 93;
+    initial.enemies[1]!.hp = 0;
+    const armed = resolveGroupCombatTurn(initial, [
+      buildGroupCombatTimeoutAction(initial, initial.participants[0]!.characterId)
+    ]).state;
+    const armedCounter = armed.abilityEffects?.find((effect) =>
+      effect.sourceAbilityId === abilityId && effect.kind === "counter"
+    );
+    expect(armedCounter).toMatchObject({ value: chance, charges: 1 });
+
+    const outcomes = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = structuredClone(armed);
+      state.deterministicSeed = deterministicSeed;
+      const before = parseGroupCombatStateStrict(JSON.parse(JSON.stringify(state)));
+      const candidate = action(before, 0, "attack", "enemy", before.enemies[0]!.id);
+      const resolved = resolveGroupCombatTurn(before, [candidate]);
+      return {
+        before,
+        candidate,
+        resolved,
+        counterLine: resolved.state.recap.at(-1)!.lines.find((line) =>
+          line.includes("контрудар по")
+        )
+      };
+    });
+    const missed = outcomes.find((entry) =>
+      !entry.counterLine &&
+      entry.resolved.state.contributions[0]!.damage > entry.before.contributions[0]!.damage
+    );
+    const landed = outcomes.find((entry) => entry.counterLine);
+    expect(missed, `${abilityId}: deterministic miss`).toBeDefined();
+    expect(landed, `${abilityId}: deterministic hit`).toBeDefined();
+    expect(missed!.resolved.state.expiredAbilityEffects?.find((effect) =>
+      effect.sourceAbilityId === abilityId && effect.kind === "counter"
+    )?.charges).toBe(1);
+    expect(landed!.resolved.state.abilityEffects?.some((effect) =>
+      effect.sourceAbilityId === abilityId && effect.kind === "counter"
+    )).toBe(false);
+    expect(landed!.counterLine).toContain("— 5 шкоди.");
+    expect(
+      landed!.resolved.state.contributions[0]!.damageTaken -
+      landed!.before.contributions[0]!.damageTaken
+    ).toBeGreaterThanOrEqual(5);
+    expect(
+      landed!.resolved.state.enemyContributions![0]!.damage -
+      landed!.before.enemyContributions![0]!.damage
+    ).toBeGreaterThanOrEqual(5);
+    expect(resolveGroupCombatTurn(
+      parseGroupCombatStateStrict(JSON.parse(JSON.stringify(landed!.before))),
+      [landed!.candidate]
+    )).toEqual(landed!.resolved);
+    expect(resolveGroupCombatTurn(
+      structuredClone(landed!.before),
+      [landed!.candidate]
+    )).toEqual(landed!.resolved);
+  });
+
+  it("records reflect and shield-break retaliation as explicit causal damage", () => {
+    const reflectState = proofState(2, { hp: 93, hpMax: 93, attack: 13 });
+    reflectState.participants[1]!.hp = 0;
+    reflectState.enemies[0]!.abilityIds = ["monster.transparent-report"];
+    reflectState.enemies[1]!.hp = 0;
+    const reflected = resolveGroupCombatTurn(reflectState, [
+      buildGroupCombatTimeoutAction(reflectState, reflectState.participants[0]!.characterId)
+    ]).state;
+    const reflectHit = resolveGroupCombatTurn(reflected, [
+      action(reflected, 0, "attack", "enemy", reflected.enemies[0]!.id)
+    ]);
+    expect(reflectHit.state.recap.at(-1)!.lines.join("\n"))
+      .toMatch(/🪞 .*: відбиття в .* — \d+ шкоди\./);
+
+    const shieldState = proofState(2, { hp: 93, hpMax: 93, attack: 93 });
+    shieldState.participants[1]!.hp = 0;
+    shieldState.enemies[0]!.abilityIds = ["monster.soft-collapse"];
+    shieldState.enemies[0]!.attack = 10;
+    shieldState.enemies[0]!.hp = shieldState.enemies[0]!.hpMax = 93;
+    shieldState.enemies[1]!.hp = 0;
+    const shielded = resolveGroupCombatTurn(shieldState, [
+      buildGroupCombatTimeoutAction(shieldState, shieldState.participants[0]!.characterId)
+    ]).state;
+    expect(shielded.enemies[0]!.shield?.points).toBeGreaterThan(0);
+    const broken = resolveGroupCombatTurn(shielded, [
+      action(shielded, 0, "attack", "enemy", shielded.enemies[0]!.id)
+    ]);
+    expect(broken.state.recap.at(-1)!.lines.join("\n"))
+      .toContain(`💥 ${shielded.enemies[0]!.name}: щит розбито, ${shielded.participants[0]!.name} отримує 4 шкоди.`);
   });
 
   it("extends the real longest cooldown for reschedule", () => {
@@ -2811,6 +2976,102 @@ describe("group combat proof reducer", () => {
     );
   });
 
+  it("accepts only canonical roster-bounded packed recap effects", () => {
+    const base = leftPassageState(1);
+    const resolved = resolveGroupCombatTurn(base, [
+      action(base, 0, "guard", "self", base.participants[0]!.characterId)
+    ]).state;
+    const recap = resolved.recap.at(-1)!;
+    expect(recap.snapshot && "p" in recap.snapshot).toBe(true);
+    const withEffects = (effects: string | unknown[]) => {
+      const candidate = structuredClone(resolved);
+      const snapshot = candidate.recap.at(-1)!.snapshot;
+      if (!snapshot || !("p" in snapshot)) {
+        throw new Error("Expected compact recap snapshot");
+      }
+      snapshot.x = effects as never;
+      return candidate;
+    };
+    const validParticipant = packTestRecapEffects([
+      ["guard", "participant", 1, 2]
+    ]);
+    const validEnemy = packTestRecapEffects([
+      ["evasion", "enemy", 1, 2]
+    ]);
+    expect(decodeGroupCombatPackedEffects(validParticipant)).toEqual([
+      ["guard", "participant", 1, 2]
+    ]);
+    expect(parseGroupCombatStateStrict(withEffects(validParticipant))).toBeDefined();
+    expect(parseGroupCombatStateStrict(withEffects(validEnemy))).toBeDefined();
+
+    const invalidPacked = [
+      packTestRecapEffects([["guard", "participant", 32, 2]]),
+      packTestRecapEffects([["evasion", "enemy", 32, 2]]),
+      packTestRecapEffects([["guard", "participant", 0, 2]]),
+      packTestRecapEffects([
+        ["guard", "participant", 1, 1],
+        ["guard", "participant", 1, 2]
+      ]),
+      packTestRecapEffects([
+        ["guard", "participant", 1, 2],
+        ["guard", "participant", 2, 2]
+      ]),
+      packTestRecapEffects([[31, "participant", 1, 2]]),
+      packTestRecapEffects([["guard", "participant", 1, 0]]),
+      packTestRecapEffects([["guard", "participant", 1, 14]]),
+      "A",
+      "**"
+    ];
+    for (const packed of invalidPacked) {
+      expect(() => parseGroupCombatStateStrict(withEffects(packed)), packed)
+        .toThrow(GroupCombatStateValidationError);
+    }
+
+    const hybridEffects = [
+      [["g", "participant", resolved.participants[0]!.characterId, 2]],
+      [["guard", "p", resolved.participants[0]!.characterId, 2]],
+      [["guard", "participant", 1, 2]],
+      [
+        ["guard", "participant", resolved.participants[0]!.characterId, 2],
+        ["guard", "participant", resolved.participants[0]!.characterId, 3]
+      ]
+    ];
+    for (const hybrid of hybridEffects) {
+      expect(() => parseGroupCombatStateStrict(withEffects(hybrid)))
+        .toThrow(GroupCombatStateValidationError);
+    }
+  });
+
+  it.each([
+    [1, false, 1],
+    [1, true, 2],
+    [2, false, 2],
+    [2, true, 4],
+    [3, false, 3],
+    [3, true, 6]
+  ] as const)("round-trips canonical compact recaps for %sx%s", (participants, strong, enemies) => {
+    const state = leftPassageState(participants, strong);
+    const resolved = resolveGroupCombatTurn(state, state.participants.map((actor) =>
+      action(state, actor.rosterOrder, "guard", "self", actor.characterId)
+    )).state;
+    expect(resolved.enemies).toHaveLength(enemies);
+    const snapshot = resolved.recap.at(-1)!.snapshot;
+    if (!snapshot || !("p" in snapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+    snapshot.x = packTestRecapEffects([[
+      "guard",
+      "participant",
+      (1 << participants) - 1,
+      2
+    ]]);
+    expect(decodeGroupCombatPackedEffects(snapshot.x)).toEqual([
+      ["guard", "participant", (1 << participants) - 1, 2]
+    ]);
+    expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved))))
+      .toEqual(resolved);
+  });
+
   it("fails closed on shape-valid production location, roster, pressure, item, difficulty, and reward corruption", () => {
     const corruptions: Array<(state: ReturnType<typeof leftPassageState>) => void> = [
       (state) => {
@@ -3054,4 +3315,26 @@ function action(
     targetId,
     origin: "manual"
   };
+}
+
+function packTestRecapEffects(
+  effects: Array<[
+    keyof typeof GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND | number,
+    "participant" | "enemy",
+    number,
+    number
+  ]>
+): string {
+  const kinds = Object.keys(GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND);
+  const packed = effects.map(([kind, targetKind, targetMask, remainingTurns]) => {
+    const kindIndex = typeof kind === "number" ? kind : kinds.indexOf(kind);
+    return (kindIndex << 11) |
+      ((targetKind === "enemy" ? 1 : 0) << 10) |
+      (targetMask << 4) |
+      remainingTurns;
+  }).sort((left, right) => left - right);
+  return Buffer.from(packed.flatMap((entry) => [
+    (entry >> 8) & 0xff,
+    entry & 0xff
+  ])).toString("base64url");
 }

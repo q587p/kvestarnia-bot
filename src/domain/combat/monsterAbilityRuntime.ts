@@ -349,7 +349,7 @@ const effectKindsWithDefaultRemovability = new Set<MonsterAbilityEffectKind>([
   "repeat-penalty"
 ]);
 
-function deriveRuntimeEffectPolarity(
+export function deriveMonsterAbilityEffectPolarity(
   effect: Pick<MonsterAbilityRuntimeEffect, "target" | "kind" | "value">
 ): MonsterAbilityEffectPolarity {
   switch (effect.kind) {
@@ -449,7 +449,7 @@ export function getMonsterAbilityEffectContract(
 ): MonsterAbilityEffectContract {
   const polarity = isEffectPolarity(effect.polarity)
     ? effect.polarity
-    : deriveRuntimeEffectPolarity(effect);
+    : deriveMonsterAbilityEffectPolarity(effect);
   const removable = typeof effect.removable === "boolean"
     ? effect.removable
     : effectKindsWithDefaultRemovability.has(effect.kind) && effect.kind !== "status-resistance";
@@ -2691,13 +2691,57 @@ function consumeShieldBreakDamage(input: {
     return 0;
   }
 
-  const sourceAbility = findMonsterAbility(input.sourceAbilityId);
-  const multiplier = numberParam(sourceAbility?.parameters.damageMultiplierWhenShieldBreaks);
-  if (multiplier <= 0) {
-    return 0;
+  return resolveMonsterShieldBreakRetaliationDamage({
+    monsterAttack: input.state.monster.attack ?? 1,
+    sourceAbility: findMonsterAbility(input.sourceAbilityId)
+  });
+}
+
+export function resolveMonsterShieldBreakRetaliationDamage(input: {
+  monsterAttack: number;
+  sourceAbility: MonsterAbilityDefinition | null | undefined;
+}): number {
+  const multiplier = numberParam(
+    input.sourceAbility?.parameters.damageMultiplierWhenShieldBreaks
+  );
+  return multiplier > 0
+    ? Math.max(1, Math.floor(Math.max(1, input.monsterAttack) * multiplier))
+    : 0;
+}
+
+export interface MonsterLandedHitReactionResolution {
+  damage: number;
+  consumeCharge: boolean;
+  rolled: boolean;
+  landed: boolean;
+}
+
+export function resolveMonsterLandedHitReaction(input: {
+  kind: "reflect" | "counter";
+  effectValue: number;
+  monsterAttack: number;
+  sourceAbility: MonsterAbilityDefinition | null | undefined;
+  rng?: RandomSource;
+}): MonsterLandedHitReactionResolution {
+  if (input.kind === "reflect") {
+    const damage = Math.max(1, Math.floor(input.effectValue));
+    return { damage, consumeCharge: true, rolled: false, landed: true };
   }
 
-  return Math.max(1, Math.floor((input.state.monster.attack ?? 1) * multiplier));
+  const chance = Math.min(0.95, Math.max(0.01, input.effectValue));
+  if (!input.rng || input.rng.nextFloat() >= chance) {
+    return { damage: 0, consumeCharge: false, rolled: true, landed: false };
+  }
+
+  const multiplier = Math.max(
+    0.2,
+    numberParam(input.sourceAbility?.parameters.abilityPotencyMultiplier) || 0.45
+  );
+  const damage = Math.max(
+    1,
+    Math.floor(Math.max(1, input.monsterAttack) * Math.min(1.5, multiplier))
+  );
+  return { damage, consumeCharge: true, rolled: true, landed: true };
 }
 
 function consumeReflectDamage(input: {
@@ -2714,26 +2758,24 @@ function consumeReflectDamage(input: {
   const counter = getMonsterEffect(input.runtime, "monster", "counter", "beneficial");
   let reflectedDamage = 0;
 
-  if (reflect) {
-    reflectedDamage += Math.max(1, Math.floor(reflect.value));
-    consumeEffectCharge(input.runtime, reflect);
+  for (const effect of [reflect, counter]) {
+    if (!effect) {
+      continue;
+    }
+    const reaction = resolveMonsterLandedHitReaction({
+      kind: effect.kind as "reflect" | "counter",
+      effectValue: effect.value,
+      monsterAttack: input.state.monster.attack ?? 1,
+      sourceAbility: findMonsterAbility(effect.sourceAbilityId),
+      ...(input.rng ? { rng: input.rng } : {})
+    });
+    reflectedDamage += reaction.damage;
+    if (reaction.consumeCharge) {
+      consumeEffectCharge(input.runtime, effect);
+    }
   }
 
-  if (!counter) {
-    return reflectedDamage;
-  }
-
-  const chance = Math.min(0.95, Math.max(0.01, counter.value));
-  if (!input.rng || input.rng.nextFloat() >= chance) {
-    return reflectedDamage;
-  }
-
-  const sourceAbility = findMonsterAbility(counter.sourceAbilityId);
-  const multiplier = Math.max(0.2, numberParam(sourceAbility?.parameters.abilityPotencyMultiplier) || 0.45);
-  const counterDamage = Math.max(1, Math.floor((input.state.monster.attack ?? 1) * Math.min(1.5, multiplier)));
-  consumeEffectCharge(input.runtime, counter);
-
-  return reflectedDamage + counterDamage;
+  return reflectedDamage;
 }
 
 function consumeEffectCharge(

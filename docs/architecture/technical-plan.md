@@ -525,9 +525,20 @@ authored class/race source or one deterministic frozen ability id. Charged
 marks consume only on the first landed incoming hit. Reapplied expired effects
 continue to validate against their original authored semantic source and store
 the reapplying enemy/ability/turn as separate provenance. Rolling recap writes
-use a compact tuple representation while the parser and presenter continue to
-accept the previous verbose snapshot shape; this preserves all 25 journal
-turns and restart evidence under the unchanged `65,536`-byte state cap.
+use deterministically ordered two-byte effect groups. Strict parsing requires
+canonical base64url, nonzero masks bounded by the actual frozen roster, known
+kind/duration values and no duplicate or overlapping targets; compatibility
+accepts only the exact previous full-kind/full-side/string-target tuple, never
+hybrid shapes. Malformed production v3 rows enter the existing operator-required
+fence with leases retained. Active and historical effect labels derive
+beneficial/harmful meaning from the frozen kind and target side, while exact
+runtime value/polarity remains in strict active evidence. Counter and flat-
+reflect reactions share the ordinary monster-runtime charge, deterministic roll
+and authored/default potency contract; counter/reflect/shield-break retaliation
+records causal journal damage and contribution totals once. A final enemy defeat
+already achieved by the participant exchange remains a win if its same-exchange
+reaction also defeats the final participant. These contracts preserve all 25
+journal turns and restart evidence under the unchanged `65,536`-byte state cap.
 
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
