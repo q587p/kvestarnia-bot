@@ -4,35 +4,160 @@ import type { BotServices } from "../../src/bot/botServices";
 import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
+import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group-combat lock middleware", () => {
-  it("resends a private command redirect as the sole latest canonical card", async () => {
-    const session = activeSession();
+  it.each([
+    ["turn-based-duel", "duel"],
+    ["party-boss", "partyBoss"],
+    ["group-combat", "groupCombat"],
+    ["solo-combat", "fight"]
+  ] as const)("loads only the authoritative %s owner", async (kind, expectedOwner) => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
-    const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
-    registerCombatLockMiddleware(bot, services(session, markParticipantCardDelivered));
+    const downstream = vi.fn();
+    const lease = {
+      characterId: "character-1",
+      kind,
+      referenceId: `${kind}-13`
+    };
+    const findLease = vi.fn().mockResolvedValue(lease);
+    const duelExact = vi.fn().mockResolvedValue(null);
+    const partyBossExact = vi.fn().mockResolvedValue(null);
+    const groupCombatExact = vi.fn().mockResolvedValue(null);
+    const fightOverview = vi.fn().mockResolvedValue({ state: "no-character" });
+    const duelBroad = vi.fn();
+    const partyBossBroad = vi.fn();
+    const groupCombatBroad = vi.fn();
+    const serviceSet = {
+      combatLeases: {
+        findActiveForTelegramUser: findLease
+      },
+      duel: {
+        getActiveTurnBasedByIdForCharacterId: duelExact,
+        getActiveTurnBasedForTelegramUser: duelBroad
+      },
+      partyBoss: {
+        getActiveByPartySessionIdForCharacterId: partyBossExact,
+        getActiveForTelegramUser: partyBossBroad
+      },
+      groupCombat: {
+        findById: groupCombatExact,
+        findActiveForTelegramUser: groupCombatBroad
+      },
+      fight: {
+        getFightOverviewForTelegramUser: fightOverview
+      }
+    } as unknown as BotServices;
+    registerCombatLockMiddleware(bot, serviceSet);
+    bot.on("message", downstream);
 
     await bot.handleUpdate(commandUpdate("private"));
 
-    expect(calls.sends).toEqual([expect.objectContaining({
-      chatId: 1001,
-      replyMarkup: { inline_keyboard: [] }
-    })]);
+    expect(findLease).toHaveBeenCalledTimes(1);
+    expect(duelExact).toHaveBeenCalledTimes(expectedOwner === "duel" ? 1 : 0);
+    expect(partyBossExact).toHaveBeenCalledTimes(expectedOwner === "partyBoss" ? 1 : 0);
+    expect(groupCombatExact).toHaveBeenCalledTimes(expectedOwner === "groupCombat" ? 1 : 0);
+    expect(fightOverview).toHaveBeenCalledTimes(expectedOwner === "fight" ? 1 : 0);
+    if (expectedOwner === "fight") {
+      expect(fightOverview).toHaveBeenCalledWith(1001n, {
+        authoritativeLease: lease
+      });
+    }
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+    expect(calls.sends[0]?.chatId).toBe(1001);
+    expect(calls.sends[0]?.text).toContain("не збігається");
+    expect(duelBroad).not.toHaveBeenCalled();
+    expect(partyBossBroad).not.toHaveBeenCalled();
+    expect(groupCombatBroad).not.toHaveBeenCalled();
+  });
+
+  it("handles an unknown authoritative owner without probing or falling through", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const unrelated = vi.fn(() => {
+      throw new Error("unrelated combat repository was probed");
+    });
+    registerCombatLockMiddleware(bot, {
+      combatLeases: {
+        findActiveForTelegramUser: vi.fn().mockResolvedValue({
+          characterId: "character-1",
+          kind: "future-combat",
+          referenceId: "future-13"
+        })
+      },
+      duel: {
+        getActiveTurnBasedByIdForCharacterId: unrelated,
+        getActiveTurnBasedForTelegramUser: unrelated
+      },
+      partyBoss: {
+        getActiveByPartySessionIdForCharacterId: unrelated,
+        getActiveForTelegramUser: unrelated
+      },
+      groupCombat: {
+        findById: unrelated,
+        findActiveForTelegramUser: unrelated
+      },
+      fight: {
+        getFightOverviewForTelegramUser: unrelated
+      }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(commandUpdate("private"));
+    await bot.handleUpdate({ ...commandUpdate("private"), update_id: 13 });
+
+    expect(unrelated).not.toHaveBeenCalled();
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(2);
+    expect(calls.sends.every((call) => call.text.includes("не збігається"))).toBe(true);
+  });
+
+  it("resends a private command redirect as the sole latest canonical card", async () => {
+    const session = activeSession();
+    session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
+      buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard
+    );
+    session.participants[0]!.replyKeyboardGeneration = 1;
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
+    const serviceSet = services(session, markParticipantCardDelivered);
+    registerCombatLockMiddleware(bot, serviceSet);
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    expect(calls.sends).toHaveLength(1);
+    expect(calls.sends[0]?.chatId).toBe(1001);
+    expect(calls.sends[0]?.text).toContain("<b>Бій</b>");
+    expect(inlineKeyboardLabels(calls.sends[0]?.replyMarkup)).toContain("🔎 Оновити");
     expect(calls.edits).toEqual([
-      expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: { inline_keyboard: [] } }),
+      expect.objectContaining({ chatId: 1001, messageId: 21, replyMarkup: undefined }),
       expect.objectContaining({ chatId: 1001, messageId: 93 })
     ]);
+    expect(inlineKeyboardLabels(calls.edits[1]?.replyMarkup)).toContain("🔎 Оновити");
     expect(calls.deletes).toEqual([{ chatId: 1001, messageId: 21 }]);
     expect(markParticipantCardDelivered).toHaveBeenCalledWith(expect.objectContaining({
       chatId: 1001n,
       messageId: 93,
       expectedDeliveryRevision: session.deliveryRevision
     }));
+    expect(serviceSet.testSpies.findLease).toHaveBeenCalledTimes(1);
+    expect(serviceSet.testSpies.findGroupById).toHaveBeenCalledWith(session.id);
+    expect(serviceSet.testSpies.findGroupByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findDuelByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findPartyBossByUser).not.toHaveBeenCalled();
+    expect(serviceSet.testSpies.findFightOverview).not.toHaveBeenCalled();
   });
 
   it("keeps participant text and mutating buttons out of a supergroup redirect", async () => {
     const session = activeSession();
+    session.participants[0]!.replyKeyboardFingerprint = JSON.stringify(
+      buildGroupCombatKeyboard(session, session.participants[0]!.characterId).inline_keyboard
+    );
+    session.participants[0]!.replyKeyboardGeneration = 1;
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     registerCombatLockMiddleware(bot, services(session, vi.fn().mockResolvedValue(true)));
@@ -45,17 +170,127 @@ describe("group-combat lock middleware", () => {
     expect(calls.sends[0]?.text).toContain("особистій розмові");
     expect(calls.sends[0]?.text).not.toContain("Лідерка");
     expect(calls.sends[0]?.replyMarkup).toBeUndefined();
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    const privateCards = calls.sends.filter((call) => call.chatId === 1001);
+    expect(privateCards).toHaveLength(1);
+    expect(inlineKeyboardLabels(privateCards[0]?.replyMarkup)).toContain("🔎 Оновити");
+  });
+
+  it("finishes a durable GroupCombat exit-navigation fence and lets navigation continue without mismatch spam", async () => {
+    const session = activeSession();
+    session.turn = 2;
+    session.state.turn = 2;
+    session.state.participants[0]!.fledAtTurn = 1;
+    session.participants[0]!.settlementStatus = "completed";
+    session.participants[0]!.exitDeliveryState = "pending";
+    const participant = session.participants[0]!;
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const serviceSet = services(session, vi.fn().mockResolvedValue(true));
+    serviceSet.testSpies.findLease.mockResolvedValue({
+      characterId: participant.characterId,
+      kind: "group-combat-exit-navigation",
+      referenceId: `${session.id}:${participant.characterId}`
+    });
+    Object.assign(serviceSet.groupCombat!, {
+      claimParticipantFleeExitDelivery: vi.fn().mockImplementation((input: {
+        claimToken: string;
+        claimedAt: Date;
+      }) => {
+        participant.exitDeliveryState = "claimed";
+        participant.exitDeliveryClaimToken = input.claimToken;
+        participant.exitDeliveryClaimedAt = input.claimedAt;
+        return Promise.resolve({
+          state: "claimed",
+          locationId: "location.korchma.deep.level1.left",
+          menuDelivered: false
+        });
+      }),
+      renewParticipantFleeExitDeliveryClaim: vi.fn().mockResolvedValue(true),
+      markParticipantFleeExitMenuDelivered: vi.fn().mockImplementation((input: {
+        messageId: number;
+      }) => {
+        participant.exitDeliveryState = "menu-delivered";
+        participant.exitDeliveryMessageId = input.messageId;
+        return Promise.resolve(true);
+      }),
+      completeParticipantFleeExitDelivery: vi.fn().mockImplementation(() => {
+        participant.exitDeliveryState = "completed";
+        participant.exitDeliveryClaimToken = null;
+        participant.exitDeliveryClaimedAt = null;
+        participant.chatId = null;
+        participant.messageId = null;
+        participant.referenceVersion += 1;
+        return Promise.resolve(true);
+      }),
+      releaseParticipantFleeExitDeliveryClaim: vi.fn().mockResolvedValue(true)
+    });
+    registerCombatLockMiddleware(bot, serviceSet);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(commandUpdate("private"));
+
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(participant.exitDeliveryState).toBe("completed");
+    expect(calls.sends.some((call) => call.text.includes("не збігається"))).toBe(false);
+    expect(calls.sends.some((call) => call.text.includes("Ватага продовжує бій без вас")))
+      .toBe(true);
+    expect(calls.sends.some((call) => call.text.includes("Головне меню знову на місці")))
+      .toBe(false);
   });
 });
 
 function services(
   session: GroupCombatSessionRecord,
   markParticipantCardDelivered: ReturnType<typeof vi.fn>
-): BotServices {
+): BotServices & {
+  testSpies: {
+    findLease: ReturnType<typeof vi.fn>;
+    findGroupById: ReturnType<typeof vi.fn>;
+    findGroupByUser: ReturnType<typeof vi.fn>;
+    findDuelByUser: ReturnType<typeof vi.fn>;
+    findPartyBossByUser: ReturnType<typeof vi.fn>;
+    findFightOverview: ReturnType<typeof vi.fn>;
+  };
+} {
+  let uiClaimToken: string | null = null;
+  const findLease = vi.fn().mockResolvedValue({
+    characterId: "character-1",
+    kind: "group-combat",
+    referenceId: session.id
+  });
+  const findGroupById = vi.fn().mockResolvedValue(session);
+  const findGroupByUser = vi.fn().mockResolvedValue(session);
+  const findDuelByUser = vi.fn();
+  const findPartyBossByUser = vi.fn();
+  const findFightOverview = vi.fn();
   return {
+    testSpies: {
+      findLease,
+      findGroupById,
+      findGroupByUser,
+      findDuelByUser,
+      findPartyBossByUser,
+      findFightOverview
+    },
+    combatLeases: {
+      findActiveForTelegramUser: findLease
+    },
+    duel: {
+      getActiveTurnBasedForTelegramUser: findDuelByUser
+    },
+    partyBoss: {
+      getActiveForTelegramUser: findPartyBossByUser
+    },
+    fight: {
+      getFightOverviewForTelegramUser: findFightOverview
+    },
     groupCombat: {
-      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
-      findById: vi.fn().mockResolvedValue(session),
+      findActiveForTelegramUser: findGroupByUser,
+      findById: findGroupById,
       currentTime: () => new Date("2026-07-22T10:00:00.000Z"),
       compareAndSetParticipantCard: vi.fn().mockImplementation((input: {
         telegramUserId: bigint;
@@ -70,9 +305,67 @@ function services(
         return Promise.resolve(true);
       }),
       releaseParticipantCard: vi.fn().mockResolvedValue(true),
-      markParticipantCardDelivered
+      markParticipantCardDelivered,
+      claimParticipantUiPublication: vi.fn().mockImplementation((input: {
+        keyboardFingerprint: string;
+        claimToken: string;
+      }) => {
+        if (uiClaimToken && uiClaimToken !== input.claimToken) {
+          return Promise.resolve({ state: "busy" });
+        }
+        uiClaimToken = input.claimToken;
+        const participant = session.participants[0]!;
+        return Promise.resolve({
+          state: "claimed",
+          publishReplyKeyboard:
+            participant.replyKeyboardFingerprint !== input.keyboardFingerprint,
+          keyboardGeneration: participant.replyKeyboardGeneration ?? 0
+        });
+      }),
+      renewParticipantUiPublicationClaim: vi.fn().mockImplementation((input: {
+        claimToken: string;
+      }) => Promise.resolve(uiClaimToken === input.claimToken)),
+      acknowledgeParticipantUiPublication: vi.fn().mockImplementation((input: {
+        claimToken: string;
+        publishedKeyboardFingerprint: string | null;
+      }) => {
+        if (uiClaimToken !== input.claimToken) {
+          return Promise.resolve("not-owner");
+        }
+        const participant = session.participants[0]!;
+        if (
+          input.publishedKeyboardFingerprint !== null &&
+          participant.replyKeyboardFingerprint !==
+            input.publishedKeyboardFingerprint
+        ) {
+          participant.replyKeyboardFingerprint =
+            input.publishedKeyboardFingerprint;
+          participant.replyKeyboardGeneration =
+            (participant.replyKeyboardGeneration ?? 0) + 1;
+        }
+        uiClaimToken = null;
+        return Promise.resolve("acknowledged");
+      }),
+      releaseParticipantUiPublicationClaim: vi.fn().mockImplementation((input: {
+        claimToken: string;
+      }) => {
+        if (uiClaimToken !== input.claimToken) {
+          return Promise.resolve(false);
+        }
+        uiClaimToken = null;
+        return Promise.resolve(true);
+      })
     } as unknown as GroupCombatService
-  } as unknown as BotServices;
+  } as unknown as BotServices & {
+    testSpies: {
+      findLease: ReturnType<typeof vi.fn>;
+      findGroupById: ReturnType<typeof vi.fn>;
+      findGroupByUser: ReturnType<typeof vi.fn>;
+      findDuelByUser: ReturnType<typeof vi.fn>;
+      findPartyBossByUser: ReturnType<typeof vi.fn>;
+      findFightOverview: ReturnType<typeof vi.fn>;
+    };
+  };
 }
 
 function testBot(middleware: Parameters<Bot["api"]["config"]["use"]>[0]): Bot {
@@ -162,7 +455,13 @@ function activeSession(): GroupCombatSessionRecord {
       chatId: participant.telegramUserId,
       messageId: 21 + index,
       referenceVersion: 1,
-      deliveredRevision: 1
+      deliveredRevision: 1,
+      replyKeyboardFingerprint: null,
+      replyKeyboardGeneration: 0,
+      exitDeliveryState: "none" as const,
+      exitDeliveryClaimToken: null,
+      exitDeliveryClaimedAt: null,
+      exitDeliveryMessageId: null
     })),
     queuedActions: [],
     state: {
@@ -199,4 +498,23 @@ function activeSession(): GroupCombatSessionRecord {
       recap: []
     }
   };
+}
+
+function inlineKeyboardLabels(value: unknown): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const keyboard = (value as Record<string, unknown>)["inline_keyboard"];
+  if (!Array.isArray(keyboard)) {
+    return [];
+  }
+  return keyboard.flatMap((row) => Array.isArray(row)
+    ? row.flatMap((button) => {
+      if (!button || typeof button !== "object") {
+        return [];
+      }
+      const label = (button as Record<string, unknown>)["text"];
+      return typeof label === "string" ? [label] : [];
+    })
+    : []);
 }

@@ -1,29 +1,31 @@
 # Post-Combat Contribution Cards
 
-Status: future task. This document does not authorize implementation inside
-`0.4.1`.
+Status: GroupCombat slice first shipped in repository release `0.4.2`; the
+cross-mode expansion remains future work.
 
 ## Goal
 
-Keep the readable six-icon GroupCombat contribution summary as a result-card
-pattern: show it after party expeditions and raids first, then extend it to
-other completed fights wherever the mode stores enough truthful evidence.
+Keep the readable eight-dimension GroupCombat statistics as a separate
+`📊 Статистика` card pattern, then extend it to every shipped combat surface
+where the mode stores enough truthful evidence.
 
 ## Scope
 
-- The first production party expedition renders a compact explained
-  contribution block for every participant.
-- Big Barrel result cards receive an equivalent private participant summary
-  using the raid's canonical stored contribution fields.
-- A later audited pass may cover ordinary one/multi-enemy PvE, Training
-  Doppelgänger and turn-based duels.
+- The `0.4.2` left-passage party attack keeps statistics behind a separate
+  button beside its journal.
+- Big Barrel and raid results receive an equivalent private participant
+  statistics card using canonical stored contribution fields.
+- The audited expansion covers ordinary one- and multi-enemy PvE, Training
+  Doppelgänger, turn-based duels and every other shipped combat/result replay.
 - Each combat mode maps only persisted facts it can prove. Missing dimensions
   are omitted or labelled as unavailable; they are never inferred from authored
   ability values or reconstructed from incomplete prose.
 - Terminal, stale-card and journal replay show the same immutable statistics.
-- Keep Ukrainian labels beside the icons so players do not need an external
-  legend: damage dealt, healing, prevented damage, weakened response/control,
-  damage taken and committed actions when supported by that mode.
+- Reuse the eight-dimension Ukrainian legend: damage dealt, healing, prevented
+  damage, weakened response/control, damage taken, committed actions, special
+  attacks and defensive turns.
+- Keep the statistics button beside `📜 Журнал`; do not put the full table back
+  into the main active or terminal combat card.
 
 ## Non-goals
 
@@ -36,8 +38,8 @@ other completed fights wherever the mode stores enough truthful evidence.
 
 ## Acceptance criteria
 
-1. The first production party expedition shows the six explained GroupCombat
-   dimensions from its immutable terminal state/settlement plan.
+1. The left-passage party attack shows all eight explained GroupCombat
+   dimensions from its immutable state/settlement evidence.
 2. Big Barrel shows a truthful equivalent from canonical raid contribution
    state without changing raid reward eligibility or settlement.
 3. Every added combat surface has an explicit field mapping and exact-effect

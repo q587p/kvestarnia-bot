@@ -7,6 +7,7 @@ import type { BarrelBeerTutorialService } from "../services/barrelBeerTutorialSe
 import type { CellarErrandService } from "../services/cellarErrandService";
 import type { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import type { ClassNoncombatService } from "../services/classNoncombatService";
+import type { CombatLeaseReadService } from "../services/combatLeaseReadService";
 import type { DevGrantService } from "../services/devGrantService";
 import type { DevResetService } from "../services/devResetService";
 import type { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
@@ -54,6 +55,7 @@ export interface BotServices {
   cellarErrand: CellarErrandService;
   cellarGrownup?: CellarGrownupQuestService;
   classNoncombat?: ClassNoncombatService;
+  combatLeases?: CombatLeaseReadService;
   dailyKorchmaRound: DailyKorchmaRoundService;
   fight: FightService;
   firstKorchmaQuest: FirstKorchmaQuestService;

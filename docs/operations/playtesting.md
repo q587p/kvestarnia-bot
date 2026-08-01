@@ -328,6 +328,33 @@ Release-specific historical checklists and evidence live under
 15. Відкрий надвірну дошку памʼяті біля корчми.
 16. Очікування: блок `Реморти Тринадцятки` показує перші реморти без технічних id і точних timestamp-ів.
 
+## Гуртова атака в лівому проході
+
+Окремий повний пакет:
+[`0.4.2-left-passage-party-attack-qa.md`](../qa/0.4.2-left-passage-party-attack-qa.md).
+Ручний результат на фінальній голові ще pending.
+
+У checkout `.env` постав `NODE_ENV=development`,
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і
+`DEV_GRANT_COMMANDS_ENABLED=true`. Потім виконай `refresh-local-bot.cmd` та
+`status-local-bot.cmd`; перевір точний candidate SHA і цей прапорець у
+скопійованому runtime `.env`. Використай 2–3 тестові акаунти.
+Відкрий точну hard-оказію `deep-left`: сольна `⚔️ Атакувати` має лишитися, а
+поруч зʼявляється `🤝 Покликати в атаку`. Перевір deep-link і nearby join,
+ранній старт поточним ватажком, автоматичний старт рівно після трьох хвилин,
+transfer/join/leave на межі, restart у бою й settlement та вимкнення прапорця
+під час активної сутички. `/dev_group_combat_timeout <party-token>` прискорює
+одну поточну timeout-межу звичайним service-шляхом. Жоден крок не має змінювати
+локацію учасника.
+Після програного сольного бою з живим пораненим монстром знову відкрий точну
+hard-оказію: мають бути і сольна атака, і збір ватаги; груповий старт мусить
+зберегти відновлене HP цього ж монстра. Під час старту, scheduler overlap,
+`/start`, `🔎 Оновити` та restart активний приватний чат ніколи не повинен
+лишатися без керування: вступ має відновити постійну головну reply-клавіатуру,
+а перша й кожна наступна чинна бойова картка — містити непорожні inline-дії.
+Вибитий учасник бачить щонайменше `🔎 Оновити`; жоден send/edit не має лишати
+найновішу активну картку без кнопок.
+
 ## Сервісні команди
 
 - `/version` — показує поточну версію бота.
@@ -357,7 +384,9 @@ Release-specific historical checklists and evidence live under
 - `/dev_raid_stop` — у локальному режимі завершує active pending-рейд на Бочку через звичайну reward-логіку й показує level-up привітання, якщо XP вистачило на рівень.
 - `/dev_raid_reset` — у локальному режимі скидає pending-таймер, зарахований поточний відтинок Бочки й 3-хвилинний кулдаун після програшу Старшому Брату Бочки без reward-логіки, щоб швидко повторити рейд у тому самому періоді.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout має завершити рейд перемогою ватаги, навіть якщо всі учасники теж на `0 HP`.
-- `/dev_reset_monster_rest` — legacy local helper; після `0.2.3` eligible ordinary starts більше не блокуються monster-rest denial, тож команда лишається harmless cleanup для старих локальних сценаріїв.
+- `/dev_reset_monster_rest` — скидає ordinary passage-rest і збережене
+  післяпереможне вікно сходів до Ярусу II; використовуйте перед повторним
+  left-passage party прогоном.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 
 ## Межі поточного smoke
@@ -375,6 +404,9 @@ Release-specific historical checklists and evidence live under
   [focused group-raid QA](../history/early-raid/big-barrel-brother-group-raid-qa.md);
 - raid chat перевіряється за
   [`0.3.15` raid-chat QA](../qa/0.3.15-raid-chat-qa.md).
+- left-passage party attack перевіряється за
+  [`0.4.2` focused QA](../qa/0.4.2-left-passage-party-attack-qa.md);
+  production entry default-off, ручний результат pending.
 
 Індекс поточних feature-specific пакетів:
 [`docs/qa/README.md`](../qa/README.md). Цей компактний smoke не дублює їхні

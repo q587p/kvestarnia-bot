@@ -52,6 +52,194 @@ describe("group combat timeout scheduler", () => {
     expect(listPendingDelivery).toHaveBeenCalledWith(13);
   });
 
+  it("delivers standard notices when a retryable participant settlement commits during repair", async () => {
+    const repair = vi.fn();
+    const repairWithNotices = vi.fn().mockResolvedValue({
+      repaired: 1,
+      settlementNotices: [{
+        telegramUserId: 1001n,
+        characterId: "character-1",
+        characterName: "Лідерка",
+        classId: "class.priest",
+        raceId: "race.human-ish",
+        levelChange: { oldLevel: 3, newLevel: 4, leveledUp: true },
+        achievementUnlocks: [{
+          id: "achievement.level.3",
+          title: "Перший поверх амбіцій",
+          cosmeticTitleGrantId: null,
+          unlockedAt: new Date("2026-07-27T08:00:00.000Z")
+        }]
+      }]
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+    const scheduler = createGroupCombatTimeoutScheduler({
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      repair,
+      repairWithNotices,
+      resolveDue: vi.fn().mockResolvedValue([]),
+      listPendingDelivery: vi.fn().mockResolvedValue([])
+    } as unknown as GroupCombatService, {
+      api: { sendMessage }
+    } as unknown as Bot);
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+
+    expect(repairWithNotices).toHaveBeenCalledWith(13);
+    expect(repair).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Рівень підріс");
+    expect(String(sendMessage.mock.calls[1]?.[1])).toContain("Нова ачівка");
+  });
+
+  it("expires due left-passage recruitment when fresh entry is disabled but keeps runtime servicing", async () => {
+    const party = { inviteToken: "left-disabled-13", version: 7 };
+    const expireDueLeftPassageParty = vi.fn().mockResolvedValue({ state: "ready" });
+    const startDueLeftPassage = vi.fn();
+    const repair = vi.fn().mockResolvedValue(1);
+    const resolveDue = vi.fn().mockResolvedValue([]);
+    const listPendingDelivery = vi.fn().mockResolvedValue([]);
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        isLeftPassageEntryEnabled: () => false,
+        areDevHelpersEnabled: () => false,
+        startDueLeftPassage,
+        repair,
+        resolveDue,
+        listPendingDelivery
+      } as unknown as GroupCombatService,
+      { api: {} } as Bot,
+      {
+        partySessions: {
+          listDueRecruitingLeftPassageParty: vi.fn().mockResolvedValue([party]),
+          expireDueLeftPassageParty
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(startDueLeftPassage).not.toHaveBeenCalled();
+    expect(expireDueLeftPassageParty).toHaveBeenCalledWith(party.inviteToken, party.version);
+    expect(repair).toHaveBeenCalledWith(13);
+    expect(resolveDue).toHaveBeenCalledWith(13);
+    expect(listPendingDelivery).toHaveBeenCalledWith(13);
+  });
+
+  it("automatically starts a due one-participant left-passage gathering", async () => {
+    const session = pendingSession();
+    session.status = "active";
+    session.state.status = "active";
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.result = null;
+    session.completedAt = null;
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.enemies = session.state.enemies.slice(0, 1);
+    session.state.contributions = session.state.contributions.slice(0, 1);
+    session.participants[0]!.deliveredRevision = 0;
+    session.participants[0]!.replyKeyboardFingerprint = null;
+    session.participants[0]!.replyKeyboardGeneration = 0;
+    session.participants[0]!.exitDeliveryState = "none";
+    session.participants[0]!.exitDeliveryClaimToken = null;
+    session.participants[0]!.exitDeliveryClaimedAt = null;
+    session.participants[0]!.exitDeliveryMessageId = null;
+    const party = {
+      inviteToken: session.partyInviteToken,
+      version: 7,
+      participants: [{ character: { telegramUserId: 1001n } }]
+    };
+    const startDueLeftPassage = vi.fn().mockResolvedValue({
+      state: "started",
+      session
+    });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn((
+      chatId: number,
+      text: string,
+      options?: { reply_markup?: unknown }
+    ) => {
+      void chatId;
+      void text;
+      void options;
+      return Promise.resolve({ message_id: 93 });
+    });
+    const releaseParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const scheduler = createGroupCombatTimeoutScheduler(
+      {
+        isEnabled: () => true,
+        isLeftPassageEntryEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        startDueLeftPassage,
+        repair: vi.fn().mockResolvedValue(0),
+        resolveDue: vi.fn().mockResolvedValue([]),
+        listPendingDelivery: vi.fn().mockResolvedValue([]),
+        findById: vi.fn().mockResolvedValue(session),
+        releaseParticipantCard,
+        compareAndSetParticipantCard,
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService,
+      {
+        api: { editMessageText, sendMessage, deleteMessage: vi.fn() }
+      } as unknown as Bot,
+      {
+        partySessions: {
+          listDueRecruitingLeftPassageParty: vi.fn().mockResolvedValue([party])
+        } as unknown as PartySessionService
+      }
+    );
+
+    await expect(scheduler.tick()).resolves.toBe(1);
+    expect(startDueLeftPassage).toHaveBeenCalledWith(session.partyInviteToken);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(String(sendMessage.mock.calls[0]?.[1]))
+      .toContain("Бій починається. Корчма відкриває журнал ходів");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2]?.reply_markup))
+      .toContain("\"keyboard\"");
+    expect(String(sendMessage.mock.calls[1]?.[1])).not.toContain("<b>Хто проти кого:</b>");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
+      .toContain("\"inline_keyboard\"");
+    expect(JSON.stringify(sendMessage.mock.calls[1]?.[2]?.reply_markup))
+      .toContain("🔎 Оновити");
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(String(editMessageText.mock.calls[0]?.[2]))
+      .toBe("♻️ Цю бойову картку замінено актуальною нижче.");
+    expect(String(editMessageText.mock.calls[1]?.[2])).toContain("<b>Бій</b>:");
+  });
+
   it("waits for an in-flight pass during shutdown", async () => {
     let releaseRepair: (() => void) | undefined;
     const repair = vi.fn(() => new Promise<number>((resolve) => {
@@ -82,10 +270,10 @@ describe("group combat timeout scheduler", () => {
     expect(stopped).toBe(true);
   });
 
-  it("delivers a committed pending revision discovered after restart", async () => {
+  it("repairs a committed legacy terminal revision without a redundant completion message", async () => {
     const session = pendingSession();
     const editMessageText = vi.fn().mockResolvedValue(true);
-    const sendMessage = vi.fn();
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
     const finalizeDeliveryAttempt = vi.fn().mockResolvedValue(true);
     const service = {
       isEnabled: () => true,

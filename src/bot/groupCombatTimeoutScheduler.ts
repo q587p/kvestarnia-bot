@@ -2,7 +2,10 @@ import type { Bot } from "grammy";
 import type { GroupCombatSessionRecord } from "../db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../services/groupCombatService";
 import type { PartySessionService } from "../services/partySessionService";
-import { deliverGroupCombatCards } from "./groupCombatCardDelivery";
+import {
+  deliverGroupCombatCards,
+  deliverGroupCombatSettlementNotifications
+} from "./groupCombatCardDelivery";
 import { serializePartySessionDelivery } from "./partySessionDeliveryCoordinator";
 
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -46,16 +49,67 @@ export function createGroupCombatTimeoutScheduler(
           console.error(`Kvestarnia: skipped failed scheduled GroupCombat start for ${party.inviteToken}.`, error);
         }
       }
-      const repaired = await service.repair(13);
-      const resolved = await service.resolveDue(13);
+      const dueLeftPassageParties = await options.partySessions?.listDueRecruitingLeftPassageParty?.() ?? [];
+      for (const party of dueLeftPassageParties) {
+        try {
+          if (!service.isLeftPassageEntryEnabled()) {
+            await options.partySessions?.expireDueLeftPassageParty?.(
+              party.inviteToken,
+              party.version
+            );
+            continue;
+          }
+          const result = await serializePartySessionDelivery(party.inviteToken, () =>
+            service.startDueLeftPassage(party.inviteToken)
+          );
+          if ("session" in result) {
+            started.push(result.session);
+          } else if (
+            result.partyVersion !== undefined &&
+            (
+              result.state === "invalid-size" ||
+              result.state === "invalid-life" ||
+              result.state === "invalid-roster" ||
+              result.state === "reservation-missing" ||
+              result.state === "blocked"
+            )
+          ) {
+            await options.partySessions?.expireDueLeftPassageParty?.(
+              party.inviteToken,
+              result.partyVersion
+            );
+          }
+        } catch (error) {
+          console.error(`Kvestarnia: пропущено невдалий автоматичний старт лівого проходу ${party.inviteToken}.`, error);
+        }
+      }
+      const repairWork = typeof service.repairWithNotices === "function"
+        ? await service.repairWithNotices(13)
+        : {
+            repaired: await service.repair(13),
+            settlementNotices: []
+          };
+      const resolved = typeof service.resolveDueWithNotices === "function"
+        ? await service.resolveDueWithNotices(13)
+        : (await service.resolveDue(13)).map((session) => ({
+            session,
+            settlementNotices: []
+          }));
       const pending = await service.listPendingDelivery(13);
       const sessions = [...new Map(
-        [...started, ...resolved, ...pending].map((session) => [session.id, session])
+        [...started, ...resolved.map((entry) => entry.session), ...pending].map((session) => [session.id, session])
       ).values()];
       for (const session of sessions) {
         await deliverGroupCombatCards(bot.api, service, session);
+        const notices = resolved.find((entry) => entry.session.id === session.id)?.settlementNotices ?? [];
+        if (notices.length > 0) {
+          await deliverGroupCombatSettlementNotifications(bot.api, notices);
+        }
       }
-      return repaired + sessions.length;
+      if (repairWork.settlementNotices.length > 0) {
+        await deliverGroupCombatSettlementNotifications(bot.api, repairWork.settlementNotices);
+      }
+      return repairWork.repaired + sessions.length;
     })();
     activeTick = operation;
     try {

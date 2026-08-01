@@ -521,14 +521,15 @@ describe("shynokPresenter", () => {
     }
   });
 
-  it("explains that Bard performances require another active listener", () => {
+  it("explains that combat-busy nearby players cannot receive a new performance buff", () => {
     const html = presentBardPerformanceStartResult({
       state: "no-audience",
       character
     });
 
-    expect(html).toContain("замало живих слухачів");
-    expect(html).toContain("ще хоча б один активний пригодник поруч");
+    expect(html).toContain("немає вільного слухача");
+    expect(html).toContain("вже в бою чи іншій несумісній справі");
+    expect(html).toContain("виступ треба почати до бою");
     expect(html).not.toContain("критичної полиці");
   });
 

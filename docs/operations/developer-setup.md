@@ -23,6 +23,14 @@ run-local-bot.cmd
 
 Launcher створює `.env` з `.env.example`, якщо файла ще немає, готує ізольований runtime поза checkout-ом, запускає Prisma generate/migrate у цьому runtime і стартує там `npm run dev`.
 
+Коли задача додає нову змінну середовища, внеси її і в `.env.example`, і в
+наявний локальний `.env`. У `.env.example` лишається безпечний default для
+deploy, а в локальному `.env` ставиться значення, потрібне для поточного
+manual-QA сценарію. Не перезаписуй токени чи інші локальні значення й ніколи не
+коміть `.env`. Запущений isolated runtime не перечитує checkout `.env`
+автоматично: після зміни виконай `refresh-local-bot.cmd` і перевір
+`status-local-bot.cmd`.
+
 ### Isolated Windows local bot
 
 Use `run-local-bot.cmd` for manual Telegram testing. It runs from a separate snapshot with independent `node_modules`, Prisma Client, and SQLite database, so development checks do not have to stop the bot. Use `refresh-local-bot.cmd` only when promoting a deliberate test checkpoint. See [`docs/operations/local-bot-runtime.md`](./local-bot-runtime.md).
@@ -53,6 +61,7 @@ DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
+LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
@@ -104,6 +113,15 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 Рівнозначний ранній командний шлях: `/dev_group_combat TOKEN`, де `TOKEN` —
 частина invite-посилання після `party_`; саму команду можна надіслати і з групи.
 
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` відкриває production-вхід
+`🤝 Покликати в атаку` лише для точної hard-оказії `deep-left` на лівому
+проході Низу. Default `false`. Вимкнення блокує нові резервування й старти, але
+runtime далі обслуговує вже активні бої та settlement; прострочені збори
+закриваються з поверненням резервування.
+Локальна `/dev_group_combat_timeout TOKEN` переводить один активний бій цього
+збору через поточну межу timeout звичайним service-шляхом. У production вона не
+реєструється, не показується й не може мутувати стан.
+
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
 Приватний рейд-чат 0.3.15 не має окремого конфігураційного ключа: він працює всередині наявної поверхні `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Вимкнення батьківського прапорця ховає нові читання, записи й кнопки та запускає фонове очищення старих карток. Для локальної перевірки достатньо ввімкнути Big Barrel; `/dev_raid_chat` усе одно не реєструється у production.
@@ -144,6 +162,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_reset_me` — скидає поточного персонажа.
 - `/dev_party` — збирає тимчасову локальну ватагу; коли GroupCombat proof увімкнений, створює окремий збір на 2–3 учасників із автоматичним стартом через три хвилини. Без proof зберігає звичайний party/session контракт. У production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
+- `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.
 - `/dev_raid_chat fill [14..131] | clear | expire composer|retention` — наповнює або очищає поточний Big Barrel чат і прискорює строки для перевірки newest-13, ліміту, composer та retention; доступна лише поза production, коли ввімкнений наявний Big Barrel прапорець.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.
@@ -175,7 +194,9 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_raid_stop` — достроково завершує активний pending-рейд на Бочку через звичайний reward path для швидкого локального тесту; якщо XP підняв рівень, показує звичайне окреме привітання.
 - `/dev_raid_reset` — скидає pending-таймер, зарахований поточний відтинок Бочки й перепочинок після програшу Старшому Брату Бочки для швидкого локального тесту без reward-логіки.
 - `/dev_raid_win` — у локальному Big Barrel Brother бою виставляє HP Старшого Брата Бочки в `0`; наступна дія або timeout проходить звичайний party-boss victory path.
-- `/dev_reset_monster_rest` — скидає коротку перерву монстрів після серії ordinary боїв у Низі для швидкого локального `/fight` QA.
+- `/dev_reset_monster_rest` — скидає коротку перерву після ordinary бою та
+  післяпереможне 13–23-хвилинне вікно сходів до Ярусу II для швидкого
+  локального `/fight` і left-passage party QA.
 - `/dev_two_enemies` — стартує dev-only persistent бій проти двох ворогів для перевірки foundation multi-enemy state; production-маршрути лишаються одно-ворожими.
 
 Ці команди не потрапляють у бокове меню Telegram і не показуються у звичайному `/help`. `/dev_help` і кнопка `🧰 Адмінка` показують лише ті dev-команди, чиї non-production gates реально enabled; кнопка зникає, коли не ввімкнена жодна родина dev-команд.

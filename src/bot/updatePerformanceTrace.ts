@@ -165,6 +165,8 @@ function finishCallbackTrace(resultState: "handled" | "terminal-error", error?: 
   }
   trace.ended = true;
   const totalMs = elapsed(trace.startedAt);
+  const interactiveMs = trace.firstPresentationMs ?? trace.ackMs ?? totalMs;
+  const postPresentationMs = Math.max(0, totalMs - interactiveMs);
   const fields: HotPathTimingInput = {
     route: trace.route,
     resultState,
@@ -172,6 +174,8 @@ function finishCallbackTrace(resultState: "handled" | "terminal-error", error?: 
     pendingRaidMs: trace.pendingRaidMs,
     combatLockMs: trace.combatLockMs,
     presenceMs: trace.presenceMs,
+    interactiveMs,
+    postPresentationMs,
     ...(trace.ackMs === undefined ? {} : { ackMs: trace.ackMs }),
     ...(trace.firstPresentationMs === undefined
       ? {}
@@ -226,7 +230,7 @@ function classifyPresentationMethod(method: string): CallbackPresentationMethod 
 
 function classifyCallbackRoute(data: string): string {
   const [version, namespace, kind] = data.split(":", 3);
-  if ((version === "v1" || version === "v2") && namespace === "gc") {
+  if ((version === "v1" || version === "v2" || version === "v3") && namespace === "gc") {
     return "callback.group-combat";
   }
   if (version !== "v1") {

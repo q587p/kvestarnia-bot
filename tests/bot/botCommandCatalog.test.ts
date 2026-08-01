@@ -213,6 +213,10 @@ describe("bot command catalog", () => {
       icon: "⚔️",
       includeInMenu: false
     });
+    expect(groupCombatOnly.find((entry) => entry.command === "dev_group_combat_timeout")).toMatchObject({
+      icon: "⏱️",
+      includeInMenu: false
+    });
     expect(groupCombatOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(raidChatOnly.find((entry) => entry.command === "dev_raid_chat")).toMatchObject({
       icon: "💬",
@@ -238,6 +242,10 @@ describe("bot command catalog", () => {
       includeDevReset: true,
       includeGroupCombat: true
     }).some((entry) => entry.command === "dev_group_combat")).toBe(false);
+    expect(getTelegramMenuCommands({
+      includeDevReset: true,
+      includeGroupCombat: true
+    }).some((entry) => entry.command === "dev_group_combat_timeout")).toBe(false);
 
     for (const command of [
       "dev_add_level",

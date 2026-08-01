@@ -32,11 +32,16 @@ import {
 import {
   makeFightCallbackData,
   makeFightGearActionCallbackData,
+  makeFightItemsCallbackData,
   makeFightJournalCallbackData,
+  makeFightItemUseCallbackData,
   makeFightPassageAttackCallbackData,
+  makeFightTierTwoCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../callbacks/fightCallbackData";
+import { makeLeftPassagePartyInviteCallbackData } from "../callbacks/groupCombatCallbackData";
+import { makePartySessionViewCallbackData } from "../callbacks/partySessionCallbackData";
 import {
   makeDescentSearchStartCallbackData,
   makeDeepLevelOneSearchStartCallbackData,
@@ -48,7 +53,11 @@ import {
   makeSafePassageSearchStartCallbackData
 } from "../callbacks/passageSearchCallbackData";
 import { makePlaceCallbackData, type PlaceCallback } from "../callbacks/placeCallbackData";
-import { appendGearActionButtons } from "./gearActionKeyboard";
+import {
+  buildCombatActionKeyboard,
+  combatActionButtonLabels,
+  type CombatActionKeyboardButton
+} from "./combatActionKeyboardLayout";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -76,31 +85,29 @@ export function buildFightResultKeyboard(
 
 export function buildPersistentFightKeyboard(
   session: SoloCombatSessionRecord,
-  character: CharacterSummary
+  character: CharacterSummary,
+  options: { includeCombatItems?: boolean } = {}
 ): InlineKeyboard {
   const turn = session.state?.turn ?? 1;
   const availability = session.state
     ? getCombatActionAvailability(session.state, { classId: character.classId, raceId: character.raceId })
     : null;
-  const keyboard = new InlineKeyboard()
-    .text("🗡️ Вдарити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" }))
-    .text("🛡 Захищатися", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" }))
-    .row();
+  const abilityButtons: CombatActionKeyboardButton[] = [];
 
   if (availability?.skill.available !== false) {
-    keyboard.text(
-      getPersistentFightSkillLabel(character),
-      makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
-    );
+    abilityButtons.push({
+      label: getPersistentFightSkillLabel(character),
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
+    });
   }
 
   if (availability?.race.available) {
     const raceLabel = getPersistentFightRaceAbilityLabel(character);
     if (raceLabel) {
-      keyboard.text(
-        raceLabel,
-        makeFightTurnCallbackData({ sessionId: session.id, turn, action: "race" })
-      );
+      abilityButtons.push({
+        label: raceLabel,
+        callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "race" })
+      });
     }
   }
 
@@ -113,22 +120,38 @@ export function buildPersistentFightKeyboard(
       )
     : [];
 
-  appendGearActionButtons(
-    keyboard,
-    gearGrants,
-    (grant) => makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
-  );
-  if (gearGrants.length === 0) {
-    keyboard.row();
-  }
+  abilityButtons.push(...gearGrants.map((grant) => ({
+    label: grant.buttonLabel ?? grant.label,
+    callbackData: makeFightGearActionCallbackData({ sessionId: session.id, turn, grantKey: grant.key })
+  })));
 
-  return keyboard
-    .text("🏃 Відступити", makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" }));
+  return buildCombatActionKeyboard({
+    attackButtons: [{
+      label: combatActionButtonLabels.attack,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "attack" })
+    }],
+    defendButton: {
+      label: combatActionButtonLabels.defend,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "defend" })
+    },
+    abilityButtons,
+    ...(options.includeCombatItems ? {
+      itemsButton: {
+        label: combatActionButtonLabels.items,
+        callbackData: makeFightItemsCallbackData({ sessionId: session.id, turn })
+      }
+    } : {}),
+    fleeButton: {
+      label: combatActionButtonLabels.flee,
+      callbackData: makeFightTurnCallbackData({ sessionId: session.id, turn, action: "flee" })
+    }
+  });
 }
 
 export function buildPersistentFightResultKeyboard(
   session: SoloCombatSessionRecord,
-  character: CharacterSummary
+  character: CharacterSummary,
+  options: { includeCombatItems?: boolean } = {}
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
     const navigation = getPersistentFightReturnNavigation(session);
@@ -143,7 +166,34 @@ export function buildPersistentFightResultKeyboard(
     return keyboard.text(navigation.returnLabel, makePlaceCallbackData(navigation.returnPlace));
   }
 
-  return buildPersistentFightKeyboard(session, character);
+  return buildPersistentFightKeyboard(session, character, options);
+}
+
+export function buildPersistentFightItemsKeyboard(input: {
+  sessionId: string;
+  turn: number;
+  items: readonly {
+    itemKey: string;
+    name: string;
+    quantity: number;
+  }[];
+}): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  for (const item of input.items) {
+    keyboard
+      .text(
+        `${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
+        makeFightItemUseCallbackData({
+          sessionId: input.sessionId,
+          turn: input.turn,
+          itemKey: item.itemKey
+        })
+      )
+      .row();
+  }
+
+  return keyboard.text("↩️ До бою", makeFightViewCallbackData(input.sessionId));
 }
 
 export function buildPersistentFightJournalKeyboard(
@@ -352,12 +402,31 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
   encounterToken: string;
   searchAvailable?: boolean;
+  leftPassagePartyAttackEnabled?: boolean;
+  reservedPartyInviteToken?: string;
 }): InlineKeyboard {
-  const keyboard = new InlineKeyboard()
-    .text("⚔️ Атакувати", makeFightPassageAttackCallbackData(input))
-    .row();
+  const keyboard = new InlineKeyboard();
+  if (input.reservedPartyInviteToken) {
+    keyboard.text(
+      "🤝 Відкрити збір ватаги",
+      makePartySessionViewCallbackData(input.reservedPartyInviteToken)
+    ).row();
+  } else {
+    keyboard.text("⚔️ Атакувати самостійно", makeFightPassageAttackCallbackData(input)).row();
+  }
 
-  if (input.searchAvailable !== false) {
+  if (
+    !input.reservedPartyInviteToken &&
+    input.passage === "deep-left" &&
+    input.leftPassagePartyAttackEnabled
+  ) {
+    keyboard.text(
+      "🤝 Зібрати ватагу",
+      makeLeftPassagePartyInviteCallbackData(input.encounterToken)
+    ).row();
+  }
+
+  if (!input.reservedPartyInviteToken && input.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makePassageSearchStartCallbackData(input)).row();
   }
 
@@ -367,8 +436,16 @@ export function buildPersistentFightPassagePreviewKeyboard(input: {
 export function buildPersistentFightPassageRestKeyboard(input: {
   passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
   searchAvailable?: boolean;
+  showTierTwo?: boolean;
 }): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+
+  if (input.showTierTwo) {
+    return keyboard
+      .text("↩️ Повернутися до Сутеренів", makePlaceCallbackData("deep-level1"))
+      .row()
+      .text("🪜 Ярус II", makeFightTierTwoCallbackData());
+  }
 
   if (input.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makeSafePassageSearchStartCallbackData(input)).row();

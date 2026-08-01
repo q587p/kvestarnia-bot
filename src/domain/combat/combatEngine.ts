@@ -723,7 +723,7 @@ function resolveMultiEnemyCombatItemTurn(
   };
 }
 
-function resolveCombatItemHealing(
+export function resolveCombatItemHealing(
   state: CombatState,
   item: ResolveCombatItemTurnInput["item"]
 ): number {
@@ -738,7 +738,7 @@ function resolveCombatItemHealing(
   }
 }
 
-function getCombatItemAvailability(
+export function getCombatItemAvailability(
   state: CombatState,
   itemId: string
 ): { available: true } | { available: false; reason: "item-on-cooldown" | "item-limit-reached" } {

@@ -11,9 +11,14 @@ import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBoss
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import { createGroupCombatProofState } from "../../src/domain/groupCombat/groupCombat";
-import type { PartySessionService } from "../../src/services/partySessionService";
+import {
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  type PartySessionService
+} from "../../src/services/partySessionService";
 import type { PartyBossService } from "../../src/services/partyBossService";
+import type { GroupCombatService } from "../../src/services/groupCombatService";
 import type { PresenceService } from "../../src/services/presenceService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("handlePartySessionCallback", () => {
   afterEach(async () => {
@@ -219,6 +224,81 @@ describe("handlePartySessionCallback", () => {
     expect(apiEditMessageText.mock.calls[0]?.[0]).toBe(93);
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).toContain("1. ✅ <b>Тестова Лідерка</b>");
     expect(String(apiEditMessageText.mock.calls[0]?.[2])).not.toContain("заграти журливу баладу");
+  });
+
+  it("updates left-passage readiness through the shared preparation flow", async () => {
+    const base = makeSession("recruiting");
+    const session = {
+      ...base,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const updated = withParticipantReadiness(session, "character-42", "ready", 2);
+    const setReadinessForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session: updated
+    });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "readiness", token: session.inviteToken, readiness: "ready" },
+      serviceWithCanonicalSession(updated, { setReadinessForTelegramUser }),
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) })
+      }
+    );
+
+    expect(setReadinessForTelegramUser).toHaveBeenCalledWith(42n, session.inviteToken, "ready");
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Позначено: ви готові." });
+    expect(messageText(editMessageText)).toContain("1. ✅ <b>Тестова Лідерка</b>");
+    expect(keyboardJson(editMessageText)).toContain("⏳ Зачекайте");
+    expect(keyboardJson(editMessageText)).toContain("⚔️ Почати атаку");
+  });
+
+  it("requests an atomic early start when the last left-passage participant becomes ready", async () => {
+    const base = makeSession("recruiting");
+    const session = {
+      ...base,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1,
+      participants: base.participants.map((participant) => ({
+        ...participant,
+        readiness: "ready" as const
+      }))
+    };
+    const setReadinessForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      session
+    });
+    const startReadyLeftPassage = vi.fn().mockResolvedValue({ state: "not-recruiting" });
+    const { ctx, answerCallbackQuery } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "readiness", token: session.inviteToken, readiness: "ready" },
+      serviceWithCanonicalSession(session, { setReadinessForTelegramUser }),
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: {} as PresenceService,
+        partyBoss: partyBossWith({ getByPartyInviteToken: vi.fn().mockResolvedValue(null) }),
+        groupCombat: {
+          isLeftPassageEntryEnabled: () => true,
+          startReadyLeftPassage,
+          areDevHelpersEnabled: () => false,
+          findByToken: vi.fn().mockResolvedValue(null)
+        } as unknown as GroupCombatService
+      }
+    );
+
+    expect(startReadyLeftPassage).toHaveBeenCalledWith(session.inviteToken);
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Позначено: ви готові." });
   });
 
   it("refreshes the leader recruiting card when another participant changes readiness", async () => {
@@ -1742,11 +1822,52 @@ describe("handlePartySessionCallback", () => {
 
     expect(findByToken).toHaveBeenCalledWith(party.inviteToken);
     expect(messageText(editMessageText)).toContain("✅ Доказову сутичку виграно");
-    expect(messageText(editMessageText)).toContain("<b>Внесок:</b>");
+    expect(messageText(editMessageText)).not.toContain("<b>Внесок:</b>");
+    expect(keyboardJson(editMessageText)).toContain("📊 Статистика");
     expect(messageText(editMessageText)).not.toContain("Стан: архівний запис");
     expect(messageText(editMessageText)).not.toContain("Стан ватаги змінився");
     expect(keyboardJson(editMessageText)).toContain("v1:gc:j:partyABC12:");
     expect(keyboardJson(editMessageText)).toContain("v1:gc:v:partyABC12");
+  });
+
+  it("opens a settled GroupCombat result with journal and statistics from a party deep link", async () => {
+    const party = {
+      ...makeSession("completed"),
+      version: 2,
+      activeLeaderKey: null
+    };
+    const groupSession = makeTerminalGroupCombatSession();
+    Object.assign(groupSession.participants[0]!, {
+      settlementStatus: "completed",
+      settledAt: new Date("2026-07-24T10:04:00.000Z"),
+      exitDeliveryState: "completed",
+      exitDeliveryMessageId: 93
+    });
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "stale",
+      session: party
+    });
+    const findByToken = vi.fn().mockResolvedValue(groupSession);
+    const { ctx, reply, editMessageText } = createCallbackContext(42);
+
+    await expect(sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(party, { joinByTokenForTelegramUser }),
+      party.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        groupCombat: {
+          areDevHelpersEnabled: () => true,
+          findByToken
+        }
+      }
+    )).resolves.toBe(true);
+
+    expect(findByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(String(reply.mock.calls[0]?.[0])).toContain("✅ Доказову сутичку виграно");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📜 Журнал");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📊 Статистика");
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("does not expose a terminal GroupCombat result through a public stale party card", async () => {

@@ -2,6 +2,7 @@
 import {
   presentFightAlreadyCompleted,
   presentFightNoCharacter,
+  presentFightMonsterRest,
   presentFightNeedsRest,
   presentFightResult,
   presentFightStart,
@@ -15,7 +16,8 @@ import {
   presentPersistentFightIntro,
   presentPersistentFightJournal,
   presentPersistentFightGearUnavailableNotice,
-  presentPersistentFightTurn
+  presentPersistentFightTurn,
+  presentTierTwoConstruction
 } from "../../src/bot/presenters/fightPresenter";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -373,6 +375,24 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Відплата за минулі пригоди");
     expect(intro).not.toContain("Натиск Низу");
     expect(text).not.toContain("Натиск Низу");
+  });
+
+  it("presents the post-victory second-tier discovery with its exact remaining window", () => {
+    const text = presentFightMonsterRest({
+      state: "monster-rest",
+      character,
+      questProgress: null,
+      availableAt: new Date("2026-07-27T18:23:00.000Z"),
+      now: new Date("2026-07-27T18:00:00.000Z"),
+      restKind: "left-passage-tier-two-discovery"
+    });
+
+    expect(text).toContain("Сходи, яких учора не було");
+    expect(text).toContain("другого ярусу");
+    expect(text).toContain("<b>23 хв</b>");
+    expect(text).not.toContain("Низ просить тихіше");
+    expect(presentTierTwoConstruction()).toContain("ремонт");
+    expect(presentTierTwoConstruction()).toContain("Шлях відкриється");
   });
 
   it("keeps the persistent combat intro free of Big Barrel-specific Bard mechanics", () => {

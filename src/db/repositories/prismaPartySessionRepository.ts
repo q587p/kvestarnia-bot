@@ -52,6 +52,8 @@ import {
   BUREAUCRAMANCER_PROTOCOL_MIN_LEVEL
 } from "../../services/bureaucramancerProtocol";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
+import { PRESENCE_ADVENTURE_SOLO_FIGHT } from "../../services/presenceService";
+import { LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY } from "../../domain/groupCombat/groupCombat";
 
 type TxClient = Prisma.TransactionClient;
 type PartySessionRow = Prisma.PartySessionGetPayload<{ include: typeof partySessionInclude }>;
@@ -83,6 +85,7 @@ const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
+const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
 const KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST = 13;
 const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
@@ -96,7 +99,9 @@ const partyCharacterInclude = {
   user: {
     select: {
       telegramUserId: true,
-      lastSeenLocationId: true
+      lastSeenLocationId: true,
+      currentAdventureId: true,
+      currentRaidId: true
     }
   },
   equipment: {
@@ -108,7 +113,8 @@ const partyCharacterInclude = {
     select: {
       remorts: true
     }
-  }
+  },
+  drinkState: true
 } satisfies Prisma.CharacterInclude;
 
 const personalProtocolCharacterInclude = {
@@ -203,6 +209,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
           leaderCharacterId: character.id,
           periodId: input.periodId ?? null,
           originLocationId: input.originLocationId ?? character.user.lastSeenLocationId ?? null,
+          originKind: input.originKind ?? null,
           participantCap: input.participantCap,
           minimumParticipants: input.minimumParticipants,
           joinUntilAt: input.joinUntilAt,
@@ -292,7 +299,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (
         session.status !== LIVE_STATUS ||
-        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId))
+        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId, session.originKind))
       ) {
         const expired = await expireSessionTx(tx, session.id, input.now, this.raidChat);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
@@ -307,9 +314,13 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      const ineligible = await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
+      const ineligible = await getLeftPassageJoinIneligibleReason(tx, session, character, input.now)
+        ?? await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
       if (ineligible) {
-        return ineligible.reason === "loss-cooldown" || ineligible.reason === "pending-solo-raid"
+        return ineligible.reason === "loss-cooldown" ||
+          ineligible.reason === "pending-solo-raid" ||
+          ineligible.reason === "active-search" ||
+          ineligible.reason === "left-passage-rest"
           ? {
               state: "ineligible",
               reason: ineligible.reason,
@@ -1373,6 +1384,33 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
     return sessions.map(mapSession);
   }
 
+  async listRecruitingByOriginKind(
+    originKind: string,
+    originLocationId: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    await this.expireRecruiting(now);
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originKind,
+        originLocationId,
+        expiresAt: {
+          gt: now
+        }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
   async listDueRecruitingByOrigin(
     originLocationId: string,
     now: Date,
@@ -1385,6 +1423,28 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         expiresAt: {
           lte: now
         }
+      },
+      include: partySessionInclude,
+      orderBy: [
+        { expiresAt: "asc" },
+        { createdAt: "asc" }
+      ],
+      take: limit
+    });
+
+    return sessions.map(mapSession);
+  }
+
+  async listDueRecruitingByOriginKind(
+    originKind: string,
+    now: Date,
+    limit = 23
+  ): Promise<PartySessionRecord[]> {
+    const sessions = await this.prisma.partySession.findMany({
+      where: {
+        status: LIVE_STATUS,
+        originKind,
+        expiresAt: { lte: now }
       },
       include: partySessionInclude,
       orderBy: [
@@ -1626,6 +1686,7 @@ async function expireTokenIfNeededTx(
       id: true,
       status: true,
       originLocationId: true,
+      originKind: true,
       expiresAt: true
     }
   });
@@ -1633,7 +1694,7 @@ async function expireTokenIfNeededTx(
   if (
     session?.status === LIVE_STATUS &&
     session.expiresAt <= now &&
-    !isAutomaticStartOrigin(session.originLocationId)
+    !isAutomaticStartOrigin(session.originLocationId, session.originKind)
   ) {
     await terminalizeSessionTx(tx, session.id, "expired", now, raidChat);
   }
@@ -1664,6 +1725,10 @@ async function expireRecruitingTx(
           GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID
         ]
       },
+      OR: [
+        { originKind: null },
+        { NOT: { originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND } }
+      ],
       expiresAt: {
         lte: now
       }
@@ -1684,9 +1749,10 @@ async function expireRecruitingTx(
   return sessions.length;
 }
 
-function isAutomaticStartOrigin(originLocationId: string | null): boolean {
+function isAutomaticStartOrigin(originLocationId: string | null, originKind: string | null): boolean {
   return originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
-    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
+    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID ||
+    originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
 }
 
 async function terminalizeSessionTx(
@@ -1721,6 +1787,13 @@ async function terminalizeSessionTx(
     occurredAt: now
   });
   await raidChat.terminalize(tx, sessionId, now);
+  const terminalSession = await tx.partySession.findUnique({
+    where: { id: sessionId },
+    select: { originKind: true }
+  });
+  if (terminalSession?.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    await releasePendingPassageReservationTx(tx, sessionId, now);
+  }
   await tx.partyParticipant.updateMany({
     where: {
       sessionId,
@@ -1730,6 +1803,54 @@ async function terminalizeSessionTx(
     },
     data: {
       activeMembershipKey: null
+    }
+  });
+}
+
+async function releasePendingPassageReservationTx(
+  tx: TxClient,
+  partySessionId: string,
+  now: Date
+): Promise<void> {
+  const encounter = await tx.pendingPassageEncounter.findFirst({
+    where: {
+      reservedPartySessionId: partySessionId,
+      status: "reserved"
+    },
+    include: {
+      character: {
+        select: {
+          _count: {
+            select: { remorts: true }
+          }
+        }
+      }
+    }
+  });
+  if (!encounter) {
+    return;
+  }
+
+  const sameLife = encounter.reservationRemortCount === encounter.character._count.remorts;
+  const reusable = sameLife && encounter.expiresAt > now;
+  const reusableStatus = encounter.combatSessionId ? "consumed" : "pending";
+  await tx.pendingPassageEncounter.updateMany({
+    where: {
+      id: encounter.id,
+      status: "reserved",
+      version: encounter.version,
+      reservedPartySessionId: partySessionId
+    },
+    data: {
+      status: reusable ? reusableStatus : "expired",
+      activeKey: reusable && reusableStatus === "pending" ? encounter.activeKey : null,
+      reservationOrigin: null,
+      reservationRemortCount: null,
+      reservedMonsterHp: null,
+      reservedPartySessionId: null,
+      reservedAt: null,
+      ...(!reusable ? { cancelledAt: now } : {}),
+      version: { increment: 1 }
     }
   });
 }
@@ -1744,6 +1865,7 @@ function mapSession(row: PartySessionRow): PartySessionRecord {
     leaderCharacterId: row.leaderCharacterId,
     periodId: row.periodId,
     originLocationId: row.originLocationId,
+    originKind: row.originKind,
     participantCap: row.participantCap,
     minimumParticipants: row.minimumParticipants,
     joinUntilAt: row.joinUntilAt,
@@ -1809,7 +1931,12 @@ async function getBigBarrelJoinIneligibleReason(
   character: CharacterRow,
   now: Date
 ): Promise<
-  | { reason: Exclude<PartyJoinIneligibleReason, "loss-cooldown" | "pending-solo-raid"> }
+  | {
+      reason: Exclude<
+        PartyJoinIneligibleReason,
+        "loss-cooldown" | "pending-solo-raid" | "active-search" | "left-passage-rest"
+      >
+    }
   | { reason: "loss-cooldown"; availableAt: Date }
   | { reason: "pending-solo-raid"; availableAt: Date }
   | null
@@ -1874,6 +2001,164 @@ async function getBigBarrelJoinIneligibleReason(
   }
 
   return null;
+}
+
+async function getLeftPassageJoinIneligibleReason(
+  tx: TxClient,
+  session: PartySessionRow,
+  character: CharacterRow,
+  now: Date
+): Promise<
+  | {
+      reason: Exclude<
+        PartyJoinIneligibleReason,
+        "loss-cooldown" | "pending-solo-raid" | "active-search" | "left-passage-rest"
+      >
+    }
+  | { reason: "active-search"; availableAt: Date }
+  | { reason: "left-passage-rest"; availableAt: Date }
+  | null
+> {
+  if (session.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    return null;
+  }
+  if (session.expiresAt <= now) {
+    return { reason: "expired-invitation" };
+  }
+  if (
+    !session.originLocationId ||
+    character.user.lastSeenLocationId !== session.originLocationId ||
+    (
+      character.user.currentAdventureId !== null &&
+      character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
+    ) ||
+    character.user.currentRaidId !== null
+  ) {
+    return { reason: "wrong-location" };
+  }
+  const existing = session.participants.find((participant) => participant.characterId === character.id);
+  if (existing && existing.remortCount !== character._count.remorts) {
+    return { reason: "stale-life" };
+  }
+  if (hasInvalidEffectiveResources(character)) {
+    return { reason: "invalid-resources" };
+  }
+  const activeLease = await tx.activeCombatLease.findUnique({
+    where: { characterId: character.id },
+    select: { id: true }
+  });
+  if (activeLease) {
+    return { reason: "active-combat" };
+  }
+  await materializeLeftPassageJoinResources(tx, character, now);
+  if (character.hpCurrent <= 0) {
+    return { reason: "dead" };
+  }
+  const [activeSearch, leftPassageRest] = await Promise.all([
+    tx.passageSearchAction.findFirst({
+      where: {
+        characterId: character.id,
+        status: "running",
+        endsAt: { gt: now }
+      },
+      select: { id: true, endsAt: true }
+    }),
+    tx.characterCooldown.findUnique({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY
+        }
+      },
+      select: { availableAt: true }
+    })
+  ]);
+  if (activeSearch) {
+    return { reason: "active-search", availableAt: activeSearch.endsAt };
+  }
+  if (leftPassageRest && leftPassageRest.availableAt > now) {
+    return { reason: "left-passage-rest", availableAt: leftPassageRest.availableAt };
+  }
+  return null;
+}
+
+async function materializeLeftPassageJoinResources(
+  tx: TxClient,
+  character: CharacterRow,
+  now: Date
+): Promise<void> {
+  const attunementPayloads = await findCurrentEquipmentAttunementPayloads(tx, character);
+  const equippedItems = character.equipment.flatMap((row) => {
+    if (isEquipmentAttunementPendingForRow({ row, actionPayloads: attunementPayloads, now })) {
+      return [];
+    }
+    const item = items.find((candidate) => candidate.id === row.itemId);
+    return item ? [item] : [];
+  });
+  const summary = summarizeCharacter(mapCharacter(character), {
+    equippedItems,
+    remortCount: character._count.remorts
+  });
+  const regeneration = applyPassiveResourceRegeneration({
+    resources: {
+      hpCurrent: summary.hpCurrent,
+      hpMax: summary.hpMax,
+      manaCurrent: summary.manaCurrent,
+      manaMax: summary.manaMax,
+      hpRegenAt: character.hpRegenAt,
+      manaRegenAt: character.manaRegenAt
+    },
+    profile: {
+      raceId: summary.raceId,
+      classId: summary.classId,
+      title: summary.title,
+      stats: summary.stats
+    },
+    now,
+    multiplierWindows: buildShynokRecoveryWindows(mapPartyDrinkState(character.drinkState))
+  });
+  if (!regeneration.changed) {
+    return;
+  }
+  const updated = await tx.character.updateMany({
+    where: {
+      id: character.id,
+      hpCurrent: character.hpCurrent,
+      manaCurrent: character.manaCurrent,
+      hpRegenAt: character.hpRegenAt,
+      manaRegenAt: character.manaRegenAt
+    },
+    data: {
+      hpCurrent: regeneration.resources.hpCurrent,
+      manaCurrent: regeneration.resources.manaCurrent,
+      hpRegenAt: regeneration.resources.hpRegenAt,
+      manaRegenAt: regeneration.resources.manaRegenAt
+    }
+  });
+  if (updated.count === 1) {
+    character.hpCurrent = regeneration.resources.hpCurrent;
+    character.manaCurrent = regeneration.resources.manaCurrent;
+    character.hpRegenAt = regeneration.resources.hpRegenAt;
+    character.manaRegenAt = regeneration.resources.manaRegenAt;
+    return;
+  }
+  const latest = await tx.character.findUnique({
+    where: { id: character.id },
+    include: partyCharacterInclude
+  });
+  if (latest) {
+    Object.assign(character, latest);
+  }
+}
+
+function hasInvalidEffectiveResources(character: CharacterRow): boolean {
+  const effective = buildPartyBossCombatStats({
+    ...mapCharacter(character),
+    equipment: character.equipment
+  });
+  return character.hpCurrent > effective.hpMax ||
+    character.manaCurrent < 0 ||
+    character.manaCurrent > effective.manaMax;
 }
 
 async function findActiveBigBarrelLossCooldown(
@@ -2886,7 +3171,7 @@ async function findCurrentEquipmentAttunementPayloads(
 }
 
 function mapPartyDrinkState(
-  record: PersonalProtocolCharacterRow["drinkState"]
+  record: CharacterRow["drinkState"]
 ): Parameters<typeof buildShynokRecoveryWindows>[0] {
   if (!record || !isShynokDrinkKey(record.drinkKey)) {
     return null;

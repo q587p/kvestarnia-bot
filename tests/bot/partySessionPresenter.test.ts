@@ -24,7 +24,11 @@ import type { PartySessionRecord } from "../../src/db/repositories/partySessionR
 import { getCombatMantokAbilityGrantsByIds } from "../../src/content";
 import { findRaceAbility } from "../../src/content/playerAbilities";
 import { createPartyBossState, resolvePartyBossRound } from "../../src/domain/partyBoss/partyBoss";
-import { GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID } from "../../src/services/partySessionService";
+import {
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+} from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("party session presenter", () => {
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
@@ -1480,6 +1484,36 @@ describe("party session presenter", () => {
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
   });
 
+  it("shows the same readiness markers for the left-passage gathering", () => {
+    const session = {
+      ...makePartySession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1,
+      participants: makePartySession().participants.map((participant, index) => ({
+        ...participant,
+        readiness: index === 0 ? "ready" as const : "waiting" as const
+      }))
+    };
+
+    const text = presentPartySession(session, {
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_compact",
+      notice: "Монстра в лівому проході притримано для цієї ватаги."
+    });
+
+    expect(text).toContain("🤝 <b>Ватага до лівого проходу</b>");
+    expect(text).toContain("1. ✅ <b>Голова</b>");
+    expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+    expect(text).toContain("Стан: атака почнеться, щойно всі будуть готові");
+    expect(text).toContain("Лідер може рушити раніше.");
+    expect(text).toContain("Склад ворогів підлаштується під силу ватаги.");
+    expect(text.match(/автоматично/g)).toHaveLength(1);
+    expect(text.match(/раніше/g)).toHaveLength(1);
+    expect(text).not.toContain("Збір триває рівно три хвилини");
+    expect(text).not.toContain("Це справжня атака 1–3 пригодників");
+  });
+
   it("shows Bureaucramancer protocol signature count without signer names on recruiting cards", () => {
     const session = {
       ...makePartySession(),
@@ -1531,6 +1565,42 @@ describe("party session presenter", () => {
     expect(cooldownText).toContain("короткий перепочинок");
     expect(cooldownText).toContain("2 хвилини");
     expect(presentPartyJoin({ state: "ineligible", session })).toContain("правильною печаткою");
+  });
+
+  it("explains left-passage join blockers without Big Barrel copy", () => {
+    const session = {
+      ...makePartySession(),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "presence.location.korchma.deep.level1.left"
+    };
+    const searchText = presentPartyJoin({
+      state: "ineligible",
+      reason: "active-search",
+      availableAt: new Date("2026-06-30T10:03:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+
+    expect(searchText).toContain("ще триває ваш пошук");
+    expect(searchText).toContain("3 хвилини");
+    expect(searchText).not.toContain("Бочки");
+
+    const restText = presentPartyJoin({
+      state: "ineligible",
+      reason: "left-passage-rest",
+      availableAt: new Date("2026-06-30T10:03:00.000Z"),
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      session
+    });
+    expect(restText).toContain("Після попередньої групової бійки ще триває перепочинок");
+    expect(restText).toContain("До іншої ватаги можна приєднатися за <b>3 хвилини</b>");
+    expect(restText).not.toContain("лівий прохід");
+    expect(restText).not.toContain("Бочки");
+    expect(presentPartyJoin({
+      state: "ineligible",
+      reason: "invalid-resources",
+      session
+    })).toContain("сил або мани");
   });
 
   it("keeps terminal-ineligible copy distinct from deadline expiry across stale views", () => {

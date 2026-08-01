@@ -1365,6 +1365,8 @@ describe("monster ability runtime", () => {
       rng: new FakeRandomSource([0.99])
     }).reflectedDamage).toBe(0);
     expect(missedCounter.monsterRuntime?.effects.find((effect) => effect.kind === "counter")?.charges).toBe(1);
+    expect(missedCounter.monsterRuntime?.effects.find((effect) => effect.kind === "counter")?.remainingOwnActivations)
+      .toBe(castCounter.state.monsterRuntime?.effects.find((effect) => effect.kind === "counter")?.remainingOwnActivations);
     expect(applyMonsterRuntimeHeroDamage({
       state: landedCounter,
       heroDamage: 30,

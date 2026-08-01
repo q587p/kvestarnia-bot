@@ -25,6 +25,7 @@ import {
   buildPersistentFightDifficultyKeyboard,
   buildPersistentFightJournalKeyboard,
   buildPersistentFightKeyboard,
+  buildPersistentFightItemsKeyboard,
   buildPersistentFightPassagePreviewKeyboard,
   buildPersistentFightPassageRestKeyboard,
   buildPersistentFightResultKeyboard
@@ -812,7 +813,7 @@ describe("main menu and scene keyboards", () => {
       encounterToken: "token13",
       searchAvailable: false
     }))).toEqual([
-      "⚔️ Атакувати",
+      "⚔️ Атакувати самостійно",
       "↩️ Повернутися до Сутеренів"
     ]);
     expect(flatInlineButtonTexts(buildPersistentFightPassageRestKeyboard({
@@ -3305,6 +3306,56 @@ describe("main menu and scene keyboards", () => {
         "⬅️ Назад"
       );
     }
+  });
+
+  it("shows the return button above the discovered second tier without search", () => {
+    const keyboard = buildPersistentFightPassageRestKeyboard({
+      passage: "deep-left",
+      showTierTwo: true
+    });
+
+    expect(inlineButtonRows(keyboard)).toEqual([
+      ["↩️ Повернутися до Сутеренів"],
+      ["🪜 Ярус II"]
+    ]);
+    expect(flatInlineButtonCallbacks(keyboard)).toEqual([
+      "v1:place:deep-level1",
+      "v1:fight:tier2"
+    ]);
+  });
+
+  it("keeps ordinary combat items behind one button and a bounded submenu", () => {
+    const session = persistentFightSession();
+    const mainLabels = flatInlineButtonTexts(
+      buildPersistentFightKeyboard(session, character, { includeCombatItems: true })
+    );
+    const menu = buildPersistentFightItemsKeyboard({
+      sessionId: session.id,
+      turn: session.state!.turn,
+      items: [
+        {
+          itemKey: "panic",
+          name: "🩹 Бинт відповідальної паніки",
+          quantity: 2
+        },
+        {
+          itemKey: "field",
+          name: "⚕️ Польова аптечка",
+          quantity: 1
+        }
+      ]
+    });
+
+    expect(mainLabels).toContain("🎒 Одноразові манатки");
+    expect(mainLabels).not.toContain("🩹 Бинт відповідальної паніки");
+    expect(flatInlineButtonTexts(menu)).toEqual([
+      "🩹 Бинт відповідальної паніки (2)",
+      "⚕️ Польова аптечка",
+      "↩️ До бою"
+    ]);
+    expect(flatInlineButtonCallbacks(menu).every((callback) =>
+      Buffer.byteLength(callback, "utf8") <= 64
+    )).toBe(true);
   });
 
   it("returns daily Korchma round cards to the exact scene location", () => {

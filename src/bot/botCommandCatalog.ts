@@ -229,6 +229,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "group-combat"
   },
   {
+    command: "dev_group_combat_timeout",
+    icon: "⏱️",
+    description: "завершити очікування ходу гуртової сутички локально",
+    includeInMenu: false,
+    devOnly: "group-combat"
+  },
+  {
     command: "dev_raid_chat",
     icon: "💬",
     description: "наповнити, очистити або зістарити рейд-чат локально",

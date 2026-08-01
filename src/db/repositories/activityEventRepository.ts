@@ -4,6 +4,7 @@ export const activityEventTypes = [
   "character.created",
   "character.level_reached",
   "party.raid_won",
+  "party.encounter_won",
   "raid.completed",
   "item.rare_received",
   "item.upgraded",

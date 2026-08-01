@@ -384,6 +384,20 @@ export class PartyBossService {
     return this.sessions.findActiveByTelegramUserId(telegramUserId);
   }
 
+  async getActiveByPartySessionIdForCharacterId(
+    partySessionId: string,
+    characterId: string
+  ): Promise<PartyBossSessionRecord | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
+
+    return this.sessions.findActiveByPartySessionIdForCharacterId(
+      partySessionId,
+      characterId
+    );
+  }
+
   async getByPartyInviteToken(partyInviteToken: string): Promise<PartyBossSessionRecord | null> {
     if (!this.isEnabled()) {
       return null;

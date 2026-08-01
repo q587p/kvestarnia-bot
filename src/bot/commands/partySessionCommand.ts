@@ -1,7 +1,10 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
-import type { GroupCombatService } from "../../services/groupCombatService";
+import {
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  type GroupCombatService
+} from "../../services/groupCombatService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
@@ -20,6 +23,7 @@ import {
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
 import { buildGroupCombatKeyboard } from "../keyboards/groupCombatKeyboard";
+import { deliverGroupCombatCards } from "../groupCombatCardDelivery";
 import {
   presentPartyCancel,
   presentPartyBoss,
@@ -70,7 +74,7 @@ export interface PartySessionCommandOptions {
   presence: PresenceService;
   partyBoss?: PartyBossService | undefined;
   partyRaidChat?: PartyRaidChatService | undefined;
-  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
+  groupCombat?: GroupCombatService | undefined;
 }
 
 export function registerPartySessionDevCommand(
@@ -620,15 +624,42 @@ export async function handlePartySessionCallback(
       callback.token,
       callback.readiness
     );
-    await safeAnswerCallbackQuery(ctx, { text: presentReadinessCallbackAnswer(result.state, callback.readiness) });
 
     if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, { text: presentReadinessCallbackAnswer(result.state, callback.readiness) });
       await sendText(ctx, "edit", result.state === "no-character"
         ? "Квестарня не впізнала пригодника. Спробуйте ще раз із особистого акаунта."
         : "Ватага не знайшлася.", false);
       return;
     }
 
+    const joined = result.session.participants.filter(
+      (participant) => participant.status === "joined"
+    );
+    const shouldAutoStartLeftPassage =
+      result.session.status === "recruiting" &&
+      result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
+      joined.length >= 1 &&
+      joined.length <= 3 &&
+      joined.every((participant) => participant.readiness === "ready") &&
+      options.groupCombat?.isLeftPassageEntryEnabled() === true;
+    if (shouldAutoStartLeftPassage && options.groupCombat) {
+      const groupCombat = options.groupCombat;
+      const started = await serializePartySessionDelivery(callback.token, () =>
+        groupCombat.startReadyLeftPassage(callback.token)
+      );
+      if ("session" in started) {
+        await safeAnswerCallbackQuery(ctx, {
+          text: started.state === "started"
+            ? "Усі готові. Ватага рушає в атаку."
+            : "Бій уже почався."
+        });
+        await deliverGroupCombatCards(ctx.api, groupCombat, started.session);
+        return;
+      }
+    }
+
+    await safeAnswerCallbackQuery(ctx, { text: presentReadinessCallbackAnswer(result.state, callback.readiness) });
     await sendCanonicalPartyPreparationCard(
       ctx,
       result.session.inviteToken,
@@ -1354,10 +1385,22 @@ async function sendCanonicalPartyPreparationCard(
         ? groupSession?.participants.find((participant) => participant.telegramUserId === telegramUserId)
         : null;
       if (groupSession && groupSession.status !== "active" && groupViewer) {
-        await safeEditMessageText(ctx, presentGroupCombat(groupSession, groupViewer.characterId), {
+        const groupOptions = {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildGroupCombatKeyboard(groupSession, groupViewer.characterId)
-        });
+        };
+        if ((options.mode ?? "edit") === "reply") {
+          await ctx.reply(
+            presentGroupCombat(groupSession, groupViewer.characterId),
+            groupOptions
+          );
+        } else {
+          await safeEditMessageText(
+            ctx,
+            presentGroupCombat(groupSession, groupViewer.characterId),
+            groupOptions
+          );
+        }
         return;
       }
       if (canonical.state === "missing") {

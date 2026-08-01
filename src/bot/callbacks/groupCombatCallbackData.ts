@@ -4,8 +4,12 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GroupCombatCallback =
   | { type: "start"; token: string }
+  | { type: "start-left"; token: string }
+  | { type: "invite-left"; token: string }
   | { type: "view"; token: string }
   | { type: "journal"; token: string; page: number }
+  | { type: "statistics"; token: string }
+  | { type: "items"; token: string; turn: number }
   | {
       type: "action";
       token: string;
@@ -13,6 +17,7 @@ export type GroupCombatCallback =
       action: GroupCombatActionKey;
       optionIndex?: number;
       targetIndex: number;
+      source?: "reply-menu";
     };
 
 type GroupCombatCallbackError = "invalid" | "too-long";
@@ -26,8 +31,24 @@ export function makeGroupCombatStartCallbackData(token: string): string {
   return `v1:gc:s:${token}`;
 }
 
+export function makeLeftPassagePartyInviteCallbackData(encounterToken: string): string {
+  return `v3:gc:i:${encounterToken}`;
+}
+
+export function makeLeftPassageGroupCombatStartCallbackData(token: string): string {
+  return `v3:gc:s:${token}`;
+}
+
 export function makeGroupCombatJournalCallbackData(token: string, page: number): string {
   return `v1:gc:j:${token}:${Math.max(0, Math.floor(page)).toString(36)}`;
+}
+
+export function makeGroupCombatStatisticsCallbackData(token: string): string {
+  return `v1:gc:t:${token}`;
+}
+
+export function makeGroupCombatItemsMenuCallbackData(token: string, turn: number): string {
+  return `v2:gc:m:${token}:${Math.max(1, Math.floor(turn)).toString(36)}`;
 }
 
 export function makeGroupCombatActionCallbackData(input: {
@@ -36,8 +57,10 @@ export function makeGroupCombatActionCallbackData(input: {
   action: GroupCombatActionKey;
   optionIndex?: number;
   targetIndex: number;
+  source?: "reply-menu";
 }): string {
-  return `v2:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
+  const version = input.source === "reply-menu" ? "v3" : "v2";
+  return `${version}:gc:a:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
     0,
     Math.floor(input.optionIndex ?? 0)
   ).toString(36)}:${input.targetIndex.toString(36)}`;
@@ -50,12 +73,22 @@ export function parseGroupCombatCallbackData(
     return err(data ? "too-long" : "invalid");
   }
   const parts = data.split(":");
-  if ((parts[0] !== "v1" && parts[0] !== "v2") || parts[1] !== "gc" || !TOKEN_PATTERN.test(parts[3] ?? "")) {
+  if (
+    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3") ||
+    parts[1] !== "gc" ||
+    !TOKEN_PATTERN.test(parts[3] ?? "")
+  ) {
     return err("invalid");
   }
   const token = parts[3]!;
   if (parts[0] === "v1" && parts[2] === "s" && parts.length === 4) {
     return ok({ type: "start", token });
+  }
+  if (parts[0] === "v3" && parts[2] === "s" && parts.length === 4) {
+    return ok({ type: "start-left", token });
+  }
+  if (parts[0] === "v3" && parts[2] === "i" && parts.length === 4) {
+    return ok({ type: "invite-left", token });
   }
   if (parts[0] === "v1" && parts[2] === "v" && parts.length === 4) {
     return ok({ type: "view", token });
@@ -64,7 +97,14 @@ export function parseGroupCombatCallbackData(
     const page = parseBase36(parts[4], true);
     return page === null ? err("invalid") : ok({ type: "journal", token, page });
   }
-  if (parts[0] !== "v2" || parts[2] !== "a" || parts.length !== 8) {
+  if (parts[0] === "v1" && parts[2] === "t" && parts.length === 4) {
+    return ok({ type: "statistics", token });
+  }
+  if (parts[0] === "v2" && parts[2] === "m" && parts.length === 5) {
+    const turn = parseBase36(parts[4]);
+    return turn === null ? err("invalid") : ok({ type: "items", token, turn });
+  }
+  if ((parts[0] !== "v2" && parts[0] !== "v3") || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");
   }
   const turn = parseBase36(parts[4]);
@@ -78,7 +118,8 @@ export function parseGroupCombatCallbackData(
         turn,
         action,
         ...(optionIndex > 0 ? { optionIndex } : {}),
-        targetIndex
+        targetIndex,
+        ...(parts[0] === "v3" ? { source: "reply-menu" as const } : {})
       })
     : err("invalid");
 }
@@ -94,7 +135,9 @@ function actionKey(action: GroupCombatActionKey): string {
           ? "r"
           : action === "gear"
             ? "e"
-            : "i";
+            : action === "item"
+              ? "i"
+              : "f";
 }
 
 function parseAction(value: string | undefined): GroupCombatActionKey | null {
@@ -110,7 +153,9 @@ function parseAction(value: string | undefined): GroupCombatActionKey | null {
             ? "gear"
             : value === "i"
               ? "item"
-              : null;
+              : value === "f"
+                ? "flee"
+                : null;
 }
 
 function parseBase36(value: string | undefined, allowZero = false): number | null {

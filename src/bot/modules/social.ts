@@ -13,13 +13,21 @@ import { handleItemPostalCallback } from "../commands/itemPostalCommand";
 import { handleClassNoncombatCallback } from "../commands/classNoncombatCommand";
 import { handleNearbyDuelCallback } from "../commands/nearbyDuelCommand";
 import { handlePartySessionCallback, registerPartySessionDevCommand } from "../commands/partySessionCommand";
-import { handleGroupCombatCallback, registerGroupCombatDevCommand } from "../commands/groupCombatCommand";
+import {
+  handleGroupCombatCallback,
+  registerGroupCombatDevCommand,
+  registerGroupCombatReplyKeyboard
+} from "../commands/groupCombatCommand";
 import { playerFromContext } from "../context";
 
 import {
   guardActivePassageSearchCommand,
   showActivePassageSearchIfNeeded
 } from "./passageSearchGuard";
+import {
+  placeCallbackToPersistentFightPassage,
+  sendPersistentFightPassagePreview
+} from "./persistentFightNavigation";
 import type { BotModuleDependencies } from "./types";
 
 export function registerSocialBotModule(
@@ -53,12 +61,25 @@ export function registerSocialBotModule(
   }
 
   if (services.groupCombat?.isEnabled()) {
+    registerGroupCombatReplyKeyboard(bot, services.groupCombat);
     registerParsedCallbackRoute(
       bot,
-      /^v[12]:gc:/,
+      /^v[123]:gc:/,
       (data) => parseWhenAvailable(data, parseGroupCombatCallbackData, services.groupCombat),
       async (ctx, { callback, service }) => {
-        await handleGroupCombatCallback(ctx, callback, service);
+        await handleGroupCombatCallback(ctx, callback, service, {
+          refreshLeftPassagePreview: async (callbackContext) => {
+            const passage = placeCallbackToPersistentFightPassage("deep-left");
+            if (passage) {
+              await sendPersistentFightPassagePreview(
+                callbackContext,
+                services,
+                passage,
+                "edit"
+              );
+            }
+          }
+        });
       }
     );
   }

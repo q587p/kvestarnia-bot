@@ -7,6 +7,7 @@ import { PrismaCellarGrownupQuestRepository } from "../db/repositories/prismaCel
 import { PrismaCharacterRepository } from "../db/repositories/prismaCharacterRepository";
 import { PrismaClassNoncombatRepository } from "../db/repositories/prismaClassNoncombatRepository";
 import { PrismaCombatBalanceAnalyticsRepository } from "../db/repositories/prismaCombatBalanceAnalyticsRepository";
+import { PrismaCombatLeaseReadRepository } from "../db/repositories/prismaCombatLeaseReadRepository";
 import { PrismaCooldownRepository } from "../db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "../db/repositories/prismaDevGrantRepository";
@@ -63,6 +64,7 @@ export function createRepositories(
     cellarGrownupQuests: new PrismaCellarGrownupQuestRepository(prisma, hpRecoveryProducer),
     classNoncombat: new PrismaClassNoncombatRepository(prisma, hpRecoveryProducer),
     combatBalanceAnalytics: new PrismaCombatBalanceAnalyticsRepository(prisma),
+    combatLeaseReads: new PrismaCombatLeaseReadRepository(prisma),
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
     devGrants: new PrismaDevGrantRepository(prisma),

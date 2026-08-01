@@ -2,7 +2,10 @@ import { Bot, type Api, type Context } from "grammy";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handleGroupCombatCallback,
-  registerGroupCombatDevCommand
+  presentGroupCombatStartFailure,
+  presentLeftPassageInviteFailure,
+  registerGroupCombatDevCommand,
+  registerGroupCombatReplyKeyboard
 } from "../../src/bot/commands/groupCombatCommand";
 import { deliverGroupCombatCards } from "../../src/bot/groupCombatCardDelivery";
 import {
@@ -14,23 +17,115 @@ import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotServices } from "../../src/bot/botServices";
 import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerCombatLockMiddleware";
-import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
+import {
+  buildGroupCombatActionMenuKeyboard,
+  buildGroupCombatKeyboard
+} from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group combat bot flow", () => {
   afterEach(() => {
     clearMessageFreshnessTracking();
   });
 
+  it("shows canonical remaining search time on left-passage create and start blockers", () => {
+    const availableAt = new Date("2026-07-24T10:03:00.000Z");
+    const now = new Date("2026-07-24T10:00:00.000Z");
+
+    expect(presentLeftPassageInviteFailure({
+      state: "active-search",
+      availableAt,
+      now
+    })).toContain("3 хвилини");
+    expect(presentGroupCombatStartFailure({
+      state: "active-search",
+      availableAt,
+      now
+    })).toContain("3 хвилини");
+    expect(presentGroupCombatStartFailure({ state: "invalid-size" })).toContain(
+      "Поточний склад ватаги не підходить"
+    );
+  });
+
+  it("explains every left-passage reservation blocker instead of using an opaque fallback", () => {
+    expect(presentLeftPassageInviteFailure({ state: "invalid-preview" })).toContain(
+      "Відкрийте лівий прохід ще раз"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-adventure" })).toContain(
+      "завершіть поточну пригоду"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-raid" })).toContain(
+      "завершіть поточний рейд"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "active-combat" })).toContain(
+      "завершіть поточний бій"
+    );
+    expect(presentLeftPassageInviteFailure({ state: "reservation-conflict" })).toContain(
+      "Стан цього сліду вже змінився"
+    );
+  });
+
+  it("refreshes a stale left-passage invite card without a false changed-occasion alert", async () => {
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const refreshLeftPassagePreview = vi.fn().mockResolvedValue(undefined);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-stale-preview",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "invite-left", token: "stale-preview" },
+      {
+        createLeftPassageParty: vi.fn().mockResolvedValue({ state: "invalid-preview" })
+      } as unknown as GroupCombatService,
+      { refreshLeftPassagePreview }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Ця кнопка вже не веде до збору ватаги. Оновив доступні дії."
+    });
+    expect(refreshLeftPassagePreview).toHaveBeenCalledWith(ctx);
+  });
+
   it("cannot mutate through a dev command when the production gate is closed", async () => {
     const bot = testBot();
     const startProof = vi.fn();
+    const resolveDevTimeout = vi.fn();
     registerGroupCombatDevCommand(bot, {
       areDevHelpersEnabled: () => false,
-      startProof
+      startProof,
+      resolveDevTimeout
     } as unknown as GroupCombatService);
 
     await bot.handleUpdate(commandUpdate("/dev_group_combat proof-token-13"));
+    await bot.handleUpdate(commandUpdate("/dev_group_combat_timeout proof-token-13"));
     expect(startProof).not.toHaveBeenCalled();
+    expect(resolveDevTimeout).not.toHaveBeenCalled();
+  });
+
+  it("runs the narrow timeout helper only through the non-production group-combat gate", async () => {
+    const bot = testBot();
+    const resolveDevTimeout = vi.fn().mockResolvedValue({ state: "not-found" });
+    registerGroupCombatDevCommand(bot, {
+      areDevHelpersEnabled: () => true,
+      resolveDevTimeout
+    } as unknown as GroupCombatService);
+    const replies: string[] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        replies.push(String(payload.text));
+      }
+      return Promise.resolve({ ok: true, result: { message_id: replies.length } });
+    });
+
+    await bot.handleUpdate(commandUpdate("/dev_group_combat_timeout proof-token-13"));
+    expect(resolveDevTimeout).toHaveBeenCalledWith("proof-token-13");
+    expect(replies).toEqual(["Живої гуртової сутички з таким кодом не знайдено."]);
   });
 
   it("explains where the party code comes from and excludes the party_ prefix", async () => {
@@ -90,7 +185,7 @@ describe("group combat bot flow", () => {
     expect(submitAction).not.toHaveBeenCalled();
   });
 
-  it("routes a real v2 action button through combat-lock middleware and the social module exactly once", async () => {
+  it("routes a reply-menu action through combat-lock middleware and the social module exactly once", async () => {
     const bot = testBot();
     const session = makeSession();
     const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
@@ -104,9 +199,13 @@ describe("group combat bot flow", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService;
     const services = { groupCombat: service } as unknown as BotServices;
-    const callbackData = buildGroupCombatKeyboard(session, "character-1").inline_keyboard
+    const callbackData = buildGroupCombatActionMenuKeyboard(
+      session,
+      "character-1",
+      "attack"
+    ).inline_keyboard
       .flat()
-      .find((button) => "callback_data" in button && button.callback_data.startsWith("v2:gc:a:"));
+      .find((button) => "callback_data" in button && button.callback_data.startsWith("v3:gc:a:"));
 
     expect(callbackData).toBeDefined();
     bot.api.config.use((_prev, method) => Promise.resolve({
@@ -135,10 +234,294 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("starts the proof from the leader party card and delivers canonical private cards", async () => {
+  it("redraws an unavailable reply-menu action as the newest canonical battle card", async () => {
+    const bot = testBot();
     const session = makeSession();
+    session.state.enemies[1]!.hp = 0;
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
+    const submitAction = vi.fn().mockResolvedValue({ state: "action-unavailable" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]).toContain("<b>Бій</b>:");
+    expect(sentTexts.join("\n")).not.toContain("Ця дія зараз недоступна");
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
+  });
+
+  it("durably requests refresh before publishing one fresh card with the reply keyboard", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const delivery = cardDeliveryHarness(session);
+    const order: string[] = [];
+    const requestParticipantUiRefresh = vi.fn(() => {
+      order.push("request");
+      session.deliveryPending = true;
+      session.participants[0]!.replyKeyboardFingerprint = null;
+      return Promise.resolve(true);
+    });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      requestParticipantUiRefresh,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered
+    } as unknown as GroupCombatService;
+    const sentInlineKeyboards: string[][] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        order.push("send");
+        sentInlineKeyboards.push(inlineKeyboardLabels(payload.reply_markup));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🔎 Оновити"));
+
+    expect(requestParticipantUiRefresh).toHaveBeenCalledWith({
+      sessionId: session.id,
+      telegramUserId: 1001n
+    });
+    expect(order[0]).toBe("request");
+    expect(order.filter((entry) => entry === "send")).toHaveLength(1);
+    expect(sentInlineKeyboards).toHaveLength(1);
+    expect(sentInlineKeyboards[0]).toContain("🔎 Оновити");
+    expect(sentInlineKeyboards[0]).toContain("🗡️ Шурхіт");
+    expect(session.participants[0]).toMatchObject({
+      chatId: 1001n,
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
+  });
+
+  it("submits a concrete one-target ability directly without opening an ability submenu", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    session.state.participants[0]!.classId = "class.warrior";
+    session.state.participants[0]!.raceId = "race.dwarf";
+    session.state.enemies[1]!.hp = 0;
+    const delivery = cardDeliveryHarness(session);
+    const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method) => Promise.resolve({
+      ok: true,
+      result: method === "sendMessage"
+        ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+        : true
+    }));
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "class",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
+  });
+
+  it("routes an immediate duplicate frozen ability press through canonical validation and redraws once", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const actor = session.state.participants[0]!;
+    actor.classId = "class.warrior";
+    actor.raceId = "race.dwarf";
+    session.state.enemies[1]!.hp = 0;
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
+    const inlineKeyboards: string[][] = [];
+    const submitAction = vi.fn()
+      .mockImplementationOnce(() => {
+        actor.cooldowns = {
+          abilities: {
+            "skill.forceful-strike": {
+              id: "skill.forceful-strike",
+              remainingTurns: 2
+            }
+          }
+        };
+        return Promise.resolve({ state: "queued", session });
+      })
+      .mockResolvedValueOnce({ state: "action-unavailable" });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+        const labels = inlineKeyboardLabels(payload.reply_markup);
+        if (labels.length > 0) {
+          inlineKeyboards.push(labels);
+        }
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? {
+              message_id: sentTexts.length + 30,
+              date: 1,
+              chat: { id: 1001, type: "private" }
+            }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
+    const sendsAfterFirstPress = sentTexts.length;
+    await bot.handleUpdate({ ...textUpdate("🪓 Силовий замах"), update_id: 2 });
+
+    expect(submitAction).toHaveBeenCalledTimes(2);
+    expect(submitAction).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      action: "class",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    }));
+    expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(1);
+    expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
+    expect(sentTexts.join("\n")).not.toContain("Оберіть точну ціль");
+    expect(inlineKeyboards.at(-1)).not.toContain("🪓 Силовий замах → Шурхіт");
+    expect(inlineKeyboards.at(-1)).toContain("🔎 Оновити");
+  });
+
+  it("delegates a stale GroupCombat reply label when no matching group fight remains", async () => {
+    const bot = testBot();
+    const sentTexts: string[] = [];
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(null)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+    bot.on("message:text", async (ctx) => {
+      await ctx.reply("⚔️ Новіший бій лишається канонічним.", {
+        reply_markup: {
+          keyboard: [[{ text: "⚔️ Дія нового бою" }]],
+          resize_keyboard: true
+        }
+      });
+    });
+
+    await bot.handleUpdate(textUpdate("🗡️ Вдарити"));
+
+    expect(sentTexts).toEqual(["⚔️ Новіший бій лишається канонічним."]);
+  });
+
+  it("submits an individual flee attempt from the compact battle reply keyboard", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const delivery = cardDeliveryHarness(session);
+    const sentTexts: string[] = [];
+    const submitAction = vi.fn().mockResolvedValue({ state: "queued", session });
+    const service = {
+      findActiveForTelegramUser: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction,
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sentTexts.push(String(payload.text));
+      }
+      return Promise.resolve({
+        ok: true,
+        result: method === "sendMessage"
+          ? { message_id: 31, date: 1, chat: { id: 1001, type: "private" } }
+          : true
+      });
+    });
+    registerGroupCombatReplyKeyboard(bot, service);
+
+    await bot.handleUpdate(textUpdate("🏃 Відступити"));
+
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "flee",
+      targetKind: "self",
+      targetId: "character-1"
+    });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
+    expect(session.participants[0]).toMatchObject({
+      messageId: 31,
+      deliveredRevision: session.deliveryRevision
+    });
+  });
+
+  it("starts the proof from the leader party card and delivers canonical private cards", async () => {
+    const session = makeSession({ deliveredRevision: 0 });
     const startProof = vi.fn().mockResolvedValue({ state: "started", session });
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
@@ -148,7 +531,7 @@ describe("group combat bot flow", () => {
         data: "unused",
         message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
       },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -158,15 +541,113 @@ describe("group combat bot flow", () => {
       {
         startProof,
         findById: vi.fn().mockResolvedValue(session),
-        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+        markParticipantCardDelivered: delivery.markParticipantCardDelivered,
         finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
       } as unknown as GroupCombatService
     );
 
     expect(startProof).toHaveBeenCalledWith(1001n, session.partyInviteToken);
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Доказову сутичку запущено." });
-    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
-    expect(editMessageText).toHaveBeenCalledWith(1002, 22, expect.any(String), expect.any(Object));
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1002,
+      22,
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+
+  it("sends a separate intro before each production left-passage combat card", async () => {
+    const session = makeSession({ deliveredRevision: 0 });
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    const startLeftPassage = vi.fn().mockResolvedValue({ state: "started", session });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    let nextMessageId = 93;
+    const sendMessage = vi.fn().mockImplementation(() =>
+      Promise.resolve({ message_id: nextMessageId++ })
+    );
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const releaseParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = null;
+      participant.messageId = null;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const compareAndSetParticipantCard = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedReferenceVersion: number;
+      chatId: bigint;
+      messageId: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.chatId;
+      participant.messageId = input.messageId;
+      participant.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-party-left-start",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: { editMessageText, sendMessage, deleteMessage: vi.fn() } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start-left", token: session.partyInviteToken },
+      {
+        startLeftPassage,
+        findById: vi.fn().mockResolvedValue(session),
+        releaseParticipantCard,
+        compareAndSetParticipantCard,
+        markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+        finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+      } as unknown as GroupCombatService
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
+    expect(sendMessage).toHaveBeenCalledTimes(4);
+    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
+      String(call[1]).includes("Бій починається. Корчма відкриває журнал ходів") &&
+      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
+    )).toBe(true);
+    expect(sendMessage.mock.calls.slice(2).every((call) =>
+      String(call[1]).includes("<b>Бій</b>:") &&
+      inlineKeyboardLabels((call[2] as { reply_markup?: unknown })?.reply_markup).length > 0
+    )).toBe(true);
+    expect(editMessageText).toHaveBeenCalledTimes(4);
+    const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
+    expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);
+    expect(editedTexts.filter((text) =>
+      text === "♻️ Цю бойову картку замінено актуальною нижче."
+    )).toHaveLength(2);
+    expect(editedTexts.filter((text) => text.includes("⚔️ <b>Бій</b>:"))).toHaveLength(2);
   });
 
   it("reports a disabled party-card start callback without delivering combat cards", async () => {
@@ -198,13 +679,13 @@ describe("group combat bot flow", () => {
     const session = makeSession();
     const submitAction = vi.fn().mockResolvedValue({ state: "stale" });
     const findByToken = vi.fn().mockResolvedValue(session);
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       chat: { id: 1001, type: "private" },
       callbackQuery: { id: "callback-1", data: "unused" },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -218,7 +699,8 @@ describe("group combat bot flow", () => {
       findByToken,
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
@@ -231,7 +713,7 @@ describe("group combat bot flow", () => {
       targetId: "enemy-2"
     });
     expect(answerCallbackQuery).toHaveBeenCalled();
-    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(delivery.editMessageText).toHaveBeenCalledTimes(2);
   });
 
   it("rejects mutating buttons from a superseded card and refreshes the canonical reference", async () => {
@@ -241,7 +723,7 @@ describe("group combat bot flow", () => {
       void options;
       return Promise.resolve(true);
     });
-    const editMessageText = vi.fn().mockResolvedValue(true);
+    const delivery = cardDeliveryHarness(session);
     const ctx = {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       chat: { id: 1001, type: "private" },
@@ -250,7 +732,7 @@ describe("group combat bot flow", () => {
         data: "unused",
         message: { message_id: 9, date: 1, chat: { id: 1001, type: "private" } }
       },
-      api: { editMessageText } as unknown as Api,
+      api: delivery.api,
       answerCallbackQuery
     } as unknown as Context;
 
@@ -264,13 +746,180 @@ describe("group combat bot flow", () => {
       findByToken: vi.fn().mockResolvedValue(session),
       findById: vi.fn().mockResolvedValue(session),
       submitAction,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      compareAndSetParticipantCard: delivery.compareAndSetParticipantCard,
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService);
 
     expect(submitAction).not.toHaveBeenCalled();
     expect(answerCallbackQuery.mock.calls[0]?.[0]?.text).toContain("стара картка");
-    expect(editMessageText).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(delivery.editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+
+  it("opens one-use items as a second-level menu without submitting an item", async () => {
+    const session = makeSession();
+    const viewer = session.state.participants[0]!;
+    viewer.hp = 10;
+    viewer.combatItemQuantities = {
+      "item.responsible-panic-bandage": 2,
+      "item.dense-bandage": 1,
+      "item.field-kit": 1
+    };
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const submitAction = vi.fn();
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-items",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      editMessageText,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "items",
+      token: session.partyInviteToken,
+      turn: 1
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      submitAction
+    } as unknown as GroupCombatService);
+
+    expect(submitAction).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(String(editMessageText.mock.calls[0]?.[0])).toContain(
+      "🎒 Одноразові манатки: оберіть"
+    );
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain(
+      "🩹 Бинт відповідальної паніки ×2"
+    );
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain(
+      "⚕️ Польова аптечка"
+    );
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain("↩️ До бою");
+
+    viewer.combatItemQuantities = {};
+    answerCallbackQuery.mockClear();
+    editMessageText.mockClear();
+    await handleGroupCombatCallback(ctx, {
+      type: "items",
+      token: session.partyInviteToken,
+      turn: 1
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      submitAction
+    } as unknown as GroupCombatService);
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Зараз немає корисних одноразових манаток."
+    });
+    expect(String(editMessageText.mock.calls[0]?.[0]))
+      .toContain("зараз немає корисних предметів.");
+    expect(String(editMessageText.mock.calls[0]?.[0]))
+      .not.toContain("для цього ходу");
+  });
+
+  it("opens terminal contribution statistics without mutating combat", async () => {
+    const session = makeSession();
+    session.status = "won";
+    session.state.status = "won";
+    session.state.enemyContributions = session.state.enemies.map((enemy) => ({
+      enemyId: enemy.id,
+      damage: 3,
+      healing: 0,
+      guardPrevented: 0,
+      control: 0,
+      damageTaken: 4,
+      actions: 1,
+      specialActions: 0,
+      guardedTurns: 0
+    }));
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const submitAction = vi.fn();
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-statistics",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      editMessageText,
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(ctx, {
+      type: "statistics",
+      token: session.partyInviteToken
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      submitAction
+    } as unknown as GroupCombatService);
+
+    expect(submitAction).not.toHaveBeenCalled();
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(String(editMessageText.mock.calls[0]?.[0])).toContain(
+      "📊 <b>Статистика бою</b>"
+    );
+    expect(String(editMessageText.mock.calls[0]?.[0])).toContain("<b>Пригодники:</b>");
+    expect(String(editMessageText.mock.calls[0]?.[0])).toContain("<b>Монстри:</b>");
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain(
+      "↩️ До результатів"
+    );
+  });
+
+  it("keeps stale journal callbacks closed until combat is terminal", async () => {
+    const session = makeSession();
+    session.state.recap = [{ turn: 1, lines: ["Лідерка стає в захист."] }];
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-journal",
+        data: "unused",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      api: {
+        editMessageText,
+        deleteMessage: vi.fn().mockResolvedValue(true)
+      } as unknown as Api,
+      answerCallbackQuery
+    } as unknown as Context;
+    const markParticipantCardDelivered = vi.fn().mockResolvedValue(true);
+
+    await handleGroupCombatCallback(ctx, {
+      type: "journal",
+      token: session.partyInviteToken,
+      page: 0
+    }, {
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered
+    } as unknown as GroupCombatService);
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Журнал відкриється після завершення бою.",
+      show_alert: true
+    });
+    expect(editMessageText).toHaveBeenCalledWith(
+      1001,
+      21,
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[3])).not.toContain("📜 Журнал");
   });
 
   it.each([
@@ -348,7 +997,10 @@ describe("group combat bot flow", () => {
       releaseParticipantCard: vi.fn().mockResolvedValue(false)
     } as unknown as GroupCombatService);
 
-    expect(sent).toEqual([{ messageId: 31, buttons: [] }]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.messageId).toBe(31);
+    expect(Array.isArray(sent[0]?.buttons)).toBe(true);
+    expect((sent[0]?.buttons as unknown[]).length).toBeGreaterThan(0);
     expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
       expectedReferenceVersion: 1,
       chatId: 1001n,
@@ -359,13 +1011,13 @@ describe("group combat bot flow", () => {
       1001,
       21,
       expect.any(String),
-      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+      { parse_mode: "HTML" }
     );
     expect(editMessageText).toHaveBeenNthCalledWith(2, 1001, 31, expect.any(String), expect.any(Object));
     const activatedOptions = editMessageText.mock.calls[1]?.[3] as {
       reply_markup?: { inline_keyboard?: unknown[] };
     } | undefined;
-    expect(activatedOptions?.reply_markup?.inline_keyboard?.length).toBeGreaterThan(0);
+    expect(inlineKeyboardLabels(activatedOptions?.reply_markup)).toContain("🔎 Оновити");
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21);
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
@@ -383,7 +1035,13 @@ describe("group combat bot flow", () => {
       { turn: 1, lines: ["Лідерка стає в захист."] },
       { turn: 2, lines: ["Друг б’є Шурхіт на 3."] }
     ];
-    session.participants[0]!.deliveredRevision = session.deliveryRevision;
+    Object.assign(session.participants[0]!, {
+      deliveredRevision: session.deliveryRevision,
+      settlementStatus: "completed",
+      settledAt: new Date("2026-07-22T10:01:00.000Z"),
+      exitDeliveryState: "completed",
+      exitDeliveryMessageId: 93
+    });
     const edits: Array<{ text: string; options: string }> = [];
     const editContextMessage = vi.fn((text: string, options?: unknown) => {
       edits.push({ text, options: JSON.stringify(options) });
@@ -434,38 +1092,49 @@ describe("group combat bot flow", () => {
     expect(edits[2]?.text).toContain("✅ Доказову сутичку виграно");
     expect(edits[2]?.text).not.toContain("Журнал доказової сутички");
     expect(edits[2]?.options).toContain("📜 Журнал");
-    expect(editApiMessage).toHaveBeenCalledWith(1001, 21, expect.any(String), expect.any(Object));
+    expect(editContextMessage).toHaveBeenCalledTimes(3);
+    expect(editApiMessage).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledTimes(3);
   });
 
   it("repairs an unavailable canonical message after combat already committed", async () => {
-    const session = makeSession();
-    const sendMessage = vi.fn()
-      .mockResolvedValueOnce({ message_id: 31 })
-      .mockResolvedValueOnce({ message_id: 32 });
-    const editMessageText = vi.fn().mockRejectedValue(new Error("Bad Request: message to edit not found"));
-    const compareAndSetParticipantCard = vi.fn().mockResolvedValue(true);
-    const api = { editMessageText, sendMessage } as unknown as Api;
+    const session = makeSession({ deliveredRevision: 0 });
+    const delivery = cardDeliveryHarness(session);
+    delivery.editMessageText.mockRejectedValue(
+      new Error("Bad Request: message to edit not found")
+    );
+    const compareAndSetParticipantCard = vi.fn<(
+      input: Parameters<GroupCombatService["compareAndSetParticipantCard"]>[0]
+    ) => Promise<boolean>>().mockResolvedValue(true);
 
-    const delivered = await deliverGroupCombatCards(api, {
+    const delivered = await deliverGroupCombatCards(delivery.api, {
       findById: vi.fn().mockResolvedValue(session),
       compareAndSetParticipantCard,
-      markParticipantCardDelivered: vi.fn().mockResolvedValue(true),
+      markParticipantCardDelivered: delivery.markParticipantCardDelivered,
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session);
 
     expect(delivered).toBe(2);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(delivery.sendMessage).toHaveBeenCalledTimes(2);
     expect(compareAndSetParticipantCard).toHaveBeenCalledTimes(2);
-    expect(compareAndSetParticipantCard).toHaveBeenCalledWith(expect.objectContaining({
-      expectedReferenceVersion: 1,
-      messageId: 31
-    }));
+    expect(compareAndSetParticipantCard.mock.calls.map((call) => call[0]))
+      .toEqual([
+        expect.objectContaining({
+          telegramUserId: 1001n,
+          expectedReferenceVersion: 1,
+          messageId: 31
+        }),
+        expect.objectContaining({
+          telegramUserId: 1002n,
+          expectedReferenceVersion: 1,
+          messageId: 32
+        })
+      ]);
   });
 
   it("starts from a supergroup but publishes participant cards only to private DMs", async () => {
     const bot = testBot();
-    const session = makeSession();
+    const session = makeSession({ deliveredRevision: 0 });
     session.participants = session.participants.map((participant, index) => ({
       ...participant,
       chatId: -100587n,
@@ -515,11 +1184,15 @@ describe("group combat bot flow", () => {
 
     expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
-    expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId)).toEqual([1001, 1002]);
-    expect(apiCalls.filter((call) => call.method === "sendMessage")).toEqual([
-      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } }),
-      expect.objectContaining({ replyMarkup: { inline_keyboard: [] } })
-    ]);
+    expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
+      .toEqual([1001, 1002]);
+    const sendCalls = apiCalls.filter((call) => call.method === "sendMessage");
+    expect(inlineKeyboardLabels(sendCalls[0]?.replyMarkup))
+      .toEqual(buildGroupCombatKeyboard(session, session.participants[0]!.characterId)
+        .inline_keyboard.flat().map((button) => button.text));
+    expect(inlineKeyboardLabels(sendCalls[1]?.replyMarkup))
+      .toEqual(buildGroupCombatKeyboard(session, session.participants[1]!.characterId)
+        .inline_keyboard.flat().map((button) => button.text));
     expect(apiCalls.filter((call) => call.method === "editMessageText").map((call) => call.chatId)).toEqual([1001, 1002]);
   });
 
@@ -609,7 +1282,9 @@ describe("group combat bot flow", () => {
   });
 });
 
-function makeSession(): GroupCombatSessionRecord {
+function makeSession(
+  overrides: { deliveredRevision?: number } = {}
+): GroupCombatSessionRecord {
   return {
     id: "group-session",
     partySessionId: "party-session",
@@ -623,9 +1298,10 @@ function makeSession(): GroupCombatSessionRecord {
     turnExpiresAt: new Date("2026-07-22T10:00:23.000Z"),
     completedAt: null,
     result: null,
+    settlementPlan: null,
     participants: [
-      participantRecord("character-1", 1001n, "Лідерка", 0, 21),
-      participantRecord("character-2", 1002n, "Друг", 1, 22)
+      participantRecord("character-1", 1001n, "Лідерка", 0, 21, overrides.deliveredRevision),
+      participantRecord("character-2", 1002n, "Друг", 1, 22, overrides.deliveredRevision)
     ],
     queuedActions: [],
     state: {
@@ -653,7 +1329,14 @@ function makeSession(): GroupCombatSessionRecord {
   };
 }
 
-function participantRecord(characterId: string, telegramUserId: bigint, name: string, rosterOrder: number, messageId: number) {
+function participantRecord(
+  characterId: string,
+  telegramUserId: bigint,
+  name: string,
+  rosterOrder: number,
+  messageId: number,
+  deliveredRevision = 1
+) {
   return {
     characterId,
     telegramUserId,
@@ -663,7 +1346,17 @@ function participantRecord(characterId: string, telegramUserId: bigint, name: st
     chatId: telegramUserId,
     messageId,
     referenceVersion: 1,
-    deliveredRevision: 0
+    deliveredRevision,
+    replyKeyboardFingerprint: null,
+    replyKeyboardGeneration: 0,
+    exitDeliveryState: "none" as const,
+    exitDeliveryClaimToken: null,
+    exitDeliveryClaimedAt: null,
+    exitDeliveryMessageId: null,
+    settlementStatus: "pending" as const,
+    settlementAttempts: 0,
+    settlementReceipt: null,
+    settledAt: null
   };
 }
 
@@ -691,6 +1384,48 @@ function testBot(): Bot {
   });
 }
 
+function cardDeliveryHarness(session: GroupCombatSessionRecord) {
+  let nextMessageId = 31;
+  const editMessageText = vi.fn().mockResolvedValue(true);
+  const sendMessage = vi.fn().mockImplementation(() =>
+    Promise.resolve({ message_id: nextMessageId++ })
+  );
+  const compareAndSetParticipantCard = vi.fn((input: {
+    telegramUserId: bigint;
+    chatId: bigint;
+    messageId: number;
+  }) => {
+    const participant = session.participants.find(
+      (candidate) => candidate.telegramUserId === input.telegramUserId
+    )!;
+    participant.chatId = input.chatId;
+    participant.messageId = input.messageId;
+    participant.referenceVersion += 1;
+    participant.deliveredRevision = 0;
+    return Promise.resolve(true);
+  });
+  const markParticipantCardDelivered = vi.fn((input: {
+    telegramUserId: bigint;
+  }) => {
+    const participant = session.participants.find(
+      (candidate) => candidate.telegramUserId === input.telegramUserId
+    )!;
+    participant.deliveredRevision = session.deliveryRevision;
+    return Promise.resolve(true);
+  });
+  return {
+    api: {
+      editMessageText,
+      sendMessage,
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api,
+    editMessageText,
+    sendMessage,
+    compareAndSetParticipantCard,
+    markParticipantCardDelivered
+  };
+}
+
 function commandUpdate(text: string) {
   return {
     update_id: 1,
@@ -715,6 +1450,17 @@ function groupCommandUpdate(text: string) {
   };
 }
 
+function textUpdate(text: string) {
+  const update = commandUpdate(text);
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      entities: undefined
+    }
+  };
+}
+
 function callbackUpdate(data: string) {
   return {
     update_id: 2,
@@ -730,4 +1476,23 @@ function callbackUpdate(data: string) {
       }
     }
   };
+}
+
+function inlineKeyboardLabels(value: unknown): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const keyboard = (value as Record<string, unknown>)["inline_keyboard"];
+  if (!Array.isArray(keyboard)) {
+    return [];
+  }
+  return keyboard.flatMap((row) => Array.isArray(row)
+    ? row.flatMap((button) => {
+      if (!button || typeof button !== "object") {
+        return [];
+      }
+      const label = (button as Record<string, unknown>)["text"];
+      return typeof label === "string" ? [label] : [];
+    })
+    : []);
 }

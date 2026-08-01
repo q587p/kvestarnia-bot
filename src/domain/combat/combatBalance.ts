@@ -108,9 +108,10 @@ export function rollFleeSuccess(
   hero: CombatActorStats,
   monster: MonsterCombatStats,
   rng: RandomSource,
-  attempt = 1
+  attempt = 1,
+  chancePenaltyPp = 0
 ): boolean {
-  const chance = buildFleeSuccessChance(hero, monster, attempt);
+  const chance = buildFleeSuccessChance(hero, monster, attempt, chancePenaltyPp);
 
   return rng.nextFloat() < chance;
 }
@@ -118,7 +119,8 @@ export function rollFleeSuccess(
 export function buildFleeSuccessChance(
   hero: CombatActorStats,
   monster: MonsterCombatStats,
-  attempt = 1
+  attempt = 1,
+  chancePenaltyPp = 0
 ): number {
   const baseChance = clamp(0.45 + (hero.dexterity + hero.luck - monster.level * 3) * 0.015, 0.25, 0.8);
   const normalizedAttempt = Math.max(1, Math.floor(attempt));
@@ -126,15 +128,20 @@ export function buildFleeSuccessChance(
     return 1;
   }
 
+  const penalty = Math.max(0, chancePenaltyPp) / 100;
   if (normalizedAttempt >= 5) {
-    return normalizedAttempt === 5 ? 0.93 : 0.965;
+    return clamp((normalizedAttempt === 5 ? 0.93 : 0.965) - penalty, 0, 1);
   }
 
   if (normalizedAttempt === 1) {
-    return baseChance;
+    return clamp(baseChance - penalty, 0, 1);
   }
 
-  return clamp(baseChance + ((0.93 - baseChance) * (normalizedAttempt - 1)) / 4, baseChance, 0.93);
+  return clamp(
+    baseChance + ((0.93 - baseChance) * (normalizedAttempt - 1)) / 4 - penalty,
+    0,
+    1
+  );
 }
 
 function rollHeroDamage(input: {

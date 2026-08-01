@@ -77,6 +77,7 @@ export interface MonsterAbilityRuntimeEffect {
   remainingOwnActivations?: number;
   remainingTargetActivations?: number;
   charges?: number;
+  lockSource?: "class" | "race";
 }
 
 export interface MonsterAbilityExpiredEffectSnapshot {
@@ -252,6 +253,81 @@ const supportedParameterKeys = new Set<MonsterAbilityParameterKey>([
   "targetAccuracyPenaltyPp"
 ]);
 
+export type MonsterAbilityParameterConsumer =
+  | "direct-damage-or-modifier"
+  | "selected-rider"
+  | "immediate-component"
+  | "persisted-runtime-effect"
+  | "documented-fallback";
+
+const monsterAbilityParameterConsumers = {
+  abilityPotencyMultiplier: "direct-damage-or-modifier",
+  accuracyAndEvasionPenaltyPp: "persisted-runtime-effect",
+  accuracyPenaltyPp: "direct-damage-or-modifier",
+  bleedDamageMultiplier: "persisted-runtime-effect",
+  bleedTicks: "persisted-runtime-effect",
+  bonusAgainstDebuffedTargets: "direct-damage-or-modifier",
+  bonusDamageMultiplierBelowHalfHp: "direct-damage-or-modifier",
+  bossFallbackAbilityPotencyMultiplier: "direct-damage-or-modifier",
+  burnDamageMultiplier: "persisted-runtime-effect",
+  burnTicks: "persisted-runtime-effect",
+  charges: "persisted-runtime-effect",
+  cleanseNegativeEffects: "immediate-component",
+  copyLastDirectActionPotency: "persisted-runtime-effect",
+  counterChance: "persisted-runtime-effect",
+  critPenaltyPp: "persisted-runtime-effect",
+  damageMultiplier: "direct-damage-or-modifier",
+  damageMultiplierWhenShieldBreaks: "direct-damage-or-modifier",
+  damageReduction: "persisted-runtime-effect",
+  durationOwnActivations: "persisted-runtime-effect",
+  durationTargetActivations: "persisted-runtime-effect",
+  evasionBonusPp: "persisted-runtime-effect",
+  evasionPenaltyPp: "persisted-runtime-effect",
+  extendLongestCooldownBy: "immediate-component",
+  fallbackShieldMaxHpFraction: "immediate-component",
+  fleeChancePenaltyPp: "persisted-runtime-effect",
+  groupTargetConfusion: "persisted-runtime-effect",
+  healTargetMaxHpFraction: "immediate-component",
+  lockAbilitySource: "persisted-runtime-effect",
+  lockAnyOneAbility: "persisted-runtime-effect",
+  manaCostIncrease: "persisted-runtime-effect",
+  manaDrain: "immediate-component",
+  markIncomingDamageMultiplier: "persisted-runtime-effect",
+  nextAttackBonusIfShieldSurvives: "persisted-runtime-effect",
+  outgoingDamageMultiplier: "persisted-runtime-effect",
+  predictRepeatedLastAction: "persisted-runtime-effect",
+  reapplyLastExpiredNegativeEffect: "immediate-component",
+  reflectFlatDamage: "persisted-runtime-effect",
+  removePositiveEffects: "immediate-component",
+  repeatLastActionPenalty: "persisted-runtime-effect",
+  riderByTurnCycle: "selected-rider",
+  riderByTurnParity: "selected-rider",
+  selfDamageReduction: "persisted-runtime-effect",
+  selfEvasionBonusPp: "persisted-runtime-effect",
+  selfHealMaxHpFraction: "immediate-component",
+  shieldMaxHpFraction: "immediate-component",
+  slowAttackerPp: "persisted-runtime-effect",
+  soloFallbackShieldMaxHpFraction: "immediate-component",
+  statusResistancePp: "persisted-runtime-effect",
+  targetAccuracyPenaltyPp: "persisted-runtime-effect"
+} as const satisfies Record<MonsterAbilityParameterKey, MonsterAbilityParameterConsumer>;
+
+export interface MonsterAbilityParameterCoverage {
+  parameter: MonsterAbilityParameterKey;
+  consumer: MonsterAbilityParameterConsumer;
+}
+
+export function getMonsterAbilityParameterCoverage(
+  ability: MonsterAbilityDefinition
+): MonsterAbilityParameterCoverage[] {
+  return (Object.keys(ability.parameters) as MonsterAbilityParameterKey[])
+    .filter((parameter) => ability.parameters[parameter] !== undefined)
+    .map((parameter) => ({
+      parameter,
+      consumer: monsterAbilityParameterConsumers[parameter]
+    }));
+}
+
 const effectKindsWithDefaultRemovability = new Set<MonsterAbilityEffectKind>([
   "accuracy",
   "evasion",
@@ -273,7 +349,7 @@ const effectKindsWithDefaultRemovability = new Set<MonsterAbilityEffectKind>([
   "repeat-penalty"
 ]);
 
-function deriveRuntimeEffectPolarity(
+export function deriveMonsterAbilityEffectPolarity(
   effect: Pick<MonsterAbilityRuntimeEffect, "target" | "kind" | "value">
 ): MonsterAbilityEffectPolarity {
   switch (effect.kind) {
@@ -328,7 +404,7 @@ interface CompiledMonsterAbilityRecipe {
   };
 }
 
-type MonsterAbilityPlanComponentKind =
+export type MonsterAbilityPlanComponentKind =
   | "runtime-effect"
   | "heal"
   | "shield"
@@ -338,7 +414,7 @@ type MonsterAbilityPlanComponentKind =
   | "cooldown-pressure"
   | "reapply-expired";
 
-interface MonsterAbilityPlanComponent {
+export interface MonsterAbilityPlanComponent {
   kind: MonsterAbilityPlanComponentKind;
   sourceParameter: MonsterAbilityParameterKey | `rider:${string}`;
   target: MonsterAbilityEffectTarget;
@@ -354,6 +430,7 @@ interface MonsterAbilityPlanComponent {
   optional: boolean;
   onlyEffect: boolean;
   appliedResultKey: string;
+  lockSource?: "class" | "race";
 }
 
 export interface MonsterAbilityEffectContract {
@@ -372,7 +449,7 @@ export function getMonsterAbilityEffectContract(
 ): MonsterAbilityEffectContract {
   const polarity = isEffectPolarity(effect.polarity)
     ? effect.polarity
-    : deriveRuntimeEffectPolarity(effect);
+    : deriveMonsterAbilityEffectPolarity(effect);
   const removable = typeof effect.removable === "boolean"
     ? effect.removable
     : effectKindsWithDefaultRemovability.has(effect.kind) && effect.kind !== "status-resistance";
@@ -387,8 +464,13 @@ export function getMonsterAbilityEffectContract(
   };
 }
 
-interface CompiledMonsterAbilityExecutionPlan {
+export interface CompiledMonsterAbilityExecutionPlan {
   directDamage: boolean;
+  directDamageModifiers: {
+    bonusMultiplierBelowHalfHp: number;
+    bonusMultiplierAgainstDebuffedTarget: number;
+    shieldBreakRetaliationMultiplier: number;
+  };
   selectedRider: string | null;
   components: readonly MonsterAbilityPlanComponent[];
 }
@@ -438,7 +520,7 @@ export function compileMonsterAbilityRecipe(
   };
 }
 
-function compileMonsterAbilityExecutionPlan(input: {
+export function compileMonsterAbilityExecutionPlan(input: {
   ability: MonsterAbilityDefinition;
   state?: CombatState;
   runtime?: MonsterAbilityRuntimeStateV1;
@@ -474,6 +556,7 @@ function compileMonsterAbilityExecutionPlan(input: {
     durationOwnActivations?: number;
     durationTargetActivations?: number;
     charges?: number;
+    trigger?: MonsterAbilityComponentTrigger;
     directHitRequired?: boolean;
     appliedResultKey: string;
   }): void => {
@@ -572,6 +655,21 @@ function compileMonsterAbilityExecutionPlan(input: {
       optional: true,
       onlyEffect: false,
       appliedResultKey: "shield"
+    });
+  }
+  const shieldSurvivalBonus = numberParam(
+    params.nextAttackBonusIfShieldSurvives
+  );
+  if (shieldSurvivalBonus > 0) {
+    addRuntimeEffect({
+      sourceParameter: "nextAttackBonusIfShieldSurvives",
+      target: "monster",
+      effectKind: "next-attack-bonus",
+      value: 1 + Math.min(0.6, Math.max(0.05, shieldSurvivalBonus)),
+      durationOwnActivations: 2,
+      charges: 1,
+      trigger: "on-shield-survived",
+      appliedResultKey: "next-attack-bonus-if-shield-survives"
     });
   }
 
@@ -682,7 +780,11 @@ function compileMonsterAbilityExecutionPlan(input: {
       });
     }
 
-    if (params.lockAnyOneAbility === true || params.lockAbilitySource === "class") {
+    if (
+      params.lockAnyOneAbility === true ||
+      params.lockAbilitySource === "class" ||
+      params.lockAbilitySource === "race"
+    ) {
       addRuntimeEffect({
         sourceParameter: params.lockAnyOneAbility === true ? "lockAnyOneAbility" : "lockAbilitySource",
         target: "hero",
@@ -692,6 +794,10 @@ function compileMonsterAbilityExecutionPlan(input: {
         charges: 1,
         appliedResultKey: "ability-lock"
       });
+      const lock = components.at(-1);
+      if (lock && params.lockAnyOneAbility !== true) {
+        lock.lockSource = params.lockAbilitySource as "class" | "race";
+      }
     }
 
     const outgoing = numberParam(params.outgoingDamageMultiplier);
@@ -893,13 +999,29 @@ function compileMonsterAbilityExecutionPlan(input: {
 
   return {
     directDamage,
+    directDamageModifiers: {
+      bonusMultiplierBelowHalfHp: Math.min(
+        0.75,
+        Math.max(0, numberParam(params.bonusDamageMultiplierBelowHalfHp))
+      ),
+      bonusMultiplierAgainstDebuffedTarget:
+        isTruthyParameter(params.bonusAgainstDebuffedTargets)
+          ? Math.max(0.15, numberParam(params.bonusAgainstDebuffedTargets))
+          : 0,
+      shieldBreakRetaliationMultiplier: Math.max(
+        0,
+        numberParam(params.damageMultiplierWhenShieldBreaks)
+      )
+    },
     selectedRider,
     components: components.map((component) => {
-      const trigger = classifyMonsterAbilityComponentTrigger({
-        ability: input.ability,
-        directDamage,
-        component
-      });
+      const trigger = component.trigger === "on-cast"
+        ? classifyMonsterAbilityComponentTrigger({
+            ability: input.ability,
+            directDamage,
+            component
+          })
+        : component.trigger;
 
       return {
         ...component,
@@ -1115,10 +1237,15 @@ function validateMonsterAbilityRecipe(
       });
     }
 
-    if (component.effectKind === "ability-lock" && component.sourceParameter === "lockAbilitySource" && ability.parameters.lockAbilitySource !== "class") {
+    if (
+      component.effectKind === "ability-lock" &&
+      component.sourceParameter === "lockAbilitySource" &&
+      ability.parameters.lockAbilitySource !== "class" &&
+      ability.parameters.lockAbilitySource !== "race"
+    ) {
       issues.push({
         code: "wrong-source-ability-lock",
-        message: `Monster ability ${ability.id} maps a non-class lock source to class-skill lock.`,
+        message: `Monster ability ${ability.id} maps an unsupported ability source lock.`,
         abilityId: ability.id
       });
     }
@@ -1486,6 +1613,7 @@ export function isHeroClassSkillLockedByMonster(state: CombatState): boolean {
       (effect) =>
         effect.target === "hero" &&
         effect.kind === "ability-lock" &&
+        effect.lockSource !== "race" &&
         (effect.charges ?? 1) > 0 &&
         (effect.remainingTargetActivations ?? 1) > 0
     )
@@ -2134,6 +2262,9 @@ function applyMonsterAbilityPlanComponent(
   component: MonsterAbilityPlanComponent,
   context: { directHitLanded: boolean }
 ): { applied: boolean; text?: string } {
+  if (component.trigger === "on-shield-survived") {
+    return { applied: false };
+  }
   if (component.directHitRequired && !context.directHitLanded) {
     return { applied: false };
   }
@@ -2375,6 +2506,7 @@ function createRuntimeEffectFromComponent(
     value: component.value ?? 0,
     trigger: component.trigger,
     ...(component.triggerId ? { triggerId: component.triggerId } : {}),
+    ...(component.lockSource ? { lockSource: component.lockSource } : {}),
     ...(component.durationOwnActivations ? { remainingOwnActivations: component.durationOwnActivations } : {}),
     ...(component.durationTargetActivations ? { remainingTargetActivations: component.durationTargetActivations } : {}),
     ...(component.charges ? { charges: component.charges } : {})
@@ -2559,13 +2691,57 @@ function consumeShieldBreakDamage(input: {
     return 0;
   }
 
-  const sourceAbility = findMonsterAbility(input.sourceAbilityId);
-  const multiplier = numberParam(sourceAbility?.parameters.damageMultiplierWhenShieldBreaks);
-  if (multiplier <= 0) {
-    return 0;
+  return resolveMonsterShieldBreakRetaliationDamage({
+    monsterAttack: input.state.monster.attack ?? 1,
+    sourceAbility: findMonsterAbility(input.sourceAbilityId)
+  });
+}
+
+export function resolveMonsterShieldBreakRetaliationDamage(input: {
+  monsterAttack: number;
+  sourceAbility: MonsterAbilityDefinition | null | undefined;
+}): number {
+  const multiplier = numberParam(
+    input.sourceAbility?.parameters.damageMultiplierWhenShieldBreaks
+  );
+  return multiplier > 0
+    ? Math.max(1, Math.floor(Math.max(1, input.monsterAttack) * multiplier))
+    : 0;
+}
+
+export interface MonsterLandedHitReactionResolution {
+  damage: number;
+  consumeCharge: boolean;
+  rolled: boolean;
+  landed: boolean;
+}
+
+export function resolveMonsterLandedHitReaction(input: {
+  kind: "reflect" | "counter";
+  effectValue: number;
+  monsterAttack: number;
+  sourceAbility: MonsterAbilityDefinition | null | undefined;
+  rng?: RandomSource;
+}): MonsterLandedHitReactionResolution {
+  if (input.kind === "reflect") {
+    const damage = Math.max(1, Math.floor(input.effectValue));
+    return { damage, consumeCharge: true, rolled: false, landed: true };
   }
 
-  return Math.max(1, Math.floor((input.state.monster.attack ?? 1) * multiplier));
+  const chance = Math.min(0.95, Math.max(0.01, input.effectValue));
+  if (!input.rng || input.rng.nextFloat() >= chance) {
+    return { damage: 0, consumeCharge: false, rolled: true, landed: false };
+  }
+
+  const multiplier = Math.max(
+    0.2,
+    numberParam(input.sourceAbility?.parameters.abilityPotencyMultiplier) || 0.45
+  );
+  const damage = Math.max(
+    1,
+    Math.floor(Math.max(1, input.monsterAttack) * Math.min(1.5, multiplier))
+  );
+  return { damage, consumeCharge: true, rolled: true, landed: true };
 }
 
 function consumeReflectDamage(input: {
@@ -2582,26 +2758,24 @@ function consumeReflectDamage(input: {
   const counter = getMonsterEffect(input.runtime, "monster", "counter", "beneficial");
   let reflectedDamage = 0;
 
-  if (reflect) {
-    reflectedDamage += Math.max(1, Math.floor(reflect.value));
-    consumeEffectCharge(input.runtime, reflect);
+  for (const effect of [reflect, counter]) {
+    if (!effect) {
+      continue;
+    }
+    const reaction = resolveMonsterLandedHitReaction({
+      kind: effect.kind as "reflect" | "counter",
+      effectValue: effect.value,
+      monsterAttack: input.state.monster.attack ?? 1,
+      sourceAbility: findMonsterAbility(effect.sourceAbilityId),
+      ...(input.rng ? { rng: input.rng } : {})
+    });
+    reflectedDamage += reaction.damage;
+    if (reaction.consumeCharge) {
+      consumeEffectCharge(input.runtime, effect);
+    }
   }
 
-  if (!counter) {
-    return reflectedDamage;
-  }
-
-  const chance = Math.min(0.95, Math.max(0.01, counter.value));
-  if (!input.rng || input.rng.nextFloat() >= chance) {
-    return reflectedDamage;
-  }
-
-  const sourceAbility = findMonsterAbility(counter.sourceAbilityId);
-  const multiplier = Math.max(0.2, numberParam(sourceAbility?.parameters.abilityPotencyMultiplier) || 0.45);
-  const counterDamage = Math.max(1, Math.floor((input.state.monster.attack ?? 1) * Math.min(1.5, multiplier)));
-  consumeEffectCharge(input.runtime, counter);
-
-  return reflectedDamage + counterDamage;
+  return reflectedDamage;
 }
 
 function consumeEffectCharge(
@@ -3165,6 +3339,9 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
   const removable = typeof value.removable === "boolean" ? value.removable : undefined;
   const trigger = isMonsterAbilityComponentTrigger(value.trigger) ? value.trigger : undefined;
   const triggerId = typeof value.triggerId === "string" ? value.triggerId : undefined;
+  const lockSource = value.lockSource === "class" || value.lockSource === "race"
+    ? value.lockSource
+    : undefined;
 
   const effect: MonsterAbilityRuntimeEffect = {
     id: value.id,
@@ -3177,6 +3354,7 @@ function parseRuntimeEffect(value: unknown): MonsterAbilityRuntimeEffect[] {
     ...(removable !== undefined ? { removable } : {}),
     ...(trigger ? { trigger } : {}),
     ...(triggerId ? { triggerId } : {}),
+    ...(lockSource ? { lockSource } : {}),
     ...(remainingOwnActivations !== null ? { remainingOwnActivations } : {}),
     ...(remainingTargetActivations !== null ? { remainingTargetActivations } : {}),
     ...(charges !== null ? { charges } : {})

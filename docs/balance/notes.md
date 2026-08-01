@@ -14,6 +14,104 @@ MVP має бути веселим, не ідеально збалансован
 
 Phase 2 додає соціяльний бій та взаємодії до фінального балансу, тому перші runtime-slices мають покладатися на caps, audit rows and replay-safe results, not perfect formulas. Canonical notes: [phase2/UNSTABLE_BALANCE_PRINCIPLES.md](../history/phases/phase2/planning/unstable-balance-principles.md).
 
+## 0.4.2 left-passage party attack
+
+The encounter budget is built before any participant split. Every frozen enemy
+adds the ordinary persistent-PvE XP baseline and the ordinary character-level
+gold band to one encounter-wide total. That total is then split neutrally and
+deterministically only among participants with an accepted manual action; a
+timeout guard receives no XP, gold, item or activity share. Each defeated enemy
+also receives one deterministic ordinary-PvE broad-loot roll and one ordinary
+post-fight bandage slot. The broad-loot multiplier is
+`clamp(1 + 0.05 × (effectiveEnemyLevel - recipientLevel), 0.75, 1.5)`;
+therefore stronger enemies improve an individual roll and additional enemies
+add independent opportunities without multiplying any one roll. Enemy rolls
+are distributed round-robin from a deterministic offset among eligible manual
+participants, use that recipient's frozen class/race/LUCK profile and can grant
+authored monster loot or eligible Loot Expansion manatky. Each positive
+bandage slot keeps the ordinary `4–6%` LUCK-bounded replacement rule, so it may
+become `Іскрокамінь` instead of a bandage. Cosmetic titles stay
+presentation-only and enter none of these calculations. `lootVersion: 1` uses
+a code-owned immutable catalog and resolver: the exact candidates, weights,
+selected item and quantity are derived from the frozen seed, participant
+gameplay profile and enemy order/level. Persisted output is checked against
+that derivation; persisted selection ranges and adjacent public digests are
+not authority. The relational participant snapshot is the independent
+start-time authority for identity, presentation, life, order, class, race,
+level, maxima, combat/support values, base stats, equipment, granted gear
+abilities and initial combat-item quantities. Runtime state may change only
+current HP/mana, cooldowns, threat, flee/fumble evidence and quantities
+canonically consumed by committed item actions. The immutable candidate
+catalog stores effective released rarity: every Loot Expansion `x025` base and
+enhancement variant is `epic` for selection even though its authoring source
+rarity was `legendary`. Restart and terminal plan rebuilding consult neither current
+items, monster loot, monster metadata/ability profiles nor the generic loot
+algorithm, so later content or algorithm drift cannot reroll or invalidate
+legitimate active or pending settlement. Coherent evidence/output mutations,
+changed item ids, quantities, recipients, duplicates, enemy stats, abilities
+or reward inputs fail closed instead of becoming new expected rewards. A
+winning result with no items states explicitly that no manatka dropped. A new
+GroupCombat production loss keeps the bounded one-fifth consolation and adds
+half the ordinary persistent-PvE XP budget, rounded up, for each enemy already
+defeated; the combined XP-only total is split among eligible manual
+participants. Loss gold and loot remain zero. The frozen
+`defeated-enemies-half-xp.v1` marker preserves old active/terminal rows under
+their original replay semantics.
+
+GroupCombat persists eight symmetric contribution dimensions for participants
+and monsters: damage, healing, prevented damage, weakened response/control,
+damage taken, committed actions, special attacks and defensive turns. These
+statistics explain the fight and do not change reward eligibility or split
+weights.
+
+Each living participant resolves `flee` independently against the first living
+enemy in frozen order, using the ordinary PvE formula and that participant's
+own persisted attempt count: first-attempt chance is
+`clamp(0.45 + (DEX + LUCK - enemy level * 3) * 0.015, 0.25, 0.8)`, attempts
+2–4 ramp toward 93%, attempts 5/6 use 93%/96.5%, and attempt 7 is guaranteed.
+The roll is deterministic from encounter, turn, roster order, attempt and
+enemy order. Start-of-turn effects still happen before the attempt, and the
+committed action ticks that actor's ability/item cooldowns without spending
+mana or an item. A failed attempt is not guard: the participant remains a
+valid enemy target for the shared enemy phase. A successful escape preserves
+current HP/mana and already-committed inventory, resumes frozen timed statuses,
+durably records the turn/attempt receipt and releases only that participant's
+combat lease in one transaction before Telegram delivery. A separate durable
+exit-delivery state retries a failed main menu after later party turns, records
+the returned Telegram message id before old-card retirement, and clears the
+inert combat card reference on completion without resending after durable
+acknowledgement. Gameplay exit is exactly once; Telegram notification is
+durable at-least-once because Bot API `sendMessage` has no idempotency key. If
+the process loses the acknowledgement after Telegram accepted the send, stale
+claim recovery may produce one bounded duplicate. A live claim retries its
+database acknowledgement without an immediate resend, while ordinary Telegram
+rejection returns the claim to retryable pending state. Before restoring a
+keyboard, delivery checks current authoritative navigation: a free player gets
+the menu for current presence and quest markers, while a newer combat durably
+supersedes the old exit delivery so its battle UI is never overwritten. The actor is
+removed from later turns and targeting and forfeits this encounter's XP, gold,
+loot, Chronicle activity and generic combat/item/level events; the remaining
+party continues with only its own leases. Terminal settlement never overwrites
+an escapee's later resources or remort life. The shared passage-discovery
+decision can apply later only while the same frozen remort life still exists.
+If nobody remains, the encounter is a loss. Timeout-generated guards never
+attempt escape. Chronicle related-character ids and participant count include
+only the eligible manual roster, never escapees or timeout-only passengers.
+
+GroupCombat freezes the complete canonical 132-ability monster catalog in the
+production-v1 resolver. It has no separate short allowlist: canonical
+self-only, setup, sustain, direct-damage and control abilities retain their
+authored target scope and deterministic recipe components, including both
+ledger-boar specials. Unknown ids, malformed definitions and effect values
+that do not match the frozen catalog fail strict validation rather than
+silently becoming a basic attack or unrelated player damage.
+
+The explicit player-side support/direct-damage exceptions are
+`skill.strict-blessing` and `gear.asclepius-instruction`: ally healing and
+party protection retain their authored targets, while direct damage selects
+the first living enemy in frozen order. This changes neither mana, cooldown nor
+critical-fumble rules.
+
 `0.3.16` closes the PartyBoss class/race support parity gap. Existing support
 actions now apply their authored ally scope in group combat: Priest healing can
 select the lowest-HP living ally and protect the party, while Molfar protection

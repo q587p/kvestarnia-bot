@@ -260,6 +260,10 @@ export interface DuelChallengeRepository {
   findActiveTurnBasedByTelegramUserId(
     telegramUserId: bigint
   ): Promise<DuelCombatSessionRecord | null>;
+  findActiveTurnBasedByIdForCharacterId(
+    sessionId: string,
+    characterId: string
+  ): Promise<DuelCombatSessionRecord | null>;
 
   findActiveCombatBlockerCharacterId(
     characterIds: string[]

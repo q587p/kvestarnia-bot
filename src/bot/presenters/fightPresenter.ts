@@ -28,6 +28,11 @@ import type {
 import { getCombatSkillDisplay, PERSISTENT_FIGHT_TURN_SECONDS } from "../../services/fightService";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { findMonsterBark } from "../../content/monsterBarks";
+import { presentMonsterBarkBlockquote } from "./monsterBarkPresenter";
+import {
+  getShortMonsterName,
+  presentShortMonsterName
+} from "./monsterNamePresenter";
 import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
@@ -124,12 +129,34 @@ export function presentFightNeedsRest(
 export function presentFightMonsterRest(
   result: Extract<FightLookupResult, { state: "monster-rest" }>
 ): string {
+  const remaining = presentDuration(
+    Math.ceil((result.availableAt.getTime() - result.now.getTime()) / 1000)
+  );
+  if (result.restKind === "left-passage-tier-two-discovery") {
+    return [
+      "🪜 <b>Сходи, яких учора не було</b>",
+      "",
+      "Після перемоги ви помітили прохід униз, до другого ярусу. Каміння ще тепле, пил дуже діловий, а монстри вирішили не повертатися, доки ви тут усе розглядаєте.",
+      "",
+      `Прохід лишатиметься на видноті ще <b>${remaining}</b>.`
+    ].join("\n");
+  }
   return [
     "🪜 <b>Низ просить тихіше</b>",
     "",
     "Монстри щойно взяли коротку корчемну перерву. Кажуть, без неї вони починають випадати з ролі й просити профспілку.",
     "",
-    `Поверніться за <b>${presentDuration(Math.ceil((result.availableAt.getTime() - result.now.getTime()) / 1000))}</b>.`
+    `Поверніться за <b>${remaining}</b>.`
+  ].join("\n");
+}
+
+export function presentTierTwoConstruction(): string {
+  return [
+    "🚧 <b>Ярус II тимчасово вдає будівельний майданчик</b>",
+    "",
+    "За сходами тривають ремонтні роботи: стукають молотки, сперечаються кошториси й хтось дуже переконливо каже, що поручні «майже готові».",
+    "",
+    "Шлях відкриється в одній із наступних пригод. Поки що зачекайте й не підписуйте нічого, що простягають із темряви."
   ].join("\n");
 }
 
@@ -1393,16 +1420,6 @@ function presentRemortMonsterPressureLines(state: CombatState | null | undefined
   ];
 }
 
-function presentShortMonsterName(name: string | null | undefined, fallback: string): string {
-  return escapeHtml(getShortMonsterName(name, fallback));
-}
-
-function getShortMonsterName(name: string | null | undefined, fallback: string): string {
-  const plainName = name?.replace(/<[^>]*>/g, "").trim() ?? "";
-
-  return plainName.split(/[\s\-–—]+/u).find(Boolean) ?? fallback;
-}
-
 function getEnemyActionDisplayIndex(entry: NonNullable<CombatTurnSummary["enemyActions"]>[number], actionIndex: number): number {
   const match = /^enemy:(\d+)$/u.exec(entry.enemyId);
   const parsed = match ? Number.parseInt(match[1] ?? "", 10) : Number.NaN;
@@ -1784,16 +1801,6 @@ function withMonsterBark(
     ...lines,
     ...(satedRecovery ? [satedRecovery] : [])
   ].join("\n");
-}
-
-function presentMonsterBarkBlockquote(text: string): string {
-  const barkText = stripOuterUkrainianQuotes(text.trim());
-
-  return `🗣️ Монстр:\n<blockquote>${escapeHtml(barkText)}</blockquote>`;
-}
-
-function stripOuterUkrainianQuotes(text: string): string {
-  return text.startsWith("«") && text.endsWith("»") ? text.slice(1, -1).trim() : text;
 }
 
 function presentSkillAction(skillId: string | undefined): string {

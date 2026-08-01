@@ -35,6 +35,15 @@ describe("achievement definitions", () => {
     expect(disabled).toHaveLength(12);
   });
 
+  it("defers the left-passage party completion achievement and event", () => {
+    expect(achievements.some(
+      (definition) => definition.id === "achievement.left-passage.party-attack.first"
+    )).toBe(false);
+    expect(achievements.some(
+      (definition) => definition.trigger.type === "left-passage.party-attack.completed"
+    )).toBe(false);
+  });
+
   it("does not ship enabled achievements with duplicate trigger gates", () => {
     const signatures = new Map<string, string>();
 

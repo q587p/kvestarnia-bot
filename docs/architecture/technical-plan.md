@@ -383,6 +383,163 @@ This proof intentionally grants no XP, gold, items, quest/achievement/activity
 progress or ordinary resource settlement. Production parity and rewards remain
 future work; Big Barrel behavior is unchanged.
 
+`0.4.2` adds the first production `group-combat.v3` consumer on the exact
+left-passage reservation. `GroupCombatParticipant.snapshotJson` is the
+independent strict start-time authority for immutable actor identity,
+presentation, life/order, class/race/level, maxima, combat/support/base stats,
+equipment, granted gear abilities and initial combat-item quantities;
+`state_json` owns only bounded runtime HP/mana, cooldown, threat, flee/fumble and
+canonically committed item-use changes. Production loot uses the code-owned
+immutable v1 enemy/ability/effective-rarity catalog and resolver, never current
+content catalogs or generic loot code during restart/settlement. Telegram flee
+gameplay commits exactly once before delivery, but the notification contract is
+durable at-least-once: a live claim retries database acknowledgement for the
+returned Telegram message id without resending, while a crash after Bot API
+acceptance and before acknowledgement leaves a bounded duplicate risk on stale
+reclaim because `sendMessage` has no idempotency key. Delivery resolves current
+navigation before restoring a reply keyboard; current presence/quest markers
+build a free player's menu, and a newer combat durably supersedes the old
+delivery instead of overwriting its battle UI.
+Fresh production encounters freeze `defeated-enemies-half-xp.v1`: a loss keeps
+the bounded consolation and adds half ordinary persistent-PvE XP, rounded up,
+for each defeated enemy before the manual-participant split. Old rows without
+the marker retain their original replay semantics; loss gold and loot remain
+zero. Party join eligibility materializes canonical passive regeneration before
+classifying a lease-free character as knocked out, but an owned active-combat
+lease wins first and forbids mid-combat resource mutation.
+Active GroupCombat card/control replacement uses the same per-character
+durable publication owner as terminal/flee navigation fences. The exact
+session/revision/token is atomically renewed before every Telegram
+`sendMessage`, `editMessageText` and `deleteMessage`; each request is aborted at
+13 seconds, below the 23-second stale boundary, and ownership loss suppresses
+all later calls in that replacement. Every active canonical card send/edit
+carries its authoritative non-empty inline controls. Ordinary persistent combat,
+Training Doppelgänger, Party Boss and GroupCombat use one shared action-grid
+template and canonical labels; GroupCombat diverges only for explicit living-
+enemy target buttons and its final paired retreat/refresh row. With an odd
+multi-enemy target count, the final target shares the remaining primary row
+with guard. A knocked-out participant receives shared observer copy without an
+action prompt or timer and only `🔎 Оновити`. Only an inline control set
+actually attached to a private canonical candidate may advance the legacy
+fingerprint/generation fields, and candidate-reference adoption records that
+fingerprint in the same CAS. A later acknowledgement failure or scheduler tick
+therefore edits the adopted canonical card instead of sending another countdown
+copy. A candidate that loses the durable reference CAS receives three
+bounded deletion attempts; permanent Telegram refusal redraws only that losing
+message as a compact inert superseded note. Active replacement compacts the
+previous canonical message before the best-effort delete. Terminal publication
+sends the result with Journal/Statistics inline controls immediately and leaves
+the persistent main reply keyboard established by the intro untouched, then
+compacts the previous card. A legacy result carrying a reply keyboard cannot be
+edited by Telegram; restart recovery deletes it and sends one inline replacement
+before adoption. If Telegram permanently refuses that deletion, the delivered
+result is retained and gameplay ownership is released rather than fencing every
+quest/location route forever. A
+supergroup notice never acknowledges a private control generation.
+The production intro remains a separate message, but the first authoritative
+keyboard-generation owner serializes it inside the same durable participant
+publication claim immediately before the canonical card. Both private sends
+use complementary control surfaces: the intro restores the persistent
+location-aware main reply keyboard, and the canonical card carries current
+inline combat actions. The intro never rewrites or releases the canonical
+participant reference, and a starter/scheduler retry cannot publish it after an
+acknowledged card. Active-card edits always include the current inline markup,
+so no send/edit order can make the newest live card inert; the fingerprint still
+avoids unchanged replacement sends, while changed controls or explicit private
+recovery publish one fresh actionable card.
+An explicitly fresh private actor card requested by combat-lock recovery,
+refresh or a handled reply action attaches current inline controls even when the
+stored fingerprint already matches. Explicit `🔎 Оновити` first clears that
+participant's acknowledged fingerprint and marks session delivery pending in
+one transaction. A busy claim or process loss therefore remains scheduler
+retryable, and active delivery cannot clear the pending row until a real private
+control generation has been acknowledged. Completed exit navigation retires
+terminal delivery work independently of an obsolete legacy card revision, so a
+finished row cannot remain in the five-second delivery queue.
+The one-use reply button is rendered only when canonical validation finds at
+least one useful owned item. Terminal, flee and
+timeout mutations wait for a live publication fence without consuming their
+bounded optimistic-conflict retries; elapsed wall time permits restart
+takeover of a dead claim without changing canonical gameplay timestamps.
+Telegram has no request idempotency key, so acceptance immediately before an
+abort/network failure remains an honest external at-least-once ambiguity.
+The separately persisted exit-navigation claim follows the same I/O rule for
+the main-menu reply keyboard: current presence/quest markers are advisory until
+an atomic pre-send renewal validates the exact claim token and exit-navigation
+lease, and the send aborts at 13 seconds. A lost owner sends nothing; ordinary
+failure releases to pending, while an acknowledgement-ambiguous live claim is
+retained for stale recovery. For terminal settlement, the one bottom-most
+result carries Journal/Statistics on its initial send while the persistent main
+keyboard remains visible. Delivery retains the exact claim and navigation lease
+through legacy replacement, old-card compaction,
+canonical-reference adoption and losing-candidate cleanup. The final completion
+CAS validates the same token/reference and releases the navigation lease last.
+Process death after adoption is restart-recoverable, while stale takeover cannot
+let an older worker publish after a newer combat.
+Strict repair treats `menu-delivered` as canonical both between retries with no
+owner and while its exact token/timestamp still owns the final CAS. Generic
+combat-lock routing recognizes that temporary exit-navigation lease, resumes
+only its exact participant/session and lets the pending quest or location route
+continue after completion instead of broadcasting a combat-owner mismatch.
+Manual action acceptance and turn resolution are separate durable boundaries.
+The first transaction validates and commits the queued/replaced action row.
+Only then may a bounded resolver claim navigation fences and apply the turn.
+Process death or a live UI fence therefore leaves a canonical action that a
+duplicate submission, due timeout or another worker can adopt exactly once;
+the local caller may return its accepted action state after bounded contention
+instead of waiting indefinitely or reporting a false stale turn.
+
+Generic navigation combat-lock routing resolves ownership from one narrow
+`activeCombatLease` read keyed by Telegram user, then loads only the exact
+`referenceId + characterId` owner for solo combat, turn-based duel, Party Boss
+or GroupCombat. A missing, terminal, quarantined, wrong-participant or unknown
+lease owner fails closed with one recovery notice; the middleware neither
+falls through to navigation nor probes unrelated combat services. Solo
+Fight overview accepts that authoritative lease as input and therefore does not
+repeat the ownership read. Callback performance telemetry keeps the full
+handler `totalMs` but also records time through the first actor-visible
+presentation/acknowledgement as `interactiveMs` and the remaining handler work
+as `postPresentationMs`; those phases apply equally to solo, party and other
+callback routes without triggering additional participant delivery.
+
+The immutable production-v1 catalog freezes all 132 canonical authored monster
+abilities. GroupCombat compiles every authored recipe into typed immediate and
+persisted components, including targeting, damage modifiers, healing, shields,
+mana drain, cleanse/removal/reapply, locks, pressure, counters, reflection,
+damage-over-time, evasion/accuracy, marks, cooldown changes and conditional
+follow-up damage. Persisted effects retain their source ability, exact target,
+trigger, duration and charges, and strict restart validation rederives those
+semantics from the frozen catalog. There is no separate short allowlist or
+label-only fallback; unknown ids, unsupported components, malformed definitions
+and snapshots that disagree with the frozen recipe fail before production
+encounter start or on load.
+
+The compiler also exposes a typed exactly-once consumer map for every
+semantically active authored parameter; catalog coverage must prove the map for
+all 132 abilities rather than merely recognize emitted component kinds.
+Mana-cost pressure is part of one effective ability-cost calculation shared by
+availability, validation and commit, and never applies to attack, guard, flee
+or items. Flee pressure changes the one canonical pre-roll chance without
+overriding the seventh-attempt guarantee. Ability locks persist either the
+authored class/race source or one deterministic frozen ability id. Charged
+marks consume only on the first landed incoming hit. Reapplied expired effects
+continue to validate against their original authored semantic source and store
+the reapplying enemy/ability/turn as separate provenance. Rolling recap writes
+use deterministically ordered two-byte effect groups. Strict parsing requires
+canonical base64url, nonzero masks bounded by the actual frozen roster, known
+kind/duration values and no duplicate or overlapping targets; compatibility
+accepts only the exact previous full-kind/full-side/string-target tuple, never
+hybrid shapes. Malformed production v3 rows enter the existing operator-required
+fence with leases retained. Active and historical effect labels derive
+beneficial/harmful meaning from the frozen kind and target side, while exact
+runtime value/polarity remains in strict active evidence. Counter and flat-
+reflect reactions share the ordinary monster-runtime charge, deterministic roll
+and authored/default potency contract; counter/reflect/shield-break retaliation
+records causal journal damage and contribution totals once. A final enemy defeat
+already achieved by the participant exchange remains a win if its same-exchange
+reaction also defeats the final participant. These contracts preserve all 25
+journal turns and restart evidence under the unchanged `65,536`-byte state cap.
+
 Canonical evolution plan:
 [`party-combat-evolution-plan.md`](./party-combat-evolution-plan.md).
 

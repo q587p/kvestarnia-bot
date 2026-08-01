@@ -794,7 +794,8 @@ describe("presence middleware", () => {
       partySessions: {
         isEnabled: () => true,
         areDevHelpersEnabled: () => false,
-        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" })
+        getLiveRecruitingByTelegramUser: () => Promise.resolve({ id: "party-1" }),
+        listVisibleRecruitingAtLocation: () => Promise.resolve([])
       } as unknown as NonNullable<BotServices["partySessions"]>
     });
     const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];

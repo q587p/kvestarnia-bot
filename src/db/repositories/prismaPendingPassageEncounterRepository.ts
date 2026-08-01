@@ -13,6 +13,11 @@ import type {
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { mapSoloCombatSessionRecord } from "./prismaSoloCombatSessionRepository";
 import { freezeVarenykSatedForSoloCombatStart } from "./prismaVarenykSated";
+import {
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT,
+  PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+} from "../../services/presenceService";
 
 type PrismaPendingPassageEncounterRecord = Awaited<
   ReturnType<PrismaClient["pendingPassageEncounter"]["findFirst"]>
@@ -29,7 +34,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
   ): Promise<PendingPassageEncounterRecord | null> {
     const record = await this.prisma.pendingPassageEncounter.findFirst({
       where: {
-        status: "pending",
+        status: { in: ["pending", "reserved"] },
         originLocationId,
         expiresAt: { gt: now },
         ...(rulesVersion ? { rulesVersion } : {}),
@@ -38,7 +43,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
       orderBy: { updatedAt: "desc" }
     });
 
-    return mapPending(record);
+    return this.withReservedPartyToken(mapPending(record));
   }
 
   async findByTokenForTelegramUser(
@@ -54,7 +59,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
       }
     });
 
-    return mapPending(record);
+    return this.withReservedPartyToken(mapPending(record));
   }
 
   async findLatestConsumedForTelegramUser(
@@ -107,7 +112,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
         where: {
           characterId: character.id,
           originLocationId: input.originLocationId,
-          status: "pending",
+          status: { in: ["pending", "reserved"] },
           OR: [
             { expiresAt: { lte: input.now } },
             {
@@ -145,7 +150,7 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         return this.prisma.pendingPassageEncounter.findFirst({
           where: {
-            status: "pending",
+            status: { in: ["pending", "reserved"] },
             originLocationId: input.originLocationId,
             expiresAt: { gt: input.now },
             rulesVersion: input.rulesVersion,
@@ -159,6 +164,22 @@ export class PrismaPendingPassageEncounterRepository implements PendingPassageEn
     });
 
     return mapPending(record);
+  }
+
+  private async withReservedPartyToken(
+    encounter: PendingPassageEncounterRecord | null
+  ): Promise<PendingPassageEncounterRecord | null> {
+    if (!encounter?.reservedPartySessionId) {
+      return encounter;
+    }
+    const party = await this.prisma.partySession.findUnique({
+      where: { id: encounter.reservedPartySessionId },
+      select: { inviteToken: true }
+    });
+    return {
+      ...encounter,
+      reservedPartyInviteToken: party?.inviteToken ?? null
+    };
   }
 
   async expireById(input: {
@@ -433,6 +454,13 @@ function mapPending(record: PrismaPendingPassageEncounterRecord): PendingPassage
     status: normalizeStatus(record.status),
     version: record.version,
     combatSessionId: record.combatSessionId,
+    reservationOrigin: record.reservationOrigin,
+    reservationRemortCount: record.reservationRemortCount,
+    reservedMonsterHp: record.reservedMonsterHp,
+    reservedPartySessionId: record.reservedPartySessionId,
+    reservedPartyInviteToken: null,
+    groupCombatSessionId: record.groupCombatSessionId,
+    reservedAt: record.reservedAt,
     expiresAt: record.expiresAt,
     consumedAt: record.consumedAt,
     cancelledAt: record.cancelledAt,
@@ -450,7 +478,7 @@ function normalizeDifficulty(value: string): PendingPassageEncounterRecord["diff
 }
 
 function normalizeStatus(value: string): PendingPassageEncounterStatus {
-  return value === "consumed" || value === "expired" || value === "cancelled" || value === "pending"
+  return value === "reserved" || value === "consumed" || value === "expired" || value === "cancelled" || value === "pending"
     ? value
     : "cancelled";
 }
@@ -499,16 +527,16 @@ function isRecoverablePriorSession(
 }
 
 function normalizeOrigin(value: string | undefined): string {
-  if (value === "location.korchma.deep.level1.left") {
-    return "location.korchma.deep.level1.left";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
   }
 
-  if (value === "location.korchma.deep.level1.right") {
-    return "location.korchma.deep.level1.right";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT;
   }
 
-  if (value === "location.korchma.deep.level1.straight") {
-    return "location.korchma.deep.level1.straight";
+  if (value === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT) {
+    return PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT;
   }
 
   return value ?? "";
@@ -517,11 +545,11 @@ function normalizeOrigin(value: string | undefined): string {
 function passageFromOrigin(value: string): PendingPassageEncounterRecord["passage"] {
   const normalized = normalizeOrigin(value);
 
-  if (normalized === "location.korchma.deep.level1.left") {
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT) {
     return "deep-left";
   }
 
-  if (normalized === "location.korchma.deep.level1.right") {
+  if (normalized === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_RIGHT) {
     return "deep-right";
   }
 

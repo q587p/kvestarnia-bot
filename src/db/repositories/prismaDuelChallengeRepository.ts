@@ -913,6 +913,25 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     return this.mapDuelCombatSession(session);
   }
 
+  async findActiveTurnBasedByIdForCharacterId(
+    sessionId: string,
+    characterId: string
+  ): Promise<DuelCombatSessionRecord | null> {
+    const session = await this.prisma.duelCombatSession.findFirst({
+      where: {
+        id: sessionId,
+        status: "active",
+        OR: [
+          { challengerCharacterId: characterId },
+          { targetCharacterId: characterId }
+        ]
+      },
+      include: sessionInclude
+    });
+
+    return this.mapDuelCombatSession(session);
+  }
+
   async findTurnBasedByTokenForTelegramUserId(
     inviteToken: string,
     telegramUserId: bigint

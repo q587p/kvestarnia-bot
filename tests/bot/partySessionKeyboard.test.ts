@@ -10,6 +10,8 @@ import {
 } from "../../src/bot/keyboards/partySessionKeyboard";
 import type { PartyBossSessionRecord } from "../../src/db/repositories/partyBossRepository";
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
+import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("party session keyboard", () => {
   it("shows the dev expiry helper only when explicitly allowed", () => {
@@ -91,6 +93,16 @@ describe("party session keyboard", () => {
       "🎒 Одноразові манатки",
       "⏱️ Dev: добити хід",
       "🔎 Оновити"
+    ]);
+    expect(inlineButtonRows(buildPartyBossKeyboard(session, "character-1", {
+      includeCombatItems: true,
+      includeDevTimeout: true
+    }))).toEqual([
+      ["🗡️ Вдарити", "🧱 Захищатися"],
+      ["🪓 Силовий замах", "🧰 Практична імпровізація"],
+      ["🎒 Одноразові манатки"],
+      ["⏱️ Dev: добити хід"],
+      ["🔎 Оновити"]
     ]);
     expect(keyboardText(buildPartyBossKeyboard(session, "character-1", {
       includeCombatItems: true
@@ -189,7 +201,7 @@ describe("party session keyboard", () => {
     });
 
     expect(inlineButtonTexts(keyboard)).toEqual([
-      "✅ Готові",
+      "✅ Готово",
       "🔎 Оновити",
       "🚪 Вийти",
       "🧹 Скасувати збір",
@@ -197,7 +209,7 @@ describe("party session keyboard", () => {
       "🔗 Запросити на рейд",
       "🛢️ Почати рейд"
     ]);
-    expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готові", "🔎 Оновити"]);
+    expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готово", "🔎 Оновити"]);
     expect(inlineButtonRows(keyboard)[1]).toEqual(["🚪 Вийти", "🧹 Скасувати збір"]);
     expect(inlineButtonRows(keyboard)[2]).toEqual(["📣 Картка запрошення", "🔗 Запросити на рейд"]);
     expect(inlineButtonTexts(keyboard).at(-1)).toBe("🛢️ Почати рейд");
@@ -461,6 +473,25 @@ describe("party session keyboard", () => {
 
     expect(inlineButtonTexts(keyboard)).toContain("⏳ Зачекайте");
     expect(keyboardText(keyboard)).toContain("v1:party:rs:partyABC12:w");
+  });
+
+  it("shows left-passage readiness and leader start for a solo gathering", () => {
+    const session = {
+      ...makeSession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      isPrivateDestination: true
+    });
+
+    expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готово", "🔎 Оновити"]);
+    expect(inlineButtonTexts(keyboard)).toContain("⚔️ Почати атаку");
+    expect(keyboardText(keyboard)).toContain("v3:gc:s:partyABC12");
   });
 
   it("rotates Big Barrel Brother invite-card text", () => {

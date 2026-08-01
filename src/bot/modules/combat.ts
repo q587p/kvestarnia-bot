@@ -39,6 +39,7 @@ import { playerFromContext } from "../context";
 import {
 buildFightResultKeyboard,
 buildPersistentFightDifficultyKeyboard,
+buildPersistentFightItemsKeyboard,
 buildPersistentFightJournalKeyboard,
 buildPassageSearchCancelKeyboard,
 buildPassageSearchRunningKeyboard,
@@ -69,6 +70,7 @@ presentPersistentFightJournal,
 presentPersistentFightPassagePreview,
 presentPersistentFightSnapshot,
 presentPersistentFightTurn,
+presentTierTwoConstruction,
 presentQuestProgressAfterFight,
 type QuestProgressAfterFightEntry
 } from "../presenters/fightPresenter";
@@ -392,6 +394,18 @@ async function handleFightCallback(
     return;
   }
 
+  if (callback.type === "tier2") {
+    await safeAnswerCallbackQuery(ctx);
+    await ctx.reply(presentTierTwoConstruction(), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: new InlineKeyboard().text(
+        "↩️ Повернутися до Сутеренів",
+        makePlaceCallbackData("deep-level1")
+      )
+    });
+    return;
+  }
+
   if (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, "edit")) {
     return;
   }
@@ -471,6 +485,12 @@ async function handleFightCallback(
         reply_markup: buildPersistentFightPassagePreviewKeyboard({
           passage: resultPassage.passage,
           encounterToken: result.encounterToken,
+          ...(result.reservedPartyInviteToken
+            ? { reservedPartyInviteToken: result.reservedPartyInviteToken }
+            : {}),
+          leftPassagePartyAttackEnabled:
+            result.partyInvitationAvailable &&
+            services.groupCombat?.isLeftPassageEntryEnabled() === true,
           searchAvailable: await isPassageSearchAvailable(
             services.passageSearch,
             telegramUserId,
@@ -572,8 +592,112 @@ async function handleFightCallback(
 
     await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+      reply_markup: buildPersistentFightResultKeyboard(result.session, result.character, {
+        includeCombatItems:
+          result.session.status === "active" &&
+          result.session.state?.status === "active" &&
+          typeof services.fight.hasPersistentFightCombatItemsForTelegramUser === "function" &&
+          await services.fight.hasPersistentFightCombatItemsForTelegramUser(
+            telegramUserId,
+            result.session.id,
+            result.session.state.turn
+          )
+      })
     });
+    return;
+  }
+
+  if (callback.type === "items") {
+    const menu = await services.fight.listPersistentFightCombatItemsForTelegramUser(
+      telegramUserId,
+      callback.sessionId,
+      callback.turn
+    );
+
+    if (menu.state === "no-character") {
+      await safeAnswerCallbackQuery(ctx);
+      await safeEditMessageText(ctx, presentFightNoCharacter());
+      return;
+    }
+
+    if (menu.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Цей бій уже не знайшовся.",
+        show_alert: true
+      });
+      return;
+    }
+
+    if (menu.state === "stale") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Хід уже змінився. Оновлюю бій."
+      });
+      const snapshot = await services.fight.getPersistentFightSnapshotForTelegramUser(
+        telegramUserId,
+        callback.sessionId
+      );
+      if (snapshot.state === "found") {
+        await safeEditMessageText(ctx, presentPersistentFightSnapshot(snapshot), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightResultKeyboard(snapshot.session, snapshot.character, {
+            includeCombatItems:
+              snapshot.session.status === "active" &&
+              snapshot.session.state?.status === "active" &&
+              typeof services.fight.hasPersistentFightCombatItemsForTelegramUser === "function" &&
+              await services.fight.hasPersistentFightCombatItemsForTelegramUser(
+                telegramUserId,
+                snapshot.session.id,
+                snapshot.session.state.turn
+              )
+          })
+        });
+      }
+      return;
+    }
+
+    if (menu.items.length === 0) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Зараз немає одноразової манатки, яку можна застосувати.",
+        show_alert: true
+      });
+      return;
+    }
+
+    const snapshot = await services.fight.getPersistentFightSnapshotForTelegramUser(
+      telegramUserId,
+      callback.sessionId
+    );
+    if (snapshot.state !== "found") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Цей бій уже не знайшовся.",
+        show_alert: true
+      });
+      return;
+    }
+
+    await markScenePresence(ctx, services.presence, {
+      locationId: resolvePersistentFightPresenceLocation(snapshot.session),
+      currentRaidId: null,
+      currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
+    });
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      [
+        presentPersistentFightSnapshot(snapshot),
+        "",
+        "🎒 <b>Одноразові манатки</b>",
+        "Оберіть одну. Вона витратить хід лише після успішного застосування."
+      ].join("\n"),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPersistentFightItemsKeyboard({
+          sessionId: callback.sessionId,
+          turn: callback.turn,
+          items: menu.items
+        })
+      }
+    );
     return;
   }
 
@@ -623,6 +747,17 @@ async function handleFightCallback(
       ));
     }
 
+    const includeCombatItems =
+      result.state !== "not-found" &&
+      result.state !== "needs-rest" &&
+      result.session.status === "active" &&
+      result.session.state?.status === "active" &&
+      typeof services.fight.hasPersistentFightCombatItemsForTelegramUser === "function" &&
+      await services.fight.hasPersistentFightCombatItemsForTelegramUser(
+        telegramUserId,
+        result.session.id,
+        result.session.state.turn
+      );
     const rendered = perf.measureCompute(() => {
       const itemUnavailableNotice = callback.type === "item"
         ? presentPersistentFightItemUnavailableNotice(result)
@@ -638,7 +773,9 @@ async function handleFightCallback(
         replyMarkup:
           result.state === "not-found" || result.state === "needs-rest"
             ? undefined
-            : buildPersistentFightResultKeyboard(result.session, result.character)
+            : buildPersistentFightResultKeyboard(result.session, result.character, {
+                includeCombatItems
+              })
       };
     });
     await perf.measureTelegram(() => safeAnswerCallbackQuery(ctx, rendered.unavailableNotice

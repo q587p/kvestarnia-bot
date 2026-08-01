@@ -285,7 +285,7 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
   }
 
   if (result.state === "no-audience") {
-    return "🎶 Бард оглянув місцину й побачив замало живих слухачів. Для виступу потрібен ще хоча б один активний пригодник поруч.";
+    return "🎶 Поруч немає вільного слухача. Активні пригодники, які вже в бою чи іншій несумісній справі, не можуть отримати «Натхнення»: виступ треба почати до бою.";
   }
 
   if (result.state === "wrong-place") {

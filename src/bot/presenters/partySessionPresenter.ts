@@ -5,6 +5,7 @@ import {
 } from "../../content/characterFlavor";
 import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
   type PartyCancelResult,
   type PartyCreateResult,
   type PartyJoinResult,
@@ -27,10 +28,15 @@ import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft
 import { getCombatSkillDisplay } from "../../services/fightService";
 import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import {
+  presentPartyReadinessMarker,
+  supportsPartyReadiness
+} from "./partyPreparationPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import { presentBattleObserverNotice } from "./battleObserverPresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 import {
   presentActiveVarenykSatedCombatState,
@@ -173,6 +179,40 @@ function presentPartyJoinIneligible(
   result: Extract<PartyJoinResult, { state: "ineligible" }>
 ): string {
   const reason = result.reason;
+
+  if (result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    if (reason === "wrong-location") {
+      return "Щоби відгукнутися на поклик, стійте біля того самого сліду в лівому проході Низу.";
+    }
+    if (reason === "stale-life") {
+      return "Цей поклик пам’ятає попереднє життя пригодника. Попросіть ватажка зібрати ватагу знову.";
+    }
+    if (reason === "dead") {
+      return "Спершу поверніть пригодника до тями. Лівий прохід не приймає героїчних привидів до складу.";
+    }
+    if (reason === "invalid-resources") {
+      return "Запас сил або мани має нечинний стан. Оновіть картку пригодника, перш ніж відповідати на поклик.";
+    }
+    if (reason === "active-combat") {
+      return "Ви вже в активному бою. Завершіть його, тоді відповідайте на поклик із лівого проходу.";
+    }
+    if (reason === "active-search") {
+      return [
+        "У лівому проході ще триває ваш пошук.",
+        `На поклик можна відповісти за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+      ].join("\n");
+    }
+    if (reason === "left-passage-rest") {
+      return [
+        "Після попередньої групової бійки ще триває перепочинок.",
+        `До іншої ватаги можна приєднатися за <b>${formatRemainingWait(result.availableAt, result.now)}</b>.`
+      ].join("\n");
+    }
+    if (reason === "expired-invitation") {
+      return "Поклик із лівого проходу вже згас. Попросіть ватажка перевірити слід знову.";
+    }
+    return "Поклик із лівого проходу вже не може прийняти цього пригодника.";
+  }
 
   if (reason === "level-gate") {
     return "Рейдова канцелярія відсіяла запис: Старший Брат Бочки пускає в цю бійку пригодників від 8 рівня, або ремортованих від 3 рівня.";
@@ -668,8 +708,8 @@ export function presentPartyBoss(
     lines.push(viewerCanAct
       ? presentPartyBossViewerTurnPrompt(session, viewer)
       : big
-        ? "Ви вибиті з рейду. Картка лишається для спостереження й оновлення."
-        : "Ви вибиті з тестового бою. Картка лишається для спостереження й оновлення.");
+        ? presentBattleObserverNotice("рейду")
+        : presentBattleObserverNotice("тестового бою"));
   } else if (session.status === "active") {
     lines.push("", `⏳ На хід є ${formatSecondsLong(PARTY_BOSS_TURN_MS)}. Потім Корчма поставить мовчунів у захист.`);
   }
@@ -1198,8 +1238,13 @@ export function presentPartySession(
     : null;
   const big = session.originLocationId === "barrel.big-brother";
   const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
+  const leftPassage = session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
   const lines = [
-    big ? "🛢️ <b>Збір до Старшого Брата Бочки</b>" : "🧭 <b>Рейдова ватага</b>",
+    big
+      ? "🛢️ <b>Збір до Старшого Брата Бочки</b>"
+      : leftPassage
+        ? "🤝 <b>Ватага до лівого проходу</b>"
+        : "🧭 <b>Рейдова ватага</b>",
     "",
     getStatusLine(session),
     `Учасники: ${joined.length}/${session.participantCap}`,
@@ -1228,7 +1273,7 @@ export function presentPartySession(
     lines.push("Запис порожній. Це вже майже філософія.");
   } else {
     lines.push(...joined.map((participant, index) => `${index + 1}. ${presentRecruitingParticipantName(participant, {
-      showReadiness: big && session.status === "recruiting"
+      showReadiness: supportsPartyReadiness(session) && session.status === "recruiting"
     })}`));
   }
 
@@ -1241,6 +1286,8 @@ export function presentPartySession(
       ? "Це справжній ризиковий маршрут: один спільний бос, видимий стан ватаги й жодного точного прогнозу винагород. Коли час добіжить, рейд почнеться автоматично."
       : groupCombat
         ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
+        : leftPassage
+          ? "Склад ворогів підлаштується під силу ватаги."
         : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -1431,7 +1478,9 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   if (session.status === "expired") {
-    return "Стан: строк збору минув";
+    return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+      ? "Стан: збір завершено без атаки"
+      : "Стан: строк збору минув";
   }
 
   if (session.status === "ineligible") {
@@ -1454,6 +1503,13 @@ function getStatusLine(session: PartySessionRecord): string {
       `Стан: сутичка почнеться автоматично о ${formatTime(session.expiresAt)}.`,
       "Лідер ватаги може почати бій раніше."
     ].join("\n");
+  }
+
+    if (session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+      return [
+        `Стан: атака почнеться, щойно всі будуть готові, або автоматично о ${formatTime(session.expiresAt)}.`,
+        "Лідер може рушити раніше."
+      ].join("\n");
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;
@@ -2366,7 +2422,7 @@ function presentRecruitingParticipantName(
   options: { showReadiness: boolean }
 ): string {
   const marker = options.showReadiness
-    ? participant.readiness === "ready" ? "✅ " : "⏳ "
+    ? presentPartyReadinessMarker(participant.readiness)
     : "";
 
   return `${marker}${presentParticipantName(participant)}`;

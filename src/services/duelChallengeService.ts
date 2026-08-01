@@ -702,6 +702,18 @@ export class DuelChallengeService {
     return session ? this.buildActiveView(session, this.clock()) : null;
   }
 
+  async getActiveTurnBasedByIdForCharacterId(
+    sessionId: string,
+    characterId: string
+  ): Promise<Extract<DuelChallengeView, { state: "active" }> | null> {
+    const session = await this.challenges.findActiveTurnBasedByIdForCharacterId(
+      sessionId,
+      characterId
+    );
+
+    return session ? this.buildActiveView(session, this.clock()) : null;
+  }
+
   async getTurnBasedByTokenForTelegramUser(
     telegramUserId: bigint,
     inviteToken: string

@@ -1,10 +1,7 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { BardPerformanceService } from "../../services/bardPerformanceService";
 import type { PresenceService } from "../../services/presenceService";
-import {
-  PRESENCE_LOCATION_KORCHMA_BAR,
-  PRESENCE_LOCATION_KORCHMA_BARREL
-} from "../../services/presenceService";
+import { PRESENCE_LOCATION_KORCHMA_BAR } from "../../services/presenceService";
 import { telegramUserIdFromContext } from "../context";
 import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData";
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
@@ -27,6 +24,7 @@ import {
   formatShynokOpenTableButtonLabel
 } from "../keyboards/shynokKeyboard";
 import { presentOnline } from "../presenters/presencePresenter";
+import { presentRecruitingPartyActionButton } from "../presenters/partyPreparationPresenter";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -110,7 +108,7 @@ async function buildNearbyActionsKeyboard(
 
   for (const session of recruitingParties) {
     keyboard.text(
-      `🤝 До рейду: ${formatLeaderButton(session.leader.name)}`,
+      presentRecruitingPartyActionButton(session, telegramUserId),
       makePartySessionJoinCallbackData(session.inviteToken)
     ).row();
     hasActions = true;
@@ -186,11 +184,11 @@ async function getVisibleRecruitingParties(
   snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
   options: OnlineCommandOptions
 ): Promise<PartySessionRecord[]> {
-  if (snapshot.state !== "ready" || snapshot.location.id !== PRESENCE_LOCATION_KORCHMA_BARREL) {
+  if (snapshot.state !== "ready") {
     return [];
   }
 
-  return options.partySessions?.listRecruitingBigBarrelBrother() ?? [];
+  return options.partySessions?.listVisibleRecruitingAtLocation(snapshot.location.id) ?? [];
 }
 
 async function getVisibleOpenTavernGameTables(
@@ -274,8 +272,4 @@ function hasOtherActiveNearby(
     snapshot.state === "ready" &&
     snapshot.location.people.active.some((person) => person.telegramUserId !== telegramUserId)
   );
-}
-
-function formatLeaderButton(name: string): string {
-  return name.length > 28 ? `${name.slice(0, 27)}…` : name;
 }

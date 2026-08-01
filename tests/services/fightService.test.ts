@@ -496,6 +496,43 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
+  it("uses a supplied authoritative solo lease without rereading combat ownership", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const session = sessions.addSession(makeActivePersistentSession({
+      id: "solo-session-13",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    }));
+    const leaseRead = vi.fn().mockRejectedValue(new Error("lease must not be reread"));
+    sessions.findLeasedByCharacterId = leaseRead;
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1])
+    });
+
+    const overview = await service.getFightOverviewForTelegramUser(telegramUserId, {
+      authoritativeLease: {
+        characterId: "character-42",
+        kind: "solo-combat",
+        referenceId: session.id
+      }
+    });
+
+    expect(overview).toMatchObject({
+      state: "persistent-active",
+      session: {
+        id: session.id
+      }
+    });
+    expect(leaseRead).not.toHaveBeenCalled();
+  });
+
   it("reports a recovery notice when fight overview fills HP", async () => {
     const marker = new Date("2026-06-12T10:10:00.000Z");
     const characters = new FakeCharacterRepository();
@@ -1618,6 +1655,43 @@ describe("FightService", () => {
     expect(pending.createCount).toBe(1);
   });
 
+  it("creates the real deep-left preview with the canonical presence location used by party reservation", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pending = new FakePendingPassageEncounterRepository(characters, sessions);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1, 0.9]),
+      pendingPassageEncounters: pending
+    });
+
+    const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    });
+    expect(preview).toMatchObject({
+      state: "persistent-preview",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      partyInvitationAvailable: true
+    });
+    if (preview.state !== "persistent-preview") {
+      throw new Error("Expected canonical deep-left preview.");
+    }
+    await expect(pending.findByTokenForTelegramUser(
+      telegramUserId,
+      preview.encounterToken
+    )).resolves.toMatchObject({
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      passage: "deep-left",
+      status: "pending"
+    });
+  });
+
   it("rests the same passage after its pending monster is defeated", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 110 });
@@ -1681,6 +1755,74 @@ describe("FightService", () => {
       expect(otherPassage.originLocationId).toBe(PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT);
     }
     expect(pending.createCount).toBe(2);
+  });
+
+  it("keeps the left passage clear during the persisted tier-two discovery window", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const character = await characters.findByTelegramUserId(telegramUserId);
+    if (!character) {
+      throw new Error("Expected character");
+    }
+    const availableAt = new Date(fixedClock().getTime() + 23 * 60_000);
+    const cooldowns = {
+      findForTelegramUser: vi.fn().mockResolvedValue({
+        character,
+        cooldown: {
+          id: "tier-two-discovery",
+          characterId: character.id,
+          key: "fight:left-passage-tier-two-discovery",
+          availableAt,
+          resultJson: null,
+          updatedAt: fixedClock()
+        }
+      }),
+      deleteForTelegramUser: vi.fn()
+    };
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      clock: fixedClock,
+      combatSessions: new FakeSoloCombatSessionRepository(characters),
+      cooldowns
+    });
+
+    await expect(service.getPassageSearchRestWindowForTelegramUser(
+      telegramUserId,
+      { originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    )).resolves.toMatchObject({
+      state: "monster-rest",
+      availableAt,
+      now: fixedClock(),
+      restKind: "left-passage-tier-two-discovery"
+    });
+    expect(cooldowns.findForTelegramUser).toHaveBeenCalledWith(
+      telegramUserId,
+      "fight:left-passage-tier-two-discovery"
+    );
+  });
+
+  it("clears the persisted tier-two discovery window through the dev rest reset", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 110 });
+    const deleteForTelegramUser = vi.fn().mockResolvedValue("deleted");
+    const service = new FightService({
+      characters,
+      dailyActions: new FakeDailyActionRepository(characters),
+      clock: fixedClock,
+      combatSessions: new FakeSoloCombatSessionRepository(characters),
+      cooldowns: {
+        findForTelegramUser: vi.fn(),
+        deleteForTelegramUser
+      }
+    });
+
+    await expect(
+      service.resetMonsterRestCooldownForDev(telegramUserId)
+    ).resolves.toEqual({ state: "reset", clearedSessions: 1 });
+    expect(deleteForTelegramUser).toHaveBeenCalledWith(telegramUserId, {
+      key: "fight:left-passage-tier-two-discovery"
+    });
   });
 
   it("refreshes a passage preview and rejects attack tokens after rules-version drift", async () => {
@@ -1768,7 +1910,7 @@ describe("FightService", () => {
     expect(sessions.createCount).toBe(0);
   });
 
-  it("keeps a wounded consumed passage monster recoverable until it heals", async () => {
+  it("keeps a wounded deep-left monster recoverable for solo or party attack until it heals", async () => {
     let now = fixedClock();
     const clock = () => now;
     const characters = new FakeCharacterRepository();
@@ -1785,8 +1927,8 @@ describe("FightService", () => {
       pendingPassageEncounters: pending
     });
     const preview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
-      difficulty: "normal",
-      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     });
     if (preview.state !== "persistent-preview") {
       throw new Error("Expected preview");
@@ -1816,8 +1958,8 @@ describe("FightService", () => {
 
     now = addSeconds(fixedClock(), PENDING_PASSAGE_MONSTER_FULL_REGEN_SECONDS / 2);
     const woundedPreview = await service.previewPersistentFightForTelegramUser(telegramUserId, {
-      difficulty: "normal",
-      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_STRAIGHT
+      difficulty: "hard",
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     });
 
     expect(woundedPreview.state).toBe("persistent-preview");
@@ -1830,6 +1972,7 @@ describe("FightService", () => {
       current: woundedHp + Math.floor(started.session.state.monster.hpMax / 2),
       max: started.session.state.monster.hpMax
     });
+    expect(woundedPreview.partyInvitationAvailable).toBe(true);
 
     const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,
@@ -1902,6 +2045,7 @@ describe("FightService", () => {
     expect(survivorPreview.encounterToken).toBe(preview.encounterToken);
     expect(survivorPreview.monster.id).toBe(preview.monster.id);
     expect(survivorPreview.monsterHp).toBeUndefined();
+    expect(survivorPreview.partyInvitationAvailable).toBe(false);
 
     const restarted = await service.attackPersistentPassageEncounterForTelegramUser(
       telegramUserId,
@@ -2845,6 +2989,71 @@ describe("FightService", () => {
       });
       expect(result.session.state?.turnLog?.at(-1)?.summary.action).toBe("item");
     }
+  });
+
+  it("lists only currently useful one-use manatky for the ordinary fight submenu", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.1]),
+      inventory: {
+        listByTelegramUserId: vi.fn().mockResolvedValue([
+          {
+            id: "stack-panic",
+            characterId: "character-42",
+            itemId: "item.responsible-panic-bandage",
+            quantity: 2,
+            createdAt: fixedClock(),
+            updatedAt: fixedClock()
+          },
+          {
+            id: "stack-unrelated",
+            characterId: "character-42",
+            itemId: "item.suspicious-shawarma-wrapper",
+            quantity: 1,
+            createdAt: fixedClock(),
+            updatedAt: fixedClock()
+          }
+        ])
+      }
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") {
+      return;
+    }
+    sessions.setHeroHp(started.session.id, 10);
+
+    const menu = await service.listPersistentFightCombatItemsForTelegramUser(
+      telegramUserId,
+      started.session.id,
+      1
+    );
+
+    expect(menu).toMatchObject({
+      state: "ready",
+      items: [{
+        itemId: "item.responsible-panic-bandage",
+        name: "Бинт відповідальної паніки",
+        quantity: 2
+      }]
+    });
+    if (menu.state === "ready") {
+      expect(menu.items[0]?.itemKey).toBe(
+        getCombatItemUseKey("item.responsible-panic-bandage")
+      );
+    }
+    await expect(service.listPersistentFightCombatItemsForTelegramUser(
+      telegramUserId,
+      started.session.id,
+      2
+    )).resolves.toMatchObject({ state: "stale" });
   });
 
   it("uses a dense bandage in a persistent monster fight and tracks its achievement", async () => {

@@ -29,6 +29,7 @@ import {
 import {
   makeFightCallbackData,
   makeFightGearActionCallbackData,
+  makeFightItemsCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
   makeFightTurnCallbackData,
@@ -7666,6 +7667,70 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the persistent fight one-use item menu through the active combat lock", async () => {
+    const sessionId = "123e4567-e89b-42d3-a456-426614174000";
+    const session = {
+      ...persistentSession("monster.deadline-spider"),
+      id: sessionId,
+      state: {
+        ...persistentSession("monster.deadline-spider").state,
+        id: sessionId
+      }
+    };
+    const listPersistentFightCombatItemsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      character,
+      session,
+      items: [
+        {
+          itemId: "item.responsible-panic-bandage",
+          itemKey: "bandage",
+          name: "Бинт відповідальної паніки",
+          quantity: 1
+        }
+      ]
+    });
+    const calls = await captureApiCalls(
+      makeFightItemsCallbackData({
+        sessionId,
+        turn: 1
+      }),
+      servicesWith({
+        fight: {
+          getFightOverviewForTelegramUser: () => {
+            throw new Error("the persistent item menu must bypass the active combat lock");
+          },
+          listPersistentFightCombatItemsForTelegramUser,
+          getPersistentFightSnapshotForTelegramUser: () =>
+            Promise.resolve({
+              state: "found" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.deadline-spider",
+                name: "Павук дедлайнів",
+                description: "Плете павутину з «сьогодні швиденько».",
+                level: 5,
+                tags: ["beast", "time", "web"]
+              },
+              questProgress: null,
+              fightReward: null
+            })
+        }
+      })
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(listPersistentFightCombatItemsForTelegramUser).toHaveBeenCalledWith(
+      42n,
+      sessionId,
+      1
+    );
+    expect(String(edit?.payload.text)).toContain("🎒 <b>Одноразові манатки</b>");
+    expect(String(edit?.payload.text)).not.toContain("Бій тримає вас за рукав");
+    expect(JSON.stringify(edit?.payload.reply_markup)).toContain("Бинт відповідальної паніки");
+  });
+
   it("routes persistent gear action callbacks through the fight turn handler", async () => {
     const sessionId = "123e4567-e89b-42d3-a456-426614174000";
     const session = {
@@ -8577,6 +8642,24 @@ describe("scene callback HTML options", () => {
     expect(String(preview?.payload.text)).toContain("Павук дедлайнів");
     expect(JSON.stringify(preview?.payload.reply_markup)).toContain("v1:fight:pass:deep-straight:token13");
     expect(JSON.stringify(preview?.payload.reply_markup)).toContain("v1:place:deep-level1");
+  });
+
+  it("explains that the discovered second tier is still under construction", async () => {
+    const calls = await captureApiCalls(
+      "v1:fight:tier2",
+      servicesWith({})
+    );
+    const notice = calls.find(
+      (call) =>
+        call.method === "sendMessage" &&
+        String(call.payload.text).includes("Ярус II тимчасово")
+    );
+
+    expect(String(notice?.payload.text)).toContain("ремонтні роботи");
+    expect(String(notice?.payload.text)).toContain("Шлях відкриється");
+    expect(JSON.stringify(notice?.payload.reply_markup)).toContain(
+      "v1:place:deep-level1"
+    );
   });
 
   it("starts a passage preview encounter only after Attack", async () => {

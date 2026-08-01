@@ -31,6 +31,11 @@ export type FightCallback =
       itemKey: string;
     }
   | {
+      type: "items";
+      sessionId: string;
+      turn: number;
+    }
+  | {
       type: "gear";
       sessionId: string;
       turn: number;
@@ -49,15 +54,20 @@ export type FightCallback =
       type: "passage";
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
       encounterToken: string;
+    }
+  | {
+      type: "tier2";
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const TURN_PREFIX = "v1:fight:turn";
 const ITEM_PREFIX = "v1:fight:item";
+const ITEMS_PREFIX = "v1:fight:items";
 const GEAR_PREFIX = "v1:fight:gear";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
 const PASSAGE_PREFIX = "v1:fight:pass";
+const TIER_TWO_CALLBACK = "v1:fight:tier2";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
 const turnActions = new Set<FightTurnAction>(["attack", "defend", "skill", "race", "flee"]);
 const passageActions = new Set<Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">>([
@@ -89,6 +99,13 @@ export function makeFightItemUseCallbackData(input: {
   return `${ITEM_PREFIX}:${input.sessionId}:${input.turn}:${input.itemKey}`;
 }
 
+export function makeFightItemsCallbackData(input: {
+  sessionId: string;
+  turn: number;
+}): string {
+  return `${ITEMS_PREFIX}:${input.sessionId}:${input.turn}`;
+}
+
 export function makeFightGearActionCallbackData(input: {
   sessionId: string;
   turn: number;
@@ -113,6 +130,10 @@ export function makeFightPassageAttackCallbackData(input: {
   encounterToken: string;
 }): string {
   return `${PASSAGE_PREFIX}:${input.passage}:${input.encounterToken}`;
+}
+
+export function makeFightTierTwoCallbackData(): string {
+  return TIER_TWO_CALLBACK;
 }
 
 export function parseFightCallbackData(
@@ -198,6 +219,30 @@ export function parseFightCallbackData(
       sessionId,
       turn,
       itemKey
+    });
+  }
+
+  if (data.startsWith(`${ITEMS_PREFIX}:`)) {
+    const [, section, scene, sessionId, turnRaw, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "items" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    const turn = Number(turnRaw);
+
+    if (!Number.isInteger(turn) || turn < 1) {
+      return err("invalid-turn");
+    }
+
+    return ok({
+      type: "items",
+      sessionId,
+      turn
     });
   }
 
@@ -291,6 +336,10 @@ export function parseFightCallbackData(
       passage: passage as Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">,
       encounterToken
     });
+  }
+
+  if (data === TIER_TWO_CALLBACK) {
+    return ok({ type: "tier2" });
   }
 
   return err("invalid-prefix");

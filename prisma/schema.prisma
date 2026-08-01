@@ -83,6 +83,7 @@ model Character {
   partyBossSessionsLed PartyBossSession[] @relation("PartyBossSessionLeader")
   groupCombatParticipants GroupCombatParticipant[]
   groupCombatActions GroupCombatAction[]
+  groupCombatUiPublicationClaim GroupCombatUiPublicationClaim?
   activeCombatLease ActiveCombatLease?
   hpRecoveryNotification HpRecoveryNotification?
   name      String
@@ -175,6 +176,14 @@ model PendingPassageEncounter {
   activeKey             String?   @unique @map("active_key")
   version               Int       @default(1)
   combatSessionId       String?   @map("combat_session_id")
+  reservationOrigin     String?   @map("reservation_origin")
+  reservationRemortCount Int?     @map("reservation_remort_count")
+  reservedMonsterHp     Int?      @map("reserved_monster_hp")
+  reservedPartySessionId String?  @unique @map("reserved_party_session_id")
+  reservedPartySession  PartySession? @relation(fields: [reservedPartySessionId], references: [id], onDelete: SetNull)
+  groupCombatSessionId  String?   @unique @map("group_combat_session_id")
+  groupCombatSession    GroupCombatSession? @relation(fields: [groupCombatSessionId], references: [id], onDelete: SetNull)
+  reservedAt            DateTime? @map("reserved_at")
   expiresAt             DateTime  @map("expires_at")
   consumedAt            DateTime? @map("consumed_at")
   cancelledAt           DateTime? @map("cancelled_at")
@@ -185,6 +194,7 @@ model PendingPassageEncounter {
   @@index([originLocationId])
   @@index([monsterId])
   @@index([combatSessionId])
+  @@index([reservationOrigin, status, expiresAt])
   @@map("pending_passage_encounters")
 }
 
@@ -299,6 +309,20 @@ model ActiveCombatLease {
 
   @@index([kind, referenceId])
   @@map("active_combat_leases")
+}
+
+model GroupCombatUiPublicationClaim {
+  characterId String   @id @map("character_id")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  sessionId   String   @map("session_id")
+  session     GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  claimToken  String   @map("claim_token")
+  claimedAt   DateTime @map("claimed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@map("group_combat_ui_publication_claims")
 }
 
 model HpRecoveryNotification {
@@ -967,6 +991,7 @@ model PartySession {
   leader              Character @relation("PartySessionLeader", fields: [leaderCharacterId], references: [id], onDelete: Cascade)
   periodId            String?   @map("period_id")
   originLocationId    String?   @map("origin_location_id")
+  originKind          String?   @map("origin_kind")
   participantCap      Int       @default(8) @map("participant_cap")
   minimumParticipants Int       @default(1) @map("minimum_participants")
   joinUntilAt         DateTime  @map("join_until_at")
@@ -980,6 +1005,7 @@ model PartySession {
   participants        PartyParticipant[]
   bossSessions        PartyBossSession[]
   groupCombatSession  GroupCombatSession?
+  reservedPendingPassageEncounter PendingPassageEncounter?
   raidChatEntries        PartyRaidChatEntry[]
   raidChatComposeIntents PartyRaidChatComposeIntent[]
   raidChatAuthorStates   PartyRaidChatAuthorState[]
@@ -1191,6 +1217,8 @@ model GroupCombatSession {
   deliveryPending Boolean     @default(true) @map("delivery_pending")
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
+  repairState     String?      @map("repair_state")
+  repairReason    String?      @map("repair_reason")
   stateJson      Json         @map("state_json")
   resultJson     Json?        @map("result_json")
   settlementPlanJson Json?    @map("settlement_plan_json")
@@ -1200,6 +1228,8 @@ model GroupCombatSession {
   updatedAt      DateTime     @updatedAt @map("updated_at")
   participants   GroupCombatParticipant[]
   actions        GroupCombatAction[]
+  passageEncounter PendingPassageEncounter?
+  uiPublicationClaims GroupCombatUiPublicationClaim[]
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])
@@ -1225,6 +1255,12 @@ model GroupCombatParticipant {
   messageId        Int?               @map("message_id")
   referenceVersion Int                @default(0) @map("reference_version")
   deliveredRevision Int               @default(0) @map("delivered_revision")
+  replyKeyboardFingerprint String?     @map("reply_keyboard_fingerprint")
+  replyKeyboardGeneration Int          @default(0) @map("reply_keyboard_generation")
+  exitDeliveryState String            @default("none") @map("exit_delivery_state")
+  exitDeliveryClaimToken String?       @map("exit_delivery_claim_token")
+  exitDeliveryClaimedAt DateTime?      @map("exit_delivery_claimed_at")
+  exitDeliveryMessageId Int?           @map("exit_delivery_message_id")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

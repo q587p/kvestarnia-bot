@@ -196,6 +196,8 @@ describe("performance logger", () => {
       presenceMs: Number.NaN,
       ackMs: 13.04,
       firstPresentationMs: 23.04,
+      interactiveMs: 23.04,
+      postPresentationMs: 18.96,
       firstPresentationMethod: "private-method" as "edit",
       totalMs: 42
     });
@@ -206,11 +208,45 @@ describe("performance logger", () => {
       combatLockMs: 60_000,
       ackMs: 13,
       firstPresentationMs: 23,
+      interactiveMs: 23,
+      postPresentationMs: 19,
+      interactiveSlow: false,
+      postPresentationSlow: false,
       totalMs: 42
     });
     expect(payload).not.toHaveProperty("preRouteMs");
     expect(payload).not.toHaveProperty("presenceMs");
     expect(payload).not.toHaveProperty("firstPresentationMethod");
+  });
+
+  it("separates actor-visible latency from post-presentation callback work", () => {
+    const totalOnly = sanitizePerfTimingPayload({
+      route: "callback.party",
+      interactiveMs: 261.3,
+      postPresentationMs: 246.1,
+      totalMs: 507.4
+    });
+    const slowPostPresentation = sanitizePerfTimingPayload({
+      route: "callback.fight",
+      interactiveMs: 194,
+      postPresentationMs: 400,
+      totalMs: 594
+    });
+
+    expect(totalOnly).toMatchObject({
+      slow: true,
+      interactiveSlow: false,
+      postPresentationSlow: false,
+      evidenceKind: "slow-total",
+      interactiveMs: 261.3,
+      postPresentationMs: 246.1
+    });
+    expect(slowPostPresentation).toMatchObject({
+      slow: true,
+      interactiveSlow: false,
+      postPresentationSlow: true,
+      evidenceKind: "slow-post-presentation"
+    });
   });
 
   it("counts non-nested Fight DB stages and keeps durations finite and non-negative", async () => {

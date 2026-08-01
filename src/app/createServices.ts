@@ -11,6 +11,7 @@ import { CellarErrandService } from "../services/cellarErrandService";
 import { CellarGrownupQuestService } from "../services/cellarGrownupQuestService";
 import { ClassNoncombatService } from "../services/classNoncombatService";
 import { CombatBalanceAnalyticsService } from "../services/combatBalanceAnalyticsService";
+import { CombatLeaseReadService } from "../services/combatLeaseReadService";
 import { DeployNotificationService } from "../services/deployNotificationService";
 import { DevGrantService } from "../services/devGrantService";
 import { DailyKorchmaRoundService } from "../services/dailyKorchmaRoundService";
@@ -49,6 +50,7 @@ import { TavernRaidService } from "../services/tavernRaidService";
 import { TrainingDoppelgangerService } from "../services/trainingDoppelgangerService";
 import { YegerQuestService } from "../services/yegerQuestService";
 import type { ApplicationRepositories } from "./createRepositories";
+import { buildQuestMarkerSnapshotForTelegramUser } from "../bot/questMarkerSnapshot";
 
 export interface ApplicationServices extends BotServices {
   deployNotifications: DeployNotificationService;
@@ -80,9 +82,11 @@ export function createServices(
   const fight = new FightService({
     characters: repositories.characters,
     dailyActions: repositories.dailyActions,
-    combatSessions: repositories.soloCombatSessions,
-    equipment: repositories.equipment,
-    combatAnalytics: combatBalanceAnalytics,
+      combatSessions: repositories.soloCombatSessions,
+      equipment: repositories.equipment,
+      inventory: repositories.inventory,
+      cooldowns: repositories.cooldowns,
+      combatAnalytics: combatBalanceAnalytics,
     pendingPassageEncounters: repositories.pendingPassageEncounters,
     shynok: repositories.shynok,
     achievements,
@@ -119,8 +123,20 @@ export function createServices(
       devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
     }
   );
+  const groupCombat = new GroupCombatService(
+    repositories.groupCombatSessions,
+    {
+      enabled: true,
+      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+    },
+    undefined,
+    achievements,
+    (telegramUserId) =>
+      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+  );
 
-  return {
+  const services: ApplicationServices = {
     activityEvents,
     achievements,
     adventure: new AdventureService(
@@ -148,6 +164,7 @@ export function createServices(
       achievements,
       repositories.equipment
     ),
+    combatLeases: new CombatLeaseReadService(repositories.combatLeaseReads),
     dailyKorchmaRound: new DailyKorchmaRoundService(
       repositories.characters,
       repositories.dailyActions,
@@ -216,10 +233,7 @@ export function createServices(
       repositories.dailyActions,
       repositories.huntContracts
     ),
-    groupCombat: new GroupCombatService(repositories.groupCombatSessions, {
-      enabled: nonProduction && config.groupCombatProofEnabled,
-      devHelpersEnabled: nonProduction && config.groupCombatProofEnabled
-    }),
+    groupCombat,
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(
@@ -254,9 +268,12 @@ export function createServices(
     partySessions: new PartySessionService(repositories.partySessions, {
       enabled: nonProduction ||
         config.partySessionFoundationEnabled ||
-        config.bigBarrelBrotherRaidEnabled,
+        config.bigBarrelBrotherRaidEnabled ||
+        config.leftPassagePartyAttackEnabled,
+      runtimeServicingEnabled: true,
       devHelpersEnabled: nonProduction,
-      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
+      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
     }, undefined, achievements),
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
@@ -296,4 +313,5 @@ export function createServices(
       publicActivityEvents
     )
   };
+  return services;
 }

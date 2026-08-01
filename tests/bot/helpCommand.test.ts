@@ -56,6 +56,10 @@ describe("help command", () => {
     expect(replies[0]).toContain("⚔️ Бої й ватага — сутички, рейди й гурт.");
     expect(replies[0]).toContain("🎒 Ресурси й манатки — рівні, HP, мана й речі.");
     expect(replies[0]).toContain("🗺️ Справи й очікування — квести, кулдауни й повтори.");
+    expect(replies[0]).toContain("🪜 /dev_add_level — додати рівні локально");
+    expect(replies[0].indexOf("Що саме треба підкрутити?")).toBeLessThan(
+      replies[0].indexOf("🪜 /dev_add_level — додати рівні локально")
+    );
     expect(replies[0]).not.toContain("/dev_party");
     expect(replies[0]).not.toContain("/dev_add_xp");
     expect(JSON.stringify(replyMarkups[0])).toContain("v1:dh:combat");

@@ -11,6 +11,7 @@ import { PrismaBarrelRaidNotificationRepository } from "../../src/db/repositorie
 import { PrismaCellarGrownupQuestRepository } from "../../src/db/repositories/prismaCellarGrownupQuestRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaCombatBalanceAnalyticsRepository } from "../../src/db/repositories/prismaCombatBalanceAnalyticsRepository";
+import { PrismaCombatLeaseReadRepository } from "../../src/db/repositories/prismaCombatLeaseReadRepository";
 import { PrismaCooldownRepository } from "../../src/db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "../../src/db/repositories/prismaDevGrantRepository";
@@ -38,6 +39,7 @@ import { AchievementService } from "../../src/services/achievementService";
 import { AdventureService } from "../../src/services/adventureService";
 import { CellarErrandService } from "../../src/services/cellarErrandService";
 import { CellarGrownupQuestService } from "../../src/services/cellarGrownupQuestService";
+import { CombatLeaseReadService } from "../../src/services/combatLeaseReadService";
 import { DeployNotificationService } from "../../src/services/deployNotificationService";
 import { DevGrantService } from "../../src/services/devGrantService";
 import { DevResetService } from "../../src/services/devResetService";
@@ -77,6 +79,7 @@ describe("application factory wiring", () => {
     expect(repositories.characters).toBeInstanceOf(PrismaCharacterRepository);
     expect(repositories.cellarGrownupQuests).toBeInstanceOf(PrismaCellarGrownupQuestRepository);
     expect(repositories.combatBalanceAnalytics).toBeInstanceOf(PrismaCombatBalanceAnalyticsRepository);
+    expect(repositories.combatLeaseReads).toBeInstanceOf(PrismaCombatLeaseReadRepository);
     expect(repositories.cooldowns).toBeInstanceOf(PrismaCooldownRepository);
     expect(repositories.dailyActions).toBeInstanceOf(PrismaDailyActionRepository);
     expect(repositories.devGrants).toBeInstanceOf(PrismaDevGrantRepository);
@@ -112,6 +115,7 @@ describe("application factory wiring", () => {
     expect(services.barrelRaidNotifications).toBeInstanceOf(PrismaBarrelRaidNotificationRepository);
     expect(services.cellarErrand).toBeInstanceOf(CellarErrandService);
     expect(services.cellarGrownup).toBeInstanceOf(CellarGrownupQuestService);
+    expect(services.combatLeases).toBeInstanceOf(CombatLeaseReadService);
     expect(services.deployNotifications).toBeInstanceOf(DeployNotificationService);
     expect(services.devGrant).toBeInstanceOf(DevGrantService);
     expect(services.devReset).toBeInstanceOf(DevResetService);
@@ -151,6 +155,8 @@ describe("application factory wiring", () => {
         dailyActions: repositories.dailyActions,
         combatSessions: repositories.soloCombatSessions,
         equipment: repositories.equipment,
+        inventory: repositories.inventory,
+        cooldowns: repositories.cooldowns,
         combatAnalytics: combatBalanceAnalytics,
         pendingPassageEncounters: repositories.pendingPassageEncounters,
         shynok: repositories.shynok,
@@ -236,9 +242,12 @@ describe("application factory wiring", () => {
       partySessions: new PartySessionService(repositories.partySessions, {
         enabled: nonProduction ||
           config.partySessionFoundationEnabled ||
-          config.bigBarrelBrotherRaidEnabled,
+          config.bigBarrelBrotherRaidEnabled ||
+          config.leftPassagePartyAttackEnabled,
+        runtimeServicingEnabled: true,
         devHelpersEnabled: nonProduction,
-        bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled
+        bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+        leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
       }, undefined, achievements)
     `));
     expect(source).toContain(compact(`
@@ -270,14 +279,15 @@ describe("application factory wiring", () => {
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
   });
 
-  it("keeps group combat disabled in production even when its proof flag is set", async () => {
+  it("services group combat in production while keeping proof and left-passage entry disabled", async () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig({
       nodeEnv: "production",
       groupCombatProofEnabled: true
     }));
 
-    expect(services.groupCombat.isEnabled()).toBe(false);
+    expect(services.groupCombat.isEnabled()).toBe(true);
     expect(services.groupCombat.areDevHelpersEnabled()).toBe(false);
+    expect(services.groupCombat.isLeftPassageEntryEnabled()).toBe(false);
     await expect(services.groupCombat.startProof(42n, "proof-token-13")).resolves.toEqual({ state: "disabled" });
   });
 

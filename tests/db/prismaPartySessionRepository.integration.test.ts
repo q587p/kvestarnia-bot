@@ -16,6 +16,9 @@ import { BUREAUCRAMANCER_PROTOCOL_COOLDOWN_KEY } from "../../src/services/bureau
 import { buildFridayBarrelRaidPendingKey } from "../../src/services/tavernRaidService";
 import { PrismaPartyRaidChatTransactionWriter } from "../../src/db/repositories/prismaPartyRaidChatEvents";
 import { PrismaPartyRaidChatRepository } from "../../src/db/repositories/prismaPartyRaidChatRepository";
+import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
+import { LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY } from "../../src/domain/groupCombat/groupCombat";
 
 describe("PrismaPartySessionRepository integration", () => {
   let dir: string;
@@ -1631,6 +1634,206 @@ describe("PrismaPartySessionRepository integration", () => {
     ]);
   });
 
+  it("lists recruiting left-passage gatherings by exact origin kind", async () => {
+    await seedCharacter(prisma, "left-nearby-user", 4021n, "Ліва");
+    await seedCharacter(prisma, "other-nearby-user", 4022n, "Інша");
+    await seedCharacter(prisma, "legacy-left-nearby-user", 4023n, "Старий літерал");
+    await repository.createForTelegramUser(4021n, {
+      ...partyInput("party-nearby-left"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+    await repository.createForTelegramUser(4022n, {
+      ...partyInput("party-nearby-other"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: "other-origin"
+    });
+    await repository.createForTelegramUser(4023n, {
+      ...partyInput("party-nearby-legacy-left"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: "PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT",
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.listRecruitingByOriginKind(
+      LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      now()
+    )).resolves.toEqual([
+      expect.objectContaining({
+        inviteToken: "party-nearby-left",
+        originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+      })
+    ]);
+  });
+
+  it("blocks another left-passage gathering through nearby and deep links while group combat is held", async () => {
+    await seedCharacter(prisma, "left-busy-leader-user", 4024n, "Ватажок зайнятого збору");
+    await seedCharacter(prisma, "left-busy-joiner-user", 4025n, "Зайнята пригодниця");
+    await prisma.user.updateMany({
+      where: {
+        id: { in: ["left-busy-leader-user", "left-busy-joiner-user"] }
+      },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    await repository.createForTelegramUser(4024n, {
+      ...partyInput("party-nearby-left-busy"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "left-busy-joiner-group-combat-lease",
+        characterId: "left-busy-joiner-user-character",
+        kind: "group-combat",
+        referenceId: "left-busy-running-session"
+      }
+    });
+
+    for (const source of ["nearby", "deep-link"] as const) {
+      const joined = await repository.joinByTokenForTelegramUser(
+        4025n,
+        "party-nearby-left-busy",
+        joinInput(source)
+      );
+      expect(joined.state).toBe("ineligible");
+      expect(joined.state === "ineligible" ? joined.reason : null).toBe("active-combat");
+    }
+    await expectNoMembership(prisma, "party-nearby-left-busy", 4025n);
+  });
+
+  it("blocks another left-passage gathering through nearby and deep links during the post-victory rest", async () => {
+    await seedCharacter(prisma, "left-rest-leader-user", 4026n, "Ватажок нового збору");
+    await seedCharacter(prisma, "left-rest-joiner-user", 4027n, "Переможниця на перепочинку");
+    await prisma.user.updateMany({
+      where: {
+        id: { in: ["left-rest-leader-user", "left-rest-joiner-user"] }
+      },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    await repository.createForTelegramUser(4026n, {
+      ...partyInput("party-nearby-left-rest"),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+    const availableAt = new Date(now().getTime() + 3 * 60_000);
+    await prisma.characterCooldown.create({
+      data: {
+        characterId: "left-rest-joiner-user-character",
+        key: LEFT_PASSAGE_TIER_TWO_DISCOVERY_COOLDOWN_KEY,
+        availableAt,
+        resultJson: {
+          kind: "left-passage-tier-two-discovery",
+          groupCombatSessionId: "completed-left-passage-session"
+        }
+      }
+    });
+
+    for (const source of ["nearby", "deep-link"] as const) {
+      const joined = await repository.joinByTokenForTelegramUser(
+        4027n,
+        "party-nearby-left-rest",
+        joinInput(source)
+      );
+      expect(joined).toMatchObject({
+        state: "ineligible",
+        reason: "left-passage-rest",
+        availableAt,
+        now: now()
+      });
+    }
+    await expectNoMembership(prisma, "party-nearby-left-rest", 4027n);
+  });
+
+  it("materializes canonical passive recovery before left-passage join eligibility", async () => {
+    const token = "party-nearby-left-recovered";
+    await seedCharacter(prisma, "left-recovered-leader-user", 4028n, "Ватажок відновлених");
+    await seedCharacter(prisma, "left-recovered-nearby-user", 4029n, "Відновлена поруч", {
+      hpCurrent: 0,
+      hpRegenAt: new Date(now().getTime() - 20 * 60_000)
+    });
+    await seedCharacter(prisma, "left-recovered-link-user", 4030n, "Відновлена за лінком", {
+      hpCurrent: 0,
+      hpRegenAt: new Date(now().getTime() - 20 * 60_000)
+    });
+    await prisma.user.updateMany({
+      where: {
+        id: { in: [
+          "left-recovered-leader-user",
+          "left-recovered-nearby-user",
+          "left-recovered-link-user"
+        ] }
+      },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    for (const userId of ["left-recovered-nearby-user", "left-recovered-link-user"]) {
+      await prisma.characterEquipment.create({
+        data: {
+          id: `${userId}-recovery-chest`,
+          characterId: `${userId}-character`,
+          slot: "chest",
+          itemId: "item.apron-of-foam-resistance"
+        }
+      });
+    }
+    await repository.createForTelegramUser(4028n, {
+      ...partyInput(token),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.joinByTokenForTelegramUser(4029n, token, joinInput("nearby")))
+      .resolves.toMatchObject({ state: "joined" });
+    await expect(repository.joinByTokenForTelegramUser(4030n, token, joinInput("deep-link")))
+      .resolves.toMatchObject({ state: "joined" });
+    await expect(prisma.character.findMany({
+      where: { id: { in: [
+        "left-recovered-nearby-user-character",
+        "left-recovered-link-user-character"
+      ] } },
+      orderBy: { id: "asc" },
+      select: { hpCurrent: true, hpMax: true }
+    })).resolves.toEqual([
+      { hpCurrent: 22, hpMax: 20 },
+      { hpCurrent: 22, hpMax: 20 }
+    ]);
+  });
+
+  it("still blocks a genuinely unconscious left-passage joiner after canonical recovery", async () => {
+    const token = "party-nearby-left-unconscious";
+    await seedCharacter(prisma, "left-unconscious-leader-user", 4031n, "Ватажок непритомних");
+    await seedCharacter(prisma, "left-unconscious-joiner-user", 4032n, "Ще непритомна", {
+      hpCurrent: 0,
+      hpRegenAt: now()
+    });
+    await prisma.user.updateMany({
+      where: { id: { in: ["left-unconscious-leader-user", "left-unconscious-joiner-user"] } },
+      data: { lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT }
+    });
+    await repository.createForTelegramUser(4031n, {
+      ...partyInput(token),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.joinByTokenForTelegramUser(4032n, token, joinInput("nearby")))
+      .resolves.toMatchObject({ state: "ineligible", reason: "dead" });
+    await expectNoMembership(prisma, token, 4032n);
+  });
+
   it("replays expired state for stale leave and cancel buttons", async () => {
     await seedCharacter(prisma, "leader-nine-user", 9001n, "Протермінована");
     await repository.createForTelegramUser(9001n, {
@@ -1744,6 +1947,7 @@ async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
       await prisma.$executeRawUnsafe(statement);
     }
   }
+  await prisma.$executeRawUnsafe("ALTER TABLE party_sessions ADD COLUMN origin_kind TEXT");
 }
 
 async function withSimulatedStartWinningTerminalTransition<T>(
@@ -1830,6 +2034,9 @@ async function seedCharacter(
     level?: number;
     remortCount?: number;
     classId?: string;
+    hpCurrent?: number;
+    hpMax?: number;
+    hpRegenAt?: Date | null;
     manaCurrent?: number;
     manaRegenAt?: Date | null;
     statsJson?: Record<string, number>;
@@ -1847,6 +2054,9 @@ async function seedCharacter(
           raceId: "human",
           classId: options.classId ?? "warrior",
           level: options.level ?? 1,
+          hpCurrent: options.hpCurrent ?? 20,
+          hpMax: options.hpMax ?? 20,
+          hpRegenAt: options.hpRegenAt,
           manaCurrent: options.manaCurrent ?? 10,
           manaMax: Math.max(10, options.manaCurrent ?? 10),
           manaRegenAt: options.manaRegenAt,
@@ -2169,6 +2379,23 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE passage_search_actions (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      node_key TEXT NOT NULL,
+      node_kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      active_key TEXT,
+      started_at DATETIME NOT NULL,
+      ends_at DATETIME NOT NULL,
+      payload_json JSONB NOT NULL,
+      result_json JSONB,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX passage_search_actions_token_key ON passage_search_actions(token)`,
+    `CREATE UNIQUE INDEX passage_search_actions_active_key_key ON passage_search_actions(active_key)`,
     `CREATE TABLE daily_actions (
       id TEXT PRIMARY KEY,
       character_id TEXT NOT NULL,

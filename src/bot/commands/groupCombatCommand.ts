@@ -4,15 +4,39 @@ import type { GroupCombatService } from "../../services/groupCombatService";
 import {
   getGroupCombatActionProfile,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
+  validateGroupCombatAction,
+  type GroupCombatAction,
   type GroupCombatActionKey
 } from "../../domain/groupCombat/groupCombat";
 import {
   deliverGroupCombatCards,
-  deliverGroupCombatParticipantCard
+  deliverGroupCombatParticipantCard,
+  deliverGroupCombatSettlementNotifications
 } from "../groupCombatCardDelivery";
-import { buildGroupCombatJournalKeyboard } from "../keyboards/groupCombatKeyboard";
-import { getCallbackMessageFreshness } from "../messageFreshness";
-import { presentGroupCombatJournal } from "../presenters/groupCombatPresenter";
+import {
+  buildGroupCombatAbilityTargetKeyboard,
+  buildGroupCombatActionMenuKeyboard,
+  buildGroupCombatKeyboard,
+  buildGroupCombatItemsKeyboard,
+  buildGroupCombatJournalKeyboard,
+  buildGroupCombatStatisticsKeyboard,
+  parseGroupCombatReplyAbility,
+  parseGroupCombatReplyButton
+} from "../keyboards/groupCombatKeyboard";
+import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
+import {
+  presentGroupCombat,
+  presentGroupCombatItems,
+  presentGroupCombatJournal,
+  presentGroupCombatStatistics
+} from "../presenters/groupCombatPresenter";
+import { formatRemainingWait, presentPartySession } from "../presenters/partySessionPresenter";
+import { buildPartyInviteUrl } from "../../services/partySessionService";
+import type {
+  GroupCombatSettlementNotice,
+  GroupCombatStartResult,
+  LeftPassagePartyCreateResult
+} from "../../db/repositories/groupCombatRepository";
 import { telegramUserIdFromContext } from "../context";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
@@ -24,6 +48,7 @@ const PARTY_CODE_HELP = [
   "У картці збору скопіюйте з посилання лише частину після «party_».",
   "За три хвилини сутичка почнеться сама. Ватажок може запустити її раніше: /dev_group_combat КОД"
 ].join("\n");
+const TIMEOUT_CODE_HELP = "⏱️ /dev_group_combat_timeout КОД — локально завершити поточне очікування ходу.";
 
 export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatService): void {
   bot.command("dev_group_combat", async (ctx) => {
@@ -43,14 +68,195 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
     }
-    await ctx.reply(presentGroupCombatStartFailure(result.state));
+    await ctx.reply(presentGroupCombatStartFailure(result));
+  });
+  bot.command("dev_group_combat_timeout", async (ctx) => {
+    if (!service.areDevHelpersEnabled()) {
+      return;
+    }
+    const token = readCommandToken(ctx.message?.text);
+    if (!token) {
+      await ctx.reply(TIMEOUT_CODE_HELP);
+      return;
+    }
+    const result = await serializePartySessionDelivery(token, () =>
+      service.resolveDevTimeout(token)
+    );
+    if ("session" in result) {
+      await deliverGroupCombatCards(ctx.api, service, result.session);
+      return;
+    }
+    await ctx.reply(result.state === "not-found"
+      ? "Живої гуртової сутички з таким кодом не знайдено."
+      : "Очікування ходу не змінилося.");
+  });
+}
+
+export function registerGroupCombatReplyKeyboard(
+  bot: Bot,
+  service: GroupCombatService
+): void {
+  bot.on("message:text", async (ctx, next) => {
+    const replyText = ctx.message.text.trim();
+    const replyAction = parseGroupCombatReplyButton(replyText);
+    const telegramUserId = telegramUserIdFromContext(ctx.from);
+    if (!telegramUserId || ctx.chat.type !== "private") {
+      if (!replyAction) {
+        await next();
+      }
+      return;
+    }
+    const session = await service.findActiveForTelegramUser(telegramUserId);
+    if (!session) {
+      await next();
+      return;
+    }
+    const viewer = session.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    if (!viewer) {
+      return;
+    }
+    const replyAbility = parseGroupCombatReplyAbility(
+      session,
+      viewer.characterId,
+      replyText
+    );
+    if (!replyAction && !replyAbility) {
+      await next();
+      return;
+    }
+    if (replyAbility) {
+      const actor = session.state.participants.find(
+        (participant) => participant.characterId === viewer.characterId
+      );
+      const payloadKey = replyAbility.action === "gear"
+        ? actor?.gearAbilityIds[replyAbility.optionIndex]
+        : undefined;
+      const profile = actor
+        ? getGroupCombatActionProfile(actor, replyAbility.action, payloadKey)
+        : null;
+      const scopes = profile
+        ? [profile.ability.primaryTargetScope, profile.ability.secondaryTargetScope]
+            .filter(Boolean)
+        : [];
+      const targetIndexes = scopes.includes("single-enemy")
+        ? session.state.enemies
+            .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+            .filter(({ enemy }) => enemy.hp > 0)
+            .map(({ targetIndex }) => targetIndex)
+        : scopes.includes("single-ally-or-self")
+          ? session.state.participants
+              .map((participant, targetIndex) => ({ participant, targetIndex }))
+              .filter(({ participant }) => participant.hp > 0)
+              .map(({ targetIndex }) => targetIndex)
+          : [actor?.rosterOrder ?? 0];
+      const availableTargetIndexes = actor
+        ? targetIndexes.filter((targetIndex) => {
+            const target = resolveTarget(
+              session,
+              viewer.characterId,
+              replyAbility.action,
+              replyAbility.optionIndex,
+              targetIndex
+            );
+            if (!target) {
+              return false;
+            }
+            const candidate: GroupCombatAction = {
+              actorCharacterId: viewer.characterId,
+              turn: session.turn,
+              action: replyAbility.action,
+              targetKind: target.kind,
+              targetId: target.id,
+              ...(target.payloadKey ? { payloadKey: target.payloadKey } : {}),
+              origin: "manual"
+            };
+            return validateGroupCombatAction(session.state, candidate) === "ok";
+          })
+        : [];
+      if (availableTargetIndexes.length <= 1) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: replyAbility.action,
+          optionIndex: replyAbility.optionIndex,
+          targetIndex: availableTargetIndexes[0] ?? targetIndexes[0] ?? 0
+        });
+        return;
+      }
+      await ctx.reply("✨ Оберіть точну ціль для цього вміння.", {
+        reply_markup: buildGroupCombatAbilityTargetKeyboard(
+          session,
+          viewer.characterId,
+          replyAbility
+        )
+      });
+      return;
+    }
+    if (replyAction === "refresh") {
+      const refreshRequested = await service.requestParticipantUiRefresh({
+        sessionId: session.id,
+        telegramUserId
+      });
+      if (!refreshRequested) {
+        await next();
+        return;
+      }
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+      return;
+    }
+    if (replyAction === "attack") {
+      const livingTargets = session.state.enemies
+        .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+        .filter(({ enemy }) => enemy.hp > 0);
+      if (livingTargets.length === 1) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: "attack",
+          targetIndex: livingTargets[0]!.targetIndex
+        });
+        return;
+      }
+      await ctx.reply("⚔️ Оберіть точну ціль.", {
+        reply_markup: buildGroupCombatActionMenuKeyboard(session, viewer.characterId, "attack")
+      });
+      return;
+    }
+    if (replyAction === "items") {
+      const keyboard = buildGroupCombatItemsKeyboard(
+        session,
+        viewer.characterId,
+        "reply-menu"
+      );
+      const hasAvailableItems = keyboard.inline_keyboard.length > 1;
+      await ctx.reply(
+        hasAvailableItems
+          ? "🎒 Оберіть одноразову манатку."
+          : "🎒 Зараз немає корисних одноразових манаток.",
+        { reply_markup: keyboard }
+      );
+      return;
+    }
+    await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+      action: replyAction === "flee" ? "flee" : "guard",
+      targetIndex: session.state.participants.find(
+        (participant) => participant.characterId === viewer.characterId
+      )?.rosterOrder ?? 0
+    });
   });
 }
 
 export async function handleGroupCombatCallback(
   ctx: Context,
   callback: GroupCombatCallback,
-  service: GroupCombatService
+  service: GroupCombatService,
+  options: {
+    refreshLeftPassagePreview?: (ctx: Context) => Promise<void>;
+  } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
   if (!telegramUserId) {
@@ -64,18 +270,77 @@ export async function handleGroupCombatCallback(
     });
     return;
   }
+  if (callback.type === "invite-left") {
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.createLeftPassageParty({
+        telegramUserId,
+        encounterToken: callback.token,
+        chatId: BigInt(ctx.chat!.id),
+        messageId: ctx.callbackQuery?.message?.message_id ?? null
+      })
+    );
+    if (!("session" in result)) {
+      if (result.state === "invalid-preview" && options.refreshLeftPassagePreview) {
+        await safeAnswerCallbackQuery(ctx, {
+          text: "Ця кнопка вже не веде до збору ватаги. Оновив доступні дії."
+        });
+        await options.refreshLeftPassagePreview(ctx);
+        return;
+      }
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentLeftPassageInviteFailure(result),
+        show_alert: true
+      });
+      return;
+    }
+    const viewer = result.session.participants.find(
+      (participant) => participant.character.telegramUserId === telegramUserId
+    );
+    const inviteUrl = buildPartyInviteUrl(ctx.me.username, result.session.inviteToken);
+    await safeAnswerCallbackQuery(ctx, {
+      text: result.state === "created" ? "Заклик розіслано. Слід за вами ніхто не пересував." : "Показую вже відкритий збір."
+    });
+    await safeEditMessageText(ctx, presentPartySession(result.session, {
+      inviteUrl,
+      viewerCharacterId: viewer?.characterId,
+      notice: "Монстра в лівому проході притримано для цієї ватаги."
+    }), {
+      parse_mode: "HTML",
+      reply_markup: buildPartySessionKeyboard(result.session, {
+        viewerCharacterId: viewer?.characterId,
+        inviteUrl,
+        isPrivateDestination: true
+      })
+    });
+    return;
+  }
   if (callback.type === "start") {
     const result = await serializePartySessionDelivery(callback.token, () =>
       service.startProof(telegramUserId, callback.token)
     );
     if (!("session" in result)) {
       await safeAnswerCallbackQuery(ctx, {
-        text: presentGroupCombatStartFailure(result.state),
+        text: presentGroupCombatStartFailure(result),
         show_alert: true
       });
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Доказову сутичку запущено." });
+    await deliverGroupCombatCards(ctx.api, service, result.session);
+    return;
+  }
+  if (callback.type === "start-left") {
+    const result = await serializePartySessionDelivery(callback.token, () =>
+      service.startLeftPassage(telegramUserId, callback.token)
+    );
+    if (!("session" in result)) {
+      await safeAnswerCallbackQuery(ctx, {
+        text: presentGroupCombatStartFailure(result),
+        show_alert: true
+      });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
     await deliverGroupCombatCards(ctx.api, service, result.session);
     return;
   }
@@ -91,19 +356,66 @@ export async function handleGroupCombatCallback(
   }
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
   if (
-    callback.type === "action" &&
+    (callback.type === "action" || callback.type === "items") &&
+    !(callback.type === "action" && callback.source === "reply-menu") &&
     callbackMessageId !== undefined &&
     viewer.messageId !== null &&
     callbackMessageId !== viewer.messageId
   ) {
     await safeAnswerCallbackQuery(ctx, { text: "Це стара картка. Показую актуальну.", show_alert: true });
-    await deliverGroupCombatCards(ctx.api, service, session);
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewer.characterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+    return;
+  }
+  if (callback.type === "items") {
+    if (session.status !== "active" || callback.turn !== session.turn || session.state.status !== "active") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Це меню зі старого ходу. Показую актуальний бій.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
+      return;
+    }
+    const keyboard = buildGroupCombatItemsKeyboard(session, viewer.characterId);
+    const hasAvailableItems = keyboard.inline_keyboard.length > 1;
+    await safeAnswerCallbackQuery(
+      ctx,
+      hasAvailableItems ? undefined : { text: "Зараз немає корисних одноразових манаток." }
+    );
+    await safeEditMessageText(
+      ctx,
+      presentGroupCombatItems(session, viewer.characterId, hasAvailableItems),
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard
+      }
+    );
     return;
   }
   if (callback.type === "journal") {
     if (session.status === "active") {
-      await safeAnswerCallbackQuery(ctx, { text: "Журнал відкриється після завершення сутички.", show_alert: true });
-      await deliverGroupCombatParticipantCard(ctx.api, service, session.id, viewer.characterId, { forceRefresh: true });
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Журнал відкриється після завершення бою.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
       return;
     }
     await safeAnswerCallbackQuery(ctx);
@@ -113,12 +425,41 @@ export async function handleGroupCombatCallback(
     });
     return;
   }
+  if (callback.type === "statistics") {
+    if (session.status === "active") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Статистика відкриється після завершення бою.",
+        show_alert: true
+      });
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true }
+      );
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGroupCombatStatistics(session), {
+      parse_mode: "HTML",
+      reply_markup: buildGroupCombatStatisticsKeyboard(session)
+    });
+    return;
+  }
   if (callback.type === "view") {
     await safeAnswerCallbackQuery(ctx);
-    const sourceIsNotCanonical = callbackMessageId !== undefined &&
-      viewer.messageId !== null &&
-      callbackMessageId !== viewer.messageId;
-    const sourceFreshness = getCallbackMessageFreshness(ctx);
+    if (session.status !== "active") {
+      await safeEditMessageText(
+        ctx,
+        presentGroupCombat(session, viewer.characterId),
+        {
+          parse_mode: "HTML",
+          reply_markup: buildGroupCombatKeyboard(session, viewer.characterId)
+        }
+      );
+      return;
+    }
     await deliverGroupCombatParticipantCard(
       ctx.api,
       service,
@@ -126,11 +467,14 @@ export async function handleGroupCombatCallback(
       viewer.characterId,
       {
         forceRefresh: true,
-        forceReplacement: sourceIsNotCanonical || sourceFreshness !== "fresh"
+        forceReplacement: true
       }
     );
     return;
   }
+  let settlementNotices: GroupCombatSettlementNotice[] | undefined;
+  let actionResult: Awaited<ReturnType<GroupCombatService["submitAction"]>> | null =
+    null;
   if (callback.type === "action") {
     const target = resolveTarget(
       session,
@@ -153,17 +497,94 @@ export async function handleGroupCombatCallback(
       targetId: target.id,
       ...(target.payloadKey ? { payloadKey: target.payloadKey } : {})
     });
+    actionResult = result;
     if ("session" in result) {
       session = result.session;
     } else {
       session = await service.findByToken(callback.token) ?? session;
     }
     const response = presentActionResult(result.state);
+    settlementNotices = "settlementNotices" in result ? result.settlementNotices : undefined;
     await safeAnswerCallbackQuery(ctx, response);
+    if (callback.source === "reply-menu" && callbackMessageId !== undefined) {
+      await ctx.api.deleteMessage(ctx.chat.id, callbackMessageId).catch(() => undefined);
+    }
   } else {
     await safeAnswerCallbackQuery(ctx);
   }
-  await deliverGroupCombatCards(ctx.api, service, session);
+  if (callback.type === "action") {
+    if (
+      actionResult &&
+      "session" in actionResult &&
+      (actionResult.state === "resolved" || actionResult.state === "terminal")
+    ) {
+      await deliverGroupCombatCards(
+        ctx.api,
+        service,
+        session,
+        session.status === "active"
+          ? { forceReplacementCharacterId: viewer.characterId }
+          : {}
+      );
+    } else {
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        service,
+        session.id,
+        viewer.characterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+    }
+  } else {
+    await deliverGroupCombatCards(ctx.api, service, session);
+  }
+  if (settlementNotices) {
+    await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices);
+  }
+}
+
+export function presentLeftPassageInviteFailure(
+  result: Exclude<LeftPassagePartyCreateResult, { session: unknown }>
+): string {
+  switch (result.state) {
+    case "disabled":
+      return "Гуртовий заклик у лівому проході зараз зачинено.";
+    case "wrong-location":
+      return "Заклик працює лише біля цього самого сліду в лівому проході.";
+    case "no-character":
+      return "Квестарня не впізнала пригодника. Відкрийте персонажа й спробуйте ще раз.";
+    case "invalid-preview":
+      return "Ця оказія вже змінилася. Відкрийте лівий прохід ще раз.";
+    case "stale-life":
+      return "Цей слід лишився від попереднього життя. Огляньте лівий прохід ще раз.";
+    case "expired-invitation":
+      return "Слід уже вистиг. Потрібен новий огляд проходу.";
+    case "active-search":
+      return [
+        "У лівому проході ще триває ваш пошук.",
+        `Заклик можна відкрити за ${formatRemainingWait(result.availableAt, result.now)}.`
+      ].join("\n");
+    case "dead":
+      return "Без тями в атаку не кличуть. Навіть дуже переконливо.";
+    case "invalid-resources": {
+      const resources = result.resources;
+      return resources
+        ? [
+            "Запаси сил мають некоректне значення, тому бій не можна безпечно заморозити.",
+            `Зараз: HP ${resources.hpCurrent}/${resources.hpMax}, мана ${resources.manaCurrent}/${resources.manaMax}.`,
+            "Відкрийте персонажа, щоб синхронізувати ресурси, або скористайтеся локальною /dev_heal чи /dev_restore_mana."
+          ].join("\n")
+        : "Запаси сил мають некоректне значення. Відкрийте персонажа, щоб синхронізувати ресурси, і спробуйте ще раз.";
+    }
+    case "active-adventure":
+      return "Спершу завершіть поточну пригоду, тоді кличте ватагу.";
+    case "active-raid":
+      return "Спершу завершіть поточний рейд, тоді кличте ватагу.";
+    case "active-combat":
+      return "Спершу завершіть поточний бій, тоді кличте ватагу.";
+    case "reservation-conflict":
+      return "Стан цього сліду вже змінився. Відкрийте лівий прохід ще раз.";
+  }
 }
 
 function presentActionResult(state: Awaited<ReturnType<GroupCombatService["submitAction"]>>["state"]): {
@@ -212,7 +633,7 @@ function resolveTarget(
     const target = session.state.enemies[targetIndex];
     return target?.hp ? { kind: "enemy", id: target.id } : null;
   }
-  if (action === "guard") {
+  if (action === "guard" || action === "flee") {
     const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
     return viewer?.hp ? { kind: "self", id: viewer.characterId } : null;
   }
@@ -255,25 +676,104 @@ function resolveTarget(
   return null;
 }
 
+async function submitGroupCombatReplyAction(
+  ctx: Context,
+  service: GroupCombatService,
+  initialSession: NonNullable<Awaited<ReturnType<GroupCombatService["findByToken"]>>>,
+  viewerCharacterId: string,
+  choice: {
+    action: Exclude<GroupCombatActionKey, "item">;
+    optionIndex?: number;
+    targetIndex: number;
+  }
+): Promise<void> {
+  const target = resolveTarget(
+    initialSession,
+    viewerCharacterId,
+    choice.action,
+    choice.optionIndex ?? 0,
+    choice.targetIndex
+  );
+  const telegramUserId = telegramUserIdFromContext(ctx.from);
+  if (!target || !telegramUserId) {
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      initialSession.id,
+      viewerCharacterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+    return;
+  }
+  const result = await service.submitAction({
+    telegramUserId,
+    partyInviteToken: initialSession.partyInviteToken,
+    turn: initialSession.turn,
+    action: choice.action,
+    targetKind: target.kind,
+    targetId: target.id,
+    ...(target.payloadKey ? { payloadKey: target.payloadKey } : {})
+  });
+  const session = "session" in result
+    ? result.session
+    : await service.findByToken(initialSession.partyInviteToken) ?? initialSession;
+  if (
+    !("session" in result) ||
+    result.state === "queued" ||
+    result.state === "replaced" ||
+    result.state === "duplicate"
+  ) {
+    await deliverGroupCombatParticipantCard(
+      ctx.api,
+      service,
+      session.id,
+      viewerCharacterId,
+      { forceRefresh: true, forceReplacement: true }
+    );
+  } else {
+    await deliverGroupCombatCards(
+      ctx.api,
+      service,
+      session,
+      session.status === "active"
+        ? { forceReplacementCharacterId: viewerCharacterId }
+        : {}
+    );
+  }
+  if ("settlementNotices" in result && result.settlementNotices) {
+    await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices);
+  }
+}
+
 function readCommandToken(text: string | undefined): string | null {
   const token = text?.trim().split(/\s+/)[1] ?? "";
   return TOKEN_PATTERN.test(token) ? token : null;
 }
 
-export function presentGroupCombatStartFailure(state: string): string {
-  switch (state) {
+export function presentGroupCombatStartFailure(
+  result: Exclude<GroupCombatStartResult, { session: unknown }>
+): string {
+  switch (result.state) {
     case "invalid-size":
-      return "Для доказової сутички треба рівно 2–3 пригодники у ватазі.";
+      return "Поточний склад ватаги не підходить для цієї сутички. Оновіть картку збору.";
     case "not-leader":
-      return "Запустити доказову сутичку може лише ватажок.";
+      return "Запустити гуртову сутичку може лише ватажок.";
     case "invalid-life":
       return "Склад ватаги належить іншому життю. Зберіть її заново.";
     case "blocked":
       return "Хтось із ватаги вже тримає інший бій за рукав.";
+    case "active-search":
+      return [
+        "Хтось із ватаги ще шукає слід у проході.",
+        `Рушити можна за ${formatRemainingWait(result.availableAt, result.now)}.`
+      ].join("\n");
     case "not-recruiting":
       return "Ватага вже не збирається.";
     case "disabled":
-      return "Доказовий гуртовий бій тут вимкнений.";
+      return "Гуртова атака тут зараз не відчинена.";
+    case "reservation-missing":
+    case "expired-invitation":
+      return "Зарезервована оказія вже не чекає на цю ватагу.";
     case "not-found":
       return [
         "Живої ватаги з таким кодом не знайдено.",
@@ -281,6 +781,6 @@ export function presentGroupCombatStartFailure(state: string): string {
         PARTY_CODE_HELP
       ].join("\n");
     default:
-      return "Не вдалося запустити доказову сутичку з цієї ватаги.";
+      return "Не вдалося запустити гуртову сутичку з цієї ватаги.";
   }
 }
