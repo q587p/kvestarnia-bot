@@ -2377,15 +2377,7 @@ describe("PrismaPartyBossRepository integration", () => {
     });
     if (!("session" in started)) throw new Error(`Expected started session, got ${started.state}`);
 
-    await prisma.partyBossSession.update({
-      where: { id: started.session.id },
-      data: {
-        stateJson: {
-          ...started.session.state,
-          boss: { ...started.session.state.boss, hp: 1 }
-        }
-      }
-    });
+    await forceBossToOneHp(prisma, started.session.id, started.session.state);
     await bossRepository.submitActionForTelegramUser(
       91100n,
       "party-delete-resolve-race",
@@ -2407,6 +2399,7 @@ describe("PrismaPartyBossRepository integration", () => {
     ]);
 
     expect(resolved.state).toBe("resolved");
+    expect(expectPartyBossSession(resolved).status).not.toBe("active");
     expect(["active-combat", "deleted"]).toContain(restart);
     const boss = await prisma.partyBossSession.findUnique({ where: { id: started.session.id } });
     expect(boss?.status ?? "deleted").not.toBe("active");
