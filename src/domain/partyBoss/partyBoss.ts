@@ -557,7 +557,8 @@ export function resolvePartyBossRound(input: {
       };
       const supportTargets: NonNullable<PartyBossParticipantActionSummary["supportTargets"]> = [];
       if (resolvedEffect.kind === "paired-heal") {
-        const ally = getPartyBossSupportTargets(next, participant, "lowest-hp-ally")[0];
+        const ally = getPartyBossSupportTargets(next, participant, "lowest-hp-ally")
+          .find((target) => target.characterId !== participant.characterId);
         if (ally) {
           const allyHealing = applyPartyBossHealing(ally.resources, resolvedEffect.amount);
           if (allyHealing > 0) supportTargets.push({ characterId: ally.characterId, healing: allyHealing });
@@ -943,7 +944,12 @@ export function isPartyBossCombatItemEffectApplicable(
   effect: ItemUseEffectContent
 ): boolean {
   if (effect.kind === "paired-heal") {
-    return state.participants.some((entry) => entry.characterId !== actor.characterId && entry.status === "active" && entry.resources.hp > 0 && entry.resources.hp < entry.resources.hpMax);
+    return actor.resources.hp < actor.resources.hpMax || state.participants.some(
+      (entry) => entry.characterId !== actor.characterId &&
+        entry.status === "active" &&
+        entry.resources.hp > 0 &&
+        entry.resources.hp < entry.resources.hpMax
+    );
   }
   if (effect.kind === "party-heal") {
     return state.participants.some((entry) => entry.status === "active" && entry.resources.hp > 0 && entry.resources.hp < entry.resources.hpMax);

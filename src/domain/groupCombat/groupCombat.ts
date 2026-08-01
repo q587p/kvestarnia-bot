@@ -4373,7 +4373,11 @@ function canUseGroupCombatItem(
   if (effect?.kind === "restore-mana") return actor.mana < actor.manaMax;
   if (effect?.kind === "restore-both" || effect?.kind === "random-resource") return actor.hp < actor.hpMax || actor.mana < actor.manaMax;
   if (effect?.kind === "heal-hp-below-percent") return actor.hp <= Math.floor(actor.hpMax * effect.thresholdPercent / 100) && actor.hp < actor.hpMax;
-  if (effect?.kind === "paired-heal") return livingParticipants(state).some((target) => target.characterId !== actor.characterId && target.hp < target.hpMax);
+  if (effect?.kind === "paired-heal") {
+    return actor.hp < actor.hpMax || livingParticipants(state).some(
+      (target) => target.characterId !== actor.characterId && target.hp < target.hpMax
+    );
+  }
   if (effect?.kind === "party-heal") return livingParticipants(state).some((target) => target.hp < target.hpMax);
   if (effect?.kind === "cleanse-negative") return hasParticipantNegativeEffect(state, actor.characterId);
   if (effect?.kind === "reduce-cooldowns") return getActiveGroupCombatCooldowns(actor).length > 0;

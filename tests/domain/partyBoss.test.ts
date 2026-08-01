@@ -932,6 +932,39 @@ describe("party boss reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it("lets a wounded lone Big Barrel participant use paired healing without an ally", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-paired-lone-owner",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("character-1", "Єдина", { hp: 35, hpCurrent: 9 })]
+    });
+    state.boss.attack = 0;
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-paired-lone-owner",
+      actions: [{
+        characterId: "character-1",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c002",
+          name: "Вареники Парного Бафу",
+          effect: { kind: "paired-heal", amount: 8 }
+        }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-used",
+      healing: 8,
+      hpAfter: 17
+    });
+    expect(result.round.actions[0]).not.toHaveProperty("supportTargets");
+    expect(result.state.participants[0]?.resources.hp).toBe(16);
+  });
+
   it.each([
     ["item.loot-v1-c002", "Вареники Парного Бафу", { kind: "paired-heal" as const, amount: 8 }],
     ["item.loot-v1-c012", "Салат «Олів'є Рейдовий»", { kind: "party-heal" as const, amount: 13 }]

@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-01)
+## Current repository baseline (repository evidence, 12026-08-02)
 
 The current branch prepares package `0.4.3`. Merge, deployment and target
 availability remain separate evidence.
@@ -28,7 +28,7 @@ availability remain separate evidence.
 | 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` with durable card-delivery revisions | unavailable in production; default off and production-hard-disabled | yes; repository gates plus restart/convergence/privacy regressions | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.2 left-passage party attack | yes; merged PR `#187` | target deployment unknown; repository includes additive migration `20260724233000_left_passage_party_attack` | no target evidence; repository default off | yes; merge checks passed | manual three-account Telegram QA not recorded on merged head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
-| 0.4.3 consumable manatka uses | no; implementation branch | no migration required | no target evidence; all 20 exact mappings have no catalog-specific rollout flag, while existing combat-surface entry flags retain their scope | yes; static + 4,352 unit + 709 integration tests, focused 311 unit + 281 integration tests, docs and combat simulator pass | one-account ordinary/out-of-combat and three-account Party Boss/GroupCombat matrix pending, including cooldown `1` and two-enemy one-response checks | deploy rollback; release operator unassigned | deferred |
+| 0.4.3 consumable manatka uses | no; implementation branch | no migration required | no target evidence; all 20 exact mappings have no catalog-specific rollout flag, while existing combat-surface entry flags retain their scope | yes; static + 4,355 unit + 709 integration tests, focused 225 unit + 192 integration tests, docs and combat simulator pass | one-account ordinary/out-of-combat and lone-owner `c002`, plus three-account Party Boss/GroupCombat matrix pending, including cooldown `1` and two-enemy one-response checks | deploy rollback; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

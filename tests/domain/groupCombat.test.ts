@@ -942,6 +942,39 @@ describe("group combat proof reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it("lets a wounded lone left-passage participant use paired healing without an ally", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.hp = 9;
+    actor.hpMax = 35;
+    actor.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    state.enemies[0]!.attack = 1;
+    const itemAction = {
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c002"
+    };
+
+    expect(validateGroupCombatAction(state, itemAction)).toBe("ok");
+    const result = resolveGroupCombatTurn(state, [itemAction]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: actor.characterId,
+      itemId: "item.loot-v1-c002"
+    }]);
+    expect(result.state.contributions[0]?.healing).toBe(8);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c002"]).toBeUndefined();
+    expect(result.state.recap[0]?.lines).toContain(
+      "Пригодник 0 використовує манатку — 🥟 Вареники Парного Бафу: +8 HP собі й +0 HP союзникові."
+    );
+
+    const full = leftPassageState(1);
+    full.participants[0]!.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    expect(validateGroupCombatAction(full, {
+      ...action(full, 0, "item", "self", full.participants[0]!.characterId),
+      payloadKey: "item.loot-v1-c002"
+    })).toBe("action-unavailable");
+  });
+
   it.each([
     ["one", { skill: { id: "skill.test", remainingTurns: 1 } }, false],
     ["two", { skill: { id: "skill.test", remainingTurns: 2 } }, true],
