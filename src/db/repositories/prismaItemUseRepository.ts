@@ -225,7 +225,6 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       token: string;
       itemContents: readonly ItemContent[];
       now: Date;
-      allowNonmedicalConsumables?: boolean;
     }
   ): Promise<ItemUseConfirmRepositoryResult> {
     try {
@@ -247,8 +246,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
 
         if (!(await isConsumableCommitAllowed(tx, {
           characterId: character.id,
-          itemId: order.itemId,
-          allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+          itemId: order.itemId
         }))) {
           return await staleTerminalConfirm(tx, order, input.now, character);
         }

@@ -17,7 +17,6 @@ import {
   makeGroupCombatViewCallbackData
 } from "../callbacks/groupCombatCallbackData";
 import { getDistinctShortMonsterNames } from "../presenters/monsterNamePresenter";
-import { isMedicalCombatItemId } from "../../services/combatItemUse";
 import {
   buildCombatActionKeyboard,
   combatActionButtonLabels,
@@ -454,11 +453,10 @@ export function buildGroupCombatItemsKeyboard(
   viewerCharacterId: string,
   source?: "reply-menu",
   requestedPage = 0,
-  nonMedicalEnabled = true,
   hiddenItemIds: ReadonlySet<string> = new Set()
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-  const available = listAvailableGroupCombatItems(session, viewerCharacterId, nonMedicalEnabled)
+  const available = listAvailableGroupCombatItems(session, viewerCharacterId)
     .filter((item) => !hiddenItemIds.has(item.itemId));
   const pageSize = 5;
   const totalPages = Math.max(1, Math.ceil(available.length / pageSize));
@@ -549,8 +547,7 @@ interface AvailableGroupCombatItem {
 
 function listAvailableGroupCombatItems(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string,
-  nonMedicalEnabled = true
+  viewerCharacterId: string
 ): AvailableGroupCombatItem[] {
   if (session.status !== "active") {
     return [];
@@ -563,9 +560,6 @@ function listAvailableGroupCombatItems(
   }
 
   return GROUP_COMBAT_SUPPORTED_ITEM_IDS.flatMap((itemId, optionIndex) => {
-    if (!nonMedicalEnabled && !isMedicalCombatItemId(itemId)) {
-      return [];
-    }
     const candidate: GroupCombatAction = {
       actorCharacterId: viewer.characterId,
       turn: session.turn,

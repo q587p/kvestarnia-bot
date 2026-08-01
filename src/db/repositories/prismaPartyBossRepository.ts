@@ -857,8 +857,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
 
       if (!(await isConsumableCommitAllowed(tx, {
         characterId: character.id,
-        itemId: item.id,
-        allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+        itemId: item.id
       }))) {
         return { state: "item-unavailable", reason: "not-usable", session: this.mapSession(session) };
       }
@@ -1247,8 +1246,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         const itemCommitAllowed = item
           ? await isConsumableCommitAllowed(tx, {
               characterId: entry.actorCharacterId,
-              itemId: item.id,
-              allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+              itemId: item.id
             })
           : true;
 

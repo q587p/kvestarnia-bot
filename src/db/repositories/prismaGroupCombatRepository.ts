@@ -941,7 +941,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
-    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult> {
     await this.settlementTestHooks?.beforeRuntimeRead?.({
       operation: "action",
@@ -1026,8 +1025,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             input.payloadKey &&
             !(await isConsumableCommitAllowed(tx, {
               characterId: actor.id,
-              itemId: input.payloadKey,
-              allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+              itemId: input.payloadKey
             }))
           ) {
             return {
@@ -1224,7 +1222,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       turn: input.turn,
       now: input.now,
       nextTurnExpiresAt: input.nextTurnExpiresAt,
-      allowNonmedicalConsumables: input.allowNonmedicalConsumables === true,
       writeState: persisted.writeState
     });
   }
@@ -1234,7 +1231,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     turn: number;
     now: Date;
     nextTurnExpiresAt: Date;
-    allowNonmedicalConsumables?: boolean;
     writeState: "queued" | "replaced" | "duplicate";
   }): Promise<GroupCombatActionResult> {
     const publicationWaitStartedAt = Date.now();
@@ -1287,7 +1283,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             input.now,
             input.nextTurnExpiresAt,
             uiPublicationTime(input.now, publicationWaitStartedAt),
-            input.allowNonmedicalConsumables === true,
             this.settlementTestHooks?.afterStage?.bind(
               this.settlementTestHooks
             )
@@ -1341,7 +1336,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     sessionId: string;
     now: Date;
     nextTurnExpiresAt: Date;
-    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult> {
     await this.settlementTestHooks?.beforeRuntimeRead?.({
       operation: "timeout",
@@ -1427,7 +1421,6 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           input.now,
           input.nextTurnExpiresAt,
           uiPublicationTime(input.now, publicationWaitStartedAt),
-          input.allowNonmedicalConsumables === true,
           this.settlementTestHooks?.afterStage?.bind(this.settlementTestHooks)
         );
         if (!result) {
@@ -3167,7 +3160,6 @@ async function resolveIfReady(
   now: Date,
   nextTurnExpiresAt: Date,
   uiPublicationNow: Date,
-  allowNonmedicalConsumables: boolean,
   afterStage?: GroupCombatSettlementTestHooks["afterStage"]
 ): Promise<GroupCombatActionResult | null> {
   const livingCount = state.participants.filter(
@@ -3205,8 +3197,7 @@ async function resolveIfReady(
       action.payloadKey &&
       !(await isConsumableCommitAllowed(tx, {
         characterId: action.actorCharacterId,
-        itemId: action.payloadKey,
-        allowNonmedicalConsumables
+        itemId: action.payloadKey
       }))
     ) {
       blockedConsumables.push({

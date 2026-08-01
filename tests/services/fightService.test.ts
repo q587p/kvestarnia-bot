@@ -3009,8 +3009,7 @@ describe("FightService", () => {
       dailyActions,
       clock: fixedClock,
       combatSessions: sessions,
-      rng: new FakeRandomSource([0.99]),
-      consumableManatkaUsesEnabled: true
+      rng: new FakeRandomSource([0.99])
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");
@@ -3048,8 +3047,7 @@ describe("FightService", () => {
       clock: fixedClock,
       combatSessions: sessions,
       rng: new FakeRandomSource([0.99]),
-      achievements: { trackEventSafely } as unknown as AchievementService,
-      consumableManatkaUsesEnabled: true
+      achievements: { trackEventSafely } as unknown as AchievementService
     });
     const started = await service.getFightForTelegramUser(telegramUserId);
     expect(started.state).toBe("persistent-active");

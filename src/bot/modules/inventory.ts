@@ -357,7 +357,7 @@ async function getCombatUseStateForItem(
     | null;
   combatLocked: boolean;
 }> {
-  const combatItem = getCombatUsableItem(item, services.itemUse.areConsumableManatkaUsesEnabled());
+  const combatItem = getCombatUsableItem(item);
   if (!combatItem || typeof services.fight.getFightOverviewForTelegramUser !== "function") {
     return { action: null, combatLocked: false };
   }

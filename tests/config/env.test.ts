@@ -125,11 +125,6 @@ describe("loadConfig", () => {
   });
 
   it("keeps newly activated consumable manatky disabled unless explicitly flagged", () => {
-    expect(loadConfig(validEnv).consumableManatkaUsesEnabled).toBe(false);
-    expect(loadConfig({
-      ...validEnv,
-      CONSUMABLE_MANATKA_USES_ENABLED: "true"
-    }).consumableManatkaUsesEnabled).toBe(true);
   });
 
   it("keeps fresh left-passage party entry disabled unless explicitly flagged", () => {

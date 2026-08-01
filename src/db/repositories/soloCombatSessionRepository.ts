@@ -67,7 +67,6 @@ export interface ApplyCombatItemTurnInput extends UpdateSoloCombatSessionInput {
   characterId: string;
   itemId: string;
   now: Date;
-  allowNonmedicalConsumables?: boolean;
 }
 
 export type ApplyCombatItemTurnOutcome =

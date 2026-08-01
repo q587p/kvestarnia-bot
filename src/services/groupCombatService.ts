@@ -46,7 +46,6 @@ export class GroupCombatService {
       enabled: boolean;
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
-      consumableManatkaUsesEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
@@ -66,10 +65,6 @@ export class GroupCombatService {
 
   isLeftPassageEntryEnabled(): boolean {
     return this.options.enabled && this.options.leftPassagePartyAttackEnabled === true;
-  }
-
-  areConsumableManatkaUsesEnabled(): boolean {
-    return this.options.consumableManatkaUsesEnabled === true;
   }
 
   async getHiddenCombatItemIdsForTelegramUser(telegramUserId: bigint): Promise<ReadonlySet<string>> {
@@ -184,8 +179,7 @@ export class GroupCombatService {
     const result = await this.repository.resolveTimedOutSession({
       sessionId: session.id,
       now,
-      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
+      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
     });
     return this.settleTerminalResult(result);
   }
@@ -206,8 +200,7 @@ export class GroupCombatService {
     const result = await this.repository.submitActionForTelegramUser({
       ...input,
       now,
-      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
+      nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
     });
     return this.settleTerminalResult(result);
   }
@@ -244,8 +237,7 @@ export class GroupCombatService {
         const result = await this.repository.resolveTimedOutSession({
           sessionId,
           now,
-          nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-          allowNonmedicalConsumables: this.areConsumableManatkaUsesEnabled()
+          nextTurnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
         });
         const settled = await this.settleTerminalResult(result);
         if ("session" in settled) {

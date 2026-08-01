@@ -598,7 +598,6 @@ export interface FightServiceDependencies {
   achievements?: AchievementService;
   activityEvents?: PublicActivityEventPublisher;
   fightingCornerQuest?: Pick<FightingCornerQuestService, "getForTelegramUser">;
-  consumableManatkaUsesEnabled?: boolean;
 }
 
 export class FightService {
@@ -618,7 +617,6 @@ export class FightService {
   private readonly achievements: AchievementService | undefined;
   private readonly activityEvents: PublicActivityEventPublisher | undefined;
   private readonly fightingCornerQuest: Pick<FightingCornerQuestService, "getForTelegramUser"> | undefined;
-  private readonly consumableManatkaUsesEnabled: boolean;
 
   constructor({
     characters,
@@ -634,8 +632,7 @@ export class FightService {
     shynok,
     achievements,
     activityEvents,
-    fightingCornerQuest,
-    consumableManatkaUsesEnabled = false
+    fightingCornerQuest
   }: FightServiceDependencies) {
     this.characters = characters;
     this.dailyActions = dailyActions;
@@ -651,7 +648,6 @@ export class FightService {
     this.achievements = achievements;
     this.activityEvents = activityEvents;
     this.fightingCornerQuest = fightingCornerQuest;
-    this.consumableManatkaUsesEnabled = consumableManatkaUsesEnabled;
   }
 
   private async advanceExpiredPersistentTurn(
@@ -1760,7 +1756,7 @@ export class FightService {
         }
 
         const item = contentById.get(inventoryItem.itemId);
-        const combatItem = item ? getCombatUsableItem(item, this.consumableManatkaUsesEnabled) : null;
+        const combatItem = item ? getCombatUsableItem(item) : null;
 
         if (
           !combatItem ||
@@ -3044,7 +3040,7 @@ export class FightService {
       };
     }
 
-    const combatItem = findCombatUsableItemByKey(items, input.itemKey, this.consumableManatkaUsesEnabled);
+    const combatItem = findCombatUsableItemByKey(items, input.itemKey);
     if (
       !combatItem ||
       !(await isQuestConsumableUseUnlocked(this.dailyActions, telegramUserId, combatItem.item.id))
@@ -3132,7 +3128,6 @@ export class FightService {
       telegramUserId,
       characterId: currentSession.characterId,
       itemId: combatItem.item.id,
-      allowNonmedicalConsumables: this.consumableManatkaUsesEnabled,
       now: this.clock(),
       state: resolvedState,
       status: resolvedState.status,

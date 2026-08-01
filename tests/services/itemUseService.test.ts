@@ -9,18 +9,16 @@ import { BANDAGE_ITEM_ID, ItemUseService } from "../../src/services/itemUseServi
 import { items } from "../../src/content";
 
 describe("ItemUseService", () => {
-  it("keeps medical use live while the nonmedical 0.4.3 catalog is flagged off", () => {
+  it("exposes medical and nonmedical out-of-combat uses without a rollout gate", () => {
     const repository = new FakeItemUseRepository({ state: "invalid-token" });
-    const disabled = new ItemUseService(repository);
-    const enabled = new ItemUseService(repository, undefined, undefined, true);
+    const service = new ItemUseService(repository);
     const medical = items.find((item) => item.id === BANDAGE_ITEM_ID)!;
     const borsh = items.find((item) => item.id === "item.loot-v1-c001")!;
     const cheese = items.find((item) => item.id === "item.cellar.fancy-cheese")!;
 
-    expect(disabled.getAvailability(medical).state).toBe("usable");
-    expect(disabled.getAvailability(borsh).state).toBe("not-usable");
-    expect(enabled.getAvailability(borsh).state).toBe("usable");
-    expect(enabled.getAvailability(cheese).state).toBe("not-usable");
+    expect(service.getAvailability(medical).state).toBe("usable");
+    expect(service.getAvailability(borsh).state).toBe("usable");
+    expect(service.getAvailability(cheese).state).toBe("not-usable");
   });
 
   it("tracks a successful bandage use for immediate achievement notifications", async () => {

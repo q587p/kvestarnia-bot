@@ -202,14 +202,12 @@ export interface GroupCombatRepository {
     payloadKey?: string;
     now: Date;
     nextTurnExpiresAt: Date;
-    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult>;
 
   resolveTimedOutSession(input: {
     sessionId: string;
     now: Date;
     nextTurnExpiresAt: Date;
-    allowNonmedicalConsumables?: boolean;
   }): Promise<GroupCombatActionResult>;
 
   findByPartyInviteToken(partyInviteToken: string): Promise<GroupCombatSessionRecord | null>;

@@ -949,8 +949,7 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
 
       if (!(await isConsumableCommitAllowed(tx, {
         characterId: input.characterId,
-        itemId: input.itemId,
-        allowNonmedicalConsumables: input.allowNonmedicalConsumables === true
+        itemId: input.itemId
       }))) {
         return { outcome: "not-usable", session: null };
       }

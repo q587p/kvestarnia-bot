@@ -131,10 +131,10 @@ resource, cleanse, cooldown, damage і response effects. `c001/c003/c009`
   предмет або хід; cooldown reduction checks after the ordinary action tick,
   and response guard/evade affects exactly one canonical enemy response. Random outcome freezes once and replays. Quest bottle is
 protected until its `keep` ending, while remort-carried stacks stay usable.
-Source tags/effect ids не вмикають прихованої поведінки. Default-off
-`CONSUMABLE_MANATKA_USES_ENABLED` gates only seventeen nonmedical rows; the
-three medical rows remain live. Existing stacks require no data migration;
-take-away purchase shelf remains separate `0.4.9`.
+Source tags/effect ids не вмикають прихованої поведінки. A catalog-specific
+rollout flag is not used: all twenty exact mappings are active
+where their existing inventory/combat surface is available. Existing stacks
+require no data migration; take-away purchase shelf remains separate `0.4.9`.
 
 ### 0.4.4 — Guild foundation
 

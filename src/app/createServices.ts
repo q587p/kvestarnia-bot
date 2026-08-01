@@ -91,8 +91,7 @@ export function createServices(
     shynok: repositories.shynok,
     achievements,
     activityEvents: publicActivityEvents,
-    fightingCornerQuest,
-    consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
+    fightingCornerQuest
   });
   const presence = new PresenceService(repositories.presence);
   const tavern = new TavernRaidService(
@@ -129,8 +128,7 @@ export function createServices(
     {
       enabled: true,
       devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled,
-      consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
     },
     undefined,
     achievements,
@@ -246,7 +244,7 @@ export function createServices(
       achievements,
       publicActivityEvents
     ),
-    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements, config.consumableManatkaUsesEnabled),
+    itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),
     levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
@@ -262,8 +260,7 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: nonProduction,
-      consumableManatkaUsesEnabled: config.consumableManatkaUsesEnabled
+      devHelpersEnabled: nonProduction
     }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions),
     partyRaidChat: new PartyRaidChatService(repositories.partyRaidChat, {
       enabled: partyRaidChatEnabled,

@@ -1,5 +1,4 @@
 import { Prisma } from "@prisma/client";
-import { isMedicalConsumableItemId } from "../../content/consumableManatkaUses";
 
 const QUEST_BOTTLE_ITEM_ID = "item.cellar.foamy-mirage-bottle";
 
@@ -8,12 +7,8 @@ export async function isConsumableCommitAllowed(
   input: {
     characterId: string;
     itemId: string;
-    allowNonmedicalConsumables: boolean;
   }
 ): Promise<boolean> {
-  if (!isMedicalConsumableItemId(input.itemId) && !input.allowNonmedicalConsumables) {
-    return false;
-  }
   if (input.itemId !== QUEST_BOTTLE_ITEM_ID) {
     return true;
   }

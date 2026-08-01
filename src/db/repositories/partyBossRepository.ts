@@ -149,7 +149,6 @@ export interface PartyBossStartInput {
 export interface PartyBossResolveInput {
   now: Date;
   nextTurnExpiresAt: Date;
-  allowNonmedicalConsumables?: boolean;
 }
 
 export type PartyBossTimeoutMode = "due" | "force-dev";

@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.3] - 12026-08-01 - Consumable Manatka Uses
+## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 
 ### Added
 - Activated an exhaustive exact-id catalog for all twenty current consumables: three existing medical supplies, two authored cellar items and generated Loot Expansion rows `c001`–`c015`. Content validation now rejects an unmapped future `slot: consumable` row instead of inferring behavior from names, tags or `effect_id`.
@@ -17,7 +17,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Changed
 - Exposed the new effects through ordinary single-/multi-enemy persistent fights, Party Boss/Big Barrel and GroupCombat where each typed target/status contract is representable. A committed combat item remains one action and keeps the normal enemy response when applicable; turn-based duels remain item-free.
-- Added deploy-safe `CONSUMABLE_MANATKA_USES_ENABLED=false`. It gates only the seventeen newly activated nonmedical items; Bandage, Dense Bandage and Field Kit keep their existing behavior regardless of the flag.
+- Made all twenty explicit consumable mappings available without a catalog-specific rollout flag; existing combat-surface flags continue to govern only entry to their respective modes.
 - Protected the current-life Пінний Міраж quest bottle from inventory and combat consumption until the cellar quest ends with `keep`. A legacy or remort-carried bottle without a current-life acquisition marker remains usable, and the `turn-in` ending remains intact.
 - Updated item descriptions, combat/inventory presentation, `📖 Перекази`, current lore canon, roadmap, compact context and release ledger. Take-away purchases remain planned for `0.4.9`.
 
@@ -25,7 +25,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Full or inapplicable resource/target states no longer consume a unit. Already-inapplicable callbacks leave the active combat session and turn unchanged; when an earlier Party Boss or GroupCombat actor makes a queued item useless, the later action is journaled without inventory decrement, new item cooldown/limit markers or achievement evidence. Duplicate confirm/action callbacks, restart replay, action replacement and timeout adoption retain the existing exact-once transaction/CAS boundaries.
 - `c005` now checks cooldown usefulness after the actor's ordinary committed-action tick. A cooldown of exactly one expires naturally without consuming the item or emitting use evidence; solo combat also keeps the same turn, while shared rounds continue normally.
 - `c006`, `c013` and Fancy Cheese now affect exactly the first eligible enemy response in canonical order. Later multi-enemy responses remain normal, the journal stores truthful selected-target damage/prevention for restart replay, and untargeted Party Boss/Big Barrel or GroupCombat owners keep the item without use evidence.
-- Rechecked the nonmedical flag and current-life quest-bottle eligibility inside every inventory, Solo, Party Boss and GroupCombat commit. Flag-off after preview/queue applies no effect or decrement, medical commits remain live, and completed terminal receipts replay before current eligibility gates.
+- Rechecked current-life quest-bottle eligibility inside every inventory, Solo, Party Boss and GroupCombat commit, while completed terminal receipts replay before current eligibility gates.
 - Corrected mana-only and dual-resource inventory cards plus Solo/Party Boss journals to use their stored mana and HP fields, and preserved the typed `heal-hp-to-min-percent` result when replaying completed Field Kit orders.
 
 ## [0.4.2] - 12026-08-01 - Left-Passage Party Attack

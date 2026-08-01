@@ -118,14 +118,12 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: true
+      now: now()
     })).resolves.toMatchObject({ state: "used", order: { result: { healAmount: amount } } });
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
+      now: now()
     })).resolves.toMatchObject({ state: "replayed", order: { result: { healAmount: amount } } });
     await expectCharacterHp(10 + amount);
     expect(await prisma.characterItem.findUnique({
@@ -152,14 +150,12 @@ describe("PrismaItemUseRepository integration", () => {
     const first = await repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-mana",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: true
+      now: now()
     });
     const replay = await repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-mana",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
+      now: now()
     });
 
     expect(first).toMatchObject({ state: "used", order: { result: { kind: "restore-both" } } });
@@ -200,8 +196,7 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-random-one",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: true
+      now: now()
     })).resolves.toMatchObject({
       state: "stale-selection",
       order: { status: "expired", preview: frozenBranch }
@@ -209,8 +204,7 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
       token: "use-token-random-one",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: true
+      now: now()
     })).resolves.toMatchObject({
       state: "expired",
       order: { preview: frozenBranch }
@@ -300,44 +294,40 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
       token: "use-token-field-kit-completed",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
+      now: now()
     })).resolves.toMatchObject({
       state: "replayed",
       order: { result: { kind: "heal-hp-to-min-percent", healAmount: 77 } }
     });
   });
 
-  it("blocks a pending nonmedical preview when its flag turns off while medical confirmation still works", async () => {
+  it("commits nonmedical and medical previews without a rollout gate", async () => {
     await seedCharacter({ hpCurrent: 10, hpMax: 25, manaCurrent: 0 });
     await seedItem(manaConsumable.id, 1);
     await repository.createPreviewForTelegramUser(telegramUserId, {
       item: manaConsumable,
       itemContents: items,
       itemFingerprint: createItemUseFingerprint(manaConsumable),
-      token: "use-token-flag-off",
+      token: "use-token-no-rollout-gate",
       now: now(),
       expiresAt: future()
     });
 
     await expect(repository.confirmForTelegramUser(telegramUserId, {
-      token: "use-token-flag-off",
+      token: "use-token-no-rollout-gate",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
-    })).resolves.toMatchObject({ state: "stale-selection", order: { status: "expired" } });
-    await expect(prisma.characterItem.findUniqueOrThrow({
+      now: now()
+    })).resolves.toMatchObject({ state: "used", order: { status: "completed" } });
+    await expect(prisma.characterItem.findUnique({
       where: { characterId_itemId: { characterId, itemId: manaConsumable.id } }
-    })).resolves.toMatchObject({ quantity: 1 });
-    await expectCharacterHp(10);
+    })).resolves.toBeNull();
 
     await seedBandages(1);
-    await createPreview("use-token-medical-flag-off");
+    await createPreview("use-token-medical-no-rollout-gate");
     await expect(repository.confirmForTelegramUser(telegramUserId, {
-      token: "use-token-medical-flag-off",
+      token: "use-token-medical-no-rollout-gate",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
+      now: now()
     })).resolves.toMatchObject({ state: "used", order: { result: { healAmount: 7 } } });
   });
 
@@ -368,8 +358,7 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(repository.confirmForTelegramUser(telegramUserId, {
       token: "use-token-bottle-pending",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: true
+      now: now()
     })).resolves.toMatchObject({ state: "stale-selection", order: { status: "expired" } });
     await expect(prisma.characterItem.findUniqueOrThrow({
       where: { characterId_itemId: { characterId, itemId: questBottle.id } }
@@ -403,8 +392,7 @@ describe("PrismaItemUseRepository integration", () => {
     await expect(new PrismaItemUseRepository(prisma).confirmForTelegramUser(telegramUserId, {
       token: "use-token-bottle-completed",
       itemContents: items,
-      now: now(),
-      allowNonmedicalConsumables: false
+      now: now()
     })).resolves.toMatchObject({
       state: "replayed",
       order: { status: "completed", result: { kind: "random-resource" } }

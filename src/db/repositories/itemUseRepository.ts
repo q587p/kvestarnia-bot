@@ -125,7 +125,6 @@ export interface ItemUseRepository {
       token: string;
       itemContents: readonly ItemContent[];
       now: Date;
-      allowNonmedicalConsumables?: boolean;
     }
   ): Promise<ItemUseConfirmRepositoryResult>;
 

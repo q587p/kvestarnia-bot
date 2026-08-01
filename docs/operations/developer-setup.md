@@ -61,7 +61,6 @@ DATABASE_URL=file:./dev.db
 DEPLOY_NOTIFICATIONS_ENABLED=false
 HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
-CONSUMABLE_MANATKA_USES_ENABLED=false
 LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
@@ -113,10 +112,6 @@ Rollback is flag-only after the additive migration: keep the schema in place, se
 `⚔️ Dev: гуртова сутичка`; у груповій картці ця кнопка не з'являється.
 Рівнозначний ранній командний шлях: `/dev_group_combat TOKEN`, де `TOKEN` —
 частина invite-посилання після `party_`; саму команду можна надіслати і з групи.
-
-`CONSUMABLE_MANATKA_USES_ENABLED=true` відкриває нові немедичні одноразові
-манатки 0.4.3 у торбі та підтримуваних боях. За `false` три наявні медичні
-предмети й далі працюють; прапорець не вмикає крамничні покупки з 0.4.9.
 
 `LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` відкриває production-вхід
 `🤝 Покликати в атаку` лише для точної hard-оказії `deep-left` на лівому

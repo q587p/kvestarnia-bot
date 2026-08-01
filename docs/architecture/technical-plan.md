@@ -42,9 +42,9 @@ store the resolved typed effect, capped resource delta and any one-time random
 outcome in `ItemUseOrder`; solo, Party Boss and GroupCombat uses stay inside
 their existing server-owned action/turn CAS and journal replay. Content
 validation rejects a future consumable without an exact-id mapping, and tags or
-generated `effect_id` values never infer behavior. The seventeen newly active
-nonmedical mappings are default-off behind
-`CONSUMABLE_MANATKA_USES_ENABLED`; the three shipped medical items are not.
+generated `effect_id` values never infer behavior. All twenty explicit mappings
+are available without a catalog-specific rollout flag; combat-surface flags
+continue to govern only entry to their respective combat modes.
 Immediate heal, restore, pair/party heal, cleanse, cooldown reduction, fixed
 damage and current-response guard/evade effects need no prepared-effect row or
 schema migration. The cellar quest bottle is authoritatively reserved while

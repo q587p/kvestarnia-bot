@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { items } from "../content";
 import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
-import { isMedicalConsumableItemId } from "../content/consumableManatkaUses";
 import {
   createItemUseFingerprint,
   getItemUseEffect,
@@ -31,13 +30,12 @@ export class ItemUseService {
   constructor(
     private readonly repository: ItemUseRepository,
     private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService,
-    private readonly consumableManatkaUsesEnabled = false
+    private readonly achievements?: AchievementService
   ) {}
 
   getAvailability(item: ItemContent): ItemUseAvailability {
     const effect = getItemUseEffect(item);
-    if (!effect || !isOutOfCombatItemUseEffect(effect) || !this.isItemEnabled(item.id)) {
+    if (!effect || !isOutOfCombatItemUseEffect(effect)) {
       return { state: "not-usable" };
     }
 
@@ -72,8 +70,7 @@ export class ItemUseService {
     const result = await this.repository.confirmForTelegramUser(telegramUserId, {
       token,
       itemContents: items,
-      now: this.now(),
-      allowNonmedicalConsumables: this.consumableManatkaUsesEnabled
+      now: this.now()
     });
 
     if (result.state !== "used") {
@@ -129,19 +126,11 @@ export class ItemUseService {
     });
   }
 
-  areConsumableManatkaUsesEnabled(): boolean {
-    return this.consumableManatkaUsesEnabled;
-  }
-
   private findUsableItem(itemId: string): ItemContent | null {
     const item = findItemContent(itemId);
     const effect = item ? getItemUseEffect(item) : null;
 
-    return item && effect && isOutOfCombatItemUseEffect(effect) && this.isItemEnabled(item.id) ? item : null;
-  }
-
-  private isItemEnabled(itemId: string): boolean {
-    return isMedicalConsumableItemId(itemId) || this.consumableManatkaUsesEnabled;
+    return item && effect && isOutOfCombatItemUseEffect(effect) ? item : null;
   }
 }
 

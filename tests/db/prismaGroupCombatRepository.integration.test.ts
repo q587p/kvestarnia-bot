@@ -4649,7 +4649,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       targetKind: "self",
       targetId: firstParticipant.characterId,
       payloadKey: "item.loot-v1-c012",
-      allowNonmedicalConsumables: true,
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     })).resolves.toMatchObject({ state: "queued" });
@@ -4661,7 +4660,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       targetKind: "self",
       targetId: secondParticipant.characterId,
       payloadKey: secondItemId,
-      allowNonmedicalConsumables: true,
       now: new Date(NOW.getTime() + 1),
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
@@ -4695,13 +4693,13 @@ describe("PrismaGroupCombatRepository integration", () => {
       .toContain("манатка лишається в торбі");
   });
 
-  it("keeps a queued group-combat nonmedical item when its commit flag turns off", async () => {
+  it("commits a queued group-combat nonmedical item without a rollout gate", async () => {
     await seedParty(prisma, "group-item-gate", [73_105n, 73_106n]);
     const actor = await prisma.character.findFirstOrThrow({
       where: { user: { telegramUserId: 73_105n } }
     });
     await prisma.characterItem.create({
-      data: { characterId: actor.id, itemId: "item.loot-v1-c014", quantity: 1 }
+      data: { characterId: actor.id, itemId: "item.loot-v1-c008", quantity: 1 }
     });
     const session = await startExistingPartyProof(repository, "group-item-gate", 73_105n);
     const second = session.participants.find((entry) => entry.telegramUserId === 73_106n)!;
@@ -4712,8 +4710,7 @@ describe("PrismaGroupCombatRepository integration", () => {
       action: "item",
       targetKind: "self",
       targetId: actor.id,
-      payloadKey: "item.loot-v1-c014",
-      allowNonmedicalConsumables: true,
+      payloadKey: "item.loot-v1-c008",
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     })).resolves.toMatchObject({ state: "queued" });
@@ -4724,15 +4721,14 @@ describe("PrismaGroupCombatRepository integration", () => {
       action: "guard",
       targetKind: "self",
       targetId: second.characterId,
-      allowNonmedicalConsumables: false,
       now: new Date(NOW.getTime() + 1),
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
 
     expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
-    await expect(prisma.characterItem.findUniqueOrThrow({
-      where: { characterId_itemId: { characterId: actor.id, itemId: "item.loot-v1-c014" } }
-    })).resolves.toMatchObject({ quantity: 1 });
+    await expect(prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: actor.id, itemId: "item.loot-v1-c008" } }
+    })).resolves.toBeNull();
     await expect(prisma.groupCombatAction.findUniqueOrThrow({
       where: {
         sessionId_turn_actorCharacterId: {
@@ -4741,9 +4737,9 @@ describe("PrismaGroupCombatRepository integration", () => {
           actorCharacterId: actor.id
         }
       }
-    })).resolves.toMatchObject({ origin: "manual" });
+    })).resolves.toMatchObject({ origin: "manual-item-committed" });
     expect("session" in resolved ? resolved.session.state.recap[0]?.lines.join("\n") : "")
-      .toContain("манатка лишається в торбі");
+      .toContain("використовує манатку");
   });
 
   it("keeps c005 evidence uncommitted after a shared round naturally ticks cooldown one", async () => {
@@ -4775,7 +4771,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       targetKind: "self",
       targetId: owner.id,
       payloadKey: "item.loot-v1-c005",
-      allowNonmedicalConsumables: true,
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     })).resolves.toMatchObject({ state: "queued" });
@@ -4786,7 +4781,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       action: "guard",
       targetKind: "self",
       targetId: witness.characterId,
-      allowNonmedicalConsumables: true,
       now: new Date(NOW.getTime() + 1),
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });
@@ -4839,7 +4833,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       targetKind: "self",
       targetId: owner.id,
       payloadKey: "item.loot-v1-c013",
-      allowNonmedicalConsumables: true,
       now: NOW,
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     })).resolves.toMatchObject({ state: "queued" });
@@ -4850,7 +4843,6 @@ describe("PrismaGroupCombatRepository integration", () => {
       action: "guard",
       targetKind: "self",
       targetId: witness.characterId,
-      allowNonmedicalConsumables: true,
       now: new Date(NOW.getTime() + 1),
       nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
     });

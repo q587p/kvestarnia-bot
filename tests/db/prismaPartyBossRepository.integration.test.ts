@@ -1043,14 +1043,14 @@ describe("PrismaPartyBossRepository integration", () => {
       token,
       1,
       item,
-      { ...resolveInput(), allowNonmedicalConsumables: true }
+      resolveInput()
     )).resolves.toMatchObject({ state: "queued" });
     const resolved = await bossRepository.submitActionForTelegramUser(
       92108n,
       token,
       1,
       "defend",
-      { ...resolveInput(), allowNonmedicalConsumables: true }
+      resolveInput()
     );
     const resolvedSession = expectPartyBossSession(resolved);
     const storedResponse = resolvedSession.state.roundLog.at(-1)?.bossRetaliations.find(
@@ -1083,7 +1083,7 @@ describe("PrismaPartyBossRepository integration", () => {
       token,
       1,
       item,
-      { ...resolveInput(), allowNonmedicalConsumables: true }
+      resolveInput()
     );
     expect(duplicate.state).toBe("stale");
     expect(duplicate.achievementEvents).toBeUndefined();
@@ -1145,7 +1145,7 @@ describe("PrismaPartyBossRepository integration", () => {
       where: { id: session.id },
       data: { stateJson: fullAfterFirst }
     });
-    const commitInput = { ...resolveInput(), allowNonmedicalConsumables: true };
+    const commitInput = resolveInput();
 
     await expect(bossRepository.submitItemForTelegramUser(
       leaderTelegramId,
@@ -1189,13 +1189,13 @@ describe("PrismaPartyBossRepository integration", () => {
     ]);
   });
 
-  it("keeps a queued party-boss nonmedical item when its commit flag turns off", async () => {
-    await seedCharacter(prisma, "party-item-gate-leader", 92105n, "Прапорцева Лідерка", {
+  it("commits a queued party-boss nonmedical item without a rollout gate", async () => {
+    await seedCharacter(prisma, "party-item-gate-leader", 92105n, "Лідерка Манаток", {
       hpCurrent: 10,
       hpMax: 50,
       dexterity: 93
     });
-    await seedCharacter(prisma, "party-item-gate-joiner", 92106n, "Прапорцевий Свідок", {
+    await seedCharacter(prisma, "party-item-gate-joiner", 92106n, "Свідок Манаток", {
       hpCurrent: 40,
       hpMax: 50,
       dexterity: 1
@@ -1224,33 +1224,32 @@ describe("PrismaPartyBossRepository integration", () => {
       "party-item-gate",
       1,
       item,
-      { ...resolveInput(), allowNonmedicalConsumables: true }
+      resolveInput()
     )).resolves.toMatchObject({ state: "queued" });
     const resolved = await bossRepository.submitActionForTelegramUser(
       92106n,
       "party-item-gate",
       1,
       "defend",
-      { ...resolveInput(), allowNonmedicalConsumables: false }
+      resolveInput()
     );
     const latest = expectPartyBossSession(resolved);
 
     expect(latest.state.roundLog.at(-1)?.actions).toEqual(expect.arrayContaining([
       expect.objectContaining({
         characterId: "party-item-gate-leader-character",
-        outcome: "item-not-used",
-        itemUnavailableReason: "not-usable"
+        outcome: "item-used"
       })
     ]));
-    await expect(prisma.characterItem.findUniqueOrThrow({
+    await expect(prisma.characterItem.findUnique({
       where: {
         characterId_itemId: {
           characterId: "party-item-gate-leader-character",
           itemId: "item.loot-v1-c014"
         }
       }
-    })).resolves.toMatchObject({ quantity: 1 });
-    expect(resolved.achievementEvents).not.toEqual(expect.arrayContaining([
+    })).resolves.toBeNull();
+    expect(resolved.achievementEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "item.used", itemId: "item.loot-v1-c014" })
     ]));
   });

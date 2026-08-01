@@ -233,7 +233,6 @@ export function registerGroupCombatReplyKeyboard(
         viewer.characterId,
         "reply-menu",
         0,
-        service.areConsumableManatkaUsesEnabled(),
         hiddenItemIds
       );
       const hasAvailableItems = keyboard.inline_keyboard.length > 1;
@@ -397,7 +396,6 @@ export async function handleGroupCombatCallback(
       viewer.characterId,
       callback.source,
       callback.page,
-      service.areConsumableManatkaUsesEnabled(),
       hiddenItemIds
     );
     const hasAvailableItems = keyboard.inline_keyboard.length > 1;
