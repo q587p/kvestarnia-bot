@@ -14,6 +14,7 @@ import {
   expandGroupCombatRecapSnapshot,
   getEffectiveGroupCombatAbilityManaCost,
   getGroupCombatActionProfile,
+  getGroupCombatPresentedEffectTargetSides,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS,
@@ -21,11 +22,13 @@ import {
   GROUP_COMBAT_LOSS_REWARD_POLICY,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_RECAP_LIMIT,
+  GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
   assertGroupCombatMonsterAbilityExecutionContract,
   applyGroupCombatEnemyDamage,
   isSupportedGroupCombatMonsterAbility,
+  isGroupCombatPresentedEffectTargetSideAllowed,
   resolveGroupCombatTurn,
   resolveGroupCombatTargets,
   selectGroupCombatLootVersionOneCandidate,
@@ -43,7 +46,8 @@ import { monsterAbilities } from "../../src/content/monsterAbilities";
 import {
   compileMonsterAbilityExecutionPlan,
   deriveMonsterAbilityEffectPolarity,
-  getMonsterAbilityParameterCoverage
+  getMonsterAbilityParameterCoverage,
+  type MonsterAbilityRuntimeStateV1
 } from "../../src/domain/combat/monsterAbilityRuntime";
 import {
   mantokAbilityGrantDefinitions,
@@ -51,12 +55,14 @@ import {
 } from "../../src/content/mantokAbilityGrants";
 import * as lootDomain from "../../src/domain/loot";
 import type { CombatSkillProfile } from "../../src/domain/combat";
+import type { CombatState } from "../../src/domain/combat/combatState";
 import { GROUP_COMBAT_PRODUCTION_V1_CATALOG } from "../../src/domain/groupCombat/groupCombatProductionV1Catalog";
 import {
   deriveGroupCombatProductionV1MonsterStats,
   findGroupCombatProductionV1Monster,
   getGroupCombatProductionV1BackupEffectiveLevel,
   getGroupCombatProductionV1LootCandidates,
+  listGroupCombatProductionV1Abilities,
   resolveGroupCombatProductionV1MonsterAbilities,
   selectGroupCombatProductionV1BackupMonster
 } from "../../src/domain/groupCombat/groupCombatProductionV1Resolver";
@@ -1121,6 +1127,59 @@ describe("group combat proof reducer", () => {
     expect(resolved.state.enemyContributions?.[0]?.damage).toBeGreaterThan(0);
   });
 
+  it("derives exhaustive presented-effect target sides from every status and frozen monster component", () => {
+    type PresentedKind = keyof typeof GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND;
+    type TargetKind = "participant" | "enemy";
+    const observed = new Map<PresentedKind, Set<TargetKind>>();
+    const add = (kind: PresentedKind, targetKind: TargetKind): void => {
+      const sides = observed.get(kind) ?? new Set<TargetKind>();
+      sides.add(targetKind);
+      observed.set(kind, sides);
+    };
+
+    for (const [kind, targetKind] of Object.entries(
+      GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND
+    ) as Array<[keyof typeof GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND, TargetKind]>) {
+      add(kind, targetKind);
+    }
+    const frozenAbilities = listGroupCombatProductionV1Abilities();
+    expect(frozenAbilities).toHaveLength(132);
+    for (const ability of frozenAbilities) {
+      for (let cycle = 1; cycle <= 6; cycle += 1) {
+        const plan = compileMonsterAbilityExecutionPlan({
+          ability,
+          state: { turn: cycle } as CombatState,
+          runtime: {
+            ownActionCount: cycle,
+            lastDirectHeroDamage: 23
+          } as MonsterAbilityRuntimeStateV1
+        });
+        for (const component of plan.components) {
+          if (component.kind === "runtime-effect" && component.effectKind) {
+            add(
+              component.effectKind,
+              component.target === "hero" ? "participant" : "enemy"
+            );
+          }
+        }
+      }
+    }
+
+    for (const kind of Object.keys(
+      GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND
+    ) as PresentedKind[]) {
+      expect(getGroupCombatPresentedEffectTargetSides(kind), kind).toEqual(
+        (["participant", "enemy"] as const).filter((side) => observed.get(kind)?.has(side))
+      );
+    }
+    expect(getGroupCombatPresentedEffectTargetSides("guard")).toEqual(["participant"]);
+    expect(getGroupCombatPresentedEffectTargetSides("monster-evasion")).toEqual(["enemy"]);
+    expect(getGroupCombatPresentedEffectTargetSides("bleed")).toEqual([
+      "participant",
+      "enemy"
+    ]);
+  });
+
   it("executes every canonical authored monster ability as a named special", () => {
     for (const ability of monsterAbilities) {
       const state = proofState(2);
@@ -1145,6 +1204,18 @@ describe("group combat proof reducer", () => {
         resolved.state.recap[0]!.lines.join("\n"),
         ability.id
       ).toContain(ability.label);
+      for (const status of resolved.state.statuses) {
+        expect(
+          isGroupCombatPresentedEffectTargetSideAllowed(status.kind, status.targetKind),
+          `${ability.id}:status:${status.kind}:${status.targetKind}`
+        ).toBe(true);
+      }
+      for (const effect of resolved.state.abilityEffects ?? []) {
+        expect(
+          isGroupCombatPresentedEffectTargetSideAllowed(effect.kind, effect.targetKind),
+          `${ability.id}:effect:${effect.kind}:${effect.targetKind}`
+        ).toBe(true);
+      }
       let parsed;
       try {
         parsed = parseGroupCombatStateStrict(resolved.state);
@@ -2992,19 +3063,53 @@ describe("group combat proof reducer", () => {
       snapshot.x = effects as never;
       return candidate;
     };
+    const withVerboseEffects = (effects: unknown[]) => {
+      const candidate = structuredClone(resolved);
+      const snapshot = expandGroupCombatRecapSnapshot(
+        candidate.recap.at(-1)!.snapshot,
+        candidate
+      );
+      if (!snapshot) {
+        throw new Error("Expected verbose recap snapshot");
+      }
+      candidate.recap.at(-1)!.snapshot = {
+        ...snapshot,
+        effects: effects as never
+      };
+      return candidate;
+    };
     const validParticipant = packTestRecapEffects([
       ["guard", "participant", 1, 2]
     ]);
     const validEnemy = packTestRecapEffects([
-      ["evasion", "enemy", 1, 2]
+      ["monster-evasion", "enemy", 1, 2]
+    ]);
+    const validBothSides = packTestRecapEffects([
+      ["bleed", "participant", 1, 2],
+      ["bleed", "enemy", 1, 2]
     ]);
     expect(decodeGroupCombatPackedEffects(validParticipant)).toEqual([
       ["guard", "participant", 1, 2]
     ]);
     expect(parseGroupCombatStateStrict(withEffects(validParticipant))).toBeDefined();
     expect(parseGroupCombatStateStrict(withEffects(validEnemy))).toBeDefined();
+    expect(parseGroupCombatStateStrict(withEffects(validBothSides))).toBeDefined();
+
+    const wrongSideGuard = packTestRecapEffects([["guard", "enemy", 1, 2]]);
+    expect(wrongSideGuard).toBe("BBI");
+    expect(() => decodeGroupCombatPackedEffects(wrongSideGuard)).toThrow(
+      "GroupCombat effect guard cannot target enemy."
+    );
+    const wrongSideMonsterEvasion = packTestRecapEffects([
+      ["monster-evasion", "participant", 1, 2]
+    ]);
+    expect(() => decodeGroupCombatPackedEffects(wrongSideMonsterEvasion)).toThrow(
+      "GroupCombat effect monster-evasion cannot target participant."
+    );
 
     const invalidPacked = [
+      wrongSideGuard,
+      wrongSideMonsterEvasion,
       packTestRecapEffects([["guard", "participant", 32, 2]]),
       packTestRecapEffects([["evasion", "enemy", 32, 2]]),
       packTestRecapEffects([["guard", "participant", 0, 2]]),
@@ -3040,6 +3145,35 @@ describe("group combat proof reducer", () => {
       expect(() => parseGroupCombatStateStrict(withEffects(hybrid)))
         .toThrow(GroupCombatStateValidationError);
     }
+
+    const validExactEffects = [
+      ["guard", "participant", resolved.participants[0]!.characterId, 2],
+      ["monster-evasion", "enemy", resolved.enemies[0]!.id, 2],
+      ["bleed", "participant", resolved.participants[0]!.characterId, 2],
+      ["bleed", "enemy", resolved.enemies[0]!.id, 2]
+    ];
+    expect(parseGroupCombatStateStrict(withEffects(validExactEffects))).toBeDefined();
+    expect(parseGroupCombatStateStrict(withVerboseEffects(validExactEffects.map(([
+      kind,
+      targetKind,
+      targetId,
+      remainingTurns
+    ]) => ({ kind, targetKind, targetId, remainingTurns })))))
+      .toBeDefined();
+
+    const wrongSideExactEffects = [
+      ["guard", "enemy", resolved.enemies[0]!.id, 2],
+      ["monster-evasion", "participant", resolved.participants[0]!.characterId, 2]
+    ];
+    expect(() => parseGroupCombatStateStrict(withEffects(wrongSideExactEffects)))
+      .toThrow(GroupCombatStateValidationError);
+    expect(() => parseGroupCombatStateStrict(withVerboseEffects(wrongSideExactEffects.map(([
+      kind,
+      targetKind,
+      targetId,
+      remainingTurns
+    ]) => ({ kind, targetKind, targetId, remainingTurns })))))
+      .toThrow(GroupCombatStateValidationError);
   });
 
   it.each([

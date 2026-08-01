@@ -2081,6 +2081,57 @@ describe("PrismaGroupCombatRepository integration", () => {
     diagnostic.mockRestore();
   });
 
+  it("quarantines a wrong-side packed v3 recap without releasing participant leases", async () => {
+    const session = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-wrong-side-recap-operator-repair",
+      [923411n, 923412n]
+    );
+    const corrupted = structuredClone(session.state);
+    corrupted.recap = [{
+      turn: 1,
+      lines: ["Wrong-side packed recap corruption fixture."],
+      snapshot: {
+        p: corrupted.participants.map((participant) => [
+          participant.hp,
+          participant.mana,
+          null,
+          null,
+          null,
+          null
+        ]),
+        e: corrupted.enemies.map((enemy) => [enemy.hp, null, null]),
+        // guard, enemy side, first enemy, two turns: structurally valid but impossible
+        x: "BBI"
+      }
+    }];
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: corrupted as unknown as Prisma.InputJsonValue }
+    });
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const repairAt = new Date(NOW.getTime() + 93_200);
+
+    await expect(repository.repairInvalidOrOrphaned(repairAt, 93))
+      .resolves.toBeGreaterThanOrEqual(1);
+    const repaired = await prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: session.id }
+    });
+    expect(repaired).toMatchObject({
+      rulesVersion: "group-combat.v3",
+      repairState: "operator-required"
+    });
+    expect(repaired.repairReason).toContain("production state cannot be recovered safely");
+    expect(await prisma.activeCombatLease.count({ where: { referenceId: session.id } }))
+      .toBe(2);
+    expect(await repository.inspectOperatorRepair(session.id)).toMatchObject({
+      id: session.id,
+      repairState: "operator-required"
+    });
+    diagnostic.mockRestore();
+  });
+
   it("hard-fences quarantined production state across action, timeout, settlement, delivery, and reads", async () => {
     const session = await startLeftPassageProduction(
       prisma,

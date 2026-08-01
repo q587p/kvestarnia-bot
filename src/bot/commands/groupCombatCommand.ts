@@ -303,7 +303,7 @@ export async function handleGroupCombatCallback(
     await safeEditMessageText(ctx, presentPartySession(result.session, {
       inviteUrl,
       viewerCharacterId: viewer?.characterId,
-      notice: "Монстра в лівому проході притримано для цієї ватаги. Збір триває рівно три хвилини."
+      notice: "Монстра в лівому проході притримано для цієї ватаги."
     }), {
       parse_mode: "HTML",
       reply_markup: buildPartySessionKeyboard(result.session, {

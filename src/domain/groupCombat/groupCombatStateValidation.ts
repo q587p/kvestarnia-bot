@@ -18,6 +18,8 @@ import {
   decodeGroupCombatPackedEffects,
   deriveGroupCombatLockedAbilityId,
   expandGroupCombatRecapSnapshot,
+  GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND,
+  isGroupCombatPresentedEffectTargetSideAllowed,
   deriveLeftPassageEnemyCount,
   isSupportedGroupCombatMonsterAbility,
   resolveGroupCombatLootVersionOneRoll,
@@ -292,6 +294,32 @@ const presentedEffectKindSchema = z.union([
   groupCombatStatusKindSchema,
   monsterAbilityEffectKindSchema
 ]);
+const recapPresentedEffectSchema = z.object({
+  kind: presentedEffectKindSchema,
+  targetKind: z.enum(["participant", "enemy"]),
+  targetId: z.string().min(1),
+  remainingTurns: positiveInteger.max(13)
+}).strict().superRefine((effect, context) => {
+  if (!isGroupCombatPresentedEffectTargetSideAllowed(effect.kind, effect.targetKind)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Recap effect target side is not canonical."
+    });
+  }
+});
+const legacyRecapPresentedEffectSchema = z.tuple([
+  presentedEffectKindSchema,
+  z.enum(["participant", "enemy"]),
+  z.string().min(1),
+  positiveInteger.max(13)
+]).superRefine(([kind, targetKind], context) => {
+  if (!isGroupCombatPresentedEffectTargetSideAllowed(kind, targetKind)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Recap effect target side is not canonical."
+    });
+  }
+});
 const compactPresentedEffectsSchema = z.string().min(1).max(4_096).refine((value) => {
   try {
     decodeGroupCombatPackedEffects(value);
@@ -355,12 +383,7 @@ const verboseRecapSnapshotSchema = z.object({
       }).strict()).max(13).optional(),
       shieldPoints: positiveInteger.optional()
     }).strict()).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
-    effects: z.array(z.object({
-      kind: presentedEffectKindSchema,
-      targetKind: z.enum(["participant", "enemy"]),
-      targetId: z.string().min(1),
-      remainingTurns: positiveInteger.max(13)
-    }).strict()).max(93).optional()
+    effects: z.array(recapPresentedEffectSchema).max(93).optional()
   }).strict();
 
 const compactCooldownSchema = z.array(z.tuple([
@@ -384,12 +407,7 @@ const compactRecapSnapshotSchema = z.object({
   ])).max(GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT),
   x: z.union([
     compactPresentedEffectsSchema,
-    z.array(z.tuple([
-      presentedEffectKindSchema,
-      z.enum(["participant", "enemy"]),
-      z.string().min(1),
-      positiveInteger.max(13)
-    ])).max(93)
+    z.array(legacyRecapPresentedEffectSchema).max(93)
   ]).optional()
 }).strict();
 
@@ -733,11 +751,10 @@ const stateSchema = z.object({
     const legalTarget = status.targetKind === "participant"
       ? participantIds.includes(status.targetId)
       : state.enemies.some((enemy) => enemy.id === status.targetId);
-    const enemyTargetKind = status.kind === "bleed" ||
-      status.kind === "monster-damage-reduction" ||
-      status.kind === "monster-evasion" ||
-      status.kind === "monster-outgoing-damage";
-    if (!legalTarget || enemyTargetKind !== (status.targetKind === "enemy")) {
+    if (
+      !legalTarget ||
+      GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND[status.kind] !== status.targetKind
+    ) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "Status target or kind is invalid." });
     }
   }

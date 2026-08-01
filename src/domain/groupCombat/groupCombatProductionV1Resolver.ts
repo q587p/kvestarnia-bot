@@ -89,6 +89,12 @@ export const GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS = Object.freeze(
   [...supportedAbilityIds].sort()
 );
 
+export function listGroupCombatProductionV1Abilities(): MonsterAbilityDefinition[] {
+  return GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS.map((abilityId) =>
+    structuredClone(abilitiesById[abilityId]!)
+  );
+}
+
 const CLASS_ID_ALIASES: Readonly<Record<string, string>> = {
   warrior: "warrior",
   mage: "mage",

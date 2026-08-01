@@ -52,6 +52,7 @@ import {
   findGroupCombatProductionV1Monster,
   getGroupCombatProductionV1LootCandidates,
   GROUP_COMBAT_PRODUCTION_V1_ABILITY_IDS,
+  listGroupCombatProductionV1Abilities,
   resolveGroupCombatProductionV1MonsterAbilities,
   type GroupCombatProductionV1LootCandidate,
   type GroupCombatProductionV1Rarity
@@ -210,6 +211,96 @@ export const GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND = {
 } as const satisfies Record<GroupCombatPresentedEffectKind, string>;
 export type GroupCombatCompactPresentedEffectKind =
   (typeof GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND)[GroupCombatPresentedEffectKind];
+export type GroupCombatPresentedEffectTargetKind = "participant" | "enemy";
+
+export const GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND = {
+  guard: "participant",
+  "response-mitigation": "participant",
+  counter: "participant",
+  bleed: "enemy",
+  "monster-accuracy-penalty": "participant",
+  "monster-burn": "participant",
+  "monster-incoming-damage": "participant",
+  "monster-damage-reduction": "enemy",
+  "monster-evasion": "enemy",
+  "monster-outgoing-damage": "enemy"
+} as const satisfies Record<GroupCombatStatusKind, GroupCombatPresentedEffectTargetKind>;
+
+let presentedEffectTargetSides:
+  | ReadonlyMap<GroupCombatPresentedEffectKind, ReadonlySet<GroupCombatPresentedEffectTargetKind>>
+  | undefined;
+
+function getGroupCombatPresentedEffectTargetSideMap(): ReadonlyMap<
+  GroupCombatPresentedEffectKind,
+  ReadonlySet<GroupCombatPresentedEffectTargetKind>
+> {
+  if (presentedEffectTargetSides) {
+    return presentedEffectTargetSides;
+  }
+  const sides = new Map<
+    GroupCombatPresentedEffectKind,
+    Set<GroupCombatPresentedEffectTargetKind>
+  >();
+  const add = (
+    kind: GroupCombatPresentedEffectKind,
+    targetKind: GroupCombatPresentedEffectTargetKind
+  ): void => {
+    const current = sides.get(kind) ?? new Set<GroupCombatPresentedEffectTargetKind>();
+    current.add(targetKind);
+    sides.set(kind, current);
+  };
+  for (const [kind, targetKind] of Object.entries(GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND) as Array<[
+    GroupCombatStatusKind,
+    GroupCombatPresentedEffectTargetKind
+  ]>) {
+    add(kind, targetKind);
+  }
+  for (const ability of listGroupCombatProductionV1Abilities()) {
+    for (let cycle = 1; cycle <= 6; cycle += 1) {
+      const plan = compileMonsterAbilityExecutionPlan({
+        ability,
+        state: { turn: cycle } as CombatState,
+        runtime: {
+          ownActionCount: cycle,
+          lastDirectHeroDamage: 23
+        } as MonsterAbilityRuntimeStateV1
+      });
+      for (const component of plan.components) {
+        if (component.kind === "runtime-effect" && component.effectKind) {
+          add(
+            component.effectKind,
+            component.target === "hero" ? "participant" : "enemy"
+          );
+        }
+      }
+    }
+  }
+  presentedEffectTargetSides = sides;
+  return sides;
+}
+
+export function getGroupCombatPresentedEffectTargetSides(
+  kind: GroupCombatPresentedEffectKind
+): readonly GroupCombatPresentedEffectTargetKind[] {
+  const sides = getGroupCombatPresentedEffectTargetSideMap().get(kind);
+  return (["participant", "enemy"] as const).filter((side) => sides?.has(side));
+}
+
+export function isGroupCombatPresentedEffectTargetSideAllowed(
+  kind: GroupCombatPresentedEffectKind,
+  targetKind: GroupCombatPresentedEffectTargetKind
+): boolean {
+  return getGroupCombatPresentedEffectTargetSideMap().get(kind)?.has(targetKind) === true;
+}
+
+export function assertGroupCombatPresentedEffectTargetSide(
+  kind: GroupCombatPresentedEffectKind,
+  targetKind: GroupCombatPresentedEffectTargetKind
+): void {
+  if (!isGroupCombatPresentedEffectTargetSideAllowed(kind, targetKind)) {
+    throw new Error(`GroupCombat effect ${kind} cannot target ${targetKind}.`);
+  }
+}
 
 export function deriveGroupCombatPresentedEffectPolarity(
   kind: GroupCombatPresentedEffectKind,
@@ -2383,7 +2474,7 @@ function executeGroupCombatEnemyAbility(
           kind: "monster-accuracy-penalty",
           sourceEnemyId: enemy.id,
           sourceAbilityId: ability.id,
-          targetKind: "participant",
+          targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-accuracy-penalty"],
           targetId: target.characterId,
           value: positiveInteger(Number(ability.parameters.accuracyPenaltyPp ?? 0)),
           remainingTurns: positiveInteger(Number(ability.parameters.durationTargetActivations ?? 1)),
@@ -2412,7 +2503,7 @@ function executeGroupCombatEnemyAbility(
         kind: "monster-burn",
         sourceEnemyId: enemy.id,
         sourceAbilityId: ability.id,
-        targetKind: "participant",
+        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-burn"],
         targetId: target.characterId,
         value: Math.max(
           1,
@@ -2463,7 +2554,7 @@ function executeGroupCombatEnemyAbility(
       kind: "monster-incoming-damage",
       sourceEnemyId: enemy.id,
       sourceAbilityId: ability.id,
-      targetKind: "participant",
+      targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-incoming-damage"],
       targetId: target.characterId,
       value: Math.floor(
         Number(ability.parameters.markIncomingDamageMultiplier ?? 1) * 10_000
@@ -2623,7 +2714,7 @@ function executeGenericGroupCombatEnemyAbility(
         kind: "monster-incoming-damage",
         sourceEnemyId: enemy.id,
         sourceAbilityId: ability.id,
-        targetKind: "participant",
+        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-incoming-damage"],
         targetId: target.characterId,
         value: Math.floor(Math.min(1.75, markMultiplier) * 10_000),
         remainingTurns: duration,
@@ -2651,7 +2742,7 @@ function executeGenericGroupCombatEnemyAbility(
         kind: "monster-accuracy-penalty",
         sourceEnemyId: enemy.id,
         sourceAbilityId: ability.id,
-        targetKind: "participant",
+        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-accuracy-penalty"],
         targetId: target.characterId,
         value: Math.floor(Math.min(35, accuracyPenalty)),
         remainingTurns: duration,
@@ -2688,7 +2779,7 @@ function executeGenericGroupCombatEnemyAbility(
         kind: "monster-burn",
         sourceEnemyId: enemy.id,
         sourceAbilityId: ability.id,
-        targetKind: "participant",
+        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-burn"],
         targetId: target.characterId,
         value: Math.max(1, Math.floor(enemy.attack * Math.min(0.35, ongoingDamageFraction))),
         remainingTurns: duration,
@@ -3098,6 +3189,7 @@ function addOrMergeGroupCombatAbilityEffect(
   if (!component.effectKind) {
     return false;
   }
+  assertGroupCombatPresentedEffectTargetSide(component.effectKind, targetKind);
   const target = targetKind === "participant" ? "hero" : "monster";
   const contract = getMonsterAbilityEffectContract({
     sourceAbilityId: input.ability.id,
@@ -3568,7 +3660,7 @@ function addEnemyBuffStatus(
     kind,
     sourceEnemyId: source.id,
     sourceAbilityId,
-    targetKind: "enemy",
+    targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND[kind],
     targetId: target.id,
     value: positiveInteger(value),
     remainingTurns: positiveInteger(remainingTurns),
@@ -4065,7 +4157,7 @@ function maybeAddGearBleed(
     id: `${state.turn}:${actor.characterId}:${enemy.id}:bleed`,
     kind: "bleed",
     sourceCharacterId: actor.characterId,
-    targetKind: "enemy",
+    targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND.bleed,
     targetId: enemy.id,
     value: grant.combat.bleed.damagePerActivation,
     remainingTurns: grant.combat.bleed.remainingHeroActivations
@@ -4083,7 +4175,7 @@ function addProtectionStatus(
     id: `${state.turn}:${sourceCharacterId}:${targetId}:${kind}`,
     kind,
     sourceCharacterId,
-    targetKind: "participant",
+    targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND[kind],
     targetId,
     value: positiveInteger(value),
     remainingTurns: 1
@@ -5036,6 +5128,7 @@ export function decodeGroupCombatPackedEffects(effects: string): GroupCombatPack
     if (!kind) {
       throw new Error("Packed GroupCombat effect kind is unknown.");
     }
+    assertGroupCombatPresentedEffectTargetSide(kind, targetKind);
     if (targetMask === 0) {
       throw new Error("Packed GroupCombat effect target mask is empty.");
     }

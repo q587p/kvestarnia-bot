@@ -1497,11 +1497,21 @@ describe("party session presenter", () => {
       }))
     };
 
-    const text = presentPartySession(session);
+    const text = presentPartySession(session, {
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_compact",
+      notice: "Монстра в лівому проході притримано для цієї ватаги."
+    });
 
     expect(text).toContain("🤝 <b>Ватага до лівого проходу</b>");
     expect(text).toContain("1. ✅ <b>Голова</b>");
     expect(text).toContain("2. ⏳ <b>Шкодійка</b>");
+    expect(text).toContain("Стан: атака почнеться, щойно всі будуть готові");
+    expect(text).toContain("Лідер може рушити раніше.");
+    expect(text).toContain("Склад ворогів підлаштується під силу ватаги.");
+    expect(text.match(/автоматично/g)).toHaveLength(1);
+    expect(text.match(/раніше/g)).toHaveLength(1);
+    expect(text).not.toContain("Збір триває рівно три хвилини");
+    expect(text).not.toContain("Це справжня атака 1–3 пригодників");
   });
 
   it("shows Bureaucramancer protocol signature count without signer names on recruiting cards", () => {
